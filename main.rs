@@ -18,7 +18,9 @@ pub struct Program {
 }
 
 pub struct Context {
-    running_pages: PageNumber,
+    static_pages: PageNumber,
+    cut_off: PageNumber,
+    memory: Memory,
 }
 
 pub struct Memory {
@@ -32,11 +34,27 @@ pub struct Message {
     payload: Payload,
 }
 
-pub struct SpawnedMessage {
+pub struct IncomingMessage {
+    source: ProgramId,
+    payload: Payload,
+}
+
+pub struct OutgoingMessage {
     destination: ProgramId,
     payload: Payload,
 }
 
+#[derive(Default)]
+pub struct RunResult {
+    allocations: Vec<PageNumber>,
+    touched: Vec<PageNumber>,
+    messages: Vec<OutgoingMessage>,
+}
+
+pub fn run(context: &mut Context, program: &Program, messages: &[Message]) -> Result<RunResult, &'static str> {
+    Ok(RunResult::default())
+}
+
 fn main() {
-    
+
 }
