@@ -1,3 +1,4 @@
+use wasmtime::{Config, Engine};
 
 pub struct ProgramId(u64);
 
@@ -51,10 +52,15 @@ pub struct RunResult {
     messages: Vec<OutgoingMessage>,
 }
 
-pub fn run(context: &mut Context, program: &Program, messages: &[Message]) -> Result<RunResult, &'static str> {
+pub fn run(context: &mut Context, program: &Program, message: &Message) -> Result<RunResult, &'static str> {
     Ok(RunResult::default())
 }
 
 fn main() {
+
+    let file_name = std::env::args().nth(1).expect("wfork <filename.wasm>");
+
+    let config = Config::default();
+    let engine = Engine::new(&config);
 
 }
