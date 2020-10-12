@@ -1,4 +1,4 @@
-use wasmtime::{Config, Engine};
+use wasmtime::{Store, Module};
 use codec::{Encode, Decode};
 
 #[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From)]
@@ -32,6 +32,11 @@ pub struct Context {
     memory: Memory,
 }
 
+pub struct RunningContext {
+    store: Store,
+    context: Context,
+}
+
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct Memory {
     data: Vec<u8>,
@@ -40,15 +45,24 @@ pub struct Memory {
 
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct Message {
-    source: ProgramId,
+    source: Option<ProgramId>,
     program_id: ProgramId,
     payload: Payload,
 }
 
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct IncomingMessage {
-    source: ProgramId,
+    source: Option<ProgramId>,
     payload: Payload,
+}
+
+impl IncomingMessage {
+    fn empty() -> Self {
+        Self {
+            source: None,
+            payload: Payload(vec![]),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
@@ -64,15 +78,43 @@ pub struct RunResult {
     messages: Vec<OutgoingMessage>,
 }
 
-pub fn run(context: &mut Context, program: &Program, message: &Message) -> Result<RunResult, &'static str> {
+pub fn run(
+    context: &mut RunningContext,
+    program: &Program,
+    message: &IncomingMessage,
+) -> Result<RunResult, &'static str> {
+    let module = Module::new(context.store.engine(), &program.code.0[..]);
+
     Ok(RunResult::default())
 }
 
-fn main() {
+pub fn running_context() -> RunningContext {
+    RunningContext {
+        store: Store::default(),
+        context: Context {
+            static_pages: 1.into(),
+            cut_off: 256.into(),
+            memory: Memory {
+                data: {
+                    let mut v = Vec::with_capacity(256 * 65536);
+                    v.resize(256*65536, 0);
+                    v
+                },
+                allocated: 0.into(),
+            },
+        }
+    }
+}
 
-    let file_name = std::env::args().nth(1).expect("wfork <filename.wasm>");
+fn main() -> Result<(), anyhow::Error> {
+    let file_name = std::env::args().nth(1).expect("gear <filename.wasm>");
+    let mut context = running_context();
+    let program = Program {
+        id: 1.into(),
+        code: std::fs::read(file_name)?.into(),
+    };
 
-    let config = Config::default();
-    let engine = Engine::new(&config);
+    run(&mut context, &program, &IncomingMessage::empty());
 
+    Ok(())
 }
