@@ -89,15 +89,19 @@ pub fn run(
 }
 
 pub fn running_context() -> RunningContext {
+    let BASIC_PAGES = 256;
+    let BASIC_PAGE_SIZE = 65536;
+    let BASIC_TOTAL_SIZE = BASIC_PAGES * BASIC_PAGE_SIZE;
+
     RunningContext {
         store: Store::default(),
         context: Context {
             static_pages: 1.into(),
-            cut_off: 256.into(),
+            cut_off: (BASIC_PAGES as u64).into(),
             memory: Memory {
                 data: {
-                    let mut v = Vec::with_capacity(256 * 65536);
-                    v.resize(256*65536, 0);
+                    let mut v = Vec::with_capacity(BASIC_TOTAL_SIZE);
+                    v.resize(BASIC_TOTAL_SIZE, 0);
                     v
                 },
                 allocated: 0.into(),
