@@ -1,5 +1,6 @@
-use wasmtime::{Store, Module, Func};
+use wasmtime::{Store, Module, Func, Extern, Instance};
 use codec::{Encode, Decode};
+use anyhow::anyhow;
 
 static BASIC_PAGES: usize = 16;
 static BASIC_PAGE_SIZE: usize = 65536;
@@ -101,43 +102,73 @@ pub fn run(
 ) -> anyhow::Result<RunResult> {
     use std::{rc::Rc, cell::RefCell};
 
-    let module = Module::new(context.store.engine(), &program.code.0[..]);
+    let module = Module::new(context.store.engine(), &program.code.0[..])?;
     let memory = context.wasmtime_memory();
     let allocations = Rc::new(RefCell::new(vec![]));
     let messages = Rc::new(RefCell::new(vec![]));
 
-    let memory_clone = memory.clone();
-    let allocations_clone = allocations.clone();
-    let start = context.context.cut_off.0;
-    let allocator = Func::wrap(&context.store, move |pages: i32| {
-        let pages = pages as u32;
-        let ptr = memory_clone.grow(pages)?;
+    let mut imports = module
+        .imports()
+        .map(
+            |import| if import.module() != "env" {
+                return Err(anyhow!("Non-env imports are not supported"))
+            } else {
+                Ok((import.name(), Option::<Extern>::None))
+            }
+        )
+        .collect::<anyhow::Result<Vec<_>>>()?;
 
-        for page in 0..pages {
-            allocations_clone.borrow_mut().push(start + page);
+    for (ref import_name, ref mut ext) in imports.iter_mut() {
+        if import_name == &"msg" {
+            *ext = Some({
+                let memory_clone = memory.clone();
+                let messages_clone = messages.clone();
+                Func::wrap(
+                    &context.store,
+                    move |program_id: i64, message_ptr: i32, message_len: i32| {
+                        let message_ptr = message_ptr as u32 as usize;
+                        let message_len = message_len as u32 as usize;
+                        let data = unsafe { &memory_clone.data_unchecked()[message_ptr..message_ptr+message_len] };
+                        messages_clone.borrow_mut().push(
+                            OutgoingMessage {
+                                destination: ProgramId(program_id as _),
+                                payload: data.to_vec().into(),
+                            }
+                        );
+
+                        Ok(())
+                    },
+                )
+            }.into());
+        } else if import_name == &"alloc" {
+            *ext = Some({
+                let memory_clone = memory.clone();
+                let allocations_clone = allocations.clone();
+                let start = context.context.cut_off.0;
+                Func::wrap(&context.store, move |pages: i32| {
+                    let pages = pages as u32;
+                    let ptr = memory_clone.grow(pages)?;
+
+                    for page in 0..pages {
+                        allocations_clone.borrow_mut().push(start + page);
+                    }
+
+                    Ok(ptr)
+                })
+            }.into());
         }
+    }
 
-        Ok(ptr)
-    });
+    let externs = imports
+        .into_iter()
+        .map(|(_, host_function)| host_function.ok_or(anyhow!("Missing import")))
+        .collect::<anyhow::Result<Vec<_>>>()?;
 
-    let memory_clone = memory.clone();
-    let messages_clone = messages.clone();
-    let send_message = Func::wrap(
+    let instance = Instance::new(
         &context.store,
-        move |program_id: i64, message_ptr: i32, message_len: i32| {
-            let message_ptr = message_ptr as u32 as usize;
-            let message_len = message_ptr as u32 as usize;
-            let data = unsafe { &memory_clone.data_unchecked()[message_ptr..message_ptr+message_len] };
-            messages_clone.borrow_mut().push(
-                OutgoingMessage {
-                    destination: ProgramId(program_id as _),
-                    payload: data.to_vec().into(),
-                }
-            );
-
-            Ok(())
-        },
-    );
+        &module,
+        &externs,
+    )?;
 
     Ok(RunResult::default())
 }
