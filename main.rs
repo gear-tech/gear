@@ -173,7 +173,7 @@ pub fn run(
                     let dest = dest as u32 as usize;
                     let message_data = &incoming_message.payload.0[at..at+len];
                     unsafe { memory_clone.data_unchecked_mut()[dest..dest+len].copy_from_slice(message_data); }
-                    Ok(message_clone.borrow().payload.0.len() as u32 as i32)
+                    Ok(())
                 })
             }.into());
         }
