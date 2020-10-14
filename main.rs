@@ -106,6 +106,7 @@ pub fn run(
     let memory = context.wasmtime_memory();
     let allocations = Rc::new(RefCell::new(vec![]));
     let messages = Rc::new(RefCell::new(vec![]));
+    let incoming_message = Rc::new(RefCell::new(message.clone()));
 
     let mut imports = module
         .imports()
@@ -119,7 +120,7 @@ pub fn run(
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     for (ref import_name, ref mut ext) in imports.iter_mut() {
-        if import_name == &"msg" {
+        if import_name == &"send" {
             *ext = Some({
                 let memory_clone = memory.clone();
                 let messages_clone = messages.clone();
@@ -156,6 +157,25 @@ pub fn run(
                     Ok(ptr)
                 })
             }.into());
+        } else if import_name == &"size" {
+            *ext = Some({
+                let message_clone = incoming_message.clone();
+                Func::wrap(&context.store, move || Ok(message_clone.borrow().payload.0.len() as u32 as i32))
+            }.into());
+        } else if import_name == &"read" {
+            *ext = Some({
+                let message_clone = incoming_message.clone();
+                let memory_clone = memory.clone();
+                Func::wrap(&context.store, move |at: i32, len: i32, dest: i32| {
+                    let incoming_message = message_clone.borrow();
+                    let at = at as u32 as usize;
+                    let len = len as u32 as usize;
+                    let dest = dest as u32 as usize;
+                    let message_data = &incoming_message.payload.0[at..at+len];
+                    unsafe { memory_clone.data_unchecked_mut()[dest..dest+len].copy_from_slice(message_data); }
+                    Ok(message_clone.borrow().payload.0.len() as u32 as i32)
+                })
+            }.into());
         }
     }
 
@@ -169,6 +189,13 @@ pub fn run(
         &module,
         &externs,
     )?;
+
+    let handler = instance
+        .get_func("handle")
+        .ok_or(anyhow::format_err!("failed to find `handle` function export"))?
+        .get0::<()>()?;
+
+    handler()?;
 
     Ok(RunResult::default())
 }
