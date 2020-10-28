@@ -19,19 +19,19 @@ pub struct PageNumber(u32);
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct Code(Vec<u8>);
 
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub struct Allocation {
     program_id: ProgramId,
     page_id: PageNumber,
 }
 
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
     code: Code,
 }
 
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
+#[derive(Clone, Debug, Decode, Encode)]
 pub struct Context {
     static_pages: PageNumber,
     cut_off: PageNumber,
