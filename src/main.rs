@@ -120,63 +120,77 @@ pub fn run(
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     for (ref import_name, ref mut ext) in imports.iter_mut() {
-        if import_name == &"send" {
-            *ext = Some({
-                let memory_clone = memory.clone();
-                let messages_clone = messages.clone();
-                Func::wrap(
-                    &context.store,
-                    move |program_id: i64, message_ptr: i32, message_len: i32| {
-                        let message_ptr = message_ptr as u32 as usize;
-                        let message_len = message_len as u32 as usize;
-                        let data = unsafe { &memory_clone.data_unchecked()[message_ptr..message_ptr+message_len] };
-                        messages_clone.borrow_mut().push(
-                            OutgoingMessage {
-                                destination: ProgramId(program_id as _),
-                                payload: data.to_vec().into(),
-                            }
-                        );
 
-                        Ok(())
-                    },
-                )
-            }.into());
-        } else if import_name == &"alloc" {
-            *ext = Some({
-                let memory_clone = memory.clone();
-                let allocations_clone = allocations.clone();
-                let start = context.context.cut_off.0;
-                Func::wrap(&context.store, move |pages: i32| {
-                    let pages = pages as u32;
-                    let ptr = memory_clone.grow(pages)?;
+        let func = if import_name == &"send" {
+            let memory_clone = memory.clone();
+            let messages_clone = messages.clone();
+            Func::wrap(
+                &context.store,
+                move |program_id: i64, message_ptr: i32, message_len: i32| {
+                    let message_ptr = message_ptr as u32 as usize;
+                    let message_len = message_len as u32 as usize;
+                    let data = unsafe { &memory_clone.data_unchecked()[message_ptr..message_ptr+message_len] };
+                    messages_clone.borrow_mut().push(
+                        OutgoingMessage {
+                            destination: ProgramId(program_id as _),
+                            payload: data.to_vec().into(),
+                        }
+                    );
 
-                    for page in 0..pages {
-                        allocations_clone.borrow_mut().push(start + page);
-                    }
-
-                    Ok(ptr)
-                })
-            }.into());
-        } else if import_name == &"size" {
-            *ext = Some({
-                let message_clone = incoming_message.clone();
-                Func::wrap(&context.store, move || Ok(message_clone.borrow().payload.0.len() as u32 as i32))
-            }.into());
-        } else if import_name == &"read" {
-            *ext = Some({
-                let message_clone = incoming_message.clone();
-                let memory_clone = memory.clone();
-                Func::wrap(&context.store, move |at: i32, len: i32, dest: i32| {
-                    let incoming_message = message_clone.borrow();
-                    let at = at as u32 as usize;
-                    let len = len as u32 as usize;
-                    let dest = dest as u32 as usize;
-                    let message_data = &incoming_message.payload.0[at..at+len];
-                    unsafe { memory_clone.data_unchecked_mut()[dest..dest+len].copy_from_slice(message_data); }
                     Ok(())
-                })
-            }.into());
-        }
+                },
+            )
+        } else if import_name == &"alloc" {
+            let memory_clone = memory.clone();
+            let allocations_clone = allocations.clone();
+            let start = context.context.cut_off.0;
+            Func::wrap(&context.store, move |pages: i32| {
+                let pages = pages as u32;
+                let ptr = memory_clone.grow(pages)?;
+
+                for page in 0..pages {
+                    allocations_clone.borrow_mut().push(start + page);
+                }
+
+                Ok(ptr)
+            })
+        } else if import_name == &"size" {
+            let message_clone = incoming_message.clone();
+            Func::wrap(&context.store, move || Ok(message_clone.borrow().payload.0.len() as u32 as i32))
+        } else if import_name == &"read" {
+            let message_clone = incoming_message.clone();
+            let memory_clone = memory.clone();
+            Func::wrap(&context.store, move |at: i32, len: i32, dest: i32| {
+                let incoming_message = message_clone.borrow();
+                let at = at as u32 as usize;
+                let len = len as u32 as usize;
+                let dest = dest as u32 as usize;
+                let message_data = &incoming_message.payload.0[at..at+len];
+                unsafe { memory_clone.data_unchecked_mut()[dest..dest+len].copy_from_slice(message_data); }
+                Ok(())
+            })
+        } else if import_name == &"debug" {
+            let memory_clone = memory.clone();
+            Func::wrap(
+                &context.store,
+                move |str_ptr: i32, str_len: i32| {
+                    let str_ptr = str_ptr as u32 as usize;
+                    let str_len = str_len as u32 as usize;
+                    let debug_str = unsafe {
+                        String::from_utf8_unchecked(
+                           memory_clone.data_unchecked()[str_ptr..str_ptr+str_len].to_vec()
+                        )
+                    };
+                    println!("DEBUG: {}", debug_str);
+
+                    Ok(())
+                },
+            )
+        } else {
+            continue;
+        };
+
+        *ext = Some(func.into());
     }
 
     let externs = imports
