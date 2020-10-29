@@ -152,6 +152,8 @@ pub fn run(
                     allocations_clone.borrow_mut().push(start + page);
                 }
 
+                println!("ALLOC: {}", pages);
+
                 Ok(ptr)
             })
         } else if import_name == &"size" {

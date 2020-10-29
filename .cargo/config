@@ -1,4 +1,7 @@
+paths = ["../wee_alloc"]
+
 [target.wasm32-unknown-unknown]
 rustflags = [
   "-C", "link-args=--import-memory",
 ]
+
