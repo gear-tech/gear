@@ -2,7 +2,7 @@ use wasmtime::{Store, Module, Func, Extern, Instance};
 use codec::{Encode, Decode};
 use anyhow::anyhow;
 
-static BASIC_PAGES: usize = 16;
+static BASIC_PAGES: usize = 256;
 static BASIC_PAGE_SIZE: usize = 65536;
 static BASIC_TOTAL_SIZE: usize = BASIC_PAGES * BASIC_PAGE_SIZE;
 static MAX_PAGES: usize = 16384;
@@ -186,6 +186,10 @@ pub fn run(
                     Ok(())
                 },
             )
+        } else if import_name == &"memory" {
+            let memory_clone = memory.clone();
+            *ext = Some(memory_clone.into());
+            continue;
         } else {
             continue;
         };
