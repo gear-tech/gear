@@ -1,4 +1,4 @@
-paths = ["../wee_alloc"]
+paths = ["../dlmalloc-rs"]
 
 [target.wasm32-unknown-unknown]
 rustflags = [

@@ -153,8 +153,16 @@ pub fn run(
                 }
 
                 println!("ALLOC: {}", pages);
-
                 Ok(ptr)
+            })
+        } else if import_name == &"free" {
+            let allocations_clone = allocations.clone();
+            Func::wrap(&context.store, move |page: i32| {
+                let page = page as u32;
+                allocations_clone.borrow_mut().retain(|p| *p != page);
+
+                println!("FREE: {}", page);
+                Ok(())
             })
         } else if import_name == &"size" {
             let message_clone = incoming_message.clone();
