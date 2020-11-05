@@ -7,7 +7,6 @@ mod msg {
             pub fn send(program: i64, data_ptr: *const u8, data_len: u32);
             pub fn size() -> u32;
             pub fn read(at: u32, len: u32, dest: *mut u8);
-            pub fn debug(msg_ptr: *const u8, msg_len: u32);
         }
     }
 
@@ -48,9 +47,10 @@ mod ext {
 pub unsafe extern "C" fn handle() {
     assert_eq!(msg::load().len(), 0);
 
-    let data = vec![0u8; 1024*1024];
+    let f_data = vec![0u8; 128];
+    msg::send(0, &f_data[..]);
 
-    msg::send(0, &data[..]);
+    ext::debug("Done");
 }
 
 fn main() {
