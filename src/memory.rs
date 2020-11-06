@@ -1,34 +1,81 @@
-use std::{rc::Rc, cell::{RefCell, Ref}, collections::HashSet};
-use super::PageNumber;
+use std::{rc::Rc, cell::RefCell, collections::HashMap};
+use super::{PageNumber, ProgramId};
 
 #[derive(Clone, Debug)]
 pub enum Error {
     OutOfMemory,
+    PageOccupied(PageNumber),
     InvalidFree(PageNumber),
 }
 
-pub struct Memory {
+#[derive(Clone, Debug, Default)]
+pub struct Allocations(Rc<RefCell<HashMap<PageNumber, ProgramId>>>);
+
+impl Allocations {
+    pub fn new<I: IntoIterator<Item=(PageNumber, ProgramId)>>(items: I) -> Self {
+        Self(Rc::new(RefCell::new(items.into_iter().collect::<HashMap<_, _, _>>())))
+    }
+
+    pub fn get(&self, page: PageNumber) -> Option<ProgramId> {
+        self.0.borrow().get(&page).map(|pid| *pid)
+    }
+
+    pub fn occupied(&self, page: PageNumber) -> bool {
+        self.0.borrow().contains_key(&page)
+    }
+
+    pub fn insert(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
+        if self.0.borrow().contains_key(&page) {
+            return Err(Error::PageOccupied(page))
+        }
+
+        self.0.borrow_mut().insert(page, program_id);
+
+        Ok(())
+    }
+
+    pub fn remove(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
+        if program_id != *self.0.borrow().get(&page).ok_or(Error::InvalidFree(page))? {
+            return Err(Error::InvalidFree(page))
+        }
+
+        self.0.borrow_mut().remove(&page);
+
+        Ok(())
+    }
+
+    pub fn drain(self) -> Vec<(PageNumber, ProgramId)> {
+        self.0.borrow_mut().drain().collect::<Vec<_>>()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.borrow().len()
+    }
+}
+
+pub struct MemoryContext {
+    program_id: ProgramId,
     wasm: wasmtime::Memory,
-    allocations: Rc<RefCell<HashSet<PageNumber>>>,
+    allocations: Allocations,
     max_pages: PageNumber,
     static_pages: PageNumber,
 }
 
-impl Memory {
+impl MemoryContext {
     pub fn new(
+        program_id: ProgramId,
         wasm_memory: wasmtime::Memory,
-        allocations: Rc<RefCell<HashSet<PageNumber>>>,
+        allocations: Allocations,
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
-        Self { wasm: wasm_memory, allocations, static_pages, max_pages }
+        Self { wasm: wasm_memory, program_id, allocations, static_pages, max_pages }
     }
 
     pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
         let mut candidate = self.static_pages.raw();
         let mut found = 0u32;
-        let mut allocations = self.allocations.borrow_mut();
 
         while found < pages.raw() {
             if candidate + pages.raw() > self.max_pages.raw() {
@@ -36,7 +83,7 @@ impl Memory {
                 return Err(Error::OutOfMemory);
             }
 
-            if allocations.contains(&(candidate + found).into()) {
+            if self.allocations.occupied((candidate + found).into()) {
                 candidate += 1;
                 found = 0;
                 continue;
@@ -51,7 +98,7 @@ impl Memory {
         }
 
         for page_num in candidate..candidate+found {
-            allocations.insert(page_num.into());
+            self.allocations.insert(self.program_id, page_num.into())?;
         }
 
         Ok(candidate.into())
@@ -62,15 +109,13 @@ impl Memory {
             return Err(Error::InvalidFree(page));
         }
 
-        if !self.allocations.borrow_mut().remove(&page) {
-            return Err(Error::InvalidFree(page));
-        }
+        self.allocations.remove(self.program_id, page)?;
 
         Ok(())
     }
 
-    pub fn allocations(&self) -> Ref<'_, HashSet<PageNumber>> {
-        self.allocations.borrow()
+    pub fn allocations(&self) -> &Allocations {
+        &self.allocations
     }
 }
 
@@ -78,7 +123,7 @@ impl Memory {
 mod tests {
     use super::*;
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> Memory {
+    fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
         use wasmtime::{Engine, Store, MemoryType, Memory as WasmMemory, Limits};
 
         let engine = Engine::default();
@@ -87,7 +132,13 @@ mod tests {
         let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
         let memory = WasmMemory::new(&store, memory_ty);
 
-        Memory::new(memory, Rc::new(RefCell::new(HashSet::new())), static_pages.into(), max_pages.into())
+        MemoryContext::new(
+            0.into(),
+            memory,
+            Default::default(),
+            static_pages.into(),
+            max_pages.into(),
+        )
     }
 
     #[test]

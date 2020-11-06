@@ -9,7 +9,7 @@ static BASIC_PAGE_SIZE: usize = 65536;
 static BASIC_TOTAL_SIZE: usize = BASIC_PAGES * BASIC_PAGE_SIZE;
 static MAX_PAGES: usize = 16384;
 
-#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From)]
+#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq)]
 pub struct ProgramId(u64);
 
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
