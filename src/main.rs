@@ -1,3 +1,5 @@
+mod memory;
+
 use wasmtime::{Store, Module, Func, Extern, Instance};
 use codec::{Encode, Decode};
 use anyhow::anyhow;
@@ -13,8 +15,12 @@ pub struct ProgramId(u64);
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct Payload(Vec<u8>);
 
-#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From)]
+#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PageNumber(u32);
+
+impl PageNumber {
+    fn raw(&self) -> u32 { self.0 }
+}
 
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct Code(Vec<u8>);
@@ -148,11 +154,11 @@ pub fn run(
                 let pages = pages as u32;
                 let ptr = memory_clone.grow(pages)?;
 
-                for page in 0..pages {
+                for page in ptr+1..ptr+1+pages {
                     allocations_clone.borrow_mut().push(start + page);
+                    println!("ALLOC: {}", page);
                 }
 
-                println!("ALLOC: {}", pages);
                 Ok(ptr)
             })
         } else if import_name == &"free" {
