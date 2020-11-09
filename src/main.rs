@@ -4,10 +4,12 @@ use wasmtime::{Store, Module, Func, Extern, Instance};
 use codec::{Encode, Decode};
 use anyhow::anyhow;
 
-static BASIC_PAGES: usize = 256;
+use memory::{MemoryContext, Allocations};
+
+static BASIC_PAGES: u32 = 256;
 static BASIC_PAGE_SIZE: usize = 65536;
-static BASIC_TOTAL_SIZE: usize = BASIC_PAGES * BASIC_PAGE_SIZE;
-static MAX_PAGES: usize = 16384;
+static BASIC_TOTAL_SIZE: usize = BASIC_PAGES as usize * BASIC_PAGE_SIZE;
+static MAX_PAGES: u32 = 16384;
 
 #[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq)]
 pub struct ProgramId(u64);
@@ -40,7 +42,7 @@ pub struct Program {
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Context {
     static_pages: PageNumber,
-    cut_off: PageNumber,
+    max_pages: PageNumber,
     memory: Memory,
 }
 
@@ -54,17 +56,22 @@ impl RunningContext {
         wasmtime::Memory::new(
             &self.store,
             wasmtime::MemoryType::new(
-                wasmtime::Limits::at_least(self.context.cut_off.0 as _)
+                wasmtime::Limits::at_least(self.context.static_pages.raw())
             ),
         )
+    }
+
+    pub fn static_pages(&self) -> PageNumber {
+        self.context.static_pages
+    }
+
+    pub fn max_pages(&self) -> PageNumber {
+        self.context.max_pages
     }
 }
 
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
-pub struct Memory {
-    data: Vec<u8>,
-    allocated: PageNumber,
-}
+pub struct Memory(Vec<u8>);
 
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct Message {
@@ -110,9 +117,16 @@ pub fn run(
 
     let module = Module::new(context.store.engine(), &program.code.0[..])?;
     let memory = context.wasmtime_memory();
-    let allocations = Rc::new(RefCell::new(vec![]));
     let messages = Rc::new(RefCell::new(vec![]));
     let incoming_message = Rc::new(RefCell::new(message.clone()));
+
+    let memory_context = MemoryContext::new(
+        program.id,
+        memory,
+        Allocations::default(),
+        context.static_pages(),
+        context.max_pages(),
+    );
 
     let mut imports = module
         .imports()
@@ -128,7 +142,7 @@ pub fn run(
     for (ref import_name, ref mut ext) in imports.iter_mut() {
 
         let func = if import_name == &"send" {
-            let memory_clone = memory.clone();
+            let memory_clone = memory_context.wasm().clone();
             let messages_clone = messages.clone();
             Func::wrap(
                 &context.store,
@@ -147,25 +161,23 @@ pub fn run(
                 },
             )
         } else if import_name == &"alloc" {
-            let memory_clone = memory.clone();
-            let allocations_clone = allocations.clone();
-            let start = context.context.cut_off.0;
+            let mem_ctx = memory_context.clone();
             Func::wrap(&context.store, move |pages: i32| {
                 let pages = pages as u32;
-                let ptr = memory_clone.grow(pages)?;
+                let ptr = match mem_ctx.alloc(pages.into()) {
+                    Ok(ptr) => ptr.raw(),
+                    _ => { return Ok(0u32); }
+                };
 
-                for page in ptr+1..ptr+1+pages {
-                    allocations_clone.borrow_mut().push(start + page);
-                    println!("ALLOC: {}", page);
-                }
+                println!("ALLOC: {} pages at {}", pages, ptr);
 
                 Ok(ptr)
             })
         } else if import_name == &"free" {
-            let allocations_clone = allocations.clone();
+            let mem_ctx = memory_context.clone();
             Func::wrap(&context.store, move |page: i32| {
                 let page = page as u32;
-                allocations_clone.borrow_mut().retain(|p| *p != page);
+                mem_ctx.free(page.into());
 
                 println!("FREE: {}", page);
                 Ok(())
@@ -175,7 +187,7 @@ pub fn run(
             Func::wrap(&context.store, move || Ok(message_clone.borrow().payload.0.len() as u32 as i32))
         } else if import_name == &"read" {
             let message_clone = incoming_message.clone();
-            let memory_clone = memory.clone();
+            let memory_clone = memory_context.wasm().clone();
             Func::wrap(&context.store, move |at: i32, len: i32, dest: i32| {
                 let incoming_message = message_clone.borrow();
                 let at = at as u32 as usize;
@@ -186,7 +198,7 @@ pub fn run(
                 Ok(())
             })
         } else if import_name == &"debug" {
-            let memory_clone = memory.clone();
+            let memory_clone = memory_context.wasm().clone();
             Func::wrap(
                 &context.store,
                 move |str_ptr: i32, str_len: i32| {
@@ -203,8 +215,7 @@ pub fn run(
                 },
             )
         } else if import_name == &"memory" {
-            let memory_clone = memory.clone();
-            *ext = Some(memory_clone.into());
+            *ext = Some(memory_context.wasm().clone().into());
             continue;
         } else {
             continue;
@@ -238,16 +249,13 @@ pub fn running_context() -> RunningContext {
     RunningContext {
         store: Store::default(),
         context: Context {
-            static_pages: 1.into(),
-            cut_off: (BASIC_PAGES as u32).into(),
-            memory: Memory {
-                data: {
-                    let mut v = Vec::with_capacity(BASIC_TOTAL_SIZE);
-                    v.resize(BASIC_TOTAL_SIZE, 0);
-                    v
-                },
-                allocated: 0.into(),
-            },
+            static_pages: BASIC_PAGES.into(),
+            max_pages: MAX_PAGES.into(),
+            memory: Memory({
+                let mut v = Vec::with_capacity(BASIC_TOTAL_SIZE);
+                v.resize(BASIC_TOTAL_SIZE, 0);
+                v
+            }),
         }
     }
 }

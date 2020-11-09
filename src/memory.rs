@@ -53,6 +53,7 @@ impl Allocations {
     }
 }
 
+#[derive(Clone)]
 pub struct MemoryContext {
     program_id: ProgramId,
     wasm: wasmtime::Memory,
@@ -116,6 +117,10 @@ impl MemoryContext {
 
     pub fn allocations(&self) -> &Allocations {
         &self.allocations
+    }
+
+    pub fn wasm(&self) -> &wasmtime::Memory {
+        &self.wasm
     }
 }
 
