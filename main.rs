@@ -2,6 +2,9 @@ mod memory;
 mod message;
 mod program;
 
+mod runner;
+mod saver;
+
 use wasmtime::{Store, Module, Func, Extern, Instance};
 use codec::{Encode, Decode};
 use anyhow::anyhow;

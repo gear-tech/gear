@@ -46,6 +46,13 @@ impl OutgoingMessage {
     }
 }
 
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct Message {
+    source: ProgramId,
+    dest: ProgramId,
+    payload: Payload,
+}
+
 #[derive(Debug)]
 pub struct MessageState {
     outgoing: Vec<OutgoingMessage>,

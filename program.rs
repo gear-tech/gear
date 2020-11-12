@@ -1,6 +1,6 @@
 use codec::{Encode, Decode};
 
-#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq)]
+#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, Hash, PartialEq, Eq)]
 pub struct ProgramId(pub u64);
 
 #[derive(Clone, Debug)]
