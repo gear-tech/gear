@@ -68,8 +68,6 @@ pub fn run(
     program: &Program,
     message: &IncomingMessage,
 ) -> anyhow::Result<RunResult> {
-    use std::{rc::Rc, cell::RefCell};
-
     let module = Module::new(context.store.engine(), program.code())?;
     let memory = context.wasmtime_memory();
     let messages = MessageContext::new(program.id(), message.clone());
@@ -104,9 +102,11 @@ pub fn run(
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     let data = unsafe { &memory_clone.data_unchecked()[message_ptr..message_ptr+message_len] };
-                    messages_clone.send(
+                    if let Err(_) = messages_clone.send(
                         OutgoingMessage::new(ProgramId(program_id as _), data.to_vec().into())
-                    );
+                    ) {
+                        return Err(wasmtime::Trap::new("Trapping: unable to send message"));
+                    }
 
                     Ok(())
                 },
@@ -128,9 +128,11 @@ pub fn run(
             let mem_ctx = memory_context.clone();
             Func::wrap(&context.store, move |page: i32| {
                 let page = page as u32;
-                mem_ctx.free(page.into());
-
-                println!("FREE: {}", page);
+                if let Err(e) = mem_ctx.free(page.into()) {
+                    println!("FREE ERROR: {:?}", e);
+                } else {
+                    println!("FREE: {}", page);
+                }
                 Ok(())
             })
         } else if import_name == &"size" {
