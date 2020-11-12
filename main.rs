@@ -1,43 +1,19 @@
 mod memory;
+mod message;
+mod program;
 
 use wasmtime::{Store, Module, Func, Extern, Instance};
 use codec::{Encode, Decode};
 use anyhow::anyhow;
 
-use memory::{MemoryContext, Allocations};
+use memory::{MemoryContext, Allocations, PageNumber};
+use message::{MessageContext, IncomingMessage, Payload, OutgoingMessage};
+use program::{ProgramId, Program};
 
 static BASIC_PAGES: u32 = 256;
 static BASIC_PAGE_SIZE: usize = 65536;
 static BASIC_TOTAL_SIZE: usize = BASIC_PAGES as usize * BASIC_PAGE_SIZE;
 static MAX_PAGES: u32 = 16384;
-
-#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq)]
-pub struct ProgramId(u64);
-
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
-pub struct Payload(Vec<u8>);
-
-#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PageNumber(u32);
-
-impl PageNumber {
-    fn raw(&self) -> u32 { self.0 }
-}
-
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
-pub struct Code(Vec<u8>);
-
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct Allocation {
-    program_id: ProgramId,
-    page_id: PageNumber,
-}
-
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct Program {
-    id: ProgramId,
-    code: Code,
-}
 
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Context {
@@ -80,27 +56,6 @@ pub struct Message {
     payload: Payload,
 }
 
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
-pub struct IncomingMessage {
-    source: Option<ProgramId>,
-    payload: Payload,
-}
-
-impl IncomingMessage {
-    fn empty() -> Self {
-        Self {
-            source: None,
-            payload: Payload(vec![]),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
-pub struct OutgoingMessage {
-    destination: ProgramId,
-    payload: Payload,
-}
-
 #[derive(Clone, Debug, Decode, Default, Encode, derive_more::From)]
 pub struct RunResult {
     allocations: Vec<PageNumber>,
@@ -115,13 +70,12 @@ pub fn run(
 ) -> anyhow::Result<RunResult> {
     use std::{rc::Rc, cell::RefCell};
 
-    let module = Module::new(context.store.engine(), &program.code.0[..])?;
+    let module = Module::new(context.store.engine(), program.code())?;
     let memory = context.wasmtime_memory();
-    let messages = Rc::new(RefCell::new(vec![]));
-    let incoming_message = Rc::new(RefCell::new(message.clone()));
+    let messages = MessageContext::new(program.id(), message.clone());
 
     let memory_context = MemoryContext::new(
-        program.id,
+        program.id(),
         memory,
         Allocations::default(),
         context.static_pages(),
@@ -150,11 +104,8 @@ pub fn run(
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     let data = unsafe { &memory_clone.data_unchecked()[message_ptr..message_ptr+message_len] };
-                    messages_clone.borrow_mut().push(
-                        OutgoingMessage {
-                            destination: ProgramId(program_id as _),
-                            payload: data.to_vec().into(),
-                        }
+                    messages_clone.send(
+                        OutgoingMessage::new(ProgramId(program_id as _), data.to_vec().into())
                     );
 
                     Ok(())
@@ -183,17 +134,16 @@ pub fn run(
                 Ok(())
             })
         } else if import_name == &"size" {
-            let message_clone = incoming_message.clone();
-            Func::wrap(&context.store, move || Ok(message_clone.borrow().payload.0.len() as u32 as i32))
+            let messages_clone = messages.clone();
+            Func::wrap(&context.store, move || Ok(messages_clone.current().payload().len() as u32 as i32))
         } else if import_name == &"read" {
-            let message_clone = incoming_message.clone();
+            let messages_clone = messages.clone();
             let memory_clone = memory_context.wasm().clone();
             Func::wrap(&context.store, move |at: i32, len: i32, dest: i32| {
-                let incoming_message = message_clone.borrow();
                 let at = at as u32 as usize;
                 let len = len as u32 as usize;
                 let dest = dest as u32 as usize;
-                let message_data = &incoming_message.payload.0[at..at+len];
+                let message_data = &messages_clone.current().payload()[at..at+len];
                 unsafe { memory_clone.data_unchecked_mut()[dest..dest+len].copy_from_slice(message_data); }
                 Ok(())
             })
@@ -263,10 +213,7 @@ pub fn running_context() -> RunningContext {
 fn main() -> Result<(), anyhow::Error> {
     let file_name = std::env::args().nth(1).expect("gear <filename.wasm>");
     let mut context = running_context();
-    let program = Program {
-        id: 1.into(),
-        code: std::fs::read(file_name)?.into(),
-    };
+    let program = Program::new(1.into(), std::fs::read(file_name)?.into(), vec![]);
 
     run(&mut context, &program, &IncomingMessage::empty())?;
 
