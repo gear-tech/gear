@@ -1,11 +1,19 @@
+use codec::{Encode, Decode};
 use std::{rc::Rc, cell::RefCell, collections::HashMap};
-use super::{PageNumber, ProgramId};
+use crate::program::ProgramId;
 
 #[derive(Clone, Debug)]
 pub enum Error {
     OutOfMemory,
     PageOccupied(PageNumber),
     InvalidFree(PageNumber),
+}
+
+#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PageNumber(u32);
+
+impl PageNumber {
+    pub fn raw(&self) -> u32 { self.0 }
 }
 
 #[derive(Clone, Debug, Default)]
