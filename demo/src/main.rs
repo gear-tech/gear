@@ -47,7 +47,10 @@ mod ext {
 pub unsafe extern "C" fn handle() {
     assert_eq!(msg::load().len(), 0);
 
-    let f_data = vec![0u8; 128];
+    let f_data = vec![0u8; 65535];
+    msg::send(0, &f_data[..]);
+
+    let f_data = vec![0u8; 65535];
     msg::send(0, &f_data[..]);
 
     ext::debug("Done");
