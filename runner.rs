@@ -29,7 +29,7 @@ impl Runner {
         Self {
             programs: programs.into_iter().map(|p| (p.id(), p)).collect(),
             allocations: Allocations::new(allocations),
-            message_queue: VecDeque::new(),
+            message_queue: VecDeque::from(message_queue),
             memory,
         }
     }
