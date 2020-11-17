@@ -8,20 +8,20 @@ use crate::memory::PageNumber;
 use crate::runner::Runner;
 
 #[derive(Decode, Default, Encode, Clone, Debug)]
-struct State {
-    programs: Vec<Program>,
-    queued_messages: Vec<Message>,
-    memory: Vec<u8>,
-    allocations: Vec<(PageNumber, ProgramId)>,
+pub struct State {
+    pub programs: Vec<Program>,
+    pub queued_messages: Vec<Message>,
+    pub memory: Vec<u8>,
+    pub allocations: Vec<(PageNumber, ProgramId)>,
 }
 
-fn load_from_file<P: AsRef<Path>>(path: P) -> State {
+pub fn load_from_file<P: AsRef<Path>>(path: P) -> State {
     std::fs::read(path).map(|bytes| {
         State::decode(&mut &bytes[..]).expect("Failed to decode binary")
     }).unwrap_or_default()
 }
 
-fn save_to_file<P: AsRef<Path>>(path: P, state: &State) {
+pub fn save_to_file<P: AsRef<Path>>(path: P, state: &State) {
     let mut bytes = vec![];
     state.encode_to(&mut bytes);
 
@@ -30,7 +30,7 @@ fn save_to_file<P: AsRef<Path>>(path: P, state: &State) {
 
 impl State {
 
-    fn to_runner(self) -> Runner {
+    pub fn into_runner(self) -> Runner {
         let State { programs, queued_messages, memory, allocations } = self;
 
         Runner::new(
@@ -41,7 +41,7 @@ impl State {
         )
     }
 
-    fn from_runner(runner: Runner) -> Self {
+    pub fn from_runner(runner: Runner) -> Self {
         let Runner { mut programs, allocations, message_queue, memory } = runner;
         Self {
             programs: programs.drain().map(|(_, v)| v).collect(),
@@ -50,5 +50,4 @@ impl State {
             allocations: allocations.drain(),
         }
     }
-
 }
