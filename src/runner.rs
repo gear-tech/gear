@@ -11,10 +11,10 @@ use crate::{
 };
 
 pub struct Runner {
-    programs: HashMap<ProgramId, Program>,
-    allocations: Allocations,
-    message_queue: VecDeque<Message>,
-    memory: Vec<u8>,
+    pub(crate) programs: HashMap<ProgramId, Program>,
+    pub(crate) allocations: Allocations,
+    pub(crate) message_queue: VecDeque<Message>,
+    pub(crate) memory: Vec<u8>,
 }
 
 pub struct Output(Vec<u8>);

@@ -5,6 +5,7 @@ use codec::{Encode, Decode};
 use crate::message::Message;
 use crate::program::{Program, ProgramId};
 use crate::memory::PageNumber;
+use crate::runner::Runner;
 
 #[derive(Decode, Default, Encode, Clone, Debug)]
 struct State {
@@ -25,4 +26,29 @@ fn save_to_file<P: AsRef<Path>>(path: P, state: &State) {
     state.encode_to(&mut bytes);
 
     std::fs::write(path, bytes).expect("Failed to write data");
+}
+
+impl State {
+
+    fn to_runner(self) -> Runner {
+        let State { programs, queued_messages, memory, allocations } = self;
+
+        Runner::new(
+            programs,
+            allocations,
+            queued_messages,
+            memory,
+        )
+    }
+
+    fn from_runner(runner: Runner) -> Self {
+        let Runner { mut programs, allocations, message_queue, memory } = runner;
+        Self {
+            programs: programs.drain().map(|(_, v)| v).collect(),
+            queued_messages: message_queue.into_iter().collect(),
+            memory,
+            allocations: allocations.drain(),
+        }
+    }
+
 }
