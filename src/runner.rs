@@ -35,16 +35,36 @@ impl Runner {
     }
 
     pub fn run_next(&mut self) -> Result<Vec<Output>> {
-        let next_message = match self.message_queue.pop_back() {
+        let next_message = match self.message_queue.pop_front() {
             Some(msg) => msg,
             None => { return Ok(vec![]); }
         };
 
         let program = self.programs.get(&next_message.dest).expect("Program not found");
 
-        let mut context = RunningContext::basic(&self.memory[..]);
+        let mut context = RunningContext::new(
+            &Config::default(),
+            Store::default(),
+            &self.memory[..],
+            self.allocations.clone(),
+        );
 
         run(&mut context, &program, &next_message.into()).map(|_| vec![])
+    }
+
+    pub fn complete(self) -> (
+        Vec<Program>,
+        Vec<(PageNumber, ProgramId)>,
+        Vec<Message>,
+        Vec<u8>,
+    ) {
+        let Runner { mut programs, allocations, message_queue, memory } = self;
+        (
+            programs.drain().map(|(_, v)| v).collect(),
+            allocations.drain(),
+            message_queue.into_iter().collect(),
+            memory,
+        )
     }
 }
 
@@ -69,6 +89,7 @@ pub struct RunningContext {
     config: Config,
     store: Store,
     memory: wasmtime::Memory,
+    allocations: Allocations,
 }
 
 impl RunningContext {
@@ -77,6 +98,7 @@ impl RunningContext {
             &Config::default(),
             Store::default(),
             persistent_memory,
+            Allocations::default(),
         )
     }
 
@@ -84,6 +106,7 @@ impl RunningContext {
         config: &Config,
         store: Store,
         persistent_memory: &[u8],
+        allocations: Allocations,
     ) -> Self {
         // memory need to be at least static_pages + persistent_memory length (in pages)
         let persistent_pages = persistent_memory.len() / BASIC_PAGE_SIZE;
@@ -110,6 +133,7 @@ impl RunningContext {
             config: config.clone(),
             store,
             memory,
+            allocations,
         }
     }
 
@@ -145,7 +169,7 @@ pub fn run(
     let memory_context = MemoryContext::new(
         program.id(),
         memory,
-        Allocations::default(),
+        context.allocations.clone(),
         context.static_pages(),
         context.max_pages(),
     );
