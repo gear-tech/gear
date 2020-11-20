@@ -42,12 +42,7 @@ impl State {
     }
 
     pub fn from_runner(runner: Runner) -> Self {
-        let Runner { mut programs, allocations, message_queue, memory } = runner;
-        Self {
-            programs: programs.drain().map(|(_, v)| v).collect(),
-            queued_messages: message_queue.into_iter().collect(),
-            memory,
-            allocations: allocations.drain(),
-        }
+        let (programs, allocations, queued_messages, memory) = runner.complete();
+        Self { programs, allocations, queued_messages, memory }
     }
 }
