@@ -32,4 +32,16 @@ impl Program {
     pub fn id(&self) -> ProgramId {
         self.id
     }
+
+    pub fn static_pages(&mut self) -> &[u8] {
+        &mut self.static_pages
+    }
+
+    pub fn static_pages_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.static_pages
+    }
+
+    pub fn set_code(&mut self, code: Vec<u8>) {
+        self.code = code;
+    }
 }

@@ -28,17 +28,19 @@ fn main() -> Result<(), anyhow::Error> {
     let file_name = std::env::args().nth(2).expect("gear <pid> <filename.wasm>");
 
     let program_id: ProgramId = program_id_str.parse::<u64>().expect("gear <pid> <filename.wasm>").into();
-    let program = Program::new(program_id, std::fs::read(file_name)?.into(), vec![]);
-
+    
     println!("Working state: {}", path().to_string_lossy());
-
     let mut state = saver::load_from_file(path());
-    state.programs.push(program);
+
     state.queued_messages.push(
-        Message { source: 0.into(), dest: 1.into(), payload: vec![].into() }
+        Message { source: 0.into(), dest: program_id, payload: vec![].into() }
     );
 
     let mut runner = state.into_runner();
+    runner.update_program_code(
+        program_id,
+        std::fs::read(file_name)?.into(),
+    );
 
     runner.run_next()?;
 
