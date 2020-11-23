@@ -30,7 +30,7 @@ fn main() -> Result<(), anyhow::Error> {
     let program_id: ProgramId = program_id_str.parse::<u64>().expect("gear <pid> <filename.wasm>").into();
     let program = Program::new(program_id, std::fs::read(file_name)?.into(), vec![]);
 
-    println!("Working statee: {}", path().to_string_lossy());
+    println!("Working state: {}", path().to_string_lossy());
 
     let mut state = saver::load_from_file(path());
     state.programs.push(program);

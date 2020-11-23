@@ -1,4 +1,4 @@
-paths = ["../dlmalloc-rs"]
+# paths = ["../dlmalloc-rs"]
 
 [target.wasm32-unknown-unknown]
 rustflags = [
