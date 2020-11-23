@@ -10,7 +10,7 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/nikvolf/dlmalloc-rs#dc184e27119accc434df233d56ee386833d2f368"
+source = "git+https://github.com/nikvolf/dlmalloc-rs#74ecb8165d45f2a3d2ef7921c7371014911e9815"
 dependencies = [
  "libc",
 ]
