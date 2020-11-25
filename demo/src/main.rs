@@ -1,6 +1,8 @@
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
+static mut COUNTER: Option<Box<usize>> = None;
+
 mod msg {
     mod sys {
         extern "C" {
@@ -47,13 +49,11 @@ mod ext {
 pub unsafe extern "C" fn handle() {
     assert_eq!(msg::load().len(), 0);
 
-    let f_data = vec![0u8; 65535];
-    msg::send(0, &f_data[..]);
+    unsafe {
+        COUNTER = Some(Box::new(*COUNTER.take().unwrap_or_default() + 1))
+    };
 
-    let f_data = vec![0u8; 65535];
-    msg::send(0, &f_data[..]);
-
-    ext::debug("Done");
+    ext::debug(&format!("DONE: {:?}", COUNTER));
 }
 
 fn main() {
