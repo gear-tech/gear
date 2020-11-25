@@ -12,9 +12,8 @@ use crate::{
 
 pub struct Runner {
     pub(crate) programs: HashMap<ProgramId, Program>,
-    pub(crate) allocations: Allocations,
     pub(crate) message_queue: VecDeque<Message>,
-    pub(crate) memory: Vec<u8>,
+    pub(crate) context: RunningContext,
 }
 
 pub struct Output(Vec<u8>);
@@ -24,13 +23,17 @@ impl Runner {
         programs: Vec<Program>,
         allocations: Vec<(PageNumber, ProgramId)>,
         message_queue: Vec<Message>,
-        memory: Vec<u8>,
+        memory: &[u8],
     ) -> Self {
         Self {
             programs: programs.into_iter().map(|p| (p.id(), p)).collect(),
-            allocations: Allocations::new(allocations),
             message_queue: VecDeque::from(message_queue),
-            memory,
+            context: RunningContext::new(
+                &Config::default(),
+                Store::default(),
+                memory,
+                Allocations::new(allocations),
+            ),
         }
     }
 
@@ -42,14 +45,7 @@ impl Runner {
 
         let program = self.programs.get_mut(&next_message.dest).expect("Program not found");
 
-        let mut context = RunningContext::new(
-            &Config::default(),
-            Store::default(),
-            &self.memory[..],
-            self.allocations.clone(),
-        );
-
-        run(&mut context, program, &next_message.into()).map(|_| vec![])
+        run(&mut self.context, program, &next_message.into()).map(|_| vec![])
     }
 
     pub fn complete(self) -> (
@@ -58,12 +54,12 @@ impl Runner {
         Vec<Message>,
         Vec<u8>,
     ) {
-        let Runner { mut programs, allocations, message_queue, memory } = self;
+        let Runner { mut programs, context, message_queue } = self;
         (
             programs.drain().map(|(_, v)| v).collect(),
-            allocations.drain(),
+            context.allocations().clone().drain(),
             message_queue.into_iter().collect(),
-            memory,
+            context.copy_memory(),
         )
     }
 
@@ -153,6 +149,16 @@ impl RunningContext {
 
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
+    }
+
+    pub fn allocations(&self) -> &Allocations {
+        &self.allocations
+    }
+
+    pub fn copy_memory(&self) -> Vec<u8> {
+        let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
+
+        unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
     }
 }
 

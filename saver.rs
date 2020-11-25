@@ -37,7 +37,7 @@ impl State {
             programs,
             allocations,
             queued_messages,
-            memory,
+            &memory[..],
         )
     }
 
