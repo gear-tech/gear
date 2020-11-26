@@ -4,7 +4,7 @@
 name = "demo1"
 version = "0.1.0"
 dependencies = [
- "dlmalloc",
+ "gstd",
 ]
 
 [[package]]
@@ -13,6 +13,13 @@ version = "0.1.4"
 source = "git+https://github.com/nikvolf/dlmalloc-rs#74ecb8165d45f2a3d2ef7921c7371014911e9815"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "gstd"
+version = "0.1.0"
+dependencies = [
+ "dlmalloc",
 ]
 
 [[package]]

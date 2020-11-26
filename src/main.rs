@@ -28,7 +28,7 @@ fn main() -> Result<(), anyhow::Error> {
     let file_name = std::env::args().nth(2).expect("gear <pid> <filename.wasm>");
 
     let program_id: ProgramId = program_id_str.parse::<u64>().expect("gear <pid> <filename.wasm>").into();
-    
+
     println!("Working state: {}", path().to_string_lossy());
     let mut state = saver::load_from_file(path());
 
