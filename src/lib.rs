@@ -34,7 +34,7 @@ pub mod msg {
 
 }
 
-#[cfg(features = "debug")]
+#[cfg(feature = "debug")]
 pub mod ext {
     mod sys {
         extern "C" {
