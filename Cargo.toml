@@ -1,0 +1,11 @@
+[package]
+name = "gstd"
+version = "0.1.0"
+authors = ["NikVolf <nikvolf@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+dlmalloc = { git = "https://github.com/nikvolf/dlmalloc-rs", features = ["global"] }
+
+[features]
+debug = []
