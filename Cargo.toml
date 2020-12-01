@@ -12,6 +12,7 @@ wasmtime = "0.19"
 derive_more = "0.99"
 anyhow = "1"
 directories = "2.0.2"
+clap = "2"
 
 [[bin]]
 name = "gear"
