@@ -63,7 +63,8 @@ impl Runner {
         Vec<Message>,
         Vec<u8>,
     ) {
-        let Runner { mut programs, context, message_queue } = self;
+        let Runner { mut programs, mut context, mut message_queue } = self;
+        for msg in context.message_buf.drain(..) { message_queue.push_back(msg); }
         (
             programs.drain().map(|(_, v)| v).collect(),
             context.allocations().clone().drain(),
@@ -101,18 +102,10 @@ pub struct RunningContext {
     store: Store,
     memory: wasmtime::Memory,
     allocations: Allocations,
+    message_buf: Vec<Message>,
 }
 
 impl RunningContext {
-    pub fn basic(persistent_memory: &[u8]) -> Self {
-        Self::new(
-            &Config::default(),
-            Store::default(),
-            persistent_memory,
-            Allocations::default(),
-        )
-    }
-
     pub fn new(
         config: &Config,
         store: Store,
@@ -142,6 +135,7 @@ impl RunningContext {
 
         Self {
             config: config.clone(),
+            message_buf: vec![],
             store,
             memory,
             allocations,
@@ -168,6 +162,10 @@ impl RunningContext {
         let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
 
         unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
+    }
+
+    pub fn push_message(&mut self, msg: Message) {
+        self.message_buf.push(msg)
     }
 }
 
@@ -326,6 +324,10 @@ pub fn run(
     *program.static_pages_mut() = unsafe {
         memory_context.wasm().data_unchecked()[0..context.static_pages().raw() as usize * BASIC_PAGE_SIZE].to_vec()
     };
+
+    for outgoing_msg in messages.drain() {
+        context.push_message(outgoing_msg.into_message(program.id()));
+    }
 
     Ok(RunResult::default())
 }
