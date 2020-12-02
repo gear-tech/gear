@@ -65,7 +65,6 @@ fn main() -> Result<(), anyhow::Error> {
         saver::save_to_file(path(), &state);
 
     } else if let Some(matches) = matches.subcommand_matches("message") {
-
         let mut state = saver::load_from_file(path());
 
         let message_text = matches.value_of("text").map(|x| x.to_string()).unwrap_or_default();
@@ -80,11 +79,11 @@ fn main() -> Result<(), anyhow::Error> {
 
         let mut runner = state.into_runner();
 
-        runner.run_next()?;
+        while runner.run_next()? > 0 {
+        }
 
         let state = State::from_runner(runner);
         saver::save_to_file(path(), &state);
-
     }
 
 
