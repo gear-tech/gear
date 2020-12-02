@@ -53,6 +53,10 @@ impl OutgoingMessage {
     pub fn new(dest: ProgramId, payload: Payload) -> Self {
         Self { dest, payload }
     }
+
+    pub fn into_message(self, source: ProgramId) -> Message {
+        Message { source, dest: self.dest, payload: self.payload }
+    }
 }
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -116,5 +120,12 @@ impl MessageContext {
 
     pub fn current(&self) -> &IncomingMessage {
         &self.current.as_ref()
+    }
+
+    pub fn drain(self) -> Vec<OutgoingMessage> {
+        let Self { state, .. } = self;
+        let mut st = state.borrow_mut();
+
+        st.outgoing.drain(..).collect()
     }
 }
