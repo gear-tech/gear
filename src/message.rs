@@ -62,6 +62,21 @@ pub struct Message {
     pub payload: Payload,
 }
 
+
+impl Message {
+    pub fn dest(&self) -> ProgramId {
+        self.dest
+    }
+
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    pub fn payload(&self) -> &[u8] {
+        &self.payload.0[..]
+    }
+}
+
 #[derive(Debug)]
 pub struct MessageState {
     outgoing: Vec<OutgoingMessage>,

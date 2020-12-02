@@ -37,15 +37,24 @@ impl Runner {
         }
     }
 
-    pub fn run_next(&mut self) -> Result<Vec<Output>> {
+    pub fn run_next(&mut self) -> Result<usize> {
         let next_message = match self.message_queue.pop_front() {
             Some(msg) => msg,
-            None => { return Ok(vec![]); }
+            None => { return Ok(0); }
         };
 
-        let program = self.programs.get_mut(&next_message.dest).expect("Program not found");
-
-        run(&mut self.context, program, &next_message.into()).map(|_| vec![])
+        if next_message.dest == 0.into() {
+            match String::from_utf8(next_message.payload().to_vec()) {
+                Ok(s) => println!("UTF-8 msg to /0: {}", s),
+                Err(_) => {
+                    println!("msg to /0: {:?}", next_message.payload())
+                }
+            }
+            Ok(1)
+        } else {
+            let program = self.programs.get_mut(&next_message.dest).expect("Program not found");
+            run(&mut self.context, program, &next_message.into()).map(|_| 1)
+        }
     }
 
     pub fn complete(self) -> (
@@ -208,15 +217,21 @@ pub fn run(
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     let data = unsafe { &memory_clone.data_unchecked()[message_ptr..message_ptr+message_len] };
-                    if let Err(_) = messages_clone.send(
+                    if let Err(_) = messages_clone.send({
+                        println!("outgoing msg: {:?}", data);
                         OutgoingMessage::new(ProgramId(program_id as _), data.to_vec().into())
-                    ) {
+                    }) {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
                     }
 
                     Ok(())
                 },
             )
+        } else if import_name == &"source" {
+            let id = program.id().0 as i64;
+            Func::wrap(&context.store, move || {
+                Ok(id)
+            })
         } else if import_name == &"alloc" {
             let mem_ctx = memory_context.clone();
             Func::wrap(&context.store, move |pages: i32| {
