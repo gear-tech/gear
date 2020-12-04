@@ -53,7 +53,9 @@ impl Runner {
             Ok(1)
         } else {
             let program = self.programs.get_mut(&next_message.dest).expect("Program not found");
-            run(&mut self.context, program, &next_message.into()).map(|_| 1)
+            run(&mut self.context, program, &next_message.into())?;
+            self.message_queue.extend(self.context.message_buf.drain(..));
+            Ok(1)
         }
     }
 
@@ -226,7 +228,7 @@ pub fn run(
                 },
             )
         } else if import_name == &"source" {
-            let id = program.id().0 as i64;
+            let id = message.source().map(|x| x.0).unwrap_or_default() as i64;
             Func::wrap(&context.store, move || {
                 Ok(id)
             })
