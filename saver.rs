@@ -2,10 +2,12 @@ use std::path::Path;
 
 use codec::{Encode, Decode};
 
-use crate::message::Message;
-use crate::program::{Program, ProgramId};
-use crate::memory::PageNumber;
-use crate::runner::Runner;
+use crate::{
+    message::Message,
+    program::{Program, ProgramId},
+    memory::PageNumber,
+    runner::Runner,
+};
 
 #[derive(Decode, Default, Encode, Clone, Debug)]
 pub struct State {
@@ -29,7 +31,6 @@ pub fn save_to_file<P: AsRef<Path>>(path: P, state: &State) {
 }
 
 impl State {
-
     pub fn into_runner(self) -> Runner {
         let State { programs, queued_messages, memory, allocations } = self;
 

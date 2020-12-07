@@ -66,7 +66,6 @@ pub struct Message {
     pub payload: Payload,
 }
 
-
 impl Message {
     pub fn dest(&self) -> ProgramId {
         self.dest
