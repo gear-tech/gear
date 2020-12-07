@@ -185,7 +185,10 @@ pub fn run(
 ) -> Result<RunResult> {
     let module = Module::new(context.store.engine(), program.code())?;
     let memory = context.wasmtime_memory();
-    let messages = MessageContext::new(program.id(), message.clone());
+    let messages = MessageContext::new(
+        program.id(),
+        message.clone(),
+    );
 
     let memory_context = MemoryContext::new(
         program.id(),
@@ -207,7 +210,6 @@ pub fn run(
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     for (ref import_name, ref mut ext) in imports.iter_mut() {
-
         let func = if import_name == &"send" {
             let memory_clone = memory_context.wasm().clone();
             let messages_clone = messages.clone();
