@@ -87,15 +87,10 @@ impl Runner {
             }
             Ok(1)
         } else {
+            let mut context = self.create_context();
             let program = self.programs.get_mut(&next_message.dest()).expect("Program not found");
-            let mut context = RunningContext::new(
-                &self.config,
-                self.store.clone(),
-                self.memory.clone(),
-                self.allocations.clone(),
-            );
 
-            run(&mut context, program, &next_message.into())?;
+            run(&mut context, program, EntryPoint::Handle, &next_message.into())?;
             self.message_queue.extend(context.message_buf.drain(..));
             Ok(1)
         }
@@ -130,10 +125,44 @@ impl Runner {
         self.config.max_pages
     }
 
-    pub fn update_program_code(&mut self, program_id: ProgramId, code: Vec<u8>) {
+    pub fn create_context(&self) -> RunningContext {
+        RunningContext::new(
+            &self.config,
+            self.store.clone(),
+            self.memory.clone(),
+            self.allocations.clone(),
+        )
+    }
+
+    pub fn init_program(&mut self, program_id: ProgramId, code: Vec<u8>, init_msg: Vec<u8>)
+        -> Result<()>
+    {
         self.programs.entry(program_id)
-            .and_modify(|v| v.set_code(code.to_vec()))
+            .and_modify(|v| { v.set_code(code.to_vec()); v.clear_static(); })
             .or_insert_with(|| Program::new(program_id, code, vec![]));
+        self.allocations.clear(program_id);
+
+        let mut context = self.create_context();
+        let program = self.programs.get_mut(&program_id).expect("Added above; cannot fail");
+        let msg = IncomingMessage::new_system(init_msg.into());
+        run(&mut context, program, EntryPoint::Init, &msg)?;
+        self.message_queue.extend(context.message_buf.drain(..));
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum EntryPoint {
+    Handle,
+    Init,
+}
+
+impl Into<&'static str> for EntryPoint {
+    fn into(self) -> &'static str {
+        match self {
+            Self::Handle => "handle",
+            Self::Init => "init",
+        }
     }
 }
 
@@ -193,6 +222,7 @@ pub struct RunResult {
 pub fn run(
     context: &mut RunningContext,
     program: &mut Program,
+    entry_point: EntryPoint,
     message: &IncomingMessage,
 ) -> Result<RunResult> {
     let module = Module::new(context.store.engine(), program.code())?;
@@ -330,8 +360,10 @@ pub fn run(
     };
 
     let handler = instance
-        .get_func("handle")
-        .ok_or(anyhow::format_err!("failed to find `handle` function export"))?
+        .get_func(entry_point.into())
+        .ok_or(
+            anyhow::format_err!("failed to find `{}` function export", Into::<&'static str>::into(entry_point))
+        )?
         .get0::<()>()?;
 
     handler()?;

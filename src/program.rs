@@ -39,4 +39,8 @@ impl Program {
     pub fn set_code(&mut self, code: Vec<u8>) {
         self.code = code;
     }
+
+    pub fn clear_static(&mut self) {
+        self.static_pages = vec![];
+    }
 }
