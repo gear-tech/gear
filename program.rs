@@ -3,11 +3,6 @@ use codec::{Encode, Decode};
 #[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, Hash, PartialEq, Eq)]
 pub struct ProgramId(pub u64);
 
-#[derive(Clone, Debug)]
-pub enum Error {
-    InitializatingError(&'static str),
-}
-
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,

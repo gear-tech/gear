@@ -56,10 +56,6 @@ impl Allocations {
         self.0.borrow_mut().drain().collect::<Vec<_>>()
     }
 
-    pub fn len(&self) -> usize {
-        self.0.borrow().len()
-    }
-
     // TODO: optimize
     pub fn by_proram(&self, target_program_id: ProgramId) -> Vec<PageNumber> {
         self.0.borrow().iter()
