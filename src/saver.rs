@@ -6,7 +6,7 @@ use crate::{
     message::Message,
     program::{Program, ProgramId},
     memory::PageNumber,
-    runner::Runner,
+    runner::{Runner, Config},
 };
 
 #[derive(Decode, Default, Encode, Clone, Debug)]
@@ -35,6 +35,7 @@ impl State {
         let State { programs, queued_messages, memory, allocations } = self;
 
         Runner::new(
+            &Config::default(),
             programs,
             allocations,
             queued_messages,
