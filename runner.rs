@@ -109,10 +109,10 @@ impl Runner {
         Vec<Message>,
         Vec<u8>,
     ) {
-            let persistent_memory = {
-                let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
-                unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
-            };
+        let persistent_memory = {
+            let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
+            unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
+        };
 
         let Runner { mut programs, mut message_queue, memory, allocations, .. } = self;
 
