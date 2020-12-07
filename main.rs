@@ -35,16 +35,17 @@ fn main() -> Result<(), anyhow::Error> {
                 .arg(Arg::with_name("text").help("Message data in utf-8"))
             )
         .subcommand(
-            SubCommand::with_name("add")
+            SubCommand::with_name("create")
                 .about("Add program to the saved state")
                 .arg(Arg::with_name("id").help("Program Id").required(true))
                 .arg(Arg::with_name("path").help("Path to the executable").required(true))
+                .arg(Arg::with_name("init").help("Initialization message"))
             )
         .get_matches();
 
     println!("Working state: {}", path().to_string_lossy());
 
-    if let Some(matches) = matches.subcommand_matches("add") {
+    if let Some(matches) = matches.subcommand_matches("create") {
         let file_name = matches.value_of("path").expect("required above, cannot fail");
         let program_id: ProgramId = matches
             .value_of("id").expect("required above, cannot fail")
@@ -54,10 +55,11 @@ fn main() -> Result<(), anyhow::Error> {
         let state = saver::load_from_file(path());
         let mut runner = state.into_runner();
 
-        runner.update_program_code(
+        runner.init_program(
             program_id,
             std::fs::read(file_name)?.into(),
-        );
+            matches.value_of("init").map(|x| x.to_string().into_bytes().into()).unwrap_or_default(),
+        )?;
 
         let state = State::from_runner(runner);
         saver::save_to_file(path(), &state);

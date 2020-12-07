@@ -62,6 +62,10 @@ impl Allocations {
             .filter_map(|(page, pid)| if *pid == target_program_id { Some(*page) } else { None })
             .collect()
     }
+
+    pub fn clear(&self, program_id: ProgramId) {
+        self.0.borrow_mut().retain(|_, pid| *pid != program_id);
+    }
 }
 
 #[derive(Clone)]

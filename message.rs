@@ -36,6 +36,16 @@ impl From<Message> for IncomingMessage {
     }
 }
 
+impl IncomingMessage {
+    pub fn new(source: ProgramId, payload: Payload) -> Self {
+        Self { source: Some(source), payload }
+    }
+
+    pub fn new_system(payload: Payload) -> Self {
+        Self { source: None, payload }
+    }
+}
+
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct OutgoingMessage {
     dest: ProgramId,
