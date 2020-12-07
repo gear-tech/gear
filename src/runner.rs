@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque, hash_map::Entry};
+use std::collections::{HashMap, VecDeque};
 
 use wasmtime::{Store, Module, Func, Extern, Instance, Memory as WasmMemory};
 use codec::{Encode, Decode};
@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 
 use crate::{
     memory::{Allocations, PageNumber, MemoryContext},
-    message::{Message, IncomingMessage, Payload, OutgoingMessage, MessageContext},
+    message::{Message, IncomingMessage, OutgoingMessage, MessageContext},
     program::{ProgramId, Program},
 };
 
@@ -30,8 +30,6 @@ pub struct Runner {
     pub(crate) allocations: Allocations,
     pub(crate) config: Config,
 }
-
-pub struct Output(Vec<u8>);
 
 impl Runner {
     pub fn new(
@@ -80,7 +78,7 @@ impl Runner {
             None => { return Ok(0); }
         };
 
-        if next_message.dest == 0.into() {
+        if next_message.dest() == 0.into() {
             match String::from_utf8(next_message.payload().to_vec()) {
                 Ok(s) => println!("UTF-8 msg to /0: {}", s),
                 Err(_) => {
@@ -89,7 +87,7 @@ impl Runner {
             }
             Ok(1)
         } else {
-            let program = self.programs.get_mut(&next_message.dest).expect("Program not found");
+            let program = self.programs.get_mut(&next_message.dest()).expect("Program not found");
             let mut context = RunningContext::new(
                 &self.config,
                 self.store.clone(),
@@ -114,7 +112,7 @@ impl Runner {
             unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
         };
 
-        let Runner { mut programs, mut message_queue, memory, allocations, .. } = self;
+        let Runner { mut programs, message_queue, allocations, .. } = self;
 
         (
             programs.drain().map(|(_, v)| v).collect(),
@@ -178,10 +176,6 @@ impl RunningContext {
 
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
-    }
-
-    pub fn allocations(&self) -> &Allocations {
-        &self.allocations
     }
 
     pub fn push_message(&mut self, msg: Message) {

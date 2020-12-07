@@ -18,13 +18,6 @@ pub struct IncomingMessage {
 }
 
 impl IncomingMessage {
-    pub fn empty() -> Self {
-        Self {
-            source: None,
-            payload: Payload(vec![]),
-        }
-    }
-
     pub fn source(&self) -> Option<ProgramId> {
         self.source
     }
@@ -37,7 +30,7 @@ impl IncomingMessage {
 impl From<Message> for IncomingMessage {
     fn from(s: Message) -> Self {
         IncomingMessage {
-            source: Some(s.source),
+            source: Some(s.source()),
             payload: s.payload,
         }
     }

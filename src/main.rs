@@ -7,10 +7,8 @@ mod saver;
 
 use std::path::PathBuf;
 
-use anyhow::anyhow;
-
 use message::Message;
-use program::{Program, ProgramId};
+use program::ProgramId;
 use saver::State;
 use clap::{Arg, App, SubCommand};
 
@@ -53,7 +51,7 @@ fn main() -> Result<(), anyhow::Error> {
             .parse::<u64>().expect("should be a number")
             .into();
 
-        let mut state = saver::load_from_file(path());
+        let state = saver::load_from_file(path());
         let mut runner = state.into_runner();
 
         runner.update_program_code(
