@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque, hash_map::Entry};
 
-use wasmtime::{Store, Module, Func, Extern, Instance};
+use wasmtime::{Store, Module, Func, Extern, Instance, Memory as WasmMemory};
 use codec::{Encode, Decode};
 use anyhow::{anyhow, Result};
 
@@ -10,30 +10,67 @@ use crate::{
     program::{ProgramId, Program},
 };
 
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct Config {
+    static_pages: PageNumber,
+    max_pages: PageNumber,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self { static_pages: BASIC_PAGES.into(), max_pages: MAX_PAGES.into() }
+    }
+}
+
 pub struct Runner {
     pub(crate) programs: HashMap<ProgramId, Program>,
     pub(crate) message_queue: VecDeque<Message>,
-    pub(crate) context: RunningContext,
+    pub(crate) store: Store,
+    pub(crate) memory: WasmMemory,
+    pub(crate) allocations: Allocations,
+    pub(crate) config: Config,
 }
 
 pub struct Output(Vec<u8>);
 
 impl Runner {
     pub fn new(
+        config: &Config,
         programs: Vec<Program>,
         allocations: Vec<(PageNumber, ProgramId)>,
         message_queue: Vec<Message>,
-        memory: &[u8],
+        persistent_memory: &[u8],
     ) -> Self {
+        let store = Store::default();
+
+        // memory need to be at least static_pages + persistent_memory length (in pages)
+        let persistent_pages = persistent_memory.len() / BASIC_PAGE_SIZE;
+        let total_pages = config.static_pages.raw() + persistent_pages as u32;
+
+        let memory =
+            WasmMemory::new(
+                &store,
+                wasmtime::MemoryType::new(
+                    wasmtime::Limits::at_least(total_pages)
+                ),
+            );
+
+        let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
+        let persistent_region_end = persistent_region_start + persistent_memory.len();
+
+        unsafe {
+            memory
+                .data_unchecked_mut()[persistent_region_start..persistent_region_end]
+                .copy_from_slice(persistent_memory);
+        }
+
         Self {
             programs: programs.into_iter().map(|p| (p.id(), p)).collect(),
             message_queue: VecDeque::from(message_queue),
-            context: RunningContext::new(
-                &Config::default(),
-                Store::default(),
-                memory,
-                Allocations::new(allocations),
-            ),
+            memory,
+            store,
+            allocations: Allocations::new(allocations),
+            config: config.clone(),
         }
     }
 
@@ -53,8 +90,15 @@ impl Runner {
             Ok(1)
         } else {
             let program = self.programs.get_mut(&next_message.dest).expect("Program not found");
-            run(&mut self.context, program, &next_message.into())?;
-            self.message_queue.extend(self.context.message_buf.drain(..));
+            let mut context = RunningContext::new(
+                &self.config,
+                self.store.clone(),
+                self.memory.clone(),
+                self.allocations.clone(),
+            );
+
+            run(&mut context, program, &next_message.into())?;
+            self.message_queue.extend(context.message_buf.drain(..));
             Ok(1)
         }
     }
@@ -65,14 +109,27 @@ impl Runner {
         Vec<Message>,
         Vec<u8>,
     ) {
-        let Runner { mut programs, mut context, mut message_queue } = self;
-        for msg in context.message_buf.drain(..) { message_queue.push_back(msg); }
+            let persistent_memory = {
+                let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
+                unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
+            };
+
+        let Runner { mut programs, mut message_queue, memory, allocations, .. } = self;
+
         (
             programs.drain().map(|(_, v)| v).collect(),
-            context.allocations().clone().drain(),
+            allocations.drain(),
             message_queue.into_iter().collect(),
-            context.copy_memory(),
+            persistent_memory,
         )
+    }
+
+    pub fn static_pages(&self) -> PageNumber {
+        self.config.static_pages
+    }
+
+    pub fn max_pages(&self) -> PageNumber {
+        self.config.max_pages
     }
 
     pub fn update_program_code(&mut self, program_id: ProgramId, code: Vec<u8>) {
@@ -87,22 +144,10 @@ static BASIC_PAGE_SIZE: usize = 65536;
 static BASIC_TOTAL_SIZE: usize = BASIC_PAGES as usize * BASIC_PAGE_SIZE;
 static MAX_PAGES: u32 = 16384;
 
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct Config {
-    static_pages: PageNumber,
-    max_pages: PageNumber,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self { static_pages: BASIC_PAGES.into(), max_pages: MAX_PAGES.into() }
-    }
-}
-
 pub struct RunningContext {
     config: Config,
     store: Store,
-    memory: wasmtime::Memory,
+    memory: WasmMemory,
     allocations: Allocations,
     message_buf: Vec<Message>,
 }
@@ -111,30 +156,9 @@ impl RunningContext {
     pub fn new(
         config: &Config,
         store: Store,
-        persistent_memory: &[u8],
+        memory: WasmMemory,
         allocations: Allocations,
     ) -> Self {
-        // memory need to be at least static_pages + persistent_memory length (in pages)
-        let persistent_pages = persistent_memory.len() / BASIC_PAGE_SIZE;
-        let total_pages = config.static_pages.raw() + persistent_pages as u32;
-
-        let memory =
-            wasmtime::Memory::new(
-                &store,
-                wasmtime::MemoryType::new(
-                    wasmtime::Limits::at_least(total_pages)
-                ),
-            );
-
-        let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
-        let persistent_region_end = persistent_region_start + persistent_memory.len();
-
-        unsafe {
-            memory
-                .data_unchecked_mut()[persistent_region_start..persistent_region_end]
-                .copy_from_slice(persistent_memory);
-        }
-
         Self {
             config: config.clone(),
             message_buf: vec![],
@@ -158,12 +182,6 @@ impl RunningContext {
 
     pub fn allocations(&self) -> &Allocations {
         &self.allocations
-    }
-
-    pub fn copy_memory(&self) -> Vec<u8> {
-        let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
-
-        unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
     }
 
     pub fn push_message(&mut self, msg: Message) {
