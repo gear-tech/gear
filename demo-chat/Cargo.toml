@@ -1,0 +1,18 @@
+[package]
+name = "demo-chat"
+version = "0.1.0"
+authors = ["NikVolf <nikvolf@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+
+[[bin]]
+name = "demo-bot"
+path = "src/bot.rs"
+
+[[bin]]
+name = "demo-room"
+path = "src/room.rs"
