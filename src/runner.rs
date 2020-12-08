@@ -168,7 +168,6 @@ impl Into<&'static str> for EntryPoint {
 
 static BASIC_PAGES: u32 = 256;
 static BASIC_PAGE_SIZE: usize = 65536;
-static BASIC_TOTAL_SIZE: usize = BASIC_PAGES as usize * BASIC_PAGE_SIZE;
 static MAX_PAGES: u32 = 16384;
 
 pub struct RunningContext {
