@@ -66,6 +66,10 @@ impl Allocations {
     pub fn clear(&self, program_id: ProgramId) {
         self.0.borrow_mut().retain(|_, pid| *pid != program_id);
     }
+
+    pub fn len(&self) -> usize {
+        self.0.borrow().len()
+    }
 }
 
 #[derive(Clone)]

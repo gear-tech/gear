@@ -1,0 +1,13 @@
+[package]
+name = "gear-core"
+version = "0.1.0"
+authors = ["NikVolf <nikvolf@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3", features = ["derive"] }
+wasmtime = "0.19"
+derive_more = "0.99"
+anyhow = "1"
