@@ -2,7 +2,7 @@ use std::path::Path;
 
 use codec::{Encode, Decode};
 
-use crate::{
+use gear_core::{
     message::Message,
     program::{Program, ProgramId},
     memory::PageNumber,

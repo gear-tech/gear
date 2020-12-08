@@ -1,14 +1,12 @@
-mod memory;
-mod message;
-mod program;
-
-mod runner;
 mod saver;
 
 use std::path::PathBuf;
 
-use message::Message;
-use program::ProgramId;
+use gear_core::{
+    message::Message,
+    program::ProgramId
+};
+
 use saver::State;
 use clap::{Arg, App, SubCommand};
 
