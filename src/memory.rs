@@ -16,6 +16,36 @@ impl PageNumber {
     pub fn raw(&self) -> u32 { self.0 }
 }
 
+pub trait Memory {
+    fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
+    fn size(&self) -> PageNumber;
+    unsafe fn data_unchecked(&self) -> &[u8];
+    unsafe fn data_unchecked_mut(&self) -> &mut [u8];
+    fn clone(&self) -> Box<dyn Memory>;
+}
+
+impl Memory for wasmtime::Memory {
+    fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
+        self.grow(pages.raw()).map(Into::into).map_err(|_| Error::OutOfMemory)
+    }
+
+    fn size(&self) -> PageNumber {
+        self.size().into()
+    }
+
+    unsafe fn data_unchecked(&self) -> &[u8] {
+        self.data_unchecked()
+    }
+
+    unsafe fn data_unchecked_mut(&self) -> &mut [u8] {
+        self.data_unchecked_mut()
+    }
+
+    fn clone(&self) -> Box<dyn Memory> {
+        Box::new(Clone::clone(self))
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Allocations(Rc<RefCell<HashMap<PageNumber, ProgramId>>>);
 
@@ -75,21 +105,27 @@ impl Allocations {
 #[derive(Clone)]
 pub struct MemoryContext {
     program_id: ProgramId,
-    wasm: wasmtime::Memory,
+    memory: Box<dyn Memory>,
     allocations: Allocations,
     max_pages: PageNumber,
     static_pages: PageNumber,
 }
 
+impl Clone for Box<dyn Memory> {
+    fn clone(self: &Box<dyn Memory>) -> Box<dyn Memory> {
+        Memory::clone(&**self)
+    }
+}
+
 impl MemoryContext {
     pub fn new(
         program_id: ProgramId,
-        wasm_memory: wasmtime::Memory,
+        memory: Box<dyn Memory>,
         allocations: Allocations,
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
-        Self { wasm: wasm_memory, program_id, allocations, static_pages, max_pages }
+        Self { memory, program_id, allocations, static_pages, max_pages }
     }
 
     pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
@@ -112,9 +148,9 @@ impl MemoryContext {
             found += 1;
         }
 
-        if candidate + found > self.wasm.size() {
-            let extra_grow = candidate + found - self.wasm.size();
-            self.wasm.grow(extra_grow).map_err(|_grow_err| Error::OutOfMemory)?;
+        if candidate + found > self.memory.size().raw() {
+            let extra_grow = candidate + found - self.memory.size().raw();
+            self.memory.grow(extra_grow.into())?;
         }
 
         for page_num in candidate..candidate+found {
@@ -138,8 +174,8 @@ impl MemoryContext {
         &self.allocations
     }
 
-    pub fn wasm(&self) -> &wasmtime::Memory {
-        &self.wasm
+    pub fn memory(&self) -> &dyn Memory {
+        &*self.memory
     }
 }
 
@@ -158,7 +194,7 @@ mod tests {
 
         MemoryContext::new(
             0.into(),
-            memory,
+            Box::new(memory),
             Default::default(),
             static_pages.into(),
             max_pages.into(),

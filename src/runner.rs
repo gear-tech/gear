@@ -233,7 +233,7 @@ pub fn run(
 
     let memory_context = MemoryContext::new(
         program.id(),
-        memory,
+        Box::new(memory.clone()),
         context.allocations.clone(),
         context.static_pages(),
         context.max_pages(),
@@ -252,7 +252,7 @@ pub fn run(
 
     for (ref import_name, ref mut ext) in imports.iter_mut() {
         let func = if import_name == &"send" {
-            let memory_clone = memory_context.wasm().clone();
+            let memory_clone = memory_context.memory().clone();
             let messages_clone = messages.clone();
             Func::wrap(
                 &context.store,
@@ -304,7 +304,7 @@ pub fn run(
             Func::wrap(&context.store, move || Ok(messages_clone.current().payload().len() as u32 as i32))
         } else if import_name == &"read" {
             let messages_clone = messages.clone();
-            let memory_clone = memory_context.wasm().clone();
+            let memory_clone = memory_context.memory().clone();
             Func::wrap(&context.store, move |at: i32, len: i32, dest: i32| {
                 let at = at as u32 as usize;
                 let len = len as u32 as usize;
@@ -314,7 +314,7 @@ pub fn run(
                 Ok(())
             })
         } else if import_name == &"debug" {
-            let memory_clone = memory_context.wasm().clone();
+            let memory_clone = memory_context.memory().clone();
             Func::wrap(
                 &context.store,
                 move |str_ptr: i32, str_len: i32| {
@@ -331,7 +331,7 @@ pub fn run(
                 },
             )
         } else if import_name == &"memory" {
-            *ext = Some(memory_context.wasm().clone().into());
+            *ext = Some(memory.clone().into());
             continue;
         } else {
             continue;
@@ -354,7 +354,7 @@ pub fn run(
     // Set static pages from saved program state.
     unsafe {
         let cut_off = program.static_pages().len();
-        memory_context.wasm().data_unchecked_mut()[0..cut_off]
+        memory_context.memory().data_unchecked_mut()[0..cut_off]
             .copy_from_slice(program.static_pages());
     };
 
@@ -369,7 +369,7 @@ pub fn run(
 
     // Save program static pages.
     *program.static_pages_mut() = unsafe {
-        memory_context.wasm().data_unchecked()[0..context.static_pages().raw() as usize * BASIC_PAGE_SIZE].to_vec()
+        memory_context.memory().data_unchecked()[0..context.static_pages().raw() as usize * BASIC_PAGE_SIZE].to_vec()
     };
 
     for outgoing_msg in messages.drain() {
