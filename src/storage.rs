@@ -26,6 +26,10 @@ impl InMemoryProgramStorage {
     pub fn new(programs: Vec<Program>) -> Self {
         Self { inner: programs.into_iter().map(|p| (p.id(), p)).collect() }
     }
+
+    pub fn drain(self) -> Vec<Program> {
+        self.inner.into_iter().map(|(_, program)| program).collect()
+    }
 }
 
 impl ProgramStorage for InMemoryProgramStorage {
@@ -64,6 +68,10 @@ impl InMemoryMessageQueue {
     pub fn new(messages: Vec<Message>) -> Self {
         Self { inner: VecDeque::from(messages) }
     }
+
+    pub fn drain(self) -> Vec<Message> {
+        self.inner.into_iter().collect()
+    }
 }
 
 impl MessageQueue for InMemoryMessageQueue {
@@ -90,8 +98,6 @@ pub trait AllocationStorage {
     fn count(&self) -> usize;
 
     fn clear(&mut self, program_id: ProgramId);
-
-    fn query(&self) -> Vec<(PageNumber, ProgramId)>;
 }
 
 pub struct InMemoryAllocationStorage {
@@ -101,6 +107,10 @@ pub struct InMemoryAllocationStorage {
 impl InMemoryAllocationStorage {
     pub fn new(allocations: Vec<(PageNumber, ProgramId)>) -> Self {
         Self { inner: allocations.into_iter().collect::<HashMap<_, _, _>>() }  
+    }
+
+    pub fn drain(self) -> Vec<(PageNumber, ProgramId)> {
+        self.inner.iter().map(|(page, pid)| (*page, *pid)).collect()
     }
 }
 
@@ -124,8 +134,24 @@ impl AllocationStorage for InMemoryAllocationStorage {
     fn clear(&mut self, program_id: ProgramId) {
         self.inner.retain(|_, pid| *pid != program_id);
     }
+}
 
-    fn query(&self) -> Vec<(PageNumber, ProgramId)> {
-        self.inner.iter().map(|(page, pid)| (*page, *pid)).collect()
+pub struct Storage<AS: AllocationStorage, MQ: MessageQueue, PS: ProgramStorage> {
+    pub allocation_storage: AS,
+    pub message_queue: MQ,
+    pub program_storage: PS,
+}
+
+pub type InMemoryStorage = Storage<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
+
+pub fn new_in_memory(
+    allocations: Vec<(PageNumber, ProgramId)>,
+    messages: Vec<Message>,
+    programs: Vec<Program>,   
+) -> InMemoryStorage {
+    Storage {
+        allocation_storage: InMemoryAllocationStorage::new(allocations),
+        message_queue: InMemoryMessageQueue::new(messages),
+        program_storage: InMemoryProgramStorage::new(programs),
     }
 }

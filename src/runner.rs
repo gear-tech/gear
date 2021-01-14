@@ -1,5 +1,3 @@
-use std::collections::{HashMap, VecDeque};
-
 use wasmtime::{Store, Module, Func, Extern, Instance, Memory as WasmMemory};
 use codec::{Encode, Decode};
 use anyhow::{anyhow, Result};
@@ -8,7 +6,7 @@ use crate::{
     memory::{Allocations, PageNumber, MemoryContext},
     message::{Message, IncomingMessage, OutgoingMessage, MessageContext},
     program::{ProgramId, Program},
-    storage::{AllocationStorage, ProgramStorage, MessageQueue},
+    storage::{AllocationStorage, ProgramStorage, MessageQueue, Storage},
 };
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -23,21 +21,19 @@ impl Default for Config {
     }
 }
 
-pub struct Runner {
-    pub(crate) programs: HashMap<ProgramId, Program>,
-    pub(crate) message_queue: VecDeque<Message>,
+pub struct Runner<AS: AllocationStorage, MQ: MessageQueue, PS: ProgramStorage> {
+    pub(crate) program_storage: PS,
+    pub(crate) message_queue: MQ,
     pub(crate) store: Store,
     pub(crate) memory: WasmMemory,
-    pub(crate) allocations: Allocations,
+    pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
 }
 
-impl Runner {
+impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runner<AS, MQ, PS> {
     pub fn new(
         config: &Config,
-        programs: Vec<Program>,
-        allocations: Box<dyn AllocationStorage>,
-        message_queue: Vec<Message>,
+        storage: Storage<AS, MQ, PS>,
         persistent_memory: &[u8],
     ) -> Self {
         let store = Store::default();
@@ -63,18 +59,20 @@ impl Runner {
                 .copy_from_slice(persistent_memory);
         }
 
+        let Storage { allocation_storage, message_queue, program_storage } = storage;
+
         Self {
-            programs: programs.into_iter().map(|p| (p.id(), p)).collect(),
-            message_queue: VecDeque::from(message_queue),
+            program_storage,
+            message_queue,
             memory,
             store,
-            allocations: Allocations::new(allocations),
+            allocations: Allocations::new(allocation_storage),
             config: config.clone(),
         }
     }
 
     pub fn run_next(&mut self) -> Result<usize> {
-        let next_message = match self.message_queue.pop_front() {
+        let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
             None => { return Ok(0); }
         };
@@ -89,31 +87,35 @@ impl Runner {
             Ok(1)
         } else {
             let mut context = self.create_context();
-            let program = self.programs.get_mut(&next_message.dest()).expect("Program not found");
+            let program = self.program_storage.get_mut(next_message.dest()).expect("Program not found");
 
             run(&mut context, program, EntryPoint::Handle, &next_message.into())?;
-            self.message_queue.extend(context.message_buf.drain(..));
+            self.message_queue.queue_many(context.message_buf.drain(..).collect());
             Ok(1)
         }
     }
 
-    pub fn complete(self) -> (
-        Vec<Program>,
-        Vec<(PageNumber, ProgramId)>,
-        Vec<Message>,
-        Vec<u8>,
-    ) {
+    pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
         let persistent_memory = {
             let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
             unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
         };
 
-        let Runner { mut programs, message_queue, allocations, .. } = self;
+        let Runner { program_storage, message_queue, allocations, .. } = self;
+
+        let allocation_storage = match allocations.drain() {
+            Ok(v) => v,
+            Err(e) => {
+                panic!("Panic finalizing allocations: {:?}", e)
+            }
+        };
 
         (
-            programs.drain().map(|(_, v)| v).collect(),
-            allocations.all(),
-            message_queue.into_iter().collect(),
+            Storage {
+                allocation_storage,
+                message_queue,
+                program_storage,
+            },
             persistent_memory,
         )
     }
@@ -126,7 +128,7 @@ impl Runner {
         self.config.max_pages
     }
 
-    pub fn create_context(&self) -> RunningContext {
+    pub fn create_context(&self) -> RunningContext<AS> {
         RunningContext::new(
             &self.config,
             self.store.clone(),
@@ -138,16 +140,20 @@ impl Runner {
     pub fn init_program(&mut self, program_id: ProgramId, code: Vec<u8>, init_msg: Vec<u8>)
         -> Result<()>
     {
-        self.programs.entry(program_id)
-            .and_modify(|v| { v.set_code(code.to_vec()); v.clear_static(); })
-            .or_insert_with(|| Program::new(program_id, code, vec![]));
+        if let Some(program) = self.program_storage.get_mut(program_id) {
+            program.set_code(code.to_vec()); 
+            program.clear_static();
+        } else {
+            self.program_storage.set(Program::new(program_id, code, vec![]));
+        }
+
         self.allocations.clear(program_id);
 
         let mut context = self.create_context();
-        let program = self.programs.get_mut(&program_id).expect("Added above; cannot fail");
+        let program = self.program_storage.get_mut(program_id).expect("Added above; cannot fail");
         let msg = IncomingMessage::new_system(init_msg.into());
         run(&mut context, program, EntryPoint::Init, &msg)?;
-        self.message_queue.extend(context.message_buf.drain(..));
+        self.message_queue.queue_many(context.message_buf.drain(..).collect());
         Ok(())
     }
 }
@@ -171,20 +177,20 @@ static BASIC_PAGES: u32 = 256;
 static BASIC_PAGE_SIZE: usize = 65536;
 static MAX_PAGES: u32 = 16384;
 
-pub struct RunningContext {
+pub struct RunningContext<AS: AllocationStorage> {
     config: Config,
     store: Store,
     memory: WasmMemory,
-    allocations: Allocations,
+    allocations: Allocations<AS>,
     message_buf: Vec<Message>,
 }
 
-impl RunningContext {
+impl<AS: AllocationStorage> RunningContext<AS> {
     pub fn new(
         config: &Config,
         store: Store,
         memory: WasmMemory,
-        allocations: Allocations,
+        allocations: Allocations<AS>,
     ) -> Self {
         Self {
             config: config.clone(),
@@ -219,8 +225,8 @@ pub struct RunResult {
     messages: Vec<OutgoingMessage>,
 }
 
-pub fn run(
-    context: &mut RunningContext,
+pub fn run<AS: AllocationStorage + 'static>(
+    context: &mut RunningContext<AS>,
     program: &mut Program,
     entry_point: EntryPoint,
     message: &IncomingMessage,

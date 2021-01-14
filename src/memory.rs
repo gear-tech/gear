@@ -6,6 +6,7 @@ use crate::storage::AllocationStorage;
 #[derive(Clone, Debug)]
 pub enum Error {
     OutOfMemory,
+    AllocationsInUse,
     PageOccupied(PageNumber),
     InvalidFree(PageNumber),
 }
@@ -47,11 +48,16 @@ impl Memory for wasmtime::Memory {
     }
 }
 
-#[derive(Clone)]
-pub struct Allocations(Rc<RefCell<Box<dyn AllocationStorage>>>);
+pub struct Allocations<AS: AllocationStorage>(Rc<RefCell<AS>>);
 
-impl Allocations {
-    pub fn new(storage: Box<dyn AllocationStorage>) -> Self {
+impl<AS: AllocationStorage> Clone for Allocations<AS> {
+    fn clone(&self) -> Self {
+        Allocations(self.0.clone())
+    }
+}
+
+impl<AS: AllocationStorage> Allocations<AS> {
+    pub fn new(storage: AS) -> Self {
         Self(Rc::new(RefCell::new(storage)))
     }
 
@@ -83,8 +89,8 @@ impl Allocations {
         Ok(())
     }
 
-    pub fn all(self) -> Vec<(PageNumber, ProgramId)> {
-        self.0.borrow().query()
+    pub fn drain(self) -> Result<AS, Error> {
+        Ok(Rc::try_unwrap(self.0).map_err(|_| Error::AllocationsInUse)?.into_inner())
     }
 
     pub fn clear(&self, program_id: ProgramId) {
@@ -96,13 +102,24 @@ impl Allocations {
     }
 }
 
-#[derive(Clone)]
-pub struct MemoryContext {
+pub struct MemoryContext<AS: AllocationStorage> {
     program_id: ProgramId,
     memory: Box<dyn Memory>,
-    allocations: Allocations,
+    allocations: Allocations<AS>,
     max_pages: PageNumber,
     static_pages: PageNumber,
+}
+
+impl<AS: AllocationStorage> Clone for MemoryContext<AS> {
+    fn clone(&self) -> Self {
+        Self {
+            program_id: self.program_id,
+            memory: self.memory.clone(),
+            allocations: self.allocations.clone(),
+            max_pages: self.max_pages,
+            static_pages: self.static_pages,
+        }
+    }
 }
 
 impl Clone for Box<dyn Memory> {
@@ -111,11 +128,11 @@ impl Clone for Box<dyn Memory> {
     }
 }
 
-impl MemoryContext {
+impl<AS: AllocationStorage> MemoryContext<AS> {
     pub fn new(
         program_id: ProgramId,
         memory: Box<dyn Memory>,
-        allocations: Allocations,
+        allocations: Allocations<AS>,
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
@@ -164,7 +181,7 @@ impl MemoryContext {
         Ok(())
     }
 
-    pub fn allocations(&self) -> &Allocations {
+    pub fn allocations(&self) -> &Allocations<AS> {
         &self.allocations
     }
 
@@ -178,7 +195,7 @@ mod tests {
     use super::*;
     use crate::storage::InMemoryAllocationStorage;
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
+    fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext<InMemoryAllocationStorage> {
         use wasmtime::{Engine, Store, MemoryType, Memory as WasmMemory, Limits};
 
         let engine = Engine::default();
@@ -190,7 +207,7 @@ mod tests {
         MemoryContext::new(
             0.into(),
             Box::new(memory),
-            Allocations::new(Box::new(InMemoryAllocationStorage::new(Vec::new()))),
+            Allocations::new(InMemoryAllocationStorage::new(Vec::new())),
             static_pages.into(),
             max_pages.into(),
         )
