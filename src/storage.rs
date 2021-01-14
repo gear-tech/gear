@@ -5,6 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::{
     program::{ProgramId, Program},
     message::Message,
+    memory::PageNumber,
 };
 
 pub trait ProgramStorage {
@@ -72,5 +73,59 @@ impl MessageQueue for InMemoryMessageQueue {
 
     fn queue(&mut self, message: Message) {
         self.inner.push_back(message)
+    }
+}
+
+pub trait AllocationStorage {
+    fn get(&self, page: PageNumber) -> Option<&ProgramId>;
+
+    fn remove(&mut self, page: PageNumber) -> Option<ProgramId>;
+
+    fn set(&mut self, page: PageNumber, program: ProgramId);
+
+    fn exists(&self, id: PageNumber) -> bool {
+        self.get(id).is_some()
+    }
+
+    fn count(&self) -> usize;
+
+    fn clear(&mut self, program_id: ProgramId);
+
+    fn query(&self) -> Vec<(PageNumber, ProgramId)>;
+}
+
+pub struct InMemoryAllocationStorage {
+    inner: HashMap<PageNumber, ProgramId>,
+}
+
+impl InMemoryAllocationStorage {
+    pub fn new(allocations: Vec<(PageNumber, ProgramId)>) -> Self {
+        Self { inner: allocations.into_iter().collect::<HashMap<_, _, _>>() }  
+    }
+}
+
+impl AllocationStorage for InMemoryAllocationStorage {
+    fn get(&self, id: PageNumber) -> Option<&ProgramId> {
+        self.inner.get(&id)
+    }
+
+    fn remove(&mut self, id: PageNumber) -> Option<ProgramId> {
+        self.inner.remove(&id)
+    }
+
+    fn set(&mut self, page: PageNumber, program: ProgramId) {
+        self.inner.insert(page, program);
+    }
+
+    fn count(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn clear(&mut self, program_id: ProgramId) {
+        self.inner.retain(|_, pid| *pid != program_id);
+    }
+
+    fn query(&self) -> Vec<(PageNumber, ProgramId)> {
+        self.inner.iter().map(|(page, pid)| (*page, *pid)).collect()
     }
 }

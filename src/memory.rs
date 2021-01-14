@@ -1,6 +1,7 @@
 use codec::{Encode, Decode};
-use std::{rc::Rc, cell::RefCell, collections::HashMap};
+use std::{rc::Rc, cell::RefCell};
 use crate::program::ProgramId;
+use crate::storage::AllocationStorage;
 
 #[derive(Clone, Debug)]
 pub enum Error {
@@ -46,59 +47,52 @@ impl Memory for wasmtime::Memory {
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct Allocations(Rc<RefCell<HashMap<PageNumber, ProgramId>>>);
+#[derive(Clone)]
+pub struct Allocations(Rc<RefCell<Box<dyn AllocationStorage>>>);
 
 impl Allocations {
-    pub fn new<I: IntoIterator<Item=(PageNumber, ProgramId)>>(items: I) -> Self {
-        Self(Rc::new(RefCell::new(items.into_iter().collect::<HashMap<_, _, _>>())))
+    pub fn new(storage: Box<dyn AllocationStorage>) -> Self {
+        Self(Rc::new(RefCell::new(storage)))
     }
 
     pub fn get(&self, page: PageNumber) -> Option<ProgramId> {
-        self.0.borrow().get(&page).map(|pid| *pid)
+        self.0.borrow().get(page).map(|pid| *pid)
     }
 
     pub fn occupied(&self, page: PageNumber) -> bool {
-        self.0.borrow().contains_key(&page)
+        self.0.borrow().exists(page)
     }
 
     pub fn insert(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
-        if self.0.borrow().contains_key(&page) {
+        if self.0.borrow().exists(page) {
             return Err(Error::PageOccupied(page))
         }
 
-        self.0.borrow_mut().insert(page, program_id);
+        self.0.borrow_mut().set(page, program_id);
 
         Ok(())
     }
 
     pub fn remove(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
-        if program_id != *self.0.borrow().get(&page).ok_or(Error::InvalidFree(page))? {
+        if program_id != *self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
             return Err(Error::InvalidFree(page))
         }
 
-        self.0.borrow_mut().remove(&page);
+        self.0.borrow_mut().remove(page);
 
         Ok(())
     }
 
-    pub fn drain(self) -> Vec<(PageNumber, ProgramId)> {
-        self.0.borrow_mut().drain().collect::<Vec<_>>()
-    }
-
-    // TODO: optimize
-    pub fn by_proram(&self, target_program_id: ProgramId) -> Vec<PageNumber> {
-        self.0.borrow().iter()
-            .filter_map(|(page, pid)| if *pid == target_program_id { Some(*page) } else { None })
-            .collect()
+    pub fn all(self) -> Vec<(PageNumber, ProgramId)> {
+        self.0.borrow().query()
     }
 
     pub fn clear(&self, program_id: ProgramId) {
-        self.0.borrow_mut().retain(|_, pid| *pid != program_id);
+        self.0.borrow_mut().clear(program_id)
     }
 
     pub fn len(&self) -> usize {
-        self.0.borrow().len()
+        self.0.borrow().count()
     }
 }
 
@@ -182,6 +176,7 @@ impl MemoryContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::InMemoryAllocationStorage;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
         use wasmtime::{Engine, Store, MemoryType, Memory as WasmMemory, Limits};
@@ -195,7 +190,7 @@ mod tests {
         MemoryContext::new(
             0.into(),
             Box::new(memory),
-            Default::default(),
+            Allocations::new(Box::new(InMemoryAllocationStorage::new(Vec::new()))),
             static_pages.into(),
             max_pages.into(),
         )

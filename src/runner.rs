@@ -8,6 +8,7 @@ use crate::{
     memory::{Allocations, PageNumber, MemoryContext},
     message::{Message, IncomingMessage, OutgoingMessage, MessageContext},
     program::{ProgramId, Program},
+    storage::{AllocationStorage, ProgramStorage, MessageQueue},
 };
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -35,7 +36,7 @@ impl Runner {
     pub fn new(
         config: &Config,
         programs: Vec<Program>,
-        allocations: Vec<(PageNumber, ProgramId)>,
+        allocations: Box<dyn AllocationStorage>,
         message_queue: Vec<Message>,
         persistent_memory: &[u8],
     ) -> Self {
@@ -111,7 +112,7 @@ impl Runner {
 
         (
             programs.drain().map(|(_, v)| v).collect(),
-            allocations.drain(),
+            allocations.all(),
             message_queue.into_iter().collect(),
             persistent_memory,
         )
