@@ -7,6 +7,7 @@ use gear_core::{
     program::{Program, ProgramId},
     memory::PageNumber,
     runner::{Runner, Config},
+    storage::{new_in_memory, InMemoryStorage, InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage},
 };
 
 #[derive(Decode, Default, Encode, Clone, Debug)]
@@ -30,21 +31,26 @@ pub fn save_to_file<P: AsRef<Path>>(path: P, state: &State) {
     std::fs::write(path, bytes).expect("Failed to write data");
 }
 
+type InMemoryRunner = Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
+
 impl State {
-    pub fn into_runner(self) -> Runner {
-        let State { programs, queued_messages, memory, allocations } = self;
+    pub fn into_runner(self) -> InMemoryRunner {
+        let State { allocations, queued_messages, programs, memory } = self;
 
         Runner::new(
             &Config::default(),
-            programs,
-            allocations,
-            queued_messages,
+            new_in_memory(allocations, queued_messages, programs),
             &memory[..],
         )
     }
 
-    pub fn from_runner(runner: Runner) -> Self {
-        let (programs, allocations, queued_messages, memory) = runner.complete();
-        Self { programs, allocations, queued_messages, memory }
+    pub fn from_runner(runner: InMemoryRunner) -> Self {
+        let ( InMemoryStorage { allocation_storage, message_queue, program_storage } , memory) = runner.complete();
+        Self { 
+            allocations: allocation_storage.drain(), 
+            queued_messages: message_queue.drain(), 
+            programs: program_storage.drain(), 
+            memory,
+        }
     }
 }
