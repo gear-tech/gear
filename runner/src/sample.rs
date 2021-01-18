@@ -1,44 +1,48 @@
 use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-struct Program {
-    path: String,
-    id: u64,
+pub struct Program {
+    pub path: String,
+    pub id: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-struct Expectation {
+pub struct Expectation {
     messages: Vec<Message>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-struct Fixture {
-    title: String,
-    messages: Vec<Message>,
-    expected: Expectation,
+pub struct Fixture {
+    pub title: String,
+    pub messages: Vec<Message>,
+    pub expected: Expectation,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag="kind", content="value")]
-enum PayloadVariant{
+pub enum PayloadVariant{
     #[serde(rename="utf-8")]
     Utf8(String),
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-struct Message {
-    destination: u64,
-    payload: PayloadVariant,
+impl PayloadVariant {
+    pub fn raw(&self) -> &[u8] {
+        match *self {
+            Self::Utf8(ref s) => s.as_bytes(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-struct Test {
-    programs: Vec<Program>,
-    fixtures: Vec<Fixture>,
+pub struct Message {
+    pub destination: u64,
+    pub payload: PayloadVariant,
 }
 
-pub struct InitialiState {
-    messages: 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct Test {
+    pub programs: Vec<Program>,
+    pub fixtures: Vec<Fixture>,
 }
 
 #[test]
