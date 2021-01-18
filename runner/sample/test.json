@@ -3,7 +3,7 @@
     "programs": [
         {
             "id": 1,
-            "path": "../../demo-chat/target/wasm32-unknown-unknown/release/demo1.wasm"
+            "path": "../../demo-pign/target/wasm32-unknown-unknown/release/demo1.wasm"
         }
     ],
     "fixtures": [

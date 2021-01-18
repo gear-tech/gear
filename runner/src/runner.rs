@@ -1,11 +1,5 @@
-use std::path::Path;
-
-use codec::{Encode, Decode};
-
 use gear_core::{
     message::Message,
-    program::{Program, ProgramId},
-    memory::PageNumber,
     runner::{Runner, Config},
     storage::{new_in_memory, InMemoryStorage, InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage},
 };
@@ -46,7 +40,7 @@ pub fn run(mut runner: InMemoryRunner) -> anyhow::Result<FinalState> {
     while runner.run_next()? > 0 {
     }
 
-    let ( InMemoryStorage { message_queue, .. } , memory) = runner.complete();
+    let ( InMemoryStorage { message_queue, .. }, _) = runner.complete();
 
     Ok(FinalState {
         log: message_queue.log().iter().cloned().collect()
