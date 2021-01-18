@@ -1,0 +1,28 @@
+{
+    "title": "basic",
+    "programs": [
+        {
+            "id": 1,
+            "path": "../../demo-chat/target/wasm32-unknown-unknown/release/demo1.wasm"
+        }
+    ],
+    "fixtures": [
+        {
+            "title": "ping-pong",
+            "messages": [
+                {
+                    "payload": { "kind": "utf-8", "value": "PING" },
+                    "destination": 1
+                }
+            ],
+            "expected": {
+                "messages": [
+                    {
+                        "payload": { "kind": "utf-8", "value": "PING" },
+                        "destination": 0
+                    }
+                ]
+            }
+        }
+    ]
+}

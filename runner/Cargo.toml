@@ -1,0 +1,19 @@
+[package]
+name = "gear-test-runner"
+version = "0.1.0"
+authors = ["NikVolf <nikvolf@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3", features = ["derive"] }
+gear-core = { path = "../../gear-core" }
+anyhow = "1"
+clap = "2"
+serde = "*"
+serde_json = "*"
+
+[[bin]]
+name = "gtest"
+path = "src/main.rs"
