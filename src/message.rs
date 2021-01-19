@@ -70,6 +70,10 @@ pub struct Message {
 }
 
 impl Message {
+    pub fn new_system(dest: ProgramId, payload: Payload) -> Message {
+        Message { source: 0.into(), dest, payload }
+    }
+
     pub fn dest(&self) -> ProgramId {
         self.dest
     }

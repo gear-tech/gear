@@ -61,16 +61,21 @@ pub trait MessageQueue {
 }
 
 pub struct InMemoryMessageQueue {
-    inner: VecDeque<Message>,    
+    inner: VecDeque<Message>,
+    log: Vec<Message> // messages sent to /0
 }
 
 impl InMemoryMessageQueue {
     pub fn new(messages: Vec<Message>) -> Self {
-        Self { inner: VecDeque::from(messages) }
+        Self { inner: VecDeque::from(messages), log: Vec::new() }
     }
 
     pub fn drain(self) -> Vec<Message> {
         self.inner.into_iter().collect()
+    }
+
+    pub fn log(&self) -> &[Message] {
+        &self.log[..]
     }
 }
 
@@ -80,6 +85,11 @@ impl MessageQueue for InMemoryMessageQueue {
     }
 
     fn queue(&mut self, message: Message) {
+        if message.dest() == 0.into() {
+            self.log.push(message);
+            return;
+        }
+
         self.inner.push_back(message)
     }
 }
@@ -106,7 +116,7 @@ pub struct InMemoryAllocationStorage {
 
 impl InMemoryAllocationStorage {
     pub fn new(allocations: Vec<(PageNumber, ProgramId)>) -> Self {
-        Self { inner: allocations.into_iter().collect::<HashMap<_, _, _>>() }  
+        Self { inner: allocations.into_iter().collect::<HashMap<_, _, _>>() }
     }
 
     pub fn drain(self) -> Vec<(PageNumber, ProgramId)> {
@@ -147,7 +157,7 @@ pub type InMemoryStorage = Storage<InMemoryAllocationStorage, InMemoryMessageQue
 pub fn new_in_memory(
     allocations: Vec<(PageNumber, ProgramId)>,
     messages: Vec<Message>,
-    programs: Vec<Program>,   
+    programs: Vec<Program>,
 ) -> InMemoryStorage {
     Storage {
         allocation_storage: InMemoryAllocationStorage::new(allocations),
