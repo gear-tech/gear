@@ -13,6 +13,7 @@ pub mod msg {
             pub fn send(program: i64, data_ptr: *const u8, data_len: u32);
             pub fn size() -> u32;
             pub fn read(at: u32, len: u32, dest: *mut u8);
+            pub fn source() -> i64;
         }
     }
 
@@ -30,6 +31,10 @@ pub mod msg {
         unsafe {
             sys::send(program as _, payload.as_ptr(), payload.len() as _)
         }
+    }
+
+    pub fn source() -> u64 {
+        unsafe { sys::source() as _ }
     }
 
 }
