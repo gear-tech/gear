@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
-use wasmtime::{Func, Module, Instance, Memory, Extern};
+use wasmtime::{Func, Module, Instance, Memory, Extern, Engine};
 use ::anyhow::{anyhow, self};
 
 pub trait Ext {
@@ -238,5 +238,18 @@ impl<E: Ext + 'static> Environment<E> {
         let ext = self.ext.unset();
 
         (result, ext)
+    }
+
+    pub fn engine(&self) -> &Engine {
+        self.store.engine()
+    }
+
+    pub fn create_memory(&self, total_pages: u32) -> Memory {
+        Memory::new(
+            &self.store,
+            wasmtime::MemoryType::new(
+                wasmtime::Limits::at_least(total_pages)
+            ),
+        )
     }
 }
