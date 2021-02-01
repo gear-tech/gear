@@ -3,6 +3,7 @@ use codec::{Encode, Decode};
 use anyhow::{anyhow, Result};
 
 use crate::{
+    env,
     memory::{Allocations, PageNumber, MemoryContext},
     message::{Message, IncomingMessage, OutgoingMessage, MessageContext},
     program::{ProgramId, Program},

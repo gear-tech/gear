@@ -1,13 +1,12 @@
 //! Wasmtime environment for running a module
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::mem::MaybeUninit;
 
-use crate::storage::AllocationStorage;
-use crate::memory::{MemoryContext, PageNumber};
+use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
-use wasmtime::Func;
+use wasmtime::{Func, Module, Instance, Memory, Extern};
+use ::anyhow::{anyhow, self};
 
 pub trait Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
@@ -51,7 +50,7 @@ impl<E: Ext> LaterExt<E> {
         res
     }
 
-    fn unset(&mut self, e: E) -> E {
+    fn unset(&mut self) -> E {
         self.inner.borrow_mut().take()
             .expect("Unset should be paired with set and called after")
     }
@@ -139,7 +138,7 @@ impl<E: Ext + 'static> Environment<E> {
                 let dest = dest as u32 as usize;
                 ext.with(|ext: &mut E| {
                     let msg = ext.msg().to_vec();
-                    ext.set_mem(dest, &msg[..]);
+                    ext.set_mem(dest, &msg[at..at+len]);
                 });
                 Ok(())
             })
@@ -172,8 +171,72 @@ impl<E: Ext + 'static> Environment<E> {
         Self { store, ext, alloc, send, free, size, read, debug, source }
     }
 
-    pub fn run(&self, ext: E, func: &'static str) {
+    fn run_inner(
+        &mut self,
+        module: Module,
+        memory: Memory,
+        func: impl FnOnce(Instance) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
+        let mut imports = module
+            .imports()
+            .map(
+                |import| if import.module() != "env" {
+                    return Err(anyhow!("Non-env imports are not supported"))
+                } else {
+                    Ok((import.name(), Option::<Extern>::None))
+                }
+            )
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
+        for (ref import_name, ref mut ext) in imports.iter_mut() {
+            *ext = if import_name == &"send" {
+                Some(self.send.clone().into())
+            } else if import_name == &"source" {
+                Some(self.source.clone().into())
+            } else if import_name == &"alloc" {
+                Some(self.alloc.clone().into())
+            } else if import_name == &"free" {
+                Some(self.free.clone().into())
+            } else if import_name == &"size" {
+                Some(self.size.clone().into())
+            } else if import_name == &"read" {
+                Some(self.read.clone().into())
+            } else if import_name == &"debug" {
+                Some(self.debug.clone().into())
+            } else if import_name == &"memory" {
+                Some(memory.clone().into())
+            } else {
+                continue;
+            };
+        }
+
+        let externs = imports
+            .into_iter()
+            .map(|(_, host_function)| host_function.ok_or(anyhow!("Missing import")))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let instance = Instance::new(
+            &self.store,
+            &module,
+            &externs,
+        )?;
+
+        func(instance)
+    }
+
+    pub fn setup_and_run(
+        &mut self, 
+        ext: E, 
+        module: Module,
+        memory: Memory,
+        func: impl FnOnce(Instance) -> anyhow::Result<()>,
+    ) -> (anyhow::Result<()>, E) {
+        self.ext.set(ext);
+
+        let result = self.run_inner(module, memory, func);
+
+        let ext = self.ext.unset();
+
+        (result, ext)
     }
 }
-
