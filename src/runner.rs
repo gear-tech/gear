@@ -249,12 +249,12 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 
     fn set_mem(&mut self, ptr: usize, val: &[u8]) {
-        unsafe { 
+        unsafe {
             self
                 .memory_context
                 .memory()
                 .data_unchecked_mut()[ptr..ptr+val.len()]
-                .copy_from_slice(val); 
+                .copy_from_slice(val);
         }
     }
 
@@ -276,7 +276,7 @@ fn run<AS: AllocationStorage + 'static>(
 ) -> Result<RunResult> {
     let module = Module::new(env.engine(), program.code())?;
 
-    let ext = Ext {
+    let mut ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
             Box::new(context.wasmtime_memory()),
@@ -292,13 +292,9 @@ fn run<AS: AllocationStorage + 'static>(
     };
 
     // Set static pages from saved program state.
-    unsafe {
-        let cut_off = program.static_pages().len();
-        ext.memory_context.memory().data_unchecked_mut()[0..cut_off]
-            .copy_from_slice(program.static_pages());
-    };
+    ext.set_mem(0, program.static_pages());
 
-    let (res, ext) = env.setup_and_run(
+    let (res, mut ext) = env.setup_and_run(
         ext,
         module,
         context.wasmtime_memory(),
@@ -314,14 +310,12 @@ fn run<AS: AllocationStorage + 'static>(
     );
 
     res.map(move |_| {
-        *program.static_pages_mut() = unsafe {
-            ext.memory_context.memory().data_unchecked()[0..context.static_pages().raw() as usize * BASIC_PAGE_SIZE].to_vec()
-        };
-    
+        *program.static_pages_mut() = ext.get_mem(0, context.static_pages().raw() as usize * BASIC_PAGE_SIZE).to_vec();
+
         for outgoing_msg in ext.messages.drain() {
             context.push_message(outgoing_msg.into_message(program.id()));
         }
-    
+
         RunResult::default()
     })
 }
