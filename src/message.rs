@@ -6,6 +6,12 @@ use crate::program::ProgramId;
 #[derive(Clone, Debug, Decode, Encode, derive_more::From)]
 pub struct Payload(Vec<u8>);
 
+impl Payload {
+    pub fn into_raw(self) -> Vec<u8> {
+        self.0
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     LimitExceeded,

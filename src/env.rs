@@ -46,7 +46,7 @@ impl<E: Ext> LaterExt<E> {
         let res = f(&mut ext);
 
         *brw = Some(ext);
-        
+
         res
     }
 
@@ -225,8 +225,8 @@ impl<E: Ext + 'static> Environment<E> {
     }
 
     pub fn setup_and_run(
-        &mut self, 
-        ext: E, 
+        &mut self,
+        ext: E,
         module: Module,
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
