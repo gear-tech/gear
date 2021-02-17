@@ -1,75 +1,97 @@
-# gear-node
-Gear Node
+# Substrate Node Template
 
-### Rust Setup
+A new FRAME-based Substrate node, ready for hacking :rocket:
 
-Setup instructions for working with the [Rust](https://www.rust-lang.org/) programming language can
-be found at the
-[Substrate Developer Hub](https://substrate.dev/docs/en/knowledgebase/getting-started). Follow those
-steps to install [`rustup`](https://rustup.rs/) and configure the Rust toolchain to default to the
-latest stable version.
+## Local Development
 
-### Makefile
+Follow these steps to prepare a local Substrate development environment :hammer_and_wrench:
 
-This project uses a [Makefile](Makefile) to document helpful commands and make it easier to execute
-them. Get started by running these [`make`](https://www.gnu.org/software/make/manual/make.html)
-targets:
+### Simple Setup
 
-1. `make init` - Run the [init script](scripts/init.sh) to configure the Rust toolchain for
-   [WebAssembly compilation](https://substrate.dev/docs/en/knowledgebase/getting-started/#webassembly-compilation).
-1. `make run` - Build and launch this project in development mode.
+Install all the required dependencies with a single command (be patient, this can take up to 30
+minutes).
 
-The init script and Makefile both specify the version of the
-[Rust nightly compiler](https://substrate.dev/docs/en/knowledgebase/getting-started/#rust-nightly-toolchain)
-that this project depends on.
+```bash
+curl https://getsubstrate.io -sSf | bash -s -- --fast
+```
+
+### Manual Setup
+
+Find manual setup instructions at the
+[Substrate Developer Hub](https://substrate.dev/docs/en/knowledgebase/getting-started/#manual-installation).
 
 ### Build
 
-The `make run` command will perform an initial build. Use the following command to build the node
-without launching it:
+Once the development environment is set up, build the node template. This command will build the
+[Wasm](https://substrate.dev/docs/en/knowledgebase/advanced/executor#wasm-execution) and
+[native](https://substrate.dev/docs/en/knowledgebase/advanced/executor#native-execution) code:
 
-```sh
-make build
-```
-
-### Embedded Docs
-
-Once the project has been built, the following command can be used to explore all parameters and
-subcommands:
-
-```sh
-./target/release/gear-node -h
+```bash
+cargo build --release
 ```
 
 ## Run
 
-The `make run` command will launch a temporary node and its state will be discarded after you
-terminate the process. After the project has been built, there are other ways to launch the node.
+### Single Node Development Chain
 
-### Single-Node Development Chain
-
-This command will start the single-node development chain with persistent state:
+Purge any existing dev chain state:
 
 ```bash
-./target/release/gear-node --dev
+./target/release/node-template purge-chain --dev
 ```
 
-Purge the development chain's state:
+Start a dev chain:
 
 ```bash
-./target/release/gear-node purge-chain --dev
+./target/release/node-template --dev
 ```
 
-Start the development chain with detailed logging:
+Or, start a dev chain with detailed logging:
 
 ```bash
-RUST_LOG=debug RUST_BACKTRACE=1 ./target/release/gear-node -lruntime=debug --dev
+RUST_LOG=debug RUST_BACKTRACE=1 ./target/release/node-template -lruntime=debug --dev
 ```
 
 ### Multi-Node Local Testnet
 
-If you want to see the multi-node consensus algorithm in action, refer to
-[our Start a Private Network tutorial](https://substrate.dev/docs/en/tutorials/start-a-private-network/).
+To see the multi-node consensus algorithm in action, run a local testnet with two validator nodes,
+Alice and Bob, that have been [configured](./node/src/chain_spec.rs) as the initial
+authorities of the `local` testnet chain and endowed with testnet units.
+
+Note: this will require two terminal sessions (one for each node).
+
+Start Alice's node first. The command below uses the default TCP port (30333) and specifies
+`/tmp/alice` as the chain database location. Alice's node ID will be
+`12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp` (legacy representation:
+`QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR`); this is determined by the `node-key`.
+
+```bash
+cargo run -- \
+  --base-path /tmp/alice \
+  --chain=local \
+  --alice \
+  --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
+  --telemetry-url 'ws://telemetry.polkadot.io:1024 0' \
+  --validator
+```
+
+In another terminal, use the following command to start Bob's node on a different TCP port (30334)
+and with a chain database location of `/tmp/bob`. The `--bootnodes` option will connect his node to
+Alice's on TCP port 30333:
+
+```bash
+cargo run -- \
+  --base-path /tmp/bob \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp \
+  --chain=local \
+  --bob \
+  --port 30334 \
+  --ws-port 9945 \
+  --telemetry-url 'ws://telemetry.polkadot.io:1024 0' \
+  --validator
+```
+
+Execute `cargo run -- --help` to learn more about the template node's CLI options.
 
 ## Template Structure
 
@@ -114,5 +136,72 @@ After the node has been [built](#build), refer to the embedded documentation to 
 capabilities and configuration parameters that it exposes:
 
 ```shell
-./target/release/gear-node --help
+./target/release/node-template --help
 ```
+
+### Runtime
+
+In Substrate, the terms
+"[runtime](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary#runtime)" and
+"[state transition function](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary#stf-state-transition-function)"
+are analogous - they refer to the core logic of the blockchain that is responsible for validating
+blocks and executing the state changes they define. The Substrate project in this repository uses
+the [FRAME](https://substrate.dev/docs/en/knowledgebase/runtime/frame) framework to construct a
+blockchain runtime. FRAME allows runtime developers to declare domain-specific logic in modules
+called "pallets". At the heart of FRAME is a helpful
+[macro language](https://substrate.dev/docs/en/knowledgebase/runtime/macros) that makes it easy to
+create pallets and flexibly compose them to create blockchains that can address
+[a variety of needs](https://www.substrate.io/substrate-users/).
+
+Review the [FRAME runtime implementation](./runtime/src/lib.rs) included in this template and note
+the following:
+
+-   This file configures several pallets to include in the runtime. Each pallet configuration is
+    defined by a code block that begins with `impl $PALLET_NAME::Config for Runtime`.
+-   The pallets are composed into a single runtime by way of the
+    [`construct_runtime!`](https://crates.parity.io/frame_support/macro.construct_runtime.html)
+    macro, which is part of the core
+    [FRAME Support](https://substrate.dev/docs/en/knowledgebase/runtime/frame#support-library)
+    library.
+
+### Pallets
+
+The runtime in this project is constructed using many FRAME pallets that ship with the
+[core Substrate repository](https://github.com/paritytech/substrate/tree/master/frame) and a
+template pallet that is [defined in the `pallets`](./pallets/template/src/lib.rs) directory.
+
+A FRAME pallet is compromised of a number of blockchain primitives:
+
+-   Storage: FRAME defines a rich set of powerful
+    [storage abstractions](https://substrate.dev/docs/en/knowledgebase/runtime/storage) that makes
+    it easy to use Substrate's efficient key-value database to manage the evolving state of a
+    blockchain.
+-   Dispatchables: FRAME pallets define special types of functions that can be invoked (dispatched)
+    from outside of the runtime in order to update its state.
+-   Events: Substrate uses [events](https://substrate.dev/docs/en/knowledgebase/runtime/events) to
+    notify users of important changes in the runtime.
+-   Errors: When a dispatchable fails, it returns an error.
+-   Config: The `Config` configuration interface is used to define the types and parameters upon
+    which a FRAME pallet depends.
+
+## Generate a Custom Node Template
+
+Generate a Substrate node template based on a particular commit by running the following commands:
+
+```bash
+# Clone from the main Substrate repo
+git clone https://github.com/paritytech/substrate.git
+cd substrate
+
+# Switch to the branch or commit to base the template on
+git checkout <branch/tag/sha1>
+
+# Run the helper script to generate a node template. This script compiles Substrate, so it will take
+# a while to complete. It expects a single parameter: the location for the script's output expressed
+# as a relative path.
+.maintain/node-template-release.sh ../node-template.tar.gz
+```
+
+Custom node templates are not supported. Please use a recently tagged version of the
+[Substrate Developer Node Template](https://github.com/substrate-developer-hub/substrate-node-template)
+in order to receive support.
