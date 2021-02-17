@@ -37,10 +37,25 @@ pub fn main() -> anyhow::Result<()> {
         for fixture_no in 0..test.fixtures.len() {
             let output = match runner::init_fixture(&test, fixture_no) {
                 Ok(initialized_fixture) => {
-                    match runner::run(initialized_fixture) {
+                    match runner::run(initialized_fixture, test.fixtures[fixture_no].expected.step)
+                    {
                         Ok(final_state) => {
-                            format!("Ok")
-                        },
+                            let mut res = format!("Ok");
+                            &test.fixtures[fixture_no]
+                                .expected
+                                .messages
+                                .iter()
+                                .zip(final_state.log.iter())
+                                .for_each(|(exp, msg)| {
+                                    if exp.destination != msg.dest.0 {
+                                        res = format!("Expectation error (destination doesn't match)");
+                                    }
+                                    if &exp.payload.raw() != &msg.payload.clone().into_raw() {
+                                        res = format!("Expectation error (payload doesn't match)");
+                                    }
+                                });
+                            res
+                        }
                         Err(e) => {
                             total_failed += 1;
                             format!("Running error ({})", e)

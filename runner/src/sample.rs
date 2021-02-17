@@ -4,11 +4,13 @@ use serde::{Serialize, Deserialize};
 pub struct Program {
     pub path: String,
     pub id: u64,
+    pub init_message: Option<Message>
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
-    messages: Vec<Message>,
+    pub step: u64,
+    pub messages: Vec<Message>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
