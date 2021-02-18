@@ -4,27 +4,31 @@
         {
             "id": 1,
             "path": "../demo-sum/target/wasm32-unknown-unknown/release/demo-sum.wasm"
+        },
+        {
+            "id": 2,
+            "path": "../demo-fib/target/wasm32-unknown-unknown/release/demo-fib.wasm"
         }
     ],
     "fixtures": [
         {
-            "title": "sum",
+            "title": "fibonacci-sum",
             "messages": [
                 {
                     "payload": {
                         "kind": "i32",
-                        "value": 1
+                        "value": 20
                     },
                     "destination": 1
                 }
             ],
             "expected": {
-                "step": 1,
+                "step": 2,
                 "messages": [
                     {
                         "payload": {
                             "kind": "i32",
-                            "value": 2
+                            "value": 102334155
                         },
                         "destination": 1
                     }

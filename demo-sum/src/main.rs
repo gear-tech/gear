@@ -10,7 +10,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = i32::from_ne_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
-    msg::send(msg::source(), (new_msg + new_msg).as_ne_bytes());
+    msg::send(2, (new_msg + new_msg).as_ne_bytes());
 
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
