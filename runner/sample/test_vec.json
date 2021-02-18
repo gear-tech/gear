@@ -1,0 +1,39 @@
+{
+    "title": "basic",
+    "programs": [
+        {
+            "id": 1,
+            "path": "../demo-sum/target/wasm32-unknown-unknown/release/demo-sum.wasm"
+        },
+        {
+            "id": 2,
+            "path": "../demo-vec/target/wasm32-unknown-unknown/release/demo-vec.wasm"
+        }
+    ],
+    "fixtures": [
+        {
+            "title": "test-vec (20000 * size_of(i32) = 80 KiB = 2 pages)",
+            "messages": [
+                {
+                    "payload": {
+                        "kind": "i32",
+                        "value": 10000
+                    },
+                    "destination": 1
+                }
+            ],
+            "expected": {
+                "step": 4,
+                "messages": [
+                    {
+                        "payload": {
+                            "kind": "i32",
+                            "value": 20000
+                        },
+                        "destination": 1
+                    }
+                ]
+            }
+        }
+    ]
+}
