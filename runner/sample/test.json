@@ -4,6 +4,10 @@
         {
             "id": 1,
             "path": "../demo-ping/target/wasm32-unknown-unknown/release/demo-ping.wasm"
+        },
+        {
+            "id": 2,
+            "path": "../demo-ping/target/wasm32-unknown-unknown/release/demo-ping.wasm"
         }
     ],
     "fixtures": [
@@ -16,6 +20,13 @@
                         "value": "PING"
                     },
                     "destination": 1
+                },
+                {
+                    "payload": {
+                        "kind": "utf-8",
+                        "value": "PING"
+                    },
+                    "destination": 2
                 }
             ],
             "expected": {
@@ -27,6 +38,13 @@
                             "value": "PONG"
                         },
                         "destination": 1
+                    },
+                    {
+                        "payload": {
+                            "kind": "utf-8",
+                            "value": "PING"
+                        },
+                        "destination": 2
                     }
                 ]
             }

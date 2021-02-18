@@ -47,7 +47,7 @@ pub fn main() -> anyhow::Result<()> {
                                     .expected
                                     .messages
                                     .iter()
-                                    .zip(final_state.log.iter())
+                                    .zip(final_state.log.iter().rev())
                                     .for_each(|(exp, msg)| {
                                         if exp.destination != msg.dest.0 {
                                             res = format!(
