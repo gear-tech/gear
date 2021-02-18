@@ -3,5 +3,6 @@
 /demo-ping/target
 /demo-chat/target
 /demo-sum/target
+/demo-fib/target
 /runner/target
 .vscode
