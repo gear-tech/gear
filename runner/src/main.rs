@@ -1,3 +1,4 @@
+#![feature(num_as_ne_bytes)]
 mod runner;
 mod sample;
 

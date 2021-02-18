@@ -25,12 +25,17 @@ pub struct Fixture {
 pub enum PayloadVariant{
     #[serde(rename="utf-8")]
     Utf8(String),
+    #[serde(rename="i32")]
+    I32(i32),
 }
 
 impl PayloadVariant {
     pub fn raw(&self) -> &[u8] {
         match *self {
             Self::Utf8(ref s) => s.as_bytes(),
+            Self::I32(ref s) => {
+                s.as_ne_bytes()
+            }
         }
     }
 }

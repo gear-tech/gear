@@ -1,0 +1,35 @@
+{
+    "title": "basic",
+    "programs": [
+        {
+            "id": 1,
+            "path": "../demo-sum/target/wasm32-unknown-unknown/release/demo-sum.wasm"
+        }
+    ],
+    "fixtures": [
+        {
+            "title": "sum",
+            "messages": [
+                {
+                    "payload": {
+                        "kind": "i32",
+                        "value": 1
+                    },
+                    "destination": 1
+                }
+            ],
+            "expected": {
+                "step": 1,
+                "messages": [
+                    {
+                        "payload": {
+                            "kind": "i32",
+                            "value": 2
+                        },
+                        "destination": 1
+                    }
+                ]
+            }
+        }
+    ]
+}
