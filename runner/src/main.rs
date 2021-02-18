@@ -1,9 +1,9 @@
-mod sample;
 mod runner;
+mod sample;
 
-use std::fs;
 use anyhow::anyhow;
 use sample::Test;
+use std::fs;
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
     let file = fs::File::open(path)?;
@@ -12,16 +12,13 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 }
 
 pub fn main() -> anyhow::Result<()> {
-
     let mut tests = Vec::new();
 
     for f in std::env::args().skip(1) {
-        if fs::metadata(&f).map(|m| m.is_dir())
-            .unwrap_or_else(|e| {
-                println!("Error accessing {}: {}", f, e);
-                false
-            })
-        {
+        if fs::metadata(&f).map(|m| m.is_dir()).unwrap_or_else(|e| {
+            println!("Error accessing {}: {}", f, e);
+            false
+        }) {
             continue;
         }
 
@@ -41,19 +38,29 @@ pub fn main() -> anyhow::Result<()> {
                     {
                         Ok(final_state) => {
                             let mut res = format!("Ok");
-                            &test.fixtures[fixture_no]
-                                .expected
-                                .messages
-                                .iter()
-                                .zip(final_state.log.iter())
-                                .for_each(|(exp, msg)| {
-                                    if exp.destination != msg.dest.0 {
-                                        res = format!("Expectation error (destination doesn't match)");
-                                    }
-                                    if &exp.payload.raw() != &msg.payload.clone().into_raw() {
-                                        res = format!("Expectation error (payload doesn't match)");
-                                    }
-                                });
+                            if test.fixtures[fixture_no].expected.messages.len()
+                                != final_state.log.len()
+                            {
+                                res = format!("Expectation error (messages count doesn't match)");
+                            } else {
+                                &test.fixtures[fixture_no]
+                                    .expected
+                                    .messages
+                                    .iter()
+                                    .zip(final_state.log.iter())
+                                    .for_each(|(exp, msg)| {
+                                        if exp.destination != msg.dest.0 {
+                                            res = format!(
+                                                "Expectation error (destination doesn't match)"
+                                            );
+                                        }
+                                        if &exp.payload.raw() != &msg.payload.clone().into_raw() {
+                                            res = format!(
+                                                "Expectation error (payload doesn't match)"
+                                            );
+                                        }
+                                    });
+                            }
                             res
                         }
                         Err(e) => {
@@ -61,7 +68,7 @@ pub fn main() -> anyhow::Result<()> {
                             format!("Running error ({})", e)
                         }
                     }
-                },
+                }
                 Err(e) => {
                     total_failed += 1;
                     format!("Initialization error ({})", e)
