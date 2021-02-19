@@ -1,4 +1,3 @@
-#![feature(num_as_ne_bytes)]
 mod runner;
 mod sample;
 
@@ -26,8 +25,8 @@ fn check_messages(
                     *res = format!("{}  Expectation error (destination doesn't match)\n", res);
                     err += 1;
                 }
-                if &exp.payload.raw() != &msg.payload.clone().into_raw() {
-                    *res = format!("{}  Expectation error (payload doesn't match)\n", res);
+                if &exp.payload.clone().into_raw() != &msg.payload.clone().into_raw() {
+                    *res = format!("{}Expectation error (payload doesn't match)\n", res);
                     err += 1;
                 }
             });

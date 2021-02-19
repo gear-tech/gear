@@ -37,13 +37,13 @@ pub enum PayloadVariant {
 }
 
 impl PayloadVariant {
-    pub fn raw(&self) -> &[u8] {
-        match *self {
-            Self::Utf8(ref s) => s.as_bytes(),
-            Self::Int32(ref s) => s.as_ne_bytes(),
-            Self::Int64(ref s) => s.as_ne_bytes(),
-            Self::Float32(ref s) => s.as_ne_bytes(),
-            Self::Float64(ref s) => s.as_ne_bytes(),
+    pub fn into_raw(self) -> Vec<u8> {
+        match self {
+            Self::Utf8(v) => v.into_bytes(),
+            Self::Int32(v) => v.to_le_bytes().to_vec(),
+            Self::Int64(v) => v.to_le_bytes().to_vec(),
+            Self::Float32(v) => v.to_le_bytes().to_vec(),
+            Self::Float64(v) => v.to_le_bytes().to_vec(),
         }
     }
 }

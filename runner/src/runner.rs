@@ -29,7 +29,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
-        runner.queue_message(message.destination.into(), message.payload.raw().to_vec())
+        runner.queue_message(message.destination.into(), message.payload.clone().into_raw())
     }
 
     Ok(runner)
