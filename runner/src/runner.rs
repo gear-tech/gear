@@ -42,6 +42,7 @@ pub struct FinalState {
     // TODO: keep allocations and such later for test fixtures inspection
 }
 
+
 pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<FinalState> {
     if let Some(steps) = steps {
         for _ in 0..steps {
