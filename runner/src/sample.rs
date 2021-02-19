@@ -73,6 +73,7 @@ impl PayloadVariant {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BytesAt {
+    pub id: u64,
     #[serde(rename = "at")]
     #[serde(deserialize_with = "de_address")]
     pub address: usize,

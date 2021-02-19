@@ -2,7 +2,11 @@ mod runner;
 mod sample;
 
 use anyhow::anyhow;
-use gear_core::{memory::PageNumber, message::Message, program::ProgramId};
+use gear_core::{
+    memory::PageNumber,
+    message::Message,
+    program::{Program, ProgramId},
+};
 use sample::Test;
 use std::fs;
 
@@ -14,7 +18,10 @@ fn check_messages(
     let mut err = 0;
     *res = format!("{} Messages:\n", res);
     if expected_messages.len() != messages.len() {
-        *res = format!("{}  Expectation error (messages count doesn't match)\n", res);
+        *res = format!(
+            "{}  Expectation error (messages count doesn't match)\n",
+            res
+        );
         err += 1;
     } else {
         &expected_messages
@@ -66,6 +73,33 @@ fn check_allocation(
     }
 }
 
+fn check_memory(
+    res: &mut String,
+    program_storage: &mut Vec<Program>,
+    expected_memory: &Vec<sample::BytesAt>,
+) {
+    let mut err = 0;
+    for case in expected_memory {
+        for p in 0..program_storage.len() {
+            if program_storage[p].id().0 == case.id {
+                *res = format!(
+                    "{} Memory (id: {}, address: 0x{:x})\n",
+                    res, case.id, case.address
+                );
+                if &program_storage[p].static_pages()[case.address..case.address + case.bytes.len()]
+                    != case.bytes
+                {
+                    *res = format!("{}  Expectation error (Memory doesn't match)\n", res);
+                    err += 1;
+                }
+            }
+        }
+    }
+    if err == 0 {
+        *res = format!("{}  Ok\n", res);
+    }
+}
+
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
     let file = fs::File::open(path)?;
     let u = serde_json::from_reader(file)?;
@@ -105,6 +139,10 @@ pub fn main() -> anyhow::Result<()> {
                             if let Some(alloc) = &test.fixtures[fixture_no].expected.allocation {
                                 check_allocation(&mut res, &final_state.allocation_storage, alloc);
                             }
+                            if let Some(memory) = &test.fixtures[fixture_no].expected.memory {
+                                check_memory(&mut res, &mut final_state.program_storage, memory);
+                            }
+                            
                             res
                         }
                         Err(e) => {
