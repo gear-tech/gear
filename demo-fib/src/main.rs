@@ -16,7 +16,7 @@ fn make_fib(n: usize) -> Vec<i32> {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg = i32::from_ne_bytes(msg::load().try_into().expect("Should be i32"));
+    let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
     msg::send(
