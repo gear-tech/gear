@@ -3,8 +3,30 @@ mod runner;
 mod sample;
 
 use anyhow::anyhow;
+use gear_core::{memory::PageNumber, message::Message};
 use sample::Test;
+use std::collections::HashMap;
 use std::fs;
+
+fn check_messages(messages: &Vec<Message>, expected_messages: &Vec<sample::Message>) -> String {
+    let mut res = format!("Ok");
+    if expected_messages.len() != messages.len() {
+        res = format!("Expectation error (messages count doesn't match)");
+    } else {
+        &expected_messages
+            .iter()
+            .zip(messages.iter().rev())
+            .for_each(|(exp, msg)| {
+                if exp.destination != msg.dest.0 {
+                    res = format!("Expectation error (destination doesn't match)");
+                }
+                if &exp.payload.raw() != &msg.payload.clone().into_raw() {
+                    res = format!("Expectation error (payload doesn't match)");
+                }
+            });
+    }
+    res
+}
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
     let file = fs::File::open(path)?;
@@ -38,30 +60,10 @@ pub fn main() -> anyhow::Result<()> {
                     match runner::run(initialized_fixture, test.fixtures[fixture_no].expected.step)
                     {
                         Ok(final_state) => {
-                            let mut res = format!("Ok");
-                            if test.fixtures[fixture_no].expected.messages.len()
-                                != final_state.log.len()
-                            {
-                                res = format!("Expectation error (messages count doesn't match)");
-                            } else {
-                                &test.fixtures[fixture_no]
-                                    .expected
-                                    .messages
-                                    .iter()
-                                    .zip(final_state.log.iter().rev())
-                                    .for_each(|(exp, msg)| {
-                                        if exp.destination != msg.dest.0 {
-                                            res = format!(
-                                                "Expectation error (destination doesn't match)"
-                                            );
-                                        }
-                                        if &exp.payload.raw() != &msg.payload.clone().into_raw() {
-                                            res = format!(
-                                                "Expectation error (payload doesn't match)"
-                                            );
-                                        }
-                                    });
-                            }
+                            let res = check_messages(
+                                &final_state.log,
+                                &test.fixtures[fixture_no].expected.messages,
+                            );
                             res
                         }
                         Err(e) => {
