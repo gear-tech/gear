@@ -24,6 +24,23 @@ jobs:
         repository: 'gear-computing/gear-core'
         token: ${{ secrets.GEAR_CORE_PAT }}
         path: gear-core
+    - uses: actions/checkout@v2
+      with:
+        repository: 'gear-computing/gstd'
+        token: ${{ secrets.GEAR_CORE_PAT }}
+        path: gstd
+    - name: Install latest nightly & WASM toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+    - name: Build WASM
+      run: >
+        cd test-gear &&
+        cargo +nightly build --manifest-path=demo-ping/Cargo.toml --target=wasm32-unknown-unknown --release &&
+        cargo +nightly build --manifest-path=demo-fib/Cargo.toml --target=wasm32-unknown-unknown --release &&
+        cargo +nightly build --manifest-path=demo-sum/Cargo.toml --target=wasm32-unknown-unknown --release &&
+        cargo +nightly build --manifest-path=demo-vec/Cargo.toml --target=wasm32-unknown-unknown --release
     - name: Build
       run: cd test-gear && cargo build --verbose
     - name: Run tests

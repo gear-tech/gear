@@ -1,4 +1,3 @@
-#![feature(num_as_ne_bytes)]
 mod runner;
 mod sample;
 
@@ -55,7 +54,7 @@ pub fn main() -> anyhow::Result<()> {
                                                 "Expectation error (destination doesn't match)"
                                             );
                                         }
-                                        if &exp.payload.raw() != &msg.payload.clone().into_raw() {
+                                        if &exp.payload.clone().into_raw() != &msg.payload.clone().into_raw() {
                                             res = format!(
                                                 "Expectation error (payload doesn't match)"
                                             );
