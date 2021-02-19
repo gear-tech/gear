@@ -44,7 +44,7 @@ pub struct FinalState {
 
 pub fn run(mut runner: InMemoryRunner, steps: u64) -> anyhow::Result<FinalState> {
     for _ in 0..steps {
-        runner.run_next();
+        runner.run_next()?;
     }
 
     let (
