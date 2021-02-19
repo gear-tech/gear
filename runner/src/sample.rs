@@ -10,8 +10,8 @@ pub struct Program {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
     pub step: u64,
-    pub messages: Vec<Message>,
-    pub allocation: Vec<AllocationStorage>,
+    pub messages: Option<Vec<Message>>,
+    pub allocation: Option<Vec<AllocationStorage>>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
