@@ -3,30 +3,37 @@ mod runner;
 mod sample;
 
 use anyhow::anyhow;
-use gear_core::{memory::PageNumber, message::Message};
+use gear_core::{memory::PageNumber, message::Message, program::ProgramId};
 use sample::Test;
 use std::collections::HashMap;
 use std::fs;
 
 fn check_messages(messages: &Vec<Message>, expected_messages: &Vec<sample::Message>) -> String {
-    let mut res = format!("Ok");
+    let mut res = format!("\nMessages: ");
     if expected_messages.len() != messages.len() {
-        res = format!("Expectation error (messages count doesn't match)");
+        res = format!("{}Expectation error (messages count doesn't match)\n", res);
     } else {
         &expected_messages
             .iter()
             .zip(messages.iter().rev())
             .for_each(|(exp, msg)| {
                 if exp.destination != msg.dest.0 {
-                    res = format!("Expectation error (destination doesn't match)");
+                    res = format!("{}Expectation error (destination doesn't match)\n", res);
                 }
                 if &exp.payload.raw() != &msg.payload.clone().into_raw() {
-                    res = format!("Expectation error (payload doesn't match)");
+                    res = format!("{}Expectation error (payload doesn't match)\n", res);
                 }
             });
     }
     res
 }
+
+// fn check_allocation(
+//     pages: &Vec<(PageNumber, ProgramId)>,
+//     expected_messages: &Vec<sample::AllocationStorage>,
+// ) -> String {
+//     res
+// }
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
     let file = fs::File::open(path)?;
