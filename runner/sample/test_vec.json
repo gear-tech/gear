@@ -23,7 +23,7 @@
                 }
             ],
             "expected": {
-                "step": 4,
+                "step": 2,
                 "messages": [
                     {
                         "payload": {
@@ -31,6 +31,20 @@
                             "value": 20000
                         },
                         "destination": 1
+                    }
+                ],
+                "allocation": [
+                    {
+                        "page_num": 256,
+                        "program_id": 1
+                    },
+                    {
+                        "page_num": 257,
+                        "program_id": 2
+                    },
+                    {
+                        "page_num": 258,
+                        "program_id": 2
                     }
                 ]
             }

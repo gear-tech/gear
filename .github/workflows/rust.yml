@@ -16,15 +16,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+      name: "Checkout test-gear"
       with:
         repository: 'gear-computing/test-gear'
         path: "test-gear"
     - uses: actions/checkout@v2
+      name: "Checkout gear-core"
       with:
         repository: 'gear-computing/gear-core'
         token: ${{ secrets.GEAR_CORE_PAT }}
         path: gear-core
     - uses: actions/checkout@v2
+      name: "Checkout gstd"
       with:
         repository: 'gear-computing/gstd'
         token: ${{ secrets.GEAR_CORE_PAT }}

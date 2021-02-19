@@ -37,7 +37,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 
 pub struct FinalState {
     pub log: Vec<Message>,
-    allocation_storage: Vec<(PageNumber, ProgramId)>,
+    pub allocation_storage: Vec<(PageNumber, ProgramId)>,
     program_storage: Vec<Program>,
     // TODO: keep allocations and such later for test fixtures inspection
 }
@@ -55,10 +55,12 @@ pub fn run(mut runner: InMemoryRunner, steps: u64) -> anyhow::Result<FinalState>
         },
         _,
     ) = runner.complete();
-
+    // sort allocation_storage for tests
+    let mut allocation_storage = allocation_storage.drain();
+    allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
     Ok(FinalState {
         log: message_queue.drain(),
-        allocation_storage: allocation_storage.drain(),
+        allocation_storage: allocation_storage,
         program_storage: program_storage.drain(),
     })
 }

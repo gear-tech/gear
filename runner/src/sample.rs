@@ -11,6 +11,7 @@ pub struct Program {
 pub struct Expectation {
     pub step: u64,
     pub messages: Vec<Message>,
+    pub allocation: Vec<AllocationStorage>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -45,6 +46,12 @@ impl PayloadVariant {
             Self::Float64(v) => v.to_le_bytes().to_vec(),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct AllocationStorage {
+    pub page_num: u32,
+    pub program_id: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
