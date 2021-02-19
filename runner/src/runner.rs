@@ -29,7 +29,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
-        runner.queue_message(message.destination.into(), message.payload.raw().to_vec())
+        runner.queue_message(message.destination.into(), message.payload.clone().into_raw())
     }
 
     Ok(runner)
@@ -38,13 +38,18 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 pub struct FinalState {
     pub log: Vec<Message>,
     pub allocation_storage: Vec<(PageNumber, ProgramId)>,
-    program_storage: Vec<Program>,
+    pub program_storage: Vec<Program>,
     // TODO: keep allocations and such later for test fixtures inspection
 }
 
-pub fn run(mut runner: InMemoryRunner, steps: u64) -> anyhow::Result<FinalState> {
-    for _ in 0..steps {
-        runner.run_next()?;
+
+pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<FinalState> {
+    if let Some(steps) = steps {
+        for _ in 0..steps {
+            runner.run_next()?;
+        }
+    } else {
+        while runner.run_next()? > 0 {}
     }
 
     let (
