@@ -43,7 +43,8 @@ jobs:
         cargo +nightly build --manifest-path=demo-ping/Cargo.toml --target=wasm32-unknown-unknown --release &&
         cargo +nightly build --manifest-path=demo-fib/Cargo.toml --target=wasm32-unknown-unknown --release &&
         cargo +nightly build --manifest-path=demo-sum/Cargo.toml --target=wasm32-unknown-unknown --release &&
-        cargo +nightly build --manifest-path=demo-vec/Cargo.toml --target=wasm32-unknown-unknown --release
+        cargo +nightly build --manifest-path=demo-vec/Cargo.toml --target=wasm32-unknown-unknown --release &&
+        cargo +nightly build --manifest-path=demo-static/Cargo.toml --target=wasm32-unknown-unknown --release
     - name: Build
       run: cd test-gear && cargo build --verbose
     - name: Run tests
