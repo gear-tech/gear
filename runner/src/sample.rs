@@ -1,4 +1,26 @@
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize};
+use serde_json::Value;
+use hex::FromHex;
+
+fn de_address<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
+    Ok(match Value::deserialize(deserializer)? {
+        Value::String(s) => {
+            let without_prefix = s.trim_start_matches("0x");
+            usize::from_str_radix(without_prefix, 16).map_err(de::Error::custom)?
+        }
+        _ => return Err(de::Error::custom("wrong type")),
+    })
+}
+
+fn de_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+    Ok(match Value::deserialize(deserializer)? {
+        Value::String(s) => {
+            let without_prefix = s.trim_start_matches("0x");
+            Vec::from_hex(without_prefix).map_err(de::Error::custom)?
+        }
+        _ => return Err(de::Error::custom("wrong type")),
+    })
+}
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Program {
@@ -12,6 +34,7 @@ pub struct Expectation {
     pub step: Option<u64>,
     pub messages: Option<Vec<Message>>,
     pub allocation: Option<Vec<AllocationStorage>>,
+    pub memory: Option<Vec<BytesAt>>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -46,6 +69,15 @@ impl PayloadVariant {
             Self::Float64(v) => v.to_le_bytes().to_vec(),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct BytesAt {
+    #[serde(rename = "at")]
+    #[serde(deserialize_with = "de_address")]
+    pub address: usize,
+    #[serde(deserialize_with = "de_bytes")]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
