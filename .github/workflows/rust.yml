@@ -16,6 +16,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Checkout gear-core
+      run: git clone https://github.com/gear-computing/gear-core ../gear-core
     - name: Build
       run: cargo build --verbose
     - name: Run tests
