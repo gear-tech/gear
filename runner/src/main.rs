@@ -5,7 +5,6 @@ mod sample;
 use anyhow::anyhow;
 use gear_core::{memory::PageNumber, message::Message, program::ProgramId};
 use sample::Test;
-use std::collections::HashMap;
 use std::fs;
 
 fn check_messages(
@@ -14,7 +13,7 @@ fn check_messages(
     expected_messages: &Vec<sample::Message>,
 ) {
     let mut err = 0;
-    *res = format!("{}Messages:\n", res);
+    *res = format!("{} Messages:\n", res);
     if expected_messages.len() != messages.len() {
         *res = format!("{}Expectation error (messages count doesn't match)\n", res);
         err += 1;
@@ -99,8 +98,8 @@ pub fn main() -> anyhow::Result<()> {
                 Ok(initialized_fixture) => {
                     match runner::run(initialized_fixture, test.fixtures[fixture_no].expected.step)
                     {
-                        Ok(final_state) => {
-                            let mut res = String::new();
+                        Ok(mut final_state) => {
+                            let mut res = String::from("\n");
                             check_messages(
                                 &mut res,
                                 &final_state.log,
