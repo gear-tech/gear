@@ -4,7 +4,6 @@ mod sample;
 use anyhow::anyhow;
 use gear_core::{memory::PageNumber, message::Message, program::ProgramId};
 use sample::Test;
-use std::collections::HashMap;
 use std::fs;
 
 fn check_messages(
@@ -13,9 +12,9 @@ fn check_messages(
     expected_messages: &Vec<sample::Message>,
 ) {
     let mut err = 0;
-    *res = format!("{}Messages:\n", res);
+    *res = format!("{} Messages:\n", res);
     if expected_messages.len() != messages.len() {
-        *res = format!("{}Expectation error (messages count doesn't match)\n", res);
+        *res = format!("{}  Expectation error (messages count doesn't match)\n", res);
         err += 1;
     } else {
         &expected_messages
@@ -23,7 +22,7 @@ fn check_messages(
             .zip(messages.iter().rev())
             .for_each(|(exp, msg)| {
                 if exp.destination != msg.dest.0 {
-                    *res = format!("{}Expectation error (destination doesn't match)\n", res);
+                    *res = format!("{}  Expectation error (destination doesn't match)\n", res);
                     err += 1;
                 }
                 if &exp.payload.clone().into_raw() != &msg.payload.clone().into_raw() {
@@ -33,7 +32,7 @@ fn check_messages(
             });
     }
     if err == 0 {
-        *res = format!("{}Ok\n", res);
+        *res = format!("{}  Ok\n", res);
     }
 }
 
@@ -45,7 +44,7 @@ fn check_allocation(
     let mut err = 0;
     *res = format!("{} Allocation:\n", res);
     if expected_pages.len() != pages.len() {
-        *res = format!("{}Expectation error (pages count doesn't match)\n", res);
+        *res = format!("{}  Expectation error (pages count doesn't match)\n", res);
         err += 1;
     } else {
         &expected_pages
@@ -53,17 +52,17 @@ fn check_allocation(
             .zip(pages.iter())
             .for_each(|(exp, page)| {
                 if exp.page_num != page.0.raw() {
-                    *res = format!("{}Expectation error (PageNumber doesn't match)\n", res);
+                    *res = format!("{}  Expectation error (PageNumber doesn't match)\n", res);
                     err += 1;
                 }
-                if exp.program_id != page.1.0 {
-                    *res = format!("{}Expectation error (ProgramId doesn't match)\n", res);
+                if exp.program_id != page.1 .0 {
+                    *res = format!("{}  Expectation error (ProgramId doesn't match)\n", res);
                     err += 1;
                 }
             });
     }
     if err == 0 {
-        *res = format!("{}Ok\n", res);
+        *res = format!("{}  Ok\n", res);
     }
 }
 
@@ -98,18 +97,14 @@ pub fn main() -> anyhow::Result<()> {
                 Ok(initialized_fixture) => {
                     match runner::run(initialized_fixture, test.fixtures[fixture_no].expected.step)
                     {
-                        Ok(final_state) => {
-                            let mut res = String::new();
-                            check_messages(
-                                &mut res,
-                                &final_state.log,
-                                &test.fixtures[fixture_no].expected.messages,
-                            );
-                            check_allocation(
-                                &mut res,
-                                &final_state.allocation_storage,
-                                &test.fixtures[fixture_no].expected.allocation,
-                            );
+                        Ok(mut final_state) => {
+                            let mut res = String::from("\n");
+                            if let Some(messages) = &test.fixtures[fixture_no].expected.messages {
+                                check_messages(&mut res, &final_state.log, messages);
+                            }
+                            if let Some(alloc) = &test.fixtures[fixture_no].expected.allocation {
+                                check_allocation(&mut res, &final_state.allocation_storage, alloc);
+                            }
                             res
                         }
                         Err(e) => {
