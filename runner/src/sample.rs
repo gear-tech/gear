@@ -33,7 +33,7 @@ pub struct Program {
 pub struct Expectation {
     pub step: Option<u64>,
     pub messages: Option<Vec<Message>>,
-    pub allocation: Option<Vec<AllocationStorage>>,
+    pub allocations: Option<Vec<AllocationStorage>>,
     pub memory: Option<Vec<BytesAt>>,
 }
 
@@ -124,7 +124,20 @@ fn check_sample() {
                             "payload": { "kind": "utf-8", "value": "PING" },
                             "destination": 0
                         }
-                    ]
+                    ],
+                    "allocations": [
+                        {
+                            "page_num": 256,
+                            "program_id": 1
+                        }
+                    ],
+                    "memory": [
+                        {
+                            "id": 1,
+                            "at": "0x100038",
+                            "bytes": "0x54455354"
+                        }
+                    ]                                        
                 }
             }
         ]

@@ -43,7 +43,7 @@ fn check_messages(
     }
 }
 
-fn check_allocation(
+fn check_allocations(
     res: &mut String,
     pages: &Vec<(PageNumber, ProgramId)>,
     expected_pages: &Vec<sample::AllocationStorage>,
@@ -136,8 +136,8 @@ pub fn main() -> anyhow::Result<()> {
                             if let Some(messages) = &test.fixtures[fixture_no].expected.messages {
                                 check_messages(&mut res, &final_state.log, messages);
                             }
-                            if let Some(alloc) = &test.fixtures[fixture_no].expected.allocation {
-                                check_allocation(&mut res, &final_state.allocation_storage, alloc);
+                            if let Some(alloc) = &test.fixtures[fixture_no].expected.allocations {
+                                check_allocations(&mut res, &final_state.allocation_storage, alloc);
                             }
                             if let Some(memory) = &test.fixtures[fixture_no].expected.memory {
                                 check_memory(&mut res, &mut final_state.program_storage, memory);
