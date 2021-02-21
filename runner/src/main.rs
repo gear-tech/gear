@@ -146,9 +146,11 @@ pub fn main() -> anyhow::Result<()> {
 
                             if errors.len() > 0 {
                                 total_failed += 1;
+                                errors.join("\n")
+                            } else { 
+                                "Ok".to_string() 
                             }
                             
-                            errors.join("\n")
                         }
                         Err(e) => {
                             total_failed += 1;
