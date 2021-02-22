@@ -1,3 +1,5 @@
+#![cfg_attr(feature="strict", deny(warnings))]
+
 pub mod env;
 pub mod memory;
 pub mod message;
