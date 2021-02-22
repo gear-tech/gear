@@ -284,10 +284,7 @@ fn run<AS: AllocationStorage + 'static>(
             context.static_pages(),
             context.max_pages(),
         ),
-        messages: MessageContext::new(
-            program.id(),
-            message.clone(),
-        ),
+        messages: MessageContext::new(message.clone()),
         program_id: program.id(),
     };
 

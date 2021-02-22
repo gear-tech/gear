@@ -100,16 +100,14 @@ pub struct MessageState {
 
 #[derive(Clone)]
 pub struct MessageContext {
-    program_id: ProgramId,
     state: Rc<RefCell<MessageState>>,
     outgoing_limit: usize,
     current: Rc<IncomingMessage>,
 }
 
 impl MessageContext {
-    pub fn new(program_id: ProgramId, incoming_message: IncomingMessage) -> MessageContext {
+    pub fn new(incoming_message: IncomingMessage) -> MessageContext {
         MessageContext {
-            program_id,
             state: Rc::new(RefCell::new(
                 MessageState {
                     outgoing: vec![],
