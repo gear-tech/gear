@@ -236,7 +236,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 
     fn source(&mut self) -> Option<ProgramId> {
-        Some(self.program_id)
+        self.messages.current().source()
     }
 
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
