@@ -41,7 +41,7 @@ pub struct Expectation {
 pub struct Fixture {
     pub title: String,
     pub messages: Vec<Message>,
-    pub expected: Expectation,
+    pub expected: Vec<Expectation>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

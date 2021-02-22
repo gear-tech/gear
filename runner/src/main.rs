@@ -89,6 +89,11 @@ fn check_memory(
                 if &program_storage[p].static_pages()[case.address..case.address + case.bytes.len()]
                     != case.bytes
                 {
+                    dbg!(
+                        &program_storage[p].static_pages()
+                            [case.address..case.address + case.bytes.len()]
+                    );
+                    dbg!(&case.bytes);
                     *res = format!("{}  Expectation error (Memory doesn't match)\n", res);
                     err += 1;
                 }
@@ -127,37 +132,36 @@ pub fn main() -> anyhow::Result<()> {
 
     for test in tests {
         for fixture_no in 0..test.fixtures.len() {
-            let output = match runner::init_fixture(&test, fixture_no) {
-                Ok(initialized_fixture) => {
-                    match runner::run(initialized_fixture, test.fixtures[fixture_no].expected.step)
-                    {
+            for exp in &test.fixtures[fixture_no].expected {
+                let output = match runner::init_fixture(&test, fixture_no) {
+                    Ok(initialized_fixture) => match runner::run(initialized_fixture, exp.step) {
                         Ok(mut final_state) => {
                             let mut res = String::from("\n");
-                            if let Some(messages) = &test.fixtures[fixture_no].expected.messages {
+                            if let Some(messages) = &exp.messages {
                                 check_messages(&mut res, &final_state.log, messages);
                             }
-                            if let Some(alloc) = &test.fixtures[fixture_no].expected.allocation {
+                            if let Some(alloc) = &exp.allocation {
                                 check_allocation(&mut res, &final_state.allocation_storage, alloc);
                             }
-                            if let Some(memory) = &test.fixtures[fixture_no].expected.memory {
+                            if let Some(memory) = &exp.memory {
                                 check_memory(&mut res, &mut final_state.program_storage, memory);
                             }
-                            
+
                             res
                         }
                         Err(e) => {
                             total_failed += 1;
                             format!("Running error ({})", e)
                         }
+                    },
+                    Err(e) => {
+                        total_failed += 1;
+                        format!("Initialization error ({})", e)
                     }
-                }
-                Err(e) => {
-                    total_failed += 1;
-                    format!("Initialization error ({})", e)
-                }
-            };
-
-            println!("Fixture {}: {}", test.fixtures[fixture_no].title, output);
+                };
+                
+                println!("Fixture {}: {}", test.fixtures[fixture_no].title, output);
+            }
         }
     }
 
