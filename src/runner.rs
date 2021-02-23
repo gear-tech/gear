@@ -73,9 +73,9 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 
         if next_message.dest() == 0.into() {
             match String::from_utf8(next_message.payload().to_vec()) {
-                Ok(s) => println!("UTF-8 msg to /0: {}", s),
+                Ok(s) => log::debug!("UTF-8 msg to /0: {}", s),
                 Err(_) => {
-                    println!("msg to /0: {:?}", next_message.payload())
+                    log::debug!("msg to /0: {:?}", next_message.payload())
                 }
             }
             Ok(1)
@@ -243,7 +243,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
-        println!("DEBUG: {}", data);
+        log::debug!("DEBUG: {}", data);
         Ok(())
     }
 
