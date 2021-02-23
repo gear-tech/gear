@@ -122,24 +122,23 @@ pub fn main() -> anyhow::Result<()> {
 
     for test in tests {
         for fixture_no in 0..test.fixtures.len() {
-            let output = match runner::init_fixture(&test, fixture_no) {
-                Ok(initialized_fixture) => {
-                    match runner::run(initialized_fixture, test.fixtures[fixture_no].expected.step)
-                    {
+            for exp in &test.fixtures[fixture_no].expected {
+                let output = match runner::init_fixture(&test, fixture_no) {
+                    Ok(initialized_fixture) => match runner::run(initialized_fixture, exp.step) {
                         Ok(mut final_state) => {
                             let mut errors = Vec::new();
-                            if let Some(messages) = &test.fixtures[fixture_no].expected.messages {
+                            if let Some(messages) = &exp.messages {
                                 if let Err(msg_errors) = check_messages(&final_state.log, messages) {
                                     errors.extend(msg_errors);
                                 }
                             }
-                            if let Some(alloc) = &test.fixtures[fixture_no].expected.allocations {
+                            if let Some(alloc) = &exp.allocations {
                                 if let Err(alloc_errors) = check_allocations(&mut &final_state.allocation_storage, alloc) {
                                     errors.extend(alloc_errors);
                                 }
 
                             }
-                            if let Some(memory) = &test.fixtures[fixture_no].expected.memory {
+                            if let Some(memory) = &exp.memory {
                                 if let Err(mem_errors) = check_memory(&mut final_state.program_storage, memory) {
                                     errors.extend(mem_errors);
                                 }
@@ -157,15 +156,15 @@ pub fn main() -> anyhow::Result<()> {
                             total_failed += 1;
                             format!("Running error ({})", e)
                         }
+                    },
+                    Err(e) => {
+                        total_failed += 1;
+                        format!("Initialization error ({})", e)
                     }
-                }
-                Err(e) => {
-                    total_failed += 1;
-                    format!("Initialization error ({})", e)
-                }
-            };
-
-            println!("Fixture {}: {}", test.fixtures[fixture_no].title, output);
+                };
+                
+                println!("Fixture {}: {}", test.fixtures[fixture_no].title, output);
+            }
         }
     }
 

@@ -18,10 +18,12 @@
                     "destination": 1
                 }
             ],
-            "expected": {
-                "step": 1,
-                "messages": []
-            }
+            "expected": [
+                {
+                    "step": 1,
+                    "messages": []
+                }
+            ]
         }
     ]
 }

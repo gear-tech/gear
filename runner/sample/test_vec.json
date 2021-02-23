@@ -22,32 +22,34 @@
                     "destination": 1
                 }
             ],
-            "expected": {
-                "step": 2,
-                "messages": [
-                    {
-                        "payload": {
-                            "kind": "i32",
-                            "value": 20000
+            "expected": [
+                {
+                    "step": 2,
+                    "messages": [
+                        {
+                            "payload": {
+                                "kind": "i32",
+                                "value": 20000
+                            },
+                            "destination": 1
+                        }
+                    ],
+                    "allocations": [
+                        {
+                            "page_num": 256,
+                            "program_id": 1
                         },
-                        "destination": 1
-                    }
-                ],
-                "allocations": [
-                    {
-                        "page_num": 256,
-                        "program_id": 1
-                    },
-                    {
-                        "page_num": 257,
-                        "program_id": 2
-                    },
-                    {
-                        "page_num": 258,
-                        "program_id": 2
-                    }
-                ]
-            }
+                        {
+                            "page_num": 257,
+                            "program_id": 2
+                        },
+                        {
+                            "page_num": 258,
+                            "program_id": 2
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

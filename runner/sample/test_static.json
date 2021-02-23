@@ -18,21 +18,23 @@
                     "destination": 1
                 }
             ],
-            "expected": {
-                "allocations": [
-                    {
-                        "page_num": 256,
-                        "program_id": 1
-                    }
-                ],
-                "memory": [
-                    {
-                        "id": 1,
-                        "at": "0x100038",
-                        "bytes": "0x54455354"
-                    }
-                ]
-            }
+            "expected": [
+                {
+                    "allocations": [
+                        {
+                            "page_num": 256,
+                            "program_id": 1
+                        }
+                    ],
+                    "memory": [
+                        {
+                            "id": 1,
+                            "at": "0x100038",
+                            "bytes": "0x54455354"
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }
