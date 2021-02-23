@@ -23,12 +23,10 @@ fn check_messages(
             .zip(messages.iter().rev())
             .for_each(|(exp, msg)| {
                 if exp.destination != msg.dest.0 {
-                    errors.push(
-                        format!(
-                            "Expectation error (destination doesn't match, expected: {}, found: {})", 
-                            exp.destination, msg.dest.0
-                        )
-                    );
+                    errors.push(format!(
+                        "Expectation error (destination doesn't match, expected: {}, found: {})",
+                        exp.destination, msg.dest.0
+                    ));
                 }
                 if &exp.payload.clone().into_raw() != &msg.payload.clone().into_raw() {
                     errors.push(format!("Expectation error (payload doesn't match)"));
@@ -36,8 +34,11 @@ fn check_messages(
             });
     }
 
-    if errors.is_empty() { Ok(()) }
-    else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 fn check_allocations(
@@ -53,29 +54,29 @@ fn check_allocations(
             .zip(pages.iter())
             .for_each(|(exp, page)| {
                 if exp.page_num != page.0.raw() {
-                    errors.push(
-                        format!(
-                            "Expectation error (PageNumber doesn't match, expected: {}, found: {})", 
-                            exp.page_num, page.0.raw()
-                        )
-                    );
+                    errors.push(format!(
+                        "Expectation error (PageNumber doesn't match, expected: {}, found: {})",
+                        exp.page_num,
+                        page.0.raw()
+                    ));
                 }
                 if exp.program_id != page.1 .0 {
-                    errors.push(
-                        format!(
-                            "Expectation error (ProgramId doesn't match, expected: {}, found: {})\n", 
-                            exp.program_id, page.1.0
-                        )
-                    );
+                    errors.push(format!(
+                        "Expectation error (ProgramId doesn't match, expected: {}, found: {})\n",
+                        exp.program_id, page.1 .0
+                    ));
                 }
             });
     }
 
-    if errors.is_empty() { Ok(()) }
-    else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
-fn check_memory(
+fn check_static_memory(
     program_storage: &mut Vec<Program>,
     expected_memory: &Vec<sample::BytesAt>,
 ) -> Result<(), Vec<String>> {
@@ -86,13 +87,36 @@ fn check_memory(
                 if &program_storage[p].static_pages()[case.address..case.address + case.bytes.len()]
                     != case.bytes
                 {
-                    errors.push(format!("Expectation error (Memory doesn't match)"));
+                    errors.push(format!("Expectation error (Static memory doesn't match)"));
                 }
             }
         }
     }
-    if errors.is_empty() { Ok(()) }
-    else { Err(errors) }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn check_memory(
+    persistent_memory: &Vec<u8>,
+    expected_memory: &Vec<sample::BytesAt>,
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    let offset = 256 * 65536;
+    for case in expected_memory {
+        if &persistent_memory[case.address - offset..case.address - offset + case.bytes.len()]
+            != case.bytes
+        {
+            errors.push(format!("Expectation error (Memory doesn't match)"));
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
@@ -125,21 +149,31 @@ pub fn main() -> anyhow::Result<()> {
             for exp in &test.fixtures[fixture_no].expected {
                 let output = match runner::init_fixture(&test, fixture_no) {
                     Ok(initialized_fixture) => match runner::run(initialized_fixture, exp.step) {
-                        Ok(mut final_state) => {
+                        Ok((mut final_state, persistent_memory)) => {
                             let mut errors = Vec::new();
                             if let Some(messages) = &exp.messages {
-                                if let Err(msg_errors) = check_messages(&final_state.log, messages) {
+                                if let Err(msg_errors) = check_messages(&final_state.log, messages)
+                                {
                                     errors.extend(msg_errors);
                                 }
                             }
                             if let Some(alloc) = &exp.allocations {
-                                if let Err(alloc_errors) = check_allocations(&mut &final_state.allocation_storage, alloc) {
+                                if let Err(alloc_errors) =
+                                    check_allocations(&mut &final_state.allocation_storage, alloc)
+                                {
                                     errors.extend(alloc_errors);
                                 }
-
+                            }
+                            if let Some(static_memory) = &exp.static_memory {
+                                if let Err(mem_errors) = check_static_memory(
+                                    &mut final_state.program_storage,
+                                    static_memory,
+                                ) {
+                                    errors.extend(mem_errors);
+                                }
                             }
                             if let Some(memory) = &exp.memory {
-                                if let Err(mem_errors) = check_memory(&mut final_state.program_storage, memory) {
+                                if let Err(mem_errors) = check_memory(&persistent_memory, memory) {
                                     errors.extend(mem_errors);
                                 }
                             }
@@ -147,10 +181,9 @@ pub fn main() -> anyhow::Result<()> {
                             if errors.len() > 0 {
                                 total_failed += 1;
                                 errors.join("\n")
-                            } else { 
-                                "Ok".to_string() 
+                            } else {
+                                "Ok".to_string()
                             }
-                            
                         }
                         Err(e) => {
                             total_failed += 1;
@@ -162,7 +195,7 @@ pub fn main() -> anyhow::Result<()> {
                         format!("Initialization error ({})", e)
                     }
                 };
-                
+
                 println!("Fixture {}: {}", test.fixtures[fixture_no].title, output);
             }
         }

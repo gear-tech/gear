@@ -29,7 +29,10 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
-        runner.queue_message(message.destination.into(), message.payload.clone().into_raw())
+        runner.queue_message(
+            message.destination.into(),
+            message.payload.clone().into_raw(),
+        )
     }
 
     Ok(runner)
@@ -41,8 +44,10 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
-
-pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<FinalState> {
+pub fn run(
+    mut runner: InMemoryRunner,
+    steps: Option<u64>,
+) -> anyhow::Result<(FinalState, Vec<u8>)> {
     if let Some(steps) = steps {
         for _ in 0..steps {
             runner.run_next()?;
@@ -57,14 +62,17 @@ pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<Fin
             allocation_storage,
             program_storage,
         },
-        _,
+        persistent_memory,
     ) = runner.complete();
     // sort allocation_storage for tests
     let mut allocation_storage = allocation_storage.drain();
     allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
-    Ok(FinalState {
-        log: message_queue.drain(),
-        allocation_storage: allocation_storage,
-        program_storage: program_storage.drain(),
-    })
+    Ok((
+        FinalState {
+            log: message_queue.drain(),
+            allocation_storage: allocation_storage,
+            program_storage: program_storage.drain(),
+        },
+        persistent_memory,
+    ))
 }
