@@ -20,7 +20,7 @@
             ],
             "expected": [
                 {
-                    "allocation": [
+                    "allocations": [
                         {
                             "page_num": 256,
                             "program_id": 1

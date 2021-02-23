@@ -11,98 +11,88 @@ use sample::Test;
 use std::fs;
 
 fn check_messages(
-    res: &mut String,
-    messages: &Vec<Message>,
-    expected_messages: &Vec<sample::Message>,
-) {
-    let mut err = 0;
-    *res = format!("{} Messages:\n", res);
+    messages: &[Message],
+    expected_messages: &[sample::Message],
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
-        *res = format!(
-            "{}  Expectation error (messages count doesn't match)\n",
-            res
-        );
-        err += 1;
+        errors.push(format!("Expectation error (messages count doesn't match)"));
     } else {
         &expected_messages
             .iter()
             .zip(messages.iter().rev())
             .for_each(|(exp, msg)| {
                 if exp.destination != msg.dest.0 {
-                    *res = format!("{}  Expectation error (destination doesn't match)\n", res);
-                    err += 1;
+                    errors.push(
+                        format!(
+                            "Expectation error (destination doesn't match, expected: {}, found: {})", 
+                            exp.destination, msg.dest.0
+                        )
+                    );
                 }
                 if &exp.payload.clone().into_raw() != &msg.payload.clone().into_raw() {
-                    *res = format!("{}Expectation error (payload doesn't match)\n", res);
-                    err += 1;
+                    errors.push(format!("Expectation error (payload doesn't match)"));
                 }
             });
     }
-    if err == 0 {
-        *res = format!("{}  Ok\n", res);
-    }
+
+    if errors.is_empty() { Ok(()) }
+    else { Err(errors) }
 }
 
-fn check_allocation(
-    res: &mut String,
+fn check_allocations(
     pages: &Vec<(PageNumber, ProgramId)>,
     expected_pages: &Vec<sample::AllocationStorage>,
-) {
-    let mut err = 0;
-    *res = format!("{} Allocation:\n", res);
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
     if expected_pages.len() != pages.len() {
-        *res = format!("{}  Expectation error (pages count doesn't match)\n", res);
-        err += 1;
+        errors.push(format!("Expectation error (pages count doesn't match)\n"));
     } else {
         &expected_pages
             .iter()
             .zip(pages.iter())
             .for_each(|(exp, page)| {
                 if exp.page_num != page.0.raw() {
-                    *res = format!("{}  Expectation error (PageNumber doesn't match)\n", res);
-                    err += 1;
+                    errors.push(
+                        format!(
+                            "Expectation error (PageNumber doesn't match, expected: {}, found: {})", 
+                            exp.page_num, page.0.raw()
+                        )
+                    );
                 }
                 if exp.program_id != page.1 .0 {
-                    *res = format!("{}  Expectation error (ProgramId doesn't match)\n", res);
-                    err += 1;
+                    errors.push(
+                        format!(
+                            "Expectation error (ProgramId doesn't match, expected: {}, found: {})\n", 
+                            exp.program_id, page.1.0
+                        )
+                    );
                 }
             });
     }
-    if err == 0 {
-        *res = format!("{}  Ok\n", res);
-    }
+
+    if errors.is_empty() { Ok(()) }
+    else { Err(errors) }
 }
 
 fn check_memory(
-    res: &mut String,
     program_storage: &mut Vec<Program>,
     expected_memory: &Vec<sample::BytesAt>,
-) {
-    let mut err = 0;
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
     for case in expected_memory {
         for p in 0..program_storage.len() {
             if program_storage[p].id().0 == case.id {
-                *res = format!(
-                    "{} Memory (id: {}, address: 0x{:x})\n",
-                    res, case.id, case.address
-                );
                 if &program_storage[p].static_pages()[case.address..case.address + case.bytes.len()]
                     != case.bytes
                 {
-                    dbg!(
-                        &program_storage[p].static_pages()
-                            [case.address..case.address + case.bytes.len()]
-                    );
-                    dbg!(&case.bytes);
-                    *res = format!("{}  Expectation error (Memory doesn't match)\n", res);
-                    err += 1;
+                    errors.push(format!("Expectation error (Memory doesn't match)"));
                 }
             }
         }
     }
-    if err == 0 {
-        *res = format!("{}  Ok\n", res);
-    }
+    if errors.is_empty() { Ok(()) }
+    else { Err(errors) }
 }
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
@@ -136,18 +126,31 @@ pub fn main() -> anyhow::Result<()> {
                 let output = match runner::init_fixture(&test, fixture_no) {
                     Ok(initialized_fixture) => match runner::run(initialized_fixture, exp.step) {
                         Ok(mut final_state) => {
-                            let mut res = String::from("\n");
+                            let mut errors = Vec::new();
                             if let Some(messages) = &exp.messages {
-                                check_messages(&mut res, &final_state.log, messages);
+                                if let Err(msg_errors) = check_messages(&final_state.log, messages) {
+                                    errors.extend(msg_errors);
+                                }
                             }
-                            if let Some(alloc) = &exp.allocation {
-                                check_allocation(&mut res, &final_state.allocation_storage, alloc);
+                            if let Some(alloc) = &exp.allocations {
+                                if let Err(alloc_errors) = check_allocations(&mut &final_state.allocation_storage, alloc) {
+                                    errors.extend(alloc_errors);
+                                }
+
                             }
                             if let Some(memory) = &exp.memory {
-                                check_memory(&mut res, &mut final_state.program_storage, memory);
+                                if let Err(mem_errors) = check_memory(&mut final_state.program_storage, memory) {
+                                    errors.extend(mem_errors);
+                                }
                             }
 
-                            res
+                            if errors.len() > 0 {
+                                total_failed += 1;
+                                errors.join("\n")
+                            } else { 
+                                "Ok".to_string() 
+                            }
+                            
                         }
                         Err(e) => {
                             total_failed += 1;
