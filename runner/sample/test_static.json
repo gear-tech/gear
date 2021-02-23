@@ -26,7 +26,7 @@
                             "program_id": 1
                         }
                     ],
-                    "memory": [
+                    "static_memory": [
                         {
                             "id": 1,
                             "at": "0x100038",
