@@ -119,34 +119,36 @@ fn check_sample() {
                         "destination": 1
                     }
                 ],
-                "expected": {
-                    "messages": [
-                        {
-                            "payload": { "kind": "utf-8", "value": "PING" },
-                            "destination": 0
-                        }
-                    ],
-                    "allocations": [
-                        {
-                            "page_num": 256,
-                            "program_id": 1
-                        }
-                    ],
-                    "static_memory": [
-                        {
-                            "id": 1,
-                            "at": "0x100038",
-                            "bytes": "0x54455354"
-                        }
-                    ],
-                    "memory": [
-                        {
-                            "id": 1,
-                            "at": "0x10238d4",
-                            "bytes": "0x00000001"
-                        }
-                    ]      
-                }
+                "expected": [
+                    {
+                        "messages": [
+                            {
+                                "payload": { "kind": "utf-8", "value": "PING" },
+                                "destination": 0
+                            }
+                        ],
+                        "allocations": [
+                            {
+                                "page_num": 256,
+                                "program_id": 1
+                            }
+                        ],
+                        "static_memory": [
+                            {
+                                "id": 1,
+                                "at": "0x100038",
+                                "bytes": "0x54455354"
+                            }
+                        ],
+                        "memory": [
+                            {
+                                "id": 1,
+                                "at": "0x10238d4",
+                                "bytes": "0x00000001"
+                            }
+                        ]      
+                    }
+                ]
             }
         ]
     }
