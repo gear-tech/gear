@@ -223,7 +223,6 @@ pub struct RunResult {
 struct Ext<AS: AllocationStorage + 'static> {
     memory_context: MemoryContext<AS>,
     messages: MessageContext,
-    program_id: ProgramId,
 }
 
 impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
@@ -285,7 +284,6 @@ fn run<AS: AllocationStorage + 'static>(
             context.max_pages(),
         ),
         messages: MessageContext::new(message.clone()),
-        program_id: program.id(),
     };
 
     // Set static pages from saved program state.
