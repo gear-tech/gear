@@ -13,6 +13,7 @@ serde = "*"
 serde_json = "*"
 hex = "0.4.2"
 termion = "1.5.6"
+env_logger = "0.8"
 
 [[bin]]
 name = "gtest"

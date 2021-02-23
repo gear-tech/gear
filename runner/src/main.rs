@@ -127,6 +127,8 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 }
 
 pub fn main() -> anyhow::Result<()> {
+    env_logger::init();
+
     let mut tests = Vec::new();
 
     for f in std::env::args().skip(1) {
