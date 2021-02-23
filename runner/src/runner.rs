@@ -39,7 +39,6 @@ pub struct FinalState {
     pub log: Vec<Message>,
     pub allocation_storage: Vec<(PageNumber, ProgramId)>,
     pub program_storage: Vec<Program>,
-    // TODO: keep allocations and such later for test fixtures inspection
 }
 
 
