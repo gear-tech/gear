@@ -9,6 +9,7 @@ use gear_core::{
 };
 use sample::Test;
 use std::fs;
+use termion::{color, style};
 
 fn check_messages(
     messages: &[Message],
@@ -182,23 +183,41 @@ pub fn main() -> anyhow::Result<()> {
 
                             if errors.len() > 0 {
                                 total_failed += 1;
+                                errors.insert(0, format!("{}", color::Fg(color::Red)));
+                                errors.insert(errors.len(), format!("{}", style::Reset));
                                 errors.join("\n")
                             } else {
-                                "Ok".to_string()
+                                format!("{}Ok{}", color::Fg(color::Green), style::Reset)
                             }
                         }
                         Err(e) => {
                             total_failed += 1;
-                            format!("Running error ({})", e)
+                            format!(
+                                "{}Running error ({}){}",
+                                color::Fg(color::Red),
+                                e,
+                                style::Reset
+                            )
                         }
                     },
                     Err(e) => {
                         total_failed += 1;
-                        format!("Initialization error ({})", e)
+                        format!(
+                            "{}Initialization error ({}){}",
+                            color::Fg(color::Red),
+                            e,
+                            style::Reset
+                        )
                     }
                 };
 
-                println!("Fixture {}: {}", test.fixtures[fixture_no].title, output);
+                println!(
+                    "Fixture {}{}{}: {}",
+                    style::Bold,
+                    test.fixtures[fixture_no].title,
+                    style::Reset,
+                    output
+                );
             }
         }
     }
