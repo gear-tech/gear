@@ -85,7 +85,7 @@ impl<E: Ext + 'static> Environment<E> {
                     _ => { return Ok(0u32); }
                 };
 
-                println!("ALLOC: {} pages at {}", pages, ptr);
+                log::debug!("ALLOC: {} pages at {}", pages, ptr);
 
                 Ok(ptr)
             })
@@ -117,9 +117,9 @@ impl<E: Ext + 'static> Environment<E> {
             Func::wrap(&store, move |page: i32| {
                 let page = page as u32;
                 if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into())) {
-                    println!("FREE ERROR: {:?}", e);
+                    log::debug!("FREE ERROR: {:?}", e);
                 } else {
-                    println!("FREE: {}", page);
+                    log::debug!("FREE: {}", page);
                 }
                 Ok(())
             })
@@ -153,7 +153,7 @@ impl<E: Ext + 'static> Environment<E> {
                     let str_len = str_len as u32 as usize;
                     ext.with(|ext: &mut E| {
                         let debug_str = unsafe { String::from_utf8_unchecked(ext.get_mem(str_ptr, str_len).to_vec()) };
-                        println!("DEBUG: {}", debug_str);
+                        log::debug!("DEBUG: {}", debug_str);
                     });
 
                     Ok(())
