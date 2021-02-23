@@ -34,6 +34,7 @@ pub struct Expectation {
     pub step: Option<u64>,
     pub messages: Option<Vec<Message>>,
     pub allocations: Option<Vec<AllocationStorage>>,
+    pub static_memory: Option<Vec<BytesAt>>,
     pub memory: Option<Vec<BytesAt>>,
 }
 
@@ -131,13 +132,20 @@ fn check_sample() {
                             "program_id": 1
                         }
                     ],
-                    "memory": [
+                    "static_memory": [
                         {
                             "id": 1,
                             "at": "0x100038",
                             "bytes": "0x54455354"
                         }
-                    ]                                        
+                    ],
+                    "memory": [
+                        {
+                            "id": 1,
+                            "at": "0x10238d4",
+                            "bytes": "0x00000001"
+                        }
+                    ]      
                 }
             }
         ]

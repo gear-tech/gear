@@ -10,12 +10,14 @@ pub unsafe extern "C" fn handle() {
     let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
     let v = vec![1; new_msg as usize];
+    ext::debug(&format!("v.len() = {:?}", v.len()));
     ext::debug(&format!(
-        "v.len() = {:?}",
-        v.len()
+        "v[{}]: {:p} -> {:#04x}",
+        v.len() - 1,
+        &v[new_msg as usize - 1],
+        v[new_msg as usize - 1]
     ));
     msg::send(msg::source(), (v.len() as i32).as_ne_bytes());
-
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
         MESSAGE_LOG.len()
