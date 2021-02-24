@@ -51,10 +51,8 @@
                     "memory": [
                         {
                             "kind": "shared",
-                            "bytes": {
-                                "at": "0x10238d4",
-                                "bytes": "0x01000000"
-                            }
+                            "at": "0x10238d4",
+                            "bytes": "0x01000000"
                         }
                     ]
                 }
