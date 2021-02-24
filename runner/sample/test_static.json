@@ -26,11 +26,14 @@
                             "program_id": 1
                         }
                     ],
-                    "static_memory": [
+                    "memory": [
                         {
-                            "id": 1,
-                            "at": "0x100038",
-                            "bytes": "0x54455354"
+                            "kind": "static",
+                            "bytes": {
+                                "id": 1,
+                                "at": "0x100038",
+                                "bytes": "0x54455354"
+                            }
                         }
                     ]
                 }
