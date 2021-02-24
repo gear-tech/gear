@@ -82,7 +82,7 @@ pub enum MemoryVariant {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BytesAt {
-    pub id: Option<u64>, // required for static memory 
+    pub program_id: Option<u64>, // required for static memory 
     #[serde(rename = "at")]
     #[serde(deserialize_with = "de_address")]
     pub address: usize,
@@ -144,13 +144,12 @@ fn check_sample() {
                          "memory": [
                             {
                                 "kind": "static",
-                                "id": 1,
+                                "program_id": 1,
                                 "at": "0x100038",
                                 "bytes": "0x54455354"
                             },
                             {
                                 "kind": "shared",
-                                "id": 1,
                                 "at": "0x10238d4",
                                 "bytes": "0x00000001"
                             }

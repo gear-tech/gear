@@ -86,7 +86,7 @@ fn check_memory(
     for case in expected_memory {
         match case {
             sample::MemoryVariant::Static(case) => {
-                if let Some(id) = case.id {
+                if let Some(id) = case.program_id {
                     for p in 0..program_storage.len() {
                         if program_storage[p].id().0 == id {
                             if &program_storage[p].static_pages()

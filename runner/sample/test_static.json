@@ -29,7 +29,7 @@
                     "memory": [
                         {
                             "kind": "static",
-                            "id": 1,
+                            "program_id": 1,
                             "at": "0x100038",
                             "bytes": "0x54455354"
                         }
