@@ -72,7 +72,7 @@ impl PayloadVariant {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "bytes")]
+#[serde(tag = "kind")]
 pub enum MemoryVariant {
     #[serde(rename = "static")]
     Static(BytesAt),
@@ -144,19 +144,16 @@ fn check_sample() {
                          "memory": [
                             {
                                 "kind": "static",
-                                "bytes": {
-                                    "id": 1,
-                                    "at": "0x100038",
-                                    "bytes": "0x54455354"
-                                }
+                                "id": 1,
+                                "at": "0x100038",
+                                "bytes": "0x54455354"
+                                
                             },
                             {
                                 "kind": "shared",
-                                "bytes": {
-                                    "id": 1,
-                                    "at": "0x10238d4",
-                                    "bytes": "0x00000001"
-                                }
+                                "id": 1,
+                                "at": "0x10238d4",
+                                "bytes": "0x00000001"
                             }
                         ]      
                     }
