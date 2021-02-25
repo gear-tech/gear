@@ -26,7 +26,7 @@ fn de_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
 pub struct Program {
     pub path: String,
     pub id: u64,
-    pub init_message: Option<Message>,
+    pub init_message: Option<PayloadVariant>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

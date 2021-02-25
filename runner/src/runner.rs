@@ -22,8 +22,10 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
     );
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?.into();
-        // let init_message = program.init_message.payload.raw().to_vec();
-        let init_message = Vec::new(); // TODO: read also init message from test
+        let mut init_message = Vec::new();
+        if let Some(init_msg) = &program.init_message {
+            init_message = init_msg.clone().into_raw();
+        }
         runner.init_program(program.id.into(), code, init_message)?;
     }
 
