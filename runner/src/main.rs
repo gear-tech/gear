@@ -77,40 +77,39 @@ fn check_allocations(
     }
 }
 
-fn check_static_memory(
-    program_storage: &mut Vec<Program>,
-    expected_memory: &Vec<sample::BytesAt>,
-) -> Result<(), Vec<String>> {
-    let mut errors = Vec::new();
-    for case in expected_memory {
-        for p in 0..program_storage.len() {
-            if program_storage[p].id().0 == case.id {
-                if &program_storage[p].static_pages()[case.address..case.address + case.bytes.len()]
-                    != case.bytes
-                {
-                    errors.push(format!("Expectation error (Static memory doesn't match)"));
-                }
-            }
-        }
-    }
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(errors)
-    }
-}
-
 fn check_memory(
     persistent_memory: &Vec<u8>,
-    expected_memory: &Vec<sample::BytesAt>,
+    program_storage: &mut Vec<Program>,
+    expected_memory: &Vec<sample::MemoryVariant>,
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
-    let offset = 256 * 65536;
     for case in expected_memory {
-        if &persistent_memory[case.address - offset..case.address - offset + case.bytes.len()]
-            != case.bytes
-        {
-            errors.push(format!("Expectation error (Memory doesn't match)"));
+        match case {
+            sample::MemoryVariant::Static(case) => {
+                if let Some(id) = case.program_id {
+                    for p in 0..program_storage.len() {
+                        if program_storage[p].id().0 == id {
+                            if &program_storage[p].static_pages()
+                                [case.address..case.address + case.bytes.len()]
+                                != case.bytes
+                            {
+                                errors.push(format!(
+                                    "Expectation error (Static memory doesn't match)"
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            sample::MemoryVariant::Shared(case) => {
+                let offset = 256 * 65536;
+                if &persistent_memory
+                    [case.address - offset..case.address - offset + case.bytes.len()]
+                    != case.bytes
+                {
+                    errors.push(format!("Expectation error (Shared memory doesn't match)"));
+                }
+            }
         }
     }
     if errors.is_empty() {
@@ -167,16 +166,12 @@ pub fn main() -> anyhow::Result<()> {
                                     errors.extend(alloc_errors);
                                 }
                             }
-                            if let Some(static_memory) = &exp.static_memory {
-                                if let Err(mem_errors) = check_static_memory(
+                            if let Some(mem) = &exp.memory {
+                                if let Err(mem_errors) = check_memory(
+                                    &persistent_memory,
                                     &mut final_state.program_storage,
-                                    static_memory,
+                                    mem,
                                 ) {
-                                    errors.extend(mem_errors);
-                                }
-                            }
-                            if let Some(memory) = &exp.memory {
-                                if let Err(mem_errors) = check_memory(&persistent_memory, memory) {
                                     errors.extend(mem_errors);
                                 }
                             }

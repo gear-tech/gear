@@ -50,7 +50,7 @@
                     ],
                     "memory": [
                         {
-                            "id": 2,
+                            "kind": "shared",
                             "at": "0x10238d4",
                             "bytes": "0x01000000"
                         }

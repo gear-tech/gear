@@ -5,6 +5,5 @@
 /demo-sum/target
 /demo-fib/target
 /demo-vec/target
-/demo-static/target
 /runner/target
 .vscode

@@ -1,6 +1,6 @@
+use hex::FromHex;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_json::Value;
-use hex::FromHex;
 
 fn de_address<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
     Ok(match Value::deserialize(deserializer)? {
@@ -34,8 +34,7 @@ pub struct Expectation {
     pub step: Option<u64>,
     pub messages: Option<Vec<Message>>,
     pub allocations: Option<Vec<AllocationStorage>>,
-    pub static_memory: Option<Vec<BytesAt>>,
-    pub memory: Option<Vec<BytesAt>>,
+    pub memory: Option<Vec<MemoryVariant>>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -73,8 +72,17 @@ impl PayloadVariant {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(tag = "kind")]
+pub enum MemoryVariant {
+    #[serde(rename = "static")]
+    Static(BytesAt),
+    #[serde(rename = "shared")]
+    Shared(BytesAt),
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BytesAt {
-    pub id: u64,
+    pub program_id: Option<u64>, // required for static memory 
     #[serde(rename = "at")]
     #[serde(deserialize_with = "de_address")]
     pub address: usize,
@@ -133,16 +141,15 @@ fn check_sample() {
                                 "program_id": 1
                             }
                         ],
-                        "static_memory": [
+                         "memory": [
                             {
-                                "id": 1,
+                                "kind": "static",
+                                "program_id": 1,
                                 "at": "0x100038",
                                 "bytes": "0x54455354"
-                            }
-                        ],
-                        "memory": [
+                            },
                             {
-                                "id": 1,
+                                "kind": "shared",
                                 "at": "0x10238d4",
                                 "bytes": "0x00000001"
                             }
