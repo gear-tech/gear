@@ -17,3 +17,7 @@ path = "src/bot.rs"
 [[bin]]
 name = "demo-room"
 path = "src/room.rs"
+
+[[bin]]
+name = "encoder"
+path = "src/encode.rs"
