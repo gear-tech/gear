@@ -57,6 +57,8 @@ pub enum PayloadVariant {
     Float32(f32),
     #[serde(rename = "f64")]
     Float64(f64),
+    #[serde(rename = "bytes")]
+    Bytes(Vec<u8>),
 }
 
 impl PayloadVariant {
@@ -67,6 +69,7 @@ impl PayloadVariant {
             Self::Int64(v) => v.to_le_bytes().to_vec(),
             Self::Float32(v) => v.to_le_bytes().to_vec(),
             Self::Float64(v) => v.to_le_bytes().to_vec(),
+            Self::Bytes(v) => v,
         }
     }
 }
