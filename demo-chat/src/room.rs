@@ -1,23 +1,24 @@
 use gstd::{ext, msg};
+use lazy_static::lazy_static; // 1.4.0
+use std::sync::Mutex;
 
 mod shared;
 
-use shared::{RoomMessage, MemberMessage};
 use codec::{Decode as _, Encode as _};
+use shared::{MemberMessage, RoomMessage};
 
 static mut ROOM_NAME: String = String::new();
 pub fn room_name() -> &'static str {
     unsafe { &ROOM_NAME as _ }
 }
-static mut MEMBERS: Vec<(u64, String)> = Vec::new();
+lazy_static! {
+    static ref MEMBERS: Mutex<Vec<(u64, String)>> = Mutex::new(Vec::new());
+}
 pub fn add_member(id: u64, name: String) {
-    unsafe {
-        MEMBERS.push((id, name))
-    }
+    MEMBERS.lock().unwrap().push((id, name));
+    ext::debug(&format!("MEMBERS: {:?}", MEMBERS.lock().unwrap()));
 }
-pub fn members() -> impl Iterator<Item=&'static (u64, String)> {
-    unsafe { MEMBERS.iter() }
-}
+
 pub fn send_member(id: u64, msg: MemberMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
@@ -35,9 +36,11 @@ fn room(room_msg: RoomMessage) {
         Join { under_name } => {
             ext::debug(&format!("ROOM '{}': '{}' joined", room_name(), &under_name));
             add_member(msg::source(), under_name);
-        },
+        }
         Yell { text } => {
-            for (id, _) in members() {
+            ext::debug(&format!("YELL: {}", text));
+            for (id, _) in MEMBERS.lock().unwrap().iter() {
+                ext::debug(&format!("MEMBER: {:?}", *id));
                 if *id != msg::source() {
                     send_member(
                         *id,
@@ -55,5 +58,4 @@ pub unsafe extern "C" fn init() {
     ext::debug(&format!("ROOM '{}' created", ROOM_NAME));
 }
 
-fn main() {
-}
+fn main() {}
