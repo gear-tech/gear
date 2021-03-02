@@ -1,13 +1,44 @@
 use gstd::{ext, msg};
+use std::mem::transmute;
+use std::ptr;
 
 mod shared;
 
-use shared::{RoomMessage, MemberMessage};
 use codec::{Decode as _, Encode as _};
+use shared::{MemberMessage, RoomMessage};
 
-static mut NAME: String = String::new();
+#[derive(Debug)]
+struct State {
+    pub name: &'static str,
+}
+
+impl State {
+    fn set_name(&mut self, name: &'static str) {
+        self.name = &name;
+    }
+}
+
+static mut _STATE: *const State = ptr::NonNull::<State>::dangling().as_ptr();
+
+unsafe fn get_state<'a>() -> &'a mut State {
+    return transmute(_STATE);
+}
+
+unsafe fn release() {
+    ptr::read::<State>(_STATE);
+}
+
+impl Drop for State {
+    fn drop(&mut self) {
+        ext::debug(&format!("Dropped state"));
+    }
+}
+
 pub fn name() -> &'static str {
-    unsafe { &NAME }
+    unsafe {
+        let state = get_state();
+        state.name
+    }
 }
 
 #[no_mangle]
@@ -19,10 +50,20 @@ fn bot(message: MemberMessage) {
     use shared::MemberMessage::*;
     match message {
         Private(text) => {
-            ext::debug(&format!("BOT '{}': received private message from #{}: '{}'", name(), msg::source(), text));
-        },
+            ext::debug(&format!(
+                "BOT '{}': received private message from #{}: '{}'",
+                name(),
+                msg::source(),
+                text
+            ));
+        }
         Room(text) => {
-            ext::debug(&format!("BOT '{}': received room message from #{}: '{}'", name(), msg::source(), text));
+            ext::debug(&format!(
+                "BOT '{}': received room message from #{}: '{}'",
+                name(),
+                msg::source(),
+                text
+            ));
         }
     }
 }
@@ -41,17 +82,27 @@ pub unsafe extern "C" fn init() {
     match split.len() {
         2 => {
             let (name, room_id) = (&split[0], &split[1]);
-            NAME = name.to_string();
-            let room_id = room_id.parse::<u64>().expect("INTIALIZATION FAILED: INVALID ROOM ID");
-            send_room(room_id, RoomMessage::Join{ under_name: name.to_string() });
+            // let s: &'static str = Box::leak(*name);
+            // let s: &'static str = Box::leak(*name);
+            let state = get_state();
+            let s: &'static str = Box::leak(name.to_string().into_boxed_str());
+            state.set_name(s);
+            let room_id = room_id
+                .parse::<u64>()
+                .expect("INTIALIZATION FAILED: INVALID ROOM ID");
+            send_room(
+                room_id,
+                RoomMessage::Join {
+                    under_name: name.to_string(),
+                },
+            );
         }
         _ => {
             ext::debug(&format!("INITLAIZATION FAILED"));
         }
     }
 
-    ext::debug(&format!("BOT '{}' created", NAME));
+    ext::debug(&format!("BOT '{}' created", name()));
 }
 
-fn main() {
-}
+fn main() {}

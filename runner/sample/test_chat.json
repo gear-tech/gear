@@ -48,7 +48,6 @@
             ],
             "expected":[
                 {
-                    "step":0,
                     "messages":[
                         {
                             "payload":{
