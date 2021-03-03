@@ -1,5 +1,4 @@
 use gstd::{ext, msg};
-use std::mem::transmute;
 use std::ptr;
 mod shared;
 
@@ -21,16 +20,8 @@ impl State {
     }
 }
 
-static mut _STATE: *const State = ptr::NonNull::<State>::dangling().as_ptr();
+static mut _STATE: ptr::NonNull<State> = ptr::NonNull::<State>::dangling();
 
-unsafe fn get_state<'a>() -> &'a mut State {
-    ext::debug(&format!("State ptr - {:?}", _STATE));
-    return transmute(_STATE);
-}
-
-unsafe fn release() {
-    ptr::read::<State>(_STATE);
-}
 
 impl Drop for State {
     fn drop(&mut self) {
@@ -40,14 +31,14 @@ impl Drop for State {
 
 pub fn room_name() -> &'static str {
     unsafe {
-        let state = get_state();
+        let state = _STATE.as_mut();
         &state.room_name
     }
 }
 
 pub fn add_member(id: u64, name: String) {
     unsafe {
-        let state = get_state();
+        let state = _STATE.as_mut();
         state.add_member((id, name));
     }
 }
@@ -71,7 +62,8 @@ fn room(room_msg: RoomMessage) {
             add_member(msg::source(), under_name);
         }
         Yell { text } => unsafe {
-            let state = get_state();
+            let state = _STATE.as_mut();
+            ext::debug(&format!("State - {:?}", state));
 
             for (id, _) in state.members.iter() {
                 if *id != msg::source() {
@@ -87,8 +79,7 @@ fn room(room_msg: RoomMessage) {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    // ext::debug(&format!("ROOM '{}' -> {:p}", ROOM_NAME, &ROOM_NAME));
-    let state = get_state();
+    let state = _STATE.as_mut();
     let s: &'static str = Box::leak(
         String::from_utf8(msg::load())
             .expect("Invalid message: should be utf-8")
@@ -96,7 +87,6 @@ pub unsafe extern "C" fn init() {
     );
     state.set_room_name(s);
     ext::debug(&format!("ROOM '{}' created", room_name()));
-    // ext::debug(&format!("ROOM '{}' -> {:p}", ROOM_NAME, &ROOM_NAME));
 }
 
 fn main() {}
