@@ -1,5 +1,4 @@
 use gstd::{ext, msg};
-use std::mem::transmute;
 use std::ptr;
 
 mod shared;
@@ -18,15 +17,7 @@ impl State {
     }
 }
 
-static mut _STATE: *const State = ptr::NonNull::<State>::dangling().as_ptr();
-
-unsafe fn get_state<'a>() -> &'a mut State {
-    return transmute(_STATE);
-}
-
-unsafe fn release() {
-    ptr::read::<State>(_STATE);
-}
+static mut _STATE: ptr::NonNull<State> = ptr::NonNull::<State>::dangling();
 
 impl Drop for State {
     fn drop(&mut self) {
@@ -36,7 +27,7 @@ impl Drop for State {
 
 pub fn name() -> &'static str {
     unsafe {
-        let state = get_state();
+        let state = _STATE.as_mut();
         state.name
     }
 }
@@ -84,7 +75,7 @@ pub unsafe extern "C" fn init() {
             let (name, room_id) = (&split[0], &split[1]);
             // let s: &'static str = Box::leak(*name);
             // let s: &'static str = Box::leak(*name);
-            let state = get_state();
+            let state = _STATE.as_mut();
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
             state.set_name(s);
             let room_id = room_id
