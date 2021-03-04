@@ -1,5 +1,4 @@
 use gstd::{ext, msg};
-use std::ptr;
 
 mod shared;
 
@@ -15,22 +14,12 @@ impl State {
     fn set_name(&mut self, name: &'static str) {
         self.name = &name;
     }
-}
-
-static mut _STATE: ptr::NonNull<State> = ptr::NonNull::<State>::dangling();
-
-impl Drop for State {
-    fn drop(&mut self) {
-        ext::debug(&format!("Dropped state"));
+    fn name(&self) -> &'static str {
+        self.name
     }
 }
 
-pub fn name() -> &'static str {
-    unsafe {
-        let state = _STATE.as_mut();
-        state.name
-    }
-}
+static mut STATE: State = State { name: "" };
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -39,22 +28,24 @@ pub unsafe extern "C" fn handle() {
 
 fn bot(message: MemberMessage) {
     use shared::MemberMessage::*;
-    match message {
-        Private(text) => {
-            ext::debug(&format!(
-                "BOT '{}': received private message from #{}: '{}'",
-                name(),
-                msg::source(),
-                text
-            ));
-        }
-        Room(text) => {
-            ext::debug(&format!(
-                "BOT '{}': received room message from #{}: '{}'",
-                name(),
-                msg::source(),
-                text
-            ));
+    unsafe {
+        match message {
+            Private(text) => {
+                ext::debug(&format!(
+                    "BOT '{}': received private message from #{}: '{}'",
+                    STATE.name(),
+                    msg::source(),
+                    text
+                ));
+            }
+            Room(text) => {
+                ext::debug(&format!(
+                    "BOT '{}': received room message from #{}: '{}'",
+                    STATE.name(),
+                    msg::source(),
+                    text
+                ));
+            }
         }
     }
 }
@@ -73,11 +64,8 @@ pub unsafe extern "C" fn init() {
     match split.len() {
         2 => {
             let (name, room_id) = (&split[0], &split[1]);
-            // let s: &'static str = Box::leak(*name);
-            // let s: &'static str = Box::leak(*name);
-            let state = _STATE.as_mut();
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
-            state.set_name(s);
+            STATE.set_name(s);
             let room_id = room_id
                 .parse::<u64>()
                 .expect("INTIALIZATION FAILED: INVALID ROOM ID");
@@ -89,11 +77,11 @@ pub unsafe extern "C" fn init() {
             );
         }
         _ => {
-            ext::debug(&format!("INITLAIZATION FAILED"));
+            ext::debug("INITLAIZATION FAILED");
         }
     }
 
-    ext::debug(&format!("BOT '{}' created", name()));
+    ext::debug(&format!("BOT '{}' created", STATE.name()));
 }
 
 fn main() {}
