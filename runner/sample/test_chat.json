@@ -1,5 +1,5 @@
 {
-    "title": "basic",
+  "title": "basic",
     "programs": [
         {
             "id": 1,
@@ -107,10 +107,20 @@
                             },
                             "destination": 1
                         }
-                    ]
+                    ],
+                    "memory": [{
+                        "kind": "shared",
+                        "at": "0x1000008",
+                        "bytes": "0x74657374"
+                    }]
                 },
                 {
-                    "messages": []
+                    "messages": [],
+                    "memory": [{
+                        "kind": "shared",
+                        "at": "0x10000b0",
+                        "bytes": "0x68656c6c6f"
+                    }]
                 }
             ]
         }
