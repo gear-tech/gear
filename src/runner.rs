@@ -296,9 +296,6 @@ fn run<AS: AllocationStorage + 'static>(
         static_area,
         context.wasmtime_memory(),
         move |instance| {
-
-
-
             instance
                 .get_func(entry_point.into())
                 .ok_or(
