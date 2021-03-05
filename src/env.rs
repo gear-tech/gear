@@ -1,12 +1,12 @@
 //! Wasmtime environment for running a module
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
-use wasmtime::{Func, Module, Instance, Memory, Extern, Engine};
-use ::anyhow::{anyhow, self};
+use ::anyhow::{self, anyhow};
+use wasmtime::{Engine, Extern, Func, Instance, Memory, Module};
 
 pub trait Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
@@ -14,8 +14,8 @@ pub trait Ext {
     fn source(&mut self) -> Option<ProgramId>;
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str>;
     fn debug(&mut self, data: &str) -> Result<(), &'static str>;
-    fn set_mem(&mut self, ptr: usize, val: &[u8]);
-    fn get_mem(&mut self, ptr: usize, len: usize) -> &[u8];
+    fn set_mem(&mut self, ptr: usize, val: &[u8]) -> Result<(), &'static str>;
+    fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) -> Result<(), &'static str>;
     fn msg(&mut self) -> &[u8];
 }
 
@@ -25,14 +25,16 @@ struct LaterExt<E: Ext> {
 
 impl<E: Ext> Clone for LaterExt<E> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 
 impl<E: Ext> LaterExt<E> {
     fn new() -> Self {
         Self {
-            inner: Rc::new(RefCell::new(None))
+            inner: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -42,7 +44,9 @@ impl<E: Ext> LaterExt<E> {
 
     fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R {
         let mut brw = self.inner.borrow_mut();
-        let mut ext = brw.take().expect("with should be called only when inner is set");
+        let mut ext = brw
+            .take()
+            .expect("with should be called only when inner is set");
         let res = f(&mut ext);
 
         *brw = Some(ext);
@@ -51,7 +55,9 @@ impl<E: Ext> LaterExt<E> {
     }
 
     fn unset(&mut self) -> E {
-        self.inner.borrow_mut().take()
+        self.inner
+            .borrow_mut()
+            .take()
             .expect("Unset should be paired with set and called after")
     }
 }
@@ -82,7 +88,9 @@ impl<E: Ext + 'static> Environment<E> {
 
                 let ptr = match ext.with(|ext: &mut E| ext.alloc(pages.into())) {
                     Ok(ptr) => ptr.raw(),
-                    _ => { return Ok(0u32); }
+                    _ => {
+                        return Ok(0u32);
+                    }
                 };
 
                 log::debug!("ALLOC: {} pages at {}", pages, ptr);
@@ -127,7 +135,9 @@ impl<E: Ext + 'static> Environment<E> {
 
         let size = {
             let ext = ext.clone();
-            Func::wrap(&store, move || ext.with(|ext: &mut E| ext.msg().len() as isize as i32))
+            Func::wrap(&store, move || {
+                ext.with(|ext: &mut E| ext.msg().len() as isize as i32)
+            })
         };
 
         let read = {
@@ -138,7 +148,7 @@ impl<E: Ext + 'static> Environment<E> {
                 let dest = dest as u32 as usize;
                 ext.with(|ext: &mut E| {
                     let msg = ext.msg().to_vec();
-                    ext.set_mem(dest, &msg[at..at+len]);
+                    ext.set_mem(dest, &msg[at..at + len]);
                 });
                 Ok(())
             })
@@ -164,11 +174,24 @@ impl<E: Ext + 'static> Environment<E> {
         let source = {
             let ext = ext.clone();
             Func::wrap(&store, move || {
-                Ok(ext.with(|ext: &mut E| ext.source()).map(|v| v.0).unwrap_or_default())
+                Ok(ext
+                    .with(|ext: &mut E| ext.source())
+                    .map(|v| v.0)
+                    .unwrap_or_default())
             })
         };
 
-        Self { store, ext, alloc, send, free, size, read, debug, source }
+        Self {
+            store,
+            ext,
+            alloc,
+            send,
+            free,
+            size,
+            read,
+            debug,
+            source,
+        }
     }
 
     fn run_inner(
@@ -179,31 +202,31 @@ impl<E: Ext + 'static> Environment<E> {
     ) -> anyhow::Result<()> {
         let mut imports = module
             .imports()
-            .map(
-                |import| if import.module() != "env" {
-                    return Err(anyhow!("Non-env imports are not supported"))
+            .map(|import| {
+                if import.module() != "env" {
+                    Err(anyhow!("Non-env imports are not supported"))
                 } else {
                     Ok((import.name(), Option::<Extern>::None))
                 }
-            )
+            })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         for (ref import_name, ref mut ext) in imports.iter_mut() {
-            *ext = if import_name == &"send" {
+            *ext = if import_name == &Some("send") {
                 Some(self.send.clone().into())
-            } else if import_name == &"source" {
+            } else if import_name == &Some("source") {
                 Some(self.source.clone().into())
-            } else if import_name == &"alloc" {
+            } else if import_name == &Some("alloc") {
                 Some(self.alloc.clone().into())
-            } else if import_name == &"free" {
+            } else if import_name == &Some("free") {
                 Some(self.free.clone().into())
-            } else if import_name == &"size" {
+            } else if import_name == &Some("size") {
                 Some(self.size.clone().into())
-            } else if import_name == &"read" {
+            } else if import_name == &Some("read") {
                 Some(self.read.clone().into())
-            } else if import_name == &"debug" {
+            } else if import_name == &Some("debug") {
                 Some(self.debug.clone().into())
-            } else if import_name == &"memory" {
+            } else if import_name == &Some("memory") {
                 Some(memory.clone().into())
             } else {
                 continue;
@@ -212,14 +235,10 @@ impl<E: Ext + 'static> Environment<E> {
 
         let externs = imports
             .into_iter()
-            .map(|(_, host_function)| host_function.ok_or(anyhow!("Missing import")))
+            .map(|(_, host_function)| host_function.ok_or_else(|| anyhow!("Missing import")))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let instance = Instance::new(
-            &self.store,
-            &module,
-            &externs,
-        )?;
+        let instance = Instance::new(&self.store, &module, &externs)?;
 
         func(instance)
     }
@@ -247,9 +266,7 @@ impl<E: Ext + 'static> Environment<E> {
     pub fn create_memory(&self, total_pages: u32) -> Memory {
         Memory::new(
             &self.store,
-            wasmtime::MemoryType::new(
-                wasmtime::Limits::at_least(total_pages)
-            ),
+            wasmtime::MemoryType::new(wasmtime::Limits::at_least(total_pages)),
         )
     }
 }
