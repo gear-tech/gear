@@ -109,7 +109,9 @@ impl<E: Ext + 'static> Environment<E> {
                     if let Err(_) = ext.with(|ext: &mut E| {
                         let data = {
                             let mut data = vec![0; message_len];
-                            ext.get_mem(message_ptr, data.as_mut_slice());
+                            ext.get_mem(message_ptr, data.as_mut_slice())
+                                .map_err(|_e| log::error!("Read memory err: {}", _e))
+                                .ok();
                             data
                         };
                         ext.send(OutgoingMessage::new(
@@ -153,7 +155,9 @@ impl<E: Ext + 'static> Environment<E> {
                 let dest = dest as u32 as usize;
                 ext.with(|ext: &mut E| {
                     let msg = ext.msg().to_vec();
-                    ext.set_mem(dest, &msg[at..at + len]);
+                    ext.set_mem(dest, &msg[at..at + len])
+                        .map_err(|_e| log::error!("Write memory err: {}", _e))
+                        .ok();
                 });
                 Ok(())
             })
@@ -167,7 +171,9 @@ impl<E: Ext + 'static> Environment<E> {
                 ext.with(|ext: &mut E| {
                     let debug_str = unsafe {
                         let mut debug_str = vec![0; str_len];
-                        ext.get_mem(str_ptr, debug_str.as_mut_slice());
+                        ext.get_mem(str_ptr, debug_str.as_mut_slice())
+                            .map_err(|_e| log::error!("Read memory err: {}", _e))
+                            .ok();
                         String::from_utf8_unchecked(debug_str)
                     };
                     log::debug!("DEBUG: {}", debug_str);

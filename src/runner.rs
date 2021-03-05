@@ -48,7 +48,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
         // let persistent_region_end = persistent_region_start + persistent_memory.len();
 
-        memory.write(persistent_region_start, persistent_memory);
+        memory
+            .write(persistent_region_start, persistent_memory)
+            .map_err(|_e| log::error!("Write memory err: {}", _e))
+            .ok();
 
         let Storage {
             allocation_storage,
@@ -107,7 +110,9 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
             let mut persistent_memory = vec![0; self.memory.data_size() - non_static_region_start];
             self.memory
-                .read(non_static_region_start, persistent_memory.as_mut_slice());
+                .read(non_static_region_start, persistent_memory.as_mut_slice())
+                .map_err(|_e| log::error!("Read memory err: {}", _e))
+                .ok();
             persistent_memory
         };
 
@@ -310,7 +315,9 @@ fn run<AS: AllocationStorage + 'static>(
     };
 
     // Set static pages from saved program state.
-    ext.set_mem(0, program.static_pages());
+    ext.set_mem(0, program.static_pages())
+        .map_err(|_e| log::error!("Write memory err: {}", _e))
+        .ok();
 
     let (res, mut ext) =
         env.setup_and_run(ext, module, context.wasmtime_memory(), move |instance| {
@@ -330,7 +337,9 @@ fn run<AS: AllocationStorage + 'static>(
         program
             .static_pages_mut()
             .resize(context.static_pages().raw() as usize * BASIC_PAGE_SIZE, 0);
-        ext.get_mem(0, program.static_pages_mut());
+        ext.get_mem(0, program.static_pages_mut())
+            .map_err(|_e| log::error!("Read memory err: {}", _e))
+            .ok();
 
         for outgoing_msg in ext.messages.drain() {
             context.push_message(outgoing_msg.into_message(program.id()));
