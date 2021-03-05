@@ -46,7 +46,6 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let memory = env.create_memory(total_pages);
 
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
-        // let persistent_region_end = persistent_region_start + persistent_memory.len();
 
         memory
             .write(persistent_region_start, persistent_memory)
