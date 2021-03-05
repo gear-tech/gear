@@ -209,6 +209,7 @@ impl<E: Ext + 'static> Environment<E> {
     fn run_inner(
         &mut self,
         module: Module,
+        static_area: Vec<u8>,
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
@@ -252,6 +253,8 @@ impl<E: Ext + 'static> Environment<E> {
 
         let instance = Instance::new(&self.store, &module, &externs)?;
 
+        unsafe { memory.data_unchecked_mut()[0..static_area.len()].copy_from_slice(&static_area[..]) };
+
         func(instance)
     }
 
@@ -259,12 +262,13 @@ impl<E: Ext + 'static> Environment<E> {
         &mut self,
         ext: E,
         module: Module,
+        static_area: Vec<u8>,
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E) {
         self.ext.set(ext);
 
-        let result = self.run_inner(module, memory, func);
+        let result = self.run_inner(module, static_area, memory, func);
 
         let ext = self.ext.unset();
 

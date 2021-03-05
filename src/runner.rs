@@ -303,7 +303,7 @@ fn run<AS: AllocationStorage + 'static>(
 ) -> Result<RunResult> {
     let module = Module::new(env.engine(), program.code())?;
 
-    let mut ext = Ext {
+    let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
             Box::new(context.wasmtime_memory()),
@@ -315,12 +315,15 @@ fn run<AS: AllocationStorage + 'static>(
     };
 
     // Set static pages from saved program state.
-    ext.set_mem(0, program.static_pages())
-        .map_err(|_e| log::error!("Write memory err: {}", _e))
-        .ok();
 
-    let (res, mut ext) =
-        env.setup_and_run(ext, module, context.wasmtime_memory(), move |instance| {
+    let static_area = program.static_pages().to_vec();
+
+    let (res, mut ext) = env.setup_and_run(
+        ext,
+        module,
+        static_area,
+        context.wasmtime_memory(),
+        move |instance| {
             instance
                 .get_func(entry_point.into())
                 .ok_or_else(|| {
