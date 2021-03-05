@@ -57,7 +57,7 @@ pub enum PayloadVariant {
     Float32(f32),
     #[serde(rename = "f64")]
     Float64(f64),
-    #[serde(rename = "bytes")]
+    #[serde(rename = "bytes", deserialize_with = "de_bytes")]
     Bytes(Vec<u8>),
 }
 
