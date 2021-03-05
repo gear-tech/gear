@@ -1,7 +1,7 @@
-use codec::{Encode, Decode};
-use std::{rc::Rc, cell::RefCell};
 use crate::program::ProgramId;
 use crate::storage::AllocationStorage;
+use codec::{Decode, Encode};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug)]
 pub enum Error {
@@ -11,40 +11,52 @@ pub enum Error {
     InvalidFree(PageNumber),
 }
 
-#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 pub struct PageNumber(u32);
 
 impl PageNumber {
-    pub fn raw(&self) -> u32 { self.0 }
+    pub fn raw(&self) -> u32 {
+        self.0
+    }
 }
 
 pub trait Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
     fn size(&self) -> PageNumber;
-    unsafe fn data_unchecked(&self) -> &[u8];
-    unsafe fn data_unchecked_mut(&self) -> &mut [u8];
     fn clone(&self) -> Box<dyn Memory>;
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
 }
 
 impl Memory for wasmtime::Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
-        self.grow(pages.raw()).map(Into::into).map_err(|_| Error::OutOfMemory)
+        self.grow(pages.raw())
+            .map(Into::into)
+            .map_err(|_| Error::OutOfMemory)
     }
 
     fn size(&self) -> PageNumber {
         self.size().into()
     }
 
-    unsafe fn data_unchecked(&self) -> &[u8] {
-        self.data_unchecked()
-    }
-
-    unsafe fn data_unchecked_mut(&self) -> &mut [u8] {
-        self.data_unchecked_mut()
-    }
-
     fn clone(&self) -> Box<dyn Memory> {
         Box::new(Clone::clone(self))
+    }
+
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+        if self.read(offset, buffer).is_err() {
+            return Err(Error::OutOfMemory);
+        }
+        Ok(())
+    }
+
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+        if self.write(offset, buffer).is_err() {
+            return Err(Error::OutOfMemory);
+        }
+        Ok(())
     }
 }
 
@@ -62,7 +74,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
     }
 
     pub fn get(&self, page: PageNumber) -> Option<ProgramId> {
-        self.0.borrow().get(page).map(|pid| *pid)
+        self.0.borrow().get(page).copied()
     }
 
     pub fn occupied(&self, page: PageNumber) -> bool {
@@ -71,7 +83,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
 
     pub fn insert(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
         if self.0.borrow().exists(page) {
-            return Err(Error::PageOccupied(page))
+            return Err(Error::PageOccupied(page));
         }
 
         self.0.borrow_mut().set(page, program_id);
@@ -81,7 +93,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
 
     pub fn remove(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
         if program_id != *self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
-            return Err(Error::InvalidFree(page))
+            return Err(Error::InvalidFree(page));
         }
 
         self.0.borrow_mut().remove(page);
@@ -90,7 +102,9 @@ impl<AS: AllocationStorage> Allocations<AS> {
     }
 
     pub fn drain(self) -> Result<AS, Error> {
-        Ok(Rc::try_unwrap(self.0).map_err(|_| Error::AllocationsInUse)?.into_inner())
+        Ok(Rc::try_unwrap(self.0)
+            .map_err(|_| Error::AllocationsInUse)?
+            .into_inner())
     }
 
     pub fn clear(&self, program_id: ProgramId) {
@@ -136,7 +150,13 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
-        Self { memory, program_id, allocations, static_pages, max_pages }
+        Self {
+            memory,
+            program_id,
+            allocations,
+            static_pages,
+            max_pages,
+        }
     }
 
     pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
@@ -146,7 +166,12 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 
         while found < pages.raw() {
             if candidate + pages.raw() > self.max_pages.raw() {
-                log::debug!("candidate: {}, pages: {}, max_pages: {}", candidate, pages.raw(), self.max_pages.raw());
+                log::debug!(
+                    "candidate: {}, pages: {}, max_pages: {}",
+                    candidate,
+                    pages.raw(),
+                    self.max_pages.raw()
+                );
                 return Err(Error::OutOfMemory);
             }
 
@@ -164,7 +189,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
             self.memory.grow(extra_grow.into())?;
         }
 
-        for page_num in candidate..candidate+found {
+        for page_num in candidate..candidate + found {
             self.allocations.insert(self.program_id, page_num.into())?;
         }
 
@@ -185,8 +210,8 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         &self.allocations
     }
 
-    pub fn memory(&self) -> &dyn Memory {
-        &*self.memory
+    pub fn memory(&mut self) -> &dyn Memory {
+        &mut *self.memory
     }
 }
 
@@ -195,8 +220,11 @@ mod tests {
     use super::*;
     use crate::storage::InMemoryAllocationStorage;
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext<InMemoryAllocationStorage> {
-        use wasmtime::{Engine, Store, MemoryType, Memory as WasmMemory, Limits};
+    fn new_test_memory(
+        static_pages: u32,
+        max_pages: u32,
+    ) -> MemoryContext<InMemoryAllocationStorage> {
+        use wasmtime::{Engine, Limits, Memory as WasmMemory, MemoryType, Store};
 
         let engine = Engine::default();
         let store = Store::new(&engine);
@@ -222,7 +250,9 @@ mod tests {
         assert_eq!(mem.allocations().len(), 16);
 
         // there is a space for 14 more
-        for _ in 0..14 { mem.alloc(16.into()).expect("allocation failed"); }
+        for _ in 0..14 {
+            mem.alloc(16.into()).expect("allocation failed");
+        }
 
         // no more mem!
         assert!(mem.alloc(1.into()).is_err());

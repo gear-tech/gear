@@ -1,13 +1,15 @@
-use wasmtime::{Module, Memory as WasmMemory};
-use codec::{Encode, Decode};
+use std::vec;
+
 use anyhow::Result;
+use codec::{Decode, Encode};
+use wasmtime::{Memory as WasmMemory, Module};
 
 use crate::{
-    env::{Ext as EnvExt, Environment},
-    memory::{Allocations, PageNumber, MemoryContext},
-    message::{Message, IncomingMessage, OutgoingMessage, MessageContext},
-    program::{ProgramId, Program},
-    storage::{AllocationStorage, ProgramStorage, MessageQueue, Storage},
+    env::{Environment, Ext as EnvExt},
+    memory::{Allocations, MemoryContext, PageNumber},
+    message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
+    program::{Program, ProgramId},
+    storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
 };
 
 #[derive(Clone, Debug, Decode, Encode)]
@@ -18,7 +20,10 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { static_pages: BASIC_PAGES.into(), max_pages: MAX_PAGES.into() }
+        Self {
+            static_pages: BASIC_PAGES.into(),
+            max_pages: MAX_PAGES.into(),
+        }
     }
 }
 
@@ -32,11 +37,7 @@ pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: Program
 }
 
 impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runner<AS, MQ, PS> {
-    pub fn new(
-        config: &Config,
-        storage: Storage<AS, MQ, PS>,
-        persistent_memory: &[u8],
-    ) -> Self {
+    pub fn new(config: &Config, storage: Storage<AS, MQ, PS>, persistent_memory: &[u8]) -> Self {
         // memory need to be at least static_pages + persistent_memory length (in pages)
         let persistent_pages = persistent_memory.len() / BASIC_PAGE_SIZE;
         let total_pages = config.static_pages.raw() + persistent_pages as u32;
@@ -45,15 +46,17 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let memory = env.create_memory(total_pages);
 
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
-        let persistent_region_end = persistent_region_start + persistent_memory.len();
 
-        unsafe {
-            memory
-                .data_unchecked_mut()[persistent_region_start..persistent_region_end]
-                .copy_from_slice(persistent_memory);
-        }
+        memory
+            .write(persistent_region_start, persistent_memory)
+            .map_err(|_e| log::error!("Write memory err: {}", _e))
+            .ok();
 
-        let Storage { allocation_storage, message_queue, program_storage } = storage;
+        let Storage {
+            allocation_storage,
+            message_queue,
+            program_storage,
+        } = storage;
 
         Self {
             program_storage,
@@ -68,7 +71,9 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     pub fn run_next(&mut self) -> Result<usize> {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
-            None => { return Ok(0); }
+            None => {
+                return Ok(0);
+            }
         };
 
         if next_message.dest() == 0.into() {
@@ -81,10 +86,20 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             Ok(1)
         } else {
             let mut context = self.create_context();
-            let program = self.program_storage.get_mut(next_message.dest()).expect("Program not found");
+            let program = self
+                .program_storage
+                .get_mut(next_message.dest())
+                .expect("Program not found");
 
-            run(&mut self.env, &mut context, program, EntryPoint::Handle, &next_message.into())?;
-            self.message_queue.queue_many(context.message_buf.drain(..).collect());
+            run(
+                &mut self.env,
+                &mut context,
+                program,
+                EntryPoint::Handle,
+                &next_message.into(),
+            )?;
+            self.message_queue
+                .queue_many(context.message_buf.drain(..).collect());
             Ok(1)
         }
     }
@@ -92,10 +107,20 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
         let persistent_memory = {
             let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
-            unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
+            let mut persistent_memory = vec![0; self.memory.data_size() - non_static_region_start];
+            self.memory
+                .read(non_static_region_start, persistent_memory.as_mut_slice())
+                .map_err(|_e| log::error!("Read memory err: {}", _e))
+                .ok();
+            persistent_memory
         };
 
-        let Runner { program_storage, message_queue, allocations, .. } = self;
+        let Runner {
+            program_storage,
+            message_queue,
+            allocations,
+            ..
+        } = self;
 
         let allocation_storage = match allocations.drain() {
             Ok(v) => v,
@@ -123,35 +148,40 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     }
 
     pub fn create_context(&self) -> RunningContext<AS> {
-        RunningContext::new(
-            &self.config,
-            self.memory.clone(),
-            self.allocations.clone(),
-        )
+        RunningContext::new(&self.config, self.memory.clone(), self.allocations.clone())
     }
 
-    pub fn init_program(&mut self, program_id: ProgramId, code: Vec<u8>, init_msg: Vec<u8>)
-        -> Result<()>
-    {
+    pub fn init_program(
+        &mut self,
+        program_id: ProgramId,
+        code: Vec<u8>,
+        init_msg: Vec<u8>,
+    ) -> Result<()> {
         if let Some(program) = self.program_storage.get_mut(program_id) {
             program.set_code(code.to_vec());
             program.clear_static();
         } else {
-            self.program_storage.set(Program::new(program_id, code, vec![]));
+            self.program_storage
+                .set(Program::new(program_id, code, vec![]));
         }
 
         self.allocations.clear(program_id);
 
         let mut context = self.create_context();
-        let program = self.program_storage.get_mut(program_id).expect("Added above; cannot fail");
+        let program = self
+            .program_storage
+            .get_mut(program_id)
+            .expect("Added above; cannot fail");
         let msg = IncomingMessage::new_system(init_msg.into());
         run(&mut self.env, &mut context, program, EntryPoint::Init, &msg)?;
-        self.message_queue.queue_many(context.message_buf.drain(..).collect());
+        self.message_queue
+            .queue_many(context.message_buf.drain(..).collect());
         Ok(())
     }
 
     pub fn queue_message(&mut self, destination: ProgramId, payload: Vec<u8>) {
-        self.message_queue.queue(Message::new_system(destination, payload.into()))
+        self.message_queue
+            .queue(Message::new_system(destination, payload.into()))
     }
 }
 
@@ -161,11 +191,11 @@ pub enum EntryPoint {
     Init,
 }
 
-impl Into<&'static str> for EntryPoint {
-    fn into(self) -> &'static str {
-        match self {
-            Self::Handle => "handle",
-            Self::Init => "init",
+impl From<EntryPoint> for &'static str {
+    fn from(e: EntryPoint) -> &'static str {
+        match e {
+            EntryPoint::Handle => "handle",
+            EntryPoint::Init => "init",
         }
     }
 }
@@ -182,11 +212,7 @@ pub struct RunningContext<AS: AllocationStorage> {
 }
 
 impl<AS: AllocationStorage> RunningContext<AS> {
-    pub fn new(
-        config: &Config,
-        memory: WasmMemory,
-        allocations: Allocations<AS>,
-    ) -> Self {
+    pub fn new(config: &Config, memory: WasmMemory, allocations: Allocations<AS>) -> Self {
         Self {
             config: config.clone(),
             message_buf: vec![],
@@ -219,7 +245,6 @@ pub struct RunResult {
     messages: Vec<OutgoingMessage>,
 }
 
-
 struct Ext<AS: AllocationStorage + 'static> {
     memory_context: MemoryContext<AS>,
     messages: MessageContext,
@@ -227,7 +252,9 @@ struct Ext<AS: AllocationStorage + 'static> {
 
 impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        self.memory_context.alloc(pages).map_err(|_e| "Allocation error")
+        self.memory_context
+            .alloc(pages)
+            .map_err(|_e| "Allocation error")
     }
 
     fn send(&mut self, msg: OutgoingMessage) -> Result<(), &'static str> {
@@ -247,22 +274,22 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
         Ok(())
     }
 
-    fn set_mem(&mut self, ptr: usize, val: &[u8]) {
-        unsafe {
-            self
-                .memory_context
-                .memory()
-                .data_unchecked_mut()[ptr..ptr+val.len()]
-                .copy_from_slice(val);
-        }
+    fn set_mem(&mut self, ptr: usize, val: &[u8]) -> Result<(), &'static str> {
+        self.memory_context
+            .memory()
+            .write(ptr, val)
+            .map_err(|_e| "Set mem error")
     }
 
-    fn get_mem(&mut self, ptr: usize, len: usize) -> &[u8] {
-        unsafe { &self.memory_context.memory().data_unchecked()[ptr..ptr+len] }
+    fn get_mem(&mut self, ptr: usize, val: &mut [u8]) -> Result<(), &'static str> {
+        self.memory_context
+            .memory()
+            .read(ptr, val)
+            .map_err(|_e| "Set mem error")
     }
 
     fn msg(&mut self) -> &[u8] {
-        &self.messages.current().payload()[..]
+        self.messages.current().payload()
     }
 }
 
@@ -298,16 +325,23 @@ fn run<AS: AllocationStorage + 'static>(
         move |instance| {
             instance
                 .get_func(entry_point.into())
-                .ok_or(
-                    anyhow::format_err!("failed to find `{}` function export", Into::<&'static str>::into(entry_point))
-                )
+                .ok_or_else(|| {
+                    anyhow::format_err!(
+                        "failed to find `{}` function export",
+                        Into::<&'static str>::into(entry_point)
+                    )
+                })
                 .and_then(|entry_func| entry_func.call(&[]))
                 .map(|_| ())
-        }
-    );
+        });
 
     res.map(move |_| {
-        *program.static_pages_mut() = ext.get_mem(0, context.static_pages().raw() as usize * BASIC_PAGE_SIZE).to_vec();
+        program
+            .static_pages_mut()
+            .resize(context.static_pages().raw() as usize * BASIC_PAGE_SIZE, 0);
+        ext.get_mem(0, program.static_pages_mut())
+            .map_err(|_e| log::error!("Read memory err: {}", _e))
+            .ok();
 
         for outgoing_msg in ext.messages.drain() {
             context.push_message(outgoing_msg.into_message(program.id()));
