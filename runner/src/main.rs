@@ -21,7 +21,7 @@ fn check_messages(
     } else {
         &expected_messages
             .iter()
-            .zip(messages.iter().rev())
+            .zip(messages.iter())
             .for_each(|(exp, msg)| {
                 if exp.destination != msg.dest.0 {
                     errors.push(format!(
