@@ -24,6 +24,8 @@ pub trait Memory {
     unsafe fn data_unchecked(&self) -> &[u8];
     unsafe fn data_unchecked_mut(&self) -> &mut [u8];
     fn clone(&self) -> Box<dyn Memory>;
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
 }
 
 impl Memory for wasmtime::Memory {
@@ -45,6 +47,20 @@ impl Memory for wasmtime::Memory {
 
     fn clone(&self) -> Box<dyn Memory> {
         Box::new(Clone::clone(self))
+    }
+
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
+        if self.read(offset, buffer).is_err() {
+            return Err(Error::OutOfMemory);
+        }
+        Ok(())
+    }
+
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+        if self.write(offset, buffer).is_err() {
+            return Err(Error::OutOfMemory);
+        }
+        Ok(())
     }
 }
 
