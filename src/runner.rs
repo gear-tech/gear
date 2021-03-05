@@ -268,18 +268,18 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
         Ok(())
     }
 
-    fn set_mem(&mut self, ptr: usize, val: &[u8]) {
-        unsafe {
-            self
-                .memory_context
-                .memory()
-                .data_unchecked_mut()[ptr..ptr+val.len()]
-                .copy_from_slice(val);
-        }
+    fn set_mem(&mut self, ptr: usize, val: &[u8]) -> Result<(), &'static str> {
+        self.memory_context
+            .memory()
+            .write(ptr, val)
+            .map_err(|_e| "Set mem error")
     }
 
-    fn get_mem(&mut self, ptr: usize, len: usize) -> &[u8] {
-        unsafe { &self.memory_context.memory().data_unchecked()[ptr..ptr+len] }
+    fn get_mem(&mut self, ptr: usize, val: &mut [u8]) -> Result<(), &'static str> {
+        self.memory_context
+            .memory()
+            .read(ptr, val)
+            .map_err(|_e| "Set mem error")
     }
 
     fn msg(&mut self) -> &[u8] {
