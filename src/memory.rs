@@ -25,7 +25,7 @@ impl PageNumber {
 pub trait Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
     fn size(&self) -> PageNumber;
-    unsafe fn data_unchecked(&self) -> &[u8];
+    // unsafe fn data_unchecked(&self) -> &[u8];
     // unsafe fn data_unchecked_mut(&mut self) -> &mut [u8];
     fn clone(&self) -> Box<dyn Memory>;
     fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
@@ -43,13 +43,13 @@ impl Memory for wasmtime::Memory {
         self.size().into()
     }
 
-    unsafe fn data_unchecked(&self) -> &[u8] {
-        self.data_unchecked()
-    }
+    // unsafe fn data_unchecked(&self) -> &[u8] {
+    //     self.data_unchecked()
+    // }
 
-    unsafe fn data_unchecked_mut(&self) -> &mut [u8] {
-        self.data_unchecked_mut()
-    }
+    // unsafe fn data_unchecked_mut(&mut self) -> &mut [u8] {
+    //     self.data_unchecked_mut()
+    // }
 
     fn clone(&self) -> Box<dyn Memory> {
         Box::new(Clone::clone(self))

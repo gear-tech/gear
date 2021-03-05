@@ -1,3 +1,5 @@
+use std::vec;
+
 use anyhow::Result;
 use codec::{Decode, Encode};
 use wasmtime::{Memory as WasmMemory, Module};
@@ -103,7 +105,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
         let persistent_memory = {
             let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
-            unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
+            let mut persistent_memory = vec![0; self.memory.data_size() - non_static_region_start];
+            self.memory
+                .read(non_static_region_start, persistent_memory.as_mut_slice());
+            persistent_memory
         };
 
         let Runner {
