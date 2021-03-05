@@ -1,5 +1,5 @@
 {
-  "title": "basic",
+    "title": "basic",
     "programs": [
         {
             "id": 1,
@@ -75,6 +75,21 @@
                             "payload": {
                                 "kind": "bytes",
                                 "value": [
+                                    1,
+                                    20,
+                                    104,
+                                    101,
+                                    108,
+                                    108,
+                                    111
+                                ]
+                            },
+                            "destination": 1
+                        },
+                        {
+                            "payload": {
+                                "kind": "bytes",
+                                "value": [
                                     0,
                                     44,
                                     112,
@@ -91,36 +106,25 @@
                                 ]
                             },
                             "destination": 2
-                        },
-                        {
-                            "payload": {
-                                "kind": "bytes",
-                                "value": [
-                                    1,
-                                    20,
-                                    104,
-                                    101,
-                                    108,
-                                    108,
-                                    111
-                                ]
-                            },
-                            "destination": 1
                         }
                     ],
-                    "memory": [{
-                        "kind": "shared",
-                        "at": "0x1000008",
-                        "bytes": "0x74657374"
-                    }]
+                    "memory": [
+                        {
+                            "kind": "shared",
+                            "at": "0x1000008",
+                            "bytes": "0x74657374"
+                        }
+                    ]
                 },
                 {
                     "messages": [],
-                    "memory": [{
-                        "kind": "shared",
-                        "at": "0x10000b0",
-                        "bytes": "0x68656c6c6f"
-                    }]
+                    "memory": [
+                        {
+                            "kind": "shared",
+                            "at": "0x10000b0",
+                            "bytes": "0x68656c6c6f"
+                        }
+                    ]
                 }
             ]
         }
