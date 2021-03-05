@@ -106,12 +106,17 @@ impl<E: Ext + 'static> Environment<E> {
                 move |program_id: i64, message_ptr: i32, message_len: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
-                    if let Err(_) = ext.with(
-                        |ext: &mut E| {
-                            let data = ext.get_mem(message_ptr, message_len).to_vec();
-                            ext.send(OutgoingMessage::new(ProgramId(program_id as _), data.into()))
-                        }
-                    ) {
+                    if let Err(_) = ext.with(|ext: &mut E| {
+                        let data = {
+                            let mut data = vec![0; message_len];
+                            ext.get_mem(message_ptr, data.as_mut_slice());
+                            data
+                        };
+                        ext.send(OutgoingMessage::new(
+                            ProgramId(program_id as _),
+                            data.into(),
+                        ))
+                    }) {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
                     }
 
@@ -156,19 +161,20 @@ impl<E: Ext + 'static> Environment<E> {
 
         let debug = {
             let ext = ext.clone();
-            Func::wrap(
-                &store,
-                move |str_ptr: i32, str_len: i32| {
-                    let str_ptr = str_ptr as u32 as usize;
-                    let str_len = str_len as u32 as usize;
-                    ext.with(|ext: &mut E| {
-                        let debug_str = unsafe { String::from_utf8_unchecked(ext.get_mem(str_ptr, str_len).to_vec()) };
-                        log::debug!("DEBUG: {}", debug_str);
-                    });
+            Func::wrap(&store, move |str_ptr: i32, str_len: i32| {
+                let str_ptr = str_ptr as u32 as usize;
+                let str_len = str_len as u32 as usize;
+                ext.with(|ext: &mut E| {
+                    let debug_str = unsafe {
+                        let mut debug_str = vec![0; str_len];
+                        ext.get_mem(str_ptr, debug_str.as_mut_slice());
+                        String::from_utf8_unchecked(debug_str)
+                    };
+                    log::debug!("DEBUG: {}", debug_str);
+                });
 
-                    Ok(())
-                },
-            )
+                Ok(())
+            })
         };
 
         let source = {
