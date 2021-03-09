@@ -1,23 +1,33 @@
 use gstd::{ext, msg};
-
 mod shared;
 
-use shared::{RoomMessage, MemberMessage};
 use codec::{Decode as _, Encode as _};
+use shared::{MemberMessage, RoomMessage};
 
-static mut ROOM_NAME: String = String::new();
-pub fn room_name() -> &'static str {
-    unsafe { &ROOM_NAME as _ }
+#[derive(Debug)]
+struct State {
+    room_name: &'static str,
+    members: Vec<(u64, String)>,
 }
-static mut MEMBERS: Vec<(u64, String)> = Vec::new();
-pub fn add_member(id: u64, name: String) {
-    unsafe {
-        MEMBERS.push((id, name))
+
+impl State {
+    fn set_room_name(&mut self, name: &'static str) {
+        self.room_name = &name;
+    }
+    fn add_member(&mut self, member: (u64, String)) {
+        self.members.push(member);
+    }
+    fn room_name(&self) -> &'static str {
+        ext::debug(&format!("room_name ptr -> {:p}", self.room_name));
+        self.room_name
     }
 }
-pub fn members() -> impl Iterator<Item=&'static (u64, String)> {
-    unsafe { MEMBERS.iter() }
-}
+
+static mut STATE: State = State {
+    room_name: "",
+    members: vec![],
+};
+
 pub fn send_member(id: u64, msg: MemberMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
@@ -29,15 +39,21 @@ pub unsafe extern "C" fn handle() {
     room(RoomMessage::decode(&mut &msg::load()[..]).expect("Failed to decode incoming message"));
 }
 
-fn room(room_msg: RoomMessage) {
+unsafe fn room(room_msg: RoomMessage) {
     use shared::RoomMessage::*;
+
     match room_msg {
         Join { under_name } => {
-            ext::debug(&format!("ROOM '{}': '{}' joined", room_name(), &under_name));
-            add_member(msg::source(), under_name);
-        },
+            ext::debug(&format!(
+                "ROOM '{}': '{}' joined",
+                STATE.room_name(),
+                &under_name
+            ));
+            STATE.add_member((msg::source(), under_name));
+        }
         Yell { text } => {
-            for (id, _) in members() {
+            ext::debug(&format!("Yell ptr -> {:p}", text.as_ptr()));
+            for (id, _) in STATE.members.iter() {
                 if *id != msg::source() {
                     send_member(
                         *id,
@@ -51,9 +67,13 @@ fn room(room_msg: RoomMessage) {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    ROOM_NAME = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
-    ext::debug(&format!("ROOM '{}' created", ROOM_NAME));
+    let s: &'static str = Box::leak(
+        String::from_utf8(msg::load())
+            .expect("Invalid message: should be utf-8")
+            .into_boxed_str(),
+    );
+    STATE.set_room_name(s);
+    ext::debug(&format!("ROOM '{}' created", STATE.room_name()));
 }
 
-fn main() {
-}
+fn main() {}
