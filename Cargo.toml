@@ -13,6 +13,9 @@ derive_more = "0.99"
 anyhow = "1"
 log = "0.4"
 
+[dev-dependencies]
+wabt = "0.10.0"
+
 [features]
 default = []
 strict = []
