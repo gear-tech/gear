@@ -301,6 +301,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-chat"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-fib"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
+name = "demo-ping"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
+name = "demo-sum"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
+name = "demo-vec"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -339,6 +375,13 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
+]
+
+[[package]]
+name = "dlmalloc"
+version = "0.1.4"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -477,6 +520,13 @@ name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
+
+[[package]]
+name = "gstd"
+version = "0.1.0"
+dependencies = [
+ "dlmalloc",
+]
 
 [[package]]
 name = "hashbrown"
