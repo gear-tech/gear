@@ -46,6 +46,6 @@ jobs:
         cargo +nightly build --manifest-path=demo-vec/Cargo.toml --target=wasm32-unknown-unknown --release &&
         cargo +nightly build --manifest-path=demo-chat/Cargo.toml --target=wasm32-unknown-unknown --release
     - name: Run tests
-      run: cargo test
+      run: cd test-gear && cargo test
     - name: Run testsuite
-      run: cargo run --release ./runner/sample/*.json
+      run: cd test-gear && cargo run --release ./sample/*.json
