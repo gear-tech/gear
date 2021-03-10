@@ -380,6 +380,7 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
+source = "git+https://github.com/nikvolf/dlmalloc-rs#74ecb8165d45f2a3d2ef7921c7371014911e9815"
 dependencies = [
  "libc",
 ]
@@ -468,19 +469,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "wasmtime",
-]
-
-[[package]]
-name = "gear-test-runner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger 0.8.3",
- "gear-core",
- "hex",
- "serde",
- "serde_json",
- "termion",
 ]
 
 [[package]]

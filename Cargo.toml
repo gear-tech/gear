@@ -16,12 +16,8 @@ serde_json = "*"
 termion = "1.5.6"
 
 [workspace]
-members = ["runner", "demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-fib"]
-
-# [[bin]]
-# name = "testgear"
-# path = "src/main.rs"
+members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-fib"]
 
 [[bin]]
 name = "gtest"
-path = "runner/src/main.rs"
+path = "src/main.rs"
