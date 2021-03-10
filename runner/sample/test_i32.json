@@ -3,11 +3,11 @@
     "programs": [
         {
             "id": 1,
-            "path": "demo-sum/target/wasm32-unknown-unknown/release/demo-sum.wasm"
+            "path": "target/wasm32-unknown-unknown/release/demo-sum.wasm"
         },
         {
             "id": 2,
-            "path": "demo-fib/target/wasm32-unknown-unknown/release/demo-fib.wasm"
+            "path": "target/wasm32-unknown-unknown/release/demo-fib.wasm"
         }
     ],
     "fixtures": [
