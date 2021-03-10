@@ -350,3 +350,70 @@ fn run<AS: AllocationStorage + 'static>(
         RunResult::default()
     })
 }
+
+#[cfg(test)]
+mod tests {
+    extern crate wabt;
+    use super::*;
+
+    fn parse_wat(source: &str) -> Vec<u8> {
+        let module_bytes = wabt::Wat2Wasm::new()
+            .validate(false)
+            .convert(source)
+            .expect("failed to parse module")
+            .as_ref()
+            .to_vec();
+        module_bytes
+    }
+
+    #[test]
+    fn runner_simple() {
+        let wat = r#"
+        (module
+            (import "env" "read" (func $read (param i32 i32 i32)))
+            (import "env" "send" (func $send (param i64 i32 i32)))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+              i32.const 0
+              i32.const 5
+              i32.const 32
+              call $read
+              i64.const 1
+              i32.const 32
+              i32.const 5
+              call $send
+            )
+            (func $init)
+        )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            crate::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        );
+
+        assert!(runner
+            .init_program(1.into(), parse_wat(wat), vec![])
+            .is_ok());
+
+        assert!(runner.message_queue.dequeue().is_none());
+
+        runner.queue_message(1.into(), "hello".as_bytes().to_vec());
+
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: "hello".as_bytes().to_vec().into(),
+            })
+        );
+    }
+}
