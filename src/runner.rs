@@ -370,22 +370,29 @@ mod tests {
     fn runner_simple() {
         let wat = r#"
         (module
-            (import "env" "read" (func $read (param i32 i32 i32)))
-            (import "env" "send" (func $send (param i64 i32 i32)))
+            (import "env" "read"  (func $read (param i32 i32 i32)))
+            (import "env" "send"  (func $send (param i64 i32 i32)))
+            (import "env" "size"  (func $size (result i32)))
+            (memory $memory (export "memory") 1)
             (export "handle" (func $handle))
             (export "init" (func $init))
             (func $handle
+              (local $var0 i32) 
               i32.const 0
-              i32.const 5
-              i32.const 32
+              call $size
+              tee_local $var0
+              i32.const 0
               call $read
               i64.const 1
-              i32.const 32
-              i32.const 5
+              i32.const 0
+              get_local $var0
+              i32.const 255
+              i32.and
               call $send
             )
-            (func $init)
-        )"#;
+            (func $init
+            )
+          )"#;
 
         let mut runner = Runner::new(
             &Config::default(),
@@ -403,7 +410,7 @@ mod tests {
 
         assert!(runner.message_queue.dequeue().is_none());
 
-        runner.queue_message(1.into(), "hello".as_bytes().to_vec());
+        runner.queue_message(1.into(), "test".as_bytes().to_vec());
 
         assert!(runner.run_next().is_ok());
 
@@ -412,7 +419,7 @@ mod tests {
             Some(Message {
                 source: 1.into(),
                 dest: 1.into(),
-                payload: "hello".as_bytes().to_vec().into(),
+                payload: "test".as_bytes().to_vec().into(),
             })
         );
     }
