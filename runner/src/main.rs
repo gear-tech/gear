@@ -17,9 +17,9 @@ fn check_messages(
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
-        errors.push(format!("Expectation error (messages count doesn't match)"));
+        errors.push("Expectation error (messages count doesn't match)".to_string());
     } else {
-        &expected_messages
+        expected_messages
             .iter()
             .zip(messages.iter())
             .for_each(|(exp, msg)| {
@@ -29,8 +29,8 @@ fn check_messages(
                         exp.destination, msg.dest.0
                     ));
                 }
-                if &exp.payload.clone().into_raw() != &msg.payload.clone().into_raw() {
-                    errors.push(format!("Expectation error (payload doesn't match)"));
+                if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
+                    errors.push("Expectation error (payload doesn't match)".to_string());
                 }
             });
     }
@@ -43,14 +43,14 @@ fn check_messages(
 }
 
 fn check_allocations(
-    pages: &Vec<(PageNumber, ProgramId)>,
-    expected_pages: &Vec<sample::AllocationStorage>,
+    pages: &[(PageNumber, ProgramId)],
+    expected_pages: &[sample::AllocationStorage],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     if expected_pages.len() != pages.len() {
-        errors.push(format!("Expectation error (pages count doesn't match)\n"));
+        errors.push("Expectation error (pages count doesn't match)\n".to_string());
     } else {
-        &expected_pages
+        expected_pages
             .iter()
             .zip(pages.iter())
             .for_each(|(exp, page)| {
@@ -78,36 +78,34 @@ fn check_allocations(
 }
 
 fn check_memory(
-    persistent_memory: &Vec<u8>,
+    persistent_memory: &[u8],
     program_storage: &mut Vec<Program>,
-    expected_memory: &Vec<sample::MemoryVariant>,
+    expected_memory: &[sample::MemoryVariant],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
         match case {
             sample::MemoryVariant::Static(case) => {
                 if let Some(id) = case.program_id {
-                    for p in 0..program_storage.len() {
-                        if program_storage[p].id().0 == id {
-                            if &program_storage[p].static_pages()
-                                [case.address..case.address + case.bytes.len()]
+                    for p in &mut *program_storage {
+                        if p.id().0 == id
+                            && p.static_pages()[case.address..case.address + case.bytes.len()]
                                 != case.bytes
-                            {
-                                errors.push(format!(
-                                    "Expectation error (Static memory doesn't match)"
-                                ));
-                            }
+                        {
+                            errors.push(
+                                "Expectation error (Static memory doesn't match)".to_string(),
+                            );
                         }
                     }
                 }
             }
             sample::MemoryVariant::Shared(case) => {
                 let offset = 256 * 65536;
-                if &persistent_memory
+                if persistent_memory
                     [case.address - offset..case.address - offset + case.bytes.len()]
                     != case.bytes
                 {
-                    errors.push(format!("Expectation error (Shared memory doesn't match)"));
+                    errors.push("Expectation error (Shared memory doesn't match)".to_string());
                 }
             }
         }
@@ -161,7 +159,7 @@ pub fn main() -> anyhow::Result<()> {
                             }
                             if let Some(alloc) = &exp.allocations {
                                 if let Err(alloc_errors) =
-                                    check_allocations(&mut &final_state.allocation_storage, alloc)
+                                    check_allocations(&final_state.allocation_storage, alloc)
                                 {
                                     errors.extend(alloc_errors);
                                 }
@@ -176,7 +174,7 @@ pub fn main() -> anyhow::Result<()> {
                                 }
                             }
 
-                            if errors.len() > 0 {
+                            if !errors.is_empty() {
                                 total_failed += 1;
                                 errors.insert(0, format!("{}", color::Fg(color::Red)));
                                 errors.insert(errors.len(), format!("{}", style::Reset));
