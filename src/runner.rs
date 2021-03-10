@@ -373,7 +373,8 @@ mod tests {
             (import "env" "read"  (func $read (param i32 i32 i32)))
             (import "env" "send"  (func $send (param i64 i32 i32)))
             (import "env" "size"  (func $size (result i32)))
-            (memory $memory (export "memory") 1)
+            (import "env" "memory" (memory 1))
+  				(data (i32.const 0) "ok")
             (export "handle" (func $handle))
             (export "init" (func $init))
             (func $handle
@@ -391,7 +392,11 @@ mod tests {
               call $send
             )
             (func $init
-            )
+                i64.const 1
+                i32.const 0
+                i32.const 2
+                call $send
+              )
           )"#;
 
         let mut runner = Runner::new(
@@ -405,10 +410,19 @@ mod tests {
         );
 
         assert!(runner
-            .init_program(1.into(), parse_wat(wat), vec![])
+            .init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec())
             .is_ok());
 
-        assert!(runner.message_queue.dequeue().is_none());
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: "ok".as_bytes().to_vec().into(),
+            })
+        );
 
         runner.queue_message(1.into(), "test".as_bytes().to_vec());
 
