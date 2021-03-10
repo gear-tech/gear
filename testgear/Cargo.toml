@@ -1,0 +1,18 @@
+[package]
+name = "test-gear"
+version = "0.1.0"
+authors = ["NikVolf <nikvolf@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3", features = ["derive"] }
+gear-core = { path = "../gear-core" }
+anyhow = "1"
+directories = "2.0.2"
+clap = "2"
+
+[[bin]]
+name = "testgear"
+path = "src/main.rs"
