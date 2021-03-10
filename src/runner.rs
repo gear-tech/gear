@@ -437,4 +437,91 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn runner_allocations() {
+        // alloc 1 page in init
+        // free page num from message in handle and send it back
+        let wat = r#"
+        (module
+            (import "env" "read"  (func $read (param i32 i32 i32)))
+            (import "env" "send"  (func $send (param i64 i32 i32)))
+            (import "env" "size"  (func $size (result i32)))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (import "env" "free"  (func $free (param i32)))
+            (import "env" "memory" (memory 1))
+  				(data (i32.const 0) "ok")
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+              (local $p i32)
+              (local $var0 i32)
+              i32.const 0
+              call $size
+              tee_local $var0
+              i32.const 0
+              call $read
+              i64.const 1
+              i32.const 0
+              get_local $var0
+              i32.const 255
+              i32.and
+              call $send
+              i32.const 256
+              call $free
+            )
+            (func $init
+              (local $msg_size i32)
+              (local $alloc_pages i32)
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 1)))
+              (call $send (i64.const 1) (i32.const 0) (i32.const 2))
+            )
+          )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            crate::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        );
+
+        assert!(runner
+            .init_program(1.into(), parse_wat(wat), vec![])
+            .is_ok());
+        
+        // check if page belongs to the program
+        assert_eq!(runner.allocations.get(256.into()), Some(ProgramId(1)));
+
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: "ok".as_bytes().to_vec().into(),
+            })
+        );
+
+        // send page num to be freed
+        runner.queue_message(1.into(), vec![256u32 as _]);
+
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: vec![256u32 as _].into(),
+            })
+        );
+
+        // page is now deallocated 
+        assert_eq!(runner.allocations.get(256.into()), None);
+    }
 }
