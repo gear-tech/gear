@@ -7,12 +7,22 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "1.3", features = ["derive"] }
 gear-core = { path = "../gear-core" }
 anyhow = "1"
-directories = "2.0.2"
-clap = "2"
+serde = "*"
+serde_json = "*"
+hex = "0.4.2"
+termion = "1.5.6"
+env_logger = "0.8"
+
+
+[workspace]
+members = ["runner"]
+
+# [[bin]]
+# name = "testgear"
+# path = "src/main.rs"
 
 [[bin]]
-name = "testgear"
-path = "src/main.rs"
+name = "gtest"
+path = "runner/src/main.rs"
