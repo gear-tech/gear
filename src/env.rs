@@ -6,7 +6,7 @@ use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
 use ::anyhow::{self, anyhow};
-use wasmtime::{Engine, Extern, Func, Instance, Memory, Module};
+use wasmtime::{Engine, Extern, Func, Instance, Memory, Module, Store};
 
 pub trait Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
@@ -273,6 +273,10 @@ impl<E: Ext + 'static> Environment<E> {
         let ext = self.ext.unset();
 
         (result, ext)
+    }
+
+    pub fn store(&self) -> &Store {
+        &self.store
     }
 
     pub fn engine(&self) -> &Engine {
