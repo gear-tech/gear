@@ -22,6 +22,22 @@ impl PageNumber {
     }
 }
 
+impl std::ops::Add for PageNumber {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl std::ops::Sub for PageNumber {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
 pub trait Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
     fn size(&self) -> PageNumber;
