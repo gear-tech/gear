@@ -28,6 +28,8 @@ pub trait Memory {
     fn clone(&self) -> Box<dyn Memory>;
     fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
+    fn lock(&self, offset: PageNumber, length: PageNumber) -> (*mut u8, usize);
+    fn unlock(&self, offset: PageNumber, length: PageNumber);
 }
 
 impl Memory for wasmtime::Memory {
@@ -57,6 +59,31 @@ impl Memory for wasmtime::Memory {
             return Err(Error::OutOfMemory);
         }
         Ok(())
+    }
+
+    fn lock(&self, offset: PageNumber, length: PageNumber) -> (*mut u8, usize) {
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let length = 65536usize * length.raw() as usize;
+
+        // So we can later trigger SIGSEGV by performing a read
+        unsafe {
+            libc::mprotect(base as *mut libc::c_void, length, libc::PROT_NONE);
+        }
+        (base, length as usize)
+    }
+
+    fn unlock(&self, offset: PageNumber, length: PageNumber) {
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let length = 65536usize * length.raw() as usize;
+
+        // Set r/w protection
+        unsafe {
+            libc::mprotect(
+                base as *mut libc::c_void,
+                length,
+                libc::PROT_READ | libc::PROT_WRITE,
+            );
+        }
     }
 }
 
