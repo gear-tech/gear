@@ -2,6 +2,7 @@ use std::vec;
 
 use anyhow::Result;
 use codec::{Decode, Encode};
+use wasmtime::unix::StoreExt;
 use wasmtime::{Memory as WasmMemory, Module};
 
 use crate::{
@@ -24,6 +25,36 @@ impl Default for Config {
             static_pages: BASIC_PAGES.into(),
             max_pages: MAX_PAGES.into(),
         }
+    }
+}
+
+fn handle_sigsegv(
+    program_id: u64,
+    base: *mut u8,
+    length: usize,
+    signum: libc::c_int,
+    siginfo: *const libc::siginfo_t,
+) -> bool {
+    // SIGSEGV on Linux, SIGBUS on Mac
+    if libc::SIGSEGV == signum || libc::SIGBUS == signum {
+        let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
+        // Any signal from within module's memory we handle ourselves
+        let result = (si_addr as u64) < (base as u64) + (length as u64);
+        // Remove protections so the execution may resume
+        unsafe {
+            libc::mprotect(
+                base as *mut libc::c_void,
+                length,
+                libc::PROT_READ | libc::PROT_WRITE,
+            );
+        }
+        let page = ((si_addr as u32) - (base as u32)) / 65536;
+        log::debug!("MEMORY: #{} ACCESS PAGE {}", program_id, BASIC_PAGES + page);
+
+        result
+    } else {
+        // Otherwise, we forward to wasmtime's signal handler.
+        false
     }
 }
 
@@ -302,7 +333,7 @@ fn run<AS: AllocationStorage + 'static>(
 ) -> Result<RunResult> {
     let module = Module::new(env.engine(), program.code())?;
 
-    let ext = Ext {
+    let mut ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
             Box::new(context.wasmtime_memory()),
@@ -316,6 +347,20 @@ fn run<AS: AllocationStorage + 'static>(
     // Set static pages from saved program state.
 
     let static_area = program.static_pages().to_vec();
+
+    // Lock access to memory
+    let (shared_base, length) = ext.memory_context.memory().lock(
+        context.static_pages(),
+        context.max_pages() - context.static_pages(),
+    );
+    let program_id = program.id().0;
+
+    // Set signal handler
+    unsafe {
+        &env.store().set_signal_handler(move |signum, siginfo, _| {
+            handle_sigsegv(program_id, shared_base, length, signum, siginfo)
+        });
+    }
 
     let (res, mut ext) = env.setup_and_run(
         ext,
@@ -333,7 +378,14 @@ fn run<AS: AllocationStorage + 'static>(
                 })
                 .and_then(|entry_func| entry_func.call(&[]))
                 .map(|_| ())
-        });
+        },
+    );
+
+    // Unlock memory for future use
+    ext.memory_context.memory().unlock(
+        context.static_pages(),
+        context.max_pages() - context.static_pages(),
+    );
 
     res.map(move |_| {
         program
