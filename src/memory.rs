@@ -74,7 +74,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
     }
 
     pub fn get(&self, page: PageNumber) -> Option<ProgramId> {
-        self.0.borrow().get(page).copied()
+        self.0.borrow().get(page)
     }
 
     pub fn occupied(&self, page: PageNumber) -> bool {
@@ -92,7 +92,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
     }
 
     pub fn remove(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
-        if program_id != *self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
+        if program_id != self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
             return Err(Error::InvalidFree(page));
         }
 
