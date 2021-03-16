@@ -86,20 +86,23 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             Ok(1)
         } else {
             let mut context = self.create_context();
-            let program = self
+            let mut program = self
                 .program_storage
-                .get_mut(next_message.dest())
+                .get(next_message.dest())
                 .expect("Program not found");
 
             run(
                 &mut self.env,
                 &mut context,
-                program,
+                &mut program,
                 EntryPoint::Handle,
                 &next_message.into(),
             )?;
+
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
+            self.program_storage.set(program);
+
             Ok(1)
         }
     }
@@ -157,9 +160,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         code: Vec<u8>,
         init_msg: Vec<u8>,
     ) -> Result<()> {
-        if let Some(program) = self.program_storage.get_mut(program_id) {
+        if let Some(mut program) = self.program_storage.get(program_id) {
             program.set_code(code.to_vec());
             program.clear_static();
+            self.program_storage.set(program);
         } else {
             self.program_storage
                 .set(Program::new(program_id, code, vec![]));
@@ -168,14 +172,18 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         self.allocations.clear(program_id);
 
         let mut context = self.create_context();
-        let program = self
+        let mut program = self
             .program_storage
-            .get_mut(program_id)
+            .get(program_id)
             .expect("Added above; cannot fail");
         let msg = IncomingMessage::new_system(init_msg.into());
-        run(&mut self.env, &mut context, program, EntryPoint::Init, &msg)?;
+
+        run(&mut self.env, &mut context, &mut program, EntryPoint::Init, &msg)?;
+
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
+        self.program_storage.set(program);
+
         Ok(())
     }
 
