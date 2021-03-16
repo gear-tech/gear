@@ -40,6 +40,12 @@ fn handle_sigsegv(
         let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
         // Any signal from within module's memory we handle ourselves
         let result = (si_addr as u64) < (base as u64) + (length as u64);
+        let page = ((si_addr as usize) - (base as usize)) / BASIC_PAGE_SIZE;
+
+        // Set the base address of the page that the program is trying to access
+        let base = base.wrapping_add(page * BASIC_PAGE_SIZE);
+        let length = BASIC_PAGE_SIZE;
+
         // Remove protections so the execution may resume
         unsafe {
             libc::mprotect(
@@ -48,8 +54,7 @@ fn handle_sigsegv(
                 libc::PROT_READ | libc::PROT_WRITE,
             );
         }
-        let page = ((si_addr as u32) - (base as u32)) / 65536;
-        log::debug!("MEMORY: #{} ACCESS PAGE {}", program_id, BASIC_PAGES + page);
+        log::debug!("MEMORY: #{} ACCESS PAGE {}", program_id, BASIC_PAGES as usize + page);
 
         result
     } else {
