@@ -36,7 +36,7 @@ fn handle_sigsegv(
     program_id: u64,
     allocations: Vec<PageNumber>,
     static_pages: PageNumber,
-    mut touched: RefMut<Vec<PageNumber>>,
+    mut touched: RefMut<Vec<(PageNumber, PageAction)>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
@@ -51,7 +51,6 @@ fn handle_sigsegv(
         // Set the base address of the page that the program is trying to access
         let base = base.wrapping_add(page * BASIC_PAGE_SIZE);
         let length = BASIC_PAGE_SIZE;
-        touched.push(static_pages + (page as u32).into());
 
         if let Ok(q) = region::query(si_addr as *mut u8) {
             match q.protection {
@@ -65,6 +64,7 @@ fn handle_sigsegv(
                     //     program_id,
                     //     BASIC_PAGES as usize + page
                     // );
+                    touched.push((static_pages + (page as u32).into(), PageAction::Read));
                     true
                 }
                 region::Protection::READ => {
@@ -80,8 +80,9 @@ fn handle_sigsegv(
                         log::debug!(
                             "MEMORY: #{} ACCESS PAGE {} WRITE",
                             program_id,
-                            BASIC_PAGES as usize + page
+                            static_pages.raw() as usize + page
                         );
+                        touched.push((static_pages + (page as u32).into(), PageAction::Write));
                         true
                     } else {
                         false
@@ -309,10 +310,16 @@ impl<AS: AllocationStorage> RunningContext<AS> {
     }
 }
 
+#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
+enum PageAction {
+    Read,
+    Write,
+}
+
 #[derive(Clone, Debug, Decode, Default, Encode, derive_more::From)]
 pub struct RunResult {
     allocations: Vec<PageNumber>,
-    touched: Vec<PageNumber>,
+    touched: Vec<(PageNumber, PageAction)>,
     messages: Vec<OutgoingMessage>,
 }
 
@@ -398,7 +405,7 @@ fn run<AS: AllocationStorage + 'static>(
     let program_id = program.id().0;
 
     let allocations = context.allocations.clone().get_program_pages(program.id());
-    let touched: Rc<RefCell<Vec<PageNumber>>> = Rc::new(RefCell::new(Vec::new()));
+    let touched: Rc<RefCell<Vec<(PageNumber, PageAction)>>> = Rc::new(RefCell::new(Vec::new()));
     let touched_clone = touched.clone();
 
     // Set signal handler
@@ -454,8 +461,6 @@ fn run<AS: AllocationStorage + 'static>(
             messages.push(outgoing_msg.clone());
             context.push_message(outgoing_msg.into_message(program.id()));
         }
-
-        touched.borrow_mut().dedup();
 
         RunResult {
             allocations: context.allocations.get_program_pages(program.id()),
