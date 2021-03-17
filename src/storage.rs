@@ -97,6 +97,8 @@ impl MessageQueue for InMemoryMessageQueue {
 pub trait AllocationStorage {
     fn get(&self, page: PageNumber) -> Option<&ProgramId>;
 
+    fn get_program_pages(&self, id: ProgramId) -> Vec<PageNumber>;
+
     fn remove(&mut self, page: PageNumber) -> Option<ProgramId>;
 
     fn set(&mut self, page: PageNumber, program: ProgramId);
@@ -127,6 +129,12 @@ impl InMemoryAllocationStorage {
 impl AllocationStorage for InMemoryAllocationStorage {
     fn get(&self, id: PageNumber) -> Option<&ProgramId> {
         self.inner.get(&id)
+    }
+
+    fn get_program_pages(&self, id: ProgramId) -> Vec<PageNumber> {
+        self.inner.iter()
+        .filter_map(|(key, &val)| if val == id { Some(*key) } else { None })
+        .collect()
     }
 
     fn remove(&mut self, id: PageNumber) -> Option<ProgramId> {
