@@ -1,4 +1,8 @@
-use std::vec;
+use std::{
+    cell::{RefCell, RefMut},
+    rc::Rc,
+    vec,
+};
 
 use anyhow::Result;
 use codec::{Decode, Encode};
@@ -32,6 +36,7 @@ fn handle_sigsegv(
     program_id: u64,
     allocations: Vec<PageNumber>,
     static_pages: PageNumber,
+    mut touched: RefMut<Vec<PageNumber>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
@@ -46,6 +51,7 @@ fn handle_sigsegv(
         // Set the base address of the page that the program is trying to access
         let base = base.wrapping_add(page * BASIC_PAGE_SIZE);
         let length = BASIC_PAGE_SIZE;
+        touched.push(static_pages + (page as u32).into());
 
         if let Ok(q) = region::query(si_addr as *mut u8) {
             match q.protection {
@@ -392,6 +398,8 @@ fn run<AS: AllocationStorage + 'static>(
     let program_id = program.id().0;
 
     let allocations = context.allocations.clone().get_program_pages(program.id());
+    let touched: Rc<RefCell<Vec<PageNumber>>> = Rc::new(RefCell::new(Vec::new()));
+    let touched_clone = touched.clone();
 
     // Set signal handler
     unsafe {
@@ -400,6 +408,7 @@ fn run<AS: AllocationStorage + 'static>(
                 program_id,
                 allocations.clone(),
                 static_pages,
+                touched_clone.borrow_mut(),
                 shared_base,
                 signum,
                 siginfo,
