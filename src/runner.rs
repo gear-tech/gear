@@ -449,10 +449,18 @@ fn run<AS: AllocationStorage + 'static>(
             .map_err(|_e| log::error!("Read memory err: {}", _e))
             .ok();
 
+        let mut messages = vec![];
         for outgoing_msg in ext.messages.drain() {
+            messages.push(outgoing_msg.clone());
             context.push_message(outgoing_msg.into_message(program.id()));
         }
 
-        RunResult::default()
+        touched.borrow_mut().dedup();
+
+        RunResult {
+            allocations: context.allocations.get_program_pages(program.id()),
+            touched: touched.borrow().clone(),
+            messages,
+        }
     })
 }
