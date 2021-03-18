@@ -6,4 +6,5 @@ members = [
     'node',
     'pallets/*',
     'runtime',
+    'rti',
 ]
