@@ -1,16 +1,11 @@
-use std::{
-    cell::{RefCell, RefMut},
-    rc::Rc,
-    vec,
-};
+use std::vec;
 
 use anyhow::Result;
 use codec::{Decode, Encode};
-use wasmtime::unix::StoreExt;
 use wasmtime::{Memory as WasmMemory, Module};
 
 use crate::{
-    env::{Environment, Ext as EnvExt},
+    env::{Environment, Ext as EnvExt, PageAction},
     memory::{Allocations, MemoryContext, PageNumber},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
@@ -368,6 +363,18 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
 
     fn msg(&mut self) -> &[u8] {
         self.messages.current().payload()
+    }
+
+    fn memory_access(&self, page: PageNumber) -> PageAction {
+        if let Some(id) = self.memory_context.allocations().get(page) {
+            if id == self.memory_context.program_id() {
+                PageAction::Write
+            } else {
+                PageAction::Read
+            }
+        } else {
+            PageAction::None
+        }
     }
 }
 
