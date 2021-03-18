@@ -120,10 +120,6 @@ impl<AS: AllocationStorage> Allocations<AS> {
         self.0.borrow().get(page).copied()
     }
 
-    pub fn get_program_pages(&self, program_id: ProgramId) -> Vec<PageNumber> {
-        self.0.borrow().get_program_pages(program_id)
-    }
-
     pub fn occupied(&self, page: PageNumber) -> bool {
         self.0.borrow().exists(page)
     }
