@@ -26,42 +26,33 @@ fn handle_sigsegv<E: Ext + 'static>(
         let page_base = base.wrapping_add(page * length);
 
         let res = ext.with(|ext: &mut E| ext.memory_access((page as u32).into()));
-
-        if let Ok(q) = region::query(si_addr as *mut u8) {
-            match q.protection {
-                region::Protection::NONE => {
-                    // Set READ prrotection
-                    unsafe {
-                        libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
-                    }
-                    // log::debug!(
-                    //     "MEMORY: #{} ACCESS PAGE {}",
-                    //     program_id,
-                    //     BASIC_PAGES as usize + page
-                    // );
-                    // touched.push((static_pages + (page as u32).into(), PageAction::Read));
-                    true
+        match res {
+            PageAction::Read => {
+                // Set READ prrotection
+                unsafe {
+                    libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
                 }
-                region::Protection::READ => {
-                    if res == PageAction::Write {
-                        // Remove protections so the execution may resume
-                        unsafe {
-                            libc::mprotect(
-                                page_base as *mut libc::c_void,
-                                length,
-                                libc::PROT_READ | libc::PROT_WRITE,
-                            );
-                        }
-                        log::debug!("MEMORY: ACCESS PAGE {} WRITE", page);
-                        true
-                    } else {
-                        false
-                    }
-                }
-                _ => true,
+                // log::debug!(
+                //     "MEMORY: #{} ACCESS PAGE {}",
+                //     program_id,
+                //     BASIC_PAGES as usize + page
+                // );
+                // touched.push((static_pages + (page as u32).into(), PageAction::Read));
+                true
             }
-        } else {
-            false
+            PageAction::Write => {
+                // Remove protections so the execution may resume
+                unsafe {
+                    libc::mprotect(
+                        page_base as *mut libc::c_void,
+                        length,
+                        libc::PROT_READ | libc::PROT_WRITE,
+                    );
+                }
+                log::debug!("MEMORY: ACCESS PAGE {} WRITE", page);
+                true
+            }
+            PageAction::None => false,
         }
     } else {
         // Otherwise, we forward to wasmtime's signal handler.
