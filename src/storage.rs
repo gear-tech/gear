@@ -99,8 +99,6 @@ pub trait AllocationStorage {
         self.get(id).is_some()
     }
 
-    fn count(&self) -> usize;
-
     fn clear(&mut self, program_id: ProgramId);
 }
 
@@ -129,10 +127,6 @@ impl AllocationStorage for InMemoryAllocationStorage {
 
     fn set(&mut self, page: PageNumber, program: ProgramId) {
         self.inner.insert(page, program);
-    }
-
-    fn count(&self) -> usize {
-        self.inner.len()
     }
 
     fn clear(&mut self, program_id: ProgramId) {

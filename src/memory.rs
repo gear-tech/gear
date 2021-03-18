@@ -111,9 +111,6 @@ impl<AS: AllocationStorage> Allocations<AS> {
         self.0.borrow_mut().clear(program_id)
     }
 
-    pub fn len(&self) -> usize {
-        self.0.borrow().count()
-    }
 }
 
 pub struct MemoryContext<AS: AllocationStorage> {
@@ -244,10 +241,8 @@ mod tests {
     #[test]
     fn smoky() {
         let mem = new_test_memory(16, 256);
-        assert_eq!(mem.allocations().len(), 0);
 
         assert_eq!(mem.alloc(16.into()).expect("allocation failed"), 16.into());
-        assert_eq!(mem.allocations().len(), 16);
 
         // there is a space for 14 more
         for _ in 0..14 {
