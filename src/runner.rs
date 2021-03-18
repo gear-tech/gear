@@ -27,73 +27,6 @@ impl Default for Config {
     }
 }
 
-fn handle_sigsegv(
-    program_id: u64,
-    allocations: Vec<PageNumber>,
-    static_pages: PageNumber,
-    mut touched: RefMut<Vec<(PageNumber, PageAction)>>,
-    base: *mut u8,
-    signum: libc::c_int,
-    siginfo: *const libc::siginfo_t,
-) -> bool {
-    // SIGSEGV on Linux, SIGBUS on Mac
-    if libc::SIGSEGV == signum || libc::SIGBUS == signum {
-        let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
-
-        // Any signal from within module's memory we handle ourselves
-        let page = ((si_addr as usize) - (base as usize)) / BASIC_PAGE_SIZE;
-
-        // Set the base address of the page that the program is trying to access
-        let base = base.wrapping_add(page * BASIC_PAGE_SIZE);
-        let length = BASIC_PAGE_SIZE;
-
-        if let Ok(q) = region::query(si_addr as *mut u8) {
-            match q.protection {
-                region::Protection::NONE => {
-                    // Set READ prrotection
-                    unsafe {
-                        libc::mprotect(base as *mut libc::c_void, length, libc::PROT_READ);
-                    }
-                    // log::debug!(
-                    //     "MEMORY: #{} ACCESS PAGE {}",
-                    //     program_id,
-                    //     BASIC_PAGES as usize + page
-                    // );
-                    touched.push((static_pages + (page as u32).into(), PageAction::Read));
-                    true
-                }
-                region::Protection::READ => {
-                    if allocations.contains(&(static_pages + (page as u32).into())) {
-                        // Remove protections so the execution may resume
-                        unsafe {
-                            libc::mprotect(
-                                base as *mut libc::c_void,
-                                length,
-                                libc::PROT_READ | libc::PROT_WRITE,
-                            );
-                        }
-                        log::debug!(
-                            "MEMORY: #{} ACCESS PAGE {} WRITE",
-                            program_id,
-                            static_pages.raw() as usize + page
-                        );
-                        touched.push((static_pages + (page as u32).into(), PageAction::Write));
-                        true
-                    } else {
-                        false
-                    }
-                }
-                _ => true,
-            }
-        } else {
-            false
-        }
-    } else {
-        // Otherwise, we forward to wasmtime's signal handler.
-        false
-    }
-}
-
 pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
@@ -305,16 +238,10 @@ impl<AS: AllocationStorage> RunningContext<AS> {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
-enum PageAction {
-    Read,
-    Write,
-}
-
 #[derive(Clone, Debug, Decode, Default, Encode, derive_more::From)]
 pub struct RunResult {
     allocations: Vec<PageNumber>,
-    touched: Vec<(PageNumber, PageAction)>,
+    touched: Vec<PageNumber>,
     messages: Vec<OutgoingMessage>,
 }
 
@@ -402,33 +329,8 @@ fn run<AS: AllocationStorage + 'static>(
 
     let static_area = program.static_pages().to_vec();
 
-    let static_pages = context.static_pages();
-
     // Lock access to memory
-    let (shared_base, _) = ext
-        .memory_context
-        .memory()
-        .lock(static_pages, context.max_pages() - context.static_pages());
-    let program_id = program.id().0;
-
-    let allocations = context.allocations.clone().get_program_pages(program.id());
-    let touched: Rc<RefCell<Vec<(PageNumber, PageAction)>>> = Rc::new(RefCell::new(Vec::new()));
-    let touched_clone = touched.clone();
-
-    // Set signal handler
-    unsafe {
-        env.store().set_signal_handler(move |signum, siginfo, _| {
-            handle_sigsegv(
-                program_id,
-                allocations.clone(),
-                static_pages,
-                touched_clone.borrow_mut(),
-                shared_base,
-                signum,
-                siginfo,
-            )
-        });
-    }
+    ext.memory_context.memory_lock();
 
     let (res, mut ext) = env.setup_and_run(
         ext,
@@ -450,10 +352,7 @@ fn run<AS: AllocationStorage + 'static>(
     );
 
     // Unlock memory for future use
-    ext.memory_context.memory().unlock(
-        context.static_pages(),
-        context.max_pages() - context.static_pages(),
-    );
+    ext.memory_context.memory_unlock();
 
     res.map(move |_| {
         program
@@ -469,10 +368,6 @@ fn run<AS: AllocationStorage + 'static>(
             context.push_message(outgoing_msg.into_message(program.id()));
         }
 
-        RunResult {
-            allocations: context.allocations.get_program_pages(program.id()),
-            touched: touched.borrow().clone(),
-            messages,
-        }
+        RunResult::default()
     })
 }
