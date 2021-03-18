@@ -262,15 +262,11 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     }
 
     pub fn memory_lock(&self) {
-        let static_pages = self.static_pages.clone();
-        let max_pages = self.max_pages.clone();
-        self.memory.lock(static_pages, max_pages - static_pages);
+        self.memory.lock(self.static_pages, self.max_pages - self.static_pages);
     }
 
     pub fn memory_unlock(&self) {
-        let static_pages = self.static_pages.clone();
-        let max_pages = self.max_pages.clone();
-        self.memory.unlock(static_pages, max_pages - static_pages);
+        self.memory.unlock(self.static_pages, self.max_pages - self.static_pages);
     }
 }
 
