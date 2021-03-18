@@ -206,6 +206,10 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         }
     }
 
+    pub fn program_id(&self) -> ProgramId {
+        self.program_id
+    }
+
     pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
         let mut candidate = self.static_pages.raw();
@@ -259,6 +263,18 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 
     pub fn memory(&mut self) -> &dyn Memory {
         &mut *self.memory
+    }
+
+    pub fn memory_lock(&mut self) {
+        let static_pages = self.static_pages.clone();
+        let max_pages = self.max_pages.clone();
+        self.memory().lock(static_pages, max_pages - static_pages);
+    }
+
+    pub fn memory_unlock(&mut self) {
+        let static_pages = self.static_pages.clone();
+        let max_pages = self.max_pages.clone();
+        self.memory().unlock(static_pages, max_pages - static_pages);
     }
 }
 
