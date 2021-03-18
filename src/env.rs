@@ -6,7 +6,75 @@ use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
 use ::anyhow::{self, anyhow};
-use wasmtime::{Engine, Extern, Func, Instance, Memory, Module, Store};
+use wasmtime::{unix::StoreExt, Engine, Extern, Func, Instance, Memory, Module};
+
+fn handle_sigsegv<E: Ext + 'static>(
+    ext: &LaterExt<E>,
+    base: *mut u8,
+    signum: libc::c_int,
+    siginfo: *const libc::siginfo_t,
+) -> bool {
+    // SIGSEGV on Linux, SIGBUS on Mac
+    if libc::SIGSEGV == signum || libc::SIGBUS == signum {
+        let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
+
+        // Any signal from within module's memory we handle ourselves
+        let length = 65536;
+        let page = ((si_addr as usize) - (base as usize)) / length;
+
+        // Set the base address of the page that the program is trying to access
+        let page_base = base.wrapping_add(page * length);
+
+        let res = ext.with(|ext: &mut E| ext.memory_access((page as u32).into()));
+
+        if let Ok(q) = region::query(si_addr as *mut u8) {
+            match q.protection {
+                region::Protection::NONE => {
+                    // Set READ prrotection
+                    unsafe {
+                        libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
+                    }
+                    // log::debug!(
+                    //     "MEMORY: #{} ACCESS PAGE {}",
+                    //     program_id,
+                    //     BASIC_PAGES as usize + page
+                    // );
+                    // touched.push((static_pages + (page as u32).into(), PageAction::Read));
+                    true
+                }
+                region::Protection::READ => {
+                    if res == PageAction::Write {
+                        // Remove protections so the execution may resume
+                        unsafe {
+                            libc::mprotect(
+                                page_base as *mut libc::c_void,
+                                length,
+                                libc::PROT_READ | libc::PROT_WRITE,
+                            );
+                        }
+                        log::debug!("MEMORY: ACCESS PAGE {} WRITE", page);
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => true,
+            }
+        } else {
+            false
+        }
+    } else {
+        // Otherwise, we forward to wasmtime's signal handler.
+        false
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PageAction {
+    Read,
+    Write,
+    None,
+}
 
 pub trait Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
@@ -17,6 +85,7 @@ pub trait Ext {
     fn set_mem(&mut self, ptr: usize, val: &[u8]) -> Result<(), &'static str>;
     fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) -> Result<(), &'static str>;
     fn msg(&mut self) -> &[u8];
+    fn memory_access(&self, page: PageNumber) -> PageAction;
 }
 
 struct LaterExt<E: Ext> {
@@ -253,7 +322,9 @@ impl<E: Ext + 'static> Environment<E> {
 
         let instance = Instance::new(&self.store, &module, &externs)?;
 
-        unsafe { memory.data_unchecked_mut()[0..static_area.len()].copy_from_slice(&static_area[..]) };
+        unsafe {
+            memory.data_unchecked_mut()[0..static_area.len()].copy_from_slice(&static_area[..])
+        };
 
         func(instance)
     }
@@ -268,15 +339,20 @@ impl<E: Ext + 'static> Environment<E> {
     ) -> (anyhow::Result<()>, E) {
         self.ext.set(ext);
 
+        let ext_clone = self.ext.clone();
+        let base = memory.data_ptr();
+
+        unsafe {
+            self.store.set_signal_handler(move |signum, siginfo, _| {
+                handle_sigsegv(&ext_clone, base, signum, siginfo)
+            });
+        }
+
         let result = self.run_inner(module, static_area, memory, func);
 
         let ext = self.ext.unset();
 
         (result, ext)
-    }
-
-    pub fn store(&self) -> &Store {
-        &self.store
     }
 
     pub fn engine(&self) -> &Engine {
