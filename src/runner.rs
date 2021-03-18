@@ -303,6 +303,14 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
             PageAction::None
         }
     }
+
+    fn memory_lock(&self) {
+        self.memory_context.memory_lock();
+    }
+
+    fn memory_unlock(&self) {
+        self.memory_context.memory_unlock();
+    }
 }
 
 fn run<AS: AllocationStorage + 'static>(
@@ -314,7 +322,7 @@ fn run<AS: AllocationStorage + 'static>(
 ) -> Result<RunResult> {
     let module = Module::new(env.engine(), program.code())?;
 
-    let mut ext = Ext {
+    let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
             Box::new(context.wasmtime_memory()),
@@ -328,9 +336,6 @@ fn run<AS: AllocationStorage + 'static>(
     // Set static pages from saved program state.
 
     let static_area = program.static_pages().to_vec();
-
-    // Lock access to memory
-    ext.memory_context.memory_lock();
 
     let (res, mut ext) = env.setup_and_run(
         ext,
@@ -350,9 +355,6 @@ fn run<AS: AllocationStorage + 'static>(
                 .map(|_| ())
         },
     );
-
-    // Unlock memory for future use
-    ext.memory_context.memory_unlock();
 
     res.map(move |_| {
         program

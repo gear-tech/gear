@@ -261,16 +261,16 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         &mut *self.memory
     }
 
-    pub fn memory_lock(&mut self) {
+    pub fn memory_lock(&self) {
         let static_pages = self.static_pages.clone();
         let max_pages = self.max_pages.clone();
-        self.memory().lock(static_pages, max_pages - static_pages);
+        self.memory.lock(static_pages, max_pages - static_pages);
     }
 
-    pub fn memory_unlock(&mut self) {
+    pub fn memory_unlock(&self) {
         let static_pages = self.static_pages.clone();
         let max_pages = self.max_pages.clone();
-        self.memory().unlock(static_pages, max_pages - static_pages);
+        self.memory.unlock(static_pages, max_pages - static_pages);
     }
 }
 

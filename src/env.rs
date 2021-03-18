@@ -86,6 +86,8 @@ pub trait Ext {
     fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) -> Result<(), &'static str>;
     fn msg(&mut self) -> &[u8];
     fn memory_access(&self, page: PageNumber) -> PageAction;
+    fn memory_lock(&self);
+    fn memory_unlock(&self);
 }
 
 struct LaterExt<E: Ext> {
@@ -337,7 +339,12 @@ impl<E: Ext + 'static> Environment<E> {
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E) {
+
+        // Lock memory
+        ext.memory_lock();
+
         self.ext.set(ext);
+
 
         let ext_clone = self.ext.clone();
         let base = memory.data_ptr();
@@ -350,7 +357,11 @@ impl<E: Ext + 'static> Environment<E> {
 
         let result = self.run_inner(module, static_area, memory, func);
 
+
         let ext = self.ext.unset();
+
+        // Unlock memory
+        ext.memory_unlock();
 
         (result, ext)
     }
