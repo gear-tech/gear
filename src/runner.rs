@@ -240,8 +240,7 @@ impl<AS: AllocationStorage> RunningContext<AS> {
 
 #[derive(Clone, Debug, Decode, Default, Encode, derive_more::From)]
 pub struct RunResult {
-    allocations: Vec<PageNumber>,
-    touched: Vec<PageNumber>,
+    touched: Vec<(PageNumber, PageAction)>,
     messages: Vec<OutgoingMessage>,
 }
 
@@ -370,6 +369,10 @@ fn run<AS: AllocationStorage + 'static>(
             context.push_message(outgoing_msg.into_message(program.id()));
         }
 
-        RunResult::default()
+        RunResult {
+            touched,
+            messages,
+        }
+
     })
 }
