@@ -1,6 +1,8 @@
 //! Wasmtime environment for running a module
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
+
+use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
@@ -10,6 +12,7 @@ use wasmtime::{unix::StoreExt, Engine, Extern, Func, Instance, Memory, Module};
 
 fn handle_sigsegv<E: Ext + 'static>(
     ext: &LaterExt<E>,
+    mut touched: RefMut<Vec<(PageNumber, PageAction)>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
@@ -26,18 +29,13 @@ fn handle_sigsegv<E: Ext + 'static>(
         let page_base = base.wrapping_add(page * length);
 
         let res = ext.with(|ext: &mut E| ext.memory_access((page as u32).into()));
+        touched.push(((page as u32).into(), res.clone()));
         match res {
             PageAction::Read => {
                 // Set READ prrotection
                 unsafe {
                     libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
                 }
-                // log::debug!(
-                //     "MEMORY: #{} ACCESS PAGE {}",
-                //     program_id,
-                //     BASIC_PAGES as usize + page
-                // );
-                // touched.push((static_pages + (page as u32).into(), PageAction::Read));
                 true
             }
             PageAction::Write => {
@@ -60,7 +58,7 @@ fn handle_sigsegv<E: Ext + 'static>(
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub enum PageAction {
     Read,
     Write,
@@ -329,32 +327,37 @@ impl<E: Ext + 'static> Environment<E> {
         static_area: Vec<u8>,
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
-    ) -> (anyhow::Result<()>, E) {
-
+    ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
         // Lock memory
         ext.memory_lock();
 
         self.ext.set(ext);
-
+        let touched: Rc<RefCell<Vec<(PageNumber, PageAction)>>> = Rc::new(RefCell::new(Vec::new()));
+        let touched_clone = touched.clone();
 
         let ext_clone = self.ext.clone();
         let base = memory.data_ptr();
 
         unsafe {
             self.store.set_signal_handler(move |signum, siginfo, _| {
-                handle_sigsegv(&ext_clone, base, signum, siginfo)
+                handle_sigsegv(
+                    &ext_clone,
+                    touched_clone.borrow_mut(),
+                    base,
+                    signum,
+                    siginfo,
+                )
             });
         }
 
         let result = self.run_inner(module, static_area, memory, func);
-
 
         let ext = self.ext.unset();
 
         // Unlock memory
         ext.memory_unlock();
 
-        (result, ext)
+        (result, ext, touched.take())
     }
 
     pub fn engine(&self) -> &Engine {

@@ -337,7 +337,7 @@ fn run<AS: AllocationStorage + 'static>(
 
     let static_area = program.static_pages().to_vec();
 
-    let (res, mut ext) = env.setup_and_run(
+    let (res, mut ext, touched) = env.setup_and_run(
         ext,
         module,
         static_area,
