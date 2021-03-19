@@ -12,7 +12,7 @@ use wasmtime::{unix::StoreExt, Engine, Extern, Func, Instance, Memory, Module};
 
 fn handle_sigsegv<E: Ext + 'static>(
     ext: &LaterExt<E>,
-    mut touched: RefMut<Vec<(PageNumber, PageAction)>>,
+    mut touched: RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
@@ -28,17 +28,17 @@ fn handle_sigsegv<E: Ext + 'static>(
         // Set the base address of the page that the program is trying to access
         let page_base = base.wrapping_add(page * length);
 
-        let res = ext.with(|ext: &mut E| ext.memory_access((page as u32).into()));
-        touched.push(((page as u32).into(), res.clone()));
-        match res {
-            PageAction::Read => {
-                // Set READ prrotection
-                unsafe {
-                    libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
-                }
-                true
-            }
-            PageAction::Write => {
+        let access = ext.with(|ext: &mut E| ext.memory_access((page as u32).into()));
+        if let Some(last) = touched.last_mut() {
+            if last.2 == (si_addr as *const u8).wrapping_sub(base as usize)
+                && last.1 == PageAction::Read
+                && access == PageAction::Write
+            {
+                *last = (
+                    last.0,
+                    PageAction::Write,
+                    (si_addr as *const u8).wrapping_sub(base as usize),
+                );
                 // Remove protections so the execution may resume
                 unsafe {
                     libc::mprotect(
@@ -48,9 +48,41 @@ fn handle_sigsegv<E: Ext + 'static>(
                     );
                 }
                 log::debug!("MEMORY: ACCESS PAGE {} WRITE", page);
+
+                true
+            } else {
+                // Set READ prrotection
+                unsafe {
+                    libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
+                }
+                touched.push((
+                    (page as u32).into(),
+                    PageAction::Read,
+                    (si_addr as *const u8).wrapping_sub(base as usize),
+                ));
+
                 true
             }
-            PageAction::None => false,
+        } else if access != PageAction::None {
+            // Set READ prrotection
+            unsafe {
+                libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
+            }
+            touched.push((
+                (page as u32).into(),
+                PageAction::Read,
+                (si_addr as *const u8).wrapping_sub(base as usize),
+            ));
+
+            true
+        } else {
+            touched.push((
+                (page as u32).into(),
+                PageAction::None,
+                (si_addr as *const u8).wrapping_sub(base as usize),
+            ));
+
+            false
         }
     } else {
         // Otherwise, we forward to wasmtime's signal handler.
@@ -58,7 +90,7 @@ fn handle_sigsegv<E: Ext + 'static>(
     }
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
 pub enum PageAction {
     Read,
     Write,
@@ -332,7 +364,8 @@ impl<E: Ext + 'static> Environment<E> {
         ext.memory_lock();
 
         self.ext.set(ext);
-        let touched: Rc<RefCell<Vec<(PageNumber, PageAction)>>> = Rc::new(RefCell::new(Vec::new()));
+        let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
+            Rc::new(RefCell::new(Vec::new()));
         let touched_clone = touched.clone();
 
         let ext_clone = self.ext.clone();
@@ -356,8 +389,9 @@ impl<E: Ext + 'static> Environment<E> {
 
         // Unlock memory
         ext.memory_unlock();
+        let touched = touched.take().iter().map(|(a, b, _)| (*a, *b)).collect();
 
-        (result, ext, touched.take())
+        (result, ext, touched)
     }
 
     pub fn engine(&self) -> &Engine {
