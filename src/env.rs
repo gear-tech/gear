@@ -103,7 +103,7 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(
                 &store,
-                move |program_id: i64, message_ptr: i32, message_len: i32| {
+                move |program_id_ptr: i32, message_ptr: i32, message_len: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     if let Err(_) = ext.with(|ext: &mut E| {
@@ -114,8 +114,13 @@ impl<E: Ext + 'static> Environment<E> {
                                 .ok();
                             data
                         };
+                        let mut program_id = ProgramId::default();
+                        ext.get_mem(program_id_ptr as isize as _, program_id.as_mut_slice())
+                            .map_err(|_e| log::error!("Read memory err: {}", _e))
+                            .ok();
+
                         ext.send(OutgoingMessage::new(
-                            ProgramId(program_id as _),
+                            program_id,
                             data.into(),
                         ))
                     }) {
@@ -185,11 +190,14 @@ impl<E: Ext + 'static> Environment<E> {
 
         let source = {
             let ext = ext.clone();
-            Func::wrap(&store, move || {
-                Ok(ext
-                    .with(|ext: &mut E| ext.source())
-                    .map(|v| v.0)
-                    .unwrap_or_default())
+            Func::wrap(&store, move |source_ptr: i32| {
+                ext.with(|ext: &mut E| {
+                    let source = ext.source().unwrap_or_default();
+                    ext.set_mem(source_ptr as isize as _, source.as_slice())
+                        .map_err(|_e| log::error!("Write memory err: {}", _e))
+                        .ok();
+                });
+                Ok(())
             })
         };
 
