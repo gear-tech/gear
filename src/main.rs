@@ -23,10 +23,10 @@ fn check_messages(
             .iter()
             .zip(messages.iter())
             .for_each(|(exp, msg)| {
-                if exp.destination != msg.dest.0 {
+                if ProgramId::from(exp.destination) != msg.dest {
                     errors.push(format!(
-                        "Expectation error (destination doesn't match, expected: {}, found: {})",
-                        exp.destination, msg.dest.0
+                        "Expectation error (destination doesn't match, expected: {}, found: {:?})",
+                        exp.destination, msg.dest
                     ));
                 }
                 if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
@@ -61,10 +61,10 @@ fn check_allocations(
                         page.0.raw()
                     ));
                 }
-                if exp.program_id != page.1 .0 {
+                if ProgramId::from(exp.program_id) != page.1 {
                     errors.push(format!(
-                        "Expectation error (ProgramId doesn't match, expected: {}, found: {})\n",
-                        exp.program_id, page.1 .0
+                        "Expectation error (ProgramId doesn't match, expected: {}, found: {:?})\n",
+                        exp.program_id, page.1
                     ));
                 }
             });
@@ -88,7 +88,7 @@ fn check_memory(
             sample::MemoryVariant::Static(case) => {
                 if let Some(id) = case.program_id {
                     for p in &mut *program_storage {
-                        if p.id().0 == id
+                        if p.id() == ProgramId::from(id)
                             && p.static_pages()[case.address..case.address + case.bytes.len()]
                                 != case.bytes
                         {
