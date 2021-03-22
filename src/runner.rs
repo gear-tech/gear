@@ -1,4 +1,5 @@
 use std::vec;
+use std::collections::HashMap;
 
 use anyhow::Result;
 use codec::{Decode, Encode};
@@ -33,6 +34,7 @@ pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: Program
     pub(crate) memory: WasmMemory,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
+    modules: HashMap<ProgramId, Module>,
     env: Environment<Ext<AS>>,
 }
 
@@ -64,6 +66,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             memory,
             allocations: Allocations::new(allocation_storage),
             config: config.clone(),
+            modules: HashMap::new(),
             env,
         }
     }
@@ -86,20 +89,24 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             Ok(1)
         } else {
             let mut context = self.create_context();
-            let program = self
+            let mut program = self
                 .program_storage
-                .get_mut(next_message.dest())
+                .get(next_message.dest())
                 .expect("Program not found");
 
             run(
                 &mut self.env,
                 &mut context,
-                program,
+                self.modules[&program.id()].clone(),
+                &mut program,
                 EntryPoint::Handle,
                 &next_message.into(),
             )?;
+
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
+            self.program_storage.set(program);
+
             Ok(1)
         }
     }
@@ -157,9 +164,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         code: Vec<u8>,
         init_msg: Vec<u8>,
     ) -> Result<()> {
-        if let Some(program) = self.program_storage.get_mut(program_id) {
+        if let Some(mut program) = self.program_storage.get(program_id) {
             program.set_code(code.to_vec());
             program.clear_static();
+            self.program_storage.set(program);
         } else {
             self.program_storage
                 .set(Program::new(program_id, code, vec![]));
@@ -168,14 +176,21 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         self.allocations.clear(program_id);
 
         let mut context = self.create_context();
-        let program = self
+        let mut program = self
             .program_storage
-            .get_mut(program_id)
+            .get(program_id)
             .expect("Added above; cannot fail");
         let msg = IncomingMessage::new_system(init_msg.into());
-        run(&mut self.env, &mut context, program, EntryPoint::Init, &msg)?;
+
+        let module = Module::new(self.env.engine(), program.code())?;
+        self.modules.insert(program.id(), module);
+
+        run(&mut self.env, &mut context, self.modules[&program.id()].clone(), &mut program, EntryPoint::Init, &msg)?;
+
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
+        self.program_storage.set(program);
+
         Ok(())
     }
 
@@ -315,11 +330,11 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
 fn run<AS: AllocationStorage + 'static>(
     env: &mut Environment<Ext<AS>>,
     context: &mut RunningContext<AS>,
+    module: Module,
     program: &mut Program,
     entry_point: EntryPoint,
     message: &IncomingMessage,
 ) -> Result<RunResult> {
-    let module = Module::new(env.engine(), program.code())?;
 
     let ext = Ext {
         memory_context: MemoryContext::new(
