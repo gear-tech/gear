@@ -9,9 +9,7 @@ use crate::{
 };
 
 pub trait ProgramStorage {
-    fn get(&self, id: ProgramId) -> Option<&Program>;
-
-    fn get_mut(&mut self, id: ProgramId) -> Option<&mut Program>;
+    fn get(&self, id: ProgramId) -> Option<Program>;
 
     fn set(&mut self, program: Program) -> Option<Program>;
 
@@ -33,12 +31,8 @@ impl InMemoryProgramStorage {
 }
 
 impl ProgramStorage for InMemoryProgramStorage {
-    fn get(&self, id: ProgramId) -> Option<&Program> {
-        self.inner.get(&id)
-    }
-
-    fn get_mut(&mut self, id: ProgramId) -> Option<&mut Program> {
-        self.inner.get_mut(&id)
+    fn get(&self, id: ProgramId) -> Option<Program> {
+        self.inner.get(&id).cloned()
     }
 
     fn set(&mut self, program: Program) -> Option<Program> {
@@ -95,7 +89,7 @@ impl MessageQueue for InMemoryMessageQueue {
 }
 
 pub trait AllocationStorage {
-    fn get(&self, page: PageNumber) -> Option<&ProgramId>;
+    fn get(&self, page: PageNumber) -> Option<ProgramId>;
 
     fn remove(&mut self, page: PageNumber) -> Option<ProgramId>;
 
@@ -104,8 +98,6 @@ pub trait AllocationStorage {
     fn exists(&self, id: PageNumber) -> bool {
         self.get(id).is_some()
     }
-
-    fn count(&self) -> usize;
 
     fn clear(&mut self, program_id: ProgramId);
 }
@@ -125,8 +117,8 @@ impl InMemoryAllocationStorage {
 }
 
 impl AllocationStorage for InMemoryAllocationStorage {
-    fn get(&self, id: PageNumber) -> Option<&ProgramId> {
-        self.inner.get(&id)
+    fn get(&self, id: PageNumber) -> Option<ProgramId> {
+        self.inner.get(&id).copied()
     }
 
     fn remove(&mut self, id: PageNumber) -> Option<ProgramId> {
@@ -135,10 +127,6 @@ impl AllocationStorage for InMemoryAllocationStorage {
 
     fn set(&mut self, page: PageNumber, program: ProgramId) {
         self.inner.insert(page, program);
-    }
-
-    fn count(&self) -> usize {
-        self.inner.len()
     }
 
     fn clear(&mut self, program_id: ProgramId) {
