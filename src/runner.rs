@@ -386,20 +386,25 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "read"  (func $read (param i32 i32 i32)))
-            (import "env" "send"  (func $send (param i64 i32 i32)))
+            (import "env" "send"  (func $send (param i32 i32 i32)))
             (import "env" "size"  (func $size (result i32)))
             (import "env" "memory" (memory 1))
   				(data (i32.const 0) "ok")
             (export "handle" (func $handle))
             (export "init" (func $init))
             (func $handle
-              (local $var0 i32) 
+              (local $var0 i32)
+              (local $id i32)
+                (i32.store offset=12
+                    (get_local $id)
+                    (i32.const 1)
+                )
               i32.const 0
               call $size
               tee_local $var0
               i32.const 0
               call $read
-              i64.const 1
+              i32.const 12
               i32.const 0
               get_local $var0
               i32.const 255
@@ -407,7 +412,12 @@ mod tests {
               call $send
             )
             (func $init
-                i64.const 1
+                (local $id i32)
+                (i32.store offset=12
+                    (get_local $id)
+                    (i32.const 1)
+                )
+                i32.const 12
                 i32.const 0
                 i32.const 2
                 call $send
@@ -460,7 +470,7 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "read"  (func $read (param i32 i32 i32)))
-            (import "env" "send"  (func $send (param i64 i32 i32)))
+            (import "env" "send"  (func $send (param i32 i32 i32)))
             (import "env" "size"  (func $size (result i32)))
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "free"  (func $free (param i32)))
@@ -471,12 +481,17 @@ mod tests {
             (func $handle
               (local $p i32)
               (local $var0 i32)
+              (local $id i32)
+              (i32.store offset=12
+                (get_local $id)
+                (i32.const 1)
+              )
               i32.const 0
               call $size
               tee_local $var0
               i32.const 0
               call $read
-              i64.const 1
+              i32.const 12
               i32.const 0
               get_local $var0
               i32.const 255
@@ -486,11 +501,16 @@ mod tests {
               call $free
             )
             (func $init
+            (local $id i32)
               (local $msg_size i32)
               (local $alloc_pages i32)
               (local $pages_offset i32)
               (local.set $pages_offset (call $alloc (i32.const 1)))
-              (call $send (i64.const 1) (i32.const 0) (i32.const 2))
+              (i32.store offset=12
+                (get_local $id)
+                (i32.const 1)
+              )
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2))
             )
           )"#;
 
@@ -504,12 +524,10 @@ mod tests {
             &[],
         );
 
-        assert!(runner
-            .init_program(1.into(), parse_wat(wat), vec![])
-            .is_ok());
-        
+        assert!(runner.init_program(1.into(), parse_wat(wat), vec![]).is_ok());
+
         // check if page belongs to the program
-        assert_eq!(runner.allocations.get(256.into()), Some(ProgramId(1)));
+        assert_eq!(runner.allocations.get(256.into()), Some(ProgramId::from(1)));
 
         assert!(runner.run_next().is_ok());
 
@@ -536,7 +554,7 @@ mod tests {
             })
         );
 
-        // page is now deallocated 
+        // page is now deallocated
         assert_eq!(runner.allocations.get(256.into()), None);
     }
 }
