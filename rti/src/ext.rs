@@ -18,7 +18,7 @@ pub fn allocation_key(id: PageNumber) -> Vec<u8> {
 
 pub fn program_value(pid: ProgramId) -> Vec<u8> {
     let mut key = Vec::new();
-    pid.0.encode_to(&mut key);
+    pid.encode_to(&mut key);
     key
 }
 
