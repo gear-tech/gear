@@ -1,20 +1,21 @@
-use gstd::{ext, msg};
+use gstd::{ext, msg, ProgramId};
 mod shared;
 
 use codec::{Decode as _, Encode as _};
 use shared::{MemberMessage, RoomMessage};
+use core::convert::TryInto;
 
 #[derive(Debug)]
 struct State {
     room_name: &'static str,
-    members: Vec<(u64, String)>,
+    members: Vec<(ProgramId, String)>,
 }
 
 impl State {
     fn set_room_name(&mut self, name: &'static str) {
         self.room_name = &name;
     }
-    fn add_member(&mut self, member: (u64, String)) {
+    fn add_member(&mut self, member: (ProgramId, String)) {
         self.members.push(member);
     }
     fn room_name(&self) -> &'static str {
@@ -28,7 +29,7 @@ static mut STATE: State = State {
     members: vec![],
 };
 
-pub fn send_member(id: u64, msg: MemberMessage) {
+pub fn send_member(id: ProgramId, msg: MemberMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
     msg::send(id, &encoded);
@@ -57,7 +58,11 @@ unsafe fn room(room_msg: RoomMessage) {
                 if *id != msg::source() {
                     send_member(
                         *id,
-                        MemberMessage::Room(format!("#{}: {}", msg::source(), text)),
+                        MemberMessage::Room(format!(
+                            "#{}: {}",
+                            u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
+                            text
+                        )),
                     )
                 }
             }

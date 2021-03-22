@@ -77,7 +77,7 @@
                     "memory": [
                         {
                             "kind": "shared",
-                            "at": "0x10000b0",
+                            "at": "0x1000100",
                             "bytes": "0x68656c6c6f"
                         }
                     ]

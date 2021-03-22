@@ -1,6 +1,6 @@
 #![feature(num_as_ne_bytes)]
 
-use gstd::{ext, msg};
+use gstd::{ext, msg, ProgramId};
 use std::convert::TryInto;
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
@@ -10,7 +10,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
-    msg::send(2, (new_msg + new_msg).as_ne_bytes());
+    msg::send(ProgramId::from(2), (new_msg + new_msg).as_ne_bytes());
 
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
