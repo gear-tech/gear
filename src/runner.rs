@@ -163,7 +163,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         program_id: ProgramId,
         code: Vec<u8>,
         init_msg: Vec<u8>,
-    ) -> Result<()> {
+    ) -> Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(program_id) {
             program.set_code(code.to_vec());
             program.clear_static();
@@ -185,13 +185,20 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let module = Module::new(self.env.engine(), program.code())?;
         self.modules.insert(program.id(), module);
 
-        run(&mut self.env, &mut context, self.modules[&program.id()].clone(), &mut program, EntryPoint::Init, &msg)?;
+        let res = run(
+            &mut self.env,
+            &mut context,
+            self.modules[&program.id()].clone(),
+            &mut program,
+            EntryPoint::Init,
+            &msg,
+        )?;
 
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
         self.program_storage.set(program);
 
-        Ok(())
+        Ok(res)
     }
 
     pub fn queue_message(&mut self, destination: ProgramId, payload: Vec<u8>) {
