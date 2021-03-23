@@ -1,9 +1,10 @@
-use gstd::{ext, msg};
+use gstd::{ext, msg, ProgramId};
 
 mod shared;
 
 use codec::{Decode as _, Encode as _};
 use shared::{MemberMessage, RoomMessage};
+use core::convert::TryInto;
 
 #[derive(Debug)]
 struct State {
@@ -34,7 +35,7 @@ fn bot(message: MemberMessage) {
                 ext::debug(&format!(
                     "BOT '{}': received private message from #{}: '{}'",
                     STATE.name(),
-                    msg::source(),
+                    u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
                     text
                 ));
             }
@@ -42,7 +43,7 @@ fn bot(message: MemberMessage) {
                 ext::debug(&format!(
                     "BOT '{}': received room message from #{}: '{}'",
                     STATE.name(),
-                    msg::source(),
+                    u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
                     text
                 ));
             }
@@ -53,7 +54,7 @@ fn bot(message: MemberMessage) {
 pub fn send_room(id: u64, msg: RoomMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(id, &encoded);
+    msg::send(ProgramId::from(id), &encoded);
 }
 
 #[no_mangle]
