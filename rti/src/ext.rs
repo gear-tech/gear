@@ -1,16 +1,21 @@
+use std::collections::VecDeque;
+
 use gear_core::{
-    storage::{AllocationStorage, ProgramStorage},
+    storage::{AllocationStorage, ProgramStorage, MessageQueue},
     program::{ProgramId, Program},
     memory::PageNumber,
+    message::Message,
 };
 
 use codec::{Encode, Decode};
 
 pub struct ExtAllocationStorage;
 pub struct ExtProgramStorage;
+pub struct ExtMessageQueue;
 
 const ALLOCATION_KEY_PREFIX: &'static [u8] = b"g::alloc::";
 const PROGRAM_KEY_PREFIX: &'static [u8] = b"g::program::";
+const MESSAGES_KEY: &'static [u8] = b"g::messages";
 
 pub fn allocation_key(id: PageNumber) -> Vec<u8> {
     let mut key = ALLOCATION_KEY_PREFIX.to_vec();
@@ -81,5 +86,35 @@ impl ProgramStorage for ExtProgramStorage {
                 prev_val
             })
             .expect("Called outside of externalities context")
-            .map(|val| Program::decode(&mut &val[..]).expect("Values are always encoded correctly; DB corruption?"))    }
+            .map(|val| Program::decode(&mut &val[..]).expect("Values are always encoded correctly; DB corruption?"))
+    }
+}
+
+impl MessageQueue for ExtMessageQueue {
+    fn dequeue(&mut self) -> Option<Message> {
+        sp_externalities::with_externalities(|ext|
+            ext.storage(MESSAGES_KEY).map(|messages_val| {
+                let mut messages = VecDeque::<Message>::decode(&mut &messages_val[..])
+                    .expect("Values are always encoded correctly; DB corruption?");
+                let next_message = messages.pop_front();
+                ext.set_storage(MESSAGES_KEY.to_vec(), messages.encode());
+                next_message
+            }).unwrap_or_default()
+        )
+        .expect("Called outside of externalities context")
+    }
+
+    fn queue(&mut self, message: Message) {
+        sp_externalities::with_externalities(|ext| {
+            let mut messages = ext
+                .storage(MESSAGES_KEY)
+                .map(|val| VecDeque::<Message>::decode(&mut &val[..]).expect("Values are always encoded correctly; DB corruption?"))
+                .unwrap_or_default();
+
+            messages.push_back(message);
+
+            ext.set_storage(MESSAGES_KEY.to_vec(), messages.encode());
+        })
+        .expect("Called outside of externalities context")
+    }
 }

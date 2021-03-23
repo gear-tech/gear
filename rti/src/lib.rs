@@ -1,3 +1,4 @@
+#[cfg(feature = "std")]
 mod ext;
 
 use sp_runtime_interface::runtime_interface;
