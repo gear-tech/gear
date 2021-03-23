@@ -383,6 +383,7 @@ mod tests {
 
     #[test]
     fn runner_simple() {
+        // Sends "ok" on init, then sends back the message it retrieved from the handle
         let wat = r#"
         (module
             (import "env" "read"  (func $read (param i32 i32 i32)))
