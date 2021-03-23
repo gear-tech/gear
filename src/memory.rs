@@ -51,7 +51,11 @@ pub trait Memory {
 impl Memory for wasmtime::Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.grow(pages.raw())
-            .map(Into::into)
+            .map(|offset| {
+                // lock pages after grow
+                self.lock(offset.into(), pages);
+                offset.into()
+            })
             .map_err(|_| Error::OutOfMemory)
     }
 
