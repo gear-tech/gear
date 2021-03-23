@@ -1982,6 +1982,7 @@ name = "gear-node-rti"
 version = "2.0.0"
 dependencies = [
  "gear-core",
+ "log",
  "parity-scale-codec",
  "sp-core",
  "sp-externalities",

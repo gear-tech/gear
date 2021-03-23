@@ -17,6 +17,7 @@ sp-externalities = { version = "0.9.0", git = "https://github.com/paritytech/sub
 sp-core = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 gear-core = { path = "../../gear-core" }
+log = "0.4"
 
 [features]
 default = ["std"]
