@@ -591,4 +591,50 @@ mod tests {
         // page is now deallocated
         assert_eq!(runner.allocations.get(256.into()), None);
     }
+
+    #[test]
+    fn mem_access() {
+        // Write in new allocatted page
+        let wat = r#"
+        (module
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+            )
+            (func $init
+                (local $alloc_pages i32)
+                (local $pages_offset i32)
+                (local.set $pages_offset (call $alloc (i32.const 1)))
+                (i32.store offset=65536
+                    (i32.const 0)
+                    (i32.const 10)
+                   )
+              )
+          )"#;
+
+        let mut runner = Runner::new(
+            &Config {
+                static_pages: 1.into(),
+                max_pages: 2.into(),
+            },
+            crate::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        );
+
+        let result = runner.init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec());
+
+        assert!(result.is_ok());
+
+        assert_eq!(result.unwrap().touched[0], (1.into(), PageAction::Write));
+
+        let (_, persistent_memory) = runner.complete();
+
+        assert_eq!(persistent_memory[0], 10);
+    }
 }
