@@ -558,7 +558,9 @@ mod tests {
             &[],
         );
 
-        assert!(runner.init_program(1.into(), parse_wat(wat), vec![]).is_ok());
+        assert!(runner
+            .init_program(1.into(), parse_wat(wat), vec![])
+            .is_ok());
 
         // check if page belongs to the program
         assert_eq!(runner.allocations.get(256.into()), Some(ProgramId::from(1)));
@@ -593,9 +595,9 @@ mod tests {
     }
 
     #[test]
-    fn mem_access() {
-        // Write in new allocatted page
-        let wat = r#"
+    fn mem_rw_access() {
+        // Read in new allocatted page
+        let wat_r = r#"
         (module
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "memory" (memory 1))
@@ -607,17 +609,38 @@ mod tests {
                 (local $alloc_pages i32)
                 (local $pages_offset i32)
                 (local.set $pages_offset (call $alloc (i32.const 1)))
-                (i32.store offset=65536
+
+                i32.const 0
+                i32.load offset=65536
+
+                drop
+              )
+          )"#;
+
+        // Write in new allocatted page
+        let wat_w= r#"
+        (module
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+            )
+            (func $init
+                (local $alloc_pages i32)
+                (local $pages_offset i32)
+                (local.set $pages_offset (call $alloc (i32.const 1)))
+                (i32.store offset=131072
                     (i32.const 0)
                     (i32.const 10)
-                   )
+                )
               )
           )"#;
 
         let mut runner = Runner::new(
             &Config {
                 static_pages: 1.into(),
-                max_pages: 2.into(),
+                max_pages: 3.into(),
             },
             crate::storage::new_in_memory(
                 Default::default(),
@@ -627,14 +650,21 @@ mod tests {
             &[],
         );
 
-        let result = runner.init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec());
+        let result = runner.init_program(1.into(), parse_wat(wat_r), "init".as_bytes().to_vec());
 
         assert!(result.is_ok());
 
-        assert_eq!(result.unwrap().touched[0], (1.into(), PageAction::Write));
+        assert_eq!(result.unwrap().touched[0], (1.into(), PageAction::Read));
+
+
+        let result = runner.init_program(2.into(), parse_wat(wat_w), "init".as_bytes().to_vec());
+
+        assert!(result.is_ok());
+
+        assert_eq!(result.unwrap().touched[0], (2.into(), PageAction::Write));
 
         let (_, persistent_memory) = runner.complete();
 
-        assert_eq!(persistent_memory[0], 10);
+        assert_eq!(persistent_memory[0], 0);
     }
 }
