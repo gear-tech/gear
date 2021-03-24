@@ -22,18 +22,40 @@ impl PageNumber {
     }
 }
 
+impl std::ops::Add for PageNumber {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl std::ops::Sub for PageNumber {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
 pub trait Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
     fn size(&self) -> PageNumber;
     fn clone(&self) -> Box<dyn Memory>;
     fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
+    fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8;
+    fn unlock(&self, offset: PageNumber, length: PageNumber);
 }
 
 impl Memory for wasmtime::Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.grow(pages.raw())
-            .map(Into::into)
+            .map(|offset| {
+                // lock pages after grow
+                self.lock(offset.into(), pages);
+                offset.into()
+            })
             .map_err(|_| Error::OutOfMemory)
     }
 
@@ -57,6 +79,31 @@ impl Memory for wasmtime::Memory {
             return Err(Error::OutOfMemory);
         }
         Ok(())
+    }
+
+    fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8 {
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let length = 65536usize * length.raw() as usize;
+
+        // So we can later trigger SIGSEGV by performing a read
+        unsafe {
+            libc::mprotect(base as *mut libc::c_void, length, libc::PROT_NONE);
+        }
+        base
+    }
+
+    fn unlock(&self, offset: PageNumber, length: PageNumber) {
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let length = 65536usize * length.raw() as usize;
+
+        // Set r/w protection
+        unsafe {
+            libc::mprotect(
+                base as *mut libc::c_void,
+                length,
+                libc::PROT_READ | libc::PROT_WRITE,
+            );
+        }
     }
 }
 
@@ -156,6 +203,10 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         }
     }
 
+    pub fn program_id(&self) -> ProgramId {
+        self.program_id
+    }
+
     pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
         let mut candidate = self.static_pages.raw();
@@ -209,6 +260,14 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 
     pub fn memory(&mut self) -> &dyn Memory {
         &mut *self.memory
+    }
+
+    pub fn memory_lock(&self) {
+        self.memory.lock(self.static_pages, self.max_pages - self.static_pages);
+    }
+
+    pub fn memory_unlock(&self) {
+        self.memory.unlock(self.static_pages, self.max_pages - self.static_pages);
     }
 }
 
