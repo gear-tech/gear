@@ -53,8 +53,8 @@ impl Program {
         self.id
     }
 
-    pub fn static_pages(&mut self) -> &[u8] {
-        &mut self.static_pages
+    pub fn static_pages(&self) -> &[u8] {
+        &self.static_pages
     }
 
     pub fn static_pages_mut(&mut self) -> &mut Vec<u8> {
