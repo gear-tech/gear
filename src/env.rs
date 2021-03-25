@@ -1,12 +1,101 @@
 //! Wasmtime environment for running a module
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
+
+use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
 use ::anyhow::{self, anyhow};
-use wasmtime::{Engine, Extern, Func, Instance, Memory, Module};
+use wasmtime::{unix::StoreExt, Engine, Extern, Func, Instance, Memory, Module};
+
+fn handle_sigsegv<E: Ext + 'static>(
+    ext: &LaterExt<E>,
+    mut touched: RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
+    base: *mut u8,
+    signum: libc::c_int,
+    siginfo: *const libc::siginfo_t,
+) -> bool {
+    // SIGSEGV on Linux, SIGBUS on Mac
+    if libc::SIGSEGV == signum || libc::SIGBUS == signum {
+        let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
+
+        // Any signal from within module's memory we handle ourselves
+        let length = 65536;
+        let page = ((si_addr as usize) - (base as usize)) / length;
+
+        // Set the base address of the page that the program is trying to access
+        let page_base = base.wrapping_add(page * length);
+
+        let access = ext.with(|ext: &mut E| ext.memory_access((page as u32).into()));
+        if let Some(last) = touched.last_mut() {
+            if last.2 == (si_addr as *const u8).wrapping_sub(base as usize)
+                && last.1 == PageAction::Read
+                && access == PageAction::Write
+            {
+                *last = (
+                    last.0,
+                    PageAction::Write,
+                    (si_addr as *const u8).wrapping_sub(base as usize),
+                );
+                // Remove protections so the execution may resume
+                unsafe {
+                    libc::mprotect(
+                        page_base as *mut libc::c_void,
+                        length,
+                        libc::PROT_READ | libc::PROT_WRITE,
+                    );
+                }
+                log::debug!("MEMORY: ACCESS PAGE {} WRITE", page);
+
+                true
+            } else {
+                // Set READ prrotection
+                unsafe {
+                    libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
+                }
+                touched.push((
+                    (page as u32).into(),
+                    PageAction::Read,
+                    (si_addr as *const u8).wrapping_sub(base as usize),
+                ));
+
+                true
+            }
+        } else if access != PageAction::None {
+            // Set READ prrotection
+            unsafe {
+                libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
+            }
+            touched.push((
+                (page as u32).into(),
+                PageAction::Read,
+                (si_addr as *const u8).wrapping_sub(base as usize),
+            ));
+
+            true
+        } else {
+            touched.push((
+                (page as u32).into(),
+                PageAction::None,
+                (si_addr as *const u8).wrapping_sub(base as usize),
+            ));
+
+            false
+        }
+    } else {
+        // Otherwise, we forward to wasmtime's signal handler.
+        false
+    }
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
+pub enum PageAction {
+    Read,
+    Write,
+    None,
+}
 
 pub trait Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
@@ -17,6 +106,9 @@ pub trait Ext {
     fn set_mem(&mut self, ptr: usize, val: &[u8]) -> Result<(), &'static str>;
     fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) -> Result<(), &'static str>;
     fn msg(&mut self) -> &[u8];
+    fn memory_access(&self, page: PageNumber) -> PageAction;
+    fn memory_lock(&self);
+    fn memory_unlock(&self);
 }
 
 struct LaterExt<E: Ext> {
@@ -103,7 +195,7 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(
                 &store,
-                move |program_id: i64, message_ptr: i32, message_len: i32| {
+                move |program_id_ptr: i32, message_ptr: i32, message_len: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     if let Err(_) = ext.with(|ext: &mut E| {
@@ -114,8 +206,13 @@ impl<E: Ext + 'static> Environment<E> {
                                 .ok();
                             data
                         };
+                        let mut program_id = ProgramId::default();
+                        ext.get_mem(program_id_ptr as isize as _, program_id.as_mut_slice())
+                            .map_err(|_e| log::error!("Read memory err: {}", _e))
+                            .ok();
+
                         ext.send(OutgoingMessage::new(
-                            ProgramId(program_id as _),
+                            program_id,
                             data.into(),
                         ))
                     }) {
@@ -185,11 +282,14 @@ impl<E: Ext + 'static> Environment<E> {
 
         let source = {
             let ext = ext.clone();
-            Func::wrap(&store, move || {
-                Ok(ext
-                    .with(|ext: &mut E| ext.source())
-                    .map(|v| v.0)
-                    .unwrap_or_default())
+            Func::wrap(&store, move |source_ptr: i32| {
+                ext.with(|ext: &mut E| {
+                    let source = ext.source().unwrap_or_default();
+                    ext.set_mem(source_ptr as isize as _, source.as_slice())
+                        .map_err(|_e| log::error!("Write memory err: {}", _e))
+                        .ok();
+                });
+                Ok(())
             })
         };
 
@@ -253,7 +353,9 @@ impl<E: Ext + 'static> Environment<E> {
 
         let instance = Instance::new(&self.store, &module, &externs)?;
 
-        unsafe { memory.data_unchecked_mut()[0..static_area.len()].copy_from_slice(&static_area[..]) };
+        unsafe {
+            memory.data_unchecked_mut()[0..static_area.len()].copy_from_slice(&static_area[..])
+        };
 
         func(instance)
     }
@@ -265,14 +367,39 @@ impl<E: Ext + 'static> Environment<E> {
         static_area: Vec<u8>,
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
-    ) -> (anyhow::Result<()>, E) {
+    ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
+        // Lock memory
+        ext.memory_lock();
+
         self.ext.set(ext);
+        let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
+            Rc::new(RefCell::new(Vec::new()));
+        let touched_clone = touched.clone();
+
+        let ext_clone = self.ext.clone();
+        let base = memory.data_ptr();
+
+        unsafe {
+            self.store.set_signal_handler(move |signum, siginfo, _| {
+                handle_sigsegv(
+                    &ext_clone,
+                    touched_clone.borrow_mut(),
+                    base,
+                    signum,
+                    siginfo,
+                )
+            });
+        }
 
         let result = self.run_inner(module, static_area, memory, func);
 
         let ext = self.ext.unset();
 
-        (result, ext)
+        // Unlock memory
+        ext.memory_unlock();
+        let touched = touched.take().iter().map(|(a, b, _)| (*a, *b)).collect();
+
+        (result, ext, touched)
     }
 
     pub fn engine(&self) -> &Engine {

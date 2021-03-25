@@ -1,11 +1,12 @@
 use std::vec;
+use std::collections::HashMap;
 
 use anyhow::Result;
 use codec::{Decode, Encode};
 use wasmtime::{Memory as WasmMemory, Module};
 
 use crate::{
-    env::{Environment, Ext as EnvExt},
+    env::{Environment, Ext as EnvExt, PageAction},
     memory::{Allocations, MemoryContext, PageNumber},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
@@ -33,6 +34,7 @@ pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: Program
     pub(crate) memory: WasmMemory,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
+    modules: HashMap<ProgramId, Module>,
     env: Environment<Ext<AS>>,
 }
 
@@ -64,6 +66,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             memory,
             allocations: Allocations::new(allocation_storage),
             config: config.clone(),
+            modules: HashMap::new(),
             env,
         }
     }
@@ -86,20 +89,24 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             Ok(1)
         } else {
             let mut context = self.create_context();
-            let program = self
+            let mut program = self
                 .program_storage
-                .get_mut(next_message.dest())
+                .get(next_message.dest())
                 .expect("Program not found");
 
             run(
                 &mut self.env,
                 &mut context,
-                program,
+                self.modules[&program.id()].clone(),
+                &mut program,
                 EntryPoint::Handle,
                 &next_message.into(),
             )?;
+
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
+            self.program_storage.set(program);
+
             Ok(1)
         }
     }
@@ -156,10 +163,11 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         program_id: ProgramId,
         code: Vec<u8>,
         init_msg: Vec<u8>,
-    ) -> Result<()> {
-        if let Some(program) = self.program_storage.get_mut(program_id) {
+    ) -> Result<RunResult> {
+        if let Some(mut program) = self.program_storage.get(program_id) {
             program.set_code(code.to_vec());
             program.clear_static();
+            self.program_storage.set(program);
         } else {
             self.program_storage
                 .set(Program::new(program_id, code, vec![]));
@@ -168,15 +176,29 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         self.allocations.clear(program_id);
 
         let mut context = self.create_context();
-        let program = self
+        let mut program = self
             .program_storage
-            .get_mut(program_id)
+            .get(program_id)
             .expect("Added above; cannot fail");
         let msg = IncomingMessage::new_system(init_msg.into());
-        run(&mut self.env, &mut context, program, EntryPoint::Init, &msg)?;
+
+        let module = Module::new(self.env.engine(), program.code())?;
+        self.modules.insert(program.id(), module);
+
+        let res = run(
+            &mut self.env,
+            &mut context,
+            self.modules[&program.id()].clone(),
+            &mut program,
+            EntryPoint::Init,
+            &msg,
+        )?;
+
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
-        Ok(())
+        self.program_storage.set(program);
+
+        Ok(res)
     }
 
     pub fn queue_message(&mut self, destination: ProgramId, payload: Vec<u8>) {
@@ -240,8 +262,7 @@ impl<AS: AllocationStorage> RunningContext<AS> {
 
 #[derive(Clone, Debug, Decode, Default, Encode, derive_more::From)]
 pub struct RunResult {
-    allocations: Vec<PageNumber>,
-    touched: Vec<PageNumber>,
+    touched: Vec<(PageNumber, PageAction)>,
     messages: Vec<OutgoingMessage>,
 }
 
@@ -291,16 +312,36 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     fn msg(&mut self) -> &[u8] {
         self.messages.current().payload()
     }
+
+    fn memory_access(&self, page: PageNumber) -> PageAction {
+        if let Some(id) = self.memory_context.allocations().get(page) {
+            if id == self.memory_context.program_id() {
+                PageAction::Write
+            } else {
+                PageAction::Read
+            }
+        } else {
+            PageAction::None
+        }
+    }
+
+    fn memory_lock(&self) {
+        self.memory_context.memory_lock();
+    }
+
+    fn memory_unlock(&self) {
+        self.memory_context.memory_unlock();
+    }
 }
 
 fn run<AS: AllocationStorage + 'static>(
     env: &mut Environment<Ext<AS>>,
     context: &mut RunningContext<AS>,
+    module: Module,
     program: &mut Program,
     entry_point: EntryPoint,
     message: &IncomingMessage,
 ) -> Result<RunResult> {
-    let module = Module::new(env.engine(), program.code())?;
 
     let ext = Ext {
         memory_context: MemoryContext::new(
@@ -317,7 +358,7 @@ fn run<AS: AllocationStorage + 'static>(
 
     let static_area = program.static_pages().to_vec();
 
-    let (res, mut ext) = env.setup_and_run(
+    let (res, mut ext, touched) = env.setup_and_run(
         ext,
         module,
         static_area,
@@ -333,7 +374,8 @@ fn run<AS: AllocationStorage + 'static>(
                 })
                 .and_then(|entry_func| entry_func.call(&[]))
                 .map(|_| ())
-        });
+        },
+    );
 
     res.map(move |_| {
         program
@@ -343,10 +385,286 @@ fn run<AS: AllocationStorage + 'static>(
             .map_err(|_e| log::error!("Read memory err: {}", _e))
             .ok();
 
+        let mut messages = vec![];
         for outgoing_msg in ext.messages.drain() {
+            messages.push(outgoing_msg.clone());
             context.push_message(outgoing_msg.into_message(program.id()));
         }
 
-        RunResult::default()
+        RunResult {
+            touched,
+            messages,
+        }
+
     })
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate wabt;
+    use super::*;
+
+    fn parse_wat(source: &str) -> Vec<u8> {
+        let module_bytes = wabt::Wat2Wasm::new()
+            .validate(false)
+            .convert(source)
+            .expect("failed to parse module")
+            .as_ref()
+            .to_vec();
+        module_bytes
+    }
+
+    #[test]
+    fn runner_simple() {
+        // Sends "ok" on init, then sends back the message it retrieved from the handle
+        let wat = r#"
+        (module
+            (import "env" "read"  (func $read (param i32 i32 i32)))
+            (import "env" "send"  (func $send (param i32 i32 i32)))
+            (import "env" "size"  (func $size (result i32)))
+            (import "env" "memory" (memory 1))
+  				(data (i32.const 0) "ok")
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+              (local $var0 i32)
+              (local $id i32)
+                (i32.store offset=12
+                    (get_local $id)
+                    (i32.const 1)
+                )
+              i32.const 0
+              call $size
+              tee_local $var0
+              i32.const 0
+              call $read
+              i32.const 12
+              i32.const 0
+              get_local $var0
+              i32.const 255
+              i32.and
+              call $send
+            )
+            (func $init
+                (local $id i32)
+                (i32.store offset=12
+                    (get_local $id)
+                    (i32.const 1)
+                )
+                i32.const 12
+                i32.const 0
+                i32.const 2
+                call $send
+              )
+          )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            crate::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        );
+
+        assert!(runner
+            .init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec())
+            .is_ok());
+
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: "ok".as_bytes().to_vec().into(),
+            })
+        );
+
+        runner.queue_message(1.into(), "test".as_bytes().to_vec());
+
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: "test".as_bytes().to_vec().into(),
+            })
+        );
+    }
+
+    #[test]
+    fn runner_allocations() {
+        // alloc 1 page in init
+        // free page num from message in handle and send it back
+        let wat = r#"
+        (module
+            (import "env" "read"  (func $read (param i32 i32 i32)))
+            (import "env" "send"  (func $send (param i32 i32 i32)))
+            (import "env" "size"  (func $size (result i32)))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (import "env" "free"  (func $free (param i32)))
+            (import "env" "memory" (memory 1))
+  				(data (i32.const 0) "ok")
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+              (local $p i32)
+              (local $var0 i32)
+              (local $id i32)
+              (i32.store offset=12
+                (get_local $id)
+                (i32.const 1)
+              )
+              i32.const 0
+              call $size
+              tee_local $var0
+              i32.const 0
+              call $read
+              i32.const 12
+              i32.const 0
+              get_local $var0
+              i32.const 255
+              i32.and
+              call $send
+              i32.const 256
+              call $free
+            )
+            (func $init
+            (local $id i32)
+              (local $msg_size i32)
+              (local $alloc_pages i32)
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 1)))
+              (i32.store offset=12
+                (get_local $id)
+                (i32.const 1)
+              )
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2))
+            )
+          )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            crate::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        );
+
+        assert!(runner
+            .init_program(1.into(), parse_wat(wat), vec![])
+            .is_ok());
+
+        // check if page belongs to the program
+        assert_eq!(runner.allocations.get(256.into()), Some(ProgramId::from(1)));
+
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: "ok".as_bytes().to_vec().into(),
+            })
+        );
+
+        // send page num to be freed
+        runner.queue_message(1.into(), vec![256u32 as _]);
+
+        assert!(runner.run_next().is_ok());
+
+        assert_eq!(
+            runner.message_queue.dequeue(),
+            Some(Message {
+                source: 1.into(),
+                dest: 1.into(),
+                payload: vec![256u32 as _].into(),
+            })
+        );
+
+        // page is now deallocated
+        assert_eq!(runner.allocations.get(256.into()), None);
+    }
+
+    #[test]
+    fn mem_rw_access() {
+        // Read in new allocatted page
+        let wat_r = r#"
+        (module
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+            )
+            (func $init
+                (local $alloc_pages i32)
+                (local $pages_offset i32)
+                (local.set $pages_offset (call $alloc (i32.const 1)))
+
+                i32.const 0
+                i32.load offset=65536
+
+                drop
+              )
+          )"#;
+
+        // Write in new allocatted page
+        let wat_w= r#"
+        (module
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+            )
+            (func $init
+                (local $alloc_pages i32)
+                (local $pages_offset i32)
+                (local.set $pages_offset (call $alloc (i32.const 1)))
+                (i32.store offset=131072
+                    (i32.const 0)
+                    (i32.const 10)
+                )
+              )
+          )"#;
+
+        let mut runner = Runner::new(
+            &Config {
+                static_pages: 1.into(),
+                max_pages: 3.into(),
+            },
+            crate::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        );
+
+        let result = runner.init_program(1.into(), parse_wat(wat_r), "init".as_bytes().to_vec());
+
+        assert!(result.is_ok());
+
+        assert_eq!(result.unwrap().touched[0], (1.into(), PageAction::Read));
+
+
+        let result = runner.init_program(2.into(), parse_wat(wat_w), "init".as_bytes().to_vec());
+
+        assert!(result.is_ok());
+
+        assert_eq!(result.unwrap().touched[0], (2.into(), PageAction::Write));
+
+        let (_, persistent_memory) = runner.complete();
+
+        assert_eq!(persistent_memory[0], 0);
+    }
 }

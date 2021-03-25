@@ -3,7 +3,7 @@ use std::{rc::Rc, cell::RefCell};
 use codec::{Encode, Decode};
 use crate::program::ProgramId;
 
-#[derive(Clone, Debug, Decode, Encode, derive_more::From)]
+#[derive(Clone, Debug, Decode, Encode, derive_more::From, PartialEq, Eq)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
@@ -68,7 +68,7 @@ impl OutgoingMessage {
     }
 }
 
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct Message {
     pub source: ProgramId,
     pub dest: ProgramId,

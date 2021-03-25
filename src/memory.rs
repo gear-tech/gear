@@ -22,18 +22,40 @@ impl PageNumber {
     }
 }
 
+impl std::ops::Add for PageNumber {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl std::ops::Sub for PageNumber {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
 pub trait Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
     fn size(&self) -> PageNumber;
     fn clone(&self) -> Box<dyn Memory>;
     fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
+    fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8;
+    fn unlock(&self, offset: PageNumber, length: PageNumber);
 }
 
 impl Memory for wasmtime::Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.grow(pages.raw())
-            .map(Into::into)
+            .map(|offset| {
+                // lock pages after grow
+                self.lock(offset.into(), pages);
+                offset.into()
+            })
             .map_err(|_| Error::OutOfMemory)
     }
 
@@ -58,6 +80,31 @@ impl Memory for wasmtime::Memory {
         }
         Ok(())
     }
+
+    fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8 {
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let length = 65536usize * length.raw() as usize;
+
+        // So we can later trigger SIGSEGV by performing a read
+        unsafe {
+            libc::mprotect(base as *mut libc::c_void, length, libc::PROT_NONE);
+        }
+        base
+    }
+
+    fn unlock(&self, offset: PageNumber, length: PageNumber) {
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let length = 65536usize * length.raw() as usize;
+
+        // Set r/w protection
+        unsafe {
+            libc::mprotect(
+                base as *mut libc::c_void,
+                length,
+                libc::PROT_READ | libc::PROT_WRITE,
+            );
+        }
+    }
 }
 
 pub struct Allocations<AS: AllocationStorage>(Rc<RefCell<AS>>);
@@ -74,7 +121,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
     }
 
     pub fn get(&self, page: PageNumber) -> Option<ProgramId> {
-        self.0.borrow().get(page).copied()
+        self.0.borrow().get(page)
     }
 
     pub fn occupied(&self, page: PageNumber) -> bool {
@@ -92,7 +139,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
     }
 
     pub fn remove(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
-        if program_id != *self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
+        if program_id != self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
             return Err(Error::InvalidFree(page));
         }
 
@@ -111,9 +158,6 @@ impl<AS: AllocationStorage> Allocations<AS> {
         self.0.borrow_mut().clear(program_id)
     }
 
-    pub fn len(&self) -> usize {
-        self.0.borrow().count()
-    }
 }
 
 pub struct MemoryContext<AS: AllocationStorage> {
@@ -157,6 +201,10 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
             static_pages,
             max_pages,
         }
+    }
+
+    pub fn program_id(&self) -> ProgramId {
+        self.program_id
     }
 
     pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
@@ -213,6 +261,14 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     pub fn memory(&mut self) -> &dyn Memory {
         &mut *self.memory
     }
+
+    pub fn memory_lock(&self) {
+        self.memory.lock(self.static_pages, self.max_pages - self.static_pages);
+    }
+
+    pub fn memory_unlock(&self) {
+        self.memory.unlock(self.static_pages, self.max_pages - self.static_pages);
+    }
 }
 
 #[cfg(test)]
@@ -244,10 +300,8 @@ mod tests {
     #[test]
     fn smoky() {
         let mem = new_test_memory(16, 256);
-        assert_eq!(mem.allocations().len(), 0);
 
         assert_eq!(mem.alloc(16.into()).expect("allocation failed"), 16.into());
-        assert_eq!(mem.allocations().len(), 16);
 
         // there is a space for 14 more
         for _ in 0..14 {
