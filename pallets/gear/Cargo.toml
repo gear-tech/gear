@@ -33,6 +33,16 @@ default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
 
+[dependencies.sp-std]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+[dependencies.sp-io]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
 [dev-dependencies.sp-io]
 default-features = false
 version = "3.0.0"

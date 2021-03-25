@@ -20,6 +20,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
 	use crate::data::*;
+	use sp_std::prelude::*;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -106,8 +107,10 @@ pub mod pallet {
 	#[pallet::metadata(T::AccountId = "AccountId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Log event from the specific program
+		/// Log event from the specific program.
 		Log(H256, Vec<u8>),
+		/// Program created in the network.
+		NewProgram(H256),
 	}
 
 	// Gear pallet error.
@@ -126,8 +129,18 @@ pub mod pallet {
 		pub fn submit_program(origin: OriginFor<T>, program: Program) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
-			// Update storage.
-			// <Programs<T>>::insert(H256::ranndom(), program);
+			let nonce = frame_system::Account::<T>::get(who.clone()).nonce;
+
+			let mut data = Vec::new();
+			program.encode_to(&mut data);
+			who.encode_to(&mut data);
+			nonce.encode_to(&mut data);
+
+			let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+
+			set_program::<T>(id.clone(), program);
+
+			Self::deposit_event(Event::NewProgram(id));
 
 			Ok(().into())
 		}
