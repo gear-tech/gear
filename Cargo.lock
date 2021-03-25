@@ -1972,6 +1972,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "derive_more",
+ "libc",
  "log",
  "parity-scale-codec",
  "wasmtime 0.23.0",
@@ -1982,11 +1983,50 @@ name = "gear-node-rti"
 version = "2.0.0"
 dependencies = [
  "gear-core",
+ "gear-runtime",
  "log",
+ "pallet-gear",
  "parity-scale-codec",
  "sp-core",
  "sp-externalities",
  "sp-runtime-interface",
+]
+
+[[package]]
+name = "gear-runtime"
+version = "2.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-executive",
+ "frame-support",
+ "frame-system",
+ "frame-system-benchmarking",
+ "frame-system-rpc-runtime-api",
+ "gear-core",
+ "hex-literal",
+ "pallet-aura",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-grandpa",
+ "pallet-randomness-collective-flip",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "pallet-transaction-payment",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-block-builder",
+ "sp-consensus-aura",
+ "sp-core",
+ "sp-inherents",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-std",
+ "sp-transaction-pool",
+ "sp-version",
+ "substrate-wasm-builder",
 ]
 
 [[package]]
@@ -3631,8 +3671,8 @@ version = "2.0.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
+ "gear-runtime",
  "jsonrpc-core",
- "node-template-runtime 2.0.0 (git+https://github.com/paritytech/substrate.git)",
  "pallet-transaction-payment-rpc",
  "sc-basic-authorship",
  "sc-cli",
@@ -3660,79 +3700,6 @@ dependencies = [
  "structopt",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
-]
-
-[[package]]
-name = "node-template-runtime"
-version = "2.0.0"
-dependencies = [
- "frame-benchmarking",
- "frame-executive",
- "frame-support",
- "frame-system",
- "frame-system-benchmarking",
- "frame-system-rpc-runtime-api",
- "hex-literal",
- "pallet-aura",
- "pallet-balances",
- "pallet-grandpa",
- "pallet-randomness-collective-flip",
- "pallet-sudo",
- "pallet-template 2.0.0 (git+https://github.com/paritytech/substrate.git)",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "parity-scale-codec",
- "serde",
- "sp-api",
- "sp-block-builder",
- "sp-consensus-aura",
- "sp-core",
- "sp-inherents",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-std",
- "sp-transaction-pool",
- "sp-version",
- "substrate-wasm-builder",
-]
-
-[[package]]
-name = "node-template-runtime"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate.git#a107e1f0b394bc61726e73560332f7d714589e2f"
-dependencies = [
- "frame-benchmarking",
- "frame-executive",
- "frame-support",
- "frame-system",
- "frame-system-benchmarking",
- "frame-system-rpc-runtime-api",
- "hex-literal",
- "pallet-aura",
- "pallet-balances",
- "pallet-grandpa",
- "pallet-randomness-collective-flip",
- "pallet-sudo",
- "pallet-template 2.0.0 (git+https://github.com/paritytech/substrate.git)",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "parity-scale-codec",
- "serde",
- "sp-api",
- "sp-block-builder",
- "sp-consensus-aura",
- "sp-core",
- "sp-inherents",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-std",
- "sp-transaction-pool",
- "sp-version",
- "substrate-wasm-builder",
 ]
 
 [[package]]
@@ -3924,6 +3891,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gear"
+version = "2.0.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-grandpa"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git#a107e1f0b394bc61726e73560332f7d714589e2f"
@@ -4003,17 +3983,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
-]
-
-[[package]]
-name = "pallet-template"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate.git#a107e1f0b394bc61726e73560332f7d714589e2f"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "parity-scale-codec",
 ]
 
 [[package]]

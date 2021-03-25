@@ -1,5 +1,5 @@
 [package]
-name = "node-template-runtime"
+name = "gear-runtime"
 version = "2.0.0"
 authors = ["Anonymous"]
 edition = "2018"
@@ -45,7 +45,9 @@ frame-benchmarking = { version = "3.0.0", default-features = false, git = "https
 frame-system-benchmarking = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true }
 hex-literal = { version = "0.3.1", optional = true }
 
-template = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", package = "pallet-template" }
+pallet-gear = { version = "2.0.0", default-features = false, path = "../pallets/gear" }
+
+gear-core = { path = "../../gear-core", optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0", git = "https://github.com/paritytech/substrate.git" }
@@ -78,7 +80,8 @@ std = [
 	"sp-version/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
-	"template/std",
+	"pallet-gear/std",
+	"gear-core"
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
