@@ -144,5 +144,18 @@ pub mod pallet {
 
 			Ok(().into())
 		}
+
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>) -> DispatchResultWithPostInfo {
+			let who = ensure_signed(origin)?;
+
+			queue_message::<T>(Message{
+				source: H256::default(),
+				dest: destination,
+				payload: payload,
+			});
+
+			Ok(().into())
+		}
 	}
 }
