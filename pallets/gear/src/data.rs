@@ -1,5 +1,6 @@
 use codec::{Encode, Decode};
 use sp_core::H256;
+use sp_std::prelude::*;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Message {

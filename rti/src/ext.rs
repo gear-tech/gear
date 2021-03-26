@@ -1,13 +1,9 @@
-use std::collections::VecDeque;
-
 use gear_core::{
     storage::{AllocationStorage, ProgramStorage, MessageQueue},
     program::{ProgramId, Program},
     memory::PageNumber,
     message::Message,
 };
-
-use codec::{Encode, Decode};
 
 pub struct ExtAllocationStorage;
 pub struct ExtProgramStorage;
