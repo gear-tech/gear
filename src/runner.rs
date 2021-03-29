@@ -1,5 +1,4 @@
 use std::vec;
-use std::collections::HashMap;
 
 use anyhow::Result;
 use codec::{Decode, Encode};
@@ -34,7 +33,6 @@ pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: Program
     pub(crate) memory: WasmMemory,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
-    modules: HashMap<ProgramId, Module>,
     env: Environment<Ext<AS>>,
 }
 
@@ -66,7 +64,6 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             memory,
             allocations: Allocations::new(allocation_storage),
             config: config.clone(),
-            modules: HashMap::new(),
             env,
         }
     }
@@ -94,10 +91,11 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                 .get(next_message.dest())
                 .expect("Program not found");
 
+            let module = Module::new(self.env.engine(), program.code())?;
             run(
                 &mut self.env,
                 &mut context,
-                self.modules[&program.id()].clone(),
+                module,
                 &mut program,
                 EntryPoint::Handle,
                 &next_message.into(),
@@ -183,12 +181,11 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let msg = IncomingMessage::new_system(init_msg.into());
 
         let module = Module::new(self.env.engine(), program.code())?;
-        self.modules.insert(program.id(), module);
 
         let res = run(
             &mut self.env,
             &mut context,
-            self.modules[&program.id()].clone(),
+            module,
             &mut program,
             EntryPoint::Init,
             &msg,
