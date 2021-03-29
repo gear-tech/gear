@@ -2022,6 +2022,7 @@ dependencies = [
  "sp-core",
  "sp-externalities",
  "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
