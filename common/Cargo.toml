@@ -1,0 +1,30 @@
+[package]
+name = "gear-common"
+version = "0.1.0"
+authors = ["NikVolf <nikvolf@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+gear-core = { path = "../../gear-core", optional = true }
+
+[dependencies.sp-core]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+[dependencies.sp-std]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+[dependencies.sp-io]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+[features]
+default = ["std"]
+std = ["sp-core/std", "sp-std/std", "sp-io/std", "gear-core"]

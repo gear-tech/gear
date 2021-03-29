@@ -25,7 +25,7 @@ pub fn new() -> ExtRunner {
         &Config::default(),
         Storage {
             allocation_storage: ExtAllocationStorage,
-            message_queue: ExtMessageQueue,
+            message_queue: ExtMessageQueue::default(),
             program_storage: ExtProgramStorage,
         },
         &memory(),
