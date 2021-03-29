@@ -1972,6 +1972,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-test-cli"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-node-rti",
+ "pallet-gear",
+ "parity-scale-codec",
+ "sc-cli",
+ "sc-executor",
+ "sc-service",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "structopt",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3618,6 +3638,7 @@ dependencies = [
  "frame-benchmarking-cli",
  "gear-node-rti",
  "gear-runtime",
+ "gear-test-cli",
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
  "sc-basic-authorship",

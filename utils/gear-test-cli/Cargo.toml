@@ -1,0 +1,51 @@
+[package]
+name = "gear-test-cli"
+version = "0.1.0"
+authors = ["Vadim Smirnov <smirnovvad7@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+sc-cli = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git", features = ["wasmtime"] }
+sp-core = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
+sc-executor = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git", features = ["wasmtime"] }
+sc-service = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git", features = ["wasmtime"] }
+common = { package = "gear-common", path = "../../common" }
+rti = { package = "gear-node-rti", path = "../../rti" }
+pallet-gear = {path = "../../pallets/gear"}
+structopt = "0.3.8"
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+sp-runtime = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
+
+[dependencies.frame-support]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+[dependencies.frame-system]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+
+[dependencies.sp-io]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+[dev-dependencies.sp-io]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
+[features]
+default = ['std']
+std = [
+	'codec/std',
+	'frame-support/std',
+	'frame-system/std',
+	'serde'
+]
