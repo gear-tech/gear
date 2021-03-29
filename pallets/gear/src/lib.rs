@@ -12,15 +12,13 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub mod data;
-
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
-	use crate::data::*;
 	use sp_std::prelude::*;
+	use common::{self, Message, Program};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -31,77 +29,6 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
-
-	/// Programs runtime storage
-	#[pallet::storage]
-	#[pallet::getter(fn program)]
-	pub type Programs<T> = StorageMap<
-		_,
-		Identity,
-		H256,
-		Program,
-	>;
-
-	/// Allocationns runtime storage
-	#[pallet::storage]
-	pub type Allocations<T> = StorageMap<
-		_,
-		Identity,
-		u32,
-		H256,
-	>;
-
-	/// Message queue runtime storage
-	#[pallet::storage]
-	pub type MessageQueue<T> = StorageValue<
-		_,
-		Vec<Message>,
-	>;
-
-	pub fn queue_message<T: Config>(message: Message) {
-		let mut messages = <Pallet<T> as Store>::MessageQueue::get().unwrap_or_default();
-		messages.push(message);
-		<Pallet<T> as Store>::MessageQueue::set(Some(messages));
-	}
-
-	pub fn dequeue_message<T: Config>() -> Option<Message> {
-		match <Pallet<T> as Store>::MessageQueue::get() {
-			Some(mut messages) => {
-				if messages.len() > 0 {
-					let dequeued = messages.remove(0);
-					<Pallet<T> as Store>::MessageQueue::set(Some(messages));
-					Some(dequeued)
-				} else {
-					None
-				}
-			},
-			None => None
-		}
-	}
-
-	pub fn get_program<T: Config>(program_id: H256) -> Option<Program> {
-		<Pallet<T> as Store>::Programs::get(program_id)
-	}
-
-	pub fn set_program<T: Config>(id: H256, program: Program) {
-		<Pallet<T> as Store>::Programs::insert(id, program)
-	}
-
-	pub fn remove_program<T: Config>(id: H256) {
-		<Pallet<T> as Store>::Programs::remove(id)
-	}
-
-	pub fn page_info<T: Config>(page: u32) -> Option<H256> {
-		<Pallet<T> as Store>::Allocations::get(page)
-	}
-
-	pub fn alloc<T: Config>(page: u32, program: H256) {
-		<Pallet<T> as Store>::Allocations::insert(page, program)
-	}
-
-	pub fn dealloc<T: Config>(page: u32) {
-		<Pallet<T> as Store>::Allocations::remove(page)
-	}
 
 	#[pallet::event]
 	#[pallet::metadata(T::AccountId = "AccountId")]
@@ -121,7 +48,35 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// Initialization
+		fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
+			0
+		}
+
+		/// Finalization
+		fn on_finalize(_bn: BlockNumberFor<T>) {
+			// At the end of the block, we process all queued messages
+			// TODO: When gas is introduced, processing should be limited to the specific max gas
+			// TODO: When memory regions introduced, processing should be limited to the messages that touch 
+			//       specific pages.
+			loop {
+				match rti::gear_executor::process() {
+					Ok(execution_report) => {
+						if execution_report.handled == 0 { break; }
+
+						for (program_id, payload) in execution_report.log.into_iter() {
+							Self::deposit_event(Event::Log(program_id, payload));
+						}
+					},
+					Err(e) => {
+						println!("Error: {:?}", e);
+						continue;
+					},
+				}
+			}
+		}
+	}
 
 	#[pallet::call]
 	impl<T:Config> Pallet<T> {
@@ -138,9 +93,22 @@ pub mod pallet {
 
 			let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
-			set_program::<T>(id.clone(), program);
+			common::set_program(id.clone(), program);
 
 			Self::deposit_event(Event::NewProgram(id));
+
+			Ok(().into())
+		}
+
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>) -> DispatchResultWithPostInfo {
+			let _who = ensure_signed(origin)?;
+
+			common::queue_message(Message{
+				source: H256::default(),
+				dest: destination,
+				payload: payload,
+			});
 
 			Ok(().into())
 		}

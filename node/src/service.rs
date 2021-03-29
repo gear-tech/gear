@@ -19,7 +19,10 @@ native_executor_instance!(
 	pub Executor,
 	gear_runtime::api::dispatch,
 	gear_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
+	(
+		frame_benchmarking::benchmarking::HostFunctions,
+		gear_node_rti::gear_executor::HostFunctions,
+	),
 );
 
 type FullClient = sc_service::TFullClient<Block, RuntimeApi, Executor>;

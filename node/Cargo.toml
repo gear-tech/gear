@@ -52,6 +52,7 @@ frame-benchmarking = { version = "3.0.0", git = "https://github.com/paritytech/s
 frame-benchmarking-cli = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 
 gear-runtime = { path = "../runtime" }
+gear-node-rti = { path = "../rti" }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
