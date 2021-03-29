@@ -2022,6 +2022,7 @@ dependencies = [
  "sp-core",
  "sp-externalities",
  "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -2035,7 +2036,6 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
- "gear-core",
  "hex-literal",
  "pallet-aura",
  "pallet-balances",

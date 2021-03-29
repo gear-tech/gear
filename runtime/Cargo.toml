@@ -52,8 +52,6 @@ hex-literal = { version = "0.3.1", optional = true }
 
 pallet-gear = { version = "2.0.0", default-features = false, path = "../pallets/gear" }
 
-gear-core = { path = "../../gear-core", optional = true }
-
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0", git = "https://github.com/paritytech/substrate.git" }
 
@@ -86,7 +84,7 @@ std = [
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"pallet-gear/std",
-	"gear-core"
+	"sp-io/std"
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
