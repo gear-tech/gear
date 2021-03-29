@@ -2035,7 +2035,6 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
- "gear-core",
  "hex-literal",
  "pallet-aura",
  "pallet-balances",

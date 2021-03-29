@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 common = { package = "gear-common", path = "../../common" }
-rti = { package = "gear-node-rti", path = "../../rti" }
+rti = { package = "gear-node-rti", path = "../../rti", default-features = false }
 
 [dev-dependencies]
 serde = "1.0.101"
@@ -64,5 +64,6 @@ default = ['std']
 std = [
 	'codec/std',
 	'frame-support/std',
-	'frame-system/std'
+	'frame-system/std',
+	'rti/std'
 ]
