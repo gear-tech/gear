@@ -32,7 +32,6 @@ default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
 
-
 [dependencies.sp-core]
 default-features = false
 version = "3.0.0"
@@ -48,16 +47,10 @@ default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
 
-[dev-dependencies.sp-io]
-default-features = false
-version = "3.0.0"
-git = "https://github.com/paritytech/substrate.git"
-
 [dev-dependencies.sp-runtime]
 default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
-
 
 [features]
 default = ['std']
@@ -65,5 +58,8 @@ std = [
 	'codec/std',
 	'frame-support/std',
 	'frame-system/std',
-	'rti/std'
+	'rti/std',
+	'sp-io/std',
+	'sp-std/std',
+	'sp-core/std',
 ]

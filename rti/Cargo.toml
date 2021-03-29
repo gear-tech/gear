@@ -22,4 +22,11 @@ log = "0.4"
 
 [features]
 default = ["std"]
-std = ["gear-core"]
+std = [
+    "gear-core",
+    "sp-core/std",
+    "codec/std",
+    "gear-common/std",
+    "sp-externalities/std",
+    "sp-runtime-interface/std",
+]
