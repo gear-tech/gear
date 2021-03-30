@@ -1979,15 +1979,11 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-node-rti",
- "pallet-gear",
+ "gear-runtime",
  "parity-scale-codec",
  "sc-cli",
- "sc-executor",
  "sc-service",
  "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
  "structopt",
 ]
 
