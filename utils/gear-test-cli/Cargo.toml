@@ -30,14 +30,3 @@ git = "https://github.com/paritytech/substrate.git"
 default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
-
-[dev-dependencies]
-
-[features]
-default = ['std']
-std = [
-	'codec/std',
-	'frame-support/std',
-	'frame-system/std',
-	'serde',
-]
