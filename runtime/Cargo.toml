@@ -84,7 +84,6 @@ std = [
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"pallet-gear/std",
-	"sp-io/std"
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
