@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 #[cfg(feature = "std")]
 mod ext;
 
@@ -6,8 +8,12 @@ mod runner;
 
 use sp_runtime_interface::runtime_interface;
 use codec::{Encode, Decode};
-use gear_core::storage::Storage;
 use sp_core::H256;
+
+#[cfg(not(feature = "std"))]
+use sp_std::prelude::Vec;
+#[cfg(feature = "std")]
+use gear_core::storage::Storage;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {

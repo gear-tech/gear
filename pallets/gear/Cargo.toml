@@ -14,8 +14,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
-common = { package = "gear-common", path = "../../common" }
-rti = { package = "gear-node-rti", path = "../../rti" }
+common = { package = "gear-common", path = "../../common", default-features = false }
+rti = { package = "gear-node-rti", path = "../../rti", default-features = false }
 
 [dev-dependencies]
 serde = "1.0.101"
@@ -32,7 +32,6 @@ default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
 
-
 [dependencies.sp-core]
 default-features = false
 version = "3.0.0"
@@ -48,21 +47,21 @@ default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
 
-[dev-dependencies.sp-io]
-default-features = false
-version = "3.0.0"
-git = "https://github.com/paritytech/substrate.git"
-
 [dev-dependencies.sp-runtime]
 default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
-
 
 [features]
 default = ['std']
 std = [
 	'codec/std',
 	'frame-support/std',
-	'frame-system/std'
+	'frame-system/std',
+	'rti/std',
+	'sp-io/std',
+	'sp-std/std',
+	'sp-core/std',
+	'sp-runtime/std',
+	'common/std',
 ]

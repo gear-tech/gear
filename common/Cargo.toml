@@ -27,4 +27,10 @@ git = "https://github.com/paritytech/substrate.git"
 
 [features]
 default = ["std"]
-std = ["sp-core/std", "sp-std/std", "sp-io/std", "gear-core"]
+std = [
+    "sp-core/std", 
+    "sp-std/std", 
+    "sp-io/std", 
+    "gear-core",
+    "codec/std",
+]

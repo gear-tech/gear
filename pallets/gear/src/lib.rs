@@ -69,8 +69,8 @@ pub mod pallet {
 							Self::deposit_event(Event::Log(program_id, payload));
 						}
 					},
-					Err(e) => {
-						println!("Error: {:?}", e);
+					Err(_e) => {
+						// TODO: make error event log record
 						continue;
 					},
 				}
