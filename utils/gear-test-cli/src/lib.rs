@@ -1,4 +1,3 @@
-#![cfg_attr(not(feature = "std"), no_std)]
 use std::fmt::Debug;
 
 mod command;
@@ -9,10 +8,8 @@ mod command;
 pub struct GearTestCmd {
 	/// Input json file for testing.
 	pub input: Option<std::path::PathBuf>,
-
-
+	
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
 	pub shared_params: sc_cli::SharedParams,
-
 }

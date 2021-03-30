@@ -1984,6 +1984,7 @@ dependencies = [
  "sc-cli",
  "sc-service",
  "serde",
+ "sp-io",
  "structopt",
 ]
 
