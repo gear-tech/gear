@@ -12,8 +12,6 @@ pub fn queue_message(message: Message) {
         payload: message.payload.into_raw(),
     };
 
-    dbg!(&message);
-
     crate::queue_message(message)
 }
 
