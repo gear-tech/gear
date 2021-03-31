@@ -8,7 +8,7 @@ mod test_runner;
 /// The `benchmark` command used to benchmark FRAME Pallets.
 #[derive(Debug, structopt::StructOpt)]
 pub struct GearTestCmd {
-	/// Input json file for testing.
+	/// Input dir/file with json for testing.
 	pub input: Option<std::path::PathBuf>,
 	
 	#[allow(missing_docs)]
