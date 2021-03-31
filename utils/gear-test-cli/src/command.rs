@@ -4,9 +4,8 @@ use sc_service::Configuration;
 use std::fs;
 
 use gear_core::{
-    memory::PageNumber,
     message::Message,
-    program::{Program, ProgramId},
+    program::ProgramId,
     storage::{AllocationStorage, ProgramStorage},
 };
 
@@ -24,8 +23,6 @@ fn check_messages(
     messages: &[Message],
     expected_messages: &[crate::sample::Message],
 ) -> Result<(), Vec<String>> {
-    dbg!(&messages);
-    dbg!(&expected_messages);
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
         errors.push("Expectation error (messages count doesn't match)".to_string());
@@ -130,7 +127,7 @@ fn check_memory(
 }
 
 impl GearTestCmd {
-    /// Runs the command and benchmarks the chain.
+    /// Runs tests from json files.
     pub fn run(&self, config: Configuration) -> sc_cli::Result<()> {
         let mut total_fixtures: usize = 0;
         let mut total_failed = 0i32;
@@ -157,7 +154,7 @@ impl GearTestCmd {
                     let output = match test_runner::init_fixture(&mut ext, &test, fixture_no) {
                         Ok(initialized_fixture) => {
                             match test_runner::run(&mut ext, initialized_fixture, exp.step) {
-                                Ok((mut final_state, persistent_memory)) => {
+                                Ok((final_state, persistent_memory)) => {
                                     let mut errors = Vec::new();
                                     if let Some(messages) = &exp.messages {
                                         if let Err(msg_errors) =
@@ -177,7 +174,7 @@ impl GearTestCmd {
                                     if let Some(mem) = &exp.memory {
                                         if let Err(mem_errors) = check_memory(&mut ext,
                                             &persistent_memory,
-                                            &mut final_state.program_storage,
+                                            &final_state.program_storage,
                                             mem,
                                         ) {
                                             errors.extend(mem_errors);
@@ -188,7 +185,7 @@ impl GearTestCmd {
                                         total_failed += 1;
                                         errors.join("\n")
                                     } else {
-                                        format!("Ok")
+                                        "Ok".to_string()
                                     }
                                 }
                                 Err(e) => {

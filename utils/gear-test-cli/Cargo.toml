@@ -7,12 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gear-core = { path = "../../../gear-core" }
 sc-cli = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git" }
 sc-service = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git" }
 sp-io = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
-common = { package = "gear-common", path = "../../common" }
-rti = { package = "gear-node-rti", path = "../../rti"}
+gear-core = { path = "../../../gear-core" }
+rti = { package = "gear-node-rti", path = "../../rti" }
 gear-runtime = { path = "../../runtime" }
 codec = { version = "2.0.0", package = "parity-scale-codec" }
 structopt = "0.3.8"
@@ -21,10 +20,6 @@ serde_json = "1.0.64"
 hex = "0.4.3"
 anyhow = "1.0.40"
 
-[dependencies.frame-support]
-default-features = false
-version = "3.0.0"
-git = "https://github.com/paritytech/substrate.git"
 
 [dependencies.frame-system]
 default-features = false

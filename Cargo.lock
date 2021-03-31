@@ -1976,9 +1976,7 @@ name = "gear-test-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "frame-support",
  "frame-system",
- "gear-common",
  "gear-core",
  "gear-node-rti",
  "gear-runtime",

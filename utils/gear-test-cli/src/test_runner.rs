@@ -1,17 +1,11 @@
 use crate::sample::Test;
-use codec::{Decode, Encode};
-use common::*;
-use rti::runner::ExtRunner;
+use codec::Decode;
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
+use rti::runner::ExtRunner;
 
 use gear_core::{
-    memory::PageNumber,
     message::Message,
-    program::{Program, ProgramId},
-    storage::{
-        new_in_memory, InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage,
-        InMemoryStorage, Storage,
-    },
+    storage::Storage,
 };
 
 use frame_system as system;
@@ -83,9 +77,7 @@ pub fn run(
             },
             persistent_memory,
         ) = runner.complete();
-        // sort allocation_storage for tests
-        // let mut allocation_storage = allocation_storage.drain();
-        // allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
+        
         Ok((
             FinalState {
                 message_queue,
