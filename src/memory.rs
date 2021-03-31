@@ -144,10 +144,6 @@ impl<AS: AllocationStorage> Allocations<AS> {
         Ok(Rc::try_unwrap(self.0).map_err(|_| Error::AllocationsInUse)?.into_inner())
     }
 
-    pub fn clear(&self, program_id: ProgramId) {
-        self.0.borrow_mut().clear(program_id)
-    }
-
 }
 
 pub struct MemoryContext<AS: AllocationStorage> {
