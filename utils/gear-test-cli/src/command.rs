@@ -3,7 +3,11 @@ use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use std::fs;
 
-use gear_core::{memory::PageNumber, message::Message, program::ProgramId};
+use gear_core::{
+    memory::PageNumber,
+    message::Message,
+    program::{Program, ProgramId},
+};
 
 use crate::sample::Test;
 use crate::test_runner;
@@ -18,6 +22,8 @@ fn check_messages(
     messages: &[Message],
     expected_messages: &[crate::sample::Message],
 ) -> Result<(), Vec<String>> {
+    dbg!(&messages);
+    dbg!(&expected_messages);
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
         errors.push("Expectation error (messages count doesn't match)".to_string());
@@ -38,6 +44,49 @@ fn check_messages(
             });
     }
 
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn check_memory(
+    persistent_memory: &[u8],
+    program_storage: &mut Vec<Program>,
+    expected_memory: &[crate::sample::MemoryVariant],
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    for case in expected_memory {
+        match case {
+            crate::sample::MemoryVariant::Static(case) => {
+                if let Some(id) = case.program_id {
+                    for p in &mut *program_storage {
+                        if p.id() == ProgramId::from(id)
+                            && p.static_pages()[case.address..case.address + case.bytes.len()]
+                                != case.bytes
+                        {
+                            errors.push(
+                                "Expectation error (Static memory doesn't match)".to_string(),
+                            );
+                        }
+                    }
+                }
+            }
+            crate::sample::MemoryVariant::Shared(case) => {
+                let offset = 256 * 65536;
+                if persistent_memory
+                    [case.address - offset..case.address - offset + case.bytes.len()]
+                    != case.bytes
+                {
+                    dbg!(&case.bytes);
+                    dbg!(&persistent_memory
+                        [case.address - offset..case.address - offset + case.bytes.len()]);
+                    errors.push("Expectation error (Shared memory doesn't match)".to_string());
+                }
+            }
+        }
+    }
     if errors.is_empty() {
         Ok(())
     } else {
@@ -89,15 +138,15 @@ impl GearTestCmd {
                                     //         errors.extend(alloc_errors);
                                     //     }
                                     // }
-                                    // if let Some(mem) = &exp.memory {
-                                    //     if let Err(mem_errors) = check_memory(
-                                    //         &persistent_memory,
-                                    //         &mut final_state.program_storage,
-                                    //         mem,
-                                    //     ) {
-                                    //         errors.extend(mem_errors);
-                                    //     }
-                                    // }
+                                    if let Some(mem) = &exp.memory {
+                                        if let Err(mem_errors) = check_memory(
+                                            &persistent_memory,
+                                            &mut final_state.program_storage,
+                                            mem,
+                                        ) {
+                                            errors.extend(mem_errors);
+                                        }
+                                    }
 
                                     if !errors.is_empty() {
                                         total_failed += 1;
