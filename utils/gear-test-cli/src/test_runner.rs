@@ -52,7 +52,7 @@ pub fn init_fixture(
 }
 
 pub struct FinalState {
-    pub log: Vec<Message>,
+    pub message_queue: Vec<Message>,
     pub allocation_storage: Vec<(PageNumber, ProgramId)>,
     pub program_storage: Vec<Program>,
 }
@@ -87,11 +87,11 @@ pub fn run(
         // allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
         Ok((
             FinalState {
-                log: message_queue,
+                message_queue: message_queue,
                 allocation_storage: Vec::new(),
                 program_storage: Vec::new(),
             },
-            Vec::new(),
+            persistent_memory,
         ))
     })
 }

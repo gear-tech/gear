@@ -77,7 +77,7 @@ impl GearTestCmd {
                                     let mut errors = Vec::new();
                                     if let Some(messages) = &exp.messages {
                                         if let Err(msg_errors) =
-                                            check_messages(&final_state.log, messages)
+                                            check_messages(&final_state.message_queue, messages)
                                         {
                                             errors.extend(msg_errors);
                                         }
