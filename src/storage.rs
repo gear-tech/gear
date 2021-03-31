@@ -98,8 +98,6 @@ pub trait AllocationStorage {
     fn exists(&self, id: PageNumber) -> bool {
         self.get(id).is_some()
     }
-
-    fn clear(&mut self, program_id: ProgramId);
 }
 
 pub struct InMemoryAllocationStorage {
@@ -127,10 +125,6 @@ impl AllocationStorage for InMemoryAllocationStorage {
 
     fn set(&mut self, page: PageNumber, program: ProgramId) {
         self.inner.insert(page, program);
-    }
-
-    fn clear(&mut self, program_id: ProgramId) {
-        self.inner.retain(|_, pid| *pid != program_id);
     }
 }
 

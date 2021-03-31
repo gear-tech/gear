@@ -159,8 +159,6 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             self.program_storage.set(Program::new(program_id, code, vec![]));
         }
 
-        self.allocations.clear(program_id);
-
         let mut context = self.create_context();
         let mut program = self
             .program_storage
