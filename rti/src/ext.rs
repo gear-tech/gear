@@ -27,10 +27,6 @@ impl AllocationStorage for ExtAllocationStorage {
     fn set(&mut self, page: PageNumber, program: ProgramId) {
         gear_common::native::alloc(page.raw(), program)
     }
-
-    fn clear(&mut self, _program_id: ProgramId) {
-        unimplemented!()
-    }
 }
 
 impl ProgramStorage for ExtProgramStorage {
