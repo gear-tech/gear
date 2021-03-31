@@ -7,7 +7,7 @@ use gear_core::{
     memory::PageNumber,
     message::Message,
     program::{Program, ProgramId},
-    storage::ProgramStorage,
+    storage::{AllocationStorage, ProgramStorage},
 };
 
 use crate::sample::Test;
@@ -53,7 +53,53 @@ fn check_messages(
     }
 }
 
+fn check_allocations(
+    ext: &mut sp_io::TestExternalities,
+    allocations: &ExtAllocationStorage,
+    expected_pages: &[crate::sample::AllocationStorage],
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    ext.execute_with(|| {
+
+        for page in expected_pages {
+            if let Some(program_id) = allocations.get(page.page_num.into()) {
+                if program_id != page.program_id.into() {
+                    errors.push(format!(
+                        "Expectation error (ProgramId doesn't match, expected: {:?}, found: {:?})\n",
+                        program_id, page.program_id
+                    ));
+                }
+            }
+        }
+        // expected_pages
+        //     .iter()
+        //     .zip(pages.iter())
+        //     .for_each(|(exp, page)| {
+        //         if exp.page_num != page.0.raw() {
+        //             errors.push(format!(
+        //                 "Expectation error (PageNumber doesn't match, expected: {}, found: {})",
+        //                 exp.page_num,
+        //                 page.0.raw()
+        //             ));
+        //         }
+        //         if ProgramId::from(exp.program_id) != page.1 {
+        //             errors.push(format!(
+        //                 "Expectation error (ProgramId doesn't match, expected: {}, found: {:?})\n",
+        //                 exp.program_id, page.1
+        //             ));
+        //         }
+        //     });
+    
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    })
+}
+
 fn check_memory(
+    ext: &mut sp_io::TestExternalities,
     persistent_memory: &[u8],
     program_storage: &ExtProgramStorage,
     expected_memory: &[crate::sample::MemoryVariant],
@@ -62,18 +108,21 @@ fn check_memory(
     for case in expected_memory {
         match case {
             crate::sample::MemoryVariant::Static(case) => {
-                if let Some(id) = case.program_id {
-                    if let Some(program) = program_storage.get(ProgramId::from(id)) {
-                        if program.id() == ProgramId::from(id)
-                            && program.static_pages()[case.address..case.address + case.bytes.len()]
-                                != case.bytes
-                        {
-                            errors.push(
-                                "Expectation error (Static memory doesn't match)".to_string(),
-                            );
+                ext.execute_with(|| {
+                    if let Some(id) = case.program_id {
+                        if let Some(program) = program_storage.get(ProgramId::from(id)) {
+                            if program.id() == ProgramId::from(id)
+                                && program.static_pages()[case.address..case.address + case.bytes.len()]
+                                    != case.bytes
+                            {
+                                errors.push(
+                                    "Expectation error (Static memory doesn't match)".to_string(),
+                                );
+                            }
                         }
                     }
-                }
+                });
+                
             }
             crate::sample::MemoryVariant::Shared(case) => {
                 let offset = 256 * 65536;
@@ -130,15 +179,16 @@ impl GearTestCmd {
                                             errors.extend(msg_errors);
                                         }
                                     }
-                                    // if let Some(alloc) = &exp.allocations {
-                                    //     if let Err(alloc_errors) =
-                                    //         check_allocations(&final_state.allocation_storage, alloc)
-                                    //     {
-                                    //         errors.extend(alloc_errors);
-                                    //     }
-                                    // }
+                                    if let Some(alloc) = &exp.allocations {
+                                        if let Err(alloc_errors) = check_allocations(&mut ext,
+                                            &final_state.allocation_storage,
+                                            alloc,
+                                        ) {
+                                            errors.extend(alloc_errors);
+                                        }
+                                    }
                                     if let Some(mem) = &exp.memory {
-                                        if let Err(mem_errors) = check_memory(
+                                        if let Err(mem_errors) = check_memory(&mut ext,
                                             &persistent_memory,
                                             &mut final_state.program_storage,
                                             mem,
