@@ -3,11 +3,7 @@ use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use std::fs;
 
-use gear_core::{
-    memory::PageNumber,
-    message::Message,
-    program::ProgramId
-};
+use gear_core::{memory::PageNumber, message::Message, program::ProgramId};
 
 use crate::sample::Test;
 use crate::test_runner;
@@ -49,11 +45,9 @@ fn check_messages(
     }
 }
 
-
 impl GearTestCmd {
     /// Runs the command and benchmarks the chain.
     pub fn run(&self, config: Configuration) -> sc_cli::Result<()> {
-        println!("{:?}", self.input);
         let mut total_fixtures: usize = 0;
         let mut total_failed = 0i32;
         let mut tests = Vec::new();
@@ -61,7 +55,6 @@ impl GearTestCmd {
             if input.is_dir() {
                 for entry in input.read_dir().expect("read_dir call failed") {
                     if let Ok(entry) = entry {
-                        println!("{:?}", entry.path());
                         tests.push(read_test_from_file(&entry.path())?);
                     }
                 }
@@ -75,10 +68,11 @@ impl GearTestCmd {
 
         for test in tests {
             for fixture_no in 0..test.fixtures.len() {
+                let mut ext = crate::test_runner::new_test_ext();
                 for exp in &test.fixtures[fixture_no].expected {
-                    let output = match test_runner::init_fixture(&test, fixture_no) {
+                    let output = match test_runner::init_fixture(&mut ext, &test, fixture_no) {
                         Ok(initialized_fixture) => {
-                            match test_runner::run(initialized_fixture, exp.step) {
+                            match test_runner::run(&mut ext, initialized_fixture, exp.step) {
                                 Ok((mut final_state, persistent_memory)) => {
                                     let mut errors = Vec::new();
                                     if let Some(messages) = &exp.messages {
