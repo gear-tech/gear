@@ -1,4 +1,4 @@
-use crate::GearTestCmd;
+use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use std::fs;
@@ -7,10 +7,12 @@ use gear_core::{
     memory::PageNumber,
     message::Message,
     program::{Program, ProgramId},
+    storage::ProgramStorage,
 };
 
 use crate::sample::Test;
 use crate::test_runner;
+use crate::GearTestCmd;
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Test, std::io::Error> {
     let file = fs::File::open(path)?;
@@ -53,7 +55,7 @@ fn check_messages(
 
 fn check_memory(
     persistent_memory: &[u8],
-    program_storage: &mut Vec<Program>,
+    program_storage: &ExtProgramStorage,
     expected_memory: &[crate::sample::MemoryVariant],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
@@ -61,9 +63,9 @@ fn check_memory(
         match case {
             crate::sample::MemoryVariant::Static(case) => {
                 if let Some(id) = case.program_id {
-                    for p in &mut *program_storage {
-                        if p.id() == ProgramId::from(id)
-                            && p.static_pages()[case.address..case.address + case.bytes.len()]
+                    if let Some(program) = program_storage.get(ProgramId::from(id)) {
+                        if program.id() == ProgramId::from(id)
+                            && program.static_pages()[case.address..case.address + case.bytes.len()]
                                 != case.bytes
                         {
                             errors.push(
@@ -79,9 +81,6 @@ fn check_memory(
                     [case.address - offset..case.address - offset + case.bytes.len()]
                     != case.bytes
                 {
-                    dbg!(&case.bytes);
-                    dbg!(&persistent_memory
-                        [case.address - offset..case.address - offset + case.bytes.len()]);
                     errors.push("Expectation error (Shared memory doesn't match)".to_string());
                 }
             }

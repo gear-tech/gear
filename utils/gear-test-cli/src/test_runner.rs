@@ -2,6 +2,7 @@ use crate::sample::Test;
 use codec::{Decode, Encode};
 use common::*;
 use rti::runner::ExtRunner;
+use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 
 use gear_core::{
     memory::PageNumber,
@@ -53,8 +54,8 @@ pub fn init_fixture(
 
 pub struct FinalState {
     pub message_queue: Vec<Message>,
-    pub allocation_storage: Vec<(PageNumber, ProgramId)>,
-    pub program_storage: Vec<Program>,
+    pub allocation_storage: ExtAllocationStorage,
+    pub program_storage: ExtProgramStorage,
 }
 
 pub fn run(
@@ -87,9 +88,9 @@ pub fn run(
         // allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
         Ok((
             FinalState {
-                message_queue: message_queue,
-                allocation_storage: Vec::new(),
-                program_storage: Vec::new(),
+                message_queue,
+                allocation_storage,
+                program_storage,
             },
             persistent_memory,
         ))
