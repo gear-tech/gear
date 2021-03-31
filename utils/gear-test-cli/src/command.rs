@@ -69,27 +69,14 @@ fn check_allocations(
                         program_id, page.program_id
                     ));
                 }
+            } else {
+                errors.push(format!(
+                                    "Expectation error (PageNumber({}) doesn't exist)",
+                                    page.page_num,
+                                ));
             }
         }
-        // expected_pages
-        //     .iter()
-        //     .zip(pages.iter())
-        //     .for_each(|(exp, page)| {
-        //         if exp.page_num != page.0.raw() {
-        //             errors.push(format!(
-        //                 "Expectation error (PageNumber doesn't match, expected: {}, found: {})",
-        //                 exp.page_num,
-        //                 page.0.raw()
-        //             ));
-        //         }
-        //         if ProgramId::from(exp.program_id) != page.1 {
-        //             errors.push(format!(
-        //                 "Expectation error (ProgramId doesn't match, expected: {}, found: {:?})\n",
-        //                 exp.program_id, page.1
-        //             ));
-        //         }
-        //     });
-    
+
         if errors.is_empty() {
             Ok(())
         } else {
@@ -165,8 +152,8 @@ impl GearTestCmd {
 
         for test in tests {
             for fixture_no in 0..test.fixtures.len() {
-                let mut ext = crate::test_runner::new_test_ext();
                 for exp in &test.fixtures[fixture_no].expected {
+                    let mut ext = crate::test_runner::new_test_ext();
                     let output = match test_runner::init_fixture(&mut ext, &test, fixture_no) {
                         Ok(initialized_fixture) => {
                             match test_runner::run(&mut ext, initialized_fixture, exp.step) {
