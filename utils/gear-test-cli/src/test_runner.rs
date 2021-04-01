@@ -1,4 +1,3 @@
-use crate::sample::Test;
 use codec::Decode;
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use rti::runner::ExtRunner;
@@ -75,7 +74,7 @@ pub fn run(
             },
             persistent_memory,
         ) = runner.complete();
-        
+
         Ok((
             FinalState {
                 message_queue,

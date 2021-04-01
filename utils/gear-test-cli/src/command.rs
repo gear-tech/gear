@@ -2,6 +2,7 @@ use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use std::fs;
+use termion::{color, style};
 
 use gear_core::{
     message::Message,
@@ -107,7 +108,6 @@ fn check_memory(
                         }
                     }
                 });
-                
             }
             sample::MemoryVariant::Shared(case) => {
                 let offset = 256 * 65536;
@@ -186,24 +186,42 @@ impl GearTestCmd {
 
                                     if !errors.is_empty() {
                                         total_failed += 1;
+                                        errors.insert(0, format!("{}", color::Fg(color::Red)));
+                                        errors.insert(errors.len(), format!("{}", style::Reset));
                                         errors.join("\n")
                                     } else {
-                                        "Ok".to_string()
+                                        format!("{}Ok{}", color::Fg(color::Green), style::Reset)
                                     }
                                 }
                                 Err(e) => {
                                     total_failed += 1;
-                                    format!("Running error ({})", e)
+                                    format!(
+                                        "{}Running error ({}){}",
+                                        color::Fg(color::Red),
+                                        e,
+                                        style::Reset
+                                    )
                                 }
                             }
                         }
                         Err(e) => {
                             total_failed += 1;
-                            format!("Initialization error ({})", e,)
+                            format!(
+                                "{}Initialization error ({}){}",
+                                color::Fg(color::Red),
+                                e,
+                                style::Reset
+                            )
                         }
                     };
 
-                    println!("Fixture {}: {}", test.fixtures[fixture_no].title, output);
+                    println!(
+                        "Fixture {}{}{}: {}",
+                        style::Bold,
+                        test.fixtures[fixture_no].title,
+                        style::Reset,
+                        output
+                    );
                 }
             }
         }
