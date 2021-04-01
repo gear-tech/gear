@@ -8,12 +8,12 @@ use gear_core::{
     program::ProgramId,
     storage::{AllocationStorage, ProgramStorage},
 };
+use test_gear::sample;
 
-use crate::sample::Test;
 use crate::test_runner;
 use crate::GearTestCmd;
 
-fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Test, std::io::Error> {
+fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> Result<sample::Test, std::io::Error> {
     let file = fs::File::open(path)?;
     let u = serde_json::from_reader(file)?;
     Ok(u)
@@ -21,7 +21,7 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> Result<Test, std::
 
 fn check_messages(
     messages: &[Message],
-    expected_messages: &[crate::sample::Message],
+    expected_messages: &[sample::Message],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
@@ -53,7 +53,7 @@ fn check_messages(
 fn check_allocations(
     ext: &mut sp_io::TestExternalities,
     allocations: &ExtAllocationStorage,
-    expected_pages: &[crate::sample::AllocationStorage],
+    expected_pages: &[sample::AllocationStorage],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     ext.execute_with(|| {
@@ -86,17 +86,18 @@ fn check_memory(
     ext: &mut sp_io::TestExternalities,
     persistent_memory: &[u8],
     program_storage: &ExtProgramStorage,
-    expected_memory: &[crate::sample::MemoryVariant],
+    expected_memory: &[sample::MemoryVariant],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
         match case {
-            crate::sample::MemoryVariant::Static(case) => {
+            sample::MemoryVariant::Static(case) => {
                 ext.execute_with(|| {
                     if let Some(id) = case.program_id {
                         if let Some(program) = program_storage.get(ProgramId::from(id)) {
                             if program.id() == ProgramId::from(id)
-                                && program.static_pages()[case.address..case.address + case.bytes.len()]
+                                && program.static_pages()
+                                    [case.address..case.address + case.bytes.len()]
                                     != case.bytes
                             {
                                 errors.push(
@@ -108,7 +109,7 @@ fn check_memory(
                 });
                 
             }
-            crate::sample::MemoryVariant::Shared(case) => {
+            sample::MemoryVariant::Shared(case) => {
                 let offset = 256 * 65536;
                 if persistent_memory
                     [case.address - offset..case.address - offset + case.bytes.len()]
@@ -164,7 +165,8 @@ impl GearTestCmd {
                                         }
                                     }
                                     if let Some(alloc) = &exp.allocations {
-                                        if let Err(alloc_errors) = check_allocations(&mut ext,
+                                        if let Err(alloc_errors) = check_allocations(
+                                            &mut ext,
                                             &final_state.allocation_storage,
                                             alloc,
                                         ) {
@@ -172,7 +174,8 @@ impl GearTestCmd {
                                         }
                                     }
                                     if let Some(mem) = &exp.memory {
-                                        if let Err(mem_errors) = check_memory(&mut ext,
+                                        if let Err(mem_errors) = check_memory(
+                                            &mut ext,
                                             &persistent_memory,
                                             &final_state.program_storage,
                                             mem,

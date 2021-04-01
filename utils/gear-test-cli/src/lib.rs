@@ -1,9 +1,7 @@
 use std::fmt::Debug;
 
 mod command;
-mod sample;
 mod test_runner;
-// mod mock;
 
 /// The `benchmark` command used to benchmark FRAME Pallets.
 #[derive(Debug, structopt::StructOpt)]
