@@ -125,6 +125,11 @@ pub fn run() -> sc_cli::Result<()> {
 				You can enable it with `--features runtime-benchmarks`.".into())
 			}
 		},
+		Some(Subcommand::GearTest(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+
+			runner.sync_run(|config| cmd.run(config))
+		},
 		None => {
 			let runner = cli.create_runner(&cli.run)?;
 			runner.run_node_until_exit(|config| async move {

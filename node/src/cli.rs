@@ -38,4 +38,7 @@ pub enum Subcommand {
 	/// The custom benchmark subcommmand benchmarking runtime pallets.
 	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	#[structopt(name = "runtests", about = "Run gear tests with json.")]
+	GearTest(gear_test_cli::GearTestCmd),
 }
