@@ -25,6 +25,12 @@ jobs:
         repository: 'gear-computing/gear-core'
         token: ${{ secrets.GEAR_PAT }}
         path: gear-core
+    - uses: actions/checkout@v2
+      name: "Checkout test-gear"
+      with:
+        repository: 'gear-computing/test-gear'
+        token: ${{ secrets.GEAR_PAT }}
+        path: test-gear
     - name: Install latest nightly & WASM toolchain
       uses: actions-rs/toolchain@v1
       with:
