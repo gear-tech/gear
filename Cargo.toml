@@ -20,3 +20,7 @@ members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-fib", "test-g
 [[bin]]
 name = "gtest"
 path = "src/main.rs"
+
+[profile.release]
+lto = true
+opt-level = 's'
