@@ -1982,16 +1982,14 @@ dependencies = [
  "gear-core",
  "gear-node-rti",
  "gear-runtime",
- "hex",
  "parity-scale-codec",
  "sc-cli",
  "sc-service",
- "serde",
  "serde_json",
  "sp-io",
  "structopt",
  "termion",
- "test-gear",
+ "test-gear-sample",
 ]
 
 [[package]]
@@ -3874,6 +3872,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-core",
+ "sp-inherents",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -7265,16 +7264,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-gear"
+name = "test-gear-sample"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "env_logger 0.8.3",
- "gear-core",
  "hex",
  "serde",
  "serde_json",
- "termion",
 ]
 
 [[package]]
