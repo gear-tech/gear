@@ -1982,16 +1982,14 @@ dependencies = [
  "gear-core",
  "gear-node-rti",
  "gear-runtime",
- "hex",
  "parity-scale-codec",
  "sc-cli",
  "sc-service",
- "serde",
  "serde_json",
  "sp-io",
  "structopt",
  "termion",
- "test-gear",
+ "test-gear-sample",
 ]
 
 [[package]]
@@ -7262,18 +7260,6 @@ dependencies = [
  "numtoa",
  "redox_syscall 0.2.5",
  "redox_termios",
-]
-
-[[package]]
-name = "test-gear"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "env_logger 0.8.3",
- "gear-core",
- "serde_json",
- "termion",
- "test-gear-sample",
 ]
 
 [[package]]
