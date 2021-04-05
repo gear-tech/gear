@@ -1,5 +1,4 @@
 use crate::mock::*;
-use frame_support::traits::OnFinalize;
 use sp_core::H256;
 use common::{self, Program, Message};
 
