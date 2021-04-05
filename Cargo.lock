@@ -7271,10 +7271,18 @@ dependencies = [
  "anyhow",
  "env_logger 0.8.3",
  "gear-core",
+ "serde_json",
+ "termion",
+ "test-gear-sample",
+]
+
+[[package]]
+name = "test-gear-sample"
+version = "0.1.0"
+dependencies = [
  "hex",
  "serde",
  "serde_json",
- "termion",
 ]
 
 [[package]]
