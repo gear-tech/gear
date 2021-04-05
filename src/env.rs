@@ -109,6 +109,7 @@ pub trait Ext {
     fn memory_access(&self, page: PageNumber) -> PageAction;
     fn memory_lock(&self);
     fn memory_unlock(&self);
+    fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 }
 
 struct LaterExt<E: Ext> {
@@ -159,6 +160,7 @@ pub struct Environment<E: Ext + 'static> {
     size: Func,
     read: Func,
     debug: Func,
+    gas: Func,
 }
 
 impl<E: Ext + 'static> Environment<E> {
@@ -187,16 +189,17 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(
                 &store,
-                move |program_id_ptr: i32, message_ptr: i32, message_len: i32| {
+                move |program_id_ptr: i32, message_ptr: i32, message_len: i32, gas_limit: i64| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     if let Err(_) = ext.with(|ext: &mut E| {
                         let data = ext.get_mem(message_ptr, message_len).to_vec();
                         let program_id = ProgramId::from_slice(ext.get_mem(program_id_ptr as isize as _, 32));
-                        
+
                         ext.send(OutgoingMessage::new(
                             program_id,
                             data.into(),
+                            gas_limit as _,
                         ))
                     }) {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
@@ -241,6 +244,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         let debug = {
             let ext = ext.clone();
+
             Func::wrap(
                 &store,
                 move |str_ptr: i32, str_len: i32| {
@@ -250,7 +254,6 @@ impl<E: Ext + 'static> Environment<E> {
                         let debug_str = unsafe { String::from_utf8_unchecked(ext.get_mem(str_ptr, str_len).to_vec()) };
                         log::debug!("DEBUG: {}", debug_str);
                     });
-
                     Ok(())
                 },
             )
@@ -267,7 +270,29 @@ impl<E: Ext + 'static> Environment<E> {
             })
         };
 
-        Self { store, ext, alloc, send, free, size, read, debug, source }
+        let gas = {
+            let ext = ext.clone();
+            Func::wrap(&store, move |val: i32| {
+                if let Err(_) = ext.with(|ext: &mut E| ext.gas(val as _)) {
+                    Err(wasmtime::Trap::new("Trapping: unable to send message"))
+                } else {
+                    Ok(())
+                }
+            })
+        };
+
+        Self {
+            store,
+            ext,
+            alloc,
+            send,
+            free,
+            size,
+            read,
+            debug,
+            source,
+            gas,
+        }
     }
 
     fn run_inner(
@@ -288,27 +313,29 @@ impl<E: Ext + 'static> Environment<E> {
             )
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-            for (ref import_name, ref mut ext) in imports.iter_mut() {
-                *ext = if import_name == &Some("send") {
-                    Some(self.send.clone().into())
-                } else if import_name == &Some("source") {
-                    Some(self.source.clone().into())
-                } else if import_name == &Some("alloc") {
-                    Some(self.alloc.clone().into())
-                } else if import_name == &Some("free") {
-                    Some(self.free.clone().into())
-                } else if import_name == &Some("size") {
-                    Some(self.size.clone().into())
-                } else if import_name == &Some("read") {
-                    Some(self.read.clone().into())
-                } else if import_name == &Some("debug") {
-                    Some(self.debug.clone().into())
-                } else if import_name == &Some("memory") {
-                    Some(memory.clone().into())
-                } else {
-                    continue;
-                };
-            }
+        for (ref import_name, ref mut ext) in imports.iter_mut() {
+            *ext = if import_name == &Some("send") {
+                Some(self.send.clone().into())
+            } else if import_name == &Some("source") {
+                Some(self.source.clone().into())
+            } else if import_name == &Some("alloc") {
+                Some(self.alloc.clone().into())
+            } else if import_name == &Some("free") {
+                Some(self.free.clone().into())
+            } else if import_name == &Some("size") {
+                Some(self.size.clone().into())
+            } else if import_name == &Some("read") {
+                Some(self.read.clone().into())
+            } else if import_name == &Some("debug") {
+                Some(self.debug.clone().into())
+            } else if import_name == &Some("gas") {
+                Some(self.gas.clone().into())
+            } else if import_name == &Some("memory") {
+                Some(memory.clone().into())
+            } else {
+                continue;
+            };
+        }
 
         let externs = imports
             .into_iter()
