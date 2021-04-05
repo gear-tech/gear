@@ -89,7 +89,12 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 
             let gas_limit = next_message.gas_limit();
 
-            let module = Module::new(self.env.engine(), program.code())?;
+            let module = Module::new(
+                self.env.engine(),
+                &gas::instrument(program.code())
+                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
+            )?;
+
             run(
                 &mut self.env,
                 &mut context,
@@ -466,7 +471,7 @@ mod tests {
                 i32.const 12
                 i32.const 0
                 i32.const 2
-                i64.const 0
+                i64.const 18446744073709551615
                 call $send
               )
           )"#;
@@ -497,7 +502,7 @@ mod tests {
             })
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), 0);
+        runner.queue_message(1.into(), "test".as_bytes().to_vec(), crate::gas::max_gas());
 
         runner.run_next().expect("Failed to process next message");
 
@@ -545,7 +550,7 @@ mod tests {
               get_local $var0
               i32.const 255
               i32.and
-              i64.const 0
+              i64.const 18446744073709551615
               call $send
               i32.const 256
               call $free
@@ -560,7 +565,7 @@ mod tests {
                 (get_local $id)
                 (i32.const 1)
               )
-              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 0))
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 18446744073709551615))
             )
           )"#;
 
@@ -589,12 +594,12 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: "ok".as_bytes().to_vec().into(),
-                gas_limit: 0,
+                gas_limit: 18446744073709551615,
             })
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], 0);
+        runner.queue_message(1.into(), vec![256u32 as _], crate::gas::max_gas());
 
         runner.run_next().expect("Failed to process next message");
 
@@ -604,7 +609,7 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: vec![256u32 as _].into(),
-                gas_limit: 0,
+                gas_limit: 18446744073709551615,
             })
         );
 
