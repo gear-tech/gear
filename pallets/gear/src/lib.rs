@@ -19,6 +19,7 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_std::prelude::*;
 	use common::{self, Message, Program};
+	use sp_inherents::{InherentIdentifier, ProvideInherent, InherentData};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -101,18 +102,28 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>, gas_limit: u64) -> DispatchResultWithPostInfo {
+		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>) -> DispatchResultWithPostInfo {
 			let _who = ensure_signed(origin)?;
 
 			common::queue_message(Message{
-				// TODO: convert to external/iternal enum
 				source: H256::default(),
 				dest: destination,
 				payload: payload,
-				gas_limit,
 			});
 
 			Ok(().into())
+		}
+	}
+
+	impl<T: Config> ProvideInherent for Pallet<T> {
+		type Call = Call<T>;
+		type Error = ();
+		const INHERENT_IDENTIFIER: InherentIdentifier = b"process0";
+
+		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+		}
+
+		fn check_inherent(call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
 		}
 	}
 }
