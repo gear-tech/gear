@@ -1,7 +1,7 @@
 use codec::Decode;
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use rti::runner::ExtRunner;
-use test_gear::sample::Test;
+use test_gear_sample::sample::Test;
 
 use gear_core::{message::Message, storage::Storage};
 
