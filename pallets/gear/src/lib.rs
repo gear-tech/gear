@@ -118,12 +118,14 @@ pub mod pallet {
 	impl<T: Config> ProvideInherent for Pallet<T> {
 		type Call = Call<T>;
 		type Error = ();
-		const INHERENT_IDENTIFIER: InherentIdentifier = b"process0";
+		const INHERENT_IDENTIFIER: InherentIdentifier = *b"process0";
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			unimplemented!()
 		}
 
 		fn check_inherent(call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
+			unimplemented!()
 		}
 	}
 }

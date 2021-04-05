@@ -9,7 +9,7 @@ use gear_core::{
     program::ProgramId,
     storage::{AllocationStorage, ProgramStorage},
 };
-use test_gear::sample;
+use test_gear_sample::sample;
 
 use crate::test_runner;
 use crate::GearTestCmd;
