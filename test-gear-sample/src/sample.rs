@@ -27,6 +27,7 @@ pub struct Program {
     pub path: String,
     pub id: u64,
     pub init_message: Option<PayloadVariant>,
+    pub gas_limit: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -103,6 +104,7 @@ pub struct AllocationStorage {
 pub struct Message {
     pub destination: u64,
     pub payload: PayloadVariant,
+    pub gas_limit: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -127,7 +129,8 @@ fn check_sample() {
                 "messages": [
                     {
                         "payload": { "kind": "utf-8", "value": "PING" },
-                        "destination": 1
+                        "destination": 1,
+                        "gas_limit": 1000000
                     }
                 ],
                 "expected": [
