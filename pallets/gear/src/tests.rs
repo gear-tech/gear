@@ -60,7 +60,7 @@ fn it_processes_messages() {
 			}
 		);
 
-		GearModule::on_finalize(1);
+		crate::Call::<Test>::process_queue();
 
 		assert_eq!(
 			System::events(),

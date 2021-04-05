@@ -57,25 +57,6 @@ pub mod pallet {
 
 		/// Finalization
 		fn on_finalize(_bn: BlockNumberFor<T>) {
-			// At the end of the block, we process all queued messages
-			// TODO: When gas is introduced, processing should be limited to the specific max gas
-			// TODO: When memory regions introduced, processing should be limited to the messages that touch
-			//       specific pages.
-			loop {
-				match rti::gear_executor::process() {
-					Ok(execution_report) => {
-						if execution_report.handled == 0 { break; }
-
-						for (program_id, payload) in execution_report.log.into_iter() {
-							Self::deposit_event(Event::Log(program_id, payload));
-						}
-					},
-					Err(_e) => {
-						// TODO: make error event log record
-						continue;
-					},
-				}
-			}
 		}
 	}
 
@@ -102,14 +83,42 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>) -> DispatchResultWithPostInfo {
+		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>, gas_limit: u64) -> DispatchResultWithPostInfo {
 			let _who = ensure_signed(origin)?;
 
 			common::queue_message(Message{
 				source: H256::default(),
 				dest: destination,
 				payload: payload,
+				gas_limit: gas_limit,
 			});
+
+			Ok(().into())
+		}
+
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn process_queue(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+			ensure_none(origin)?;
+
+			// At the beginning of a new block, we process all queued messages
+			// TODO: When gas is introduced, processing should be limited to the specific max gas
+			// TODO: When memory regions introduced, processing should be limited to the messages that touch
+			//       specific pages.
+			loop {
+				match rti::gear_executor::process() {
+					Ok(execution_report) => {
+						if execution_report.handled == 0 { break; }
+
+						for (program_id, payload) in execution_report.log.into_iter() {
+							Self::deposit_event(Event::Log(program_id, payload));
+						}
+					},
+					Err(_e) => {
+						// TODO: make error event log record
+						continue;
+					},
+				}
+			}
 
 			Ok(().into())
 		}
@@ -118,14 +127,10 @@ pub mod pallet {
 	impl<T: Config> ProvideInherent for Pallet<T> {
 		type Call = Call<T>;
 		type Error = sp_inherents::MakeFatalError<()>;
-		const INHERENT_IDENTIFIER: InherentIdentifier = *b"process0";
+		const INHERENT_IDENTIFIER: InherentIdentifier = *b"gprocess";
 
-		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			unimplemented!()
-		}
-
-		fn check_inherent(call: &Self::Call, _data: &InherentData) -> Result<(), Self::Error> {
-			unimplemented!()
+		fn create_inherent(_data: &InherentData) -> Option<Self::Call> {
+			Some(Call::process_queue())
 		}
 	}
 }
