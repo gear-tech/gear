@@ -63,10 +63,15 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T:Config> Pallet<T> {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn submit_program(origin: OriginFor<T>, program: Program) -> DispatchResultWithPostInfo {
+		pub fn submit_program(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
 			let nonce = frame_system::Account::<T>::get(who.clone()).nonce;
+
+			let program = Program {
+				code,
+				static_pages: Vec::new()
+			};
 
 			let mut data = Vec::new();
 			program.encode_to(&mut data);
