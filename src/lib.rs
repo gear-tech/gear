@@ -40,7 +40,7 @@ pub mod msg {
 
     mod sys {
         extern "C" {
-            pub fn send(program: *const u8, data_ptr: *const u8, data_len: u32);
+            pub fn send(program: *const u8, data_ptr: *const u8, data_len: u32, gas_limit: u64);
             pub fn size() -> u32;
             pub fn read(at: u32, len: u32, dest: *mut u8);
             pub fn source(program: *mut u8);
@@ -57,9 +57,9 @@ pub mod msg {
         }
     }
 
-    pub fn send(program: ProgramId, payload: &[u8]) {
+    pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) {
         unsafe {
-            sys::send(program.as_slice().as_ptr(), payload.as_ptr(), payload.len() as _)
+            sys::send(program.as_slice().as_ptr(), payload.as_ptr(), payload.len() as _, gas_limit)
         }
     }
 
