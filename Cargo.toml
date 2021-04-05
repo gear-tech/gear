@@ -9,7 +9,7 @@ version = "0.1.0"
 [dependencies]
 anyhow = "1"
 env_logger = "0.8"
-gear-core = {path = "../gear-core"}
+gear-core = { path = "../gear-core" }
 test-gear-sample = { path = "test-gear-sample" }
 serde_json = "*"
 termion = "1.5.6"
