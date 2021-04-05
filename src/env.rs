@@ -109,6 +109,7 @@ pub trait Ext {
     fn memory_access(&self, page: PageNumber) -> PageAction;
     fn memory_lock(&self);
     fn memory_unlock(&self);
+    fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 }
 
 struct LaterExt<E: Ext> {
@@ -165,6 +166,7 @@ pub struct Environment<E: Ext + 'static> {
     size: Func,
     read: Func,
     debug: Func,
+    gas: Func,
 }
 
 impl<E: Ext + 'static> Environment<E> {
@@ -195,7 +197,7 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(
                 &store,
-                move |program_id_ptr: i32, message_ptr: i32, message_len: i32| {
+                move |program_id_ptr: i32, message_ptr: i32, message_len: i32, gas_limit: i64| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     if let Err(_) = ext.with(|ext: &mut E| {
@@ -214,6 +216,7 @@ impl<E: Ext + 'static> Environment<E> {
                         ext.send(OutgoingMessage::new(
                             program_id,
                             data.into(),
+                            gas_limit as _,
                         ))
                     }) {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
@@ -253,7 +256,7 @@ impl<E: Ext + 'static> Environment<E> {
                 ext.with(|ext: &mut E| {
                     let msg = ext.msg().to_vec();
                     ext.set_mem(dest, &msg[at..at + len])
-                        .map_err(|_e| log::error!("Write memory err: {}", _e))
+                        .map_err(|e| log::error!("Write memory err: {}", e))
                         .ok();
                 });
                 Ok(())
@@ -269,7 +272,7 @@ impl<E: Ext + 'static> Environment<E> {
                     let debug_str = unsafe {
                         let mut debug_str = vec![0; str_len];
                         ext.get_mem(str_ptr, debug_str.as_mut_slice())
-                            .map_err(|_e| log::error!("Read memory err: {}", _e))
+                            .map_err(|e| log::error!("Read memory err: {}", e))
                             .ok();
                         String::from_utf8_unchecked(debug_str)
                     };
@@ -286,10 +289,21 @@ impl<E: Ext + 'static> Environment<E> {
                 ext.with(|ext: &mut E| {
                     let source = ext.source().unwrap_or_default();
                     ext.set_mem(source_ptr as isize as _, source.as_slice())
-                        .map_err(|_e| log::error!("Write memory err: {}", _e))
+                        .map_err(|e| log::error!("Write memory err: {}", e))
                         .ok();
                 });
                 Ok(())
+            })
+        };
+
+        let gas = {
+            let ext = ext.clone();
+            Func::wrap(&store, move |val: i32| {
+                if let Err(_) = ext.with(|ext: &mut E| ext.gas(val as _)) {
+                    Err(wasmtime::Trap::new("Trapping: unable to send message"))
+                } else {
+                    Ok(())
+                }
             })
         };
 
@@ -303,6 +317,7 @@ impl<E: Ext + 'static> Environment<E> {
             read,
             debug,
             source,
+            gas,
         }
     }
 
@@ -339,6 +354,8 @@ impl<E: Ext + 'static> Environment<E> {
                 Some(self.read.clone().into())
             } else if import_name == &Some("debug") {
                 Some(self.debug.clone().into())
+            } else if import_name == &Some("gas") {
+                Some(self.gas.clone().into())
             } else if import_name == &Some("memory") {
                 Some(memory.clone().into())
             } else {
