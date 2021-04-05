@@ -10,6 +10,7 @@ pub fn queue_message(message: Message) {
         source: H256::from_slice(&message.source.as_slice()),
         dest: H256::from_slice(&message.dest.as_slice()),
         payload: message.payload.into_raw(),
+        gas_limit: message.gas_limit,
     };
 
     crate::queue_message(message)
@@ -22,6 +23,7 @@ pub fn dequeue_message() -> Option<Message> {
                 source: ProgramId::from_slice(&msg.source[..]),
                 dest: ProgramId::from_slice(&msg.dest[..]),
                 payload: msg.payload.into(),
+                gas_limit: msg.gas_limit,
             }
         })
 }
