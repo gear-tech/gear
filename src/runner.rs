@@ -9,7 +9,7 @@ use gear_core::{
     },
 };
 
-use crate::sample::Test;
+use test_gear_sample::sample::Test;
 
 type InMemoryRunner =
     Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
