@@ -58,7 +58,7 @@ pub mod pallet {
 		fn on_finalize(_bn: BlockNumberFor<T>) {
 			// At the end of the block, we process all queued messages
 			// TODO: When gas is introduced, processing should be limited to the specific max gas
-			// TODO: When memory regions introduced, processing should be limited to the messages that touch 
+			// TODO: When memory regions introduced, processing should be limited to the messages that touch
 			//       specific pages.
 			loop {
 				match rti::gear_executor::process() {
@@ -101,13 +101,15 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>) -> DispatchResultWithPostInfo {
+		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>, gas_limit: u64) -> DispatchResultWithPostInfo {
 			let _who = ensure_signed(origin)?;
 
 			common::queue_message(Message{
+				// TODO: convert to external/iternal enum
 				source: H256::default(),
 				dest: destination,
 				payload: payload,
+				gas_limit,
 			});
 
 			Ok(().into())

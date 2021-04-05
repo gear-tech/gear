@@ -12,6 +12,7 @@ pub struct Message {
     pub source: H256,
     pub dest: H256,
     pub payload: Vec<u8>,
+    pub gas_limit: u64,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
@@ -54,7 +55,7 @@ pub fn dequeue_message() -> Option<Message> {
     sp_io::storage::get(b"g::msg")
         .map(|val| Vec::<Message>::decode(&mut &val[..]).expect("values encoded correctly"))
         .and_then(|mut messages| {
-            let popped = 
+            let popped =
                 if messages.len() > 0 { Some(messages.remove(0)) }
                 else { None };
             sp_io::storage::set(b"g::msg", &messages.encode());

@@ -26,7 +26,7 @@ fn it_processes_messages() {
 	// just sends empty message to log
 	let wat = r#"
 	(module
-		(import "env" "send"  (func $send (param i32 i32 i32)))
+		(import "env" "send"  (func $send (param i32 i32 i32 i64)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
@@ -34,6 +34,7 @@ fn it_processes_messages() {
 		  i32.const 0
 		  i32.const 32
 		  i32.const 32
+		  i64.const 1000000000
 		  call $send
 		)
 		(func $init)
@@ -55,6 +56,7 @@ fn it_processes_messages() {
 				source: H256::zero(),
 				dest: H256::from_low_u64_be(1),
 				payload: Vec::new(),
+				gas_limit: u64::max_value(),
 			}
 		);
 
