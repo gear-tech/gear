@@ -1,5 +1,4 @@
 mod runner;
-mod sample;
 
 use anyhow::anyhow;
 use gear_core::{
@@ -7,7 +6,7 @@ use gear_core::{
     message::Message,
     program::{Program, ProgramId},
 };
-use sample::Test;
+use test_gear_sample::sample::{self, Test};
 use std::fs;
 use termion::{color, style};
 

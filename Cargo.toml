@@ -9,14 +9,13 @@ version = "0.1.0"
 [dependencies]
 anyhow = "1"
 env_logger = "0.8"
-gear-core = {path = "../gear-core"}
-hex = "0.4.2"
-serde = "*"
+gear-core = { path = "../gear-core" }
+test-gear-sample = { path = "test-gear-sample" }
 serde_json = "*"
 termion = "1.5.6"
 
 [workspace]
-members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-fib"]
+members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-fib", "test-gear-sample"]
 
 [[bin]]
 name = "gtest"
