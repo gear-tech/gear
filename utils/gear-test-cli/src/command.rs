@@ -133,20 +133,21 @@ impl GearTestCmd {
         let mut total_fixtures: usize = 0;
         let mut total_failed = 0i32;
         let mut tests = Vec::new();
-        if let Some(input) = &self.input {
-            if input.is_dir() {
-                for entry in input.read_dir().expect("read_dir call failed") {
+        for path in &self.input {
+            if path.is_dir() {
+                for entry in path.read_dir().expect("read_dir call failed") {
                     if let Ok(entry) = entry {
                         tests.push(read_test_from_file(&entry.path())?);
                     }
                 }
             } else {
-                tests.push(read_test_from_file(&input)?);
+                tests.push(read_test_from_file(&path)?);
             }
-
-            total_fixtures = tests.iter().map(|t| t.fixtures.len()).sum();
-            println!("Total fixtures: {}", total_fixtures);
         }
+
+        total_fixtures = tests.iter().map(|t| t.fixtures.len()).sum();
+        println!("Total fixtures: {}", total_fixtures);
+
 
         for test in tests {
             for fixture_no in 0..test.fixtures.len() {
