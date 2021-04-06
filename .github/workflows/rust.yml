@@ -40,3 +40,13 @@ jobs:
       run: cd gear-node && cargo build --release
     - name: Run tests
       run: cd gear-node && cargo test --release --all
+    - name: Build WASM
+      run: |
+        cd test-gear
+        cargo +nightly build --manifest-path=demo-ping/Cargo.toml --target=wasm32-unknown-unknown --release
+        cargo +nightly build --manifest-path=demo-fib/Cargo.toml --target=wasm32-unknown-unknown --release
+        cargo +nightly build --manifest-path=demo-sum/Cargo.toml --target=wasm32-unknown-unknown --release
+        cargo +nightly build --manifest-path=demo-vec/Cargo.toml --target=wasm32-unknown-unknown --release
+        cargo +nightly build --manifest-path=demo-chat/Cargo.toml --target=wasm32-unknown-unknown --release
+    - name: Run testsuite
+      run: cd gear-node && cargo run --release -- runtests ../test-gear/sample/*.json
