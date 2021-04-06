@@ -19,6 +19,7 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_std::prelude::*;
 	use common::{self, Message, Program};
+	use sp_inherents::{InherentIdentifier, ProvideInherent, InherentData};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -56,35 +57,21 @@ pub mod pallet {
 
 		/// Finalization
 		fn on_finalize(_bn: BlockNumberFor<T>) {
-			// At the end of the block, we process all queued messages
-			// TODO: When gas is introduced, processing should be limited to the specific max gas
-			// TODO: When memory regions introduced, processing should be limited to the messages that touch
-			//       specific pages.
-			loop {
-				match rti::gear_executor::process() {
-					Ok(execution_report) => {
-						if execution_report.handled == 0 { break; }
-
-						for (program_id, payload) in execution_report.log.into_iter() {
-							Self::deposit_event(Event::Log(program_id, payload));
-						}
-					},
-					Err(_e) => {
-						// TODO: make error event log record
-						continue;
-					},
-				}
-			}
 		}
 	}
 
 	#[pallet::call]
 	impl<T:Config> Pallet<T> {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn submit_program(origin: OriginFor<T>, program: Program) -> DispatchResultWithPostInfo {
+		pub fn submit_program(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
 			let nonce = frame_system::Account::<T>::get(who.clone()).nonce;
+
+			let program = Program {
+				code,
+				static_pages: Vec::new()
+			};
 
 			let mut data = Vec::new();
 			program.encode_to(&mut data);
@@ -105,14 +92,50 @@ pub mod pallet {
 			let _who = ensure_signed(origin)?;
 
 			common::queue_message(Message{
-				// TODO: convert to external/iternal enum
 				source: H256::default(),
 				dest: destination,
 				payload: payload,
-				gas_limit,
+				gas_limit: gas_limit,
 			});
 
 			Ok(().into())
+		}
+
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn process_queue(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+			ensure_none(origin)?;
+
+			// At the beginning of a new block, we process all queued messages
+			// TODO: When gas is introduced, processing should be limited to the specific max gas
+			// TODO: When memory regions introduced, processing should be limited to the messages that touch
+			//       specific pages.
+			loop {
+				match rti::gear_executor::process() {
+					Ok(execution_report) => {
+						if execution_report.handled == 0 { break; }
+
+						for (program_id, payload) in execution_report.log.into_iter() {
+							Self::deposit_event(Event::Log(program_id, payload));
+						}
+					},
+					Err(_e) => {
+						// TODO: make error event log record
+						continue;
+					},
+				}
+			}
+
+			Ok(().into())
+		}
+	}
+
+	impl<T: Config> ProvideInherent for Pallet<T> {
+		type Call = Call<T>;
+		type Error = sp_inherents::MakeFatalError<()>;
+		const INHERENT_IDENTIFIER: InherentIdentifier = *b"gprocess";
+
+		fn create_inherent(_data: &InherentData) -> Option<Self::Call> {
+			Some(Call::process_queue())
 		}
 	}
 }

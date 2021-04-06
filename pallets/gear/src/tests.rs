@@ -1,5 +1,4 @@
 use crate::mock::*;
-use frame_support::traits::OnFinalize;
 use sp_core::H256;
 use common::{self, Program, Message};
 
@@ -60,7 +59,7 @@ fn it_processes_messages() {
 			}
 		);
 
-		GearModule::on_finalize(1);
+		crate::Call::<Test>::process_queue();
 
 		assert_eq!(
 			System::events(),

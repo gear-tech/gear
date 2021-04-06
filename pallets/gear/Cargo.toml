@@ -37,6 +37,11 @@ default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
 
+[dependencies.sp-inherents]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
 [dependencies.sp-std]
 default-features = false
 version = "3.0.0"
@@ -62,5 +67,6 @@ std = [
 	'sp-io/std',
 	'sp-std/std',
 	'sp-core/std',
+	'sp-inherents/std',
 	'common/std',
 ]
