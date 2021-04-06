@@ -31,6 +31,12 @@ jobs:
         repository: 'gear-computing/test-gear'
         token: ${{ secrets.GEAR_PAT }}
         path: test-gear
+    - uses: actions/checkout@v2
+      name: "Checkout gstd"
+      with:
+        repository: 'gear-computing/gstd'
+        token: ${{ secrets.GEAR_PAT }}
+        path: gstd
     - name: Install latest nightly & WASM toolchain
       uses: actions-rs/toolchain@v1
       with:
