@@ -27,7 +27,7 @@ pub struct Program {
     pub path: String,
     pub id: u64,
     pub init_message: Option<PayloadVariant>,
-    pub gas_limit: Option<u64>,
+    pub init_gas_limit: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

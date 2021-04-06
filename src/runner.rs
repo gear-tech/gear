@@ -26,7 +26,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
         if let Some(init_msg) = &program.init_message {
             init_message = init_msg.clone().into_raw();
         }
-        runner.init_program(program.id.into(), code, init_message, program.gas_limit.unwrap_or(u64::MAX))?;
+        runner.init_program(program.id.into(), code, init_message, program.init_gas_limit.unwrap_or(u64::MAX))?;
     }
 
     let fixture = &test.fixtures[fixture_no];
