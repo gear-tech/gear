@@ -7,7 +7,8 @@ mod test_runner;
 #[derive(Debug, structopt::StructOpt)]
 pub struct GearTestCmd {
     /// Input dir/file with json for testing.
-    pub input: Option<std::path::PathBuf>,
+    #[structopt(parse(from_os_str))]
+    pub input: Vec<std::path::PathBuf>,
 
     #[allow(missing_docs)]
     #[structopt(flatten)]
