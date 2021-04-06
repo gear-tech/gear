@@ -26,23 +26,15 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
         if let Some(init_msg) = &program.init_message {
             init_message = init_msg.clone().into_raw();
         }
-        let mut gas_limit = u64::MAX;
-        if let Some(limit) = program.gas_limit {
-            gas_limit = limit;
-        }
-        runner.init_program(program.id.into(), code, init_message, gas_limit)?;
+        runner.init_program(program.id.into(), code, init_message, program.init_gas_limit.unwrap_or(u64::MAX))?;
     }
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
-        let mut gas_limit = u64::MAX;
-        if let Some(limit) = message.gas_limit {
-            gas_limit = limit;
-        }
         runner.queue_message(
             message.destination.into(),
             message.payload.clone().into_raw(),
-            gas_limit
+            message.gas_limit.unwrap_or(u64::MAX),
         )
     }
 
