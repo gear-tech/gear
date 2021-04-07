@@ -3,18 +3,34 @@ use std::{rc::Rc, cell::RefCell};
 use crate::program::ProgramId;
 use crate::storage::AllocationStorage;
 
+/// Memory error.
 #[derive(Clone, Debug)]
 pub enum Error {
+    /// Memory is over.
+    ///
+    /// All pages were previously allocated and there is nothing can be done.
     OutOfMemory,
+
+    /// Allocation is in use.
+    ///
+    /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
     AllocationsInUse,
+
+    /// Specified page is occupied.
     PageOccupied(PageNumber),
+
+    /// Specified page cannot be freed by the current program.
+    ///
+    /// It was allocated by another program.
     InvalidFree(PageNumber),
 }
 
+/// Page number.
 #[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PageNumber(u32);
 
 impl PageNumber {
+    /// Return raw 32-bit page address.
     pub fn raw(&self) -> u32 { self.0 }
 }
 
@@ -34,15 +50,27 @@ impl std::ops::Sub for PageNumber {
     }
 }
 
+/// Memory interface for the allocator.
 pub trait Memory {
+    /// Grow memory by number of pages.
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
+
+    /// Return current size of the memory.
     fn size(&self) -> PageNumber;
+
+    /// Get reference to the memory blob.
     unsafe fn data_unchecked(&self) -> &[u8];
+
+    /// Get mutable reference to the memory blob.
     unsafe fn data_unchecked_mut(&self) -> &mut [u8];
+
+    /// Cloen this memory.
     fn clone(&self) -> Box<dyn Memory>;
-    //fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
-    //fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
+
+    /// Lock some memory pages.
     fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8;
+
+    /// Unlock some memory pages.
     fn unlock(&self, offset: PageNumber, length: PageNumber);
 }
 
@@ -99,6 +127,9 @@ impl Memory for wasmtime::Memory {
     }
 }
 
+/// Helper struct to manage allocations requested by programs.
+///
+/// Underlying allocation storage can be anything.
 pub struct Allocations<AS: AllocationStorage>(Rc<RefCell<AS>>);
 
 impl<AS: AllocationStorage> Clone for Allocations<AS> {
@@ -108,18 +139,22 @@ impl<AS: AllocationStorage> Clone for Allocations<AS> {
 }
 
 impl<AS: AllocationStorage> Allocations<AS> {
+    /// New allocation maanager.
     pub fn new(storage: AS) -> Self {
         Self(Rc::new(RefCell::new(storage)))
     }
 
+    /// Get page owner, if any.
     pub fn get(&self, page: PageNumber) -> Option<ProgramId> {
         self.0.borrow().get(page)
     }
 
+    /// Check if specific page is allocated by anything.
     pub fn occupied(&self, page: PageNumber) -> bool {
         self.0.borrow().exists(page)
     }
 
+    /// Insert new allocation.
     pub fn insert(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
         if self.0.borrow().exists(page) {
             return Err(Error::PageOccupied(page))
@@ -130,6 +165,9 @@ impl<AS: AllocationStorage> Allocations<AS> {
         Ok(())
     }
 
+    /// Remove specific allocation.
+    ///
+    /// Owner and provided `program_id` must match.
     pub fn remove(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
         if program_id != self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
             return Err(Error::InvalidFree(page));
@@ -140,12 +178,14 @@ impl<AS: AllocationStorage> Allocations<AS> {
         Ok(())
     }
 
+    /// Drop allocation manager and return underlying `AllocationStorage`
     pub fn drain(self) -> Result<AS, Error> {
         Ok(Rc::try_unwrap(self.0).map_err(|_| Error::AllocationsInUse)?.into_inner())
     }
 
 }
 
+/// Memory context for the running program.
 pub struct MemoryContext<AS: AllocationStorage> {
     program_id: ProgramId,
     memory: Box<dyn Memory>,
@@ -173,6 +213,11 @@ impl Clone for Box<dyn Memory> {
 }
 
 impl<AS: AllocationStorage> MemoryContext<AS> {
+    /// New memory context.
+    ///
+    /// Provide currently running `program_id`, boxed memory abstraction
+    /// and allocation manager. Also configurable `static_pages` and `max_pages`
+    /// are set.
     pub fn new(
         program_id: ProgramId,
         memory: Box<dyn Memory>,
@@ -183,10 +228,12 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         Self { memory, program_id, allocations, static_pages, max_pages }
     }
 
+    /// Return currently used program id.
     pub fn program_id(&self) -> ProgramId {
         self.program_id
     }
 
+    /// Alloc specific number of pages for the currently running program.
     pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
         let mut candidate = self.static_pages.raw();
@@ -219,6 +266,9 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         Ok(candidate.into())
     }
 
+    /// Free specific page.
+    ///
+    /// Currently running program should own this page.
     pub fn free(&self, page: PageNumber) -> Result<(), Error> {
         if page < self.static_pages || page > self.max_pages {
             return Err(Error::InvalidFree(page));
@@ -229,18 +279,22 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         Ok(())
     }
 
+    /// Return reference to the allocation manager.
     pub fn allocations(&self) -> &Allocations<AS> {
         &self.allocations
     }
 
+    /// Return reference to the memory blob.
     pub fn memory(&self) -> &dyn Memory {
         &*self.memory
     }
 
+    /// Lock memory access.
     pub fn memory_lock(&self) {
         self.memory.lock(self.static_pages, self.max_pages - self.static_pages);
     }
 
+    /// Unlock memory access.
     pub fn memory_unlock(&self) {
         self.memory.unlock(self.static_pages, self.max_pages - self.static_pages);
     }
