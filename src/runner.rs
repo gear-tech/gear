@@ -528,11 +528,11 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: "ok".as_bytes().to_vec().into(),
-                gas_limit: 0,
+                gas_limit: Some(0),
             })
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), crate::gas::max_gas());
+        runner.queue_message(1.into(), "test".as_bytes().to_vec(), None);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -542,7 +542,7 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: "test".as_bytes().to_vec().into(),
-                gas_limit: 0,
+                gas_limit: Some(0),
             })
         );
     }
@@ -624,12 +624,12 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: "ok".as_bytes().to_vec().into(),
-                gas_limit: 18446744073709551615,
+                gas_limit: Some(18446744073709551615),
             })
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], crate::gas::max_gas());
+        runner.queue_message(1.into(), vec![256u32 as _], None);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -639,7 +639,7 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: vec![256u32 as _].into(),
-                gas_limit: 18446744073709551615,
+                gas_limit: Some(18446744073709551615),
             })
         );
 
