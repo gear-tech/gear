@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 #![cfg_attr(feature="strict", deny(warnings))]
 
 pub mod env;

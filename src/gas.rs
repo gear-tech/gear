@@ -46,7 +46,7 @@ impl GasCounter for GasCounterLimited {
     fn left(&self) -> u64 { self.0 }
 }
 
-/// instrument code with gas-counting instructions
+/// Instrument code with gas-counting instructions.
 pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     let module = parity_wasm::elements::Module::from_bytes(code)
         .map_err(|e| {
@@ -57,7 +57,7 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     let instrumented_module = pwasm_utils::inject_gas_counter(
         module,
         &pwasm_utils::rules::Set::new(
-            // TODO: put into config/processign
+            // TODO: put into config/processing
             1000,
             Default::default()
         ).with_grow_cost(

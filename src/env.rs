@@ -1,4 +1,5 @@
-//! Wasmtime environment for running a module
+//! Wasmtime environment for running a module.
+
 use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
 
@@ -90,25 +91,60 @@ fn handle_sigsegv<E: Ext + 'static>(
     }
 }
 
+/// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
 pub enum PageAction {
+    /// Can be read.
     Read,
+    /// Can be written.
     Write,
+    /// No access.
     None,
 }
 
+/// External api for managing memory, messages, allocations and gas-counting.
 pub trait Ext {
+    /// Allocate number of pages.
+    ///
+    /// The resulting page number should point to `pages` consecutives memory pages.
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
+
+    /// Send message to another program.
     fn send(&mut self, msg: OutgoingMessage) -> Result<(), &'static str>;
+
+    /// Get the source of the message currently being handled.
     fn source(&mut self) -> Option<ProgramId>;
+
+    /// Free specific memory page.
+    ///
+    /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
+    /// should be `free`-d separately.
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str>;
+
+    /// Send debug message.
+    ///
+    /// This should be no-op in release builds.
     fn debug(&mut self, data: &str) -> Result<(), &'static str>;
+
+    /// Set memory region at specific pointer.
     fn set_mem(&mut self, ptr: usize, val: &[u8]);
+
+    /// Get reference to the specific memory region.
     fn get_mem(&mut self, ptr: usize, len: usize) -> &[u8];
+
+    /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
+
+    /// Query memory access rights to the specific page.
     fn memory_access(&self, page: PageNumber) -> PageAction;
+
+    /// Lock entire memory from any access.
     fn memory_lock(&self);
+
+    /// Unlock entire memory region for any access.
     fn memory_unlock(&self);
+
+    /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 }
 
@@ -164,6 +200,10 @@ pub struct Environment<E: Ext + 'static> {
 }
 
 impl<E: Ext + 'static> Environment<E> {
+
+    /// New environment.
+    ///
+    /// To run actual function with provided external environment, `setup_and_run` should be used.
     pub fn new() -> Self {
         let store = wasmtime::Store::default();
 
@@ -355,6 +395,13 @@ impl<E: Ext + 'static> Environment<E> {
         func(instance)
     }
 
+    /// Setup external environment and run closure.
+    ///
+    /// Setup external environment by providing `ext`, run nenwly initialized instance created from
+    /// provided `module`, do anything inside a `func` delegate.
+    ///
+    /// This will also set the beginning of the memory region to the `static_area` content _after_
+    /// creatig instance.
     pub fn setup_and_run(
         &mut self,
         ext: E,
@@ -397,10 +444,12 @@ impl<E: Ext + 'static> Environment<E> {
         (result, ext, touched)
     }
 
+    /// Return engine used by this environment.
     pub fn engine(&self) -> &Engine {
         self.store.engine()
     }
 
+    /// Create memory inside this environment.
     pub fn create_memory(&self, total_pages: u32) -> Memory {
         Memory::new(
             &self.store,
