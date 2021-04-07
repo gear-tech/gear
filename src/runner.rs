@@ -1,3 +1,5 @@
+//! Module for running programs.
+
 use wasmtime::{Module, Memory as WasmMemory};
 use codec::{Encode, Decode};
 use anyhow::Result;
@@ -116,7 +118,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                 &mut program,
                 EntryPoint::Handle,
                 &next_message.into(),
-                GasLimit::Limited(gas_limit),
+                if let Some(gas_limit) = gas_limit { GasLimit::Limited(gas_limit) } else { GasLimit::Unlimited },
             )?;
 
             self.message_queue
@@ -197,7 +199,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .program_storage
             .get(program_id)
             .expect("Added above; cannot fail");
-        let msg = IncomingMessage::new_system(init_msg.into(), 0);
+        let msg = IncomingMessage::new_system(init_msg.into(), Some(gas_limit));
 
         let module = Module::new(
             self.env.engine(),
@@ -223,14 +225,14 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     }
 
     /// Queue message for the underlying message queue.
-    pub fn queue_message(&mut self, destination: ProgramId, payload: Vec<u8>, gas_limit: u64) {
+    pub fn queue_message(&mut self, destination: ProgramId, payload: Vec<u8>, gas_limit: Option<u64>) {
         self.message_queue
             .queue(Message::new_system(destination, payload.into(), gas_limit))
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum EntryPoint {
+enum EntryPoint {
     Handle,
     Init,
 }
@@ -286,11 +288,15 @@ impl<AS: AllocationStorage> RunningContext<AS> {
     }
 }
 
+/// The result of running some program.
 #[derive(Clone, Debug, Default)]
-struct RunResult {
-    touched: Vec<(PageNumber, PageAction)>,
-    messages: Vec<OutgoingMessage>,
-    gas_left: u64,
+pub struct RunResult {
+    /// Pages that were touched during the run.
+    pub touched: Vec<(PageNumber, PageAction)>,
+    /// Messages that were generated during the run.
+    pub messages: Vec<OutgoingMessage>,
+    /// Gas that left.
+    pub gas_left: u64,
 }
 
 

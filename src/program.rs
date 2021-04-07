@@ -1,3 +1,5 @@
+//! Module for programs.
+
 use codec::{Encode, Decode};
 
 /// Program identifier.

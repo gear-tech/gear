@@ -1,3 +1,4 @@
+//! Gas module.
 
 /// The result of charging gas.
 #[derive(Debug, Clone, Copy, PartialEq)]

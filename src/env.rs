@@ -239,7 +239,7 @@ impl<E: Ext + 'static> Environment<E> {
                         ext.send(OutgoingMessage::new(
                             program_id,
                             data.into(),
-                            gas_limit as _,
+                            Some(gas_limit as u64),
                         ))
                     }) {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));

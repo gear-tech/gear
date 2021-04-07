@@ -1,3 +1,5 @@
+//! Module for memory and memory context.
+
 use codec::{Encode, Decode};
 use std::{rc::Rc, cell::RefCell};
 use crate::program::ProgramId;
