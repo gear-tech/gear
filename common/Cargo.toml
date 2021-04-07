@@ -25,12 +25,18 @@ default-features = false
 version = "3.0.0"
 git = "https://github.com/paritytech/substrate.git"
 
+[dependencies.sp-runtime]
+default-features = false
+version = "3.0.0"
+git = "https://github.com/paritytech/substrate.git"
+
 [features]
 default = ["std"]
 std = [
-    "sp-core/std", 
-    "sp-std/std", 
-    "sp-io/std", 
+    "sp-core/std",
+    "sp-std/std",
+    "sp-io/std",
+    "sp-runtime/std",
     "gear-core",
     "codec/std",
 ]

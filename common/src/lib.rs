@@ -27,7 +27,15 @@ pub trait IntoOrigin {
 
 impl IntoOrigin for u64 {
     fn into_origin(self) -> H256 {
-        H256::from_low_u64_be(self)
+        let mut result = H256::zero();
+        result[0..8].copy_from_slice(&self.to_le_bytes());
+        result
+    }
+}
+
+impl IntoOrigin for sp_runtime::AccountId32 {
+    fn into_origin(self) -> H256 {
+        H256::from(self.as_ref())
     }
 }
 
