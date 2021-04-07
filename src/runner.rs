@@ -11,10 +11,13 @@ use crate::{
     gas::{self, GasCounter, GasCounterLimited, GasCounterUnlimited, ChargeResult},
 };
 
+/// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
-    static_pages: PageNumber,
-    max_pages: PageNumber,
+    /// Number of static pages.
+    pub static_pages: PageNumber,
+    /// Totl pages count.
+    pub max_pages: PageNumber,
 }
 
 impl Default for Config {
@@ -23,6 +26,10 @@ impl Default for Config {
     }
 }
 
+/// Runner instance.
+///
+/// This instance allows to handle multiple messages using underlying allocation, message and program
+/// storage.
 pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
@@ -33,6 +40,9 @@ pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: Program
 }
 
 impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runner<AS, MQ, PS> {
+    /// New runner instance.
+    ///
+    /// Provide configuration, storage and memory state.
     pub fn new(
         config: &Config,
         storage: Storage<AS, MQ, PS>,
@@ -66,6 +76,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         }
     }
 
+    /// Run handlig next message in the queue.
+    ///
+    /// Runner will return actual number of messages that was handled.
+    /// Messages with no destination won't be handled.
     pub fn run_next(&mut self) -> Result<usize> {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
@@ -113,6 +127,9 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         }
     }
 
+    /// Drop this runner.
+    ///
+    /// This will return underlyign storage and memory state.
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
         let persistent_memory = {
             let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
@@ -138,15 +155,17 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         )
     }
 
+    /// Static pages configuratio of this runner.
     pub fn static_pages(&self) -> PageNumber {
         self.config.static_pages
     }
 
+    /// Max pages configuratio of this runner.
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
     }
 
-    pub fn create_context(&self) -> RunningContext<AS> {
+    fn create_context(&self) -> RunningContext<AS> {
         RunningContext::new(
             &self.config,
             self.memory.clone(),
@@ -154,6 +173,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         )
     }
 
+    /// Initialize new program.
+    ///
+    /// This includes putting this program in the storage and dispatching
+    /// initializationg message for it.
     pub fn init_program(
         &mut self,
         program_id: ProgramId,
@@ -199,6 +222,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         Ok(res)
     }
 
+    /// Queue message for the underlying message queue.
     pub fn queue_message(&mut self, destination: ProgramId, payload: Vec<u8>, gas_limit: u64) {
         self.message_queue
             .queue(Message::new_system(destination, payload.into(), gas_limit))
@@ -224,7 +248,7 @@ static BASIC_PAGES: u32 = 256;
 static BASIC_PAGE_SIZE: usize = 65536;
 static MAX_PAGES: u32 = 16384;
 
-pub struct RunningContext<AS: AllocationStorage> {
+struct RunningContext<AS: AllocationStorage> {
     config: Config,
     memory: WasmMemory,
     allocations: Allocations<AS>,
@@ -232,7 +256,7 @@ pub struct RunningContext<AS: AllocationStorage> {
 }
 
 impl<AS: AllocationStorage> RunningContext<AS> {
-    pub fn new(
+    fn new(
         config: &Config,
         memory: WasmMemory,
         allocations: Allocations<AS>,
@@ -245,25 +269,25 @@ impl<AS: AllocationStorage> RunningContext<AS> {
         }
     }
 
-    pub fn wasmtime_memory(&self) -> wasmtime::Memory {
+    fn wasmtime_memory(&self) -> wasmtime::Memory {
         self.memory.clone()
     }
 
-    pub fn static_pages(&self) -> PageNumber {
+    fn static_pages(&self) -> PageNumber {
         self.config.static_pages
     }
 
-    pub fn max_pages(&self) -> PageNumber {
+    fn max_pages(&self) -> PageNumber {
         self.config.max_pages
     }
 
-    pub fn push_message(&mut self, msg: Message) {
+    fn push_message(&mut self, msg: Message) {
         self.message_buf.push(msg)
     }
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct RunResult {
+struct RunResult {
     touched: Vec<(PageNumber, PageAction)>,
     messages: Vec<OutgoingMessage>,
     gas_left: u64,
@@ -346,7 +370,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum GasLimit {
+enum GasLimit {
     Limited(u64),
     Unlimited,
 }
