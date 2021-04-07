@@ -21,6 +21,40 @@ pub struct Program {
     pub code: Vec<u8>,
 }
 
+pub trait IntoOrigin {
+    fn into_origin(self) -> H256;
+}
+
+impl IntoOrigin for u64 {
+    fn into_origin(self) -> H256 {
+        H256::from_low_u64_be(self)
+    }
+}
+
+impl IntoOrigin for H256 {
+    fn into_origin(self) -> H256 {
+        self
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum MessageOrigin {
+    External(H256),
+    Internal(H256),
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct MessageRoute {
+    pub origin: MessageOrigin,
+    pub destination: H256,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum IntermediateMessage {
+    InitProgram { external_origin: H256, program_id: H256, code: Vec<u8>, payload: Vec<u8>, gas_limit: u64 },
+    DispatchMessage { route: MessageRoute, payload: Vec<u8>, gas_limit: u64 },
+}
+
 fn program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(b"g::prog::");
