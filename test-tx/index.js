@@ -1,5 +1,6 @@
 // Required imports
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
+const { Bytes, TypeRegistry, createType } = require('@polkadot/types');
 const fs = require('fs');
 
 async function processTest(test, api, alice, nonce) {
@@ -7,9 +8,12 @@ async function processTest(test, api, alice, nonce) {
     let programs_id = [];
 
     test.programs.forEach(async (program) => {
-        binary = fs.readFile(program.path, (bin) => {
-            api.tx
-            .gearModule.submitProgram(bin, 0, 2000000)
+        let binary = fs.readFileSync(program.path);
+        // var bytes = 
+        // console.log(Bytes(binary));
+        // console.log(bytes);
+        api.tx
+            .gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), 0, 1000000)
             .signAndSend(alice, ({ events = [], status }) => {
                 console.log('Transaction status:', status.type);
 
@@ -26,14 +30,11 @@ async function processTest(test, api, alice, nonce) {
                 } else if (status.isFinalized) {
                     console.log('Finalized block hash', status.asFinalized.toHex());
                     console.log(program);
-                    // api.tx
-                    //     .gearModule.sendMessage(program.program_id, "PING", 100000000)
-                    //     .signAndSend(alice, { nonce }, ({ events = [], status }) => { 
-
-                    //     });
+                    api.tx
+                        .gearModule.sendMessage(program.program_id, "PING", 100000000)
+                        .signAndSend(alice);
                 }
-            }).then(console.log(program));
-        });
+            });
         // console.log(api.tx.gearModule.submitProgram.meta.args);
         // console.log(Uint8Array.from(binary));
 
@@ -64,7 +65,6 @@ async function processTest(test, api, alice, nonce) {
 }
 
 async function main() {
-    console.log(process.argv.slice(2));
     let tests = [];
 
     // Load json files
