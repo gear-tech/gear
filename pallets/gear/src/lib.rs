@@ -57,6 +57,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
 
+	#[pallet::storage]
+	pub type DequeLimit<T> = StorageValue<_, u32>;
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// Initialization
@@ -184,6 +187,11 @@ pub mod pallet {
 				match rti::gear_executor::process() {
 					Ok(execution_report) => {
 						total_handled += execution_report.handled;
+
+						if <DequeueLimit<T>>::get().map(|limit| limit >= total_handled).unwrap_or(false) {
+							break;
+						}
+
 						if execution_report.handled == 0 { break; }
 
 						for (program_id, payload) in execution_report.log.into_iter() {
