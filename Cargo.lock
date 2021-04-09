@@ -1922,8 +1922,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-node"
+version = "0.1.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-benchmarking-cli",
+ "gear-node-rti",
+ "gear-runtime",
+ "gear-test-cli",
+ "jsonrpc-core",
+ "pallet-transaction-payment-rpc",
+ "sc-basic-authorship",
+ "sc-cli",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-consensus-aura",
+ "sc-executor",
+ "sc-finality-grandpa",
+ "sc-keystore",
+ "sc-rpc",
+ "sc-rpc-api",
+ "sc-service",
+ "sc-telemetry",
+ "sc-transaction-pool",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-aura",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "structopt",
+ "substrate-build-script-utils",
+ "substrate-frame-rpc-system",
+]
+
+[[package]]
 name = "gear-node-rti"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "gear-common",
  "gear-core",
@@ -1937,7 +1976,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "env_logger 0.8.3",
  "frame-benchmarking",
@@ -3633,45 +3672,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "node-template"
-version = "2.0.0"
-dependencies = [
- "frame-benchmarking",
- "frame-benchmarking-cli",
- "gear-node-rti",
- "gear-runtime",
- "gear-test-cli",
- "jsonrpc-core",
- "pallet-transaction-payment-rpc",
- "sc-basic-authorship",
- "sc-cli",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-aura",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-keystore",
- "sc-rpc",
- "sc-rpc-api",
- "sc-service",
- "sc-telemetry",
- "sc-transaction-pool",
- "sp-api",
- "sp-block-builder",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-aura",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-runtime",
- "sp-transaction-pool",
- "structopt",
- "substrate-build-script-utils",
- "substrate-frame-rpc-system",
-]
-
-[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3947,19 +3947,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
-]
-
-[[package]]
-name = "pallet-template"
-version = "2.0.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
 ]
 
 [[package]]
