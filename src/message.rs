@@ -1,39 +1,49 @@
+//! Message processing module and context.
+
 use std::{rc::Rc, cell::RefCell};
 
 use codec::{Encode, Decode};
 use crate::program::ProgramId;
 
+/// Message payload.
 #[derive(Clone, Debug, Decode, Encode, derive_more::From, PartialEq, Eq)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
+    /// Return raw bytes of the message payload.
     pub fn into_raw(self) -> Vec<u8> {
         self.0
     }
 }
 
+/// Error using messages.
 #[derive(Debug)]
 pub enum Error {
+    /// Message limit exceeded.
     LimitExceeded,
 }
 
+/// Incoming message.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct IncomingMessage {
     source: Option<ProgramId>,
     payload: Payload,
-    gas_limit: u64,
+    gas_limit: Option<u64>,
 }
 
 impl IncomingMessage {
+    /// Source of the incoming message, if any.
     pub fn source(&self) -> Option<ProgramId> {
         self.source
     }
 
+    /// Payload of the incoming message.
     pub fn payload(&self) -> &[u8] {
         &self.payload.0[..]
     }
 
-    pub fn gas_limit(&self) -> u64 {
+    /// Gas limit of the message.
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 }
@@ -49,67 +59,86 @@ impl From<Message> for IncomingMessage {
 }
 
 impl IncomingMessage {
-    pub fn new(source: ProgramId, payload: Payload, gas_limit: u64) -> Self {
+    /// New incomig message from specific `source`, `payload` and `gas_limit`.
+    pub fn new(source: ProgramId, payload: Payload, gas_limit: Option<u64>) -> Self {
         Self { source: Some(source), payload, gas_limit  }
     }
 
-    pub fn new_system(payload: Payload, gas_limit: u64) -> Self {
+    /// New system incominng messaage.
+    pub fn new_system(payload: Payload, gas_limit: Option<u64>) -> Self {
         Self { source: None, payload, gas_limit }
     }
 }
 
+/// Outgoing message.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct OutgoingMessage {
     dest: ProgramId,
     payload: Payload,
-    gas_limit: u64,
+    gas_limit: Option<u64>,
 }
 
 impl OutgoingMessage {
-    pub fn new(dest: ProgramId, payload: Payload, gas_limit: u64) -> Self {
+    /// New outgoing message.
+    pub fn new(dest: ProgramId, payload: Payload, gas_limit: Option<u64>) -> Self {
         Self { dest, payload, gas_limit }
     }
 
+    /// Convert outgoing message to the stored message by providing `source`
     pub fn into_message(self, source: ProgramId) -> Message {
         Message { source, dest: self.dest, payload: self.payload, gas_limit: self.gas_limit }
     }
 }
 
+/// Message.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct Message {
+    /// Source of the message.
     pub source: ProgramId,
+    /// Destination of the message.
     pub dest: ProgramId,
+    /// Payload of the message.
     pub payload: Payload,
-    pub gas_limit: u64,
+    /// Gas limit.
+    pub gas_limit: Option<u64>,
 }
 
 impl Message {
-    pub fn new_system(dest: ProgramId, payload: Payload, gas_limit: u64) -> Message {
+    /// New system message to the specific program.
+    pub fn new_system(dest: ProgramId, payload: Payload, gas_limit: Option<u64>) -> Message {
         Message { source: 0.into(), dest, payload, gas_limit }
     }
 
+    /// Return destination of this message.
     pub fn dest(&self) -> ProgramId {
         self.dest
     }
 
+    /// Return source of this message.
     pub fn source(&self) -> ProgramId {
         self.source
     }
 
+    /// Get the payload reference of this message.
     pub fn payload(&self) -> &[u8] {
         &self.payload.0[..]
     }
 
-    pub fn gas_limit(&self) -> u64 {
+    /// Message gas limit.
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 }
 
+/// Message state of the current session.
+///
+/// Contains all generated outgoing messages.
 #[derive(Debug)]
 pub struct MessageState {
     outgoing: Vec<OutgoingMessage>,
 }
 
+/// Message context for the currently running program.
 #[derive(Clone)]
 pub struct MessageContext {
     state: Rc<RefCell<MessageState>>,
@@ -118,6 +147,9 @@ pub struct MessageContext {
 }
 
 impl MessageContext {
+    /// New context.
+    ///
+    /// Create context by providing incoming message for the program.
     pub fn new(incoming_message: IncomingMessage) -> MessageContext {
         MessageContext {
             state: Rc::new(RefCell::new(
@@ -130,6 +162,7 @@ impl MessageContext {
         }
     }
 
+    /// Send message to another program in this context.
     pub fn send(&self, msg: OutgoingMessage) -> Result<(), Error> {
         if !(self.state.borrow().outgoing.len() < self.outgoing_limit) {
             return Err(Error::LimitExceeded);
@@ -140,10 +173,14 @@ impl MessageContext {
         Ok(())
     }
 
+    /// Return reference to the current incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current.as_ref()
     }
 
+    /// Drop this context.
+    ///
+    /// Do it to retur nall message generated using this context.
     pub fn drain(self) -> Vec<OutgoingMessage> {
         let Self { state, .. } = self;
         let mut st = state.borrow_mut();
