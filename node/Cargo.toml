@@ -1,19 +1,19 @@
 [package]
-name = "node-template"
-version = "2.0.0"
-authors = ["Anonymous"]
-description = "A new FRAME-based Substrate node, ready for hacking."
+name = "gear-node"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+description = "Gear Node"
 edition = "2018"
-license = "Unlicense"
+license = "GPL-3.0"
 build = "build.rs"
-homepage = "https://substrate.dev"
-repository = "https://github.com/paritytech/substrate/"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear-node"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [[bin]]
-name = "node-template"
+name = "gear-node"
 
 [dependencies]
 structopt = "0.3.8"
@@ -51,6 +51,7 @@ pallet-transaction-payment-rpc = { version = "3.0.0", git = "https://github.com/
 frame-benchmarking = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 frame-benchmarking-cli = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 
+# Internal
 gear-runtime = { path = "../runtime" }
 gear-node-rti = { path = "../rti" }
 gear-test-cli = { path = "../utils/gear-test-cli" }

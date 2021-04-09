@@ -1,25 +1,29 @@
 [package]
 name = "gear-node-rti"
-version = "2.0.0"
+version = "0.1.0"
 authors = ["Anonymous"]
 description = "Runtime iterface of the Gear node"
 edition = "2018"
-license = "Unlicense"
-homepage = "https://substrate.dev"
-repository = "https://github.com/paritytech/substrate/"
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear-node"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+log = { version = "0.4", optional = true }
+
+# Internal deps
+gear-core = { path = "../../gear-core", optional = true }
+gear-common = { path = "../common", default-features = false }
+
+# Substrate deps
 sp-runtime-interface = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-externalities = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-core = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-std = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git", default-features = false }
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
-gear-core = { path = "../../gear-core", optional = true }
-gear-common = { path = "../common", default-features = false }
-log = { version = "0.4", optional = true }
 
 [features]
 default = ["std"]

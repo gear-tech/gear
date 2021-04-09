@@ -36,7 +36,7 @@ pub fn init_fixture(
             runner.queue_message(
                 message.destination.into(),
                 message.payload.clone().into_raw(),
-                u64::max_value(),
+                Some(u64::max_value()),
             )
         }
 
