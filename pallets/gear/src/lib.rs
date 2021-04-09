@@ -58,7 +58,7 @@ pub mod pallet {
 	pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
 
 	#[pallet::storage]
-	pub type DequeLimit<T> = StorageValue<_, u32>;
+	pub type DequeueLimit<T> = StorageValue<_, u32>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
