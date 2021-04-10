@@ -9,30 +9,42 @@ const {
 const testKeyring = require('@polkadot/keyring/testing');
 const fs = require('fs');
 
+let p_index = 0;
+
 function submitProgram(api, sudoPair, program) {
     let binary = fs.readFileSync(program.path);
 
     // var bytes = 
     // console.log(Bytes(binary));
     // console.log(bytes);
-    let program_id = [];
     let init_message = [];
     if (program.init_message !== undefined) {
-        init_message = program.init_message.value;
+        if (program.init_message.kind === 'bytes') {
+            init_message = api.createType('Bytes', Array.from(program.init_message.value.slice(2)));
+        } else {
+            init_message = program.init_message.value;
+        }
     }
+    console.log(init_message);
     return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), init_message, 1000000);
 }
 
 async function processFixture(api, sudoPair, fixture, programs) {
     let msg_index = 0;
+    console.log("SUBMIT MESSAGES");
     const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
         console.log(`Chain is at block: #${header.number}`);
         const message = fixture.messages[msg_index];
-        api.tx.gearModule.sendMessage(programs[message.destination], message.payload.value, 100000000).signAndSend(sudoPair, ({
+
+        if (message.payload.kind === 'bytes') {
+            msg = api.createType('Bytes', Array.from(message.value.slice(2)));
+        } else {
+            msg = message.payload.value;
+        }
+        api.tx.gearModule.sendMessage(programs[message.destination], msg, 100000000).signAndSend(sudoPair, ({
             events = [],
             status
         }) => {
-            let program_id = [];
             console.log('Transaction status:', status.type);
             if (status.isFinalized) {
                 console.log('Finalized block hash', status.asFinalized.toHex());
@@ -50,7 +62,6 @@ async function processFixture(api, sudoPair, fixture, programs) {
                     //     console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
                     // }
                 });
-                // console.log(program);
             }
         });
 
@@ -61,25 +72,16 @@ async function processFixture(api, sudoPair, fixture, programs) {
 }
 
 async function processTest(test, api, sudoPair) {
-    let programs_wasm = [];
-    let programs_tx = [];
     let programs = [];
-
-    for (const program of test.programs) {
-
-        let tx = submitProgram(api, sudoPair, program);
-        programs_tx.push(tx);
-    }
-    let p_index = 0;
     const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
+        // let p_index = 0;
         console.log(`Chain is at block: #${header.number}`);
-        if (p_index < programs_tx.length) {
-            const element = programs_tx[p_index];
-            element.signAndSend(sudoPair, async ({
+        if (p_index < test.programs.length && !test.programs[p_index].submited) {
+            test.programs[p_index].submited = true;
+            submitProgram(api, sudoPair, test.programs[p_index]).signAndSend(sudoPair, ({
                 events = [],
                 status
             }) => {
-                let program_id = [];
                 console.log('Transaction status:', status.type);
                 if (status.isFinalized) {
                     console.log('Finalized block hash', status.asFinalized.toHex());
@@ -92,19 +94,22 @@ async function processTest(test, api, sudoPair) {
                         phase
                     }) => {
                         if (section === 'gearModule' && method === 'NewProgram') {
-                            program_id = data[0];
+                            console.log(p_index);
+                            if (test.programs[p_index] !== undefined) {
+                                programs[test.programs[p_index].id] = data[0];
+                            }
                             console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+                            p_index++;
                         }
                     });
                     // console.log(program);
 
-                    programs[p_index] = program_id;
                 }
             });
         }
 
 
-        if (++p_index === test.programs.length + 1) {
+        if (p_index === test.programs.length) {
             unsubscribe();
             processFixture(api, sudoPair, test.fixtures[0], programs);
 
