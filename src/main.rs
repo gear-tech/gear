@@ -31,8 +31,8 @@ fn check_messages(
                 if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
                     errors.push("Expectation error (payload doesn't match)".to_string());
                 }
-                if let Some(gas_limit) = exp.gas_limit {
-                    if gas_limit != msg.gas_limit {
+                if let Some(_) = exp.gas_limit {
+                    if exp.gas_limit != msg.gas_limit {
                         errors.push("Expectation error (gas_limit doesn't match)".to_string());
                     }
                 }
