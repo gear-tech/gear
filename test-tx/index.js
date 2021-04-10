@@ -16,24 +16,19 @@ function submitProgram(api, sudoPair, program) {
     // console.log(Bytes(binary));
     // console.log(bytes);
     let program_id = [];
-    return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), "PING", 1000000);
+    let init_message = [];
+    if (program.init_message !== undefined) {
+        init_message = program.init_message.value;
+    }
+    return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), init_message, 1000000);
 }
 
-async function processTest(test, api, sudoPair) {
-    let programs_wasm = [];
-    let programs_tx = [];
-    let programs = [];
-
-    for (const program of test.programs) {
-
-        let tx = submitProgram(api, sudoPair, program);
-        programs_tx.push(tx);
-    }
-    let index = 0;
+async function processFixture(api, sudoPair, fixture, programs) {
+    let msg_index = 0;
     const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
         console.log(`Chain is at block: #${header.number}`);
-        const element = programs_tx[index];
-        element.signAndSend(sudoPair, ({
+        const message = fixture.messages[msg_index];
+        api.tx.gearModule.sendMessage(programs[message.destination], message.payload.value, 100000000).signAndSend(sudoPair, ({
             events = [],
             status
         }) => {
@@ -49,28 +44,77 @@ async function processTest(test, api, sudoPair) {
                     },
                     phase
                 }) => {
-                    if (section === 'gearModule' && method === 'NewProgram') {
-                        program_id = data[0];
-                        console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
-                    }
+                    console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+                    // if (section === 'gearModule' && method === 'NewProgram') {
+                    //     program_id = data[0];
+                    //     console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+                    // }
                 });
                 // console.log(program);
-
-                programs[index] = program_id;
             }
         });
 
-        if (++index === test.programs.length) {
+        if (++msg_index === fixture.messages.length) {
             unsubscribe();
         }
     });
-    if (index == test.programs.length) {
-        for (const fixture of test.fixtures) {
-            for (const message of fixture.messages) {
-                api.tx.gearModule.sendMessage(programs[message.desination], message.payload.value, 100000000).signAndSend(sudoPair);
-            }
-        }
+}
+
+async function processTest(test, api, sudoPair) {
+    let programs_wasm = [];
+    let programs_tx = [];
+    let programs = [];
+
+    for (const program of test.programs) {
+
+        let tx = submitProgram(api, sudoPair, program);
+        programs_tx.push(tx);
     }
+    let p_index = 0;
+    const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
+        console.log(`Chain is at block: #${header.number}`);
+        if (p_index < programs_tx.length) {
+            const element = programs_tx[p_index];
+            element.signAndSend(sudoPair, async ({
+                events = [],
+                status
+            }) => {
+                let program_id = [];
+                console.log('Transaction status:', status.type);
+                if (status.isFinalized) {
+                    console.log('Finalized block hash', status.asFinalized.toHex());
+                    events.forEach(({
+                        event: {
+                            data,
+                            method,
+                            section
+                        },
+                        phase
+                    }) => {
+                        if (section === 'gearModule' && method === 'NewProgram') {
+                            program_id = data[0];
+                            console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+                        }
+                    });
+                    // console.log(program);
+
+                    programs[p_index] = program_id;
+                }
+            });
+        }
+
+
+        if (++p_index === test.programs.length + 1) {
+            unsubscribe();
+            processFixture(api, sudoPair, test.fixtures[0], programs);
+
+        }
+    });
+    // if (index == test.programs.length) {
+    //     for (const fixture of test.fixtures) {
+
+    //     }
+    // }
 
 
 }
