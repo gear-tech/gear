@@ -1,68 +1,80 @@
 // Required imports
-const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
-const { Bytes, TypeRegistry, createType } = require('@polkadot/types');
+const {
+    ApiPromise,
+    WsProvider,
+    Keyring
+} = require('@polkadot/api');
+
+// import the test keyring (already has dev keys for Alice, Bob, Charlie, Eve & Ferdie)
+const testKeyring = require('@polkadot/keyring/testing');
 const fs = require('fs');
 
-async function processTest(test, api, alice, nonce) {
-    let programs_wasm = [];
-    let programs_id = [];
+function submitProgram(api, sudoPair, program) {
+    let binary = fs.readFileSync(program.path);
 
-    test.programs.forEach(async (program) => {
-        let binary = fs.readFileSync(program.path);
-        // var bytes = 
-        // console.log(Bytes(binary));
-        // console.log(bytes);
-        api.tx
-            .gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), 0, 1000000)
-            .signAndSend(alice, ({ events = [], status }) => {
-                console.log('Transaction status:', status.type);
-
-                if (status.isInBlock) {
-                    console.log('Included at block hash', status.asInBlock.toHex());
-                    console.log('Events:');
-
-                    events.forEach(({ event: { data, method, section }, phase }) => {
-                        if (section === 'gearModule' && method === 'NewProgram') {
-                            program.program_id = data[0];
-                            console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
-                        }
-                    });
-                } else if (status.isFinalized) {
-                    console.log('Finalized block hash', status.asFinalized.toHex());
-                    console.log(program);
-                    api.tx
-                        .gearModule.sendMessage(program.program_id, "PING", 100000000)
-                        .signAndSend(alice);
-                }
-            });
-        // console.log(api.tx.gearModule.submitProgram.meta.args);
-        // console.log(Uint8Array.from(binary));
-
-        console.log(program)
-    });
-
-
-
-
-
-    // Sign and send the transaction using our account
-    // transfer.signAndSend(alice, { nonce }, ({ events = [], status }) => {
-    //     console.log('Transaction status:', status.type);
-
-    //     if (status.isInBlock) {
-    //         console.log('Included at block hash', status.asInBlock.toHex());
-    //         console.log('Events:');
-
-    //         events.forEach(({ event: { data, method, section }, phase }) => {
-    //             console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
-    //         });
-    //     } else if (status.isFinalized) {
-    //         console.log('Finalized block hash', status.asFinalized.toHex());
-
-    //         //   process.exit(0);
-    //     }
-    // });
+    // var bytes = 
+    // console.log(Bytes(binary));
+    // console.log(bytes);
+    let program_id = [];
+    return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), "PING", 1000000);
 }
+
+async function processTest(test, api, sudoPair) {
+    let programs_wasm = [];
+    let programs_tx = [];
+    let programs = [];
+
+    for (const program of test.programs) {
+
+        let tx = submitProgram(api, sudoPair, program);
+        programs_tx.push(tx);
+    }
+    let index = 0;
+    const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
+        console.log(`Chain is at block: #${header.number}`);
+        const element = programs_tx[index];
+        element.signAndSend(sudoPair, ({
+            events = [],
+            status
+        }) => {
+            let program_id = [];
+            console.log('Transaction status:', status.type);
+            if (status.isFinalized) {
+                console.log('Finalized block hash', status.asFinalized.toHex());
+                events.forEach(({
+                    event: {
+                        data,
+                        method,
+                        section
+                    },
+                    phase
+                }) => {
+                    if (section === 'gearModule' && method === 'NewProgram') {
+                        program_id = data[0];
+                        console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+                    }
+                });
+                // console.log(program);
+
+                programs[index] = program_id;
+            }
+        });
+
+        if (++index === test.programs.length) {
+            unsubscribe();
+        }
+    });
+    if (index == test.programs.length) {
+        for (const fixture of test.fixtures) {
+            for (const message of fixture.messages) {
+                api.tx.gearModule.sendMessage(programs[message.desination], message.payload.value, 100000000).signAndSend(sudoPair);
+            }
+        }
+    }
+
+
+}
+
 
 async function main() {
     let tests = [];
@@ -90,14 +102,19 @@ async function main() {
 
     console.log("Total fixtures:", total_fixtures);
 
+
     // Create a keyring instance
-    const keyring = new Keyring({ type: 'sr25519' });
+    // const keyring = new Keyring({
+    //     type: 'sr25519'
+    // });
 
     // Initialise the provider to connect to the local node
     const provider = new WsProvider('ws://127.0.0.1:9944');
 
     // Create the API and wait until ready
-    const api = await ApiPromise.create({ provider });
+    const api = await ApiPromise.create({
+        provider
+    });
 
     // Retrieve the chain & node information information via rpc calls
     const [chain, nodeName, nodeVersion] = await Promise.all([
@@ -108,11 +125,17 @@ async function main() {
 
     console.log(`You are connected to chain ${chain} using ${nodeName} v${nodeVersion}`);
 
-    const alice = keyring.addFromUri('//Alice', { name: 'Alice default' });
+    // Retrieve the upgrade key from the chain state
+    const adminId = await api.query.sudo.key();
 
-    const { nonce } = await api.query.system.account(alice.address);
+    // Find the actual keypair in the keyring (if this is a changed value, the key
+    // needs to be added to the keyring before - this assumes we have defaults, i.e.
+    // Alice as the key - and this already exists on the test keyring)
+    const keyring = testKeyring.createTestKeyring();
+    const adminPair = keyring.getPair(adminId.toString());
 
-    await processTest(tests[0], api, alice, nonce);
+
+    await processTest(tests[0], api, adminPair);
 
 
     // Create a extrinsic, transferring 12345 units to Bob
