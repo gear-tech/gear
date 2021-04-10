@@ -37,7 +37,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
         const message = fixture.messages[msg_index];
 
         if (message.payload.kind === 'bytes') {
-            msg = api.createType('Bytes', Array.from(message.value.slice(2)));
+            msg = api.createType('Bytes', Array.from(message.payload.value.slice(2)));
         } else {
             msg = message.payload.value;
         }
