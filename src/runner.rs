@@ -34,7 +34,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
         let code = std::fs::read(program.path.clone())?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
-            let re = Regex::new(r"\{(?P<id>[0-9])*}").unwrap();
+            let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
             init_message = match init_msg {
                 PayloadVariant::Utf8(s) => {
                     // Insert ProgramId
@@ -59,7 +59,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
-        let re = Regex::new(r"\{(?P<id>[0-9])*}").unwrap();
+        let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
         let payload = match &message.payload {
             PayloadVariant::Utf8(s) => {
                 // Insert ProgramId
