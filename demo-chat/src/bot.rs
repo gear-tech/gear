@@ -1,10 +1,26 @@
 use gstd::{ext, msg, ProgramId};
+use std::{fmt::Write, num::ParseIntError};
 
 mod shared;
 
 use codec::{Decode as _, Encode as _};
-use shared::{MemberMessage, RoomMessage};
 use core::convert::TryInto;
+use shared::{MemberMessage, RoomMessage};
+
+fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+        .collect()
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        write!(&mut s, "{:02x}", b);
+    }
+    s
+}
 
 #[derive(Debug)]
 struct State {
@@ -51,10 +67,10 @@ fn bot(message: MemberMessage) {
     }
 }
 
-pub fn send_room(id: u64, msg: RoomMessage) {
+pub fn send_room(id: ProgramId, msg: RoomMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(ProgramId::from(id), &encoded, u64::MAX);
+    msg::send(id, &encoded, u64::MAX);
 }
 
 #[no_mangle]
@@ -67,9 +83,7 @@ pub unsafe extern "C" fn init() {
             let (name, room_id) = (&split[0], &split[1]);
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
             STATE.set_name(s);
-            let room_id = room_id
-                .parse::<u64>()
-                .expect("INTIALIZATION FAILED: INVALID ROOM ID");
+            let room_id = ProgramId::from_slice(&decode_hex(room_id).expect("INTIALIZATION FAILED: INVALID ROOM ID"));
             send_room(
                 room_id,
                 RoomMessage::Join {
