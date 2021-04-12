@@ -17,6 +17,9 @@ impl State {
     fn set_send_to(&mut self, to: ProgramId) {
         self.send_to = to;
     }
+    fn send_to(&self) -> ProgramId {
+        self.send_to
+    }
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
@@ -31,7 +34,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
-    msg::send(2.into(), (new_msg + new_msg).as_ne_bytes(), u64::MAX);
+    msg::send(STATE.send_to(), (new_msg + new_msg).as_ne_bytes(), u64::MAX);
 
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
@@ -46,7 +49,9 @@ pub unsafe extern "C" fn handle() {
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
-    let send_to = ProgramId::from_slice(&decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"));
+    let send_to = ProgramId::from_slice(
+        &decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+    );
     STATE.set_send_to(send_to);
 }
 
