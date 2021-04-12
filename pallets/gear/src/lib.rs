@@ -194,7 +194,7 @@ pub mod pallet {
 						common::queue_message(Message{
 							source,
 							payload,
-							gas_limit: gas_limit,
+							gas_limit: Some(gas_limit),
 							dest: route.destination,
 						});
 					}
