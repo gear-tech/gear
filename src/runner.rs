@@ -37,6 +37,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
             let re = Regex::new(r"\{(?P<id>[0-9])*}").unwrap();
             init_message = match init_msg {
                 PayloadVariant::Utf8(s) => {
+                    // Insert ProgramId
                     if let Some(caps) = re.captures(s) {
                         let id = caps["id"].parse::<u64>().unwrap();
                         let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
@@ -61,6 +62,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
         let re = Regex::new(r"\{(?P<id>[0-9])*}").unwrap();
         let payload = match &message.payload {
             PayloadVariant::Utf8(s) => {
+                // Insert ProgramId
                 if let Some(caps) = re.captures(&s) {
                     let id = caps["id"].parse::<u64>().unwrap();
                     let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
@@ -71,11 +73,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
             }
             _ => message.payload.clone().into_raw(),
         };
-        runner.queue_message(
-            message.destination.into(),
-            payload,
-            message.gas_limit,
-        )
+        runner.queue_message(message.destination.into(), payload, message.gas_limit)
     }
 
     Ok(runner)
