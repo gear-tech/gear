@@ -73,7 +73,7 @@ fn it_processes_messages() {
 				source: H256::zero(),
 				dest: H256::from_low_u64_be(1),
 				payload: Vec::new(),
-				gas_limit: u64::max_value(),
+				gas_limit: Some(u64::max_value()),
 			}
 		);
 
