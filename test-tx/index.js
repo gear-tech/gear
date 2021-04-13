@@ -11,7 +11,7 @@ const fs = require('fs');
 
 let p_index = 0;
 
-function submitProgram(api, sudoPair, program) {
+function submitProgram(api, sudoPair, program, programs) {
     let binary = fs.readFileSync(program.path);
 
     // var bytes = 
@@ -22,7 +22,18 @@ function submitProgram(api, sudoPair, program) {
         if (program.init_message.kind === 'bytes') {
             init_message = api.createType('Bytes', Array.from(program.init_message.value.slice(2)));
         } else {
+            if (program.init_message.value.search(/{([0-9]*)\}/) !== -1) {
+                let res = program.init_message.value.match(/{([0-9]*)\}/);
+                let id = Number(res[1]);
+                console.log(res);
+                console.log(programs);
+                if (programs[id] !== undefined) {
+                    console.log(init_message);
+                    program.init_message.value = program.init_message.value.replace(res[0], programs[id].toString().slice(2));
+                }
+            }
             init_message = program.init_message.value;
+            console.log(init_message);
         }
     }
     console.log(init_message);
@@ -38,6 +49,14 @@ async function processFixture(api, sudoPair, fixture, programs) {
 
         if (message.payload.kind === 'bytes') {
             msg = api.createType('Bytes', Array.from(message.payload.value.slice(2)));
+        } else if (message.payload.kind === 'i32') {
+            msg = api.createType('I32', message.payload.value);
+        } else if (message.payload.kind === 'i64') {
+            msg = api.createType('I64', message.payload.value);
+        } else if (message.payload.kind === 'f32') {
+            msg = api.createType('F32', message.payload.value);
+        } else if (message.payload.kind === 'f64') {
+            msg = api.createType('F64', message.payload.value);
         } else {
             msg = message.payload.value;
         }
@@ -73,12 +92,13 @@ async function processFixture(api, sudoPair, fixture, programs) {
 
 async function processTest(test, api, sudoPair) {
     let programs = [];
+    // test.programs.reverse();
     const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
         // let p_index = 0;
         console.log(`Chain is at block: #${header.number}`);
         if (p_index < test.programs.length && !test.programs[p_index].submited) {
             test.programs[p_index].submited = true;
-            submitProgram(api, sudoPair, test.programs[p_index]).signAndSend(sudoPair, ({
+            submitProgram(api, sudoPair, test.programs[p_index], programs).signAndSend(sudoPair, ({
                 events = [],
                 status
             }) => {
@@ -139,6 +159,16 @@ async function main() {
             console.error(err);
         }
     });
+    // ['test.json'].forEach(path => {
+    //     const fileContents = fs.readFileSync(path, 'utf8');
+
+    //     try {
+    //         const data = JSON.parse(fileContents);
+    //         tests.push(data);
+    //     } catch (err) {
+    //         console.error(err);
+    //     }
+    // });
 
     console.log(tests);
 
