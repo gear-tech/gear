@@ -51,9 +51,10 @@ function submitProgram(api, sudoPair, program, programs) {
 async function processFixture(api, sudoPair, fixture, programs) {
     let msg_index = 0;
     console.log("SUBMIT MESSAGES");
-    const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
-        console.log(`Chain is at block: #${header.number}`);
-        const message = fixture.messages[msg_index];
+    let txs = [];
+    for (let index = 0; index < fixture.messages.length; index++) {
+
+        const message = fixture.messages[index];
 
         if (message.payload.kind === 'bytes') {
             msg = api.createType('Bytes', Array.from(message.payload.value.slice(2)));
@@ -77,34 +78,39 @@ async function processFixture(api, sudoPair, fixture, programs) {
         } else {
             msg = message.payload.value;
         }
-        api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n).signAndSend(sudoPair, ({
-            events = [],
+        txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n));
+        // api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n).signAndSend(sudoPair, ({
+        //     events = [],
+        //     status
+        // }) => {
+        //     console.log('Transaction status:', status.type);
+        //     if (status.isFinalized) {
+        //         console.log('Finalized block hash', status.asFinalized.toHex());
+        //         events.forEach(({
+        //             event: {
+        //                 data,
+        //                 method,
+        //                 section
+        //             },
+        //             phase
+        //         }) => {
+        //             console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+        //             // if (section === 'gearModule' && method === 'NewProgram') {
+        //             //     program_id = data[0];
+        //             //     console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
+        //             // }
+        //         });
+        //     }
+        // });
+    }
+    api.tx.utility.batch(txs)
+        .signAndSend(sudoPair, ({
             status
         }) => {
-            console.log('Transaction status:', status.type);
-            if (status.isFinalized) {
-                console.log('Finalized block hash', status.asFinalized.toHex());
-                events.forEach(({
-                    event: {
-                        data,
-                        method,
-                        section
-                    },
-                    phase
-                }) => {
-                    console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
-                    // if (section === 'gearModule' && method === 'NewProgram') {
-                    //     program_id = data[0];
-                    //     console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
-                    // }
-                });
+            if (status.isInBlock) {
+                console.log(`included in ${status.asInBlock}`);
             }
         });
-
-        if (++msg_index === fixture.messages.length) {
-            unsubscribe();
-        }
-    });
 }
 
 async function processTest(test, api, sudoPair) {
