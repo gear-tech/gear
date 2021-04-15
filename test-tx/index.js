@@ -21,15 +21,15 @@ function submitProgram(api, sudoPair, program, programs) {
     if (program.init_message !== undefined) {
         if (program.init_message.kind === 'bytes') {
             init_message = api.createType('Bytes', Array.from(program.init_message.value.slice(2)));
-        } else if (message.payload.kind === 'i32') {
+        } else if (program.init_message.kind === 'i32') {
             msg = api.createType('Bytes', Array.from(api.createType('i32', message.payload.value).toU8a()));
-        } else if (message.payload.kind === 'i64') {
+        } else if (program.init_message.kind === 'i64') {
             msg = api.createType('Bytes', Array.from(api.createType('i64', message.payload.value).toU8a()));
-        } else if (message.payload.kind === 'f32') {
+        } else if (program.init_message.kind === 'f32') {
             msg = api.createType('Bytes', Array.from(api.createType('f32', message.payload.value).toU8a()));
-        } else if (message.payload.kind === 'f64') {
+        } else if (program.init_message.kind === 'f64') {
             msg = api.createType('Bytes', Array.from(api.createType('f64', message.payload.value).toU8a()));
-        } else if (message.payload.kind === 'utf-8') {
+        } else if (program.init_message.kind === 'utf-8') {
             if (program.init_message.value.search(/{([0-9]*)\}/) !== -1) {
                 let res = program.init_message.value.match(/{([0-9]*)\}/);
                 let id = Number(res[1]);
