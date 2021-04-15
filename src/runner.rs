@@ -8,11 +8,21 @@ use gear_core::{
         InMemoryStorage,
     },
 };
+use std::{fmt::Write, num::ParseIntError};
+use test_gear_sample::sample::{PayloadVariant, Test};
 
-use test_gear_sample::sample::Test;
+use regex::Regex;
 
 type InMemoryRunner =
     Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
+
+fn encode_hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        write!(&mut s, "{:02x}", b);
+    }
+    s
+}
 
 pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRunner> {
     let mut runner = Runner::new(
@@ -24,7 +34,20 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
         let code = std::fs::read(program.path.clone())?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
-            init_message = init_msg.clone().into_raw();
+            let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
+            init_message = match init_msg {
+                PayloadVariant::Utf8(s) => {
+                    // Insert ProgramId
+                    if let Some(caps) = re.captures(s) {
+                        let id = caps["id"].parse::<u64>().unwrap();
+                        let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+                        (s.clone().into_bytes()).to_vec()
+                    } else {
+                        init_msg.clone().into_raw()
+                    }
+                }
+                _ => init_msg.clone().into_raw(),
+            }
         }
         runner.init_program(
             program.id.into(),
@@ -36,11 +59,21 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
-        runner.queue_message(
-            message.destination.into(),
-            message.payload.clone().into_raw(),
-            message.gas_limit,
-        )
+        let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
+        let payload = match &message.payload {
+            PayloadVariant::Utf8(s) => {
+                // Insert ProgramId
+                if let Some(caps) = re.captures(&s) {
+                    let id = caps["id"].parse::<u64>().unwrap();
+                    let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+                    (s.clone().into_bytes()).to_vec()
+                } else {
+                    message.payload.clone().into_raw()
+                }
+            }
+            _ => message.payload.clone().into_raw(),
+        };
+        runner.queue_message(message.destination.into(), payload, message.gas_limit)
     }
 
     Ok(runner)
