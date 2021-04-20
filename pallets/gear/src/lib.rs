@@ -78,6 +78,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type DequeueLimit<T> = StorageValue<_, u32>;
 
+	#[pallet::storage]
+	pub type MessagesProcessed<T> = StorageValue<_, u32>;
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// Initialization
@@ -206,10 +209,14 @@ pub mod pallet {
 					Ok(execution_report) => {
 						total_handled += execution_report.handled;
 
-						if <DequeueLimit<T>>::get().map(|limit| limit >= total_handled).unwrap_or(false) {
-							break;
+						<MessagesProcessed<T>>::mutate(|messages_processed| *messages_processed = Some(messages_processed.unwrap_or(0) + total_handled));
+						
+						let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
+						if <DequeueLimit<T>>::get().is_some() {
+							if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
+								break;
+							}
 						}
-
 						if execution_report.handled == 0 { break; }
 
 						for (program_id, payload) in execution_report.log.into_iter() {
