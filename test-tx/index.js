@@ -49,55 +49,93 @@ function submitProgram(api, sudoPair, program, programs) {
 }
 
 async function processFixture(api, sudoPair, fixture, programs) {
+    let msg_index = 0;
+    console.log("SUBMIT MESSAGES");
+    let txs = [];
+
+    // Set MessagesProcessed to zero
+    let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
+    txs.push(api.tx.sudo.sudo(
+        api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', 0)).toHex()]])
+    ));
+
+    // Send messages
+    for (let index = 0; index < fixture.messages.length; index++) {
+
+        const message = fixture.messages[index];
+
+        if (message.payload.kind === 'bytes') {
+            msg = api.createType('Bytes', Array.from(message.payload.value.slice(2)));
+        } else if (message.payload.kind === 'i32') {
+            msg = api.createType('Bytes', Array.from(api.createType('i32', message.payload.value).toU8a()));
+        } else if (message.payload.kind === 'i64') {
+            msg = api.createType('Bytes', Array.from(api.createType('i64', message.payload.value).toU8a()));
+        } else if (message.payload.kind === 'f32') {
+            msg = api.createType('Bytes', Array.from(api.createType('f32', message.payload.value).toU8a()));
+        } else if (message.payload.kind === 'f64') {
+            msg = api.createType('Bytes', Array.from(api.createType('f64', message.payload.value).toU8a()));
+        } else if (message.payload.kind === 'utf-8') {
+            if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
+                let res = message.payload.value.match(/{([0-9]*)\}/);
+                let id = Number(res[1]);
+                if (programs[id] !== undefined) {
+                    message.payload.value = message.payload.value.replace(res[0], programs[id].toString().slice(2));
+                }
+            }
+            msg = message.payload.value;
+        } else {
+            msg = message.payload.value;
+        }
+        txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n));
+    }
+
+    const unsub = await api.tx.utility.batch(txs)
+        .signAndSend(sudoPair, ({
+            status
+        }) => {
+            if (status.isInBlock) {
+                console.log(`Messages included in ${status.asInBlock}`);
+            }
+            unsub();
+        });
+
     for (const exp of fixture.expected) {
-        let msg_index = 0;
-        console.log("SUBMIT MESSAGES");
-        let txs = [];
 
-        // Set DequeueLimit
-        let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
-        txs.push(api.tx.sudo.sudo(
-            api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.steps)).toHex()]])
-        ));
-        
-        // Send messages
-        for (let index = 0; index < fixture.messages.length; index++) {
+        if ('step' in exp) {
+            // Set DequeueLimit
+            hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+            api.tx.sudo.sudo(
+                api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.step)).toHex()]])
+            ).signAndSend(sudoPair);
+            console.log('steps = ', exp.step);
+        }
 
-            const message = fixture.messages[index];
 
-            if (message.payload.kind === 'bytes') {
-                msg = api.createType('Bytes', Array.from(message.payload.value.slice(2)));
-            } else if (message.payload.kind === 'i32') {
-                msg = api.createType('Bytes', Array.from(api.createType('i32', message.payload.value).toU8a()));
-            } else if (message.payload.kind === 'i64') {
-                msg = api.createType('Bytes', Array.from(api.createType('i64', message.payload.value).toU8a()));
-            } else if (message.payload.kind === 'f32') {
-                msg = api.createType('Bytes', Array.from(api.createType('f32', message.payload.value).toU8a()));
-            } else if (message.payload.kind === 'f64') {
-                msg = api.createType('Bytes', Array.from(api.createType('f64', message.payload.value).toU8a()));
-            } else if (message.payload.kind === 'utf-8') {
-                if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
-                    let res = message.payload.value.match(/{([0-9]*)\}/);
-                    let id = Number(res[1]);
-                    if (programs[id] !== undefined) {
-                        message.payload.value = message.payload.value.replace(res[0], programs[id].toString().slice(2));
+
+        if ('step' in exp) {
+            let messages_processed = await api.query.gearModule.messagesProcessed();
+            while (!messages_processed.unwrap().toNumber() >= exp.step) {
+                messages_processed = await api.query.gearModule.messagesProcessed();
+            }
+        }
+        console.log('done');
+        if ('memory' in exp) {
+            for (const mem of exp.memory) {
+                console.log(mem);
+                if (mem.kind == 'shared') {
+                    let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
+                    let gearMemory = gearMemoryOpt.unwrap().toU8a();
+                    let at = parseInt(mem.at, 16) - (256 * 65536);
+                    let bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
+                    for (let index = at; index < at + bytes.length; index++) {
+                        if (gearMemory[index] != bytes[index - at]) {
+                            console.log("Memory doesn't match");
+                        }
                     }
                 }
-                msg = message.payload.value;
-            } else {
-                msg = message.payload.value;
             }
-            txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n));
         }
-        const unsub = await api.tx.utility.batch(txs)
-            .signAndSend(sudoPair, ({
-                status
-            }) => {
-                if (status.isInBlock) {
-                    console.log(`Messages included in ${status.asInBlock}`);
-                }
-                unsub();
-            });
+
     }
 
 }
@@ -107,7 +145,6 @@ async function processTest(test, api, sudoPair) {
 
     // Submit programs
     const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
-        // let p_index = 0;
         console.log(`Chain is at block: #${header.number}`);
         if (p_index < test.programs.length && !test.programs[p_index].submited) {
             test.programs[p_index].submited = true;
@@ -143,6 +180,9 @@ async function processTest(test, api, sudoPair) {
 
 
         if (p_index === test.programs.length) {
+            console.log("process fixture");
+            console.log(p_index);
+
             unsubscribe();
             processFixture(api, sudoPair, test.fixtures[0], programs);
 
