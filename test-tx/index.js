@@ -65,7 +65,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
         const message = fixture.messages[index];
 
         if (message.payload.kind === 'bytes') {
-            msg = api.createType('Bytes', Array.from(message.payload.value.slice(2)));
+            msg = api.createType('Bytes', message.payload.value);
         } else if (message.payload.kind === 'i32') {
             msg = api.createType('Bytes', Array.from(api.createType('i32', message.payload.value).toU8a()));
         } else if (message.payload.kind === 'i64') {
