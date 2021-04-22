@@ -245,7 +245,16 @@ async function main() {
 
     // Create the API and wait until ready
     const api = await ApiPromise.create({
-        provider
+        provider,
+        types: {
+            Message: {
+                source: 'Hash',
+                dest: 'Hash',
+                payload: 'Vec<u8>',
+                gas_limit: 'Option<u64>'
+            },
+            MessageQueue: 'Vec<Message>',
+        }
     });
 
     // Retrieve the chain & node information information via rpc calls
