@@ -3,9 +3,10 @@ extern crate alloc;
 use gstd::msg;
 use alloc::str::FromStr;
 
+// Begin of demo
 static mut CHARGE: u32 = 0;
 
-const LIMIT: u32 = 1000;
+static mut LIMIT: u32 = 0;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -20,9 +21,16 @@ pub unsafe extern "C" fn handle() {
         CHARGE = 0;
     }
 }
+// End of demo
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
+    let limit =
+        u32::from_str(
+            String::from_utf8(msg::load()).expect("Invalid message: should be utf-8").as_ref()
+        ).expect("Invalid number");
+
+    LIMIT = limit;
 }
 
 fn main() {
