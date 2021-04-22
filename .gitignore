@@ -2,6 +2,7 @@
 .DS_Store
 /demo-ping/target
 /demo-chat/target
+/demo-condensator/target
 /demo-sum/target
 /demo-fib/target
 /demo-vec/target
