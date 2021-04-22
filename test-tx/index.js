@@ -48,16 +48,155 @@ function submitProgram(api, sudoPair, program, programs) {
     return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), init_message, 18446744073709551615n);
 }
 
+async function processExpected(api, sudoPair, fixture, programs) {
+    for (const exp of fixture.expected) {
+
+        if ('step' in exp) {
+            let messages_processed = await api.query.gearModule.messagesProcessed();
+            let deq_limit = await api.query.gearModule.dequeueLimit();
+            console.log(messages_processed.unwrap().toNumber(), deq_limit.unwrap().toNumber() + exp.step)
+            if (!messages_processed.unwrap().toNumber() >= deq_limit.unwrap().toNumber() + exp.step) {
+                let tx = [];
+                // Set DequeueLimit
+                hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+                tx.push(api.tx.sudo.sudo(
+                    api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', deq_limit.unwrap().toNumber() + exp.step)).toHex()]])
+                ));
+                console.log('steps = ', deq_limit.unwrap().toNumber() + exp.step);
+                const unsub = await api.tx.utility.batch(tx)
+                    .signAndSend(sudoPair, ({
+                        status
+                    }) => {
+                        if (status.isFinalized) {
+                            unsub();
+                        }
+                    });
+                while (!messages_processed.unwrap().toNumber() >= deq_limit.unwrap().toNumber() + exp.step) {
+                    messages_processed = await api.query.gearModule.messagesProcessed();
+                }
+            }
+            console.log('done ' + exp.step);
+
+            if ('memory' in exp) {
+                for (const mem of exp.memory) {
+                    console.log(mem);
+                    if (mem.kind == 'shared') {
+                        let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
+                        let gearMemory = gearMemoryOpt.unwrap().toU8a();
+                        let at = parseInt(mem.at, 16) - (256 * 65536);
+                        let bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
+                        for (let index = at; index < at + bytes.length; index++) {
+                            if (gearMemory[index] != bytes[index - at]) {
+                                console.log("Memory doesn't match");
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ('messages' in exp) {
+                let msgOpt = await api.rpc.state.getStorage('g::msg');
+                // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
+                let messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
+                if (exp.messages.length != messageQueue.length) {
+                    console.log("MESSAGES COUNT DOUESN'T MATCH")
+                }
+                for (const message of messageQueue) {
+                    console.log(message.source.toHex());
+                    console.log(message.dest.toHex());
+                    console.log(message.payload.toHex());
+                }
+                for (let index = 0; index < exp.messages.length; index++) {
+                    const expMessage = exp.messages[index];
+                    let payload = [];
+                    if (expMessage.payload.kind === 'bytes') {
+                        payload = api.createType('Bytes', expMessage.payload.value.slice(2));
+                    } else if (expMessage.payload.kind === 'i32') {
+                        payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'i64') {
+                        payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'f32') {
+                        payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'f64') {
+                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'utf-8') {
+                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+                    }
+                    console.log(messageQueue[index].payload.toHex());
+                    console.log(expMessage.payload.value);
+                    if (!messageQueue[index].payload.eq(payload)) {
+                        console.log("Message payload doesn't match");
+                    }
+                }
+            }
+        } else {
+            console.log('done');
+            let msgOpt = await api.rpc.state.getStorage('g::msg');
+            console.log(api.createType('MessageQueue', msgOpt.unwrap()));
+
+            if ('memory' in exp) {
+                for (const mem of exp.memory) {
+                    console.log(mem);
+                    if (mem.kind == 'shared') {
+                        let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
+                        let gearMemory = gearMemoryOpt.unwrap().toU8a();
+                        let at = parseInt(mem.at, 16) - (256 * 65536);
+                        let bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
+                        for (let index = at; index < at + bytes.length; index++) {
+                            if (gearMemory[index] != bytes[index - at]) {
+                                console.log("Memory doesn't match");
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ('messages' in exp) {
+                let msgOpt = await api.rpc.state.getStorage('g::msg');
+                // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
+                let messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
+                if (exp.messages.length != messageQueue.length) {
+                    console.log("MESSAGES COUNT DOUESN'T MATCH")
+                }
+                for (let index = 0; index < exp.messages.length; index++) {
+                    const expMessage = exp.messages[index];
+                    let payload = [];
+                    if (expMessage.payload.kind === 'bytes') {
+                        payload = api.createType('Bytes', expMessage.payload.value.slice(2));
+                    } else if (expMessage.payload.kind === 'i32') {
+                        payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'i64') {
+                        payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'f32') {
+                        payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'f64') {
+                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+                    } else if (expMessage.payload.kind === 'utf-8') {
+                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+                    }
+                    console.log(messageQueue[index].payload.toHex());
+                    console.log(expMessage.payload.value);
+                    if (!messageQueue[index].payload.eq(payload)) {
+                        console.log("Message payload doesn't match");
+                    }
+                }
+            }
+        }
+
+
+    }
+}
+
 async function processFixture(api, sudoPair, fixture, programs) {
     let msg_index = 0;
     console.log("SUBMIT MESSAGES");
     let txs = [];
 
     // Set MessagesProcessed to zero
-    let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
-    txs.push(api.tx.sudo.sudo(
-        api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', 0)).toHex()]])
-    ));
+    // let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
+    // txs.push(api.tx.sudo.sudo(
+    //     api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', 0)).toHex()]])
+    // ));
 
     // Send messages
     for (let index = 0; index < fixture.messages.length; index++) {
@@ -89,54 +228,24 @@ async function processFixture(api, sudoPair, fixture, programs) {
         txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n));
     }
 
+    if ('step' in fixture.expected[0]) {
+        // Set DequeueLimit
+        hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+        txs.push(api.tx.sudo.sudo(
+            api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', fixture.expected[0].step)).toHex()]])
+        ));
+        console.log('steps = ', fixture.expected[0].step);
+    }
+
     const unsub = await api.tx.utility.batch(txs)
         .signAndSend(sudoPair, ({
             status
         }) => {
-            if (status.isInBlock) {
-                console.log(`Messages included in ${status.asInBlock}`);
+            if (status.isFinalized) {
+                processExpected(api, sudoPair, fixture, programs);
+                unsub();
             }
-            unsub();
         });
-
-    for (const exp of fixture.expected) {
-
-        if ('step' in exp) {
-            // Set DequeueLimit
-            hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
-            api.tx.sudo.sudo(
-                api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.step)).toHex()]])
-            ).signAndSend(sudoPair);
-            console.log('steps = ', exp.step);
-        }
-
-
-
-        if ('step' in exp) {
-            let messages_processed = await api.query.gearModule.messagesProcessed();
-            while (!messages_processed.unwrap().toNumber() >= exp.step) {
-                messages_processed = await api.query.gearModule.messagesProcessed();
-            }
-        }
-        console.log('done');
-        if ('memory' in exp) {
-            for (const mem of exp.memory) {
-                console.log(mem);
-                if (mem.kind == 'shared') {
-                    let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
-                    let gearMemory = gearMemoryOpt.unwrap().toU8a();
-                    let at = parseInt(mem.at, 16) - (256 * 65536);
-                    let bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
-                    for (let index = at; index < at + bytes.length; index++) {
-                        if (gearMemory[index] != bytes[index - at]) {
-                            console.log("Memory doesn't match");
-                        }
-                    }
-                }
-            }
-        }
-
-    }
 
 }
 
@@ -274,7 +383,6 @@ async function main() {
     // Alice as the key - and this already exists on the test keyring)
     const keyring = testKeyring.createTestKeyring();
     const adminPair = keyring.getPair(adminId.toString());
-
 
     await processTest(tests[0], api, adminPair);
 
