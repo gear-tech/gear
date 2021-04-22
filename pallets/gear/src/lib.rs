@@ -209,8 +209,8 @@ pub mod pallet {
 					Ok(execution_report) => {
 						total_handled += execution_report.handled;
 
-						<MessagesProcessed<T>>::mutate(|messages_processed| *messages_processed = Some(messages_processed.unwrap_or(0) + total_handled));
 						
+						<MessagesProcessed<T>>::mutate(|messages_processed| *messages_processed = Some(messages_processed.unwrap_or(0) + execution_report.handled));
 						let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
 						if <DequeueLimit<T>>::get().is_some() {
 							if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
