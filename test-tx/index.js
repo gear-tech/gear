@@ -20,11 +20,7 @@ async function checkMessages(api, exp) {
     if (exp.messages.length != messageQueue.length) {
         console.log("MESSAGES COUNT DOUESN'T MATCH")
     }
-    for (const message of messageQueue) {
-        console.log(message.source.toHex());
-        console.log(message.dest.toHex());
-        console.log(message.payload.toHex());
-    }
+
     for (let index = 0; index < exp.messages.length; index++) {
         const expMessage = exp.messages[index];
         let payload = [];
@@ -136,34 +132,20 @@ async function processExpected(api, sudoPair, fixture, programs) {
                         }
                     });
 
-
-                let msgOpt = await api.rpc.state.getStorage('g::msg');
-                // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
-                let messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
-                for (const message of messageQueue) {
-                    console.log(message.source.toHex());
-                    console.log(message.dest.toHex());
-                    console.log(message.payload.toHex());
-                }
-
                 messages_processed = await api.query.gearModule.messagesProcessed();
-                deq_limit = await api.query.gearModule.dequeueLimit();
 
-                console.log('processed = ' + messages_processed.unwrap().toNumber(), 'deq_limit = ' + deq_limit.unwrap().toNumber())
-                while (messages_processed.unwrap().toNumber() < deq_limit.unwrap().toNumber()) {
-                    console.log('processed = ' + messages_processed.unwrap().toNumber(), 'deq_limit = ' + deq_limit.unwrap().toNumber())
+                while (messages_processed.unwrap().toNumber() < exp.step) {
                     messages_processed = await api.query.gearModule.messagesProcessed();
-                    deq_limit = await api.query.gearModule.dequeueLimit();
                 }
             }
-            console.log('done ' + exp.step);
+            console.log('done step - ' + exp.step);
 
             if ('memory' in exp) {
-                checkMemory(api, exp);
+                await checkMemory(api, exp);
             }
 
             if ('messages' in exp) {
-                checkMessages(api, exp);
+                await checkMessages(api, exp);
             }
 
         } else {
@@ -172,14 +154,15 @@ async function processExpected(api, sudoPair, fixture, programs) {
             console.log(api.createType('MessageQueue', msgOpt.unwrap()));
 
             if ('memory' in exp) {
-                checkMemory(api, exp);
+                await checkMemory(api, exp);
             }
 
             if ('messages' in exp) {
-                checkMessages(api, exp);
+                await checkMessages(api, exp);
             }
         }
 
+        process.exit(0);
 
     }
 }
@@ -258,7 +241,6 @@ async function processTest(test, api, sudoPair) {
                 events = [],
                 status
             }) => {
-                console.log('Transaction status:', status.type);
                 if (status.isInBlock) {
                     // console.log('Finalized block hash', status.asFinalized.toHex());
                     events.forEach(({
