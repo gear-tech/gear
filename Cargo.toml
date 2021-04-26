@@ -16,7 +16,7 @@ termion = "1.5.6"
 regex = "1.4.5"
 
 [workspace]
-members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-fib", "test-gear-sample"]
+members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-condensator", "demo-fib", "test-gear-sample"]
 
 [[bin]]
 name = "gtest"
