@@ -13,6 +13,61 @@ const fs = require('fs');
 
 let p_index = 0;
 
+async function checkMessages(api, exp) {
+    let msgOpt = await api.rpc.state.getStorage('g::msg');
+    // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
+    let messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
+    if (exp.messages.length != messageQueue.length) {
+        console.log("MESSAGES COUNT DOUESN'T MATCH")
+    }
+    for (const message of messageQueue) {
+        console.log(message.source.toHex());
+        console.log(message.dest.toHex());
+        console.log(message.payload.toHex());
+    }
+    for (let index = 0; index < exp.messages.length; index++) {
+        const expMessage = exp.messages[index];
+        let payload = [];
+        if (expMessage.payload.kind === 'bytes') {
+            payload = api.createType('Bytes', expMessage.payload.value.slice(2));
+        } else if (expMessage.payload.kind === 'i32') {
+            payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
+        } else if (expMessage.payload.kind === 'i64') {
+            payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
+        } else if (expMessage.payload.kind === 'f32') {
+            payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
+        } else if (expMessage.payload.kind === 'f64') {
+            payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+        } else if (expMessage.payload.kind === 'utf-8') {
+            payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+        }
+        console.log(messageQueue[index].payload.toHex());
+        console.log(expMessage.payload.value);
+        if (!messageQueue[index].payload.eq(payload)) {
+            console.log("Message payload doesn't match");
+        } else {
+            console.log("MSG: OK")
+        }
+    }
+}
+
+async function checkMemory(api, exp) {
+    for (const mem of exp.memory) {
+        console.log(mem);
+        if (mem.kind == 'shared') {
+            let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
+            let gearMemory = gearMemoryOpt.unwrap().toU8a();
+            let at = parseInt(mem.at, 16) - (256 * 65536);
+            let bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
+            for (let index = at; index < at + bytes.length; index++) {
+                if (gearMemory[index] != bytes[index - at]) {
+                    console.log("Memory doesn't match");
+                }
+            }
+        }
+    }
+}
+
 function submitProgram(api, sudoPair, program, programs) {
     let binary = fs.readFileSync(program.path);
 
@@ -78,108 +133,24 @@ async function processExpected(api, sudoPair, fixture, programs) {
             console.log('done ' + exp.step);
 
             if ('memory' in exp) {
-                for (const mem of exp.memory) {
-                    console.log(mem);
-                    if (mem.kind == 'shared') {
-                        let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
-                        let gearMemory = gearMemoryOpt.unwrap().toU8a();
-                        let at = parseInt(mem.at, 16) - (256 * 65536);
-                        let bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
-                        for (let index = at; index < at + bytes.length; index++) {
-                            if (gearMemory[index] != bytes[index - at]) {
-                                console.log("Memory doesn't match");
-                            }
-                        }
-                    }
-                }
+                checkMemory(api, exp);
             }
 
             if ('messages' in exp) {
-                let msgOpt = await api.rpc.state.getStorage('g::msg');
-                // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
-                let messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
-                if (exp.messages.length != messageQueue.length) {
-                    console.log("MESSAGES COUNT DOUESN'T MATCH")
-                }
-                for (const message of messageQueue) {
-                    console.log(message.source.toHex());
-                    console.log(message.dest.toHex());
-                    console.log(message.payload.toHex());
-                }
-                for (let index = 0; index < exp.messages.length; index++) {
-                    const expMessage = exp.messages[index];
-                    let payload = [];
-                    if (expMessage.payload.kind === 'bytes') {
-                        payload = api.createType('Bytes', expMessage.payload.value.slice(2));
-                    } else if (expMessage.payload.kind === 'i32') {
-                        payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'i64') {
-                        payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'f32') {
-                        payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'f64') {
-                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'utf-8') {
-                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
-                    }
-                    console.log(messageQueue[index].payload.toHex());
-                    console.log(expMessage.payload.value);
-                    if (!messageQueue[index].payload.eq(payload)) {
-                        console.log("Message payload doesn't match");
-                    }
-                }
+                checkMessages(api, exp);
             }
+            
         } else {
             console.log('done');
             let msgOpt = await api.rpc.state.getStorage('g::msg');
             console.log(api.createType('MessageQueue', msgOpt.unwrap()));
 
             if ('memory' in exp) {
-                for (const mem of exp.memory) {
-                    console.log(mem);
-                    if (mem.kind == 'shared') {
-                        let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
-                        let gearMemory = gearMemoryOpt.unwrap().toU8a();
-                        let at = parseInt(mem.at, 16) - (256 * 65536);
-                        let bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
-                        for (let index = at; index < at + bytes.length; index++) {
-                            if (gearMemory[index] != bytes[index - at]) {
-                                console.log("Memory doesn't match");
-                            }
-                        }
-                    }
-                }
+                checkMemory(api, exp);
             }
 
             if ('messages' in exp) {
-                let msgOpt = await api.rpc.state.getStorage('g::msg');
-                // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
-                let messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
-                if (exp.messages.length != messageQueue.length) {
-                    console.log("MESSAGES COUNT DOUESN'T MATCH")
-                }
-                for (let index = 0; index < exp.messages.length; index++) {
-                    const expMessage = exp.messages[index];
-                    let payload = [];
-                    if (expMessage.payload.kind === 'bytes') {
-                        payload = api.createType('Bytes', expMessage.payload.value.slice(2));
-                    } else if (expMessage.payload.kind === 'i32') {
-                        payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'i64') {
-                        payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'f32') {
-                        payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'f64') {
-                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
-                    } else if (expMessage.payload.kind === 'utf-8') {
-                        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
-                    }
-                    console.log(messageQueue[index].payload.toHex());
-                    console.log(expMessage.payload.value);
-                    if (!messageQueue[index].payload.eq(payload)) {
-                        console.log("Message payload doesn't match");
-                    }
-                }
+                checkMessages(api, exp);
             }
         }
 
