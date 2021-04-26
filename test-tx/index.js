@@ -107,27 +107,53 @@ async function processExpected(api, sudoPair, fixture, programs) {
     for (const exp of fixture.expected) {
 
         if ('step' in exp) {
+            console.log('exp.step = ' + exp.step);
             let messages_processed = await api.query.gearModule.messagesProcessed();
             let deq_limit = await api.query.gearModule.dequeueLimit();
-            console.log(messages_processed.unwrap().toNumber(), deq_limit.unwrap().toNumber() + exp.step)
-            if (!messages_processed.unwrap().toNumber() >= deq_limit.unwrap().toNumber() + exp.step) {
+            console.log('processed = ' + messages_processed.unwrap().toNumber(), 'deq_limit = ' + deq_limit.unwrap().toNumber())
+            if (deq_limit.unwrap().toNumber() != exp.step) {
                 let tx = [];
+                // Set MessagesProcessed to zero
+                // let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
+                // tx.push(api.tx.sudo.sudo(
+                //     api.tx.system.killStorage([[hash]])
+                // ));
+
                 // Set DequeueLimit
                 hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+
                 tx.push(api.tx.sudo.sudo(
-                    api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', deq_limit.unwrap().toNumber() + exp.step)).toHex()]])
+                    api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.step)).toHex()]])
                 ));
-                console.log('steps = ', deq_limit.unwrap().toNumber() + exp.step);
+
                 const unsub = await api.tx.utility.batch(tx)
                     .signAndSend(sudoPair, ({
                         status
                     }) => {
                         if (status.isFinalized) {
+                            console.log('RESET');
                             unsub();
                         }
                     });
-                while (!messages_processed.unwrap().toNumber() >= deq_limit.unwrap().toNumber() + exp.step) {
+
+
+                let msgOpt = await api.rpc.state.getStorage('g::msg');
+                // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
+                let messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
+                for (const message of messageQueue) {
+                    console.log(message.source.toHex());
+                    console.log(message.dest.toHex());
+                    console.log(message.payload.toHex());
+                }
+
+                messages_processed = await api.query.gearModule.messagesProcessed();
+                deq_limit = await api.query.gearModule.dequeueLimit();
+
+                console.log('processed = ' + messages_processed.unwrap().toNumber(), 'deq_limit = ' + deq_limit.unwrap().toNumber())
+                while (messages_processed.unwrap().toNumber() < deq_limit.unwrap().toNumber()) {
+                    console.log('processed = ' + messages_processed.unwrap().toNumber(), 'deq_limit = ' + deq_limit.unwrap().toNumber())
                     messages_processed = await api.query.gearModule.messagesProcessed();
+                    deq_limit = await api.query.gearModule.dequeueLimit();
                 }
             }
             console.log('done ' + exp.step);
@@ -139,7 +165,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
             if ('messages' in exp) {
                 checkMessages(api, exp);
             }
-            
+
         } else {
             console.log('done');
             let msgOpt = await api.rpc.state.getStorage('g::msg');
