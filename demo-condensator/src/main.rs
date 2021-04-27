@@ -8,6 +8,8 @@ static mut CHARGE: u32 = 0;
 
 static mut LIMIT: u32 = 0;
 
+static mut DISCHARGE_HISTORY: Vec<u32> = Vec::new();
+
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
@@ -17,6 +19,7 @@ pub unsafe extern "C" fn handle() {
     CHARGE += to_add;
 
     if CHARGE >= LIMIT {
+        DISCHARGE_HISTORY.push(CHARGE);
         msg::send(0.into(), format!("Discharged: {}", CHARGE).as_bytes(), 1000000000);
         CHARGE = 0;
     }
