@@ -8,7 +8,7 @@ use gear_core::{
         InMemoryStorage,
     },
 };
-use std::{fmt::Write, num::ParseIntError};
+use std::fmt::Write;
 use test_gear_sample::sample::{PayloadVariant, Test};
 
 use regex::Regex;
@@ -19,7 +19,7 @@ type InMemoryRunner =
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for &b in bytes {
-        write!(&mut s, "{:02x}", b);
+        write!(&mut s, "{:02x}", b).expect("Format failed")
     }
     s
 }
