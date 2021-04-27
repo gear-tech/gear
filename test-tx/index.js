@@ -25,7 +25,7 @@ async function checkMessages(api, exp) {
         const expMessage = exp.messages[index];
         let payload = [];
         if (expMessage.payload.kind === 'bytes') {
-            payload = api.createType('Bytes', expMessage.payload.value.slice(2));
+            payload = api.createType('Bytes', expMessage.payload.value);
         } else if (expMessage.payload.kind === 'i32') {
             payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
         } else if (expMessage.payload.kind === 'i64') {
@@ -37,8 +37,7 @@ async function checkMessages(api, exp) {
         } else if (expMessage.payload.kind === 'utf-8') {
             payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
         }
-        console.log(messageQueue[index].payload.toHex());
-        console.log(expMessage.payload.value);
+
         if (!messageQueue[index].payload.eq(payload)) {
             console.log("Message payload doesn't match");
         } else {
@@ -73,7 +72,7 @@ function submitProgram(api, sudoPair, program, programs) {
     let init_message = [];
     if (program.init_message !== undefined) {
         if (program.init_message.kind === 'bytes') {
-            init_message = api.createType('Bytes', Array.from(program.init_message.value.slice(2)));
+            init_message = api.createType('Bytes', program.init_message.value);
         } else if (program.init_message.kind === 'i32') {
             msg = api.createType('Bytes', Array.from(api.createType('i32', message.payload.value).toU8a()));
         } else if (program.init_message.kind === 'i64') {
