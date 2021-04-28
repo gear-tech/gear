@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable no-console */
 /* eslint-disable max-len */
 // Required imports
@@ -112,10 +113,10 @@ async function processExpected(api, sudoPair, fixture, programs) {
   for (const exp of fixture.expected) {
     if ('step' in exp) {
       console.log(`exp.step = ${exp.step}`);
-      let messages_processed = await api.query.gearModule.messagesProcessed();
-      const deq_limit = await api.query.gearModule.dequeueLimit();
-      console.log(`processed = ${messages_processed.unwrap().toNumber()}`, `deq_limit = ${deq_limit.unwrap().toNumber()}`);
-      if (deq_limit.unwrap().toNumber() != exp.step) {
+      let messagesProcessed = await api.query.gearModule.messagesProcessed();
+      const deqLimit = await api.query.gearModule.dequeueLimit();
+      console.log(`processed = ${messagesProcessed.unwrap().toNumber()}`, `deq_limit = ${deqLimit.unwrap().toNumber()}`);
+      if (deqLimit.unwrap().toNumber() != exp.step) {
         const tx = [];
         // Set MessagesProcessed to zero
         // let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
@@ -124,7 +125,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
         // ));
 
         // Set DequeueLimit
-        hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+        const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
 
         tx.push(api.tx.sudo.sudo(
           api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.step)).toHex()]]),
@@ -140,10 +141,10 @@ async function processExpected(api, sudoPair, fixture, programs) {
             }
           });
 
-        messages_processed = await api.query.gearModule.messagesProcessed();
+        messagesProcessed = await api.query.gearModule.messagesProcessed();
 
-        while (messages_processed.unwrap().toNumber() < exp.step) {
-          messages_processed = await api.query.gearModule.messagesProcessed();
+        while (messagesProcessed.unwrap().toNumber() < exp.step) {
+            messagesProcessed = await api.query.gearModule.messagesProcessed();
         }
       }
       console.log(`done step - ${exp.step}`);
