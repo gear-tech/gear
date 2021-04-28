@@ -78,9 +78,6 @@ async function checkMemory(api, exp) {
 function submitProgram(api, sudoPair, program, programs) {
   const binary = fs.readFileSync(program.path);
 
-  // var bytes =
-  // console.log(Bytes(binary));
-  // console.log(bytes);
   let initMessage = [];
   if (program.init_message !== undefined) {
     if (program.init_message.kind === 'bytes') {
@@ -112,11 +109,9 @@ function submitProgram(api, sudoPair, program, programs) {
 async function processExpected(api, sudoPair, fixture, programs) {
   for (const exp of fixture.expected) {
     if ('step' in exp) {
-      console.log(`exp.step = ${exp.step}`);
       let messagesProcessed = await api.query.gearModule.messagesProcessed();
       const deqLimit = await api.query.gearModule.dequeueLimit();
-      console.log(`processed = ${messagesProcessed.unwrap().toNumber()}`, `deq_limit = ${deqLimit.unwrap().toNumber()}`);
-      if (deqLimit.unwrap().toNumber() != exp.step) {
+      if (deqLimit.unwrap().toNumber() !== exp.step) {
         const tx = [];
         // Set MessagesProcessed to zero
         // let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
@@ -144,7 +139,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
         messagesProcessed = await api.query.gearModule.messagesProcessed();
 
         while (messagesProcessed.unwrap().toNumber() < exp.step) {
-            messagesProcessed = await api.query.gearModule.messagesProcessed();
+          messagesProcessed = await api.query.gearModule.messagesProcessed();
         }
       }
       console.log(`done step - ${exp.step}`);
@@ -274,11 +269,9 @@ async function processTest(test, api, sudoPair) {
             phase,
           }) => {
             if (section === 'gearModule' && method === 'NewProgram') {
-              console.log(p_index);
               if (test.programs[p_index] !== undefined) {
                 programs[test.programs[p_index].id] = data[0];
               }
-              console.log('\t', phase.toString(), `: ${section}.${method}`, data.toString());
               p_index++;
             }
           });
@@ -295,11 +288,6 @@ async function processTest(test, api, sudoPair) {
       processFixture(api, sudoPair, test.fixtures[0], programs);
     }
   });
-    // if (index == test.programs.length) {
-    //     for (const fixture of test.fixtures) {
-
-  //     }
-  // }
 }
 
 async function main() {
@@ -316,18 +304,6 @@ async function main() {
       console.error(err);
     }
   });
-  // ['test.json'].forEach(path => {
-  //     const fileContents = fs.readFileSync(path, 'utf8');
-
-  //     try {
-  //         const data = JSON.parse(fileContents);
-  //         tests.push(data);
-  //     } catch (err) {
-  //         console.error(err);
-  //     }
-  // });
-
-  console.log(tests);
 
   const totalFixtures = tests.reduce((tot, test) => tot + test.fixtures.length, 0);
 
@@ -374,14 +350,6 @@ async function main() {
   const adminPair = keyring.getPair(adminId.toString());
 
   await processTest(tests[0], api, adminPair);
-
-  // Create a extrinsic, transferring 12345 units to Bob
-  // const transfer = api.tx.gearModule.submitProgram();
-
-  // // Sign and send the transaction using our account
-  // const hash = await transfer.signAndSend(alice);
-
-  // console.log('Transfer sent with hash', hash.toHex());
 }
 
 main().catch(console.error);
