@@ -66,7 +66,7 @@ async function checkMemory(api, exp) {
       const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
       for (let index = at; index < at + bytes.length; index++) {
         if (gearMemory[index] != bytes[index - at]) {
-          console.log("Memory doesn't match");
+          errors.push("Memory doesn't match");
         }
       }
     }
@@ -149,7 +149,12 @@ async function processExpected(api, sudoPair, fixture, programs) {
       console.log(`done step - ${exp.step}`);
 
       if ('memory' in exp) {
-        await checkMemory(api, exp);
+        const res = await checkMemory(api, exp);
+        if (res.length == 0) {
+          console.log('MEMORY: OK');
+        } else {
+          console.log(`MEMORY ERR: ${res}`);
+        }
       }
 
       if ('messages' in exp) {
@@ -162,11 +167,14 @@ async function processExpected(api, sudoPair, fixture, programs) {
       }
     } else {
       console.log('done');
-      const msgOpt = await api.rpc.state.getStorage('g::msg');
-      console.log(api.createType('MessageQueue', msgOpt.unwrap()));
 
       if ('memory' in exp) {
-        await checkMemory(api, exp);
+        const res = await checkMemory(api, exp);
+        if (res.length == 0) {
+          console.log('MEMORY: OK');
+        } else {
+          console.log(`MEMORY ERR: ${res}`);
+        }
       }
 
       if ('messages' in exp) {
