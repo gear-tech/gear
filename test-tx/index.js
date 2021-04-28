@@ -60,7 +60,7 @@ async function checkMessages(api, exp, programs) {
 async function checkMemory(api, exp) {
   const errors = [];
   for (const mem of exp.memory) {
-    if (mem.kind == 'shared') {
+    if (mem.kind === 'shared') {
       const gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
       const gearMemory = gearMemoryOpt.unwrap().toU8a();
       const at = parseInt(mem.at, 16) - (256 * 65536);
@@ -131,7 +131,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
             status,
           }) => {
             if (status.isFinalized) {
-              console.log('RESET');
               unsub();
             }
           });
@@ -146,7 +145,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
 
       if ('memory' in exp) {
         const res = await checkMemory(api, exp);
-        if (res.length == 0) {
+        if (res.length === 0) {
           console.log('MEMORY: OK');
         } else {
           console.log(`MEMORY ERR: ${res}`);
@@ -155,36 +154,52 @@ async function processExpected(api, sudoPair, fixture, programs) {
 
       if ('messages' in exp) {
         const res = await checkMessages(api, exp, programs);
-        if (res.length == 0) {
+        if (res.length === 0) {
           console.log('MSG: OK');
         } else {
           console.log(`MSG ERR: ${res}`);
         }
       }
     } else {
-      console.log('done');
+      // Remove DequeueLimit
+      const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+      api.tx.sudo.sudo(
+        api.tx.system.killStorage([hash]),
+      ).signAndSend(sudoPair);
 
-      if ('memory' in exp) {
-        const res = await checkMemory(api, exp);
-        if (res.length == 0) {
-          console.log('MEMORY: OK');
-        } else {
-          console.log(`MEMORY ERR: ${res}`);
-        }
-      }
+      api.query.system.events(async (events) => {
+        // Loop through the Vec<EventRecord>
+        events.forEach(async (record) => {
+          // Extract the phase, event and the event types
+          const { event } = record;
+          if (event.section === 'gearModule' && event.method === 'MessagesDequeued') {
+            if (event.data[0].toNumber() === 0) {
+              console.log('all done');
 
-      if ('messages' in exp) {
-        const res = await checkMessages(api, exp, programs);
-        if (res.length == 0) {
-          console.log('MSG: OK');
-        } else {
-          console.log(`MSG ERR: ${res}`);
-        }
-      }
+              if ('memory' in exp) {
+                const res = await checkMemory(api, exp);
+                if (res.length === 0) {
+                  console.log('MEMORY: OK');
+                } else {
+                  console.log(`MEMORY ERR: ${res}`);
+                }
+              }
+
+              if ('messages' in exp) {
+                const res = await checkMessages(api, exp, programs);
+                if (res.length === 0) {
+                  console.log('MSG: OK');
+                } else {
+                  console.log(`MSG ERR: ${res}`);
+                }
+              }
+              process.exit(0);
+            }
+          }
+        });
+      });
     }
   }
-
-  process.exit(0);
 }
 
 async function processFixture(api, sudoPair, fixture, programs) {
@@ -281,9 +296,6 @@ async function processTest(test, api, sudoPair) {
     }
 
     if (p_index === test.programs.length) {
-      console.log('process fixture');
-      console.log(p_index);
-
       unsubscribe();
       processFixture(api, sudoPair, test.fixtures[0], programs);
     }
