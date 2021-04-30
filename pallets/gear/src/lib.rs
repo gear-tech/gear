@@ -163,10 +163,8 @@ pub mod pallet {
 			let messages = <MessageQueue<T>>::take().unwrap_or_default();
 			let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
 
-			if <DequeueLimit<T>>::get().is_some() {
-				if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
-					return Ok(().into());
-				}
+			if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
+				return Ok(().into());
 			}
 
 			let mut stop_list = Vec::new();
