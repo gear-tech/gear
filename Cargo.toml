@@ -10,13 +10,13 @@ version = "0.1.0"
 anyhow = "1"
 env_logger = "0.8"
 gear-core = { path = "../gear-core" }
-test-gear-sample = { path = "test-gear-sample" }
+test-gear-sample = { path = "./sample" }
 serde_json = "*"
 termion = "1.5.6"
 regex = "1.4.5"
 
 [workspace]
-members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-condensator", "demo-fib", "test-gear-sample"]
+members = ["demo-ping", "demo-sum", "demo-vec", "demo-chat", "demo-condensator", "demo-fib", "sample"]
 
 [[bin]]
 name = "gtest"
