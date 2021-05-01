@@ -20,6 +20,6 @@ frame-system = { version = "3.0.0", git = "https://github.com/paritytech/substra
 
 # Internal deps
 gear-core = { path = "../../../gear-core" }
-test-gear-sample = { path = "../../../test-gear/test-gear-sample" }
+test-gear-sample = { path = "../../../test-gear/sample" }
 rti = { package = "gear-node-rti", path = "../../rti" }
 gear-runtime = { path = "../../runtime" }
