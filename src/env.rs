@@ -146,6 +146,9 @@ pub trait Ext {
 
     /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Value associated with message
+    fn value(&mut self) -> u128;
 }
 
 struct LaterExt<E: Ext> {
@@ -197,6 +200,7 @@ pub struct Environment<E: Ext + 'static> {
     read: Func,
     debug: Func,
     gas: Func,
+    value: Func,
 }
 
 impl<E: Ext + 'static> Environment<E> {
@@ -229,17 +233,21 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(
                 &store,
-                move |program_id_ptr: i32, message_ptr: i32, message_len: i32, gas_limit: i64| {
+                move |program_id_ptr: i32, message_ptr: i32, message_len: i32, gas_limit: i64, value_ptr: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     if let Err(_) = ext.with(|ext: &mut E| {
                         let data = ext.get_mem(message_ptr, message_len).to_vec();
                         let program_id = ProgramId::from_slice(ext.get_mem(program_id_ptr as isize as _, 32));
 
+                        let mut value_le = [0u8; 16];
+                        value_le.copy_from_slice(ext.get_mem(value_ptr as isize as _, 16));
+
                         ext.send(OutgoingMessage::new(
                             program_id,
                             data.into(),
                             Some(gas_limit as u64),
+                            u128::from_le_bytes(value_le),
                         ))
                     }) {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
@@ -321,6 +329,17 @@ impl<E: Ext + 'static> Environment<E> {
             })
         };
 
+        let value = {
+            let ext = ext.clone();
+            Func::wrap(&store, move |value_ptr: i32| {
+                ext.with(|ext: &mut E| {
+                    let source = ext.value();
+                    ext.set_mem(value_ptr as isize as _, &source.to_le_bytes()[..]);
+                });
+                Ok(())
+            })
+        };
+
         Self {
             store,
             ext,
@@ -332,6 +351,7 @@ impl<E: Ext + 'static> Environment<E> {
             debug,
             source,
             gas,
+            value,
         }
     }
 
@@ -370,6 +390,8 @@ impl<E: Ext + 'static> Environment<E> {
                 Some(self.debug.clone().into())
             } else if import_name == &Some("gas") {
                 Some(self.gas.clone().into())
+            } else if import_name == &Some("value") {
+                Some(self.value.clone().into())
             } else if import_name == &Some("memory") {
                 Some(memory.clone().into())
             } else {
