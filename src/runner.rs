@@ -185,6 +185,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         code: Vec<u8>,
         init_msg: Vec<u8>,
         gas_limit: u64,
+        value: u128,
     ) -> Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(program_id) {
             program.set_code(code.to_vec());
@@ -199,7 +200,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .program_storage
             .get(program_id)
             .expect("Added above; cannot fail");
-        let msg = IncomingMessage::new_system(init_msg.into(), Some(gas_limit));
+        let msg = IncomingMessage::new_system(init_msg.into(), Some(gas_limit), value);
 
         let module = Module::new(
             self.env.engine(),
@@ -225,9 +226,15 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     }
 
     /// Queue message for the underlying message queue.
-    pub fn queue_message(&mut self, destination: ProgramId, payload: Vec<u8>, gas_limit: Option<u64>) {
+    pub fn queue_message(
+        &mut self,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: Option<u64>,
+        value: u128,
+    ) {
         self.message_queue
-            .queue(Message::new_system(destination, payload.into(), gas_limit))
+            .queue(Message::new_system(destination, payload.into(), gas_limit, value))
     }
 }
 
@@ -466,10 +473,10 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "read"  (func $read (param i32 i32 i32)))
-            (import "env" "send"  (func $send (param i32 i32 i32 i64)))
+            (import "env" "send"  (func $send (param i32 i32 i32 i64 i32)))
             (import "env" "size"  (func $size (result i32)))
             (import "env" "memory" (memory 1))
-  				(data (i32.const 0) "ok")
+            (data (i32.const 0) "ok")
             (export "handle" (func $handle))
             (export "init" (func $init))
             (func $handle
@@ -490,6 +497,7 @@ mod tests {
               i32.const 255
               i32.and
               i64.const 0
+              i32.const 32768
               call $send
             )
             (func $init
@@ -502,6 +510,7 @@ mod tests {
                 i32.const 0
                 i32.const 2
                 i64.const 18446744073709551615
+                i32.const 0
                 call $send
               )
           )"#;
@@ -517,7 +526,7 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec(), crate::gas::max_gas())
+            .init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
             .expect("failed to init program");
 
         runner.run_next().expect("Failed to process next message");
@@ -529,10 +538,11 @@ mod tests {
                 dest: 1.into(),
                 payload: "ok".as_bytes().to_vec().into(),
                 gas_limit: Some(0),
+                value: 0,
             })
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), None);
+        runner.queue_message(1.into(), "test".as_bytes().to_vec(), None, 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -543,6 +553,7 @@ mod tests {
                 dest: 1.into(),
                 payload: "test".as_bytes().to_vec().into(),
                 gas_limit: Some(0),
+                value: 0,
             })
         );
     }
@@ -554,7 +565,7 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "read"  (func $read (param i32 i32 i32)))
-            (import "env" "send"  (func $send (param i32 i32 i32 i64)))
+            (import "env" "send"  (func $send (param i32 i32 i32 i64 i32)))
             (import "env" "size"  (func $size (result i32)))
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "free"  (func $free (param i32)))
@@ -581,6 +592,7 @@ mod tests {
               i32.const 255
               i32.and
               i64.const 18446744073709551615
+              i32.const 32768
               call $send
               i32.const 256
               call $free
@@ -595,7 +607,7 @@ mod tests {
                 (get_local $id)
                 (i32.const 1)
               )
-              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 18446744073709551615))
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 18446744073709551615) (i32.const 32768))
             )
           )"#;
 
@@ -610,7 +622,7 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), vec![], crate::gas::max_gas())
+            .init_program(1.into(), parse_wat(wat), vec![], crate::gas::max_gas(), 0)
             .expect("Failed to init program");
 
         // check if page belongs to the program
@@ -625,11 +637,12 @@ mod tests {
                 dest: 1.into(),
                 payload: "ok".as_bytes().to_vec().into(),
                 gas_limit: Some(18446744073709551615),
+                value: 0,
             })
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], None);
+        runner.queue_message(1.into(), vec![256u32 as _], None, 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -640,6 +653,7 @@ mod tests {
                 dest: 1.into(),
                 payload: vec![256u32 as _].into(),
                 gas_limit: Some(18446744073709551615),
+                value: 0,
             })
         );
 
@@ -703,12 +717,12 @@ mod tests {
             &[],
         );
 
-        let result = runner.init_program(1.into(), parse_wat(wat_r), "init".as_bytes().to_vec(), crate::gas::max_gas())
+        let result = runner.init_program(1.into(), parse_wat(wat_r), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
             .expect("failed to init program 1");
 
         assert_eq!(result.touched[0], (1.into(), PageAction::Read));
 
-        let result = runner.init_program(2.into(), parse_wat(wat_w), "init".as_bytes().to_vec(), crate::gas::max_gas())
+        let result = runner.init_program(2.into(), parse_wat(wat_w), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
             .expect("failed to init program 2");
 
         assert_eq!(result.touched[0], (2.into(), PageAction::Write));
