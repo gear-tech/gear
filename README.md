@@ -1,1 +1,5 @@
 # gstd
+
+### License
+
+See `LICENSE`
