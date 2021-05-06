@@ -146,6 +146,9 @@ pub trait Ext {
 
     /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Value associated with message
+    fn value(&mut self) -> u128;
 }
 
 struct LaterExt<E: Ext> {
@@ -197,6 +200,7 @@ pub struct Environment<E: Ext + 'static> {
     read: Func,
     debug: Func,
     gas: Func,
+    value: Func,
 }
 
 impl<E: Ext + 'static> Environment<E> {
@@ -325,6 +329,17 @@ impl<E: Ext + 'static> Environment<E> {
             })
         };
 
+        let value = {
+            let ext = ext.clone();
+            Func::wrap(&store, move |value_ptr: i32| {
+                ext.with(|ext: &mut E| {
+                    let source = ext.value();
+                    ext.set_mem(value_ptr as isize as _, &source.to_le_bytes()[..]);
+                });
+                Ok(())
+            })
+        };
+
         Self {
             store,
             ext,
@@ -336,6 +351,7 @@ impl<E: Ext + 'static> Environment<E> {
             debug,
             source,
             gas,
+            value,
         }
     }
 
@@ -374,6 +390,8 @@ impl<E: Ext + 'static> Environment<E> {
                 Some(self.debug.clone().into())
             } else if import_name == &Some("gas") {
                 Some(self.gas.clone().into())
+            } else if import_name == &Some("value") {
+                Some(self.value.clone().into())
             } else if import_name == &Some("memory") {
                 Some(memory.clone().into())
             } else {

@@ -380,6 +380,10 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
             Err("Gas limit exceeded")
         }
     }
+
+    fn value(&mut self) -> u128 {
+        self.messages.current().value()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
