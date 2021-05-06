@@ -29,6 +29,7 @@ pub struct IncomingMessage {
     source: Option<ProgramId>,
     payload: Payload,
     gas_limit: Option<u64>,
+    value: u128,
 }
 
 impl IncomingMessage {
@@ -46,6 +47,11 @@ impl IncomingMessage {
     pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
+
+    /// Value of the message
+    pub fn value(&self) -> u128 {
+        self.value
+    }
 }
 
 impl From<Message> for IncomingMessage {
@@ -54,19 +60,29 @@ impl From<Message> for IncomingMessage {
             source: Some(s.source()),
             payload: s.payload,
             gas_limit: s. gas_limit,
+            value: s.value,
         }
     }
 }
 
 impl IncomingMessage {
     /// New incomig message from specific `source`, `payload` and `gas_limit`.
-    pub fn new(source: ProgramId, payload: Payload, gas_limit: Option<u64>) -> Self {
-        Self { source: Some(source), payload, gas_limit  }
+    pub fn new(
+        source: ProgramId,
+        payload: Payload,
+        gas_limit: Option<u64>,
+        value: u128,
+    ) -> Self {
+        Self { source: Some(source), payload, gas_limit, value  }
     }
 
     /// New system incominng messaage.
-    pub fn new_system(payload: Payload, gas_limit: Option<u64>) -> Self {
-        Self { source: None, payload, gas_limit }
+    pub fn new_system(
+        payload: Payload,
+        gas_limit: Option<u64>,
+        value: u128,
+    ) -> Self {
+        Self { source: None, payload, gas_limit, value }
     }
 }
 
@@ -76,17 +92,29 @@ pub struct OutgoingMessage {
     dest: ProgramId,
     payload: Payload,
     gas_limit: Option<u64>,
+    value: u128,
 }
 
 impl OutgoingMessage {
     /// New outgoing message.
-    pub fn new(dest: ProgramId, payload: Payload, gas_limit: Option<u64>) -> Self {
-        Self { dest, payload, gas_limit }
+    pub fn new(
+        dest: ProgramId,
+        payload: Payload,
+        gas_limit: Option<u64>,
+        value: u128,
+    ) -> Self {
+        Self { dest, payload, gas_limit, value }
     }
 
     /// Convert outgoing message to the stored message by providing `source`
     pub fn into_message(self, source: ProgramId) -> Message {
-        Message { source, dest: self.dest, payload: self.payload, gas_limit: self.gas_limit }
+        Message {
+            source,
+            dest: self.dest,
+            payload: self.payload,
+            gas_limit: self.gas_limit,
+            value: self.value,
+        }
     }
 }
 
@@ -101,12 +129,19 @@ pub struct Message {
     pub payload: Payload,
     /// Gas limit.
     pub gas_limit: Option<u64>,
+    /// Message value
+    pub value: u128,
 }
 
 impl Message {
     /// New system message to the specific program.
-    pub fn new_system(dest: ProgramId, payload: Payload, gas_limit: Option<u64>) -> Message {
-        Message { source: 0.into(), dest, payload, gas_limit }
+    pub fn new_system(
+        dest: ProgramId,
+        payload: Payload,
+        gas_limit: Option<u64>,
+        value: u128,
+    ) -> Message {
+        Message { source: 0.into(), dest, payload, gas_limit, value }
     }
 
     /// Return destination of this message.
@@ -127,6 +162,11 @@ impl Message {
     /// Message gas limit.
     pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
+    }
+
+    /// Message vaue
+    pub fn value(&self) -> u128 {
+        self.value
     }
 }
 
