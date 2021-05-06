@@ -28,6 +28,7 @@ pub struct Program {
     pub id: u64,
     pub init_message: Option<PayloadVariant>,
     pub init_gas_limit: Option<u64>,
+    pub init_value: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -105,6 +106,7 @@ pub struct Message {
     pub destination: u64,
     pub payload: PayloadVariant,
     pub gas_limit: Option<u64>,
+    pub value: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

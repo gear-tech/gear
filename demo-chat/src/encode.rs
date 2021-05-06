@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 mod shared;
 
-use codec::{Decode as _, Encode as _};
+use codec::Encode as _;
 use shared::{MemberMessage, RoomMessage};
 
 fn main() {
@@ -21,7 +21,7 @@ fn main() {
                 .encode();
                 let mut s = String::from("0x");
                 for byte in out {
-                    write!(s, "{:02x}", byte);
+                    write!(s, "{:02x}", byte).expect("failed to write");
                 }
                 println!("{:?}", s);
             }
@@ -32,7 +32,7 @@ fn main() {
                 .encode();
                 let mut s = String::from("0x");
                 for byte in out {
-                    write!(s, "{:02x}", byte);
+                    write!(s, "{:02x}", byte).expect("failed to write");
                 }
                 println!("{:?}", s);
             }
@@ -43,7 +43,7 @@ fn main() {
                 let out = MemberMessage::Private(args[3].to_string()).encode();
                 let mut s = String::from("0x");
                 for byte in out {
-                    write!(s, "{:02x}", byte);
+                    write!(s, "{:02x}", byte).expect("failed to write");
                 }
                 println!("{:?}", s);
             }
@@ -51,7 +51,7 @@ fn main() {
                 let out = MemberMessage::Room(args[3].to_string()).encode();
                 let mut s = String::from("0x");
                 for byte in out {
-                    write!(s, "{:02x}", byte);
+                    write!(s, "{:02x}", byte).expect("failed to write");
                 }
                 println!("{:?}", s);
             }

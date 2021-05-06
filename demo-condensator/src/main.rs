@@ -17,7 +17,7 @@ pub unsafe extern "C" fn handle() {
     CHARGE += to_add;
 
     if CHARGE >= LIMIT {
-        msg::send(0.into(), format!("Discharged: {}", CHARGE).as_bytes(), 1000000000);
+        msg::send(0.into(), format!("Discharged: {}", CHARGE).as_bytes(), 1000000000, 0);
         CHARGE = 0;
     }
 }

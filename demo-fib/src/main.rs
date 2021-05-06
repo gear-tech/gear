@@ -23,6 +23,7 @@ pub unsafe extern "C" fn handle() {
         msg::source(),
         make_fib(new_msg as usize)[new_msg as usize - 1].as_ne_bytes(),
         u64::MAX,
+        0,
     );
 
     ext::debug(&format!(
