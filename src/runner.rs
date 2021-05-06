@@ -54,6 +54,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
             code,
             init_message,
             program.init_gas_limit.unwrap_or(u64::MAX),
+            program.init_value.unwrap_or(0) as _,
         )?;
     }
 
@@ -73,7 +74,12 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
             }
             _ => message.payload.clone().into_raw(),
         };
-        runner.queue_message(message.destination.into(), payload, message.gas_limit)
+        runner.queue_message(
+            message.destination.into(),
+            payload,
+            message.gas_limit,
+            message.value.unwrap_or_default() as _,
+        )
     }
 
     Ok(runner)

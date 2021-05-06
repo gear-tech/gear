@@ -1,5 +1,5 @@
 use gstd::{ext, msg, ProgramId};
-use std::{fmt::Write, num::ParseIntError};
+use std::num::ParseIntError;
 
 mod shared;
 
@@ -12,14 +12,6 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
         .collect()
-}
-
-fn encode_hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(&mut s, "{:02x}", b);
-    }
-    s
 }
 
 #[derive(Debug)]
@@ -70,7 +62,7 @@ fn bot(message: MemberMessage) {
 pub fn send_room(id: ProgramId, msg: RoomMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, u64::MAX);
+    msg::send(id, &encoded, u64::MAX, 0);
 }
 
 #[no_mangle]
