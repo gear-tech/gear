@@ -31,6 +31,7 @@ pub struct Message {
     pub dest: H256,
     pub payload: Vec<u8>,
     pub gas_limit: Option<u64>,
+    pub value: u128,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
@@ -77,8 +78,20 @@ pub struct MessageRoute {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum IntermediateMessage {
-    InitProgram { external_origin: H256, program_id: H256, code: Vec<u8>, payload: Vec<u8>, gas_limit: u64 },
-    DispatchMessage { route: MessageRoute, payload: Vec<u8>, gas_limit: u64 },
+    InitProgram {
+        external_origin: H256,
+        program_id: H256,
+        code: Vec<u8>,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    },
+    DispatchMessage {
+        route: MessageRoute,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    },
 }
 
 fn program_key(id: H256) -> Vec<u8> {
