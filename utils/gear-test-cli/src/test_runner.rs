@@ -47,7 +47,7 @@ pub fn init_fixture(
             if let Some(init_msg) = &program.init_message {
                 init_message = init_msg.clone().into_raw();
             }
-            runner.init_program(program.id.into(), code, init_message, u64::max_value())?;
+            runner.init_program(program.id.into(), code, init_message, u64::max_value(), 0)?;
         }
         let fixture = &test.fixtures[fixture_no];
         for message in fixture.messages.iter() {
@@ -55,6 +55,7 @@ pub fn init_fixture(
                 message.destination.into(),
                 message.payload.clone().into_raw(),
                 Some(u64::max_value()),
+                0,
             )
         }
 

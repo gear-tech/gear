@@ -71,6 +71,7 @@ impl system::Config for Test {
 
 impl pallet::Config for Test {
 	type Event = Event;
+	type Balances = ();
 }
 
 // Build genesis storage according to the mock runtime.
