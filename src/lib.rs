@@ -40,10 +40,11 @@ pub mod msg {
 
     mod sys {
         extern "C" {
-            pub fn send(program: *const u8, data_ptr: *const u8, data_len: u32, gas_limit: u64);
+            pub fn send(program: *const u8, data_ptr: *const u8, data_len: u32, gas_limit: u64, value_ptr: *const u8);
             pub fn size() -> u32;
             pub fn read(at: u32, len: u32, dest: *mut u8);
             pub fn source(program: *mut u8);
+            pub fn value(val: *mut u8);
         }
     }
 
@@ -57,9 +58,14 @@ pub mod msg {
         }
     }
 
-    pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) {
+    pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) {
         unsafe {
-            sys::send(program.as_slice().as_ptr(), payload.as_ptr(), payload.len() as _, gas_limit)
+            sys::send(
+                program.as_slice().as_ptr(),
+                payload.as_ptr(),
+                payload.len() as _, gas_limit,
+                value.to_le_bytes().as_ptr(),
+            )
         }
     }
 
@@ -69,6 +75,11 @@ pub mod msg {
         program_id
     }
 
+    pub fn value() -> u128 {
+        let mut value_data = [0u8; 16];
+        unsafe { sys::value(value_data.as_mut_ptr()); }
+        u128::from_le_bytes(value_data)
+    }
 }
 
 #[cfg(feature = "debug")]
