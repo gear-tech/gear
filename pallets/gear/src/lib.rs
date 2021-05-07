@@ -108,18 +108,16 @@ pub mod pallet {
 		pub fn submit_program(
 			origin: OriginFor<T>,
 			code: Vec<u8>,
+			salt: Vec<u8>,
 			init_payload: Vec<u8>,
 			gas_limit: u64,
 			value: BalanceOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
-			let nonce = frame_system::Account::<T>::get(who.clone()).nonce;
-
 			let mut data = Vec::new();
 			code.encode_to(&mut data);
-			who.encode_to(&mut data);
-			nonce.encode_to(&mut data);
+			salt.encode_to(&mut data);
 
 			let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
