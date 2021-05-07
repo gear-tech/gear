@@ -6,20 +6,34 @@ const {
   ApiPromise,
   WsProvider,
 } = require('@polkadot/api');
-const { xxhashAsHex } = require('@polkadot/util-crypto');
+const { xxhashAsHex, blake2AsHex, blake2AsU8a } = require('@polkadot/util-crypto');
 
 // import the test keyring (already has dev keys for Alice, Bob, Charlie, Eve & Ferdie)
 const testKeyring = require('@polkadot/keyring/testing');
 const fs = require('fs');
 
-let p_index = 0;
+function generateProgramId(api, path, salt) {
+  const binary = fs.readFileSync(path);
+
+  const code = api.createType('Bytes', Array.from(binary));
+  const codeArr = api.createType('Vec<u8>', code).toU8a();
+  const saltArr = api.createType('Vec<u8>', salt).toU8a();
+  // codeArr = Uint8Array.from(binary);
+  const id = new Uint8Array(codeArr.length + saltArr.length);
+  id.set(codeArr);
+  id.set(saltArr, codeArr.length);
+
+  console.log(blake2AsHex(id, 256));
+
+  console.log(api.createType('H256', blake2AsU8a(id, 256)).toHex());
+  return api.createType('H256', blake2AsU8a(id, 256)).toHex();
+}
 
 async function checkMessages(api, exp, programs) {
   const errors = [];
   const msgOpt = await api.rpc.state.getStorage('g::msg');
-  // console.log(api.createType('MessageQueue', msgOpt.unwrap()));
-  const messageQueue = api.createType('MessageQueue', msgOpt.unwrap());
-  if (exp.messages.length != messageQueue.length) {
+  const messageQueue = api.createType('Vec<Message>', msgOpt.unwrap());
+  if (exp.messages.length !== messageQueue.length) {
     errors.push("MESSAGES COUNT DOUESN'T MATCH");
     return errors;
   }
@@ -103,11 +117,11 @@ function submitProgram(api, sudoPair, program, programs) {
       initMessage = program.init_message.value;
     }
   }
-  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), initMessage, 18446744073709551615n, 0);
+  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), program.path, initMessage, 18446744073709551615n, 0);
 }
 
 async function processExpected(api, sudoPair, fixture, programs) {
-  let output = [];
+  const output = [];
   for (const exp of fixture.expected) {
     if ('step' in exp) {
       let messagesProcessed = await api.query.gearModule.messagesProcessed();
@@ -147,18 +161,18 @@ async function processExpected(api, sudoPair, fixture, programs) {
       if ('memory' in exp) {
         const res = await checkMemory(api, exp);
         if (res.length === 0) {
-          console.log('MEMORY: OK');
+          output.push('MEMORY: OK');
         } else {
-          console.log(`MEMORY ERR: ${res}`);
+          output.push(`MEMORY ERR: ${res}`);
         }
       }
 
       if ('messages' in exp) {
         const res = await checkMessages(api, exp, programs);
         if (res.length === 0) {
-          console.log('MSG: OK');
+          output.push('MSG: OK');
         } else {
-          console.log(`MSG ERR: ${res}`);
+          output.push(`MSG ERR: ${res}`);
         }
       }
     } else {
@@ -180,27 +194,27 @@ async function processExpected(api, sudoPair, fixture, programs) {
               if ('memory' in exp) {
                 const res = await checkMemory(api, exp);
                 if (res.length === 0) {
-                  console.log('MEMORY: OK');
+                  output.push('MEMORY: OK');
                 } else {
-                  console.log(`MEMORY ERR: ${res}`);
+                  output.push(`MEMORY ERR: ${res}`);
                 }
               }
 
               if ('messages' in exp) {
                 const res = await checkMessages(api, exp, programs);
                 if (res.length === 0) {
-                  console.log('MSG: OK');
+                  output.push('MSG: OK');
                 } else {
-                  console.log(`MSG ERR: ${res}`);
+                  output.push(`MSG ERR: ${res}`);
                 }
               }
-              process.exit(0);
             }
           }
         });
       });
     }
   }
+  return output;
 }
 
 async function processFixture(api, sudoPair, fixture, programs) {
@@ -250,57 +264,33 @@ async function processFixture(api, sudoPair, fixture, programs) {
     ));
     console.log('steps = ', fixture.expected[0].step);
   }
+  let out = [];
 
   const unsub = await api.tx.utility.batch(txs)
-    .signAndSend(sudoPair, ({
+    .signAndSend(sudoPair, { nonce: -1 }, async ({
       status,
     }) => {
       if (status.isFinalized) {
-        processExpected(api, sudoPair, fixture, programs);
+        out = await processExpected(api, sudoPair, fixture, programs);
         unsub();
+        console.log(fixture.title);
+        console.log(out);
       }
     });
 }
 
 async function processTest(test, api, sudoPair) {
-  const programs = [];
-
+  let programs = [];
+  let index = 0;
+  let txs = [];
   // Submit programs
-  const unsubscribe = await api.rpc.chain.subscribeNewHeads((header) => {
-    console.log(`Chain is at block: #${header.number}`);
-    if (p_index < test.programs.length && !test.programs[p_index].submited) {
-      test.programs[p_index].submited = true;
-      submitProgram(api, sudoPair, test.programs[p_index], programs).signAndSend(sudoPair, ({
-        events = [],
-        status,
-      }) => {
-        if (status.isInBlock) {
-          // console.log('Finalized block hash', status.asFinalized.toHex());
-          events.forEach(({
-            event: {
-              data,
-              method,
-              section,
-            },
-            phase,
-          }) => {
-            if (section === 'gearModule' && method === 'NewProgram') {
-              if (test.programs[p_index] !== undefined) {
-                programs[test.programs[p_index].id] = data[0];
-              }
-              p_index++;
-            }
-          });
-          // console.log(program);
-        }
-      });
-    }
+  for (const program of test.programs) {
+    programs[program.id] = generateProgramId(api, program.path, program.path);
+    const submit = submitProgram(api, sudoPair, program, programs);
+    await submit.signAndSend(sudoPair, { nonce: -1 });
+  }
 
-    if (p_index === test.programs.length) {
-      unsubscribe();
-      processFixture(api, sudoPair, test.fixtures[0], programs);
-    }
-  });
+  processFixture(api, sudoPair, test.fixtures[0], programs);
 }
 
 async function main() {
@@ -335,12 +325,12 @@ async function main() {
     provider,
     types: {
       Message: {
-        source: 'Hash',
-        dest: 'Hash',
+        source: 'H256',
+        dest: 'H256',
         payload: 'Vec<u8>',
         gas_limit: 'Option<u64>',
+        value: 'u128',
       },
-      MessageQueue: 'Vec<Message>',
     },
   });
 
