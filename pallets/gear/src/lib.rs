@@ -32,7 +32,7 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*};
+	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Currency};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
 	use sp_std::prelude::*;
@@ -43,7 +43,12 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// Gas and value transfer currency
+		type Currency: Currency<Self::AccountId>;
 	}
+
+	type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -94,9 +99,19 @@ pub mod pallet {
 	}
 
 	#[pallet::call]
-	impl<T:Config> Pallet<T> where T::AccountId: IntoOrigin {
+	impl<T: Config> Pallet<T>
+	where
+		T::AccountId: IntoOrigin,
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128>,
+	{
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn submit_program(origin: OriginFor<T>, code: Vec<u8>, init_payload: Vec<u8>, gas_limit: u64) -> DispatchResultWithPostInfo {
+		pub fn submit_program(
+			origin: OriginFor<T>,
+			code: Vec<u8>,
+			init_payload: Vec<u8>,
+			gas_limit: u64,
+			value: BalanceOf<T>,
+		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
 			let nonce = frame_system::Account::<T>::get(who.clone()).nonce;
@@ -118,6 +133,7 @@ pub mod pallet {
 					program_id: id,
 					payload: init_payload,
 					gas_limit,
+					value: value.into(),
 				});
 
 				*messages = Some(actual_messages);
@@ -129,7 +145,13 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn send_message(origin: OriginFor<T>, destination: H256, payload: Vec<u8>, gas_limit: u64) -> DispatchResultWithPostInfo {
+		pub fn send_message(
+			origin: OriginFor<T>,
+			destination: H256,
+			payload: Vec<u8>,
+			gas_limit: u64,
+			value: BalanceOf<T>,
+		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
 			// TODO: use append
@@ -143,6 +165,7 @@ pub mod pallet {
 					},
 					payload,
 					gas_limit,
+					value: value.into(),
 				});
 
 				*messages = Some(actual_messages);
@@ -177,9 +200,9 @@ pub mod pallet {
 					//
 					// TODO: also process `external_origin` once origins are introduced
 					IntermediateMessage::InitProgram {
-						code, program_id, payload, gas_limit, ..
+						code, program_id, payload, gas_limit, value, ..
 					} => {
-						if let Err(_) = rti::gear_executor::init_program(program_id, code, payload, gas_limit) {
+						if let Err(_) = rti::gear_executor::init_program(program_id, code, payload, gas_limit, value) {
 							stop_list.push(program_id);
 							Self::deposit_event(Event::InitFailure(program_id));
 						} else {
@@ -188,7 +211,7 @@ pub mod pallet {
 						}
 					},
 					IntermediateMessage::DispatchMessage {
-						route, payload, gas_limit
+						route, payload, gas_limit, value
 					} => {
 						let source = match route.origin {
 							// TODO: when origin is introduced, put it the right way
@@ -201,6 +224,7 @@ pub mod pallet {
 							payload,
 							gas_limit: Some(gas_limit),
 							dest: route.destination,
+							value,
 						});
 					}
 				}
@@ -238,7 +262,11 @@ pub mod pallet {
 		}
 	}
 
-	impl<T: Config> ProvideInherent for Pallet<T> where T::AccountId: IntoOrigin {
+	impl<T: Config> ProvideInherent for Pallet<T>
+	where
+		T::AccountId: IntoOrigin,
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128>,
+	{
 		type Call = Call<T>;
 		type Error = sp_inherents::MakeFatalError<()>;
 		const INHERENT_IDENTIFIER: InherentIdentifier = *b"gprocess";

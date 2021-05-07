@@ -3871,6 +3871,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-node-rti",
+ "pallet-balances",
  "parity-scale-codec",
  "serde",
  "sp-core",
