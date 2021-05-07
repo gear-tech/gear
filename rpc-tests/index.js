@@ -23,9 +23,6 @@ function generateProgramId(api, path, salt) {
   id.set(codeArr);
   id.set(saltArr, codeArr.length);
 
-  console.log(blake2AsHex(id, 256));
-
-  console.log(api.createType('H256', blake2AsU8a(id, 256)).toHex());
   return api.createType('H256', blake2AsU8a(id, 256)).toHex();
 }
 
@@ -89,7 +86,7 @@ async function checkMemory(api, exp) {
   return errors;
 }
 
-function submitProgram(api, sudoPair, program, programs) {
+function submitProgram(api, sudoPair, program, salt, programs) {
   const binary = fs.readFileSync(program.path);
 
   let initMessage = [];
@@ -117,7 +114,7 @@ function submitProgram(api, sudoPair, program, programs) {
       initMessage = program.init_message.value;
     }
   }
-  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), program.path, initMessage, 18446744073709551615n, 0);
+  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 18446744073709551615n, 0);
 }
 
 async function processExpected(api, sudoPair, fixture, programs) {
@@ -280,13 +277,14 @@ async function processFixture(api, sudoPair, fixture, programs) {
 }
 
 async function processTest(test, api, sudoPair) {
-  let programs = [];
-  let index = 0;
-  let txs = [];
+  const programs = [];
+  const index = 0;
+  const txs = [];
   // Submit programs
   for (const program of test.programs) {
-    programs[program.id] = generateProgramId(api, program.path, program.path);
-    const submit = submitProgram(api, sudoPair, program, programs);
+    const salt = Math.random().toString(36).substring(7);
+    programs[program.id] = generateProgramId(api, program.path, salt);
+    const submit = submitProgram(api, sudoPair, program, salt, programs);
     await submit.signAndSend(sudoPair, { nonce: -1 });
   }
 
