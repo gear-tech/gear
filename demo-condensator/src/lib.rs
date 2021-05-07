@@ -1,4 +1,11 @@
+#![no_std]
+#![feature(default_alloc_error_handler)]
+
+#[macro_use]
 extern crate alloc;
+
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use gstd::msg;
 use alloc::str::FromStr;
@@ -34,4 +41,9 @@ pub unsafe extern "C" fn init() {
         ).expect("Invalid number");
 
     LIMIT = limit;
+}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {}
 }

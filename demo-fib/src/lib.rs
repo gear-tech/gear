@@ -1,7 +1,15 @@
+#![no_std]
 #![feature(num_as_ne_bytes)]
+#![feature(default_alloc_error_handler)]
+
+#[macro_use]
+extern crate alloc;
+
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use gstd::{ext, msg};
-use std::convert::TryInto;
+use core::convert::TryInto;
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -38,3 +46,8 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {}
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {}
+}
