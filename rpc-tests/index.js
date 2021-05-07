@@ -103,10 +103,11 @@ function submitProgram(api, sudoPair, program, programs) {
       initMessage = program.init_message.value;
     }
   }
-  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), initMessage, 18446744073709551615n);
+  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), initMessage, 18446744073709551615n, 0);
 }
 
 async function processExpected(api, sudoPair, fixture, programs) {
+  let output = [];
   for (const exp of fixture.expected) {
     if ('step' in exp) {
       let messagesProcessed = await api.query.gearModule.messagesProcessed();
@@ -238,7 +239,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
     } else {
       msg = message.payload.value;
     }
-    txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n));
+    txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n, 0));
   }
 
   if ('step' in fixture.expected[0]) {
