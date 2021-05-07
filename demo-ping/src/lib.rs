@@ -23,6 +23,3 @@ pub unsafe extern "C" fn handle() {
 pub unsafe extern "C" fn init() {
 
 }
-
-fn main() {
-}

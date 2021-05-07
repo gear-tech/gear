@@ -54,5 +54,3 @@ pub unsafe extern "C" fn init() {
     );
     STATE.set_send_to(send_to);
 }
-
-fn main() {}

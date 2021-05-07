@@ -3,7 +3,7 @@
     "programs": [
         {
             "id": 1,
-            "path": "target/wasm32-unknown-unknown/release/demo-ping.wasm"
+            "path": "target/wasm32-unknown-unknown/release/demo_ping.wasm"
         }
     ],
     "fixtures": [

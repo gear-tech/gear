@@ -1,8 +1,7 @@
 use gstd::{ext, msg, ProgramId};
-mod shared;
 
 use codec::{Decode as _, Encode as _};
-use shared::{MemberMessage, RoomMessage};
+use demo_chat::shared::{MemberMessage, RoomMessage};
 use core::convert::TryInto;
 
 #[derive(Debug)]
@@ -41,7 +40,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 unsafe fn room(room_msg: RoomMessage) {
-    use shared::RoomMessage::*;
+    use RoomMessage::*;
 
     match room_msg {
         Join { under_name } => {

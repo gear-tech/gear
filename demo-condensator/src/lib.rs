@@ -35,6 +35,3 @@ pub unsafe extern "C" fn init() {
 
     LIMIT = limit;
 }
-
-fn main() {
-}

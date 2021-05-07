@@ -1,11 +1,9 @@
 use gstd::{ext, msg, ProgramId};
 use std::num::ParseIntError;
 
-mod shared;
-
 use codec::{Decode as _, Encode as _};
 use core::convert::TryInto;
-use shared::{MemberMessage, RoomMessage};
+use demo_chat::shared::{MemberMessage, RoomMessage};
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
@@ -36,7 +34,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 fn bot(message: MemberMessage) {
-    use shared::MemberMessage::*;
+    use MemberMessage::*;
     unsafe {
         match message {
             Private(text) => {
