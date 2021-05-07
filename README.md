@@ -2,6 +2,50 @@
 
 Gear substrate-based node, ready for hacking :rocket:
 
+## Installation
+
+### 1. Build deps
+
+#### Ubuntu/Debian
+```
+sudo apt update
+# May prompt for location information
+sudo apt install -y git clang curl libssl-dev llvm libudev-dev
+```
+
+#### MacOS
+```
+# Install Homebrew if necessary https://brew.sh/
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+
+# Make sure Homebrew is up-to-date, install openssl
+brew update
+brew install openssl
+```
+
+#### Windows
+
+Not supported
+
+### 2. Rust and all toolchains
+
+Rustup if not installed:
+```
+# Install
+curl https://sh.rustup.rs -sSf | sh
+# Configure
+source ~/.cargo/env
+```
+
+Toolchains:
+
+```
+rustup default stable
+rustup update
+rustup update nightly
+rustup target add wasm32-unknown-unknown --toolchain nightly
+```
+
 ## Dev Net
 
 At the MVP stage, dev net is supported!
