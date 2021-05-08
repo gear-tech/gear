@@ -1,8 +1,17 @@
+#![no_std]
+#![feature(default_alloc_error_handler)]
 use gstd::{ext, msg, ProgramId};
 
+#[macro_use]
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
+
 use codec::{Decode as _, Encode as _};
-use demo_chat::shared::{MemberMessage, RoomMessage};
 use core::convert::TryInto;
+use demo_chat::shared::{MemberMessage, RoomMessage};
 
 #[derive(Debug)]
 struct State {
