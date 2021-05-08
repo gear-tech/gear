@@ -1,3 +1,10 @@
+#![no_std]
+#![feature(default_alloc_error_handler)]
+#[macro_use]
+extern crate alloc;
+
+use alloc::string::String;
+use alloc::vec::Vec;
 use gstd::{ext, msg};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
@@ -12,7 +19,10 @@ pub unsafe extern "C" fn handle() {
 
     MESSAGE_LOG.push(new_msg);
 
-    ext::debug(&format!("{:?} total message(s) stored: ", MESSAGE_LOG.len()));
+    ext::debug(&format!(
+        "{:?} total message(s) stored: ",
+        MESSAGE_LOG.len()
+    ));
 
     for log in MESSAGE_LOG.iter() {
         ext::debug(log);
@@ -20,9 +30,9 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
+pub unsafe extern "C" fn init() {}
 
-}
-
-fn main() {
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {}
 }

@@ -3,7 +3,7 @@
     "programs": [
         {
             "id": 1,
-            "path": "target/wasm32-unknown-unknown/release/demo-sum.wasm",
+            "path": "target/wasm32-unknown-unknown/release/demo_sum.wasm",
             "init_message": {
                 "kind": "utf-8",
                 "value": "{2}"
@@ -11,7 +11,7 @@
         },
         {
             "id": 2,
-            "path": "target/wasm32-unknown-unknown/release/demo-fib.wasm"
+            "path": "target/wasm32-unknown-unknown/release/demo_fib.wasm"
         }
     ],
     "fixtures": [

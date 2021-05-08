@@ -1,11 +1,18 @@
+#![no_std]
+#![feature(default_alloc_error_handler)]
+use core::num::ParseIntError;
 use gstd::{ext, msg, ProgramId};
-use std::num::ParseIntError;
 
-mod shared;
+#[macro_use]
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 
 use codec::{Decode as _, Encode as _};
 use core::convert::TryInto;
-use shared::{MemberMessage, RoomMessage};
+use demo_chat::shared::{MemberMessage, RoomMessage};
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
@@ -36,7 +43,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 fn bot(message: MemberMessage) {
-    use shared::MemberMessage::*;
+    use MemberMessage::*;
     unsafe {
         match message {
             Private(text) => {
@@ -75,7 +82,9 @@ pub unsafe extern "C" fn init() {
             let (name, room_id) = (&split[0], &split[1]);
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
             STATE.set_name(s);
-            let room_id = ProgramId::from_slice(&decode_hex(room_id).expect("INTIALIZATION FAILED: INVALID ROOM ID"));
+            let room_id = ProgramId::from_slice(
+                &decode_hex(room_id).expect("INTIALIZATION FAILED: INVALID ROOM ID"),
+            );
             send_room(
                 room_id,
                 RoomMessage::Join {

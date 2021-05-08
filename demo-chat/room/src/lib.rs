@@ -1,9 +1,17 @@
+#![no_std]
+#![feature(default_alloc_error_handler)]
 use gstd::{ext, msg, ProgramId};
-mod shared;
+
+#[macro_use]
+extern crate alloc;
+
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 use codec::{Decode as _, Encode as _};
-use shared::{MemberMessage, RoomMessage};
 use core::convert::TryInto;
+use demo_chat::shared::{MemberMessage, RoomMessage};
 
 #[derive(Debug)]
 struct State {
@@ -41,7 +49,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 unsafe fn room(room_msg: RoomMessage) {
-    use shared::RoomMessage::*;
+    use RoomMessage::*;
 
     match room_msg {
         Join { under_name } => {
