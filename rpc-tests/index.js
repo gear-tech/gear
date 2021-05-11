@@ -12,6 +12,38 @@ const { xxhashAsHex, blake2AsHex, blake2AsU8a } = require('@polkadot/util-crypto
 const testKeyring = require('@polkadot/keyring/testing');
 const fs = require('fs');
 
+async function resetStorage(api, sudoPair) {
+  const keys = [];
+  let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+  keys.push(hash);
+
+  hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessageQueue', 128).slice(2);
+  keys.push(hash);
+
+  hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
+  keys.push(hash);
+  // keys.push(
+  //   'g::memory',
+  //   'g::msg',
+  //   'g::alloc',
+  // );
+  await api.tx.sudo.sudo(
+    api.tx.system.killStorage(
+      keys,
+    ),
+  ).signAndSend(sudoPair, { nonce: -1 });
+  await api.tx.sudo.sudo(
+    api.tx.system.killPrefix(
+      'g::', 1,
+    ),
+  ).signAndSend(sudoPair, { nonce: -1 });
+  let msgOpt = await api.rpc.state.getStorage('g::msg');
+  while (!msgOpt.isNone) {
+    msgOpt = await api.rpc.state.getStorage('g::msg');
+  }
+  return msgOpt;
+}
+
 function generateProgramId(api, path, salt) {
   const binary = fs.readFileSync(path);
 
@@ -28,7 +60,10 @@ function generateProgramId(api, path, salt) {
 
 async function checkMessages(api, exp, programs) {
   const errors = [];
-  const msgOpt = await api.rpc.state.getStorage('g::msg');
+  let msgOpt = await api.rpc.state.getStorage('g::msg');
+  while (msgOpt.isNone) {
+    msgOpt = await api.rpc.state.getStorage('g::msg');
+  }
   const messageQueue = api.createType('Vec<Message>', msgOpt.unwrap());
   if (exp.messages.length !== messageQueue.length) {
     errors.push("MESSAGES COUNT DOUESN'T MATCH");
@@ -119,10 +154,17 @@ function submitProgram(api, sudoPair, program, salt, programs) {
 
 async function processExpected(api, sudoPair, fixture, programs) {
   const output = [];
-  for (const exp of fixture.expected) {
+  const errors = [];
+  const expProcessed = 0;
+
+  for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
+    const exp = fixture.expected[expIdx];
     if ('step' in exp) {
       let messagesProcessed = await api.query.gearModule.messagesProcessed();
-      const deqLimit = await api.query.gearModule.dequeueLimit();
+      let deqLimit = await api.query.gearModule.dequeueLimit();
+      while (deqLimit.isNone) {
+        deqLimit = await api.query.gearModule.dequeueLimit();
+      }
       if (deqLimit.unwrap().toNumber() !== exp.step) {
         const tx = [];
         // Set MessagesProcessed to zero
@@ -138,14 +180,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
           api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.step)).toHex()]]),
         ));
 
-        const unsub = await api.tx.utility.batch(tx)
-          .signAndSend(sudoPair, ({
-            status,
-          }) => {
-            if (status.isFinalized) {
-              unsub();
-            }
-          });
+        await api.tx.utility.batch(tx).signAndSend(sudoPair, { nonce: -1 });
 
         messagesProcessed = await api.query.gearModule.messagesProcessed();
 
@@ -153,63 +188,65 @@ async function processExpected(api, sudoPair, fixture, programs) {
           messagesProcessed = await api.query.gearModule.messagesProcessed();
         }
       }
-      console.log(`done step - ${exp.step}`);
-
-      if ('memory' in exp) {
-        const res = await checkMemory(api, exp);
-        if (res.length === 0) {
-          output.push('MEMORY: OK');
-        } else {
-          output.push(`MEMORY ERR: ${res}`);
-        }
-      }
+      // console.log(`done step - ${exp.step}`);
 
       if ('messages' in exp) {
         const res = await checkMessages(api, exp, programs);
         if (res.length === 0) {
           output.push('MSG: OK');
         } else {
-          output.push(`MSG ERR: ${res}`);
+          errors.push(`MSG ERR: ${res}`);
         }
       }
-    } else {
-      // Remove DequeueLimit
-      const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
-      api.tx.sudo.sudo(
-        api.tx.system.killStorage([hash]),
-      ).signAndSend(sudoPair);
 
-      api.query.system.events(async (events) => {
-        // Loop through the Vec<EventRecord>
-        events.forEach(async (record) => {
-          // Extract the phase, event and the event types
-          const { event } = record;
-          if (event.section === 'gearModule' && event.method === 'MessagesDequeued') {
-            if (event.data[0].toNumber() === 0) {
-              console.log('all done');
-
-              if ('memory' in exp) {
-                const res = await checkMemory(api, exp);
-                if (res.length === 0) {
-                  output.push('MEMORY: OK');
-                } else {
-                  output.push(`MEMORY ERR: ${res}`);
-                }
-              }
-
-              if ('messages' in exp) {
-                const res = await checkMessages(api, exp, programs);
-                if (res.length === 0) {
-                  output.push('MSG: OK');
-                } else {
-                  output.push(`MSG ERR: ${res}`);
-                }
-              }
-            }
-          }
-        });
-      });
+      if ('memory' in exp) {
+        const res = await checkMemory(api, exp);
+        if (res.length === 0) {
+          output.push('MEMORY: OK');
+        } else {
+          errors.push(`MEMORY ERR: ${res}`);
+        }
+      }
     }
+    // TODO: FIX IF NO STEPS
+    // } else {
+    //   // Remove DequeueLimit
+    //   const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+    //   api.tx.sudo.sudo(
+    //     api.tx.system.killStorage([hash]),
+    //   ).signAndSend(sudoPair, { nonce: -1 });
+
+    //   let msgOpt = await api.rpc.state.getStorage('g::msg');
+    //   while (msgOpt.unwrap().length < 0) {
+    //     msgOpt = await api.rpc.state.getStorage('g::msg');
+    //   }
+    //   console.log('all done');
+
+    //   if ('memory' in exp) {
+    //     const res = await checkMemory(api, exp);
+    //     if (res.length === 0) {
+    //       output.push('MEMORY: OK');
+    //     } else {
+    //       errors.push(`MEMORY ERR: ${res}`);
+    //     }
+    //   }
+
+    //   if ('messages' in exp) {
+    //     const res = await checkMessages(api, exp, programs);
+    //     if (res.length === 0) {
+    //       output.push('MSG: OK');
+    //     } else {
+    //       errors.push(`MSG ERR: ${res}`);
+    //     }
+    //   }
+    // }
+  }
+  if (errors.length > 0) {
+    console.log(`Fixture ${fixture.title}`);
+    for (const err of errors) {
+      console.log(err);
+    }
+    process.exit(1);
   }
   return output;
 }
@@ -223,7 +260,14 @@ async function processFixture(api, sudoPair, fixture, programs) {
   // txs.push(api.tx.sudo.sudo(
   //     api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', 0)).toHex()]])
   // ));
-
+  if ('step' in fixture.expected[0]) {
+    // Set DequeueLimit
+    const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+    await api.tx.sudo.sudo(
+      api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', fixture.expected[0].step)).toHex()]]),
+    ).signAndSend(sudoPair, { nonce: -1 });
+    // console.log('steps = ', fixture.expected[0].step);
+  }
   // Send messages
   for (let index = 0; index < fixture.messages.length; index++) {
     const message = fixture.messages[index];
@@ -253,42 +297,35 @@ async function processFixture(api, sudoPair, fixture, programs) {
     txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n, 0));
   }
 
-  if ('step' in fixture.expected[0]) {
-    // Set DequeueLimit
-    const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
-    txs.push(api.tx.sudo.sudo(
-      api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', fixture.expected[0].step)).toHex()]]),
-    ));
-    console.log('steps = ', fixture.expected[0].step);
-  }
-  let out = [];
+  await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
 
-  const unsub = await api.tx.utility.batch(txs)
-    .signAndSend(sudoPair, { nonce: -1 }, async ({
-      status,
-    }) => {
-      if (status.isFinalized) {
-        out = await processExpected(api, sudoPair, fixture, programs);
-        unsub();
-        console.log(fixture.title);
-        console.log(out);
-      }
-    });
+  return processExpected(api, sudoPair, fixture, programs);
 }
 
 async function processTest(test, api, sudoPair) {
   const programs = [];
-  const index = 0;
   const txs = [];
+  let processed = 0;
   // Submit programs
-  for (const program of test.programs) {
-    const salt = Math.random().toString(36).substring(7);
-    programs[program.id] = generateProgramId(api, program.path, salt);
-    const submit = submitProgram(api, sudoPair, program, salt, programs);
-    await submit.signAndSend(sudoPair, { nonce: -1 });
+  for (const fixture of test.fixtures) {
+    await resetStorage(api, sudoPair);
+    for (const program of test.programs) {
+      const salt = Math.random().toString(36).substring(7);
+      programs[program.id] = generateProgramId(api, program.path, salt);
+      const submit = submitProgram(api, sudoPair, program, salt, programs);
+      txs.push(submit);
+    }
+    await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
+    // setTimeout(function2, 3000);
+    const out = await processFixture(api, sudoPair, fixture, programs);
+    console.log(`Fixture ${fixture.title}`);
+    for (const res of out) {
+      console.log(res);
+    }
+    processed += 1;
   }
-
-  processFixture(api, sudoPair, test.fixtures[0], programs);
+  while (processed < test.fixtures.length) {}
+  return processed;
 }
 
 async function main() {
@@ -349,8 +386,9 @@ async function main() {
   // Alice as the key - and this already exists on the test keyring)
   const keyring = testKeyring.createTestKeyring();
   const adminPair = keyring.getPair(adminId.toString());
-
-  await processTest(tests[0], api, adminPair);
+  for (const test of tests) {
+    await processTest(test, api, adminPair);
+  }
 }
 
 main().catch(console.error);
