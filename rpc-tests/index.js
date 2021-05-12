@@ -389,6 +389,7 @@ async function main() {
   for (const test of tests) {
     await processTest(test, api, adminPair);
   }
+  process.exit(0);
 }
 
 main().catch(console.error);
