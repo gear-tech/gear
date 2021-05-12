@@ -6,27 +6,27 @@ const {
   ApiPromise,
   WsProvider,
 } = require('@polkadot/api');
-const { xxhashAsHex, blake2AsHex, blake2AsU8a } = require('@polkadot/util-crypto');
+const { xxhashAsHex, blake2AsU8a } = require('@polkadot/util-crypto');
 
 // import the test keyring (already has dev keys for Alice, Bob, Charlie, Eve & Ferdie)
 const testKeyring = require('@polkadot/keyring/testing');
 const fs = require('fs');
 
+function xxKey(module, key) {
+  return xxhashAsHex(module, 128) + xxhashAsHex(key, 128).slice(2);
+}
+
 async function resetStorage(api, sudoPair) {
   const keys = [];
-  let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+  let hash = xxKey('GearModule', 'DequeueLimit');
   keys.push(hash);
 
-  hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessageQueue', 128).slice(2);
+  hash = xxKey('GearModule', 'MessageQueue');
   keys.push(hash);
 
-  hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
+  hash = xxKey('GearModule', 'MessagesProcessed');
   keys.push(hash);
-  // keys.push(
-  //   'g::memory',
-  //   'g::msg',
-  //   'g::alloc',
-  // );
+
   await api.tx.sudo.sudo(
     api.tx.system.killStorage(
       keys,
@@ -50,7 +50,7 @@ function generateProgramId(api, path, salt) {
   const code = api.createType('Bytes', Array.from(binary));
   const codeArr = api.createType('Vec<u8>', code).toU8a();
   const saltArr = api.createType('Vec<u8>', salt).toU8a();
-  // codeArr = Uint8Array.from(binary);
+
   const id = new Uint8Array(codeArr.length + saltArr.length);
   id.set(codeArr);
   id.set(saltArr, codeArr.length);
@@ -112,7 +112,7 @@ async function checkMemory(api, exp) {
       const at = parseInt(mem.at, 16) - (256 * 65536);
       const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
       for (let index = at; index < at + bytes.length; index++) {
-        if (gearMemory[index] != bytes[index - at]) {
+        if (gearMemory[index] !== bytes[index - at]) {
           errors.push("Memory doesn't match");
         }
       }
@@ -155,7 +155,6 @@ function submitProgram(api, sudoPair, program, salt, programs) {
 async function processExpected(api, sudoPair, fixture, programs) {
   const output = [];
   const errors = [];
-  const expProcessed = 0;
 
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
@@ -167,14 +166,9 @@ async function processExpected(api, sudoPair, fixture, programs) {
       }
       if (deqLimit.unwrap().toNumber() !== exp.step) {
         const tx = [];
-        // Set MessagesProcessed to zero
-        // let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
-        // tx.push(api.tx.sudo.sudo(
-        //     api.tx.system.killStorage([[hash]])
-        // ));
 
         // Set DequeueLimit
-        const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+        const hash = xxKey('GearModule', 'DequeueLimit');
 
         tx.push(api.tx.sudo.sudo(
           api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.step)).toHex()]]),
@@ -188,7 +182,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
           messagesProcessed = await api.query.gearModule.messagesProcessed();
         }
       }
-      // console.log(`done step - ${exp.step}`);
 
       if ('messages' in exp) {
         const res = await checkMessages(api, exp, programs);
@@ -211,7 +204,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
     // TODO: FIX IF NO STEPS
     // } else {
     //   // Remove DequeueLimit
-    //   const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+    //   const hash = xxKey('GearModule', 'DequeueLimit');
     //   api.tx.sudo.sudo(
     //     api.tx.system.killStorage([hash]),
     //   ).signAndSend(sudoPair, { nonce: -1 });
@@ -255,19 +248,14 @@ async function processFixture(api, sudoPair, fixture, programs) {
   console.log('SUBMIT MESSAGES');
   const txs = [];
 
-  // Set MessagesProcessed to zero
-  // let hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('MessagesProcessed', 128).slice(2);
-  // txs.push(api.tx.sudo.sudo(
-  //     api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', 0)).toHex()]])
-  // ));
   if ('step' in fixture.expected[0]) {
     // Set DequeueLimit
-    const hash = xxhashAsHex('GearModule', 128) + xxhashAsHex('DequeueLimit', 128).slice(2);
+    const hash = xxKey('GearModule', 'DequeueLimit');
     await api.tx.sudo.sudo(
       api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', fixture.expected[0].step)).toHex()]]),
     ).signAndSend(sudoPair, { nonce: -1 });
-    // console.log('steps = ', fixture.expected[0].step);
   }
+
   // Send messages
   for (let index = 0; index < fixture.messages.length; index++) {
     const message = fixture.messages[index];
@@ -305,7 +293,6 @@ async function processFixture(api, sudoPair, fixture, programs) {
 async function processTest(test, api, sudoPair) {
   const programs = [];
   const txs = [];
-  let processed = 0;
   // Submit programs
   for (const fixture of test.fixtures) {
     await resetStorage(api, sudoPair);
@@ -315,17 +302,15 @@ async function processTest(test, api, sudoPair) {
       const submit = submitProgram(api, sudoPair, program, salt, programs);
       txs.push(submit);
     }
+
     await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
-    // setTimeout(function2, 3000);
+
     const out = await processFixture(api, sudoPair, fixture, programs);
     console.log(`Fixture ${fixture.title}`);
     for (const res of out) {
       console.log(res);
     }
-    processed += 1;
   }
-  while (processed < test.fixtures.length) {}
-  return processed;
 }
 
 async function main() {
@@ -346,11 +331,6 @@ async function main() {
   const totalFixtures = tests.reduce((tot, test) => tot + test.fixtures.length, 0);
 
   console.log('Total fixtures:', totalFixtures);
-
-  // Create a keyring instance
-  // const keyring = new Keyring({
-  //     type: 'sr25519'
-  // });
 
   // Initialise the provider to connect to the local node
   const provider = new WsProvider('ws://127.0.0.1:9944');
@@ -386,6 +366,7 @@ async function main() {
   // Alice as the key - and this already exists on the test keyring)
   const keyring = testKeyring.createTestKeyring();
   const adminPair = keyring.getPair(adminId.toString());
+
   for (const test of tests) {
     await processTest(test, api, adminPair);
   }
