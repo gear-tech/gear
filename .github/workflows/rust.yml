@@ -10,8 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  setup:
     runs-on: ubuntu-latest
 
     steps:
@@ -42,6 +41,10 @@ jobs:
       with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
     - name: Build
       run: cd gear-node && cargo build --release
     - name: Run tests
@@ -50,5 +53,21 @@ jobs:
       run: |
         cd test-gear
         cargo +nightly build --release --workspace --exclude=test-gear --target=wasm32-unknown-unknown
-    - name: Run testsuite
-      run: cd gear-node && cargo run --release -- runtests ../test-gear/json/*.json
+    - uses: actions/checkout@v2
+    - uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+        architecture: 'x64' # optional, x64 or x86. If not specified, x64 will be used by default
+    - run: cd gear-node/rpc-tests && npm install
+
+  test:
+      needs: build
+      runs-on: ubuntu-latest
+
+      steps:
+      - name: Run testsuite
+        run: cd gear-node && cargo run --release -- runtests ../test-gear/json/*.json
+      - name: Run rpc-test
+        run: |
+          cd gear-node && cargo run --release -- --dev &
+          node rpc-tests/index.js ../test-gear/json/*.json
