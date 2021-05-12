@@ -49,10 +49,6 @@ jobs:
     - name: Build WASM
       run: |
         cd test-gear
-        cargo +nightly build --manifest-path=demo-ping/Cargo.toml --target=wasm32-unknown-unknown --release --target-dir ../gear-node/target
-        cargo +nightly build --manifest-path=demo-fib/Cargo.toml --target=wasm32-unknown-unknown --release --target-dir ../gear-node/target
-        cargo +nightly build --manifest-path=demo-sum/Cargo.toml --target=wasm32-unknown-unknown --release --target-dir ../gear-node/target
-        cargo +nightly build --manifest-path=demo-vec/Cargo.toml --target=wasm32-unknown-unknown --release --target-dir ../gear-node/target
-        cargo +nightly build --manifest-path=demo-chat/Cargo.toml --target=wasm32-unknown-unknown --release --target-dir ../gear-node/target
+        cargo +nightly build --release --workspace --exclude=test-gear --target=wasm32-unknown-unknown
     - name: Run testsuite
       run: cd gear-node && cargo run --release -- runtests ../test-gear/json/*.json
