@@ -43,4 +43,6 @@ jobs:
     - name: Run tests
       run: cd test-gear && cargo test
     - name: Run testsuite
-      run: cd test-gear && cargo run --release ./json/*.json
+      run: |
+        cd test-gear
+        ./test.sh
