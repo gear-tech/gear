@@ -166,7 +166,6 @@ impl GearTestCmd {
         total_fixtures = tests.iter().map(|t| t.fixtures.len()).sum();
         println!("Total fixtures: {}", total_fixtures);
 
-
         for test in tests {
             for fixture_no in 0..test.fixtures.len() {
                 for exp in &test.fixtures[fixture_no].expected {
@@ -245,7 +244,11 @@ impl GearTestCmd {
             }
         }
 
-        Ok(())
+        if total_failed > 0 {
+            Err(sc_cli::Error::Application("Some fixtures failed... See log above.".to_owned().into()))
+        } else {
+            Ok(())
+        }
     }
 }
 
