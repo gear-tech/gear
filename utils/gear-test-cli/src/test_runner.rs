@@ -42,7 +42,8 @@ pub fn init_fixture(
 
         let mut runner = rti::runner::new();
         for program in test.programs.iter() {
-            let code = std::fs::read(program.path.clone())?;
+            let code = std::fs::read(program.path.clone())
+                .map_err(|e| anyhow::anyhow!("Error openinng {}: {}", program.path.clone(), e))?;
             let mut init_message = Vec::new();
             if let Some(init_msg) = &program.init_message {
                 init_message = init_msg.clone().into_raw();
