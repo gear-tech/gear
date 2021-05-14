@@ -16,12 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use regex::Regex;
 use codec::Decode;
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use rti::runner::ExtRunner;
-use test_gear_sample::sample::Test;
+use test_gear_sample::sample::{Test, PayloadVariant};
 
-use gear_core::{message::Message, storage::Storage};
+use gear_core::{message::Message, storage::Storage, program::ProgramId};
 
 use frame_system as system;
 
@@ -30,6 +31,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .build_storage::<gear_runtime::Runtime>()
         .unwrap()
         .into()
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        write!(&mut s, "{:02x}", b).expect("Format failed")
+    }
+    s
 }
 
 pub fn init_fixture(
@@ -44,17 +54,47 @@ pub fn init_fixture(
         for program in test.programs.iter() {
             let code = std::fs::read(program.path.clone())
                 .map_err(|e| anyhow::anyhow!("Error openinng {}: {}", program.path.clone(), e))?;
+
             let mut init_message = Vec::new();
             if let Some(init_msg) = &program.init_message {
-                init_message = init_msg.clone().into_raw();
+                let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
+                init_message = match init_msg {
+                    PayloadVariant::Utf8(s) => {
+                        // Insert ProgramId
+                        if let Some(caps) = re.captures(s) {
+                            let id = caps["id"].parse::<u64>().unwrap();
+                            let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+                            (s.clone().into_bytes()).to_vec()
+                        } else {
+                            init_msg.clone().into_raw()
+                        }
+                    }
+                    _ => init_msg.clone().into_raw(),
+                }
             }
+
             runner.init_program(program.id.into(), code, init_message, u64::max_value(), 0)?;
         }
         let fixture = &test.fixtures[fixture_no];
         for message in fixture.messages.iter() {
+            let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
+            let payload = match &message.payload {
+                PayloadVariant::Utf8(s) => {
+                    // Insert ProgramId
+                    if let Some(caps) = re.captures(&s) {
+                        let id = caps["id"].parse::<u64>().unwrap();
+                        let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+                        (s.clone().into_bytes()).to_vec()
+                    } else {
+                        message.payload.clone().into_raw()
+                    }
+                }
+                _ => message.payload.clone().into_raw(),
+            };
+
             runner.queue_message(
                 message.destination.into(),
-                message.payload.clone().into_raw(),
+                payload,
                 Some(u64::max_value()),
                 0,
             )

@@ -2023,6 +2023,7 @@ dependencies = [
  "gear-node-rti",
  "gear-runtime",
  "parity-scale-codec",
+ "regex",
  "sc-cli",
  "sc-service",
  "serde_json",
