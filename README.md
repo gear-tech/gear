@@ -23,7 +23,7 @@ brew update
 brew install openssl
 ```
 
-### Windows
+#### Windows
 ```
 # Windows 10 is supported with WSL
 # Install WSL and upgrade it to version 2 use instructions from https://docs.microsoft.com/en-us/windows/wsl/install-win10
@@ -33,6 +33,7 @@ brew install openssl
 # Install windows terminal from app store or use VSCode with remote plugin (auto suggested once wsl is detected by VSCode)
 # follow instructions for linux
 
+```
 ### 2. Rust and all toolchains
 
 Rustup if not installed:
