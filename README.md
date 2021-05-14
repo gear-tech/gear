@@ -24,8 +24,14 @@ brew install openssl
 ```
 
 #### Windows
-
-Not supported
+```
+# Windows 10 is supported with WSL
+# Install WSL and upgrade it to version 2 use instructions from https://docs.microsoft.com/en-us/windows/wsl/install-win10
+# Ensure VM feature is enabled in bios in processor advanced menu
+# Install Ubuntu 20.04 LTS https://www.microsoft.com/store/apps/9n6svws3rx71
+# Launch installed app and setup root user - exit ubuntu app (first time launch takes time)
+# Install windows terminal from app store or use VSCode with remote plugin (auto suggested once wsl is detected by VSCode)
+# follow instructions for linux
 
 ### 2. Rust and all toolchains
 
