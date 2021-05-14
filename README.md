@@ -23,7 +23,7 @@ brew update
 brew install openssl
 ```
 
-#### Windows
+### Windows
 ```
 # Windows 10 is supported with WSL
 # Install WSL and upgrade it to version 2 use instructions from https://docs.microsoft.com/en-us/windows/wsl/install-win10
