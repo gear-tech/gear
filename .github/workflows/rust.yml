@@ -39,7 +39,7 @@ jobs:
     - name: Build WASM
       run: |
         cd test-gear
-        cargo +nightly build --release --workspace --exclude=test-gear --target=wasm32-unknown-unknown
+        ./build-wasm.sh
     - name: Run tests
       run: cd test-gear && cargo test
     - name: Run testsuite
