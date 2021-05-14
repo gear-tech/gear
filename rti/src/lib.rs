@@ -72,13 +72,20 @@ pub trait GearExecutor {
         )
     }
 
-    fn init_program(program_id: H256, program_code: Vec<u8>, init_payload: Vec<u8>, gas_limit: u64) -> Result<ExecutionReport, Error> {
+    fn init_program(
+        program_id: H256,
+        program_code: Vec<u8>,
+        init_payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+    ) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
         runner.init_program(
             ProgramId::from_slice(&program_id[..]),
             program_code,
             init_payload,
             gas_limit,
+            value,
         ).map_err(|e| {
             log::error!("Error initialization program: {:?}", e);
             Error::Runner
