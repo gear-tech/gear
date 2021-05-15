@@ -292,6 +292,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
 
 async function processTest(test, api, sudoPair) {
   const programs = [];
+  const salts = [];
   const txs = [];
   // Submit programs
   for (const fixture of test.fixtures) {
@@ -299,7 +300,10 @@ async function processTest(test, api, sudoPair) {
     for (const program of test.programs) {
       const salt = Math.random().toString(36).substring(7);
       programs[program.id] = generateProgramId(api, program.path, salt);
-      const submit = submitProgram(api, sudoPair, program, salt, programs);
+      salts[program.id] = salt;
+    }
+    for (const program of test.programs) {
+      const submit = submitProgram(api, sudoPair, program, salts[program.id], programs);
       txs.push(submit);
     }
 
