@@ -48,7 +48,8 @@ jobs:
       - name: Build WASM
         run: |
           cd test-gear
-          cargo +nightly build --release --workspace --exclude=test-gear --target=wasm32-unknown-unknown --target-dir ../gear-node/target
+          ./build-wasm.sh
+          cp -r ./target/wasm32-unknown-unknown ../gear-node/target
       - uses: actions/setup-node@v2
         name: Install nodejs
         with:
@@ -56,7 +57,9 @@ jobs:
           architecture: "x64" # optional, x64 or x86. If not specified, x64 will be used by default
       - run: cd gear-node/rpc-tests && npm install
       - name: Run testsuite
-        run: cd gear-node && cargo run --release -- runtests ../test-gear/json/*.json
+        run: |
+          cd gear-node
+          cargo run --release -- runtests ../test-gear/json/*.json
       - name: Run rpc-test
         run: |
           cd gear-node
