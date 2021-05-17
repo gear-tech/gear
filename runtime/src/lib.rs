@@ -276,6 +276,12 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
+impl pallet_utility::Config for Runtime {
+    type Event = Event;
+    type Call = Call;
+    type WeightInfo = ();
+}
+
 /// Configure the pallet template in pallets/template.
 impl pallet_gear::Config for Runtime {
 	type Event = Event;
@@ -297,6 +303,7 @@ construct_runtime!(
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
+		Utility: pallet_utility::{Module, Call, Storage, Event},
 		GearModule: pallet_gear::{Module, Call, Storage, Event<T>, Inherent},
 	}
 );

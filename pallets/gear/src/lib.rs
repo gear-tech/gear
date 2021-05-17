@@ -83,6 +83,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type DequeueLimit<T> = StorageValue<_, u32>;
 
+	#[pallet::storage]
+	pub type MessagesProcessed<T> = StorageValue<_, u32>;
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// Initialization
@@ -105,18 +108,16 @@ pub mod pallet {
 		pub fn submit_program(
 			origin: OriginFor<T>,
 			code: Vec<u8>,
+			salt: Vec<u8>,
 			init_payload: Vec<u8>,
 			gas_limit: u64,
 			value: BalanceOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
-			let nonce = frame_system::Account::<T>::get(who.clone()).nonce;
-
 			let mut data = Vec::new();
 			code.encode_to(&mut data);
-			who.encode_to(&mut data);
-			nonce.encode_to(&mut data);
+			salt.encode_to(&mut data);
 
 			let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
@@ -181,7 +182,9 @@ pub mod pallet {
 			//       specific pages.
 
 			let messages = <MessageQueue<T>>::take().unwrap_or_default();
-			if messages.is_empty() {
+			let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
+
+			if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
 				return Ok(().into());
 			}
 
@@ -230,10 +233,14 @@ pub mod pallet {
 					Ok(execution_report) => {
 						total_handled += execution_report.handled;
 
-						if <DequeueLimit<T>>::get().map(|limit| limit >= total_handled).unwrap_or(false) {
-							break;
+						
+						<MessagesProcessed<T>>::mutate(|messages_processed| *messages_processed = Some(messages_processed.unwrap_or(0) + execution_report.handled));
+						let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
+						if <DequeueLimit<T>>::get().is_some() {
+							if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
+								break;
+							}
 						}
-
 						if execution_report.handled == 0 { break; }
 
 						for (program_id, payload) in execution_report.log.into_iter() {
