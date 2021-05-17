@@ -66,7 +66,7 @@ async function checkMessages(api, exp, programs) {
   }
   const messageQueue = api.createType('Vec<Message>', msgOpt.unwrap());
   if (exp.messages.length !== messageQueue.length) {
-    errors.push("MESSAGES COUNT DOUESN'T MATCH");
+    errors.push('Messages count does not match');
     return errors;
   }
 
@@ -202,37 +202,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
       }
     }
     // TODO: FIX IF NO STEPS
-    // } else {
-    //   // Remove DequeueLimit
-    //   const hash = xxKey('GearModule', 'DequeueLimit');
-    //   api.tx.sudo.sudo(
-    //     api.tx.system.killStorage([hash]),
-    //   ).signAndSend(sudoPair, { nonce: -1 });
-
-    //   let msgOpt = await api.rpc.state.getStorage('g::msg');
-    //   while (msgOpt.unwrap().length < 0) {
-    //     msgOpt = await api.rpc.state.getStorage('g::msg');
-    //   }
-    //   console.log('all done');
-
-    //   if ('memory' in exp) {
-    //     const res = await checkMemory(api, exp);
-    //     if (res.length === 0) {
-    //       output.push('MEMORY: OK');
-    //     } else {
-    //       errors.push(`MEMORY ERR: ${res}`);
-    //     }
-    //   }
-
-    //   if ('messages' in exp) {
-    //     const res = await checkMessages(api, exp, programs);
-    //     if (res.length === 0) {
-    //       output.push('MSG: OK');
-    //     } else {
-    //       errors.push(`MSG ERR: ${res}`);
-    //     }
-    //   }
-    // }
   }
   if (errors.length > 0) {
     console.log(`Fixture ${fixture.title}`);
@@ -245,7 +214,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
 }
 
 async function processFixture(api, sudoPair, fixture, programs) {
-  console.log('SUBMIT MESSAGES');
   const txs = [];
 
   if ('step' in fixture.expected[0]) {
