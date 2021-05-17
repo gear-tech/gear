@@ -63,4 +63,5 @@ jobs:
       - name: Run rpc-test
         run: |
           cd gear-node
-          cargo run --release -- --dev & sleep 5 && node rpc-tests/index.js ../test-gear/json/*.json
+          cargo run --release -- --dev & sleep 5
+          node rpc-tests/index.js ../test-gear/json/*.json
