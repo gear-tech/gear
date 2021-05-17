@@ -54,7 +54,6 @@ jobs:
         name: Install nodejs
         with:
           node-version: "16"
-          architecture: "x64" # optional, x64 or x86. If not specified, x64 will be used by default
       - run: cd gear-node/rpc-tests && npm install
       - name: Run testsuite
         run: |
