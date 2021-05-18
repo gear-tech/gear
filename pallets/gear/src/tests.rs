@@ -59,8 +59,9 @@ fn it_processes_messages() {
 
 	init_logger();
 	new_test_ext().execute_with(|| {
-		let code_hash = sp_io::hashing::blake2_256(program.code()).into();
-		common::set_code(code_hash, parse_wat(wat));
+		let code = parse_wat(wat);
+		let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+		common::set_code(code_hash, &code);
 		common::set_program(
 			H256::from_low_u64_be(1),
 			Program {
