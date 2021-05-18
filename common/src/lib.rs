@@ -119,8 +119,8 @@ pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
     sp_io::storage::get(&code_key(code_hash))
 }
 
-pub fn set_code(code_hash: H256, code: Vec<u8>) {
-    sp_io::storage::set(&code_key(code_hash), &code)
+pub fn set_code(code_hash: H256, code: &[u8]) {
+    sp_io::storage::set(&code_key(code_hash), code)
 }
 
 pub fn get_program(id: H256) -> Option<Program> {
