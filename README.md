@@ -34,7 +34,6 @@ Windows 10 is supported with WSL!
 - Install windows terminal from app store or use VSCode with remote plugin (auto suggested once wsl is detected by VSCode).
 - Follow instructions for linux.
 
-```
 ### 2. Rust and all toolchains
 
 Rustup if not installed:
