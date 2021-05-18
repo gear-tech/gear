@@ -37,7 +37,7 @@ pub struct Message {
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Program {
     pub static_pages: Vec<u8>,
-    pub code: Vec<u8>,
+    pub code_hash: H256,
 }
 
 pub trait IntoOrigin {
@@ -101,11 +101,30 @@ fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
+fn code_key(code_hash: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(b"g::code::");
+    code_hash.encode_to(&mut key);
+    key
+}
+
 fn page_key(page: u32) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(b"g::alloc::");
     page.encode_to(&mut key);
     key
+}
+
+pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
+    sp_io::storage::get(&code_key(code_hash))
+        .map(|val| Vec::<u8>::decode(&mut &val[..]).expect("values encoded correctly"))
+}
+
+pub fn set_code(code_hash: H256, code: Vec<u8>) {
+    sp_io::storage::set(
+        &code_key(code_hash),
+        &code.encode(),
+    )
 }
 
 pub fn get_program(id: H256) -> Option<Program> {
