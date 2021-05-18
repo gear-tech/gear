@@ -19,7 +19,7 @@
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
-use std::fs;
+use std::{fs, path::Path};
 use termion::{color, style};
 
 use gear_core::{
@@ -32,9 +32,13 @@ use test_gear_sample::sample;
 use crate::test_runner;
 use crate::GearTestCmd;
 
-fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> Result<sample::Test, std::io::Error> {
-    let file = fs::File::open(path)?;
-    let u = serde_json::from_reader(file)?;
+fn read_test_from_file<P: AsRef<Path>>(path: P) -> Result<sample::Test, String> {
+    let file = fs::File::open(path.as_ref())
+        .map_err(|e| format!("Error opening {}: {}", path.as_ref().display(), e))?;
+
+    let u = serde_json::from_reader(file)
+        .map_err(|e| format!("Error decoding {}: {}", path.as_ref().display(), e))?;
+
     Ok(u)
 }
 
@@ -147,8 +151,7 @@ fn check_memory(
 
 impl GearTestCmd {
     /// Runs tests from json files.
-    pub fn run(&self, config: Configuration) -> sc_cli::Result<()> {
-        let mut total_fixtures: usize = 0;
+    pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         let mut total_failed = 0i32;
         let mut tests = Vec::new();
         for path in &self.input {
@@ -163,7 +166,7 @@ impl GearTestCmd {
             }
         }
 
-        total_fixtures = tests.iter().map(|t| t.fixtures.len()).sum();
+        let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
         println!("Total fixtures: {}", total_fixtures);
 
         for test in tests {
@@ -245,7 +248,9 @@ impl GearTestCmd {
         }
 
         if total_failed > 0 {
-            Err(sc_cli::Error::Application("Some fixtures failed... See log above.".to_owned().into()))
+            Err(sc_cli::Error::Application(format!(
+                "{}/{} fixtures failed... See log above.", total_failed, total_fixtures
+            ).into()))
         } else {
             Ok(())
         }
