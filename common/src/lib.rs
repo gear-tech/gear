@@ -117,14 +117,10 @@ fn page_key(page: u32) -> Vec<u8> {
 
 pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
     sp_io::storage::get(&code_key(code_hash))
-        .map(|val| Vec::<u8>::decode(&mut &val[..]).expect("values encoded correctly"))
 }
 
 pub fn set_code(code_hash: H256, code: Vec<u8>) {
-    sp_io::storage::set(
-        &code_key(code_hash),
-        &code.encode(),
-    )
+    sp_io::storage::set(&code_key(code_hash), &code)
 }
 
 pub fn get_program(id: H256) -> Option<Program> {
