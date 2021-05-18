@@ -59,12 +59,14 @@ fn it_processes_messages() {
 
 	init_logger();
 	new_test_ext().execute_with(|| {
+		let code_hash = sp_io::hashing::blake2_256(program.code()).into();
+		common::set_code(code_hash, parse_wat(wat));
 		common::set_program(
 			H256::from_low_u64_be(1),
 			Program {
 				static_pages: Vec::new(),
 				// just puts empty message in the log
-				code: parse_wat(wat),
+				code_hash,
 			}
 		);
 
