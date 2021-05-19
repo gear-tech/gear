@@ -28,6 +28,47 @@ impl Default for Config {
     }
 }
 
+/// Result of one or more message handling.
+#[derive(Debug, Default, Clone)]
+pub struct RunNextResult {
+    /// How many messages were handled
+    pub handled: u32,
+    /// Pages that were touched during the run.
+    pub touched: Vec<(PageNumber, PageAction)>,
+    /// Gas that left.
+    pub gas_left: Vec<(ProgramId, u64)>,
+}
+
+impl RunNextResult {
+    /// Result that notes that some log message had been handled, otherwise empty.
+    pub(crate) fn log() -> Self {
+        let mut result = RunNextResult::default();
+        result.handled = 1;
+        result
+    }
+
+    /// Accrue one run of the message hadling
+    pub fn accrue(&mut self, program_id: ProgramId, result: RunResult) {
+        self.handled += 1;
+        self.touched.extend(result.touched.into_iter());
+        self.gas_left.push(
+            (program_id, result.gas_left)
+        );
+    }
+
+    /// Empty run result.
+    pub fn empty() -> Self {
+        RunNextResult::default()
+    }
+
+    /// From one single run.
+    pub fn from_single(program_id: ProgramId, run_result: RunResult) -> Self {
+        let mut result = Self::empty();
+        result.accrue(program_id, run_result);
+        result
+    }
+}
+
 /// Runner instance.
 ///
 /// This instance allows to handle multiple messages using underlying allocation, message and program
@@ -82,10 +123,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
-    pub fn run_next(&mut self) -> Result<usize> {
+    pub fn run_next(&mut self) -> Result<RunNextResult> {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
-            None => { return Ok(0); }
+            None => { return Ok(RunNextResult::empty()); }
         };
 
         if next_message.dest() == 0.into() {
@@ -95,7 +136,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     log::debug!("msg to /0: {:?}", next_message.payload())
                 }
             }
-            Ok(1)
+            Ok(RunNextResult::log())
         } else {
             let mut context = self.create_context();
             let mut program = self
@@ -111,21 +152,24 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
             )?;
 
-            run(
-                &mut self.env,
-                &mut context,
-                module,
-                &mut program,
-                EntryPoint::Handle,
-                &next_message.into(),
-                if let Some(gas_limit) = gas_limit { GasLimit::Limited(gas_limit) } else { GasLimit::Unlimited },
-            )?;
+            let result = RunNextResult::from_single(
+                next_message.source(),
+                run(
+                    &mut self.env,
+                    &mut context,
+                    module,
+                    &mut program,
+                    EntryPoint::Handle,
+                    &next_message.into(),
+                    if let Some(gas_limit) = gas_limit { GasLimit::Limited(gas_limit) } else { GasLimit::Unlimited },
+                )?
+            );
 
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
             self.program_storage.set(program);
 
-            Ok(1)
+            Ok(result)
         }
     }
 
