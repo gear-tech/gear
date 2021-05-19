@@ -36,6 +36,7 @@ pub mod pallet {
 		dispatch::DispatchResultWithPostInfo,
 		pallet_prelude::*,
 		traits::{Currency, ExistenceRequirement},
+		weights::{IdentityFee, WeightToFeePolynomial},
 	};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
@@ -227,21 +228,39 @@ pub mod pallet {
 					IntermediateMessage::InitProgram {
 						external_origin, code, program_id, payload, gas_limit, value
 					} => {
-						if let Err(_) = rti::gear_executor::init_program(program_id, code, payload, gas_limit, value) {
-							stop_list.push(program_id);
-							Self::deposit_event(Event::InitFailure(program_id, MessageError::Dispatch));
-						} else {
+						match rti::gear_executor::init_program(program_id, code, payload, gas_limit, value) {
+							Err(_) => {
+								stop_list.push(program_id);
+								Self::deposit_event(Event::InitFailure(program_id, MessageError::Dispatch));
+							},
+							Ok(execution_report) => {
+								if let Err(_) = T::Currency::transfer(
+									&<T::AccountId as Origin>::from_origin(external_origin),
+									&<T::AccountId as Origin>::from_origin(program_id),
+									value.into(),
+									ExistenceRequirement::AllowDeath,
+								) {
+									Self::deposit_event(Event::InitFailure(program_id, MessageError::ValueTransfer));
+								} else {
+									Self::deposit_event(Event::ProgramInitialized(program_id));
+									total_handled += 1;
 
-							if let Err(_) = T::Currency::transfer(
-								&<T::AccountId as Origin>::from_origin(external_origin),
-								&<T::AccountId as Origin>::from_origin(program_id),
-								value.into(),
-								ExistenceRequirement::AllowDeath,
-							) {
-								Self::deposit_event(Event::InitFailure(program_id, MessageError::ValueTransfer));
-							} else {
-								Self::deposit_event(Event::ProgramInitialized(program_id));
-								total_handled += 1;
+									// handle refunds
+									for (destination, gas_left) in execution_report.gas_refunds {
+										// TODO: weight to fee calculator might not be identity fee
+										let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+
+										// TODO: use lock instead of value transfer and weight derivation from gas_limit
+										let _ = T::Currency::deposit_creating(
+											&<T::AccountId as Origin>::from_origin(destination),
+											refund,
+										);
+									}
+
+									for (program_id, payload) in execution_report.log {
+										Self::deposit_event(Event::Log(program_id, payload));
+									}
+								}
 							}
 						}
 					},
@@ -249,8 +268,7 @@ pub mod pallet {
 						route, payload, gas_limit, value
 					} => {
 						let source = match route.origin {
-							// TODO: when origin is introduced, put it the right way
-							MessageOrigin::External(_) => H256::default(),
+							MessageOrigin::External(account_id) => account_id,
 							MessageOrigin::Internal(program_id) => program_id,
 						};
 
@@ -279,7 +297,18 @@ pub mod pallet {
 						}
 						if execution_report.handled == 0 { break; }
 
-						for (program_id, payload) in execution_report.log.into_iter() {
+						for (destination, gas_left) in execution_report.gas_refunds {
+							// TODO: weight to fee calculator might not be identity fee
+							let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+
+							// TODO: use lock instead of value transfer and weight derivation from gas_limit
+							let _ = T::Currency::deposit_creating(
+								&<T::AccountId as Origin>::from_origin(destination),
+								refund,
+							);
+						}
+
+						for (program_id, payload) in execution_report.log {
 							Self::deposit_event(Event::Log(program_id, payload));
 						}
 					},

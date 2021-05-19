@@ -46,6 +46,7 @@ pub struct ExecutionReport {
     pub gas_refunds: Vec<(H256, u64)>,
 }
 
+#[cfg(feature = "std")]
 impl ExecutionReport {
     fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
         // TODO: actually compare touched from run result with

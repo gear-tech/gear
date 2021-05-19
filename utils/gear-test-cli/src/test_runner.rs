@@ -121,7 +121,7 @@ pub fn run(
                 runner.run_next()?;
             }
         } else {
-            while runner.run_next()? > 0 {}
+            while runner.run_next()?.handled > 0 {}
         }
         let message_queue = sp_io::storage::get(b"g::msg")
             .map(|val| Vec::<Message>::decode(&mut &val[..]).expect("values encoded correctly"))
