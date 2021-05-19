@@ -64,11 +64,11 @@ impl StorageQueue {
         let value_key = self.value_key(self.tail);
 
         // store message
-        sp_io::storage::set(&self.tail_key, &value.encode());
+        sp_io::storage::set(&value_key, &value.encode());
 
         // update tail
         self.tail = self.tail.wrapping_add(1);
-        sp_io::storage::set(&value_key, &self.tail.to_le_bytes());
+        sp_io::storage::set(&self.tail_key, &self.tail.to_le_bytes());
     }
 
     pub fn dequeue<T: Decode>(&mut self) -> Option<T> {
