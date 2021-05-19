@@ -100,7 +100,7 @@ pub fn run(
             runner.run_next()?;
         }
     } else {
-        while runner.run_next()? > 0 {}
+        while runner.run_next()?.handled > 0 {}
     }
 
     let (
