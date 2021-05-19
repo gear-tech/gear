@@ -49,23 +49,24 @@ pub fn dequeue_message() -> Option<Message> {
 }
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
-    crate::get_program(H256::from_slice(id.as_slice()))
-        .map(|prog|
-            Program::new(
-                id,
-                prog.code,
-                prog.static_pages,
-            )
-        )
+    crate::get_program(H256::from_slice(id.as_slice())).map(|prog| {
+        if let Some(code) = crate::get_code(prog.code_hash) {
+            Program::new(id, code, prog.static_pages)
+        } else {
+            Program::new(id, Vec::new(), prog.static_pages)
+        }
+    })
 }
 
 pub fn set_program(program: Program) {
+    let code_hash = sp_io::hashing::blake2_256(program.code()).into();
+    crate::set_code(code_hash, program.code());
     crate::set_program(
         H256::from_slice(program.id().as_slice()),
         crate::Program {
             static_pages: program.static_pages().to_vec(),
-            code: program.code().to_vec(),
-        }
+            code_hash,
+        },
     );
 }
 
