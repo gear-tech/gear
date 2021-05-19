@@ -31,7 +31,7 @@ use sp_core::H256;
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 #[cfg(feature = "std")]
-use gear_core::{storage::Storage, program::ProgramId};
+use gear_core::{storage::Storage, program::ProgramId, runner::RunNextResult};
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -43,18 +43,15 @@ pub enum Error {
 pub struct ExecutionReport {
     pub handled: u32,
     pub log: Vec<(H256, Vec<u8>)>,
+    pub gas_refunds: Vec<(H256, u64)>,
 }
 
-#[runtime_interface]
-pub trait GearExecutor {
-    fn process() -> Result<ExecutionReport, Error> {
-        let mut runner = crate::runner::new();
-        let handled = runner.run_next().map_err(|e| {
-            log::error!("Error handling message: {:?}", e);
-            Error::Runner
-        })?;
+impl ExecutionReport {
+    fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
+        // TODO: actually compare touched from run result with
+        //       that is what should be predefined in message
+        let RunNextResult { handled, gas_left, .. } = result;
 
-        let (Storage { message_queue, .. }, persistent_memory) = runner.complete();
         let log = message_queue.log.into_iter().map(
             |msg| (
                 H256::from_slice(msg.source.as_slice()),
@@ -62,14 +59,30 @@ pub trait GearExecutor {
             )
         ).collect::<Vec<_>>();
 
+        ExecutionReport {
+            handled: handled as _,
+            log,
+            gas_refunds: gas_left.into_iter().map(|(program_id, gas_left)| {
+                (H256::from_slice(program_id.as_slice()), gas_left)
+            }).collect(),
+        }
+    }
+}
+
+#[runtime_interface]
+pub trait GearExecutor {
+    fn process() -> Result<ExecutionReport, Error> {
+        let mut runner = crate::runner::new();
+
+        let result = runner.run_next().map_err(|e| {
+            log::error!("Error handling message: {:?}", e);
+            Error::Runner
+        })?;
+
+        let (Storage { message_queue, .. }, persistent_memory) = runner.complete();
         crate::runner::set_memory(persistent_memory);
 
-        Ok(
-            ExecutionReport {
-                handled: handled as _,
-                log,
-            }
-        )
+        Ok(ExecutionReport::collect(message_queue, result))
     }
 
     fn init_program(
@@ -80,33 +93,25 @@ pub trait GearExecutor {
         value: u128,
     ) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
-        runner.init_program(
+
+        let result = RunNextResult::from_single(
             ProgramId::from_slice(&program_id[..]),
-            program_code,
-            init_payload,
-            gas_limit,
-            value,
-        ).map_err(|e| {
-            log::error!("Error initialization program: {:?}", e);
-            Error::Runner
-        })?;
+            runner.init_program(
+                ProgramId::from_slice(&program_id[..]),
+                program_code,
+                init_payload,
+                gas_limit,
+                value,
+            ).map_err(|e| {
+                log::error!("Error initialization program: {:?}", e);
+                Error::Runner
+            })?
+        );
 
         let (Storage { message_queue, .. }, persistent_memory) = runner.complete();
 
-        let log = message_queue.log.into_iter().map(
-            |msg| (
-                H256::from_slice(msg.source.as_slice()),
-                msg.payload.into_raw()
-            )
-        ).collect::<Vec<_>>();
-
         crate::runner::set_memory(persistent_memory);
 
-        Ok(
-            ExecutionReport {
-                handled: 1,
-                log,
-            }
-        )
+        Ok(ExecutionReport::collect(message_queue, result))
     }
 }

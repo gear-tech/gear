@@ -54,6 +54,8 @@ parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub const SS58Prefix: u8 = 42;
 	pub const ExistentialDeposit: u64 = 1;
+	pub const SubmitWeightPerByte: u64 = 1_000_000;
+	pub const MessagePerByte: u64 = 100_000;
 }
 
 impl system::Config for Test {
@@ -84,6 +86,8 @@ impl system::Config for Test {
 impl pallet::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
+	type SubmitWeightPerByte = SubmitWeightPerByte;
+	type MessagePerByte = MessagePerByte;
 }
 
 // Build genesis storage according to the mock runtime.
