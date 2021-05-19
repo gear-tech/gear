@@ -1,4 +1,3 @@
-use crate::Message;
 use codec::{Decode, Encode};
 use sp_std::convert::TryInto;
 use sp_std::prelude::*;
@@ -9,7 +8,7 @@ fn read_le_u32(input: &mut &[u8]) -> u32 {
     u32::from_le_bytes(int_bytes.try_into().unwrap())
 }
 
-pub struct MessageQueue {
+pub struct StorageQueue {
     prefix: Vec<u8>,
     head: u32,
     tail: u32,
@@ -17,8 +16,8 @@ pub struct MessageQueue {
     tail_key: Vec<u8>,
 }
 
-impl MessageQueue {
-    pub fn get(prefix: Vec<u8>) -> MessageQueue {
+impl StorageQueue {
+    pub fn get(prefix: Vec<u8>) -> StorageQueue {
         let mut head_key = prefix.clone();
         head_key.extend_from_slice(b"head");
 
@@ -29,7 +28,7 @@ impl MessageQueue {
             let head: u32 = read_le_u32(&mut head.as_slice());
             if let Some(tail) = sp_io::storage::get(&tail_key) {
                 let tail: u32 = read_le_u32(&mut tail.as_slice());
-                MessageQueue {
+                StorageQueue {
                     prefix,
                     head,
                     tail,
@@ -37,7 +36,7 @@ impl MessageQueue {
                     tail_key,
                 }
             } else {
-                MessageQueue {
+                StorageQueue {
                     prefix,
                     head,
                     tail: head,
@@ -51,7 +50,7 @@ impl MessageQueue {
 
             sp_io::storage::set(&head_key, &head.to_le_bytes());
             sp_io::storage::set(&tail_key, &tail.to_le_bytes());
-            MessageQueue {
+            StorageQueue {
                 prefix,
                 head,
                 tail,
@@ -61,39 +60,37 @@ impl MessageQueue {
         }
     }
 
-    pub fn queue(&mut self, value: Message) {
-
-        let message_key = self.message_key(self.tail);
+    pub fn queue<T: Encode>(&mut self, value: T) {
+        let value_key = self.value_key(self.tail);
 
         // store message
         sp_io::storage::set(&self.tail_key, &value.encode());
 
         // update tail
         self.tail = self.tail.wrapping_add(1);
-        sp_io::storage::set(&message_key, &self.tail.to_le_bytes());
+        sp_io::storage::set(&value_key, &self.tail.to_le_bytes());
     }
 
-    pub fn dequeue(&mut self) -> Option<Message> {
+    pub fn dequeue<T: Decode>(&mut self) -> Option<T> {
         if self.head == self.tail {
             None
         } else {
-            
-            let message_key = self.message_key(self.head);
+            let value_key = self.value_key(self.head);
 
-            if let Some(msg) = sp_io::storage::get(&message_key) {
+            if let Some(val) = sp_io::storage::get(&value_key) {
                 sp_io::storage::clear(&self.head_key);
                 self.head = self.head.wrapping_add(1);
                 sp_io::storage::set(&self.head_key, &self.head.to_le_bytes());
-                Some(Message::decode(&mut &msg[..]).expect("Message::decode fail"))
+                Some(T::decode(&mut &val[..]).expect("decode fail"))
             } else {
                 None
             }
         }
     }
 
-    fn message_key(&self, id: u32) -> Vec<u8> {
-        let mut message_key = self.prefix.clone();
-        message_key.extend_from_slice(&id.to_le_bytes());
-        message_key
+    fn value_key(&self, id: u32) -> Vec<u8> {
+        let mut value_key = self.prefix.clone();
+        value_key.extend_from_slice(&id.to_le_bytes());
+        value_key
     }
 }
