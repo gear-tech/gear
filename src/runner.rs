@@ -60,6 +60,13 @@ impl RunNextResult {
     pub fn empty() -> Self {
         RunNextResult::default()
     }
+
+    /// From one single run.
+    pub fn from_single(program_id: ProgramId, run_result: RunResult) -> Self {
+        let mut result = Self::empty();
+        result.accrue(program_id, run_result);
+        result
+    }
 }
 
 /// Runner instance.
@@ -145,8 +152,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
             )?;
 
-            let mut run_next_result = RunNextResult::empty();
-            run_next_result.accrue(
+            let result = RunNextResult::from_single(
                 next_message.source(),
                 run(
                     &mut self.env,
@@ -163,7 +169,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                 .queue_many(context.message_buf.drain(..).collect());
             self.program_storage.set(program);
 
-            Ok(run_next_result)
+            Ok(result)
         }
     }
 
