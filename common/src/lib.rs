@@ -21,9 +21,13 @@
 #[cfg(feature="std")]
 pub mod native;
 
+mod message_queue;
+
 use codec::{Encode, Decode};
 use sp_core::H256;
 use sp_std::prelude::*;
+
+use message_queue::MessageQueue;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Message {
@@ -140,25 +144,13 @@ pub fn remove_program(_id: H256) {
 }
 
 pub fn dequeue_message() -> Option<Message> {
-    sp_io::storage::get(b"g::msg")
-        .map(|val| Vec::<Message>::decode(&mut &val[..]).expect("values encoded correctly"))
-        .and_then(|mut messages| {
-            let popped =
-                if messages.len() > 0 { Some(messages.remove(0)) }
-                else { None };
-            sp_io::storage::set(b"g::msg", &messages.encode());
-            popped
-        })
+    let mut queue = MessageQueue::get("g::msg".as_bytes().to_vec());
+    queue.dequeue()
 }
 
 pub fn queue_message(message: Message) {
-    let mut messages = sp_io::storage::get(b"g::msg")
-        .map(|val| Vec::<Message>::decode(&mut &val[..]).expect("values encoded correctly"))
-        .unwrap_or_default();
-
-    messages.push(message);
-
-    sp_io::storage::set(b"g::msg", &messages.encode());
+    let mut queue = MessageQueue::get("g::msg".as_bytes().to_vec());
+    queue.queue(message);
 }
 
 pub fn alloc(page: u32, program: H256) {
