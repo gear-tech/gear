@@ -20,6 +20,7 @@ sp-io = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git"
 frame-system = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 
 # Internal deps
+gear-common = { path = "../../common" }
 gear-core = { path = "../../../gear-core" }
 test-gear-sample = { path = "../../../test-gear/sample" }
 rti = { package = "gear-node-rti", path = "../../rti" }

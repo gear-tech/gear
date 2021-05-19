@@ -2020,6 +2020,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "frame-system",
+ "gear-common",
  "gear-core",
  "gear-node-rti",
  "gear-runtime",
