@@ -62,9 +62,8 @@ impl MessageQueue {
     }
 
     pub fn queue(&mut self, value: Message) {
-        // gen message key
-        let mut message_key = self.prefix.clone();
-        message_key.extend_from_slice(&self.tail.to_le_bytes());
+
+        let message_key = self.message_key(self.tail);
 
         // store message
         sp_io::storage::set(&self.tail_key, &value.encode());
@@ -78,9 +77,8 @@ impl MessageQueue {
         if self.head == self.tail {
             None
         } else {
-
-            let mut message_key = self.prefix.clone();
-            message_key.extend_from_slice(&self.head.to_le_bytes());
+            
+            let message_key = self.message_key(self.head);
 
             if let Some(msg) = sp_io::storage::get(&message_key) {
                 sp_io::storage::clear(&self.head_key);
@@ -91,5 +89,11 @@ impl MessageQueue {
                 None
             }
         }
+    }
+
+    fn message_key(&self, id: u32) -> Vec<u8> {
+        let mut message_key = self.prefix.clone();
+        message_key.extend_from_slice(&id.to_le_bytes());
+        message_key
     }
 }
