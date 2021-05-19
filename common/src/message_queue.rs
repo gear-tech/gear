@@ -13,50 +13,50 @@ pub struct MessageQueue {
     prefix: Vec<u8>,
     head: u32,
     tail: u32,
-    head_id: Vec<u8>,
-    tail_id: Vec<u8>,
+    head_key: Vec<u8>,
+    tail_key: Vec<u8>,
 }
 
 impl MessageQueue {
     pub fn get(prefix: Vec<u8>) -> MessageQueue {
-        let mut head_id = prefix.clone();
-        head_id.extend_from_slice(b"head");
+        let mut head_key = prefix.clone();
+        head_key.extend_from_slice(b"head");
 
-        let mut tail_id = prefix.clone();
-        tail_id.extend_from_slice(b"tail");
+        let mut tail_key = prefix.clone();
+        tail_key.extend_from_slice(b"tail");
 
-        if let Some(head) = sp_io::storage::get(&head_id) {
+        if let Some(head) = sp_io::storage::get(&head_key) {
             let head: u32 = read_le_u32(&mut head.as_slice());
-            if let Some(tail) = sp_io::storage::get(&tail_id) {
+            if let Some(tail) = sp_io::storage::get(&tail_key) {
                 let tail: u32 = read_le_u32(&mut tail.as_slice());
                 MessageQueue {
                     prefix,
                     head,
                     tail,
-                    head_id,
-                    tail_id,
+                    head_key,
+                    tail_key,
                 }
             } else {
                 MessageQueue {
                     prefix,
                     head,
                     tail: head,
-                    head_id,
-                    tail_id,
+                    head_key,
+                    tail_key,
                 }
             }
         } else {
             let head: u32 = 0;
             let tail: u32 = 0;
 
-            sp_io::storage::set(&head_id, &head.to_le_bytes());
-            sp_io::storage::set(&tail_id, &tail.to_le_bytes());
+            sp_io::storage::set(&head_key, &head.to_le_bytes());
+            sp_io::storage::set(&tail_key, &tail.to_le_bytes());
             MessageQueue {
                 prefix,
                 head,
                 tail,
-                head_id,
-                tail_id,
+                head_key,
+                tail_key,
             }
         }
     }
@@ -67,7 +67,7 @@ impl MessageQueue {
         message_key.extend_from_slice(&self.tail.to_le_bytes());
 
         // store message
-        sp_io::storage::set(&self.tail_id, &value.encode());
+        sp_io::storage::set(&self.tail_key, &value.encode());
 
         // update tail
         self.tail = self.tail.wrapping_add(1);
@@ -83,9 +83,9 @@ impl MessageQueue {
             message_key.extend_from_slice(&self.head.to_le_bytes());
 
             if let Some(msg) = sp_io::storage::get(&message_key) {
-                sp_io::storage::clear(&self.head_id);
+                sp_io::storage::clear(&self.head_key);
                 self.head = self.head.wrapping_add(1);
-                sp_io::storage::set(&self.head_id, &self.head.to_le_bytes());
+                sp_io::storage::set(&self.head_key, &self.head.to_le_bytes());
                 Some(Message::decode(&mut &msg[..]).expect("Message::decode fail"))
             } else {
                 None
