@@ -14,6 +14,7 @@ test-gear-sample = { path = "./sample" }
 serde_json = "*"
 termion = "1.5.6"
 regex = "1.4.5"
+derive_more = "0.99"
 
 [workspace]
 members = [

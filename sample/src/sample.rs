@@ -37,6 +37,7 @@ pub struct Expectation {
     pub messages: Option<Vec<Message>>,
     pub allocations: Option<Vec<AllocationStorage>>,
     pub memory: Option<Vec<MemoryVariant>>,
+    pub log: Option<Vec<Message>>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
