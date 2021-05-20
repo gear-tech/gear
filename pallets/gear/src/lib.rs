@@ -127,22 +127,13 @@ pub mod pallet {
 			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
-				<MessageNonce<T>>::mutate(|message_nonce| {
-
-					let nonce = message_nonce.take().unwrap_or(0);
-					let mut message_id = init_payload.encode();
-					message_id.extend_from_slice(&nonce.to_le_bytes());
-					let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
-
-					actual_messages.push(IntermediateMessage::InitProgram {
-						id: message_id,
-						external_origin: who.into_origin(),
-						code,
-						program_id: id,
-						payload: init_payload,
-						gas_limit,
-						value: value.into(),
-					});
+				actual_messages.push(IntermediateMessage::InitProgram {
+					external_origin: who.into_origin(),
+					code,
+					program_id: id,
+					payload: init_payload,
+					gas_limit,
+					value: value.into(),
 				});
 
 				*messages = Some(actual_messages);

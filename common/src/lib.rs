@@ -82,7 +82,6 @@ pub struct MessageRoute {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum IntermediateMessage {
     InitProgram {
-        id: H256,
         external_origin: H256,
         program_id: H256,
         code: Vec<u8>,

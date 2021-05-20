@@ -32,6 +32,7 @@ pub fn queue_message(message: Message) {
         value: message.value,
     };
 
+    // todo: gen id with nonce
     crate::queue_message(message, H256::random())
 }
 
