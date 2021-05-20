@@ -5,7 +5,7 @@ extern crate alloc;
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
 pub struct ProgramId(pub [u8; 32]);
 
 impl From<u64> for ProgramId {
