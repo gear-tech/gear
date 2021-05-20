@@ -32,7 +32,7 @@ pub fn queue_message(message: Message) {
         value: message.value,
     };
 
-    crate::queue_message(message)
+    crate::queue_message(message, H256::random())
 }
 
 pub fn dequeue_message() -> Option<Message> {

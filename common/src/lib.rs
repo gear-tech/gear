@@ -82,20 +82,20 @@ pub struct MessageRoute {
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum IntermediateMessage {
     InitProgram {
+        id: H256,
         external_origin: H256,
         program_id: H256,
         code: Vec<u8>,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-        nonce: u128,
     },
     DispatchMessage {
+        id: H256,
         route: MessageRoute,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-        nonce: u128,
     },
 }
 
@@ -149,9 +149,9 @@ pub fn dequeue_message() -> Option<Message> {
     message_queue.dequeue()
 }
 
-pub fn queue_message(message: Message, nonce: u128) {
+pub fn queue_message(message: Message, id: H256) {
     let mut message_queue = StorageQueue::get("g::msg::".as_bytes().to_vec());
-    message_queue.queue(message, nonce);
+    message_queue.queue(message, id);
 }
 
 pub fn alloc(page: u32, program: H256) {
