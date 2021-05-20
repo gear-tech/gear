@@ -37,11 +37,11 @@ async function resetStorage(api, sudoPair) {
       'g::', 1,
     ),
   ).signAndSend(sudoPair, { nonce: -1 });
-  let msgOpt = await api.rpc.state.getStorage('g::msg');
-  while (!msgOpt.isNone) {
-    msgOpt = await api.rpc.state.getStorage('g::msg');
+  let headOpt = await api.rpc.state.getStorage('g::msg::head');
+  while (!headOpt.isNone) {
+    headOpt = await api.rpc.state.getStorage('g::msg::head');
   }
-  return msgOpt;
+  return headOpt;
 }
 
 function generateProgramId(api, path, salt) {
@@ -60,18 +60,32 @@ function generateProgramId(api, path, salt) {
 
 async function checkMessages(api, exp, programs) {
   const errors = [];
-  let msgOpt = await api.rpc.state.getStorage('g::msg');
-  while (msgOpt.isNone) {
-    msgOpt = await api.rpc.state.getStorage('g::msg');
+  let messageQueue = [];
+  if (exp.messages.length === 0) {
+    return errors;
   }
-  const messageQueue = api.createType('Vec<Message>', msgOpt.unwrap());
-  if (exp.messages.length !== messageQueue.length) {
+  let head = await api.rpc.state.getStorage('g::msg::head');
+  let tail = await api.rpc.state.getStorage('g::msg::tail');
+  while (head.unwrap().eq(tail.unwrap())) {
+    head = await api.rpc.state.getStorage('g::msg::head');
+    tail = await api.rpc.state.getStorage('g::msg::tail');
+  }
+
+  let buf = Buffer.from(head.unwrap());
+  head = buf.readUInt32LE(0, 6);
+
+  buf = Buffer.from(tail.unwrap());
+  tail = buf.readUInt32LE(0, 6);
+
+  if (tail - head !== exp.messages.length) {
     errors.push('Messages count does not match');
     return errors;
   }
-
-  for (let index = 0; index < exp.messages.length; index++) {
-    const expMessage = exp.messages[index];
+  for (let index = head; index < tail; index++) {
+    buf.writeUInt32LE(index);
+    const messageOpt = await api.rpc.state.getStorage('g::msg::' + buf);
+    const message = api.createType('Message', messageOpt.unwrap());
+    const expMessage = exp.messages[index - head];
     let payload = [];
     if (expMessage.payload.kind === 'bytes') {
       payload = api.createType('Bytes', expMessage.payload.value);
@@ -87,14 +101,14 @@ async function checkMessages(api, exp, programs) {
       payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
     }
 
-    if (!messageQueue[index].payload.eq(payload)) {
+    if (!message.payload.eq(payload)) {
       errors.push("Message payload doesn't match");
     }
-    if (!messageQueue[index].dest.eq(programs[expMessage.destination])) {
+    if (!message.dest.eq(programs[expMessage.destination])) {
       errors.push("Message destination doesn't match");
     }
     if ('gas_limit' in expMessage) {
-      if (!messageQueue[index].gas_limit.toNumber().eq(expMessage.gas_limit)) {
+      if (!message.gas_limit.toNumber().eq(expMessage.gas_limit)) {
         errors.push("Message gas_limit doesn't match");
       }
     }
@@ -107,13 +121,19 @@ async function checkMemory(api, exp) {
   const errors = [];
   for (const mem of exp.memory) {
     if (mem.kind === 'shared') {
-      const gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
-      const gearMemory = gearMemoryOpt.unwrap().toU8a();
+      let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
+      let gearMemory = gearMemoryOpt.unwrap().toU8a();
+      while (gearMemory.length === 0) {
+        gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
+        gearMemory = gearMemoryOpt.unwrap().toU8a();
+      }
       const at = parseInt(mem.at, 16) - (256 * 65536);
       const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
       for (let index = at; index < at + bytes.length; index++) {
         if (gearMemory[index] !== bytes[index - at]) {
+          console.log(gearMemory[index], bytes[index - at])
           errors.push("Memory doesn't match");
+          break;
         }
       }
     }
