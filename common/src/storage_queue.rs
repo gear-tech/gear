@@ -3,7 +3,7 @@ use sp_std::convert::TryInto;
 use sp_std::prelude::*;
 
 fn read_le_u32(input: &mut &[u8]) -> u32 {
-    let (int_bytes, rest) = input.split_at(sp_std::mem::size_of::<u32>());
+    let (int_bytes, rest) = input.split_at(4);
     *input = rest;
     u32::from_le_bytes(int_bytes.try_into().unwrap())
 }
