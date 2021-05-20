@@ -122,8 +122,11 @@ fn check_memory(
 }
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
-    let file = fs::File::open(path)?;
-    let u = serde_json::from_reader(file)?;
+    let file = fs::File::open(path.as_ref())
+        .map_err(|e| anyhow::anyhow!("Error loading '{}': {}", path.as_ref().display(), e))?;
+    let u = serde_json::from_reader(file)
+        .map_err(|e| anyhow::anyhow!("Error decoding '{}': {}", path.as_ref().display(), e))?;
+
     Ok(u)
 }
 
