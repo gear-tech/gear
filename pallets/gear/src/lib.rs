@@ -86,9 +86,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MessagesProcessed<T> = StorageValue<_, u32>;
 
-	#[pallet::storage]
-	pub type MessageNonce<T> = StorageValue<_, u128>;
-
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// Initialization
@@ -157,24 +154,28 @@ pub mod pallet {
 			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
-				<MessageNonce<T>>::mutate(|message_nonce| {
-					let nonce = message_nonce.take().unwrap_or(0);
-					let mut message_id = payload.encode();
-					message_id.extend_from_slice(&nonce.to_le_bytes());
-					let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+				
+				let mut nonce = sp_io::storage::get(b"g::msg::nonce").map(
+					|val| u128::decode(&mut &val[..]).expect("nonce decode fail")
+				).unwrap_or(0u128);
+				
+				let mut message_id = payload.encode();
+				message_id.extend_from_slice(&nonce.to_le_bytes());
+				let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
 
-					actual_messages.push(IntermediateMessage::DispatchMessage {
-						id: message_id,
-						route: MessageRoute {
-							origin: MessageOrigin::External(who.into_origin()),
-							destination,
-						},
-						payload,
-						gas_limit,
-						value: value.into()
-					});
-					*message_nonce = Some(nonce.wrapping_add(1));
+				actual_messages.push(IntermediateMessage::DispatchMessage {
+					id: message_id,
+					route: MessageRoute {
+						origin: MessageOrigin::External(who.into_origin()),
+						destination,
+					},
+					payload,
+					gas_limit,
+					value: value.into()
 				});
+				nonce = nonce.wrapping_add(1);
+
+				sp_io::storage::set(b"g::msg::nonce", &nonce.encode());
 
 				*messages = Some(actual_messages);
 			});

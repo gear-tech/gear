@@ -108,7 +108,7 @@ impl StorageQueue {
 
     fn key_with_prefix(&self, key: &H256) -> Vec<u8> {
         let mut prefix_key = self.prefix.clone();
-        prefix_key.extend(key.to_fixed_bytes());
+        prefix_key.extend(&key.to_fixed_bytes());
         prefix_key
     }
 }
