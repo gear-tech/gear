@@ -86,6 +86,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MessagesProcessed<T> = StorageValue<_, u32>;
 
+	#[pallet::storage]
+	pub type MessageNonce<T> = StorageValue<_, u128>;
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// Initialization
@@ -155,15 +158,19 @@ pub mod pallet {
 			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
-
-				actual_messages.push(IntermediateMessage::DispatchMessage {
-					route: MessageRoute {
-						origin: MessageOrigin::External(who.into_origin()),
-						destination,
-					},
-					payload,
-					gas_limit,
-					value: value.into(),
+				<MessageNonce<T>>::mutate(|message_nonce| {
+					let mut nonce = message_nonce.take().unwrap_or(0);
+					actual_messages.push(IntermediateMessage::DispatchMessage {
+						route: MessageRoute {
+							origin: MessageOrigin::External(who.into_origin()),
+							destination,
+						},
+						payload,
+						gas_limit,
+						value: value.into(),
+						nonce
+					});
+					*message_nonce = Some(nonce.wrapping_add(1));
 				});
 
 				*messages = Some(actual_messages);
@@ -209,7 +216,7 @@ pub mod pallet {
 						}
 					},
 					IntermediateMessage::DispatchMessage {
-						route, payload, gas_limit, value
+						route, payload, gas_limit, value, nonce
 					} => {
 						let source = match route.origin {
 							// TODO: when origin is introduced, put it the right way
@@ -223,7 +230,7 @@ pub mod pallet {
 							gas_limit: Some(gas_limit),
 							dest: route.destination,
 							value,
-						});
+						}, nonce);
 					}
 				}
 			}
