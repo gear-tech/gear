@@ -2,11 +2,27 @@
 
 use codec::{Encode, Decode};
 
+use std::fmt::{self, Write};
+
 /// Program identifier.
 ///
 /// 256-bit program identifier. In production environments, should be the result of a cryptohash function.
 #[derive(Clone, Copy, Debug, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq)]
 pub struct ProgramId([u8; 32]);
+
+fn encode_hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        write!(&mut s, "{:02x}", b).expect("Format failed")
+    }
+    s
+}
+
+impl fmt::Display for ProgramId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", encode_hex(&self.0[..]))
+    }
+}
 
 impl From<u64> for ProgramId {
     fn from(v: u64) -> Self {
