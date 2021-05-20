@@ -127,14 +127,22 @@ pub mod pallet {
 			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
+				<MessageNonce<T>>::mutate(|message_nonce| {
 
-				actual_messages.push(IntermediateMessage::InitProgram {
-					external_origin: who.into_origin(),
-					code,
-					program_id: id,
-					payload: init_payload,
-					gas_limit,
-					value: value.into(),
+					let nonce = message_nonce.take().unwrap_or(0);
+					let mut message_id = init_payload.encode();
+					message_id.extend_from_slice(&nonce.to_le_bytes());
+					let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+
+					actual_messages.push(IntermediateMessage::InitProgram {
+						id: message_id,
+						external_origin: who.into_origin(),
+						code,
+						program_id: id,
+						payload: init_payload,
+						gas_limit,
+						value: value.into(),
+					});
 				});
 
 				*messages = Some(actual_messages);
@@ -159,16 +167,20 @@ pub mod pallet {
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
 				<MessageNonce<T>>::mutate(|message_nonce| {
-					let mut nonce = message_nonce.take().unwrap_or(0);
+					let nonce = message_nonce.take().unwrap_or(0);
+					let mut message_id = payload.encode();
+					message_id.extend_from_slice(&nonce.to_le_bytes());
+					let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+
 					actual_messages.push(IntermediateMessage::DispatchMessage {
+						id: message_id,
 						route: MessageRoute {
 							origin: MessageOrigin::External(who.into_origin()),
 							destination,
 						},
 						payload,
 						gas_limit,
-						value: value.into(),
-						nonce
+						value: value.into()
 					});
 					*message_nonce = Some(nonce.wrapping_add(1));
 				});
@@ -216,7 +228,7 @@ pub mod pallet {
 						}
 					},
 					IntermediateMessage::DispatchMessage {
-						route, payload, gas_limit, value, nonce
+						id, route, payload, gas_limit, value
 					} => {
 						let source = match route.origin {
 							// TODO: when origin is introduced, put it the right way
@@ -230,7 +242,7 @@ pub mod pallet {
 							gas_limit: Some(gas_limit),
 							dest: route.destination,
 							value,
-						}, nonce);
+						}, id);
 					}
 				}
 			}
