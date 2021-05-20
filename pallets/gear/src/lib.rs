@@ -268,7 +268,7 @@ pub mod pallet {
 						route, payload, gas_limit, value
 					} => {
 						let source = match route.origin {
-							MessageOrigin::External(account_id) => account_id,
+							MessageOrigin::External(_) => H256::zero(),
 							MessageOrigin::Internal(program_id) => program_id,
 						};
 
