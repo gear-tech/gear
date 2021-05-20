@@ -32,11 +32,16 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResultWithPostInfo, pallet_prelude::*, traits::Currency};
+	use frame_support::{
+		dispatch::DispatchResultWithPostInfo,
+		pallet_prelude::*,
+		traits::{Currency, ExistenceRequirement},
+		weights::{IdentityFee, WeightToFeePolynomial},
+	};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
 	use sp_std::prelude::*;
-	use common::{self, Message, IntoOrigin, IntermediateMessage, MessageOrigin, MessageRoute};
+	use common::{self, Message, Origin, IntermediateMessage, MessageOrigin, MessageRoute};
 	use sp_inherents::{InherentIdentifier, ProvideInherent, InherentData};
 
 	#[pallet::config]
@@ -46,6 +51,12 @@ pub mod pallet {
 
 		/// Gas and value transfer currency
 		type Currency: Currency<Self::AccountId>;
+
+		#[pallet::constant]
+		type SubmitWeightPerByte: Get<u64>;
+
+		#[pallet::constant]
+		type MessagePerByte: Get<u64>;
 	}
 
 	type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -63,11 +74,13 @@ pub mod pallet {
 		/// Program created in the network.
 		NewProgram(H256),
 		/// Program initialization error.
-		InitFailure(H256),
+		InitFailure(H256, MessageError),
 		/// Program initialized.
 		ProgramInitialized(H256),
-		/// Some number message processed.
+		/// Some number of messages processed.
 		MessagesDequeued(u32),
+		/// Message dispatch resulted in error
+		MessageNotProcessed(MessageError),
 	}
 
 	// Gear pallet error.
@@ -75,6 +88,12 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Custom error.
 		Custom,
+	}
+
+	#[derive(Debug, Encode, Decode, Clone, PartialEq)]
+	pub enum MessageError {
+		ValueTransfer,
+		Dispatch,
 	}
 
 	#[pallet::storage]
@@ -101,10 +120,15 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
-		T::AccountId: IntoOrigin,
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128>,
+		T::AccountId: Origin,
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128> + From<u128>,
 	{
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(
+			T::DbWeight::get().writes(4) +
+			*gas_limit +
+			T::SubmitWeightPerByte::get()*(code.len() as u64) +
+			T::MessagePerByte::get()*(init_payload.len() as u64)
+		)]
 		pub fn submit_program(
 			origin: OriginFor<T>,
 			code: Vec<u8>,
@@ -142,7 +166,11 @@ pub mod pallet {
 			Ok(().into())
 		}
 
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		#[pallet::weight(
+			T::DbWeight::get().writes(4) +
+			*gas_limit +
+			T::MessagePerByte::get()*(payload.len() as u64)
+		)]
 		pub fn send_message(
 			origin: OriginFor<T>,
 			destination: H256,
@@ -198,22 +226,49 @@ pub mod pallet {
 					//
 					// TODO: also process `external_origin` once origins are introduced
 					IntermediateMessage::InitProgram {
-						code, program_id, payload, gas_limit, value, ..
+						external_origin, code, program_id, payload, gas_limit, value
 					} => {
-						if let Err(_) = rti::gear_executor::init_program(program_id, code, payload, gas_limit, value) {
-							stop_list.push(program_id);
-							Self::deposit_event(Event::InitFailure(program_id));
-						} else {
-							Self::deposit_event(Event::ProgramInitialized(program_id));
-							total_handled += 1;
+						match rti::gear_executor::init_program(program_id, code, payload, gas_limit, value) {
+							Err(_) => {
+								stop_list.push(program_id);
+								Self::deposit_event(Event::InitFailure(program_id, MessageError::Dispatch));
+							},
+							Ok(execution_report) => {
+								if let Err(_) = T::Currency::transfer(
+									&<T::AccountId as Origin>::from_origin(external_origin),
+									&<T::AccountId as Origin>::from_origin(program_id),
+									value.into(),
+									ExistenceRequirement::AllowDeath,
+								) {
+									Self::deposit_event(Event::InitFailure(program_id, MessageError::ValueTransfer));
+								} else {
+									Self::deposit_event(Event::ProgramInitialized(program_id));
+									total_handled += 1;
+
+									// handle refunds
+									for (destination, gas_left) in execution_report.gas_refunds {
+										// TODO: weight to fee calculator might not be identity fee
+										let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+
+										// TODO: use lock instead of value transfer and weight derivation from gas_limit
+										let _ = T::Currency::deposit_creating(
+											&<T::AccountId as Origin>::from_origin(destination),
+											refund,
+										);
+									}
+
+									for (program_id, payload) in execution_report.log {
+										Self::deposit_event(Event::Log(program_id, payload));
+									}
+								}
+							}
 						}
 					},
 					IntermediateMessage::DispatchMessage {
 						route, payload, gas_limit, value
 					} => {
 						let source = match route.origin {
-							// TODO: when origin is introduced, put it the right way
-							MessageOrigin::External(_) => H256::default(),
+							MessageOrigin::External(_) => H256::zero(),
 							MessageOrigin::Internal(program_id) => program_id,
 						};
 
@@ -233,7 +288,6 @@ pub mod pallet {
 					Ok(execution_report) => {
 						total_handled += execution_report.handled;
 
-						
 						<MessagesProcessed<T>>::mutate(|messages_processed| *messages_processed = Some(messages_processed.unwrap_or(0) + execution_report.handled));
 						let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
 						if <DequeueLimit<T>>::get().is_some() {
@@ -243,7 +297,18 @@ pub mod pallet {
 						}
 						if execution_report.handled == 0 { break; }
 
-						for (program_id, payload) in execution_report.log.into_iter() {
+						for (destination, gas_left) in execution_report.gas_refunds {
+							// TODO: weight to fee calculator might not be identity fee
+							let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+
+							// TODO: use lock instead of value transfer and weight derivation from gas_limit
+							let _ = T::Currency::deposit_creating(
+								&<T::AccountId as Origin>::from_origin(destination),
+								refund,
+							);
+						}
+
+						for (program_id, payload) in execution_report.log {
 							Self::deposit_event(Event::Log(program_id, payload));
 						}
 					},
@@ -262,8 +327,8 @@ pub mod pallet {
 
 	impl<T: Config> ProvideInherent for Pallet<T>
 	where
-		T::AccountId: IntoOrigin,
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128>,
+		T::AccountId: Origin,
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128> + From<u128>,
 	{
 		type Call = Call<T>;
 		type Error = sp_inherents::MakeFatalError<()>;

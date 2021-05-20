@@ -246,6 +246,8 @@ impl pallet_timestamp::Config for Runtime {
 parameter_types! {
 	pub const ExistentialDeposit: u128 = 500;
 	pub const MaxLocks: u32 = 50;
+	pub const SubmitWeightPerByte: u64 = 1_000_000;
+	pub const MessagePerByte: u64 = 100_000;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -286,6 +288,8 @@ impl pallet_utility::Config for Runtime {
 impl pallet_gear::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type SubmitWeightPerByte = SubmitWeightPerByte;
+	type MessagePerByte = MessagePerByte;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
