@@ -35,7 +35,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResultWithPostInfo,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement},
+		traits::{Currency, ExistenceRequirement, ReservableCurrency},
 		weights::{IdentityFee, WeightToFeePolynomial},
 	};
 	use frame_system::pallet_prelude::*;
@@ -50,7 +50,7 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Gas and value transfer currency
-		type Currency: Currency<Self::AccountId>;
+		type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
 		#[pallet::constant]
 		type SubmitWeightPerByte: Get<u64>;
@@ -86,8 +86,10 @@ pub mod pallet {
 	// Gear pallet error.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Custom error.
-		Custom,
+		/// Not enough balance to reserve.
+		///
+		/// Usually occurs when gas_limit specified is such that origin account can't afford the message.
+		NotEnoughBalanceForReserve,
 	}
 
 	#[derive(Debug, Encode, Decode, Clone, PartialEq)]
@@ -117,15 +119,26 @@ pub mod pallet {
 		}
 	}
 
+	fn gas_to_fee<T: Config>(gas: u64) -> BalanceOf<T>
+	where
+		<T::Currency as Currency<T::AccountId>>::Balance : Into<u128> + From<u128>,
+	{
+		IdentityFee::<BalanceOf<T>>::calc(&gas)
+	}
+
+	fn block_author<T: Config + pallet_authorship::Config>() -> Option<T::AccountId> {
+		Some(<pallet_authorship::Module<T>>::author())
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
 		T::AccountId: Origin,
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128> + From<u128>,
+		T: pallet_authorship::Config,
+		<T::Currency as Currency<T::AccountId>>::Balance : Into<u128> + From<u128>,
 	{
 		#[pallet::weight(
 			T::DbWeight::get().writes(4) +
-			*gas_limit +
 			T::SubmitWeightPerByte::get()*(code.len() as u64) +
 			T::MessagePerByte::get()*(init_payload.len() as u64)
 		)]
@@ -138,6 +151,12 @@ pub mod pallet {
 			value: BalanceOf<T>,
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
+
+			let reserve_fee = gas_to_fee::<T>(gas_limit);
+
+			// First we reserve enough funds on the account to pay for 'gas_limit'
+			T::Currency::reserve(&who, reserve_fee)
+				.map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
 			let mut data = Vec::new();
 			code.encode_to(&mut data);
@@ -328,7 +347,8 @@ pub mod pallet {
 	impl<T: Config> ProvideInherent for Pallet<T>
 	where
 		T::AccountId: Origin,
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128> + From<u128>,
+		T: pallet_authorship::Config,
+		<T::Currency as Currency<T::AccountId>>::Balance : Into<u128> + From<u128>,
 	{
 		type Call = Call<T>;
 		type Error = sp_inherents::MakeFatalError<()>;

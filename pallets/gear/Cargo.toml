@@ -28,6 +28,7 @@ sp-std = { version = "3.0", git = "https://github.com/paritytech/substrate.git",
 sp-io = { version = "3.0", git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-runtime = { version = "3.0", git = "https://github.com/paritytech/substrate.git", default-features = false }
 pallet-balances = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
+pallet-authorship = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 
 [dev-dependencies]
 serde = "1.0.101"
@@ -46,5 +47,6 @@ std = [
 	'sp-core/std',
 	'sp-inherents/std',
 	'common/std',
-	'pallet-balances/std'
+	'pallet-balances/std',
+	'pallet-authorship/std'
 ]

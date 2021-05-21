@@ -24,6 +24,7 @@ frame-support = { version = "3.0.0", default-features = false, git = "https://gi
 frame-system = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 frame-executive = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 pallet-aura = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
+pallet-authorship = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 pallet-balances = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 pallet-grandpa = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 pallet-randomness-collective-flip = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
@@ -88,6 +89,7 @@ std = [
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"pallet-gear/std",
+	"pallet-authorship/std"
 ]
 runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
