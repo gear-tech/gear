@@ -76,13 +76,11 @@ impl StorageQueue {
 
         // set head if queue was empty
         if self.is_empty() {
-            self.head = Some(id);
-            sp_io::storage::set(&self.head_key, &id.to_fixed_bytes());
+            self.set_head(id);
         }
 
         // update tail
-        self.tail = Some(id);
-        sp_io::storage::set(&self.tail_key, &id.to_fixed_bytes());
+        self.set_tail(id);
     }
 
     pub fn dequeue<T: Encode + Decode>(&mut self) -> Option<T> {
@@ -93,8 +91,7 @@ impl StorageQueue {
                 let node: Node<T> = Node::<T>::decode(&mut &val[..]).expect("Node<T> decode fail");
                 sp_io::storage::clear(&self.key_with_prefix(&value_key));
                 if let Some(next) = node.next {
-                    sp_io::storage::set(&self.head_key, &next.to_fixed_bytes());
-                    self.head = Some(next);
+                    self.set_head(next);
                 } else {
                     sp_io::storage::clear(&self.head_key);
                     sp_io::storage::clear(&self.tail_key);
@@ -112,6 +109,16 @@ impl StorageQueue {
 
     pub fn is_empty(&self) -> bool {
         self.head.is_none() && self.tail.is_none()
+    }
+
+    fn set_head(&mut self, id: H256) {
+        self.head = Some(id);
+        sp_io::storage::set(&self.head_key, &id.to_fixed_bytes());
+    }
+
+    fn set_tail(&mut self, id: H256) {
+        self.tail = Some(id);
+        sp_io::storage::set(&self.tail_key, &id.to_fixed_bytes());
     }
 
     fn key_with_prefix(&self, key: &H256) -> Vec<u8> {
