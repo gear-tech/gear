@@ -1,3 +1,5 @@
+use sp_std::borrow::Cow;
+
 use codec::{Decode, Encode};
 use sp_core::H256;
 use sp_std::prelude::*;
@@ -10,7 +12,7 @@ struct Node<T: Encode + Decode> {
 
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct StorageQueue {
-    prefix: Vec<u8>,
+    prefix: Cow<'static, [u8]>,
     head: Option<H256>,
     tail: Option<H256>,
     head_key: Vec<u8>,
@@ -18,12 +20,12 @@ pub struct StorageQueue {
 }
 
 impl StorageQueue {
-    pub fn get(prefix: Vec<u8>) -> StorageQueue {
-        let mut head_key = prefix.clone();
-        head_key.extend_from_slice(b"head");
+    pub fn get(prefix: impl Into<Cow<'static, [u8]>>) -> StorageQueue {
+        let prefix: Cow<'static, [u8]> = prefix.into();
 
-        let mut tail_key = prefix.clone();
-        tail_key.extend_from_slice(b"tail");
+        let head_key = [prefix.as_ref(), b"head"].concat();
+        let tail_key = [prefix.as_ref(), b"tail"].concat();
+
 
         if let Some(head) = sp_io::storage::get(&head_key) {
             let head = H256::from_slice(&head);
@@ -107,8 +109,6 @@ impl StorageQueue {
     }
 
     fn key_with_prefix(&self, key: &H256) -> Vec<u8> {
-        let mut prefix_key = self.prefix.clone();
-        prefix_key.extend(&key.to_fixed_bytes());
-        prefix_key
+        [self.prefix.as_ref(), &key.as_bytes()].concat()
     }
 }

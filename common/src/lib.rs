@@ -144,12 +144,12 @@ pub fn remove_program(_id: H256) {
 }
 
 pub fn dequeue_message() -> Option<Message> {
-    let mut message_queue = StorageQueue::get("g::msg::".as_bytes().to_vec());
+    let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
     message_queue.dequeue()
 }
 
 pub fn queue_message(message: Message, id: H256) {
-    let mut message_queue = StorageQueue::get("g::msg::".as_bytes().to_vec());
+    let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
     message_queue.queue(message, id);
 }
 
