@@ -7,33 +7,99 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 use test_gear_sample::sample::{self, Test};
-use std::fs;
+use std::{fs, fmt};
 use termion::{color, style};
+use derive_more::Display;
+
+#[derive(Debug, derive_more::From)]
+pub struct DisplayedPayload(Vec<u8>);
+
+impl fmt::Display for DisplayedPayload {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Ok(utf8) = std::str::from_utf8(&self.0[..]) {
+            write!(f, "utf-8 ({})", utf8)
+        } else {
+            write!(f, "bytes ({:?})", &self.0[..])
+        }
+    }
+}
+
+#[derive(Debug, Display)]
+#[display(fmt = "expected: {}, actual: {}", expected, actual)]
+pub struct ContentMismatch<T: std::fmt::Display+std::fmt::Debug> {
+    expected: T,
+    actual: T,
+}
+
+#[derive(Debug, Display)]
+pub enum MessageContentMismatch {
+    Destination(ContentMismatch<ProgramId>),
+    Payload(ContentMismatch<DisplayedPayload>),
+    GasLimit(ContentMismatch<u64>),
+}
+
+#[derive(Debug, Display)]
+pub enum MessagesError {
+    Count(ContentMismatch<usize>),
+    #[display(fmt = "at position: {}, mismatch {}", at, mismatch)]
+    AtPosition { at: usize, mismatch: MessageContentMismatch }
+}
+
+impl MessagesError {
+    fn count(expected: usize, actual: usize) -> Self {
+        Self::Count(ContentMismatch { expected, actual })
+    }
+
+    fn payload(at: usize, expected: Vec<u8>, actual: Vec<u8>) -> Self {
+        Self::AtPosition {
+            at,
+            mismatch: MessageContentMismatch::Payload(
+                ContentMismatch { expected: expected.into(), actual: actual.into() }
+            ),
+        }
+    }
+
+    fn destination(at: usize, expected: ProgramId, actual: ProgramId) -> Self {
+        Self::AtPosition {
+            at,
+            mismatch: MessageContentMismatch::Destination(
+                ContentMismatch { expected: expected.into(), actual: actual.into() }
+            ),
+        }
+    }
+
+    fn gas_limit(at: usize, expected: u64, actual: u64) -> Self {
+        Self::AtPosition {
+            at,
+            mismatch: MessageContentMismatch::GasLimit(
+                ContentMismatch { expected: expected.into(), actual: actual.into() }
+            ),
+        }
+    }
+}
 
 fn check_messages(
     messages: &[Message],
     expected_messages: &[sample::Message],
-) -> Result<(), Vec<String>> {
+) -> Result<(), Vec<MessagesError>> {
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
-        errors.push("Expectation error (messages count doesn't match)".to_string());
+        errors.push(MessagesError::count(expected_messages.len(), messages.len()))
     } else {
         expected_messages
             .iter()
             .zip(messages.iter())
-            .for_each(|(exp, msg)| {
+            .enumerate()
+            .for_each(|(position, (exp, msg))| {
                 if ProgramId::from(exp.destination) != msg.dest {
-                    errors.push(format!(
-                        "Expectation error (destination doesn't match, expected: {}, found: {:?})",
-                        exp.destination, msg.dest
-                    ));
+                    errors.push(MessagesError::destination(position, exp.destination.into(), msg.dest))
                 }
                 if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
-                    errors.push("Expectation error (payload doesn't match)".to_string());
+                    errors.push(MessagesError::payload(position, exp.payload.clone().into_raw(), msg.payload.clone().into_raw()))
                 }
-                if let Some(_) = exp.gas_limit {
+                if let Some(expected_gas_limit) = exp.gas_limit {
                     if exp.gas_limit != msg.gas_limit {
-                        errors.push("Expectation error (gas_limit doesn't match)".to_string());
+                        errors.push(MessagesError::gas_limit(position, expected_gas_limit, msg.gas_limit.unwrap_or_default()))
                     }
                 }
             });
@@ -122,8 +188,11 @@ fn check_memory(
 }
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
-    let file = fs::File::open(path)?;
-    let u = serde_json::from_reader(file)?;
+    let file = fs::File::open(path.as_ref())
+        .map_err(|e| anyhow::anyhow!("Error loading '{}': {}", path.as_ref().display(), e))?;
+    let u = serde_json::from_reader(file)
+        .map_err(|e| anyhow::anyhow!("Error decoding '{}': {}", path.as_ref().display(), e))?;
+
     Ok(u)
 }
 
@@ -156,9 +225,17 @@ pub fn main() -> anyhow::Result<()> {
                         Ok((mut final_state, persistent_memory)) => {
                             let mut errors = Vec::new();
                             if let Some(messages) = &exp.messages {
-                                if let Err(msg_errors) = check_messages(&final_state.log, messages)
-                                {
-                                    errors.extend(msg_errors);
+                                if let Err(msg_errors) = check_messages(&final_state.messages, messages) {
+                                    errors.extend(
+                                        msg_errors.into_iter().map(|err| format!("Messages check [{}]", err))
+                                    );
+                                }
+                            }
+                            if let Some(log) = &exp.log {
+                                if let Err(log_errors) = check_messages(&final_state.log, log) {
+                                    errors.extend(
+                                        log_errors.into_iter().map(|err| format!("Log check [{}]", err))
+                                    );
                                 }
                             }
                             if let Some(alloc) = &exp.allocations {

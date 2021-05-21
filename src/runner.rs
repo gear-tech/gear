@@ -86,6 +86,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 }
 
 pub struct FinalState {
+    pub messages: Vec<Message>,
     pub log: Vec<Message>,
     pub allocation_storage: Vec<(PageNumber, ProgramId)>,
     pub program_storage: Vec<Program>,
@@ -116,7 +117,8 @@ pub fn run(
     allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
     Ok((
         FinalState {
-            log: message_queue.drain(),
+            log: message_queue.log().to_vec(),
+            messages: message_queue.drain(),
             allocation_storage: allocation_storage,
             program_storage: program_storage.drain(),
         },
