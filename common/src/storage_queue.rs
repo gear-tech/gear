@@ -118,3 +118,47 @@ impl StorageQueue {
         [self.prefix.as_ref(), &key.as_bytes()].concat()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_queue() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+
+            let value: Option<u8> = queue.dequeue();
+            assert!(value.is_none());
+        });
+    }
+
+    #[test]
+    fn last_element() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+
+            queue.queue(0u32, H256::random());
+            let value: Option<u32> = queue.dequeue();
+
+            assert_eq!(value, Some(0u32));
+        });
+    }
+
+    #[test]
+    fn fifo() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+
+            (0..10u32).for_each(|x| queue.queue(x, H256::random()));
+
+            (0..10u32).for_each(|x| {
+                let value: Option<u32> = queue.dequeue();
+                assert_eq!(Some(x), value);
+            });
+
+            let value: Option<u32> = queue.dequeue();
+            assert!(value.is_none());
+        });
+    }
+}
