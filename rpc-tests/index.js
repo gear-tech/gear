@@ -192,7 +192,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
       let messagesProcessed = await api.query.gearModule.messagesProcessed();
       let deqLimit = await api.query.gearModule.dequeueLimit();
       while (deqLimit.isNone) {
-        await sleep(500);
         deqLimit = await api.query.gearModule.dequeueLimit();
       }
       if (deqLimit.unwrap().toNumber() !== exp.step) {
@@ -210,7 +209,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
         messagesProcessed = await api.query.gearModule.messagesProcessed();
         while (messagesProcessed.unwrap().toNumber() < exp.step) {
           messagesProcessed = await api.query.gearModule.messagesProcessed();
-          await sleep(500);
         }
       }
 
