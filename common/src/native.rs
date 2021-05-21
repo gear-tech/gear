@@ -21,18 +21,9 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 
-use codec::{Encode, Decode};
 use sp_core::H256;
 
-pub fn queue_message(message: Message) {
-
-    let mut nonce = sp_io::storage::get(b"g::msg::nonce")
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
-
-    let mut message_id = message.payload.clone().into_raw().encode();
-    message_id.extend_from_slice(&nonce.to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+pub fn queue_message(message: Message, id: H256) {
 
     let message = crate::Message {
         source: H256::from_slice(&message.source.as_slice()),
@@ -42,11 +33,7 @@ pub fn queue_message(message: Message) {
         value: message.value,
     };
 
-    nonce = nonce.wrapping_add(1);
-
-    sp_io::storage::set(b"g::msg::nonce", &nonce.encode());
-
-    crate::queue_message(message, message_id)
+    crate::queue_message(message, id)
 }
 
 pub fn dequeue_message() -> Option<Message> {
