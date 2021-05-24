@@ -16,10 +16,6 @@ function xxKey(module, key) {
   return xxhashAsHex(module, 128) + xxhashAsHex(key, 128).slice(2);
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 async function resetStorage(api, sudoPair) {
   const keys = [];
   let hash = xxKey('GearModule', 'DequeueLimit');
@@ -59,12 +55,10 @@ function generateProgramId(api, path, salt) {
 
 async function checkMessages(api, exp, programs) {
   const errors = [];
-  let messageQueue = [];
+  const messageQueue = [];
   if (exp.messages.length === 0) {
     return errors;
   }
-
-  await sleep(3000);
 
   let head = await api.rpc.state.getStorage('g::msg::head');
   let tail = await api.rpc.state.getStorage('g::msg::tail');
@@ -73,17 +67,16 @@ async function checkMessages(api, exp, programs) {
     head = api.createType('H256', head.unwrap());
     tail = api.createType('H256', tail.unwrap());
   } else {
-    errors.push('Unable to get a message queue')
+    errors.push('Unable to get a message queue');
     return errors;
   }
 
-
-  let node = await api.rpc.state.getStorage('0x' + Buffer.from('g::msg::').toString('hex') + head.toHex().slice(2));
+  let node = await api.rpc.state.getStorage(`0x${Buffer.from('g::msg::').toString('hex')}${head.toHex().slice(2)}`);
   node = api.createType('Node', node.unwrap());
   messageQueue.push(node.value);
-  
+
   while (node.next.isSome) {
-    node = await api.rpc.state.getStorage('0x' + Buffer.from('g::msg::').toString('hex') + node.next.toHex().slice(2));
+    node = await api.rpc.state.getStorage(`0x${Buffer.from('g::msg::').toString('hex')}${node.next.toHex().slice(2)}`);
     node = api.createType('Node', node.unwrap());
     messageQueue.push(node.value);
   }
@@ -94,7 +87,7 @@ async function checkMessages(api, exp, programs) {
   }
   for (let index = head; index < tail; index++) {
     buf.writeUInt32LE(index);
-    const messageOpt = await api.rpc.state.getStorage('g::msg::' + buf);
+    const messageOpt = await api.rpc.state.getStorage(`g::msg::${buf}`);
     const message = api.createType('Message', messageOpt.unwrap());
     const expMessage = exp.messages[index - head];
     let payload = [];
@@ -131,17 +124,14 @@ async function checkMessages(api, exp, programs) {
 async function checkMemory(api, exp) {
   const errors = [];
 
-  await sleep(1000);
-
   for (const mem of exp.memory) {
     if (mem.kind === 'shared') {
-      let gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
-      let gearMemory = gearMemoryOpt.unwrap().toU8a();
+      const gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
+      const gearMemory = gearMemoryOpt.unwrap().toU8a();
       const at = parseInt(mem.at, 16) - (256 * 65536);
       const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
       for (let index = at; index < at + bytes.length; index++) {
         if (gearMemory[index] !== bytes[index - at]) {
-          console.log(gearMemory[index], bytes[index - at])
           errors.push("Memory doesn't match");
           break;
         }
@@ -189,7 +179,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
     if ('step' in exp) {
-      let messagesProcessed = await api.query.gearModule.messagesProcessed();
       let deqLimit = await api.query.gearModule.dequeueLimit();
       while (deqLimit.isNone) {
         deqLimit = await api.query.gearModule.dequeueLimit();
@@ -205,11 +194,14 @@ async function processExpected(api, sudoPair, fixture, programs) {
         ));
 
         await api.tx.utility.batch(tx).signAndSend(sudoPair, { nonce: -1 });
+      }
 
+      let messagesProcessed = await api.query.gearModule.messagesProcessed();
+
+      // TODO: fix forever waiting
+      // can wait forever if steps in expected parameter are higher than the actual processed messages
+      while (messagesProcessed.isNone || messagesProcessed.unwrap().toNumber() !== exp.step) {
         messagesProcessed = await api.query.gearModule.messagesProcessed();
-        while (messagesProcessed.unwrap().toNumber() < exp.step) {
-          messagesProcessed = await api.query.gearModule.messagesProcessed();
-        }
       }
 
       if ('messages' in exp) {
@@ -294,7 +286,6 @@ async function processTest(test, api, sudoPair) {
   // Submit programs
   for (const fixture of test.fixtures) {
     await resetStorage(api, sudoPair);
-    await sleep(1000);
     for (const program of test.programs) {
       const salt = Math.random().toString(36).substring(7);
       programs[program.id] = generateProgramId(api, program.path, salt);
