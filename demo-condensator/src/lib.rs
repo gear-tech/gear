@@ -4,7 +4,6 @@
 #[macro_use]
 extern crate alloc;
 
-
 use alloc::string::String;
 use alloc::vec::Vec;
 use alloc::str::FromStr;
@@ -31,7 +30,7 @@ pub unsafe extern "C" fn handle() {
     ext::debug(&format!(
         "Charage condensator with {}, new charge {}",
         to_add,
-        CHARGE
+        CHARGE,
     ));
 
     if CHARGE >= LIMIT {
@@ -39,7 +38,7 @@ pub unsafe extern "C" fn handle() {
         ext::debug(&format!(
             "Discharge #{} due to limit {}",
             CHARGE,
-            LIMIT
+            LIMIT,
         ));
 
         msg::send(0.into(), format!("Discharged: {}", CHARGE).as_bytes(), 1000000000, 0);
@@ -63,7 +62,7 @@ pub unsafe extern "C" fn init() {
     ext::debug(&format!(
         "Init condensator with limit capacity {}, {}",
         LIMIT,
-        initstr
+        initstr,
     ));
 
 }
