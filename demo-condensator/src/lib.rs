@@ -28,7 +28,7 @@ pub unsafe extern "C" fn handle() {
 
     
     ext::debug(&format!(
-        "Charage condensator with {}, new charge {}",
+        "Charge condensator with {}, new charge {}",
         to_add,
         CHARGE,
     ));
