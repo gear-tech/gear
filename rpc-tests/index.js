@@ -85,11 +85,10 @@ async function checkMessages(api, exp, programs) {
     errors.push('Messages count does not match');
     return errors;
   }
-  for (let index = head; index < tail; index++) {
-    buf.writeUInt32LE(index);
-    const messageOpt = await api.rpc.state.getStorage(`g::msg::${buf}`);
-    const message = api.createType('Message', messageOpt.unwrap());
-    const expMessage = exp.messages[index - head];
+
+  for (let index = 0; index < messageQueue.length; index++) {
+    const message = api.createType('Message', messageQueue[index]);
+    const expMessage = exp.messages[index];
     let payload = [];
     if (expMessage.payload.kind === 'bytes') {
       payload = api.createType('Bytes', expMessage.payload.value);
@@ -102,7 +101,7 @@ async function checkMessages(api, exp, programs) {
     } else if (expMessage.payload.kind === 'f64') {
       payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
     } else if (expMessage.payload.kind === 'utf-8') {
-      payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+      payload = Buffer.from(expMessage.payload.value, 'utf8');
     }
 
     if (!message.payload.eq(payload)) {
