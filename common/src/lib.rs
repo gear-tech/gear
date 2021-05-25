@@ -23,7 +23,7 @@ pub mod native;
 pub mod storage_queue;
 
 use codec::{Encode, Decode};
-use sp_core::H256;
+use sp_core::{H256, crypto::UncheckedFrom};
 use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
@@ -43,27 +43,43 @@ pub struct Program {
     pub code_hash: H256,
 }
 
-pub trait IntoOrigin {
+pub trait Origin: Sized {
     fn into_origin(self) -> H256;
+    fn from_origin(val: H256) -> Self;
 }
 
-impl IntoOrigin for u64 {
+impl Origin for u64 {
     fn into_origin(self) -> H256 {
         let mut result = H256::zero();
         result[0..8].copy_from_slice(&self.to_le_bytes());
         result
     }
-}
 
-impl IntoOrigin for sp_runtime::AccountId32 {
-    fn into_origin(self) -> H256 {
-        H256::from(self.as_ref())
+    fn from_origin(v: H256) -> Self {
+        // h256 -> u64 should not be used anywhere other than in tests!
+        let mut val = [0u8; 8];
+        val.copy_from_slice(&v[0..8]);
+        Self::from_le_bytes(val)
     }
 }
 
-impl IntoOrigin for H256 {
+impl Origin for sp_runtime::AccountId32 {
+    fn into_origin(self) -> H256 {
+        H256::from(self.as_ref())
+    }
+
+    fn from_origin(v: H256) -> Self {
+        sp_runtime::AccountId32::unchecked_from(v)
+    }
+}
+
+impl Origin for H256 {
     fn into_origin(self) -> H256 {
         self
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val
     }
 }
 

@@ -41,6 +41,10 @@ jobs:
         with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+      - name: Artifact cache
+        uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: gear-node
       - name: Build
         run: cd gear-node && cargo build --release
       - name: Run tests
