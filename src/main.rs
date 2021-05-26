@@ -1,15 +1,36 @@
 mod runner;
 
 use anyhow::anyhow;
+use derive_more::Display;
 use gear_core::{
     memory::PageNumber,
     message::Message,
     program::{Program, ProgramId},
 };
-use test_gear_sample::sample::{self, Test};
-use std::{fs, fmt};
+use std::{fmt, fs};
 use termion::{color, style};
-use derive_more::Display;
+use test_gear_sample::sample::{self, Test};
+
+use clap::{AppSettings, Clap};
+
+#[derive(Clap)]
+#[clap(setting = AppSettings::ColoredHelp)]
+struct Opts {
+    /// Skip messages checks
+    #[clap(long)]
+    pub skip_messages: bool,
+    /// Skip allocations checks
+    #[clap(long)]
+    pub skip_allocations: bool,
+    /// Skip memory checks
+    #[clap(long)]
+    pub skip_memory: bool,
+    /// JSON sample file(s) or dir
+    pub input: Vec<std::path::PathBuf>,
+    /// A level of verbosity, and can be used multiple times
+    #[clap(short, long, parse(from_occurrences))]
+    verbose: i32,
+}
 
 #[derive(Debug, derive_more::From)]
 pub struct DisplayedPayload(Vec<u8>);
@@ -26,7 +47,7 @@ impl fmt::Display for DisplayedPayload {
 
 #[derive(Debug, Display)]
 #[display(fmt = "expected: {}, actual: {}", expected, actual)]
-pub struct ContentMismatch<T: std::fmt::Display+std::fmt::Debug> {
+pub struct ContentMismatch<T: std::fmt::Display + std::fmt::Debug> {
     expected: T,
     actual: T,
 }
@@ -84,7 +105,10 @@ fn check_messages(
 ) -> Result<(), Vec<MessagesError>> {
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
-        errors.push(MessagesError::count(expected_messages.len(), messages.len()))
+        errors.push(MessagesError::count(
+            expected_messages.len(),
+            messages.len(),
+        ))
     } else {
         expected_messages
             .iter()
@@ -92,14 +116,26 @@ fn check_messages(
             .enumerate()
             .for_each(|(position, (exp, msg))| {
                 if ProgramId::from(exp.destination) != msg.dest {
-                    errors.push(MessagesError::destination(position, exp.destination.into(), msg.dest))
+                    errors.push(MessagesError::destination(
+                        position,
+                        exp.destination.into(),
+                        msg.dest,
+                    ))
                 }
                 if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
-                    errors.push(MessagesError::payload(position, exp.payload.clone().into_raw(), msg.payload.clone().into_raw()))
+                    errors.push(MessagesError::payload(
+                        position,
+                        exp.payload.clone().into_raw(),
+                        msg.payload.clone().into_raw(),
+                    ))
                 }
                 if let Some(expected_gas_limit) = exp.gas_limit {
                     if exp.gas_limit != msg.gas_limit {
-                        errors.push(MessagesError::gas_limit(position, expected_gas_limit, msg.gas_limit.unwrap_or_default()))
+                        errors.push(MessagesError::gas_limit(
+                            position,
+                            expected_gas_limit,
+                            msg.gas_limit.unwrap_or_default(),
+                        ))
                     }
                 }
             });
@@ -197,19 +233,40 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 }
 
 pub fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    let opts: Opts = Opts::parse();
+    let mut print_log = false;
+    match opts.verbose {
+        0 => env_logger::init(),
+        1 => {
+            print_log = true;
+        }
+        2 => {
+            use env_logger::Env;
+
+            print_log = true;
+            env_logger::Builder::from_env(Env::default().default_filter_or("gear_core=debug"))
+                .init();
+        },
+        _ => {
+            use env_logger::Env;
+
+            env_logger::Builder::from_env(Env::default().default_filter_or("debug"))
+                .init();
+        }
+    }
 
     let mut tests = Vec::new();
 
-    for f in std::env::args().skip(1) {
-        if fs::metadata(&f).map(|m| m.is_dir()).unwrap_or_else(|e| {
-            println!("Error accessing {}: {}", f, e);
-            false
-        }) {
-            continue;
+    for path in &opts.input {
+        if path.is_dir() {
+            for entry in path.read_dir().expect("read_dir call failed") {
+                if let Ok(entry) = entry {
+                    tests.push(read_test_from_file(&entry.path())?);
+                }
+            }
+        } else {
+            tests.push(read_test_from_file(&path)?);
         }
-
-        tests.push(read_test_from_file(&f)?);
     }
 
     let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
@@ -224,34 +281,53 @@ pub fn main() -> anyhow::Result<()> {
                     Ok(initialized_fixture) => match runner::run(initialized_fixture, exp.step) {
                         Ok((mut final_state, persistent_memory)) => {
                             let mut errors = Vec::new();
-                            if let Some(messages) = &exp.messages {
-                                if let Err(msg_errors) = check_messages(&final_state.messages, messages) {
-                                    errors.extend(
-                                        msg_errors.into_iter().map(|err| format!("Messages check [{}]", err))
-                                    );
+                            if !opts.skip_messages {
+                                if let Some(messages) = &exp.messages {
+                                    if let Err(msg_errors) =
+                                        check_messages(&final_state.messages, messages)
+                                    {
+                                        errors.extend(
+                                            msg_errors
+                                                .into_iter()
+                                                .map(|err| format!("Messages check [{}]", err)),
+                                        );
+                                    }
                                 }
                             }
                             if let Some(log) = &exp.log {
+                                if print_log {
+                                    for message in &final_state.log {
+                                        if let Ok(utf8) = std::str::from_utf8(&message.payload()) {
+                                            println!("log({})", utf8)
+                                        }
+                                    }
+                                }
                                 if let Err(log_errors) = check_messages(&final_state.log, log) {
                                     errors.extend(
-                                        log_errors.into_iter().map(|err| format!("Log check [{}]", err))
+                                        log_errors
+                                            .into_iter()
+                                            .map(|err| format!("Log check [{}]", err)),
                                     );
                                 }
                             }
-                            if let Some(alloc) = &exp.allocations {
-                                if let Err(alloc_errors) =
-                                    check_allocations(&final_state.allocation_storage, alloc)
-                                {
-                                    errors.extend(alloc_errors);
+                            if !opts.skip_allocations {
+                                if let Some(alloc) = &exp.allocations {
+                                    if let Err(alloc_errors) =
+                                        check_allocations(&final_state.allocation_storage, alloc)
+                                    {
+                                        errors.extend(alloc_errors);
+                                    }
                                 }
                             }
-                            if let Some(mem) = &exp.memory {
-                                if let Err(mem_errors) = check_memory(
-                                    &persistent_memory,
-                                    &mut final_state.program_storage,
-                                    mem,
-                                ) {
-                                    errors.extend(mem_errors);
+                            if !opts.skip_memory {
+                                if let Some(mem) = &exp.memory {
+                                    if let Err(mem_errors) = check_memory(
+                                        &persistent_memory,
+                                        &mut final_state.program_storage,
+                                        mem,
+                                    ) {
+                                        errors.extend(mem_errors);
+                                    }
                                 }
                             }
 
