@@ -373,4 +373,4 @@ async function main() {
   process.exit(0);
 }
 
-main().catch(console.error).finally(() => process.exit());
+main().catch((err) => { console.error(err); process.exit(1); }).finally(() => process.exit());
