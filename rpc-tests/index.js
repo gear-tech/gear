@@ -61,11 +61,9 @@ async function checkMessages(api, exp, programs) {
   }
 
   let head = await api.rpc.state.getStorage('g::msg::head');
-  let tail = await api.rpc.state.getStorage('g::msg::tail');
 
   if (head.isSome) {
     head = api.createType('H256', head.unwrap());
-    tail = api.createType('H256', tail.unwrap());
   } else {
     errors.push('Unable to get a message queue');
     return errors;
@@ -89,6 +87,9 @@ async function checkMessages(api, exp, programs) {
   for (let index = 0; index < messageQueue.length; index++) {
     const message = api.createType('Message', messageQueue[index]);
     const expMessage = exp.messages[index];
+    console.log(message);
+    console.log(expMessage);
+
     let payload = [];
     if (expMessage.payload.kind === 'bytes') {
       payload = api.createType('Bytes', expMessage.payload.value);
@@ -132,6 +133,7 @@ async function checkMemory(api, exp) {
       for (let index = at; index < at + bytes.length; index++) {
         if (gearMemory[index] !== bytes[index - at]) {
           errors.push("Memory doesn't match");
+          console.log(gearMemory[index], bytes[index - at]);
           break;
         }
       }
