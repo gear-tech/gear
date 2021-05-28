@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(num_as_ne_bytes)]
 #![feature(default_alloc_error_handler)]
 
 #[macro_use]
@@ -25,7 +24,7 @@ pub unsafe extern "C" fn handle() {
         &v[new_msg as usize - 1],
         v[new_msg as usize - 1]
     ));
-    msg::send(msg::source(), (v.len() as i32).as_ne_bytes(), u64::MAX, 0);
+    msg::send(msg::source(), &(v.len() as i32).to_ne_bytes(), u64::MAX, 0);
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
         MESSAGE_LOG.len()

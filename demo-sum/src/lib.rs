@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(num_as_ne_bytes)]
 #![feature(default_alloc_error_handler)]
 
 #[macro_use]
@@ -42,7 +41,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
-    msg::send(STATE.send_to(), (new_msg + new_msg).as_ne_bytes(), u64::MAX, 0);
+    msg::send(STATE.send_to(), &(new_msg + new_msg).to_ne_bytes(), u64::MAX, 0);
 
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
