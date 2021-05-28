@@ -18,6 +18,7 @@ function xxKey(module, key) {
 
 async function resetStorage(api, sudoPair) {
   const keys = [];
+  const txs = [];
   let hash = xxKey('GearModule', 'DequeueLimit');
   keys.push(hash);
 
@@ -26,17 +27,22 @@ async function resetStorage(api, sudoPair) {
 
   hash = xxKey('GearModule', 'MessagesProcessed');
   keys.push(hash);
-
-  await api.tx.sudo.sudo(
+  txs.push(api.tx.sudo.sudo(
     api.tx.system.killStorage(
       keys,
     ),
-  ).signAndSend(sudoPair, { nonce: -1 });
-  await api.tx.sudo.sudo(
+  ));
+  txs.push(api.tx.sudo.sudo(
     api.tx.system.killPrefix(
       'g::', 1,
     ),
-  ).signAndSend(sudoPair, { nonce: -1 });
+  ));
+
+  await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
+  let head = await api.rpc.state.getStorage('g::msg::head');
+  while (head.isSome) {
+    head = await api.rpc.state.getStorage('g::msg::head');
+  }
 }
 
 function generateProgramId(api, path, salt) {
@@ -104,14 +110,9 @@ async function checkMessages(api, exp, programs) {
     }
 
     if (!message.payload.eq(payload)) {
-      console.log(message.payload.toHex());
-      console.log(payload.toHex());
       errors.push("Message payload doesn't match");
     }
     if (!message.dest.eq(programs[expMessage.destination])) {
-      console.log(message.dest.toHex());
-      console.log(programs[expMessage.destination]);
-      console.log(programs);
       errors.push("Message destination doesn't match");
     }
     if ('gas_limit' in expMessage) {
@@ -136,7 +137,6 @@ async function checkMemory(api, exp) {
       for (let index = at; index < at + bytes.length; index++) {
         if (gearMemory[index] !== bytes[index - at]) {
           errors.push("Memory doesn't match");
-          console.log(gearMemory[index], bytes[index - at]);
           break;
         }
       }
@@ -289,7 +289,7 @@ async function processTest(test, api, sudoPair) {
   const txs = [];
   // Submit programs
   for (const fixture of test.fixtures) {
-    await resetStorage(api, sudoPair);
+    const reset = await resetStorage(api, sudoPair);
     for (const program of test.programs) {
       const salt = Math.random().toString(36).substring(7);
       programs[program.id] = generateProgramId(api, program.path, salt);
