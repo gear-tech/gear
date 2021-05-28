@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(num_as_ne_bytes)]
 #![feature(default_alloc_error_handler)]
 
 #[macro_use]
@@ -29,7 +28,7 @@ pub unsafe extern "C" fn handle() {
 
     msg::send(
         msg::source(),
-        make_fib(new_msg as usize)[new_msg as usize - 1].as_ne_bytes(),
+        &make_fib(new_msg as usize)[new_msg as usize - 1].to_ne_bytes(),
         u64::MAX,
         0,
     );
