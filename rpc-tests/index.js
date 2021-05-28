@@ -110,7 +110,8 @@ async function checkMessages(api, exp, programs) {
     }
     if (!message.dest.eq(programs[expMessage.destination])) {
       console.log(message.dest.toHex());
-      console.log(programs[expMessage.destination].toHex());
+      console.log(programs[expMessage.destination]);
+      console.log(programs);
       errors.push("Message destination doesn't match");
     }
     if ('gas_limit' in expMessage) {
