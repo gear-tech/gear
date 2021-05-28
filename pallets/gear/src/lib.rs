@@ -148,7 +148,6 @@ pub mod pallet {
 			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
-
 				actual_messages.push(IntermediateMessage::InitProgram {
 					external_origin: who.into_origin(),
 					code,
@@ -183,16 +182,28 @@ pub mod pallet {
 			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
+				
+				let mut nonce = sp_io::storage::get(b"g::msg::nonce").map(
+					|val| u128::decode(&mut &val[..]).expect("nonce decode fail")
+				).unwrap_or(0u128);
+				
+				let mut message_id = payload.encode();
+				message_id.extend_from_slice(&nonce.to_le_bytes());
+				let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
 
 				actual_messages.push(IntermediateMessage::DispatchMessage {
+					id: message_id,
 					route: MessageRoute {
 						origin: MessageOrigin::External(who.into_origin()),
 						destination,
 					},
 					payload,
 					gas_limit,
-					value: value.into(),
+					value: value.into()
 				});
+				nonce = nonce.wrapping_add(1);
+
+				sp_io::storage::set(b"g::msg::nonce", &nonce.encode());
 
 				*messages = Some(actual_messages);
 			});
@@ -265,7 +276,7 @@ pub mod pallet {
 						}
 					},
 					IntermediateMessage::DispatchMessage {
-						route, payload, gas_limit, value
+						id, route, payload, gas_limit, value
 					} => {
 						let source = match route.origin {
 							MessageOrigin::External(_) => H256::zero(),
@@ -278,7 +289,7 @@ pub mod pallet {
 							gas_limit: Some(gas_limit),
 							dest: route.destination,
 							value,
-						});
+						}, id);
 					}
 				}
 			}

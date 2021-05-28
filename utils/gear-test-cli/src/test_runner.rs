@@ -17,12 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use regex::Regex;
-use codec::Decode;
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use rti::runner::ExtRunner;
-use test_gear_sample::sample::{Test, PayloadVariant};
+use test_gear_sample::sample::{PayloadVariant, Test};
 
-use gear_core::{message::Message, storage::Storage, program::ProgramId};
+use gear_core::{message::Message, program::ProgramId, storage::Storage};
+
+use gear_common::storage_queue::StorageQueue;
 
 use frame_system as system;
 
@@ -63,7 +64,8 @@ pub fn init_fixture(
                         // Insert ProgramId
                         if let Some(caps) = re.captures(s) {
                             let id = caps["id"].parse::<u64>().unwrap();
-                            let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+                            let s =
+                                s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
                             (s.clone().into_bytes()).to_vec()
                         } else {
                             init_msg.clone().into_raw()
@@ -123,9 +125,13 @@ pub fn run(
         } else {
             while runner.run_next()?.handled > 0 {}
         }
-        let message_queue = sp_io::storage::get(b"g::msg")
-            .map(|val| Vec::<Message>::decode(&mut &val[..]).expect("values encoded correctly"))
-            .unwrap_or_default();
+
+        let mut messages = Vec::new();
+
+        let mut message_queue = StorageQueue::get("g::msg::".as_bytes().to_vec());
+        while let Some(message) = message_queue.dequeue() {
+            messages.push(message);
+        }
 
         let (
             Storage {
@@ -138,7 +144,7 @@ pub fn run(
 
         Ok((
             FinalState {
-                message_queue,
+                message_queue: messages,
                 allocation_storage,
                 program_storage,
             },

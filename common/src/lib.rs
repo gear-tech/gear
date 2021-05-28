@@ -20,10 +20,13 @@
 
 #[cfg(feature="std")]
 pub mod native;
+pub mod storage_queue;
 
 use codec::{Encode, Decode};
 use sp_core::{H256, crypto::UncheckedFrom};
 use sp_std::prelude::*;
+
+use storage_queue::StorageQueue;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Message {
@@ -103,6 +106,7 @@ pub enum IntermediateMessage {
         value: u128,
     },
     DispatchMessage {
+        id: H256,
         route: MessageRoute,
         payload: Vec<u8>,
         gas_limit: u64,
@@ -156,25 +160,13 @@ pub fn remove_program(_id: H256) {
 }
 
 pub fn dequeue_message() -> Option<Message> {
-    sp_io::storage::get(b"g::msg")
-        .map(|val| Vec::<Message>::decode(&mut &val[..]).expect("values encoded correctly"))
-        .and_then(|mut messages| {
-            let popped =
-                if messages.len() > 0 { Some(messages.remove(0)) }
-                else { None };
-            sp_io::storage::set(b"g::msg", &messages.encode());
-            popped
-        })
+    let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
+    message_queue.dequeue()
 }
 
-pub fn queue_message(message: Message) {
-    let mut messages = sp_io::storage::get(b"g::msg")
-        .map(|val| Vec::<Message>::decode(&mut &val[..]).expect("values encoded correctly"))
-        .unwrap_or_default();
-
-    messages.push(message);
-
-    sp_io::storage::set(b"g::msg", &messages.encode());
+pub fn queue_message(message: Message, id: H256) {
+    let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
+    message_queue.queue(message, id);
 }
 
 pub fn alloc(page: u32, program: H256) {

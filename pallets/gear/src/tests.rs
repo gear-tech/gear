@@ -78,7 +78,8 @@ fn it_processes_messages() {
 				payload: Vec::new(),
 				gas_limit: Some(u64::max_value()),
 				value: 0,
-			}
+			},
+			H256::default()
 		);
 
 		crate::Call::<Test>::process_queue();

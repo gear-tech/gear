@@ -18,12 +18,13 @@
 
 use gear_core::{
     message::Message,
-    program::{ProgramId, Program},
+    program::{Program, ProgramId},
 };
 
 use sp_core::H256;
 
-pub fn queue_message(message: Message) {
+pub fn queue_message(message: Message, id: H256) {
+
     let message = crate::Message {
         source: H256::from_slice(&message.source.as_slice()),
         dest: H256::from_slice(&message.dest.as_slice()),
@@ -32,7 +33,7 @@ pub fn queue_message(message: Message) {
         value: message.value,
     };
 
-    crate::queue_message(message)
+    crate::queue_message(message, id)
 }
 
 pub fn dequeue_message() -> Option<Message> {
