@@ -87,8 +87,6 @@ async function checkMessages(api, exp, programs) {
   for (let index = 0; index < messageQueue.length; index++) {
     const message = api.createType('Message', messageQueue[index]);
     const expMessage = exp.messages[index];
-    console.log(message);
-    console.log(expMessage);
 
     let payload = [];
     if (expMessage.payload.kind === 'bytes') {
@@ -106,9 +104,13 @@ async function checkMessages(api, exp, programs) {
     }
 
     if (!message.payload.eq(payload)) {
+      console.log(message.payload.toHex());
+      console.log(payload.toHex());
       errors.push("Message payload doesn't match");
     }
     if (!message.dest.eq(programs[expMessage.destination])) {
+      console.log(message.dest.toHex());
+      console.log(programs[expMessage.destination].toHex());
       errors.push("Message destination doesn't match");
     }
     if ('gas_limit' in expMessage) {
