@@ -201,11 +201,9 @@ pub mod pallet {
 			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
-				
-				let mut nonce = sp_io::storage::get(b"g::msg::nonce").map(
-					|val| u128::decode(&mut &val[..]).expect("nonce decode fail")
-				).unwrap_or(0u128);
-				
+
+				let nonce = common::nonce_fetch_inc();
+
 				let mut message_id = payload.encode();
 				message_id.extend_from_slice(&nonce.to_le_bytes());
 				let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
@@ -220,9 +218,6 @@ pub mod pallet {
 					gas_limit,
 					value: value.into()
 				});
-				nonce = nonce.wrapping_add(1);
-
-				sp_io::storage::set(b"g::msg::nonce", &nonce.encode());
 
 				*messages = Some(actual_messages);
 			});
