@@ -35,8 +35,10 @@ pub struct RunNextResult {
     pub handled: u32,
     /// Pages that were touched during the run.
     pub touched: Vec<(PageNumber, PageAction)>,
-    /// Gas that left.
+    /// Gas that was left.
     pub gas_left: Vec<(ProgramId, u64)>,
+    /// Gas that was spent.
+    pub gas_spent: Vec<(ProgramId, u64)>,
 }
 
 impl RunNextResult {
@@ -53,6 +55,9 @@ impl RunNextResult {
         self.touched.extend(result.touched.into_iter());
         self.gas_left.push(
             (program_id, result.gas_left)
+        );
+        self.gas_spent.push(
+            (program_id, result.gas_spent)
         );
     }
 
@@ -346,8 +351,10 @@ pub struct RunResult {
     pub touched: Vec<(PageNumber, PageAction)>,
     /// Messages that were generated during the run.
     pub messages: Vec<OutgoingMessage>,
-    /// Gas that left.
+    /// Gas that was left.
     pub gas_left: u64,
+    /// Gas that was spent.
+    pub gas_spent: u64,
 }
 
 
@@ -492,10 +499,17 @@ fn run<AS: AllocationStorage + 'static>(
             context.push_message(outgoing_msg.into_message(program.id()));
         }
 
+        let gas_left = ext.gas_counter.left();
+        let gas_spent = match gas_limit {
+            GasLimit::Limited(total) => total - gas_left,
+            GasLimit::Unlimited => 0,
+        };
+
         RunResult {
             touched,
             messages,
-            gas_left: ext.gas_counter.left(),
+            gas_left: gas_left,
+            gas_spent: gas_spent,
         }
     })
 }
