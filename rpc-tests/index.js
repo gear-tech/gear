@@ -18,6 +18,7 @@ function xxKey(module, key) {
 
 async function resetStorage(api, sudoPair) {
   const keys = [];
+  const txs = [];
   let hash = xxKey('GearModule', 'DequeueLimit');
   keys.push(hash);
 
@@ -26,22 +27,22 @@ async function resetStorage(api, sudoPair) {
 
   hash = xxKey('GearModule', 'MessagesProcessed');
   keys.push(hash);
-
-  await api.tx.sudo.sudo(
+  txs.push(api.tx.sudo.sudo(
     api.tx.system.killStorage(
       keys,
     ),
-  ).signAndSend(sudoPair, { nonce: -1 });
-  await api.tx.sudo.sudo(
+  ));
+  txs.push(api.tx.sudo.sudo(
     api.tx.system.killPrefix(
       'g::', 1,
     ),
-  ).signAndSend(sudoPair, { nonce: -1 });
-  let msgOpt = await api.rpc.state.getStorage('g::msg');
-  while (!msgOpt.isNone) {
-    msgOpt = await api.rpc.state.getStorage('g::msg');
+  ));
+
+  await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
+  let head = await api.rpc.state.getStorage('g::msg::head');
+  while (head.isSome) {
+    head = await api.rpc.state.getStorage('g::msg::head');
   }
-  return msgOpt;
 }
 
 function generateProgramId(api, path, salt) {
@@ -60,18 +61,39 @@ function generateProgramId(api, path, salt) {
 
 async function checkMessages(api, exp, programs) {
   const errors = [];
-  let msgOpt = await api.rpc.state.getStorage('g::msg');
-  while (msgOpt.isNone) {
-    msgOpt = await api.rpc.state.getStorage('g::msg');
+  const messageQueue = [];
+  if (exp.messages.length === 0) {
+    return errors;
   }
-  const messageQueue = api.createType('Vec<Message>', msgOpt.unwrap());
-  if (exp.messages.length !== messageQueue.length) {
+
+  let head = await api.rpc.state.getStorage('g::msg::head');
+
+  if (head.isSome) {
+    head = api.createType('H256', head.unwrap());
+  } else {
+    errors.push('Unable to get a message queue');
+    return errors;
+  }
+
+  let node = await api.rpc.state.getStorage(`0x${Buffer.from('g::msg::').toString('hex')}${head.toHex().slice(2)}`);
+  node = api.createType('Node', node.unwrap());
+  messageQueue.push(node.value);
+
+  while (node.next.isSome) {
+    node = await api.rpc.state.getStorage(`0x${Buffer.from('g::msg::').toString('hex')}${node.next.toHex().slice(2)}`);
+    node = api.createType('Node', node.unwrap());
+    messageQueue.push(node.value);
+  }
+
+  if (messageQueue.length !== exp.messages.length) {
     errors.push('Messages count does not match');
     return errors;
   }
 
-  for (let index = 0; index < exp.messages.length; index++) {
+  for (let index = 0; index < messageQueue.length; index++) {
+    const message = api.createType('Message', messageQueue[index]);
     const expMessage = exp.messages[index];
+
     let payload = [];
     if (expMessage.payload.kind === 'bytes') {
       payload = api.createType('Bytes', expMessage.payload.value);
@@ -84,17 +106,17 @@ async function checkMessages(api, exp, programs) {
     } else if (expMessage.payload.kind === 'f64') {
       payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
     } else if (expMessage.payload.kind === 'utf-8') {
-      payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+      payload = Buffer.from(expMessage.payload.value, 'utf8');
     }
 
-    if (!messageQueue[index].payload.eq(payload)) {
+    if (!message.payload.eq(payload)) {
       errors.push("Message payload doesn't match");
     }
-    if (!messageQueue[index].dest.eq(programs[expMessage.destination])) {
+    if (!message.dest.eq(programs[expMessage.destination])) {
       errors.push("Message destination doesn't match");
     }
     if ('gas_limit' in expMessage) {
-      if (!messageQueue[index].gas_limit.toNumber().eq(expMessage.gas_limit)) {
+      if (!message.gas_limit.toNumber().eq(expMessage.gas_limit)) {
         errors.push("Message gas_limit doesn't match");
       }
     }
@@ -105,6 +127,7 @@ async function checkMessages(api, exp, programs) {
 
 async function checkMemory(api, exp) {
   const errors = [];
+
   for (const mem of exp.memory) {
     if (mem.kind === 'shared') {
       const gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
@@ -114,6 +137,7 @@ async function checkMemory(api, exp) {
       for (let index = at; index < at + bytes.length; index++) {
         if (gearMemory[index] !== bytes[index - at]) {
           errors.push("Memory doesn't match");
+          break;
         }
       }
     }
@@ -159,7 +183,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
     if ('step' in exp) {
-      let messagesProcessed = await api.query.gearModule.messagesProcessed();
       let deqLimit = await api.query.gearModule.dequeueLimit();
       while (deqLimit.isNone) {
         deqLimit = await api.query.gearModule.dequeueLimit();
@@ -175,12 +198,14 @@ async function processExpected(api, sudoPair, fixture, programs) {
         ));
 
         await api.tx.utility.batch(tx).signAndSend(sudoPair, { nonce: -1 });
+      }
 
+      let messagesProcessed = await api.query.gearModule.messagesProcessed();
+
+      // TODO: fix forever waiting
+      // can wait forever if steps in expected parameter are higher than the actual processed messages
+      while (messagesProcessed.isNone || messagesProcessed.unwrap().toNumber() !== exp.step) {
         messagesProcessed = await api.query.gearModule.messagesProcessed();
-
-        while (messagesProcessed.unwrap().toNumber() < exp.step) {
-          messagesProcessed = await api.query.gearModule.messagesProcessed();
-        }
       }
 
       if ('messages' in exp) {
@@ -264,7 +289,7 @@ async function processTest(test, api, sudoPair) {
   const txs = [];
   // Submit programs
   for (const fixture of test.fixtures) {
-    await resetStorage(api, sudoPair);
+    const reset = await resetStorage(api, sudoPair);
     for (const program of test.programs) {
       const salt = Math.random().toString(36).substring(7);
       programs[program.id] = generateProgramId(api, program.path, salt);
@@ -318,6 +343,10 @@ async function main() {
         gas_limit: 'Option<u64>',
         value: 'u128',
       },
+      Node: {
+        value: 'Message',
+        next: 'Option<H256>',
+      },
     },
   });
 
@@ -345,4 +374,4 @@ async function main() {
   process.exit(0);
 }
 
-main().catch(console.error);
+main().catch((err) => { console.error(err); process.exit(1); }).finally(() => process.exit());

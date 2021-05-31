@@ -1970,6 +1970,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-core",
  "sp-externalities",
+ "sp-io",
  "sp-runtime-interface",
  "sp-std",
 ]
@@ -2021,6 +2022,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "frame-system",
+ "gear-common",
  "gear-core",
  "gear-node-rti",
  "gear-runtime",
