@@ -155,7 +155,8 @@ pub mod pallet {
 			let reserve_fee = gas_to_fee::<T>(gas_limit);
 
 			// First we reserve enough funds on the account to pay for 'gas_limit'
-			T::Currency::reserve(&who, reserve_fee)
+			// and to transfer declared value.
+			T::Currency::reserve(&who, reserve_fee + value)
 				.map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
 			let mut data = Vec::new();
@@ -164,7 +165,6 @@ pub mod pallet {
 
 			let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
-			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
 				actual_messages.push(IntermediateMessage::InitProgram {
@@ -198,7 +198,14 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
-			// TODO: use append
+			let reserve_fee = gas_to_fee::<T>(gas_limit);
+
+			// First we reserve enough funds on the account to pay for 'gas_limit'
+			// and to transfer declared value.
+			T::Currency::reserve(&who, reserve_fee + value)
+				.map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+			// Only after reservation the message is actually put in the queue.
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
 
@@ -259,26 +266,39 @@ pub mod pallet {
 								Self::deposit_event(Event::InitFailure(program_id, MessageError::Dispatch));
 							},
 							Ok(execution_report) => {
+
+								// In case of init, we can unreserve everything right away.
+								T::Currency::unreserve(
+									&<T::AccountId as Origin>::from_origin(external_origin),
+									gas_to_fee::<T>(gas_limit) + value.into(),
+								);
+
 								if let Err(_) = T::Currency::transfer(
 									&<T::AccountId as Origin>::from_origin(external_origin),
 									&<T::AccountId as Origin>::from_origin(program_id),
 									value.into(),
 									ExistenceRequirement::AllowDeath,
 								) {
+									// if transfer failed, gas spent and gas left does not matter since initialization
+									// failed, and we unreserved gas_limit deposit already above.
 									Self::deposit_event(Event::InitFailure(program_id, MessageError::ValueTransfer));
 								} else {
 									Self::deposit_event(Event::ProgramInitialized(program_id));
 									total_handled += 1;
 
 									// handle refunds
-									for (destination, gas_left) in execution_report.gas_refunds {
+									for (destination, gas_charge) in execution_report.gas_charges {
 										// TODO: weight to fee calculator might not be identity fee
-										let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+										let charge = gas_to_fee::<T>(gas_charge);
 
 										// TODO: use lock instead of value transfer and weight derivation from gas_limit
-										let _ = T::Currency::deposit_creating(
+										let _ = T::Currency::transfer(
 											&<T::AccountId as Origin>::from_origin(destination),
-											refund,
+											// block author destination or _burn_
+											// TODO: audit if this is correct
+											&block_author::<T>().unwrap_or(<T::AccountId as Origin>::from_origin(H256::zero())),
+											charge,
+											ExistenceRequirement::AllowDeath,
 										);
 									}
 
