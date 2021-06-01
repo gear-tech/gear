@@ -478,6 +478,6 @@ impl<E: Ext + 'static> Environment<E> {
             wasmtime::MemoryType::new(
                 wasmtime::Limits::at_least(total_pages)
             ),
-        )
+        ).expect("Create env memory fail")
     }
 }
