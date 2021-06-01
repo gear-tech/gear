@@ -90,6 +90,13 @@ impl pallet::Config for Test {
 	type MessagePerByte = MessagePerByte;
 }
 
+impl pallet_authorship::Config for Test {
+	type FindAuthor = ();
+	type UncleGenerations = ();
+	type FilterUncle = ();
+	type EventHandler = ();
+}
+
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
