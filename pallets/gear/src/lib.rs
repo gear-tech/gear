@@ -35,7 +35,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResultWithPostInfo,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement, ReservableCurrency},
+		traits::{Currency, ExistenceRequirement, ReservableCurrency, BalanceStatus},
 		weights::{IdentityFee, WeightToFeePolynomial},
 	};
 	use frame_system::pallet_prelude::*;
@@ -291,15 +291,18 @@ pub mod pallet {
 										// TODO: weight to fee calculator might not be identity fee
 										let charge = gas_to_fee::<T>(gas_charge);
 
-										// TODO: use lock instead of value transfer and weight derivation from gas_limit
-										let _ = T::Currency::transfer(
+										if let Err(_) = T::Currency::transfer(
 											&<T::AccountId as Origin>::from_origin(destination),
 											// block author destination or _burn_
 											// TODO: audit if this is correct
 											&block_author::<T>().unwrap_or(<T::AccountId as Origin>::from_origin(H256::zero())),
 											charge,
 											ExistenceRequirement::AllowDeath,
-										);
+										) {
+											// should not be possible since there should've been reserved enough for
+											// the transfer
+											// TODO: audit this
+										}
 									}
 
 									for (program_id, payload) in execution_report.log {
@@ -343,13 +346,22 @@ pub mod pallet {
 						if execution_report.handled == 0 { break; }
 
 						for (destination, gas_left) in execution_report.gas_refunds {
-							// TODO: weight to fee calculator might not be identity fee
-							let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+							let refund = gas_to_fee::<T>(gas_left);
 
-							// TODO: use lock instead of value transfer and weight derivation from gas_limit
-							let _ = T::Currency::deposit_creating(
+							let _ = T::Currency::unreserve(
 								&<T::AccountId as Origin>::from_origin(destination),
 								refund,
+							);
+						}
+
+						for (destination, gas_charge) in execution_report.gas_charges {
+							let charge = gas_to_fee::<T>(gas_charge);
+
+							let _ = T::Currency::repatriate_reserved(
+								&<T::AccountId as Origin>::from_origin(destination),
+								&block_author::<T>().unwrap_or(<T::AccountId as Origin>::from_origin(H256::zero())),
+								charge,
+								BalanceStatus::Free,
 							);
 						}
 
