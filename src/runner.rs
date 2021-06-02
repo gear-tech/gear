@@ -178,7 +178,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     /// This will return underlyign storage and memory state.
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
         let mut persistent_memory = vec![0u8; self.memory.data_size() - self.static_pages().raw() as usize * BASIC_PAGE_SIZE];
-        self.memory.read(self.static_pages().raw() as usize * BASIC_PAGE_SIZE, &mut persistent_memory);
+        self.memory.read(self.static_pages().raw() as usize * BASIC_PAGE_SIZE, &mut persistent_memory).expect("Persistent memory out of bounds");
 
         let Runner { program_storage, message_queue, allocations, .. } = self;
 
