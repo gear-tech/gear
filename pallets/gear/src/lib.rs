@@ -42,7 +42,7 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_std::prelude::*;
 	use common::{self, Message, Origin, IntermediateMessage, MessageOrigin, MessageRoute};
-	use sp_inherents::{InherentIdentifier, ProvideInherent, InherentData};
+	use frame_support::inherent::{InherentIdentifier, InherentData};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -331,7 +331,7 @@ pub mod pallet {
 		}
 	}
 
-	impl<T: Config> ProvideInherent for Pallet<T>
+	impl<T: Config> frame_support::inherent::ProvideInherent for Pallet<T>
 	where
 		T::AccountId: Origin,
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128> + From<u128>,
@@ -342,6 +342,10 @@ pub mod pallet {
 
 		fn create_inherent(_data: &InherentData) -> Option<Self::Call> {
 			Some(Call::process_queue())
+		}
+
+		fn is_inherent(call: &Self::Call) -> bool {
+			matches!(call, Call::process_queue())
 		}
 	}
 }
