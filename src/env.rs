@@ -1,6 +1,6 @@
 //! Wasmtime environment for running a module.
 
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use codec::{Decode, Encode};
@@ -11,15 +11,15 @@ use crate::program::ProgramId;
 use ::anyhow::{self, anyhow};
 use wasmtime::{Engine, Extern, Func, Instance, Memory, Module};
 
-#[cfg(target_os = "unix")]
+#[cfg(target_os = "linux")]
 fn handle_sigsegv<E: Ext + 'static>(
     ext: &LaterExt<E>,
-    mut touched: RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
+    mut touched: std::cell::RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
 ) -> bool {
-    use wasmtime::unix::StoreExt;
+    use wasmtime::linux::StoreExt;
     // SIGSEGV on Linux
     if libc::SIGSEGV == signum {
         let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
@@ -448,7 +448,7 @@ impl<E: Ext + 'static> Environment<E> {
             Rc::new(RefCell::new(Vec::new()));
 
         cfg_if::cfg_if! {
-            if #[cfg(target_os = "unix")] {
+            if #[cfg(target_os = "linux")] {
                 // Lock memory
                 ext.memory_lock();
 
@@ -475,7 +475,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         let ext = self.ext.unset();
         cfg_if::cfg_if! {
-            if #[cfg(target_os = "unix")] {
+            if #[cfg(target_os = "linux")] {
 
                 // Unlock memory
                 ext.memory_unlock();

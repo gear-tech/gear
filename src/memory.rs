@@ -84,7 +84,7 @@ impl Memory for wasmtime::Memory {
         self.grow(pages.raw())
             .map(|offset| {
                 cfg_if::cfg_if! {
-                    if #[cfg(target_os = "unix")] { 
+                    if #[cfg(target_os = "linux")] { 
 
                         // lock pages after grow
                         self.lock(offset.into(), pages);
