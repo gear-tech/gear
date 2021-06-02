@@ -25,6 +25,9 @@ pub enum Error {
     ///
     /// It was allocated by another program.
     InvalidFree(PageNumber),
+    
+    /// Out of bounds memory access
+    MemoryAccessError,
 }
 
 /// Page number.
@@ -60,11 +63,11 @@ pub trait Memory {
     /// Return current size of the memory.
     fn size(&self) -> PageNumber;
 
-    /// Get reference to the memory blob.
-    unsafe fn data_unchecked(&self) -> &[u8];
+    /// Set memory region at specific pointer.
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
 
-    /// Get mutable reference to the memory blob.
-    unsafe fn data_unchecked_mut(&self) -> &mut [u8];
+    /// Reads memory contents at the given offset into a buffer.
+    fn read(&self, offset: usize, buffer: &mut [u8]);
 
     /// Cloen this memory.
     fn clone(&self) -> Box<dyn Memory>;
@@ -91,12 +94,12 @@ impl Memory for wasmtime::Memory {
         self.size().into()
     }
 
-    unsafe fn data_unchecked(&self) -> &[u8] {
-        self.data_unchecked()
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+        self.write(offset, buffer).or_else(|_| Err(Error::MemoryAccessError))
     }
 
-    unsafe fn data_unchecked_mut(&self) -> &mut [u8] {
-        self.data_unchecked_mut()
+    fn read(&self, offset: usize, buffer: &mut [u8]) {
+        self.read(offset, buffer);
     }
 
     fn clone(&self) -> Box<dyn Memory> {

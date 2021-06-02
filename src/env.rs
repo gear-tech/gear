@@ -129,8 +129,8 @@ pub trait Ext {
     /// Set memory region at specific pointer.
     fn set_mem(&mut self, ptr: usize, val: &[u8]);
 
-    /// Get reference to the specific memory region.
-    fn get_mem(&mut self, ptr: usize, len: usize) -> &[u8];
+    /// Reads memory contents at the given offset into a buffer.
+    fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]);
 
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
@@ -237,11 +237,14 @@ impl<E: Ext + 'static> Environment<E> {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     if let Err(_) = ext.with(|ext: &mut E| {
-                        let data = ext.get_mem(message_ptr, message_len).to_vec();
-                        let program_id = ProgramId::from_slice(ext.get_mem(program_id_ptr as isize as _, 32));
+                        let mut data = vec![0u8; message_len];
+                        ext.get_mem(message_ptr, &mut data);
+                        let mut program_id = [0u8; 32];
+                        ext.get_mem(program_id_ptr as isize as _, &mut program_id);
+                        let program_id = ProgramId::from_slice(&program_id);
 
                         let mut value_le = [0u8; 16];
-                        value_le.copy_from_slice(ext.get_mem(value_ptr as isize as _, 16));
+                        ext.get_mem(value_ptr as isize as _, &mut value_le);
 
                         ext.send(OutgoingMessage::new(
                             program_id,
@@ -299,7 +302,9 @@ impl<E: Ext + 'static> Environment<E> {
                     let str_ptr = str_ptr as u32 as usize;
                     let str_len = str_len as u32 as usize;
                     ext.with(|ext: &mut E| {
-                        let debug_str = unsafe { String::from_utf8_unchecked(ext.get_mem(str_ptr, str_len).to_vec()) };
+                        let mut data = vec![0u8; str_len];
+                        ext.get_mem(str_ptr, &mut data);
+                        let debug_str = unsafe { String::from_utf8_unchecked(data) };
                         log::debug!("DEBUG: {}", debug_str);
                     });
                     Ok(())
@@ -410,9 +415,7 @@ impl<E: Ext + 'static> Environment<E> {
             &externs,
         )?;
 
-        unsafe {
-            memory.data_unchecked_mut()[0..static_area.len()].copy_from_slice(&static_area[..])
-        };
+        memory.write(0, &static_area);
 
         func(instance)
     }

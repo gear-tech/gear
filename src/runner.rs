@@ -104,13 +104,8 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let memory = env.create_memory(total_pages);
 
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
-        let persistent_region_end = persistent_region_start + persistent_memory.len();
 
-        unsafe {
-            memory
-                .data_unchecked_mut()[persistent_region_start..persistent_region_end]
-                .copy_from_slice(persistent_memory);
-        }
+        memory.write(persistent_region_start, persistent_memory);
 
         let Storage { allocation_storage, message_queue, program_storage } = storage;
 
@@ -182,10 +177,8 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     ///
     /// This will return underlyign storage and memory state.
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
-        let persistent_memory = {
-            let non_static_region_start = self.static_pages().raw() as usize * BASIC_PAGE_SIZE;
-            unsafe { &self.memory.data_unchecked()[non_static_region_start..] }.to_vec()
-        };
+        let mut persistent_memory = vec![0u8; self.memory.data_size() - self.static_pages().raw() as usize * BASIC_PAGE_SIZE];
+        self.memory.read(self.static_pages().raw() as usize * BASIC_PAGE_SIZE, &mut persistent_memory);
 
         let Runner { program_storage, message_queue, allocations, .. } = self;
 
@@ -387,17 +380,14 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 
     fn set_mem(&mut self, ptr: usize, val: &[u8]) {
-        unsafe {
             self
                 .memory_context
                 .memory()
-                .data_unchecked_mut()[ptr..ptr+val.len()]
-                .copy_from_slice(val);
-        }
+                .write(ptr, val);
     }
 
-    fn get_mem(&mut self, ptr: usize, len: usize) -> &[u8] {
-        unsafe { &self.memory_context.memory().data_unchecked()[ptr..ptr+len] }
+    fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) {
+        self.memory_context.memory().read(ptr, buffer);
     }
 
     fn msg(&mut self) -> &[u8] {
@@ -491,7 +481,9 @@ fn run<AS: AllocationStorage + 'static>(
     );
 
     res.map(move |_| {
-        *program.static_pages_mut() = ext.get_mem(0, context.static_pages().raw() as usize * BASIC_PAGE_SIZE).to_vec();
+        let mut static_pages = vec![0u8; context.static_pages().raw() as usize * BASIC_PAGE_SIZE];
+        ext.get_mem(0, &mut static_pages);
+        *program.static_pages_mut() = static_pages;
 
         let mut messages = vec![];
         for outgoing_msg in ext.messages.drain() {
