@@ -19,7 +19,6 @@ fn handle_sigsegv<E: Ext + 'static>(
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
 ) -> bool {
-    use wasmtime::linux::StoreExt;
     // SIGSEGV on Linux
     if libc::SIGSEGV == signum {
         let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
@@ -449,12 +448,16 @@ impl<E: Ext + 'static> Environment<E> {
 
         cfg_if::cfg_if! {
             if #[cfg(target_os = "linux")] {
+                use wasmtime::unix::StoreExt;
+
                 // Lock memory
                 ext.memory_lock();
 
 
                 let touched_clone = touched.clone();
-
+                let ext_clone = self.ext.clone();
+                let base = memory.data_ptr();
+                
                 unsafe {
                     self.store.set_signal_handler(move |signum, siginfo, _| {
                         handle_sigsegv(
