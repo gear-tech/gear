@@ -322,7 +322,7 @@ mod tests {
         let store = Store::new(&engine);
 
         let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
-        let memory = WasmMemory::new(&store, memory_ty);
+        let memory = WasmMemory::new(&store, memory_ty).expect("Memory creation failed");
 
         MemoryContext::new(
             0.into(),
