@@ -99,7 +99,7 @@ impl Memory for wasmtime::Memory {
     }
 
     fn read(&self, offset: usize, buffer: &mut [u8]) {
-        self.read(offset, buffer);
+        self.read(offset, buffer).expect("Memory out of bounds.");
     }
 
     fn clone(&self) -> Box<dyn Memory> {

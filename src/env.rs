@@ -415,7 +415,7 @@ impl<E: Ext + 'static> Environment<E> {
             &externs,
         )?;
 
-        memory.write(0, &static_area);
+        memory.write(0, &static_area)?;
 
         func(instance)
     }

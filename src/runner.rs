@@ -105,7 +105,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
 
-        memory.write(persistent_region_start, persistent_memory);
+        memory.write(persistent_region_start, persistent_memory).expect("Memory out of bounds.");
 
         let Storage { allocation_storage, message_queue, program_storage } = storage;
 
@@ -383,7 +383,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
             self
                 .memory_context
                 .memory()
-                .write(ptr, val);
+                .write(ptr, val).expect("Memory out of bounds.");
     }
 
     fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) {
