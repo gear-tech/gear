@@ -83,8 +83,13 @@ impl Memory for wasmtime::Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.grow(pages.raw())
             .map(|offset| {
-                // lock pages after grow
-                self.lock(offset.into(), pages);
+                cfg_if::cfg_if! {
+                    if #[cfg(target_os = "unix")] { 
+
+                        // lock pages after grow
+                        self.lock(offset.into(), pages);
+                    }
+                }
                 offset.into()
             })
             .map_err(|_| Error::OutOfMemory)

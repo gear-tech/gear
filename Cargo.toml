@@ -15,6 +15,7 @@ log = "0.4"
 libc = "0.2"
 parity-wasm = "0.42"
 pwasm-utils = "0.17"
+cfg-if = "1.0.0"
 
 [dev-dependencies]
 wabt = "0.10.0"
