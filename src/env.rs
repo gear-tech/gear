@@ -264,7 +264,7 @@ impl<E: Ext + 'static> Environment<E> {
                             Some(gas_limit as u64),
                             u128::from_le_bytes(value_le),
                         ))
-                    }) {
+                    }).is_err() {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
                     }
 
@@ -337,7 +337,7 @@ impl<E: Ext + 'static> Environment<E> {
         let gas = {
             let ext = ext.clone();
             Func::wrap(&store, move |val: i32| {
-                if let Err(_) = ext.with(|ext: &mut E| ext.gas(val as _)) {
+                if ext.with(|ext: &mut E| ext.gas(val as _)).is_err() {
                     Err(wasmtime::Trap::new("Trapping: unable to send message"))
                 } else {
                     Ok(())
