@@ -248,7 +248,7 @@ impl<E: Ext + 'static> Environment<E> {
                       value_ptr: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
-                    if let Err(_) = ext.with(|ext: &mut E| {
+                    if ext.with(|ext: &mut E| {
                         let mut data = vec![0u8; message_len];
                         ext.get_mem(message_ptr, &mut data);
                         let mut program_id = [0u8; 32];
