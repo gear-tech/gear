@@ -44,9 +44,7 @@ pub struct RunNextResult {
 impl RunNextResult {
     /// Result that notes that some log message had been handled, otherwise empty.
     pub(crate) fn log() -> Self {
-        let mut result = RunNextResult::default();
-        result.handled = 1;
-        result
+        RunNextResult { handled: 1, ..Default::default() }
     }
 
     /// Accrue one run of the message hadling
@@ -293,11 +291,11 @@ enum EntryPoint {
     Init,
 }
 
-impl Into<&'static str> for EntryPoint {
-    fn into(self) -> &'static str {
-        match self {
-            Self::Handle => "handle",
-            Self::Init => "init",
+impl From<EntryPoint> for &'static str {
+    fn from(entry_point: EntryPoint) -> &'static str {
+        match entry_point {
+            EntryPoint::Handle => "handle",
+            EntryPoint::Init => "init",
         }
     }
 }
@@ -401,7 +399,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 
     fn msg(&mut self) -> &[u8] {
-        &self.messages.current().payload()[..]
+        self.messages.current().payload()
     }
 
     fn memory_access(&self, page: PageNumber) -> PageAction {
@@ -508,8 +506,8 @@ fn run<AS: AllocationStorage + 'static>(
         RunResult {
             touched,
             messages,
-            gas_left: gas_left,
-            gas_spent: gas_spent,
+            gas_left,
+            gas_spent,
         }
     })
 }

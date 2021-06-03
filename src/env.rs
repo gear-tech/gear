@@ -236,7 +236,7 @@ impl<E: Ext + 'static> Environment<E> {
                 move |program_id_ptr: i32, message_ptr: i32, message_len: i32, gas_limit: i64, value_ptr: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
-                    if let Err(_) = ext.with(|ext: &mut E| {
+                    if ext.with(|ext: &mut E| {
                         let data = ext.get_mem(message_ptr, message_len).to_vec();
                         let program_id = ProgramId::from_slice(ext.get_mem(program_id_ptr as isize as _, 32));
 
@@ -249,7 +249,7 @@ impl<E: Ext + 'static> Environment<E> {
                             Some(gas_limit as u64),
                             u128::from_le_bytes(value_le),
                         ))
-                    }) {
+                    }).is_err() {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
                     }
 
@@ -321,7 +321,7 @@ impl<E: Ext + 'static> Environment<E> {
         let gas = {
             let ext = ext.clone();
             Func::wrap(&store, move |val: i32| {
-                if let Err(_) = ext.with(|ext: &mut E| ext.gas(val as _)) {
+                if ext.with(|ext: &mut E| ext.gas(val as _)).is_err() {
                     Err(wasmtime::Trap::new("Trapping: unable to send message"))
                 } else {
                     Ok(())
@@ -366,7 +366,7 @@ impl<E: Ext + 'static> Environment<E> {
             .imports()
             .map(
                 |import| if import.module() != "env" {
-                    return Err(anyhow!("Non-env imports are not supported"))
+                    Err(anyhow!("Non-env imports are not supported"))
                 } else {
                     Ok((import.name(), Option::<Extern>::None))
                 }

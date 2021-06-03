@@ -204,7 +204,7 @@ impl MessageContext {
 
     /// Send message to another program in this context.
     pub fn send(&self, msg: OutgoingMessage) -> Result<(), Error> {
-        if !(self.state.borrow().outgoing.len() < self.outgoing_limit) {
+        if self.state.borrow().outgoing.len() >= self.outgoing_limit {
             return Err(Error::LimitExceeded);
         }
 
