@@ -1,6 +1,6 @@
 //! Wasmtime environment for running a module.
 
-use std::cell::{RefCell, RefMut};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use codec::{Decode, Encode};
@@ -9,17 +9,18 @@ use crate::memory::PageNumber;
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
 use ::anyhow::{self, anyhow};
-use wasmtime::{unix::StoreExt, Engine, Extern, Func, Instance, Memory, Module};
+use wasmtime::{Engine, Extern, Func, Instance, Memory, Module};
 
+#[cfg(target_os = "linux")]
 fn handle_sigsegv<E: Ext + 'static>(
     ext: &LaterExt<E>,
-    mut touched: RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
+    mut touched: std::cell::RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
 ) -> bool {
-    // SIGSEGV on Linux, SIGBUS on Mac
-    if libc::SIGSEGV == signum || libc::SIGBUS == signum {
+    // SIGSEGV on Linux
+    if libc::SIGSEGV == signum {
         let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
 
         // Any signal from within module's memory we handle ourselves
@@ -129,8 +130,8 @@ pub trait Ext {
     /// Set memory region at specific pointer.
     fn set_mem(&mut self, ptr: usize, val: &[u8]);
 
-    /// Get reference to the specific memory region.
-    fn get_mem(&mut self, ptr: usize, len: usize) -> &[u8];
+    /// Reads memory contents at the given offset into a buffer.
+    fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]);
 
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
@@ -157,14 +158,16 @@ struct LaterExt<E: Ext> {
 
 impl<E: Ext> Clone for LaterExt<E> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone() }
+        Self {
+            inner: self.inner.clone(),
+        }
     }
 }
 
 impl<E: Ext> LaterExt<E> {
     fn new() -> Self {
         Self {
-            inner: Rc::new(RefCell::new(None))
+            inner: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -174,7 +177,9 @@ impl<E: Ext> LaterExt<E> {
 
     fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R {
         let mut brw = self.inner.borrow_mut();
-        let mut ext = brw.take().expect("with should be called only when inner is set");
+        let mut ext = brw
+            .take()
+            .expect("with should be called only when inner is set");
         let res = f(&mut ext);
 
         *brw = Some(ext);
@@ -183,7 +188,9 @@ impl<E: Ext> LaterExt<E> {
     }
 
     fn unset(&mut self) -> E {
-        self.inner.borrow_mut().take()
+        self.inner
+            .borrow_mut()
+            .take()
             .expect("Unset should be paired with set and called after")
     }
 }
@@ -204,7 +211,6 @@ pub struct Environment<E: Ext + 'static> {
 }
 
 impl<E: Ext + 'static> Environment<E> {
-
     /// New environment.
     ///
     /// To run actual function with provided external environment, `setup_and_run` should be used.
@@ -220,7 +226,9 @@ impl<E: Ext + 'static> Environment<E> {
 
                 let ptr = match ext.with(|ext: &mut E| ext.alloc(pages.into())) {
                     Ok(ptr) => ptr.raw(),
-                    _ => { return Ok(0u32); }
+                    _ => {
+                        return Ok(0u32);
+                    }
                 };
 
                 log::debug!("ALLOC: {} pages at {}", pages, ptr);
@@ -233,15 +241,22 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(
                 &store,
-                move |program_id_ptr: i32, message_ptr: i32, message_len: i32, gas_limit: i64, value_ptr: i32| {
+                move |program_id_ptr: i32,
+                      message_ptr: i32,
+                      message_len: i32,
+                      gas_limit: i64,
+                      value_ptr: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
                     if ext.with(|ext: &mut E| {
-                        let data = ext.get_mem(message_ptr, message_len).to_vec();
-                        let program_id = ProgramId::from_slice(ext.get_mem(program_id_ptr as isize as _, 32));
+                        let mut data = vec![0u8; message_len];
+                        ext.get_mem(message_ptr, &mut data);
+                        let mut program_id = [0u8; 32];
+                        ext.get_mem(program_id_ptr as isize as _, &mut program_id);
+                        let program_id = ProgramId::from_slice(&program_id);
 
                         let mut value_le = [0u8; 16];
-                        value_le.copy_from_slice(ext.get_mem(value_ptr as isize as _, 16));
+                        ext.get_mem(value_ptr as isize as _, &mut value_le);
 
                         ext.send(OutgoingMessage::new(
                             program_id,
@@ -273,7 +288,9 @@ impl<E: Ext + 'static> Environment<E> {
 
         let size = {
             let ext = ext.clone();
-            Func::wrap(&store, move || ext.with(|ext: &mut E| ext.msg().len() as isize as i32))
+            Func::wrap(&store, move || {
+                ext.with(|ext: &mut E| ext.msg().len() as isize as i32)
+            })
         };
 
         let read = {
@@ -284,7 +301,7 @@ impl<E: Ext + 'static> Environment<E> {
                 let dest = dest as u32 as usize;
                 ext.with(|ext: &mut E| {
                     let msg = ext.msg().to_vec();
-                    ext.set_mem(dest, &msg[at..at+len]);
+                    ext.set_mem(dest, &msg[at..at + len]);
                 });
                 Ok(())
             })
@@ -293,18 +310,17 @@ impl<E: Ext + 'static> Environment<E> {
         let debug = {
             let ext = ext.clone();
 
-            Func::wrap(
-                &store,
-                move |str_ptr: i32, str_len: i32| {
-                    let str_ptr = str_ptr as u32 as usize;
-                    let str_len = str_len as u32 as usize;
-                    ext.with(|ext: &mut E| {
-                        let debug_str = unsafe { String::from_utf8_unchecked(ext.get_mem(str_ptr, str_len).to_vec()) };
-                        log::debug!("DEBUG: {}", debug_str);
-                    });
-                    Ok(())
-                },
-            )
+            Func::wrap(&store, move |str_ptr: i32, str_len: i32| {
+                let str_ptr = str_ptr as u32 as usize;
+                let str_len = str_len as u32 as usize;
+                ext.with(|ext: &mut E| {
+                    let mut data = vec![0u8; str_len];
+                    ext.get_mem(str_ptr, &mut data);
+                    let debug_str = unsafe { String::from_utf8_unchecked(data) };
+                    log::debug!("DEBUG: {}", debug_str);
+                });
+                Ok(())
+            })
         };
 
         let source = {
@@ -364,13 +380,13 @@ impl<E: Ext + 'static> Environment<E> {
     ) -> anyhow::Result<()> {
         let mut imports = module
             .imports()
-            .map(
-                |import| if import.module() != "env" {
-                    Err(anyhow!("Non-env imports are not supported"))
+            .map(|import| {
+                if import.module() != "env" {
+                    return Err(anyhow!("Non-env imports are not supported"));
                 } else {
                     Ok((import.name(), Option::<Extern>::None))
                 }
-            )
+            })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         for (ref import_name, ref mut ext) in imports.iter_mut() {
@@ -404,15 +420,9 @@ impl<E: Ext + 'static> Environment<E> {
             .map(|(_, host_function)| host_function.ok_or(anyhow!("Missing import")))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let instance = Instance::new(
-            &self.store,
-            &module,
-            &externs,
-        )?;
+        let instance = Instance::new(&self.store, &module, &externs)?;
 
-        unsafe {
-            memory.data_unchecked_mut()[0..static_area.len()].copy_from_slice(&static_area[..])
-        };
+        memory.write(0, &static_area)?;
 
         func(instance)
     }
@@ -432,35 +442,49 @@ impl<E: Ext + 'static> Environment<E> {
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
-        // Lock memory
-        ext.memory_lock();
-
-        self.ext.set(ext);
+        
         let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
             Rc::new(RefCell::new(Vec::new()));
-        let touched_clone = touched.clone();
 
-        let ext_clone = self.ext.clone();
-        let base = memory.data_ptr();
+        cfg_if::cfg_if! {
+            if #[cfg(target_os = "linux")] {
+                use wasmtime::unix::StoreExt;
 
-        unsafe {
-            self.store.set_signal_handler(move |signum, siginfo, _| {
-                handle_sigsegv(
-                    &ext_clone,
-                    touched_clone.borrow_mut(),
-                    base,
-                    signum,
-                    siginfo,
-                )
-            });
+                // Lock memory
+                ext.memory_lock();
+
+
+                let touched_clone = touched.clone();
+                let ext_clone = self.ext.clone();
+                let base = memory.data_ptr();
+                
+                unsafe {
+                    self.store.set_signal_handler(move |signum, siginfo, _| {
+                        handle_sigsegv(
+                            &ext_clone,
+                            touched_clone.borrow_mut(),
+                            base,
+                            signum,
+                            siginfo,
+                        )
+                    });
+                }
+            }
         }
+
+        self.ext.set(ext);
 
         let result = self.run_inner(module, static_area, memory, func);
 
         let ext = self.ext.unset();
+        cfg_if::cfg_if! {
+            if #[cfg(target_os = "linux")] {
 
-        // Unlock memory
-        ext.memory_unlock();
+                // Unlock memory
+                ext.memory_unlock();
+            }
+        }
+
         let touched = touched.take().iter().map(|(a, b, _)| (*a, *b)).collect();
 
         (result, ext, touched)
@@ -475,9 +499,8 @@ impl<E: Ext + 'static> Environment<E> {
     pub fn create_memory(&self, total_pages: u32) -> Memory {
         Memory::new(
             &self.store,
-            wasmtime::MemoryType::new(
-                wasmtime::Limits::at_least(total_pages)
-            ),
+            wasmtime::MemoryType::new(wasmtime::Limits::at_least(total_pages)),
         )
+        .expect("Create env memory fail")
     }
 }

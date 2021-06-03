@@ -25,6 +25,9 @@ pub enum Error {
     ///
     /// It was allocated by another program.
     InvalidFree(PageNumber),
+    
+    /// Out of bounds memory access
+    MemoryAccessError,
 }
 
 /// Page number.
@@ -60,11 +63,11 @@ pub trait Memory {
     /// Return current size of the memory.
     fn size(&self) -> PageNumber;
 
-    /// Get reference to the memory blob.
-    unsafe fn data_unchecked(&self) -> &[u8];
+    /// Set memory region at specific pointer.
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
 
-    /// Get mutable reference to the memory blob.
-    unsafe fn data_unchecked_mut(&self) -> &mut [u8];
+    /// Reads memory contents at the given offset into a buffer.
+    fn read(&self, offset: usize, buffer: &mut [u8]);
 
     /// Cloen this memory.
     fn clone(&self) -> Box<dyn Memory>;
@@ -80,8 +83,13 @@ impl Memory for wasmtime::Memory {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.grow(pages.raw())
             .map(|offset| {
-                // lock pages after grow
-                self.lock(offset.into(), pages);
+                cfg_if::cfg_if! {
+                    if #[cfg(target_os = "linux")] { 
+
+                        // lock pages after grow
+                        self.lock(offset.into(), pages);
+                    }
+                }
                 offset.into()
             })
             .map_err(|_| Error::OutOfMemory)
@@ -91,12 +99,12 @@ impl Memory for wasmtime::Memory {
         self.size().into()
     }
 
-    unsafe fn data_unchecked(&self) -> &[u8] {
-        self.data_unchecked()
+    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
+        self.write(offset, buffer).or_else(|_| Err(Error::MemoryAccessError))
     }
 
-    unsafe fn data_unchecked_mut(&self) -> &mut [u8] {
-        self.data_unchecked_mut()
+    fn read(&self, offset: usize, buffer: &mut [u8]) {
+        self.read(offset, buffer).expect("Memory out of bounds.");
     }
 
     fn clone(&self) -> Box<dyn Memory> {
@@ -314,7 +322,7 @@ mod tests {
         let store = Store::new(&engine);
 
         let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
-        let memory = WasmMemory::new(&store, memory_ty);
+        let memory = WasmMemory::new(&store, memory_ty).expect("Memory creation failed");
 
         MemoryContext::new(
             0.into(),
