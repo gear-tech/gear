@@ -1,6 +1,9 @@
 //! Storage backing abstractions
 
-use std::collections::{HashMap, VecDeque};
+use hashbrown::HashMap;
+use alloc::collections::VecDeque;
+use alloc::vec::Vec;
+
 
 use crate::{
     program::{ProgramId, Program},

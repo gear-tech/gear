@@ -1,5 +1,7 @@
 //! Gas module.
 
+use alloc::vec::Vec;
+
 /// The result of charging gas.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ChargeResult {

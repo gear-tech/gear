@@ -1,6 +1,8 @@
 //! Message processing module and context.
 
-use std::{rc::Rc, cell::RefCell};
+use alloc::rc::Rc;
+use alloc::vec::Vec;
+use core::cell::RefCell;
 
 use codec::{Encode, Decode};
 use crate::program::ProgramId;

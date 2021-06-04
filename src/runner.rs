@@ -3,6 +3,9 @@
 use wasmtime::{Module, Memory as WasmMemory};
 use codec::{Encode, Decode};
 use anyhow::Result;
+use alloc::vec::Vec;
+use alloc::string::String;
+use alloc::boxed::Box;
 
 use crate::{
     env::{Environment, Ext as EnvExt, PageAction},

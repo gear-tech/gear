@@ -1,7 +1,9 @@
 //! Wasmtime environment for running a module.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use alloc::rc::Rc;
+use alloc::vec::Vec;
+use alloc::string::String;
+use core::cell::RefCell;
 
 use codec::{Decode, Encode};
 
@@ -14,7 +16,7 @@ use wasmtime::{Engine, Extern, Func, Instance, Memory, Module};
 #[cfg(target_os = "linux")]
 fn handle_sigsegv<E: Ext + 'static>(
     ext: &LaterExt<E>,
-    mut touched: std::cell::RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
+    mut touched: core::cell::RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,

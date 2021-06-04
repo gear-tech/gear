@@ -1,7 +1,10 @@
 //! Module for memory and memory context.
 
 use codec::{Encode, Decode};
-use std::{rc::Rc, cell::RefCell};
+use alloc::boxed::Box;
+use alloc::rc::Rc;
+use core::cell::RefCell;
+
 use crate::program::ProgramId;
 use crate::storage::AllocationStorage;
 
@@ -39,7 +42,7 @@ impl PageNumber {
     pub fn raw(&self) -> u32 { self.0 }
 }
 
-impl std::ops::Add for PageNumber {
+impl core::ops::Add for PageNumber {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -47,7 +50,7 @@ impl std::ops::Add for PageNumber {
     }
 }
 
-impl std::ops::Sub for PageNumber {
+impl core::ops::Sub for PageNumber {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
@@ -314,6 +317,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 mod tests {
     use super::*;
     use crate::storage::InMemoryAllocationStorage;
+    use alloc::vec::Vec;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext<InMemoryAllocationStorage> {
         use wasmtime::{Engine, Store, MemoryType, Memory as WasmMemory, Limits};

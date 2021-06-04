@@ -1,8 +1,10 @@
 //! Module for programs.
 
-use codec::{Encode, Decode};
+use alloc::vec::Vec;
+use alloc::string::String;
+use core::fmt::{self, Write};
 
-use std::fmt::{self, Write};
+use codec::{Encode, Decode};
 
 /// Program identifier.
 ///
