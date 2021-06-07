@@ -198,12 +198,19 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
-			let reserve_fee = gas_to_fee::<T>(gas_limit);
+			let gas_limit_reserve = gas_to_fee::<T>(gas_limit);
 
 			// First we reserve enough funds on the account to pay for 'gas_limit'
-			// and to transfer declared value.
-			T::Currency::reserve(&who, reserve_fee + value)
+			T::Currency::reserve(&who, gas_limit_reserve)
 				.map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+			// Since messages a guaranteed to be dispatched, we transfer value immediately
+			T::Currency::transfer(
+				&who,
+				&<T::AccountId as Origin>::from_origin(destination),
+				value,
+				ExistenceRequirement::AllowDeath,
+			)?;
 
 			// Only after reservation the message is actually put in the queue.
 			<MessageQueue<T>>::mutate(|messages| {
