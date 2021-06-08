@@ -114,7 +114,7 @@ pub trait Ext {
     fn send(&mut self, msg: OutgoingMessage) -> Result<(), &'static str>;
 
     /// Get the source of the message currently being handled.
-    fn source(&mut self) -> Option<ProgramId>;
+    fn source(&mut self) -> ProgramId;
 
     /// Free specific memory page.
     ///
@@ -261,7 +261,7 @@ impl<E: Ext + 'static> Environment<E> {
                         ext.send(OutgoingMessage::new(
                             program_id,
                             data.into(),
-                            Some(gas_limit as u64),
+                            gas_limit as _,
                             u128::from_le_bytes(value_le),
                         ))
                     }).is_err() {
@@ -327,7 +327,7 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(&store, move |source_ptr: i32| {
                 ext.with(|ext: &mut E| {
-                    let source = ext.source().unwrap_or_default();
+                    let source = ext.source();
                     ext.set_mem(source_ptr as isize as _, source.as_slice());
                 });
                 Ok(())
@@ -442,7 +442,7 @@ impl<E: Ext + 'static> Environment<E> {
         memory: Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
-        
+
         let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
             Rc::new(RefCell::new(Vec::new()));
 
@@ -457,7 +457,7 @@ impl<E: Ext + 'static> Environment<E> {
                 let touched_clone = touched.clone();
                 let ext_clone = self.ext.clone();
                 let base = memory.data_ptr();
-                
+
                 unsafe {
                     self.store.set_signal_handler(move |signum, siginfo, _| {
                         handle_sigsegv(
