@@ -34,9 +34,9 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		GearModule: pallet::{Module, Call, Storage, Event<T>},
-		Balances: pallet_balances::{Module, Call, Event<T>, Config<T>},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		GearModule: pallet::{Pallet, Call, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Event<T>, Config<T>},
 	}
 );
 
@@ -81,6 +81,7 @@ impl system::Config for Test {
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
+	type OnSetCode = ();
 }
 
 impl pallet::Config for Test {

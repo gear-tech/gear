@@ -303,9 +303,8 @@ async function processTest(test, api, sudoPair) {
     await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
 
     const out = await processFixture(api, sudoPair, fixture, programs);
-    console.log(`Fixture ${fixture.title}`);
-    for (const res of out) {
-      console.log(res);
+    if (out.length > 0) {
+      console.log(`Fixture ${fixture.title}: Ok`);
     }
   }
 }
@@ -347,17 +346,30 @@ async function main() {
         value: 'Message',
         next: 'Option<H256>',
       },
+      IntermediateMessage: {
+        _enum: {
+          InitProgram: {
+            external_origin: 'H256',
+            program_id: 'H256',
+            code: 'Vec<u8>',
+            payload: 'Vec<u8>',
+            gas_limit: 'u64',
+            value: 'u128',
+          },
+          DispatchMessage: {
+            id: 'H256',
+            route: 'MessageRoute',
+            payload: 'Vec<u8>',
+            gas_limit: 'u64',
+            value: 'u128',
+          },
+        },
+      },
+      MessageError: {
+        _enum: ['ValueTransfer', 'Dispatch'],
+      },
     },
   });
-
-  // Retrieve the chain & node information information via rpc calls
-  const [chain, nodeName, nodeVersion] = await Promise.all([
-    api.rpc.system.chain(),
-    api.rpc.system.name(),
-    api.rpc.system.version(),
-  ]);
-
-  console.log(`You are connected to chain ${chain} using ${nodeName} v${nodeVersion}`);
 
   // Retrieve the upgrade key from the chain state
   const adminId = await api.query.sudo.key();
