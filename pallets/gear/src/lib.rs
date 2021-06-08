@@ -127,7 +127,7 @@ pub mod pallet {
 	}
 
 	fn block_author<T: Config + pallet_authorship::Config>() -> T::AccountId {
-		<pallet_authorship::Module<T>>::author()
+		<pallet_authorship::Pallet<T>>::author()
 	}
 
 	#[pallet::call]
@@ -364,7 +364,7 @@ pub mod pallet {
 
 							let _ = T::Currency::repatriate_reserved(
 								&<T::AccountId as Origin>::from_origin(destination),
-								&block_author::<T>().unwrap_or(<T::AccountId as Origin>::from_origin(H256::zero())),
+								&block_author::<T>(),
 								charge,
 								BalanceStatus::Free,
 							);
