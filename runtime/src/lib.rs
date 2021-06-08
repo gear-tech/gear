@@ -337,7 +337,8 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Utility: pallet_utility::{Pallet, Call, Storage, Event},
-		GearModule: pallet_gear::{Pallet, Call, Storage, Event<T>, Inherent},
+		Authorship: pallet_authorship::{Pallet, Storage},
+		Gear: pallet_gear::{Pallet, Call, Storage, Event<T>, Inherent},
 	}
 );
 
