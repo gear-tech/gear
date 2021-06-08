@@ -26,15 +26,15 @@ pub enum Error {
 /// Incoming message.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct IncomingMessage {
-    source: Option<ProgramId>,
+    source: ProgramId,
     payload: Payload,
-    gas_limit: Option<u64>,
+    gas_limit: u64,
     value: u128,
 }
 
 impl IncomingMessage {
     /// Source of the incoming message, if any.
-    pub fn source(&self) -> Option<ProgramId> {
+    pub fn source(&self) -> ProgramId {
         self.source
     }
 
@@ -44,7 +44,7 @@ impl IncomingMessage {
     }
 
     /// Gas limit of the message.
-    pub fn gas_limit(&self) -> Option<u64> {
+    pub fn gas_limit(&self) -> u64 {
         self.gas_limit
     }
 
@@ -57,7 +57,7 @@ impl IncomingMessage {
 impl From<Message> for IncomingMessage {
     fn from(s: Message) -> Self {
         IncomingMessage {
-            source: Some(s.source()),
+            source: s.source(),
             payload: s.payload,
             gas_limit: s. gas_limit,
             value: s.value,
@@ -70,19 +70,19 @@ impl IncomingMessage {
     pub fn new(
         source: ProgramId,
         payload: Payload,
-        gas_limit: Option<u64>,
+        gas_limit: u64,
         value: u128,
     ) -> Self {
-        Self { source: Some(source), payload, gas_limit, value  }
+        Self { source, payload, gas_limit, value  }
     }
 
     /// New system incominng messaage.
     pub fn new_system(
         payload: Payload,
-        gas_limit: Option<u64>,
+        gas_limit: u64,
         value: u128,
     ) -> Self {
-        Self { source: None, payload, gas_limit, value }
+        Self { source: ProgramId::system(), payload, gas_limit, value }
     }
 }
 
@@ -91,7 +91,7 @@ impl IncomingMessage {
 pub struct OutgoingMessage {
     dest: ProgramId,
     payload: Payload,
-    gas_limit: Option<u64>,
+    gas_limit: u64,
     value: u128,
 }
 
@@ -100,7 +100,7 @@ impl OutgoingMessage {
     pub fn new(
         dest: ProgramId,
         payload: Payload,
-        gas_limit: Option<u64>,
+        gas_limit: u64,
         value: u128,
     ) -> Self {
         Self { dest, payload, gas_limit, value }
@@ -128,7 +128,7 @@ pub struct Message {
     /// Payload of the message.
     pub payload: Payload,
     /// Gas limit.
-    pub gas_limit: Option<u64>,
+    pub gas_limit: u64,
     /// Message value
     pub value: u128,
 }
@@ -138,7 +138,7 @@ impl Message {
     pub fn new_system(
         dest: ProgramId,
         payload: Payload,
-        gas_limit: Option<u64>,
+        gas_limit: u64,
         value: u128,
     ) -> Message {
         Message { source: 0.into(), dest, payload, gas_limit, value }
@@ -160,7 +160,7 @@ impl Message {
     }
 
     /// Message gas limit.
-    pub fn gas_limit(&self) -> Option<u64> {
+    pub fn gas_limit(&self) -> u64 {
         self.gas_limit
     }
 

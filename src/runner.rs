@@ -10,7 +10,7 @@ use crate::{
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
-    gas::{self, GasCounter, GasCounterLimited, GasCounterUnlimited, ChargeResult},
+    gas::{self, GasCounter, GasCounterLimited, ChargeResult},
 };
 
 /// Runner configuration.
@@ -159,7 +159,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     &mut program,
                     EntryPoint::Handle,
                     &next_message.into(),
-                    if let Some(gas_limit) = gas_limit { GasLimit::Limited(gas_limit) } else { GasLimit::Unlimited },
+                    gas_limit,
                 )?
             );
 
@@ -240,7 +240,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .program_storage
             .get(program_id)
             .expect("Added above; cannot fail");
-        let msg = IncomingMessage::new_system(init_msg.into(), Some(gas_limit), value);
+        let msg = IncomingMessage::new_system(init_msg.into(), gas_limit, value);
 
         let module = Module::new(
             self.env.engine(),
@@ -255,7 +255,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             &mut program,
             EntryPoint::Init,
             &msg,
-            GasLimit::Limited(gas_limit),
+            gas_limit,
         )?;
 
         self.message_queue
@@ -270,7 +270,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         &mut self,
         destination: ProgramId,
         payload: Vec<u8>,
-        gas_limit: Option<u64>,
+        gas_limit: u64,
         value: u128,
     ) {
         self.message_queue
@@ -364,7 +364,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
         self.messages.send(msg).map_err(|_e| "Message send error")
     }
 
-    fn source(&mut self) -> Option<ProgramId> {
+    fn source(&mut self) -> ProgramId {
         self.messages.current().source()
     }
 
@@ -425,12 +425,6 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum GasLimit {
-    Limited(u64),
-    Unlimited,
-}
-
 fn run<AS: AllocationStorage + 'static>(
     env: &mut Environment<Ext<AS>>,
     context: &mut RunningContext<AS>,
@@ -438,13 +432,10 @@ fn run<AS: AllocationStorage + 'static>(
     program: &mut Program,
     entry_point: EntryPoint,
     message: &IncomingMessage,
-    gas_limit: GasLimit,
+    gas_limit: u64,
 ) -> Result<RunResult> {
 
-    let gas_counter = match gas_limit {
-        GasLimit::Limited(val) => Box::new(GasCounterLimited(val)) as Box<dyn GasCounter>,
-        GasLimit::Unlimited => Box::new(GasCounterUnlimited) as Box<dyn GasCounter>,
-    };
+    let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let ext = Ext {
         memory_context: MemoryContext::new(
@@ -490,10 +481,7 @@ fn run<AS: AllocationStorage + 'static>(
         }
 
         let gas_left = ext.gas_counter.left();
-        let gas_spent = match gas_limit {
-            GasLimit::Limited(total) => total - gas_left,
-            GasLimit::Unlimited => 0,
-        };
+        let gas_spent = gas_limit - gas_left;
 
         RunResult {
             touched,
@@ -589,12 +577,12 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: "ok".as_bytes().to_vec().into(),
-                gas_limit: Some(0),
+                gas_limit: 0,
                 value: 0,
             })
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), None, 0);
+        runner.queue_message(1.into(), "test".as_bytes().to_vec(), crate::gas::max_gas(), 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -604,7 +592,7 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: "test".as_bytes().to_vec().into(),
-                gas_limit: Some(0),
+                gas_limit: 0,
                 value: 0,
             })
         );
@@ -688,13 +676,13 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: "ok".as_bytes().to_vec().into(),
-                gas_limit: Some(18446744073709551615),
+                gas_limit: 18446744073709551615,
                 value: 0,
             })
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], None, 0);
+        runner.queue_message(1.into(), vec![256u32 as _], crate::gas::max_gas(), 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -704,7 +692,7 @@ mod tests {
                 source: 1.into(),
                 dest: 1.into(),
                 payload: vec![256u32 as _].into(),
-                gas_limit: Some(18446744073709551615),
+                gas_limit: 18446744073709551615,
                 value: 0,
             })
         );
@@ -714,6 +702,8 @@ mod tests {
     }
 
     #[test]
+    // TODO: fix memory access logging for macos
+    #[cfg_attr(target_os="macos", ignore)]
     fn mem_rw_access() {
         // Read in new allocatted page
         let wat_r = r#"
