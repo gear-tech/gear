@@ -173,7 +173,7 @@ function submitProgram(api, sudoPair, program, salt, programs) {
       initMessage = program.init_message.value;
     }
   }
-  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 18446744073709551615n, 0);
+  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 1000000000, 0);
 }
 
 async function processExpected(api, sudoPair, fixture, programs) {
@@ -275,7 +275,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
     } else {
       msg = message.payload.value;
     }
-    txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n, 0));
+    txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 1000000000, 0));
   }
 
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });

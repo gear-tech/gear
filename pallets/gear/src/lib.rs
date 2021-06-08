@@ -126,8 +126,8 @@ pub mod pallet {
 		IdentityFee::<BalanceOf<T>>::calc(&gas)
 	}
 
-	fn block_author<T: Config + pallet_authorship::Config>() -> Option<T::AccountId> {
-		Some(<pallet_authorship::Module<T>>::author())
+	fn block_author<T: Config + pallet_authorship::Config>() -> T::AccountId {
+		<pallet_authorship::Module<T>>::author()
 	}
 
 	#[pallet::call]
@@ -300,9 +300,7 @@ pub mod pallet {
 
 										if let Err(_) = T::Currency::transfer(
 											&<T::AccountId as Origin>::from_origin(destination),
-											// block author destination or _burn_
-											// TODO: audit if this is correct
-											&block_author::<T>().unwrap_or(<T::AccountId as Origin>::from_origin(H256::zero())),
+											&block_author::<T>(),
 											charge,
 											ExistenceRequirement::AllowDeath,
 										) {
