@@ -19,13 +19,13 @@ function xxKey(module, key) {
 async function resetStorage(api, sudoPair) {
   const keys = [];
   const txs = [];
-  let hash = xxKey('GearModule', 'DequeueLimit');
+  let hash = xxKey('Gear', 'DequeueLimit');
   keys.push(hash);
 
-  hash = xxKey('GearModule', 'MessageQueue');
+  hash = xxKey('Gear', 'MessageQueue');
   keys.push(hash);
 
-  hash = xxKey('GearModule', 'MessagesProcessed');
+  hash = xxKey('Gear', 'MessagesProcessed');
   keys.push(hash);
   txs.push(api.tx.sudo.sudo(
     api.tx.system.killStorage(
@@ -173,7 +173,7 @@ function submitProgram(api, sudoPair, program, salt, programs) {
       initMessage = program.init_message.value;
     }
   }
-  return api.tx.gearModule.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 18446744073709551615n, 0);
+  return api.tx.gear.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 1000000000, 0);
 }
 
 async function processExpected(api, sudoPair, fixture, programs) {
@@ -183,15 +183,15 @@ async function processExpected(api, sudoPair, fixture, programs) {
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
     if ('step' in exp) {
-      let deqLimit = await api.query.gearModule.dequeueLimit();
+      let deqLimit = await api.query.gear.dequeueLimit();
       while (deqLimit.isNone) {
-        deqLimit = await api.query.gearModule.dequeueLimit();
+        deqLimit = await api.query.gear.dequeueLimit();
       }
       if (deqLimit.unwrap().toNumber() !== exp.step) {
         const tx = [];
 
         // Set DequeueLimit
-        const hash = xxKey('GearModule', 'DequeueLimit');
+        const hash = xxKey('Gear', 'DequeueLimit');
 
         tx.push(api.tx.sudo.sudo(
           api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', exp.step)).toHex()]]),
@@ -200,12 +200,12 @@ async function processExpected(api, sudoPair, fixture, programs) {
         await api.tx.utility.batch(tx).signAndSend(sudoPair, { nonce: -1 });
       }
 
-      let messagesProcessed = await api.query.gearModule.messagesProcessed();
+      let messagesProcessed = await api.query.gear.messagesProcessed();
 
       // TODO: fix forever waiting
       // can wait forever if steps in expected parameter are higher than the actual processed messages
       while (messagesProcessed.isNone || messagesProcessed.unwrap().toNumber() !== exp.step) {
-        messagesProcessed = await api.query.gearModule.messagesProcessed();
+        messagesProcessed = await api.query.gear.messagesProcessed();
       }
 
       if ('messages' in exp) {
@@ -243,7 +243,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
 
   if ('step' in fixture.expected[0]) {
     // Set DequeueLimit
-    const hash = xxKey('GearModule', 'DequeueLimit');
+    const hash = xxKey('Gear', 'DequeueLimit');
     await api.tx.sudo.sudo(
       api.tx.system.setStorage([[hash, api.createType('Option<u32>', api.createType('u32', fixture.expected[0].step)).toHex()]]),
     ).signAndSend(sudoPair, { nonce: -1 });
@@ -275,7 +275,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
     } else {
       msg = message.payload.value;
     }
-    txs.push(api.tx.gearModule.sendMessage(programs[message.destination], msg, 18446744073709551615n, 0));
+    txs.push(api.tx.gear.sendMessage(programs[message.destination], msg, 1000000000, 0));
   }
 
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });

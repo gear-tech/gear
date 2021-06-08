@@ -35,7 +35,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResultWithPostInfo,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement},
+		traits::{Currency, ExistenceRequirement, ReservableCurrency, BalanceStatus},
 		weights::{IdentityFee, WeightToFeePolynomial},
 	};
 	use frame_system::pallet_prelude::*;
@@ -50,7 +50,7 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Gas and value transfer currency
-		type Currency: Currency<Self::AccountId>;
+		type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
 		#[pallet::constant]
 		type SubmitWeightPerByte: Get<u64>;
@@ -86,8 +86,10 @@ pub mod pallet {
 	// Gear pallet error.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Custom error.
-		Custom,
+		/// Not enough balance to reserve.
+		///
+		/// Usually occurs when gas_limit specified is such that origin account can't afford the message.
+		NotEnoughBalanceForReserve,
 	}
 
 	#[derive(Debug, Encode, Decode, Clone, PartialEq)]
@@ -117,15 +119,26 @@ pub mod pallet {
 		}
 	}
 
+	fn gas_to_fee<T: Config>(gas: u64) -> BalanceOf<T>
+	where
+		<T::Currency as Currency<T::AccountId>>::Balance : Into<u128> + From<u128>,
+	{
+		IdentityFee::<BalanceOf<T>>::calc(&gas)
+	}
+
+	fn block_author<T: Config + pallet_authorship::Config>() -> T::AccountId {
+		<pallet_authorship::Pallet<T>>::author()
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
 		T::AccountId: Origin,
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128> + From<u128>,
+		T: pallet_authorship::Config,
+		<T::Currency as Currency<T::AccountId>>::Balance : Into<u128> + From<u128>,
 	{
 		#[pallet::weight(
 			T::DbWeight::get().writes(4) +
-			*gas_limit +
 			T::SubmitWeightPerByte::get()*(code.len() as u64) +
 			T::MessagePerByte::get()*(init_payload.len() as u64)
 		)]
@@ -139,13 +152,19 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
+			let reserve_fee = gas_to_fee::<T>(gas_limit);
+
+			// First we reserve enough funds on the account to pay for 'gas_limit'
+			// and to transfer declared value.
+			T::Currency::reserve(&who, reserve_fee + value)
+				.map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
 			let mut data = Vec::new();
 			code.encode_to(&mut data);
 			salt.encode_to(&mut data);
 
 			let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
-			// TODO: use append
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
 				actual_messages.push(IntermediateMessage::InitProgram {
@@ -179,7 +198,21 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			let who = ensure_signed(origin)?;
 
-			// TODO: use append
+			let gas_limit_reserve = gas_to_fee::<T>(gas_limit);
+
+			// First we reserve enough funds on the account to pay for 'gas_limit'
+			T::Currency::reserve(&who, gas_limit_reserve)
+				.map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+			// Since messages a guaranteed to be dispatched, we transfer value immediately
+			T::Currency::transfer(
+				&who,
+				&<T::AccountId as Origin>::from_origin(destination),
+				value,
+				ExistenceRequirement::AllowDeath,
+			)?;
+
+			// Only after reservation the message is actually put in the queue.
 			<MessageQueue<T>>::mutate(|messages| {
 				let mut actual_messages = messages.take().unwrap_or_default();
 
@@ -240,27 +273,41 @@ pub mod pallet {
 								Self::deposit_event(Event::InitFailure(program_id, MessageError::Dispatch));
 							},
 							Ok(execution_report) => {
+
+								// In case of init, we can unreserve everything right away.
+								T::Currency::unreserve(
+									&<T::AccountId as Origin>::from_origin(external_origin),
+									gas_to_fee::<T>(gas_limit) + value.into(),
+								);
+
 								if let Err(_) = T::Currency::transfer(
 									&<T::AccountId as Origin>::from_origin(external_origin),
 									&<T::AccountId as Origin>::from_origin(program_id),
 									value.into(),
 									ExistenceRequirement::AllowDeath,
 								) {
+									// if transfer failed, gas spent and gas left does not matter since initialization
+									// failed, and we unreserved gas_limit deposit already above.
 									Self::deposit_event(Event::InitFailure(program_id, MessageError::ValueTransfer));
 								} else {
 									Self::deposit_event(Event::ProgramInitialized(program_id));
 									total_handled += 1;
 
 									// handle refunds
-									for (destination, gas_left) in execution_report.gas_refunds {
+									for (destination, gas_charge) in execution_report.gas_charges {
 										// TODO: weight to fee calculator might not be identity fee
-										let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+										let charge = gas_to_fee::<T>(gas_charge);
 
-										// TODO: use lock instead of value transfer and weight derivation from gas_limit
-										let _ = T::Currency::deposit_creating(
+										if let Err(_) = T::Currency::transfer(
 											&<T::AccountId as Origin>::from_origin(destination),
-											refund,
-										);
+											&block_author::<T>(),
+											charge,
+											ExistenceRequirement::AllowDeath,
+										) {
+											// should not be possible since there should've been reserved enough for
+											// the transfer
+											// TODO: audit this
+										}
 									}
 
 									for (program_id, payload) in execution_report.log {
@@ -304,13 +351,22 @@ pub mod pallet {
 						if execution_report.handled == 0 { break; }
 
 						for (destination, gas_left) in execution_report.gas_refunds {
-							// TODO: weight to fee calculator might not be identity fee
-							let refund = IdentityFee::<BalanceOf<T>>::calc(&gas_left);
+							let refund = gas_to_fee::<T>(gas_left);
 
-							// TODO: use lock instead of value transfer and weight derivation from gas_limit
-							let _ = T::Currency::deposit_creating(
+							let _ = T::Currency::unreserve(
 								&<T::AccountId as Origin>::from_origin(destination),
 								refund,
+							);
+						}
+
+						for (destination, gas_charge) in execution_report.gas_charges {
+							let charge = gas_to_fee::<T>(gas_charge);
+
+							let _ = T::Currency::repatriate_reserved(
+								&<T::AccountId as Origin>::from_origin(destination),
+								&block_author::<T>(),
+								charge,
+								BalanceStatus::Free,
 							);
 						}
 
@@ -334,7 +390,8 @@ pub mod pallet {
 	impl<T: Config> frame_support::inherent::ProvideInherent for Pallet<T>
 	where
 		T::AccountId: Origin,
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance : Into<u128> + From<u128>,
+		T: pallet_authorship::Config,
+		<T::Currency as Currency<T::AccountId>>::Balance : Into<u128> + From<u128>,
 	{
 		type Call = Call<T>;
 		type Error = sp_inherents::MakeFatalError<()>;

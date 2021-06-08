@@ -49,7 +49,7 @@ pub use pallet_balances::Call as BalancesCall;
 pub use sp_runtime::{Permill, Perbill};
 pub use frame_support::{
 	construct_runtime, parameter_types, StorageValue,
-	traits::{KeyOwnerProofSystem, Randomness},
+	traits::{KeyOwnerProofSystem, Randomness, FindAuthor},
 	weights::{
 		Weight, IdentityFee,
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -240,6 +240,26 @@ impl pallet_grandpa::Config for Runtime {
 	type WeightInfo = ();
 }
 
+impl pallet_authorship::Config for Runtime {
+	type FindAuthor = AuraAccountAdapter;
+	type UncleGenerations = ();
+	type FilterUncle = ();
+	type EventHandler = ();
+}
+
+pub struct AuraAccountAdapter;
+
+impl FindAuthor<AccountId> for AuraAccountAdapter {
+	fn find_author<'a, I>(digests: I) -> Option<AccountId>
+		where I: 'a + IntoIterator<Item=(sp_runtime::ConsensusEngineId, &'a [u8])>
+	{
+		use core::convert::TryFrom;
+		pallet_aura::AuraAuthorId::<Runtime>::find_author(digests).and_then(|k| {
+			AccountId::try_from(k.as_ref()).ok()
+		})
+	}
+}
+
 parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
@@ -317,7 +337,8 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Utility: pallet_utility::{Pallet, Call, Storage, Event},
-		GearModule: pallet_gear::{Pallet, Call, Storage, Event<T>, Inherent},
+		Authorship: pallet_authorship::{Pallet, Storage},
+		Gear: pallet_gear::{Pallet, Call, Storage, Event<T>, Inherent},
 	}
 );
 

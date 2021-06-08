@@ -44,6 +44,7 @@ pub struct ExecutionReport {
     pub handled: u32,
     pub log: Vec<(H256, Vec<u8>)>,
     pub gas_refunds: Vec<(H256, u64)>,
+    pub gas_charges: Vec<(H256, u64)>,
 }
 
 #[cfg(feature = "std")]
@@ -51,7 +52,7 @@ impl ExecutionReport {
     fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
         // TODO: actually compare touched from run result with
         //       that is what should be predefined in message
-        let RunNextResult { handled, gas_left, .. } = result;
+        let RunNextResult { handled, gas_left, gas_spent, .. } = result;
 
         let log = message_queue.log.into_iter().map(
             |msg| (
@@ -64,6 +65,9 @@ impl ExecutionReport {
             handled: handled as _,
             log,
             gas_refunds: gas_left.into_iter().map(|(program_id, gas_left)| {
+                (H256::from_slice(program_id.as_slice()), gas_left)
+            }).collect(),
+            gas_charges: gas_spent.into_iter().map(|(program_id, gas_left)| {
                 (H256::from_slice(program_id.as_slice()), gas_left)
             }).collect(),
         }
