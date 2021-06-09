@@ -130,11 +130,11 @@ fn check_messages(
                     ))
                 }
                 if let Some(expected_gas_limit) = exp.gas_limit {
-                    if exp.gas_limit != msg.gas_limit {
+                    if expected_gas_limit != msg.gas_limit {
                         errors.push(MessagesError::gas_limit(
                             position,
                             expected_gas_limit,
-                            msg.gas_limit.unwrap_or_default(),
+                            msg.gas_limit,
                         ))
                     }
                 }

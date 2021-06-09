@@ -77,7 +77,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
         runner.queue_message(
             message.destination.into(),
             payload,
-            message.gas_limit,
+            message.gas_limit.unwrap_or(1000000000),
             message.value.unwrap_or_default() as _,
         )
     }
