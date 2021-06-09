@@ -33,7 +33,7 @@ pub struct Message {
     pub source: H256,
     pub dest: H256,
     pub payload: Vec<u8>,
-    pub gas_limit: Option<u64>,
+    pub gas_limit: u64,
     pub value: u128,
 }
 
