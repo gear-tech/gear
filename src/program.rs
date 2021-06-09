@@ -54,6 +54,11 @@ impl ProgramId {
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         &mut self.0[..]
     }
+
+    /// System origin
+    pub fn system() -> Self {
+        Self([0u8; 32])
+    }
 }
 
 /// Program.
