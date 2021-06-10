@@ -4,6 +4,7 @@ use codec::{Encode, Decode};
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use core::cell::RefCell;
+use core::any::Any;
 
 use crate::program::ProgramId;
 use crate::storage::AllocationStorage;
@@ -59,7 +60,7 @@ impl core::ops::Sub for PageNumber {
 }
 
 /// Memory interface for the allocator.
-pub trait Memory {
+pub trait Memory : Any {
     /// Grow memory by number of pages.
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
 
@@ -72,6 +73,9 @@ pub trait Memory {
     /// Reads memory contents at the given offset into a buffer.
     fn read(&self, offset: usize, buffer: &mut [u8]);
 
+    /// Returns the byte length of this memory..
+    fn data_size(&self) -> usize;
+
     /// Cloen this memory.
     fn clone(&self) -> Box<dyn Memory>;
 
@@ -80,6 +84,9 @@ pub trait Memory {
 
     /// Unlock some memory pages.
     fn unlock(&self, offset: PageNumber, length: PageNumber);
+
+    /// Downcast to exact memory type
+    fn as_any(&self) -> &dyn Any;
 }
 
 impl Memory for wasmtime::Memory {
@@ -103,11 +110,15 @@ impl Memory for wasmtime::Memory {
     }
 
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
-        self.write(offset, buffer).or_else(|_| Err(Error::MemoryAccessError))
+        self.write(offset, buffer).map_err(|_| Error::MemoryAccessError)
     }
 
     fn read(&self, offset: usize, buffer: &mut [u8]) {
         self.read(offset, buffer).expect("Memory out of bounds.");
+    }
+
+    fn data_size(&self) -> usize {
+        self.data_size()
     }
 
     fn clone(&self) -> Box<dyn Memory> {
@@ -137,6 +148,10 @@ impl Memory for wasmtime::Memory {
                 libc::PROT_READ | libc::PROT_WRITE,
             );
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

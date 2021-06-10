@@ -1,6 +1,6 @@
 //! Module for running programs.
 
-use wasmtime::{Module, Memory as WasmMemory};
+use wasmtime::Module;
 use codec::{Encode, Decode};
 use anyhow::Result;
 use alloc::vec::Vec;
@@ -9,7 +9,7 @@ use alloc::boxed::Box;
 
 use crate::{
     env::{Environment, Ext as EnvExt, PageAction},
-    memory::{Allocations, MemoryContext, PageNumber},
+    memory::{Allocations, MemoryContext, PageNumber, Memory},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
@@ -82,7 +82,7 @@ impl RunNextResult {
 pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
-    pub(crate) memory: WasmMemory,
+    pub(crate) memory: Box<dyn crate::memory::Memory>,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
     env: Environment<Ext<AS>>,
@@ -113,7 +113,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         Self {
             program_storage,
             message_queue,
-            memory,
+            memory: Box::new(memory),
             allocations: Allocations::new(allocation_storage),
             config: config.clone(),
             env,
@@ -179,7 +179,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     /// This will return underlyign storage and memory state.
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
         let mut persistent_memory = vec![0u8; self.memory.data_size() - self.static_pages().raw() as usize * BASIC_PAGE_SIZE];
-        self.memory.read(self.static_pages().raw() as usize * BASIC_PAGE_SIZE, &mut persistent_memory).expect("Persistent memory out of bounds");
+        self.memory.read(self.static_pages().raw() as usize * BASIC_PAGE_SIZE, &mut persistent_memory);
 
         let Runner { program_storage, message_queue, allocations, .. } = self;
 
@@ -302,7 +302,7 @@ static MAX_PAGES: u32 = 16384;
 
 struct RunningContext<AS: AllocationStorage> {
     config: Config,
-    memory: WasmMemory,
+    memory: Box<dyn Memory>,
     allocations: Allocations<AS>,
     message_buf: Vec<Message>,
 }
@@ -310,7 +310,7 @@ struct RunningContext<AS: AllocationStorage> {
 impl<AS: AllocationStorage> RunningContext<AS> {
     fn new(
         config: &Config,
-        memory: WasmMemory,
+        memory: Box<dyn Memory>,
         allocations: Allocations<AS>,
     ) -> Self {
         Self {
@@ -321,8 +321,8 @@ impl<AS: AllocationStorage> RunningContext<AS> {
         }
     }
 
-    fn wasmtime_memory(&self) -> wasmtime::Memory {
-        self.memory.clone()
+    fn memory(&self) -> &dyn Memory {
+        &*self.memory
     }
 
     fn static_pages(&self) -> PageNumber {
@@ -443,7 +443,7 @@ fn run<AS: AllocationStorage + 'static>(
     let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
-            Box::new(context.wasmtime_memory()),
+            context.memory().clone(),
             context.allocations.clone(),
             context.static_pages(),
             context.max_pages(),
@@ -460,7 +460,7 @@ fn run<AS: AllocationStorage + 'static>(
         ext,
         module,
         static_area,
-        context.wasmtime_memory(),
+        context.memory(),
         move |instance| {
             instance
                 .get_func(entry_point.into())

@@ -7,11 +7,11 @@ use core::cell::RefCell;
 
 use codec::{Decode, Encode};
 
-use crate::memory::PageNumber;
+use crate::memory::{PageNumber, Memory};
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
 use ::anyhow::{self, anyhow};
-use wasmtime::{Engine, Extern, Func, Instance, Memory, Module};
+use wasmtime::{Engine, Extern, Func, Instance, Module};
 
 #[cfg(target_os = "linux")]
 fn handle_sigsegv<E: Ext + 'static>(
@@ -377,7 +377,7 @@ impl<E: Ext + 'static> Environment<E> {
         &mut self,
         module: Module,
         static_area: Vec<u8>,
-        memory: Memory,
+        memory: &dyn Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         let mut imports = module
@@ -411,7 +411,11 @@ impl<E: Ext + 'static> Environment<E> {
             } else if import_name == &Some("value") {
                 Some(self.value.clone().into())
             } else if import_name == &Some("memory") {
-                Some(memory.clone().into())
+                let mem: &wasmtime::Memory = match memory.as_any().downcast_ref::<wasmtime::Memory>() {
+                    Some(mem) => mem,
+                    None => panic!("Memory is not wasmtime::Memory")
+                };    
+                Some(wasmtime::Extern::Memory(Clone::clone(mem)))
             } else {
                 continue;
             };
@@ -424,7 +428,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         let instance = Instance::new(&self.store, &module, &externs)?;
 
-        memory.write(0, &static_area)?;
+        memory.write(0, &static_area).expect("Err write mem");
 
         func(instance)
     }
@@ -441,7 +445,7 @@ impl<E: Ext + 'static> Environment<E> {
         ext: E,
         module: Module,
         static_area: Vec<u8>,
-        memory: Memory,
+        memory: &dyn Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
 
@@ -498,8 +502,8 @@ impl<E: Ext + 'static> Environment<E> {
     }
 
     /// Create memory inside this environment.
-    pub fn create_memory(&self, total_pages: u32) -> Memory {
-        Memory::new(
+    pub fn create_memory(&self, total_pages: u32) -> wasmtime::Memory {
+        wasmtime::Memory::new(
             &self.store,
             wasmtime::MemoryType::new(wasmtime::Limits::at_least(total_pages)),
         )
