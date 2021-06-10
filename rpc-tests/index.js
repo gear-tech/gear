@@ -339,7 +339,7 @@ async function main() {
         source: 'H256',
         dest: 'H256',
         payload: 'Vec<u8>',
-        gas_limit: 'Option<u64>',
+        gas_limit: 'u64',
         value: 'u128',
       },
       Node: {

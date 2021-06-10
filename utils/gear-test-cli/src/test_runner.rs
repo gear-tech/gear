@@ -97,7 +97,7 @@ pub fn init_fixture(
             runner.queue_message(
                 message.destination.into(),
                 payload,
-                Some(u64::max_value()),
+                1000000000,
                 0,
             )
         }
