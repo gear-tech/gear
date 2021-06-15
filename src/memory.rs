@@ -60,7 +60,7 @@ impl core::ops::Sub for PageNumber {
 }
 
 /// Memory interface for the allocator.
-pub trait Memory : Any {
+pub trait Storable : Any {
     /// Grow memory by number of pages.
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
 
@@ -76,8 +76,8 @@ pub trait Memory : Any {
     /// Returns the byte length of this memory..
     fn data_size(&self) -> usize;
 
-    /// Cloen this memory.
-    fn clone(&self) -> Box<dyn Memory>;
+    /// Clone this memory.
+    fn clone(&self) -> Box<dyn Storable>;
 
     /// Lock some memory pages.
     fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8;
@@ -87,72 +87,6 @@ pub trait Memory : Any {
 
     /// Downcast to exact memory type
     fn as_any(&self) -> &dyn Any;
-}
-
-impl Memory for wasmtime::Memory {
-    fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
-        self.grow(pages.raw())
-            .map(|offset| {
-                cfg_if::cfg_if! {
-                    if #[cfg(target_os = "linux")] { 
-
-                        // lock pages after grow
-                        self.lock(offset.into(), pages);
-                    }
-                }
-                offset.into()
-            })
-            .map_err(|_| Error::OutOfMemory)
-    }
-
-    fn size(&self) -> PageNumber {
-        self.size().into()
-    }
-
-    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
-        self.write(offset, buffer).map_err(|_| Error::MemoryAccessError)
-    }
-
-    fn read(&self, offset: usize, buffer: &mut [u8]) {
-        self.read(offset, buffer).expect("Memory out of bounds.");
-    }
-
-    fn data_size(&self) -> usize {
-        self.data_size()
-    }
-
-    fn clone(&self) -> Box<dyn Memory> {
-        Box::new(Clone::clone(self))
-    }
-
-    fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8 {
-        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
-        let length = 65536usize * length.raw() as usize;
-
-        // So we can later trigger SIGSEGV by performing a read
-        unsafe {
-            libc::mprotect(base as *mut libc::c_void, length, libc::PROT_NONE);
-        }
-        base
-    }
-
-    fn unlock(&self, offset: PageNumber, length: PageNumber) {
-        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
-        let length = 65536usize * length.raw() as usize;
-
-        // Set r/w protection
-        unsafe {
-            libc::mprotect(
-                base as *mut libc::c_void,
-                length,
-                libc::PROT_READ | libc::PROT_WRITE,
-            );
-        }
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// Helper struct to manage allocations requested by programs.
@@ -216,7 +150,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
 /// Memory context for the running program.
 pub struct MemoryContext<AS: AllocationStorage> {
     program_id: ProgramId,
-    memory: Box<dyn Memory>,
+    memory: Box<dyn Storable>,
     allocations: Allocations<AS>,
     max_pages: PageNumber,
     static_pages: PageNumber,
@@ -234,9 +168,9 @@ impl<AS: AllocationStorage> Clone for MemoryContext<AS> {
     }
 }
 
-impl Clone for Box<dyn Memory> {
-    fn clone(self: &Box<dyn Memory>) -> Box<dyn Memory> {
-        Memory::clone(&**self)
+impl Clone for Box<dyn Storable> {
+    fn clone(self: &Box<dyn Storable>) -> Box<dyn Storable> {
+        Storable::clone(&**self)
     }
 }
 
@@ -248,7 +182,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     /// are set.
     pub fn new(
         program_id: ProgramId,
-        memory: Box<dyn Memory>,
+        memory: Box<dyn Storable>,
         allocations: Allocations<AS>,
         static_pages: PageNumber,
         max_pages: PageNumber,
@@ -313,7 +247,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     }
 
     /// Return reference to the memory blob.
-    pub fn memory(&self) -> &dyn Memory {
+    pub fn memory(&self) -> &dyn Storable {
         &*self.memory
     }
 
@@ -325,61 +259,5 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     /// Unlock memory access.
     pub fn memory_unlock(&self) {
         self.memory.unlock(self.static_pages, self.max_pages - self.static_pages);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::storage::InMemoryAllocationStorage;
-    use alloc::vec::Vec;
-
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext<InMemoryAllocationStorage> {
-        use wasmtime::{Engine, Store, MemoryType, Memory as WasmMemory, Limits};
-
-        let engine = Engine::default();
-        let store = Store::new(&engine);
-
-        let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
-        let memory = WasmMemory::new(&store, memory_ty).expect("Memory creation failed");
-
-        MemoryContext::new(
-            0.into(),
-            Box::new(memory),
-            Allocations::new(InMemoryAllocationStorage::new(Vec::new())),
-            static_pages.into(),
-            max_pages.into(),
-        )
-    }
-
-    #[test]
-    fn smoky() {
-        let mem = new_test_memory(16, 256);
-
-        assert_eq!(mem.alloc(16.into()).expect("allocation failed"), 16.into());
-
-        // there is a space for 14 more
-        for _ in 0..14 { mem.alloc(16.into()).expect("allocation failed"); }
-
-        // no more mem!
-        assert!(mem.alloc(1.into()).is_err());
-
-        // but we free some
-        mem.free(137.into()).expect("free failed");
-
-        // and now can allocate page that was freed
-        assert_eq!(mem.alloc(1.into()).expect("allocation failed").raw(), 137);
-
-        // if we have 2 in a row we can allocate even 2
-        mem.free(117.into()).expect("free failed");
-        mem.free(118.into()).expect("free failed");
-
-        assert_eq!(mem.alloc(2.into()).expect("allocation failed").raw(), 117);
-
-        // but if 2 are not in a row, bad luck
-        mem.free(117.into()).expect("free failed");
-        mem.free(158.into()).expect("free failed");
-
-        assert!(mem.alloc(2.into()).is_err());
     }
 }

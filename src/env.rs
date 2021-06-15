@@ -7,7 +7,7 @@ use core::cell::RefCell;
 
 use codec::{Decode, Encode};
 
-use crate::memory::{PageNumber, Memory};
+use crate::memory::{PageNumber, Storable};
 use crate::message::OutgoingMessage;
 use crate::program::ProgramId;
 use ::anyhow::{self, anyhow};
@@ -377,7 +377,7 @@ impl<E: Ext + 'static> Environment<E> {
         &mut self,
         module: Module,
         static_area: Vec<u8>,
-        memory: &dyn Memory,
+        memory: &dyn Storable,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         let mut imports = module
@@ -445,7 +445,7 @@ impl<E: Ext + 'static> Environment<E> {
         ext: E,
         module: Module,
         static_area: Vec<u8>,
-        memory: &dyn Memory,
+        memory: &dyn Storable,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
 
