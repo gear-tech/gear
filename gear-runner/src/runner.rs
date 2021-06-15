@@ -7,14 +7,16 @@ use alloc::vec::Vec;
 use alloc::string::String;
 use alloc::boxed::Box;
 
-use crate::{
+use gear_core::{
     env::{Environment, Ext as EnvExt, PageAction},
-    memory::{Allocations, MemoryContext, PageNumber, Memory},
+    memory::{Allocations, MemoryContext, PageNumber, Storable},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
     gas::{self, GasCounter, GasCounterLimited, ChargeResult},
 };
+
+use wasmtime_backend::memory::MemoryWrap;
 
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
@@ -82,7 +84,7 @@ impl RunNextResult {
 pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
-    pub(crate) memory: Box<dyn crate::memory::Memory>,
+    pub(crate) memory: Box<dyn gear_core::memory::Storable>,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
     env: Environment<Ext<AS>>,
@@ -102,7 +104,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let total_pages = config.static_pages.raw() + persistent_pages as u32;
 
         let env = Environment::new();
-        let memory = env.create_memory(total_pages);
+        let memory = MemoryWrap::new(env.create_memory(total_pages));
 
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
 
@@ -302,7 +304,7 @@ static MAX_PAGES: u32 = 16384;
 
 struct RunningContext<AS: AllocationStorage> {
     config: Config,
-    memory: Box<dyn Memory>,
+    memory: Box<dyn Storable>,
     allocations: Allocations<AS>,
     message_buf: Vec<Message>,
 }
@@ -310,7 +312,7 @@ struct RunningContext<AS: AllocationStorage> {
 impl<AS: AllocationStorage> RunningContext<AS> {
     fn new(
         config: &Config,
-        memory: Box<dyn Memory>,
+        memory: Box<dyn Storable>,
         allocations: Allocations<AS>,
     ) -> Self {
         Self {
@@ -321,7 +323,7 @@ impl<AS: AllocationStorage> RunningContext<AS> {
         }
     }
 
-    fn memory(&self) -> &dyn Memory {
+    fn memory(&self) -> &dyn Storable {
         &*self.memory
     }
 
@@ -560,7 +562,7 @@ mod tests {
 
         let mut runner = Runner::new(
             &Config::default(),
-            crate::storage::new_in_memory(
+            gear_core::storage::new_in_memory(
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -569,7 +571,7 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
+            .init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec(), u64::max_value(), 0)
             .expect("failed to init program");
 
         runner.run_next().expect("Failed to process next message");
@@ -585,7 +587,7 @@ mod tests {
             })
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), crate::gas::max_gas(), 0);
+        runner.queue_message(1.into(), "test".as_bytes().to_vec(), u64::max_value(), 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -656,7 +658,7 @@ mod tests {
 
         let mut runner = Runner::new(
             &Config::default(),
-            crate::storage::new_in_memory(
+            gear_core::storage::new_in_memory(
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -665,7 +667,7 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), vec![], crate::gas::max_gas(), 0)
+            .init_program(1.into(), parse_wat(wat), vec![], u64::max_value(), 0)
             .expect("Failed to init program");
 
         // check if page belongs to the program
@@ -685,7 +687,7 @@ mod tests {
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], crate::gas::max_gas(), 0);
+        runner.queue_message(1.into(), vec![256u32 as _], u64::max_value(), 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -754,7 +756,7 @@ mod tests {
                 static_pages: 1.into(),
                 max_pages: 3.into(),
             },
-            crate::storage::new_in_memory(
+            gear_core::storage::new_in_memory(
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -762,12 +764,12 @@ mod tests {
             &[],
         );
 
-        let result = runner.init_program(1.into(), parse_wat(wat_r), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
+        let result = runner.init_program(1.into(), parse_wat(wat_r), "init".as_bytes().to_vec(), u64::max_value(), 0)
             .expect("failed to init program 1");
 
         assert_eq!(result.touched[0], (1.into(), PageAction::Read));
 
-        let result = runner.init_program(2.into(), parse_wat(wat_w), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
+        let result = runner.init_program(2.into(), parse_wat(wat_w), "init".as_bytes().to_vec(), u64::max_value(), 0)
             .expect("failed to init program 2");
 
         assert_eq!(result.touched[0], (2.into(), PageAction::Write));
