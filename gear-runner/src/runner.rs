@@ -8,7 +8,7 @@ use alloc::string::String;
 use alloc::boxed::Box;
 
 use gear_core::{
-    env::{Environment, Ext as EnvExt, PageAction},
+    env::{Ext as EnvExt, PageAction},
     memory::{Allocations, MemoryContext, PageNumber, Storable},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
@@ -16,8 +16,7 @@ use gear_core::{
     gas::{self, GasCounter, GasCounterLimited, ChargeResult},
 };
 
-use wasmtime_backend::memory::MemoryWrap;
-
+use wasmtime_backend::env::Environment;
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
@@ -104,7 +103,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let total_pages = config.static_pages.raw() + persistent_pages as u32;
 
         let env = Environment::new();
-        let memory = MemoryWrap::new(env.create_memory(total_pages));
+        let memory = env.create_memory(total_pages);
 
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
 
