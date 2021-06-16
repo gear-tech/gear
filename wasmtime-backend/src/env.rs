@@ -206,7 +206,7 @@ impl<E: Ext + 'static> Environment<E> {
             .imports()
             .map(|import| {
                 if import.module() != "env" {
-                    return Err(anyhow!("Non-env imports are not supported"));
+                    Err(anyhow!("Non-env imports are not supported"))
                 } else {
                     Ok((import.name(), Option::<Extern>::None))
                 }
@@ -246,7 +246,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         let externs = imports
             .into_iter()
-            .map(|(_, host_function)| host_function.ok_or(anyhow!("Missing import")))
+            .map(|(_, host_function)| host_function.ok_or_else(|| anyhow!("Missing import")))
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         let instance = Instance::new(&self.store, &module, &externs)?;
@@ -325,11 +325,13 @@ impl<E: Ext + 'static> Environment<E> {
 
     /// Create memory inside this environment.
     pub fn create_memory(&self, total_pages: u32) -> MemoryWrap {
-        MemoryWrap::new(wasmtime::Memory::new(
-            &self.store,
-            wasmtime::MemoryType::new(wasmtime::Limits::at_least(total_pages)),
+        MemoryWrap::new(
+            wasmtime::Memory::new(
+                &self.store,
+                wasmtime::MemoryType::new(wasmtime::Limits::at_least(total_pages)),
+            )
+            .expect("Create env memory fail"),
         )
-        .expect("Create env memory fail"))
     }
 }
 

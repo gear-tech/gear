@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use core::any::Any;
 
-use gear_core::memory::{PageNumber, Storable, Error};
+use gear_core::memory::{Allocations, Error, MemoryContext, PageNumber, Storable};
 
 pub struct MemoryWrap(wasmtime::Memory);
 
@@ -13,10 +13,11 @@ impl MemoryWrap {
 
 impl Storable for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
-        self.0.grow(pages.raw())
+        self.0
+            .grow(pages.raw())
             .map(|offset| {
                 cfg_if::cfg_if! {
-                    if #[cfg(target_os = "linux")] { 
+                    if #[cfg(target_os = "linux")] {
 
                         // lock pages after grow
                         self.0.lock(offset.into(), pages);
@@ -32,7 +33,9 @@ impl Storable for MemoryWrap {
     }
 
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
-        self.0.write(offset, buffer).map_err(|_| Error::MemoryAccessError)
+        self.0
+            .write(offset, buffer)
+            .map_err(|_| Error::MemoryAccessError)
     }
 
     fn read(&self, offset: usize, buffer: &mut [u8]) {
@@ -48,7 +51,10 @@ impl Storable for MemoryWrap {
     }
 
     fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8 {
-        let base = self.0.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let base = self
+            .0
+            .data_ptr()
+            .wrapping_add(65536 * offset.raw() as usize);
         let length = 65536usize * length.raw() as usize;
 
         // So we can later trigger SIGSEGV by performing a read
@@ -59,7 +65,10 @@ impl Storable for MemoryWrap {
     }
 
     fn unlock(&self, offset: PageNumber, length: PageNumber) {
-        let base = self.0.data_ptr().wrapping_add(65536 * offset.raw() as usize);
+        let base = self
+            .0
+            .data_ptr()
+            .wrapping_add(65536 * offset.raw() as usize);
         let length = 65536usize * length.raw() as usize;
 
         // Set r/w protection
@@ -83,21 +92,23 @@ impl Clone for MemoryWrap {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::storage::InMemoryAllocationStorage;
     use alloc::vec::Vec;
+    use gear_core::storage::InMemoryAllocationStorage;
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext<InMemoryAllocationStorage> {
-        use wasmtime::{Engine, Store, MemoryType, Memory as WasmMemory, Limits};
+    fn new_test_memory(
+        static_pages: u32,
+        max_pages: u32,
+    ) -> MemoryContext<InMemoryAllocationStorage> {
+        use wasmtime::{Engine, Limits, Memory as WasmMemory, MemoryType, Store};
 
         let engine = Engine::default();
         let store = Store::new(&engine);
 
         let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
-        let memory = WasmMemory::new(&store, memory_ty).expect("Memory creation failed");
+        let memory = MemoryWrap::new(WasmMemory::new(&store, memory_ty).expect("Memory creation failed"));
 
         MemoryContext::new(
             0.into(),
@@ -115,7 +126,9 @@ mod tests {
         assert_eq!(mem.alloc(16.into()).expect("allocation failed"), 16.into());
 
         // there is a space for 14 more
-        for _ in 0..14 { mem.alloc(16.into()).expect("allocation failed"); }
+        for _ in 0..14 {
+            mem.alloc(16.into()).expect("allocation failed");
+        }
 
         // no more mem!
         assert!(mem.alloc(1.into()).is_err());
