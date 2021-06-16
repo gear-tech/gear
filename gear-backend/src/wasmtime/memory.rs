@@ -1,16 +1,21 @@
+//! Wasmtime extensions for memory and memory context.
+
 use alloc::boxed::Box;
 use core::any::Any;
 
-use gear_core::memory::{Allocations, Error, MemoryContext, PageNumber, Storable};
+use gear_core::memory::{Error, PageNumber, Storable};
 
+/// Wrapper for wasmtime memory.
 pub struct MemoryWrap(wasmtime::Memory);
 
 impl MemoryWrap {
+    /// Wrap wasmtime memory for Storable trait.
     pub fn new(mem: wasmtime::Memory) -> MemoryWrap {
         MemoryWrap(mem)
     }
 }
 
+/// Memory interface for the allocator.
 impl Storable for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.0
@@ -97,6 +102,7 @@ mod tests {
     use super::*;
     use alloc::vec::Vec;
     use gear_core::storage::InMemoryAllocationStorage;
+    use gear_core::memory::{Allocations, MemoryContext};
 
     fn new_test_memory(
         static_pages: u32,

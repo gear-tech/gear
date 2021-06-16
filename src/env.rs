@@ -1,4 +1,4 @@
-//! Wasmtime environment for running a module.
+//! Environment for running a module.
 
 use alloc::rc::Rc;
 use core::cell::RefCell;

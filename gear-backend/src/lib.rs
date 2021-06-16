@@ -1,3 +1,5 @@
+//! Crate provides support for wasm runtime.
+
 #![no_std]
 #![warn(missing_docs)]
 
