@@ -4,5 +4,5 @@
 #[macro_use]
 extern crate alloc;
 
-pub mod env;
-pub mod memory;
+#[cfg(feature = "wasmtime")]
+pub mod wasmtime;

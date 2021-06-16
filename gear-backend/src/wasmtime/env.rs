@@ -9,7 +9,7 @@ use core::cell::RefCell;
 
 use ::anyhow::{self, anyhow};
 
-use crate::memory::MemoryWrap;
+use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction};
 use gear_core::memory::{PageNumber, Storable};
