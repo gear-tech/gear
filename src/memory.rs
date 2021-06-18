@@ -73,8 +73,11 @@ pub trait Storable : Any {
     /// Reads memory contents at the given offset into a buffer.
     fn read(&self, offset: usize, buffer: &mut [u8]);
 
-    /// Returns the byte length of this memory..
+    /// Returns the byte length of this memory.
     fn data_size(&self) -> usize;
+
+    /// Returns the base pointer, in the host’s address space, that the memory is located at.
+    fn data_ptr(&self) -> *mut u8;
 
     /// Clone this memory.
     fn clone(&self) -> Box<dyn Storable>;

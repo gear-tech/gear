@@ -25,7 +25,7 @@ impl Storable for MemoryWrap {
                     if #[cfg(target_os = "linux")] {
 
                         // lock pages after grow
-                        self.0.lock(offset.into(), pages);
+                        self.lock(offset.into(), pages);
                     }
                 }
                 offset.into()
@@ -49,6 +49,10 @@ impl Storable for MemoryWrap {
 
     fn data_size(&self) -> usize {
         self.0.data_size()
+    }
+
+    fn data_ptr(&self) -> *mut u8 {
+        self.0.data_ptr()
     }
 
     fn clone(&self) -> Box<dyn Storable> {
