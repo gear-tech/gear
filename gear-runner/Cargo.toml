@@ -8,7 +8,6 @@ edition = "2018"
 [dependencies]
 gear-core = { path = "../" }
 gear-backend = { path = "../gear-backend" }
-wasmtime = { version = "0.27", default-features = false, features = ["parallel-compilation"] }
 codec = { package = "parity-scale-codec", version = "2", features = ["derive"] }
 anyhow = "1"
 log = "0.4"

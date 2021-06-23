@@ -266,11 +266,13 @@ impl<E: Ext + 'static> Environment<E> {
     pub fn setup_and_run(
         &mut self,
         ext: E,
-        module: Module,
+        binary: &[u8],
         static_area: Vec<u8>,
         memory: &dyn Storable,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
+
+        let module = Module::new(self.store.engine(), binary).expect("Error creating module");
         let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
             Rc::new(RefCell::new(Vec::new()));
 

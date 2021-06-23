@@ -5,7 +5,6 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use anyhow::Result;
 use codec::{Decode, Encode};
-use wasmtime::Module;
 
 use gear_core::{
     env::{Ext as EnvExt, PageAction},
@@ -154,18 +153,13 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 
             let gas_limit = next_message.gas_limit();
 
-            let module = Module::new(
-                self.env.engine(),
-                &gas::instrument(program.code())
-                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-            )?;
-
             let result = RunNextResult::from_single(
                 next_message.source(),
                 run(
                     &mut self.env,
                     &mut context,
-                    module,
+                    &gas::instrument(program.code())
+                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
                     &mut program,
                     EntryPoint::Handle,
                     &next_message.into(),
@@ -261,16 +255,11 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .expect("Added above; cannot fail");
         let msg = IncomingMessage::new_system(init_msg.into(), gas_limit, value);
 
-        let module = Module::new(
-            self.env.engine(),
-            &gas::instrument(program.code())
-                .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-        )?;
-
         let res = run(
             &mut self.env,
             &mut context,
-            module,
+            &gas::instrument(program.code())
+                .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
             &mut program,
             EntryPoint::Init,
             &msg,
@@ -448,7 +437,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
 fn run<AS: AllocationStorage + 'static>(
     env: &mut Environment<Ext<AS>>,
     context: &mut RunningContext<AS>,
-    module: Module,
+    binary: &[u8],
     program: &mut Program,
     entry_point: EntryPoint,
     message: &IncomingMessage,
@@ -474,7 +463,7 @@ fn run<AS: AllocationStorage + 'static>(
 
     let (res, mut ext, touched) = env.setup_and_run(
         ext,
-        module,
+        binary,
         static_area,
         context.memory(),
         move |instance| {
