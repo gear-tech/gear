@@ -33,6 +33,20 @@ impl ProgramId {
     }
 }
 
+#[macro_export]
+macro_rules! bail {
+    ($some:expr, $expl:expr, $fmt:expr, $($arg:tt)*) => {
+        match () {
+            #[cfg(feature = "debug")]
+            () => $some.expect(&format!($fmt, $($arg:tt)*)),
+            #[cfg(not(feature = "debug"))]
+            () => match $some {
+                Ok(v) => v,
+                Err(_) => core::panic!($expl),
+            }
+        }
+    };
+}
 
 pub mod msg {
     use alloc::vec::Vec;
