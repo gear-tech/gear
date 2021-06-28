@@ -69,6 +69,8 @@ pub trait Ext {
     fn value(&mut self) -> u128;
 }
 
+
+/// Struct for interacting with Ext
 pub struct LaterExt<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
 }
@@ -82,16 +84,19 @@ impl<E: Ext> Clone for LaterExt<E> {
 }
 
 impl<E: Ext> LaterExt<E> {
+    /// Create empty ext
     pub fn new() -> Self {
         Self {
             inner: Rc::new(RefCell::new(None)),
         }
     }
 
+    /// Set ext
     pub fn set(&mut self, e: E) {
         *self.inner.borrow_mut() = Some(e)
     }
 
+    /// Call fn with inner ext
     pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R {
         let mut brw = self.inner.borrow_mut();
         let mut ext = brw
@@ -104,6 +109,7 @@ impl<E: Ext> LaterExt<E> {
         res
     }
 
+    /// Unset inner ext
     pub fn unset(&mut self) -> E {
         self.inner
             .borrow_mut()
