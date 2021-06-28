@@ -11,6 +11,7 @@ anyhow = "1"
 clap = "3.0.0-beta.2"
 env_logger = "0.8"
 gear-core = { path = "../gear-core" }
+gear-runner = { path = "../gear-core/gear-runner" }
 test-gear-sample = { path = "./sample" }
 serde_json = "*"
 termion = "1.5.6"

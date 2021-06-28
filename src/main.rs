@@ -244,7 +244,7 @@ pub fn main() -> anyhow::Result<()> {
             use env_logger::Env;
 
             print_log = true;
-            env_logger::Builder::from_env(Env::default().default_filter_or("gear_core=debug"))
+            env_logger::Builder::from_env(Env::default().default_filter_or("gear_backend=debug"))
                 .init();
         },
         _ => {

@@ -27,6 +27,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
+name = "ahash"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43bb833f0bf979d8475d38fbf09ed3b8a55e1885fe93ad3f93239fc6a4f17b98"
+dependencies = [
+ "getrandom",
+ "once_cell",
+ "version_check",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -430,18 +441,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fed34cd105917e91daa4da6b3728c47b068749d6a62c59811f06ed2ac71d9da7"
 
 [[package]]
+name = "gear-backend"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cfg-if",
+ "gear-core",
+ "libc",
+ "log",
+ "wasmtime",
+]
+
+[[package]]
 name = "gear-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "cfg-if",
  "derive_more",
+ "hashbrown 0.11.2",
  "libc",
  "log",
  "parity-scale-codec",
  "parity-wasm",
  "pwasm-utils",
- "wasmtime",
+]
+
+[[package]]
+name = "gear-runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gear-backend",
+ "gear-core",
+ "log",
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -492,6 +526,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
+name = "hashbrown"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
 name = "heck"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -528,7 +571,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.9.1",
  "serde",
 ]
 
@@ -639,6 +682,12 @@ dependencies = [
  "crc32fast",
  "indexmap",
 ]
+
+[[package]]
+name = "once_cell"
+version = "1.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af8b08b04175473088b46763e51ee54da5f9a164bc162f615b91bc179dbf15a3"
 
 [[package]]
 name = "os_str_bytes"
@@ -1025,6 +1074,7 @@ dependencies = [
  "derive_more",
  "env_logger",
  "gear-core",
+ "gear-runner",
  "regex",
  "serde_json",
  "termion",
