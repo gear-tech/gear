@@ -49,7 +49,7 @@ impl GasCounter for GasCounterUnlimited {
         ChargeResult::Enough
     }
 
-    fn left(&self) -> u64 { 0 }
+    fn left(&self) -> u64 { u64::MAX }
 }
 
 impl GasCounter for GasCounterLimited {
