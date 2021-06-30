@@ -39,7 +39,9 @@ impl ProgramId {
     ///
     /// Will panic if slice is not 32 bytes length.
     pub fn from_slice(s: &[u8]) -> Self {
-        assert_eq!(s.len(), 32);
+        if s.len() != 32 {
+            panic!("Slice is not 32 bytes length")
+        };
         let mut id = ProgramId([0u8; 32]);
         id.0[..].copy_from_slice(s);
         id
@@ -109,4 +111,25 @@ impl Program {
     pub fn clear_static(&mut self) {
         self.static_pages = vec![];
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{encode_hex, ProgramId};
+
+    #[test]
+    fn hex_encoding() {
+        let bytes = "foobar".as_bytes();
+        let result = encode_hex(&bytes);
+        
+        assert_eq!(result, "666f6f626172");
+    }
+
+    #[test]
+    #[should_panic(expected = "Slice is not 32 bytes length")]
+    fn program_id_from_slice_error_implementation() {
+        let bytes = b"foobar";
+        let _ = ProgramId::from_slice(bytes);
+    }
+
 }

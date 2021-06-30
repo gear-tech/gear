@@ -51,7 +51,7 @@ impl GasCounter for GasCounterUnlimited {
         ChargeResult::Enough
     }
 
-    fn left(&self) -> u64 { 0 }
+    fn left(&self) -> u64 { u64::MAX }
 }
 
 impl GasCounter for GasCounterLimited {
@@ -104,8 +104,49 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
         })
 }
 
-/// Maximum theoretical gas limit.
+
+
 #[cfg(test)]
-pub fn max_gas() -> u64 {
-    u64::max_value()
+mod tests {
+    use super::{
+        ChargeResult,
+        GasCounter,
+        GasCounterLimited,
+        GasCounterUnlimited,
+    };
+
+    /// Maximum theoretical gas limit.
+    pub fn max_gas() -> u64 { u64::MAX }
+
+    #[test]
+    fn unlimited_gas_counter_charging() {
+        let mut counter = GasCounterUnlimited;
+
+        assert_eq!(counter.left(), max_gas());
+
+        let result = counter.charge(0);
+
+        assert_eq!(result, ChargeResult::Enough);
+        assert_eq!(counter.left(), max_gas());
+
+        let result = counter.charge(u32::MAX);
+
+        assert_eq!(result, ChargeResult::Enough);
+        assert_eq!(counter.left(), max_gas());
+    }
+
+    #[test]
+    fn limited_gas_counter_charging() {
+        let mut counter = GasCounterLimited(200);
+
+        let result = counter.charge(100);
+
+        assert_eq!(result, ChargeResult::Enough);
+        assert_eq!(counter.left(), 100);
+
+        let result = counter.charge(101);
+
+        assert_eq!(result, ChargeResult::NotEnough);
+        assert_eq!(counter.left(), 100);
+    }
 }

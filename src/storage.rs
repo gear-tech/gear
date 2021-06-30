@@ -179,3 +179,124 @@ pub fn new_in_memory(
         program_storage: InMemoryProgramStorage::new(programs),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn program_storage_interaction() {
+        let id1 = ProgramId::from(1);
+
+        let id2 = ProgramId::from(2);
+
+        let id3 = ProgramId::from(3);
+
+        let mut program_storage = InMemoryProgramStorage::new(
+            vec![
+                Program::new(id1, vec![1], vec![]),
+                Program::new(id2, vec![2], vec![]),
+            ]
+        );
+
+        assert!(program_storage.get(id2).is_some());
+        assert_eq!(program_storage.get(id2).unwrap().code(), vec![2]);
+
+        assert!(program_storage.get(id3).is_none());
+
+        program_storage.remove(id2);
+        assert!(program_storage.get(id2).is_none());
+
+        program_storage.set(Program::new(id3, vec![3], vec![]));
+        assert!(program_storage.get(id3).is_some());
+
+        let remaining_programs = program_storage.drain();
+        assert_eq!(remaining_programs.len(), 2);
+
+        for program in remaining_programs {
+            assert!(program.id() == id1 || program.id() == id3);
+        }
+    }
+
+    #[test]
+    fn message_queue_interaction() {
+        use crate::message::Payload;
+        
+        let mut message_queue = InMemoryMessageQueue::new(vec![]);
+
+        assert!(message_queue.dequeue().is_none());
+        assert!(message_queue.log().is_empty());
+
+        message_queue.queue(Message::new_system(
+                ProgramId::system(),
+                Payload::new(vec![0]),
+                128,
+                256
+            )
+        );
+
+        assert!(!message_queue.log().is_empty());
+        assert_eq!(message_queue.log()[0].value(), 256u128);
+
+        message_queue.queue_many(vec![
+            Message::new_system(
+                ProgramId::from(1),
+                Payload::new(vec![1]),
+                128,
+                512
+            ),
+            Message::new_system(
+                ProgramId::from(2),
+                Payload::new(vec![2]),
+                128,
+                1024
+            ),
+        ]);
+        
+        let msg = message_queue
+            .dequeue()
+            .expect("An error occurred during unwraping front queue message");
+        
+        assert_eq!(msg.dest(), ProgramId::from(1));
+
+        let remaining_messages = message_queue.drain();
+
+        assert_eq!(remaining_messages.len(), 1);
+        assert_eq!(remaining_messages[0].dest(), ProgramId::from(2));
+    }
+
+    #[test]
+    fn allocation_storage_interaction() {
+        let mut allocation_storage = InMemoryAllocationStorage::new(vec![
+            (PageNumber::new(1), ProgramId::from(10)),
+            (PageNumber::new(2), ProgramId::from(20)),
+        ]);
+
+        assert!(allocation_storage.exists(PageNumber::new(2)));
+
+        let page_owner = allocation_storage.get(PageNumber::new(2));
+        
+        assert_eq!(page_owner.unwrap(), ProgramId::from(20));
+        assert!(allocation_storage.exists(PageNumber::new(2)));
+
+        let page_owner = allocation_storage.remove(PageNumber::new(2));
+
+        assert_eq!(page_owner.unwrap(), ProgramId::from(20));
+        assert!(!allocation_storage.exists(PageNumber::new(2)));
+
+        allocation_storage.set(PageNumber::new(2), ProgramId::from(200));
+
+        let remaining_allocation_storage = allocation_storage.drain();
+
+        let expected_allocations = vec![
+            (PageNumber::new(1), ProgramId::from(10)),
+            (PageNumber::new(2), ProgramId::from(200)),
+        ];
+
+        assert_eq!(remaining_allocation_storage.len(), expected_allocations.len());
+
+        for allocation in expected_allocations {
+            assert!(remaining_allocation_storage.contains(&allocation));
+        }
+    }
+}

@@ -264,3 +264,45 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         self.memory.unlock(self.static_pages, self.max_pages - self.static_pages);
     }
 }
+
+#[cfg(test)]
+impl PageNumber {
+    pub fn new(val: u32) -> Self {
+        Self(val)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PageNumber;
+
+    #[test]
+    fn page_number_addition() {
+        let sum = PageNumber(100) + PageNumber(200);
+
+        assert_eq!(sum, PageNumber(300));
+
+        let sum = PageNumber(200) + PageNumber(100);
+        
+        assert_eq!(sum, PageNumber(300));
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to add with overflow")]
+    fn page_number_addition_with_overflow() {
+        let _ = PageNumber(u32::MAX) + PageNumber(1);
+    }
+
+    #[test]
+    fn page_number_subtraction() {
+        let subtraction = PageNumber(299) - PageNumber(199);
+
+        assert_eq!(subtraction, PageNumber(100))
+    }
+
+    #[test]
+    #[should_panic(expected = "attempt to subtract with overflow")]
+    fn page_number_subtraction_with_overflow() {
+        let _ = PageNumber(1) - PageNumber(u32::MAX);
+    }
+}
