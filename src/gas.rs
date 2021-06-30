@@ -70,6 +70,8 @@ impl GasCounter for GasCounterLimited {
 
 /// Instrument code with gas-counting instructions.
 pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
+    use pwasm_utils::rules::{InstructionType, Metering};
+    
     let module = parity_wasm::elements::Module::from_bytes(code)
         .map_err(|e| {
             log::error!("Error decoding module: {}", e);
@@ -81,12 +83,9 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
         &pwasm_utils::rules::Set::new(
             // TODO: put into config/processing
             1000,
-            Default::default()
-        ).with_grow_cost(
-            // TODO: prohibit grow competely somehow (manual allocation through host function is required)
-            //       (by limits?)
-            1000000
-        ),
+            // Memory.grow is forbidden
+            [(InstructionType::GrowMemory, Metering::Forbidden)].iter().cloned().collect(),
+        ).with_forbidden_floats(),
         "env",
     )
         .map_err(|_module| {
