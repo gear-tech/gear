@@ -28,20 +28,20 @@ impl StorageQueue {
             let head = H256::from_slice(&head);
             if let Some(tail) = sp_io::storage::get(&tail_key) {
                 let tail = H256::from_slice(&tail);
-                StorageQueue {
+                Self {
                     prefix,
                     head: Some(head),
                     tail: Some(tail),
                 }
             } else {
-                StorageQueue {
+                Self {
                     prefix,
                     head: Some(head),
                     tail: Some(head),
                 }
             }
         } else {
-            StorageQueue {
+            Self {
                 prefix,
                 head: None,
                 tail: None,
@@ -126,6 +126,8 @@ mod tests {
     fn empty_queue() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+
+            assert!(queue.is_empty());
 
             let value: Option<u8> = queue.dequeue();
             assert!(value.is_none());

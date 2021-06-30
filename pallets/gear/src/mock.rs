@@ -17,15 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet;
-use sp_core::H256;
 use frame_support::parameter_types;
-use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
-};
 use frame_system as system;
+use sp_core::H256;
+use sp_runtime::testing::Header;
+use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+pub type AccountId = u64;
+type Balance = u128;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -42,7 +43,7 @@ frame_support::construct_runtime!(
 
 impl pallet_balances::Config for Test {
 	type MaxLocks = ();
-	type Balance = u128;
+	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
@@ -69,7 +70,7 @@ impl system::Config for Test {
 	type BlockNumber = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
-	type AccountId = u64;
+	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = Event;
@@ -100,5 +101,15 @@ impl pallet_authorship::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+	let mut t = system::GenesisConfig::default()
+		.build_storage::<Test>()
+		.unwrap();
+
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![(1, 1_u128 << 60), (2, 1_u128)],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+
+	t.into()
 }
