@@ -9,7 +9,7 @@ use codec::{Decode, Encode};
 use gear_core::{
     env::{Ext as EnvExt, PageAction},
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
-    memory::{Allocations, MemoryContext, PageNumber, Storable},
+    memory::{Allocations, MemoryContext, PageNumber, Memory},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
@@ -84,7 +84,7 @@ impl RunNextResult {
 pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
-    pub(crate) memory: Box<dyn gear_core::memory::Storable>,
+    pub(crate) memory: Box<dyn Memory>,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
     env: Environment<Ext<AS>>,
@@ -311,13 +311,13 @@ static MAX_PAGES: u32 = 16384;
 
 struct RunningContext<AS: AllocationStorage> {
     config: Config,
-    memory: Box<dyn Storable>,
+    memory: Box<dyn Memory>,
     allocations: Allocations<AS>,
     message_buf: Vec<Message>,
 }
 
 impl<AS: AllocationStorage> RunningContext<AS> {
-    fn new(config: &Config, memory: Box<dyn Storable>, allocations: Allocations<AS>) -> Self {
+    fn new(config: &Config, memory: Box<dyn Memory>, allocations: Allocations<AS>) -> Self {
         Self {
             config: config.clone(),
             message_buf: vec![],
@@ -326,7 +326,7 @@ impl<AS: AllocationStorage> RunningContext<AS> {
         }
     }
 
-    fn memory(&self) -> &dyn Storable {
+    fn memory(&self) -> &dyn Memory {
         &*self.memory
     }
 

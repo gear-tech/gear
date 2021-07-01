@@ -60,7 +60,7 @@ impl core::ops::Sub for PageNumber {
 }
 
 /// Memory interface for the allocator.
-pub trait Storable : Any {
+pub trait Memory : Any {
     /// Grow memory by number of pages.
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
 
@@ -80,7 +80,7 @@ pub trait Storable : Any {
     fn data_ptr(&self) -> *mut u8;
 
     /// Clone this memory.
-    fn clone(&self) -> Box<dyn Storable>;
+    fn clone(&self) -> Box<dyn Memory>;
 
     /// Lock some memory pages.
     fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8;
@@ -153,7 +153,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
 /// Memory context for the running program.
 pub struct MemoryContext<AS: AllocationStorage> {
     program_id: ProgramId,
-    memory: Box<dyn Storable>,
+    memory: Box<dyn Memory>,
     allocations: Allocations<AS>,
     max_pages: PageNumber,
     static_pages: PageNumber,
@@ -171,9 +171,9 @@ impl<AS: AllocationStorage> Clone for MemoryContext<AS> {
     }
 }
 
-impl Clone for Box<dyn Storable> {
-    fn clone(self: &Box<dyn Storable>) -> Box<dyn Storable> {
-        Storable::clone(&**self)
+impl Clone for Box<dyn Memory> {
+    fn clone(self: &Box<dyn Memory>) -> Box<dyn Memory> {
+        Memory::clone(&**self)
     }
 }
 
@@ -185,7 +185,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     /// are set.
     pub fn new(
         program_id: ProgramId,
-        memory: Box<dyn Storable>,
+        memory: Box<dyn Memory>,
         allocations: Allocations<AS>,
         static_pages: PageNumber,
         max_pages: PageNumber,
@@ -250,7 +250,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     }
 
     /// Return reference to the memory blob.
-    pub fn memory(&self) -> &dyn Storable {
+    pub fn memory(&self) -> &dyn Memory {
         &*self.memory
     }
 

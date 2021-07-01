@@ -12,7 +12,7 @@ use ::anyhow::{self, anyhow};
 use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction};
-use gear_core::memory::{PageNumber, Storable};
+use gear_core::memory::{PageNumber, Memory};
 use gear_core::message::OutgoingMessage;
 use gear_core::program::ProgramId;
 
@@ -199,7 +199,7 @@ impl<E: Ext + 'static> Environment<E> {
         &mut self,
         module: Module,
         static_area: Vec<u8>,
-        memory: &dyn Storable,
+        memory: &dyn Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         let mut imports = module
@@ -268,7 +268,7 @@ impl<E: Ext + 'static> Environment<E> {
         ext: E,
         binary: &[u8],
         static_area: Vec<u8>,
-        memory: &dyn Storable,
+        memory: &dyn Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
 

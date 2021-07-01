@@ -3,20 +3,20 @@
 use alloc::boxed::Box;
 use core::any::Any;
 
-use gear_core::memory::{Error, PageNumber, Storable};
+use gear_core::memory::{Error, PageNumber, Memory};
 
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap(wasmtime::Memory);
 
 impl MemoryWrap {
-    /// Wrap wasmtime memory for Storable trait.
+    /// Wrap wasmtime memory for Memory trait.
     pub fn new(mem: wasmtime::Memory) -> MemoryWrap {
         MemoryWrap(mem)
     }
 }
 
 /// Memory interface for the allocator.
-impl Storable for MemoryWrap {
+impl Memory for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.0
             .grow(pages.raw())
@@ -55,7 +55,7 @@ impl Storable for MemoryWrap {
         self.0.data_ptr()
     }
 
-    fn clone(&self) -> Box<dyn Storable> {
+    fn clone(&self) -> Box<dyn Memory> {
         Box::new(Clone::clone(self))
     }
 
