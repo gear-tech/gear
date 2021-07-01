@@ -10,7 +10,7 @@ pub struct MemoryWrap(wasmtime::Memory);
 
 impl MemoryWrap {
     /// Wrap wasmtime memory for Memory trait.
-    pub fn new(mem: wasmtime::Memory) -> MemoryWrap {
+    pub fn new(mem: wasmtime::Memory) -> Self {
         MemoryWrap(mem)
     }
 }
@@ -96,7 +96,7 @@ impl Memory for MemoryWrap {
 }
 
 impl Clone for MemoryWrap {
-    fn clone(self: &MemoryWrap) -> MemoryWrap {
+    fn clone(self: &MemoryWrap) -> Self {
         MemoryWrap(self.0.clone())
     }
 }
