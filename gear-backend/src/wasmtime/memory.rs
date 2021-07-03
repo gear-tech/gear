@@ -3,7 +3,7 @@
 use alloc::boxed::Box;
 use core::any::Any;
 
-use gear_core::memory::{Error, PageNumber, Memory};
+use gear_core::memory::{Error, Memory, PageNumber};
 
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap(wasmtime::Memory);
@@ -105,8 +105,8 @@ impl Clone for MemoryWrap {
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use gear_core::storage::InMemoryAllocationStorage;
     use gear_core::memory::{Allocations, MemoryContext};
+    use gear_core::storage::InMemoryAllocationStorage;
 
     fn new_test_memory(
         static_pages: u32,
@@ -118,7 +118,8 @@ mod tests {
         let store = Store::new(&engine);
 
         let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
-        let memory = MemoryWrap::new(WasmMemory::new(&store, memory_ty).expect("Memory creation failed"));
+        let memory =
+            MemoryWrap::new(WasmMemory::new(&store, memory_ty).expect("Memory creation failed"));
 
         MemoryContext::new(
             0.into(),

@@ -466,16 +466,7 @@ fn run<AS: AllocationStorage + 'static>(
         binary,
         static_area,
         context.memory(),
-        move |instance| {
-            instance
-                .get_func(entry_point.into())
-                .ok_or(anyhow::format_err!(
-                    "failed to find `{}` function export",
-                    Into::<&'static str>::into(entry_point)
-                ))
-                .and_then(|entry_func| entry_func.call(&[]))
-                .map(|_| ())
-        },
+        entry_point.into(),
     );
 
     res.map(move |_| {

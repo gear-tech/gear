@@ -12,7 +12,7 @@ use ::anyhow::{self, anyhow};
 use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction};
-use gear_core::memory::{PageNumber, Memory};
+use gear_core::memory::{Memory, PageNumber};
 use gear_core::message::OutgoingMessage;
 use gear_core::program::ProgramId;
 
@@ -269,9 +269,8 @@ impl<E: Ext + 'static> Environment<E> {
         binary: &[u8],
         static_area: Vec<u8>,
         memory: &dyn Memory,
-        func: impl FnOnce(Instance) -> anyhow::Result<()>,
+        entry_point: &str,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
-
         let module = Module::new(self.store.engine(), binary).expect("Error creating module");
         let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
             Rc::new(RefCell::new(Vec::new()));
@@ -304,7 +303,16 @@ impl<E: Ext + 'static> Environment<E> {
 
         self.ext.set(ext);
 
-        let result = self.run_inner(module, static_area, memory, func);
+        let result = self.run_inner(module, static_area, memory, move |instance| {
+            instance
+                .get_func(entry_point)
+                .ok_or(anyhow::format_err!(
+                    "failed to find `{}` function export",
+                    entry_point
+                ))
+                .and_then(|entry_func| entry_func.call(&[]))
+                .map(|_| ())
+        });
 
         let ext = self.ext.unset();
         cfg_if::cfg_if! {
