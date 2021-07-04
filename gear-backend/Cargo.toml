@@ -15,6 +15,6 @@ anyhow = "1"
 log = "0.4"
 
 [features]
-default = ["wasmtime"]
+default = ["wasmtime_backend"]
 wasmtime_backend = ["wasmtime", "wasmtime/parallel-compilation"]
 wasmi_backend = ["wasmi", "wasmi/core"]
