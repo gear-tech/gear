@@ -20,3 +20,7 @@ jobs:
       run: cargo build --features=strict
     - name: Run tests
       run: cargo test --features=strict
+    - name: Run gear-backend tests
+      run: cd gear-backend && cargo test --all-features
+    - name: Run gear-runner tests
+      run: cd gear-runner && cargo test
