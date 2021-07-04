@@ -7,7 +7,8 @@ edition = "2018"
 
 [dependencies]
 gear-core = { path = "../" }
-wasmtime = { version = "0.27", default-features = false, features = ["parallel-compilation"], optional = true }
+wasmtime = { version = "0.27", default-features = false, optional = true }
+wasmi = { version = "*", default-features = false, optional = true }
 libc = "0.2"
 cfg-if = "1.0.0"
 anyhow = "1"
@@ -15,3 +16,5 @@ log = "0.4"
 
 [features]
 default = ["wasmtime"]
+wasmtime_backend = ["wasmtime", "wasmtime/parallel-compilation"]
+wasmi_backend = ["wasmi", "wasmi/core"]
