@@ -190,35 +190,47 @@ pub fn new_in_memory(
 }
 
 #[cfg(test)]
+/// This module contains tests of parts of InMemoryStorage:
+/// of allocation storage, message queue storage and program storage
 mod tests {
     use super::*;
 
     #[test]
+    /// Test that InMemoryProgramStorage works correctly
     fn program_storage_interaction() {
+        // Initialization of some ProgramIds
         let id1 = ProgramId::from(1);
 
         let id2 = ProgramId::from(2);
 
         let id3 = ProgramId::from(3);
 
-        let mut program_storage = InMemoryProgramStorage::new(
-            vec![
-                Program::new(id1, vec![1], vec![]),
-                Program::new(id2, vec![2], vec![]),
-            ]
-        );
+        // Initialization of InMemoryProgramStorage with our custom vec<Program>
+        let mut program_storage = InMemoryProgramStorage::new(vec![
+            Program::new(id1, vec![1], vec![]),
+            Program::new(id2, vec![2], vec![]),
+        ]);
 
+        // Сhecking that the Program with id2 exists in the storage
+        // and it is the one that we put
         assert!(program_storage.get(id2).is_some());
         assert_eq!(program_storage.get(id2).unwrap().code(), vec![2]);
 
+        // Сhecking that the Program with id3 does not exist in the storage
         assert!(program_storage.get(id3).is_none());
 
+        // Сhecking that we are able to correctly remove
+        // the Program with id2 from storage
         program_storage.remove(id2);
         assert!(program_storage.get(id2).is_none());
 
+        // Сhecking that we are able to correctly set
+        // the new Program with id3 in storage
         program_storage.set(Program::new(id3, vec![3], vec![]));
         assert!(program_storage.get(id3).is_some());
 
+        // Сhecking that the storage after all our interactions
+        // contains two programs with id1 and id3 and returns them on draining
         let remaining_programs = program_storage.drain();
         assert_eq!(remaining_programs.len(), 2);
 
@@ -228,46 +240,44 @@ mod tests {
     }
 
     #[test]
+    /// Test that InMemoryMessageQueue works correctly
     fn message_queue_interaction() {
         use crate::message::Payload;
-        
+
+        // Initialization of empty InMemoryMessageQueue
         let mut message_queue = InMemoryMessageQueue::new(vec![]);
 
+        // Сhecking that the storage totally empty
         assert!(message_queue.dequeue().is_none());
         assert!(message_queue.log().is_empty());
 
+        // Addition of new system message
         message_queue.queue(Message::new_system(
-                ProgramId::system(),
-                Payload::from(vec![0]),
-                128,
-                256
-            )
-        );
+            ProgramId::system(),
+            Payload::from(vec![0]),
+            128,
+            256,
+        ));
 
+        // Сhecking that the system message gets in logs
         assert!(!message_queue.log().is_empty());
         assert_eq!(message_queue.log()[0].value(), 256u128);
 
+        // Addition of multiple messages
         message_queue.queue_many(vec![
-            Message::new_system(
-                ProgramId::from(1),
-                Payload::from(vec![1]),
-                128,
-                512
-            ),
-            Message::new_system(
-                ProgramId::from(2),
-                Payload::from(vec![2]),
-                128,
-                1024
-            ),
+            Message::new_system(ProgramId::from(1), Payload::from(vec![1]), 128, 512),
+            Message::new_system(ProgramId::from(2), Payload::from(vec![2]), 128, 1024),
         ]);
-        
+
+        // Сhecking that the first message in queue is the one that we added first
         let msg = message_queue
             .dequeue()
             .expect("An error occurred during unwraping front queue message");
-        
+
         assert_eq!(msg.dest(), ProgramId::from(1));
 
+        // Сhecking that the message queue after all our interactions
+        // contains the only one message the we added last
         let remaining_messages = message_queue.drain();
 
         assert_eq!(remaining_messages.len(), 1);
@@ -275,26 +285,35 @@ mod tests {
     }
 
     #[test]
+    /// Test that InMemoryAllocationStorage works correctly
     fn allocation_storage_interaction() {
+        // Initialization of InMemoryAllocationStorage with our custom vec<(PageNumber, ProgramId)>
         let mut allocation_storage = InMemoryAllocationStorage::new(vec![
             (PageNumber::from(1), ProgramId::from(10)),
             (PageNumber::from(2), ProgramId::from(20)),
         ]);
 
+        // Сhecking that the storage's page number 2 is busy
+        // and it's owner is program with ProgramId::from(2)
         assert!(allocation_storage.exists(PageNumber::from(2)));
 
         let page_owner = allocation_storage.get(PageNumber::from(2));
-        
+
         assert_eq!(page_owner.unwrap(), ProgramId::from(20));
+        // Сhecking that the storage's page number 2 is still busy even after `get(...)`
         assert!(allocation_storage.exists(PageNumber::from(2)));
 
+        // Сhecking that we are able to correctly remove the page number 2 from storage
         let page_owner = allocation_storage.remove(PageNumber::from(2));
 
         assert_eq!(page_owner.unwrap(), ProgramId::from(20));
         assert!(!allocation_storage.exists(PageNumber::from(2)));
 
+        // Сhecking that we are able to correctly set the page number 2 with new owner
         allocation_storage.set(PageNumber::from(2), ProgramId::from(200));
 
+        // Сhecking that the storage after all our interactions
+        // contains the only two busy pages with expected numbers and owners
         let remaining_allocation_storage = allocation_storage.drain();
 
         let expected_allocations = vec![
@@ -302,7 +321,10 @@ mod tests {
             (PageNumber::from(2), ProgramId::from(200)),
         ];
 
-        assert_eq!(remaining_allocation_storage.len(), expected_allocations.len());
+        assert_eq!(
+            remaining_allocation_storage.len(),
+            expected_allocations.len()
+        );
 
         for allocation in expected_allocations {
             assert!(remaining_allocation_storage.contains(&allocation));

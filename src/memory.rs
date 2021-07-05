@@ -284,27 +284,31 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 }
 
 #[cfg(test)]
+/// This module contains tests of PageNumber struct
 mod tests {
     use super::PageNumber;
 
     #[test]
+    /// Test that PageNumbers add up correctly
     fn page_number_addition() {
         let sum = PageNumber(100) + PageNumber(200);
 
         assert_eq!(sum, PageNumber(300));
 
         let sum = PageNumber(200) + PageNumber(100);
-        
+
         assert_eq!(sum, PageNumber(300));
     }
 
     #[test]
     #[should_panic(expected = "attempt to add with overflow")]
+    /// Test that PageNumbers addition causes panic on overflow
     fn page_number_addition_with_overflow() {
         let _ = PageNumber(u32::MAX) + PageNumber(1);
     }
 
     #[test]
+    /// Test that PageNumbers subtract correctly
     fn page_number_subtraction() {
         let subtraction = PageNumber(299) - PageNumber(199);
 
@@ -313,6 +317,7 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "attempt to subtract with overflow")]
+    /// Test that PageNumbers subtraction causes panic on overflow
     fn page_number_subtraction_with_overflow() {
         let _ = PageNumber(1) - PageNumber(u32::MAX);
     }

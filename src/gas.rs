@@ -108,21 +108,19 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     })
 }
 
-
-
 #[cfg(test)]
+/// This module contains tests of GasCounter's variations
 mod tests {
-    use super::{
-        ChargeResult,
-        GasCounter,
-        GasCounterLimited,
-        GasCounterUnlimited,
-    };
+    use super::{ChargeResult, GasCounter, GasCounterLimited, GasCounterUnlimited};
 
     /// Maximum theoretical gas limit.
-    pub fn max_gas() -> u64 { u64::MAX }
+    pub fn max_gas() -> u64 {
+        u64::MAX
+    }
 
     #[test]
+    /// Test that GasCounterUnlimited object is always Enough for `charge(...)`
+    /// and the remaining gas is always at it's maximum
     fn unlimited_gas_counter_charging() {
         let mut counter = GasCounterUnlimited;
 
@@ -140,6 +138,9 @@ mod tests {
     }
 
     #[test]
+    /// Test that GasCounterLimited object returns Enough and decreases the remaining count
+    /// on calling `charge(...)` when the remaining gas exceeds the required value,
+    /// otherwise returns NotEnough
     fn limited_gas_counter_charging() {
         let mut counter = GasCounterLimited(200);
 
