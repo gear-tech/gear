@@ -266,13 +266,6 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 }
 
 #[cfg(test)]
-impl PageNumber {
-    pub fn new(val: u32) -> Self {
-        Self(val)
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::PageNumber;
 

@@ -230,10 +230,3 @@ impl MessageContext {
         st.outgoing.drain(..).collect()
     }
 }
-
-#[cfg(test)]
-impl Payload {
-    pub fn new(val: Vec<u8>) -> Self {
-        Self(val)
-    }
-}

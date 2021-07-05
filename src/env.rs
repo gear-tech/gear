@@ -125,6 +125,7 @@ mod tests {
     #[derive(Debug, PartialEq)]
     struct ExtImplementedStruct(u8);
 
+    
     impl Ext for ExtImplementedStruct{
         fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> { Err("") }
         fn send(&mut self, _msg: OutgoingMessage) -> Result<(), &'static str> { Ok(()) }
@@ -141,6 +142,7 @@ mod tests {
         fn value(&mut self) -> u128 { 0 }
     }
 
+    
     #[test]
     fn empty_ext_creation() {
         let ext = LaterExt::<ExtImplementedStruct>::new();
@@ -148,6 +150,7 @@ mod tests {
         assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
     }
 
+    
     #[test]
     fn setting_and_unsetting_inner_ext() {
         let mut ext = LaterExt::<ExtImplementedStruct>::new();
@@ -161,6 +164,7 @@ mod tests {
         assert_eq!(inner, ExtImplementedStruct(0));
         assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
 
+        
         ext.set(ExtImplementedStruct(0));
         ext.set(ExtImplementedStruct(1));
 

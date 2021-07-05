@@ -229,7 +229,7 @@ mod tests {
 
         message_queue.queue(Message::new_system(
                 ProgramId::system(),
-                Payload::new(vec![0]),
+                Payload::from(vec![0]),
                 128,
                 256
             )
@@ -241,13 +241,13 @@ mod tests {
         message_queue.queue_many(vec![
             Message::new_system(
                 ProgramId::from(1),
-                Payload::new(vec![1]),
+                Payload::from(vec![1]),
                 128,
                 512
             ),
             Message::new_system(
                 ProgramId::from(2),
-                Payload::new(vec![2]),
+                Payload::from(vec![2]),
                 128,
                 1024
             ),
@@ -268,29 +268,29 @@ mod tests {
     #[test]
     fn allocation_storage_interaction() {
         let mut allocation_storage = InMemoryAllocationStorage::new(vec![
-            (PageNumber::new(1), ProgramId::from(10)),
-            (PageNumber::new(2), ProgramId::from(20)),
+            (PageNumber::from(1), ProgramId::from(10)),
+            (PageNumber::from(2), ProgramId::from(20)),
         ]);
 
-        assert!(allocation_storage.exists(PageNumber::new(2)));
+        assert!(allocation_storage.exists(PageNumber::from(2)));
 
-        let page_owner = allocation_storage.get(PageNumber::new(2));
+        let page_owner = allocation_storage.get(PageNumber::from(2));
         
         assert_eq!(page_owner.unwrap(), ProgramId::from(20));
-        assert!(allocation_storage.exists(PageNumber::new(2)));
+        assert!(allocation_storage.exists(PageNumber::from(2)));
 
-        let page_owner = allocation_storage.remove(PageNumber::new(2));
+        let page_owner = allocation_storage.remove(PageNumber::from(2));
 
         assert_eq!(page_owner.unwrap(), ProgramId::from(20));
-        assert!(!allocation_storage.exists(PageNumber::new(2)));
+        assert!(!allocation_storage.exists(PageNumber::from(2)));
 
-        allocation_storage.set(PageNumber::new(2), ProgramId::from(200));
+        allocation_storage.set(PageNumber::from(2), ProgramId::from(200));
 
         let remaining_allocation_storage = allocation_storage.drain();
 
         let expected_allocations = vec![
-            (PageNumber::new(1), ProgramId::from(10)),
-            (PageNumber::new(2), ProgramId::from(200)),
+            (PageNumber::from(1), ProgramId::from(10)),
+            (PageNumber::from(2), ProgramId::from(200)),
         ];
 
         assert_eq!(remaining_allocation_storage.len(), expected_allocations.len());
