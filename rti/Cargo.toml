@@ -17,6 +17,7 @@ log = { version = "0.4", optional = true }
 
 # Internal deps
 gear-core = { path = "../../gear-core", optional = true }
+gear-runner = { path = "../../gear-core/gear-runner", optional = true }
 gear-common = { path = "../common", default-features = false }
 
 # Substrate deps
@@ -30,6 +31,7 @@ sp-std = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git
 default = ["std"]
 std = [
     "gear-core",
+    "gear-runner",
     "sp-core/std",
     "sp-std/std",
     "codec/std",

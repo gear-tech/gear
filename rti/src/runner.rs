@@ -16,10 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::{
-    runner::{Config, Runner},
-    storage::Storage,
-};
+use gear_core::storage::Storage;
+use gear_runner::runner::{Config, Runner};
 
 use crate::ext::*;
 
