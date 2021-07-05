@@ -51,7 +51,9 @@ impl GasCounter for GasCounterUnlimited {
         ChargeResult::Enough
     }
 
-    fn left(&self) -> u64 { u64::MAX }
+    fn left(&self) -> u64 {
+        u64::MAX
+    }
 }
 
 impl GasCounter for GasCounterLimited {
@@ -67,18 +69,19 @@ impl GasCounter for GasCounterLimited {
         ChargeResult::Enough
     }
 
-    fn left(&self) -> u64 { self.0 }
+    fn left(&self) -> u64 {
+        self.0
+    }
 }
 
 /// Instrument code with gas-counting instructions.
 pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     use pwasm_utils::rules::{InstructionType, Metering};
-    
-    let module = parity_wasm::elements::Module::from_bytes(code)
-        .map_err(|e| {
-            log::error!("Error decoding module: {}", e);
-            InstrumentError::Decode
-        })?;
+
+    let module = parity_wasm::elements::Module::from_bytes(code).map_err(|e| {
+        log::error!("Error decoding module: {}", e);
+        InstrumentError::Decode
+    })?;
 
     let instrumented_module = pwasm_utils::inject_gas_counter(
         module,
@@ -86,21 +89,23 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
             // TODO: put into config/processing
             1000,
             // Memory.grow is forbidden
-            [(InstructionType::GrowMemory, Metering::Forbidden)].iter().cloned().collect(),
-        ).with_forbidden_floats(),
+            [(InstructionType::GrowMemory, Metering::Forbidden)]
+                .iter()
+                .cloned()
+                .collect(),
+        )
+        .with_forbidden_floats(),
         "env",
     )
-        .map_err(|_module| {
-            log::error!("Error injecting gas counter");
-            InstrumentError::GasInjection
-        })?;
+    .map_err(|_module| {
+        log::error!("Error injecting gas counter");
+        InstrumentError::GasInjection
+    })?;
 
-
-    parity_wasm::elements::serialize(instrumented_module)
-        .map_err(|e| {
-            log::error!("Error encoding module: {}", e);
-            InstrumentError::Encode
-        })
+    parity_wasm::elements::serialize(instrumented_module).map_err(|e| {
+        log::error!("Error encoding module: {}", e);
+        InstrumentError::Encode
+    })
 }
 
 

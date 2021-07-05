@@ -23,3 +23,9 @@ wabt = "0.10.0"
 [features]
 default = []
 strict = []
+
+[workspace]
+members = [
+    "gear-backend",
+    "gear-runner",
+]

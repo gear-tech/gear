@@ -4,8 +4,8 @@ use alloc::rc::Rc;
 use alloc::vec::Vec;
 use core::cell::RefCell;
 
-use codec::{Encode, Decode};
 use crate::program::ProgramId;
+use codec::{Decode, Encode};
 
 /// Message payload.
 #[derive(Clone, Debug, Decode, Encode, derive_more::From, PartialEq, Eq)]
@@ -61,7 +61,7 @@ impl From<Message> for IncomingMessage {
         IncomingMessage {
             source: s.source(),
             payload: s.payload,
-            gas_limit: s. gas_limit,
+            gas_limit: s.gas_limit,
             value: s.value,
         }
     }
@@ -69,22 +69,23 @@ impl From<Message> for IncomingMessage {
 
 impl IncomingMessage {
     /// New incomig message from specific `source`, `payload` and `gas_limit`.
-    pub fn new(
-        source: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Self {
-        Self { source, payload, gas_limit, value  }
+    pub fn new(source: ProgramId, payload: Payload, gas_limit: u64, value: u128) -> Self {
+        Self {
+            source,
+            payload,
+            gas_limit,
+            value,
+        }
     }
 
     /// New system incominng messaage.
-    pub fn new_system(
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Self {
-        Self { source: ProgramId::system(), payload, gas_limit, value }
+    pub fn new_system(payload: Payload, gas_limit: u64, value: u128) -> Self {
+        Self {
+            source: ProgramId::system(),
+            payload,
+            gas_limit,
+            value,
+        }
     }
 }
 
@@ -99,13 +100,13 @@ pub struct OutgoingMessage {
 
 impl OutgoingMessage {
     /// New outgoing message.
-    pub fn new(
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Self {
-        Self { dest, payload, gas_limit, value }
+    pub fn new(dest: ProgramId, payload: Payload, gas_limit: u64, value: u128) -> Self {
+        Self {
+            dest,
+            payload,
+            gas_limit,
+            value,
+        }
     }
 
     /// Convert outgoing message to the stored message by providing `source`
@@ -137,13 +138,14 @@ pub struct Message {
 
 impl Message {
     /// New system message to the specific program.
-    pub fn new_system(
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Message {
-        Message { source: 0.into(), dest, payload, gas_limit, value }
+    pub fn new_system(dest: ProgramId, payload: Payload, gas_limit: u64, value: u128) -> Message {
+        Message {
+            source: 0.into(),
+            dest,
+            payload,
+            gas_limit,
+            value,
+        }
     }
 
     /// Return destination of this message.
@@ -194,11 +196,7 @@ impl MessageContext {
     /// Create context by providing incoming message for the program.
     pub fn new(incoming_message: IncomingMessage) -> MessageContext {
         MessageContext {
-            state: Rc::new(RefCell::new(
-                MessageState {
-                    outgoing: vec![],
-                }
-            )),
+            state: Rc::new(RefCell::new(MessageState { outgoing: vec![] })),
             outgoing_limit: 128,
             current: Rc::new(incoming_message),
         }

@@ -1,16 +1,16 @@
-//! Wasmtime extensions for memory and memory context.
+//! Wasmi extensions for memory and memory context.
 
 use alloc::boxed::Box;
 use core::any::Any;
 
 use gear_core::memory::{Error, Memory, PageNumber};
 
-/// Wrapper for wasmtime memory.
-pub struct MemoryWrap(wasmtime::Memory);
+/// Wrapper for wasmi::MemoryRef.
+pub struct MemoryWrap(wasmi::MemoryRef);
 
 impl MemoryWrap {
-    /// Wrap wasmtime memory for Memory trait.
-    pub fn new(mem: wasmtime::Memory) -> Self {
+    /// Wrap wasmi::MemoryRef for Memory trait.
+    pub fn new(mem: wasmi::MemoryRef) -> Self {
         MemoryWrap(mem)
     }
 }
@@ -19,40 +19,33 @@ impl MemoryWrap {
 impl Memory for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.0
-            .grow(pages.raw())
-            .map(|offset| {
-                cfg_if::cfg_if! {
-                    if #[cfg(target_os = "linux")] {
-
-                        // lock pages after grow
-                        self.lock(offset.into(), pages);
-                    }
-                }
-                offset.into()
-            })
+            .grow(wasmi::memory_units::Pages(pages.raw() as usize))
+            .map(|prev| (prev.0 as u32).into())
             .map_err(|_| Error::OutOfMemory)
     }
 
     fn size(&self) -> PageNumber {
-        self.0.size().into()
+        (self.0.current_size().0 as u32).into()
     }
 
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
         self.0
-            .write(offset, buffer)
+            .set(offset as u32, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
     fn read(&self, offset: usize, buffer: &mut [u8]) {
-        self.0.read(offset, buffer).expect("Memory out of bounds.");
+        self.0
+            .get_into(offset as u32, buffer)
+            .expect("Memory out of bounds.");
     }
 
     fn data_size(&self) -> usize {
-        self.0.data_size()
+        (self.0.current_size().0 as u32 * 65536) as usize
     }
 
     fn data_ptr(&self) -> *mut u8 {
-        self.0.data_ptr()
+        self.0.direct_access_mut().as_mut().as_mut_ptr()
     }
 
     fn clone(&self) -> Box<dyn Memory> {
@@ -60,10 +53,7 @@ impl Memory for MemoryWrap {
     }
 
     fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8 {
-        let base = self
-            .0
-            .data_ptr()
-            .wrapping_add(65536 * offset.raw() as usize);
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
         let length = 65536usize * length.raw() as usize;
 
         // So we can later trigger SIGSEGV by performing a read
@@ -74,10 +64,7 @@ impl Memory for MemoryWrap {
     }
 
     fn unlock(&self, offset: PageNumber, length: PageNumber) {
-        let base = self
-            .0
-            .data_ptr()
-            .wrapping_add(65536 * offset.raw() as usize);
+        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
         let length = 65536usize * length.raw() as usize;
 
         // Set r/w protection
@@ -112,14 +99,16 @@ mod tests {
         static_pages: u32,
         max_pages: u32,
     ) -> MemoryContext<InMemoryAllocationStorage> {
-        use wasmtime::{Engine, Limits, Memory as WasmMemory, MemoryType, Store};
+        use core::convert::TryInto;
+        use wasmi::{memory_units::Pages, MemoryInstance as WasmMemory};
 
-        let engine = Engine::default();
-        let store = Store::new(&engine);
-
-        let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
-        let memory =
-            MemoryWrap::new(WasmMemory::new(&store, memory_ty).expect("Memory creation failed"));
+        let memory = MemoryWrap::new(
+            WasmMemory::alloc(
+                Pages(static_pages.try_into().unwrap()),
+                Some(Pages(max_pages.try_into().unwrap())),
+            )
+            .expect("Memory creation failed"),
+        );
 
         MemoryContext::new(
             0.into(),
