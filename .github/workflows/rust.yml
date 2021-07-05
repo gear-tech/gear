@@ -14,16 +14,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          components: rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+    - uses: actions/checkout@v2
+    - run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - run: |
+        cargo clippy -- -D warnings
+        cd gear-backend && cargo clippy -- -D warnings
+        cd ..
+        cd gear-runner  && cargo clippy -- -D warnings
 
   build:
     runs-on: ubuntu-latest

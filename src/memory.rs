@@ -196,11 +196,11 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         max_pages: PageNumber,
     ) -> Self {
         Self {
-            memory,
             program_id,
+            memory,
             allocations,
-            static_pages,
             max_pages,
+            static_pages,
         }
     }
 

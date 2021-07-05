@@ -16,7 +16,7 @@ use ::anyhow::{self};
 
 use super::memory::MemoryWrap;
 
-use gear_core::env::{Ext, LaterExt, PageAction};
+use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
 use gear_core::memory::{Memory, PageNumber};
 use gear_core::message::OutgoingMessage;
 use gear_core::program::ProgramId;
@@ -327,8 +327,7 @@ impl<E: Ext + 'static> Environment<E> {
             .expect("failed to instantiate wasm module")
             .assert_no_start();
 
-        let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
-            Rc::new(RefCell::new(Vec::new()));
+        let touched: Rc<RefCell<Vec<PageInfo>>> = Rc::new(RefCell::new(Vec::new()));
 
         self.ext.set(ext);
         let mut runtime = Runtime {

@@ -114,13 +114,13 @@ impl MessageQueue for InMemoryMessageQueue {
 
 /// Allocations storage.
 pub trait AllocationStorage {
-    /// Get the owner of the speicific page.
+    /// Get the owner of the specific page.
     fn get(&self, page: PageNumber) -> Option<ProgramId>;
 
-    /// Remove owner of the speicifc page.
+    /// Remove owner of the specific page.
     fn remove(&mut self, page: PageNumber) -> Option<ProgramId>;
 
-    /// Set owner of the speicifc page.
+    /// Set owner of the specific page.
     fn set(&mut self, page: PageNumber, program: ProgramId);
 
     /// Check if owner of the specific page is set.

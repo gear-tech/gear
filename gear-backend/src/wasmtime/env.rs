@@ -11,7 +11,7 @@ use ::anyhow::{self, anyhow};
 
 use super::memory::MemoryWrap;
 
-use gear_core::env::{Ext, LaterExt, PageAction};
+use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
 use gear_core::memory::{Memory, PageNumber};
 use gear_core::message::OutgoingMessage;
 use gear_core::program::ProgramId;
@@ -69,26 +69,25 @@ impl<E: Ext + 'static> Environment<E> {
                       value_ptr: i32| {
                     let message_ptr = message_ptr as u32 as usize;
                     let message_len = message_len as u32 as usize;
-                    if ext
-                        .with(|ext: &mut E| {
-                            let mut data = vec![0u8; message_len];
-                            ext.get_mem(message_ptr, &mut data);
-                            let mut program_id = [0u8; 32];
-                            ext.get_mem(program_id_ptr as isize as _, &mut program_id);
-                            let program_id = ProgramId::from_slice(&program_id);
+                    let result = ext.with(|ext: &mut E| {
+                        let mut data = vec![0u8; message_len];
+                        ext.get_mem(message_ptr, &mut data);
+                        let mut program_id = [0u8; 32];
+                        ext.get_mem(program_id_ptr as isize as _, &mut program_id);
+                        let program_id = ProgramId::from_slice(&program_id);
 
-                            let mut value_le = [0u8; 16];
-                            ext.get_mem(value_ptr as isize as _, &mut value_le);
+                        let mut value_le = [0u8; 16];
+                        ext.get_mem(value_ptr as isize as _, &mut value_le);
 
-                            ext.send(OutgoingMessage::new(
-                                program_id,
-                                data.into(),
-                                gas_limit as _,
-                                u128::from_le_bytes(value_le),
-                            ))
-                        })
-                        .is_err()
-                    {
+                        ext.send(OutgoingMessage::new(
+                            program_id,
+                            data.into(),
+                            gas_limit as _,
+                            u128::from_le_bytes(value_le),
+                        ))
+                    });
+
+                    if result.is_err() {
                         return Err(wasmtime::Trap::new("Trapping: unable to send message"));
                     }
 
@@ -162,7 +161,9 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(&store, move |val: i32| {
                 if ext.with(|ext: &mut E| ext.gas(val as _)).is_err() {
-                    Err(wasmtime::Trap::new("Trapping: unable to send message"))
+                    Err(wasmtime::Trap::new(
+                        "Trapping: unable to report about gas used",
+                    ))
                 } else {
                     Ok(())
                 }
@@ -183,13 +184,13 @@ impl<E: Ext + 'static> Environment<E> {
         Self {
             store,
             ext,
-            alloc,
             send,
+            source,
+            alloc,
             free,
             size,
             read,
             debug,
-            source,
             gas,
             value,
         }
@@ -272,8 +273,7 @@ impl<E: Ext + 'static> Environment<E> {
         entry_point: &str,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
         let module = Module::new(self.store.engine(), binary).expect("Error creating module");
-        let touched: Rc<RefCell<Vec<(PageNumber, PageAction, *const u8)>>> =
-            Rc::new(RefCell::new(Vec::new()));
+        let touched: Rc<RefCell<Vec<PageInfo>>> = Rc::new(RefCell::new(Vec::new()));
 
         cfg_if::cfg_if! {
             if #[cfg(target_os = "linux")] {
@@ -306,10 +306,9 @@ impl<E: Ext + 'static> Environment<E> {
         let result = self.run_inner(module, static_area, memory, move |instance| {
             instance
                 .get_func(entry_point)
-                .ok_or(anyhow::format_err!(
-                    "failed to find `{}` function export",
-                    entry_point
-                ))
+                .ok_or_else(|| {
+                    anyhow::format_err!("failed to find `{}` function export", entry_point)
+                })
                 .and_then(|entry_func| entry_func.call(&[]))
                 .map(|_| ())
         });
@@ -345,10 +344,17 @@ impl<E: Ext + 'static> Environment<E> {
     }
 }
 
+impl<E: Ext + 'static> Default for Environment<E> {
+    /// Creates a default environment.
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn handle_sigsegv<E: Ext + 'static>(
     ext: &LaterExt<E>,
-    mut touched: core::cell::RefMut<Vec<(PageNumber, PageAction, *const u8)>>,
+    mut touched: core::cell::RefMut<Vec<PageInfo>>,
     base: *mut u8,
     signum: libc::c_int,
     siginfo: *const libc::siginfo_t,
