@@ -108,8 +108,50 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     })
 }
 
-/// Maximum theoretical gas limit.
 #[cfg(test)]
-pub fn max_gas() -> u64 {
-    u64::max_value()
+/// This module contains tests of GasCounter's variations
+mod tests {
+    use super::{ChargeResult, GasCounter, GasCounterLimited, GasCounterUnlimited};
+
+    /// Maximum theoretical gas limit.
+    pub fn max_gas() -> u64 {
+        u64::MAX
+    }
+
+    #[test]
+    /// Test that GasCounterUnlimited object is always Enough for `charge(...)`
+    /// and the remaining gas is always at it's maximum
+    fn unlimited_gas_counter_charging() {
+        let mut counter = GasCounterUnlimited;
+
+        assert_eq!(counter.left(), max_gas());
+
+        let result = counter.charge(0);
+
+        assert_eq!(result, ChargeResult::Enough);
+        assert_eq!(counter.left(), max_gas());
+
+        let result = counter.charge(u32::MAX);
+
+        assert_eq!(result, ChargeResult::Enough);
+        assert_eq!(counter.left(), max_gas());
+    }
+
+    #[test]
+    /// Test that GasCounterLimited object returns Enough and decreases the remaining count
+    /// on calling `charge(...)` when the remaining gas exceeds the required value,
+    /// otherwise returns NotEnough
+    fn limited_gas_counter_charging() {
+        let mut counter = GasCounterLimited(200);
+
+        let result = counter.charge(100);
+
+        assert_eq!(result, ChargeResult::Enough);
+        assert_eq!(counter.left(), 100);
+
+        let result = counter.charge(101);
+
+        assert_eq!(result, ChargeResult::NotEnough);
+        assert_eq!(counter.left(), 100);
+    }
 }

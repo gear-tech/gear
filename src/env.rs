@@ -116,3 +116,135 @@ impl<E: Ext> LaterExt<E> {
             .expect("Unset should be paired with set and called after")
     }
 }
+
+#[cfg(test)]
+/// This module contains tests of interacting with LaterExt
+mod tests {
+    use super::*;
+
+    /// Struct with internal value to interact with LaterExt
+    #[derive(Debug, PartialEq)]
+    struct ExtImplementedStruct(u8);
+
+    /// Empty Ext implementation for test struct
+    impl Ext for ExtImplementedStruct {
+        fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> {
+            Err("")
+        }
+        fn send(&mut self, _msg: OutgoingMessage) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn source(&mut self) -> ProgramId {
+            ProgramId::from(0)
+        }
+        fn free(&mut self, _ptr: PageNumber) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn debug(&mut self, _data: &str) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn set_mem(&mut self, _ptr: usize, _val: &[u8]) {}
+        fn get_mem(&mut self, _ptr: usize, _buffer: &mut [u8]) {}
+        fn msg(&mut self) -> &[u8] {
+            &[]
+        }
+        fn memory_access(&self, _page: PageNumber) -> PageAction {
+            PageAction::None
+        }
+        fn memory_lock(&self) {}
+        fn memory_unlock(&self) {}
+        fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn value(&mut self) -> u128 {
+            0
+        }
+    }
+
+    #[test]
+    /// Test that the new LaterExt object contains reference on None value
+    fn empty_ext_creation() {
+        let ext = LaterExt::<ExtImplementedStruct>::new();
+
+        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
+    }
+
+    #[test]
+    /// Test that we are able to set and unset LaterExt value
+    fn setting_and_unsetting_inner_ext() {
+        let mut ext = LaterExt::<ExtImplementedStruct>::new();
+
+        ext.set(ExtImplementedStruct(0));
+
+        assert_eq!(
+            ext.inner,
+            Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
+        );
+
+        let inner = ext.unset();
+
+        assert_eq!(inner, ExtImplementedStruct(0));
+        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
+
+        ext.set(ExtImplementedStruct(0));
+        // When we set a new value, the previous one is reset
+        ext.set(ExtImplementedStruct(1));
+
+        let inner = ext.unset();
+
+        assert_eq!(inner, ExtImplementedStruct(1));
+        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
+    }
+
+    #[test]
+    #[should_panic(expected = "Unset should be paired with set and called after")]
+    /// Test that unsetting an empty value causes panic
+    fn unsetting_empty_ext() {
+        let mut ext = LaterExt::<ExtImplementedStruct>::new();
+
+        let _ = ext.unset();
+    }
+
+    #[test]
+    /// Test that ext's clone still refers to the same inner object as the original one
+    fn ext_cloning() {
+        let mut ext_source = LaterExt::<ExtImplementedStruct>::new();
+        let mut ext_clone = ext_source.clone();
+
+        // ext_clone refers the same inner as ext_source,
+        // so setting on one causes setting on other
+        ext_source.set(ExtImplementedStruct(0));
+
+        let inner = ext_clone.unset();
+
+        assert_eq!(inner, ExtImplementedStruct(0));
+    }
+
+    /// Test function of format `Fn(&mut E: Ext) -> R`
+    /// to call `fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R`.
+    /// For example, returns the field of ext's inner value.
+    fn converter(e: &mut ExtImplementedStruct) -> u8 {
+        e.0
+    }
+
+    #[test]
+    /// Test that ext's `with<R>(...)` works correct when the inner is set
+    fn calling_fn_with_inner_ext() {
+        let mut ext = LaterExt::<ExtImplementedStruct>::new();
+        ext.set(ExtImplementedStruct(0));
+
+        let converted_inner = ext.with(converter);
+
+        assert_eq!(converted_inner, 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "with should be called only when inner is set")]
+    /// Test that calling ext's `with<R>(...)` causes panic
+    /// when the inner value was not set or was unsetted
+    fn calling_fn_with_empty_ext() {
+        let ext = LaterExt::<ExtImplementedStruct>::new();
+
+        let _ = ext.with(converter);
+    }
+}
