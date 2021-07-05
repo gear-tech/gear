@@ -1,18 +1,21 @@
 //! Module for running programs.
 
-use wasmtime::{Module, Memory as WasmMemory};
-use codec::{Encode, Decode};
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
 use anyhow::Result;
+use codec::{Decode, Encode};
 
-use crate::{
-    env::{Environment, Ext as EnvExt, PageAction},
-    memory::{Allocations, MemoryContext, PageNumber},
+use gear_core::{
+    env::{Ext as EnvExt, PageAction},
+    gas::{self, ChargeResult, GasCounter, GasCounterLimited},
+    memory::{Allocations, MemoryContext, PageNumber, Memory},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
-    gas::{self, GasCounter, GasCounterLimited, ChargeResult},
 };
 
+use gear_backend::wasmtime::env::Environment;
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
@@ -24,7 +27,10 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { static_pages: BASIC_PAGES.into(), max_pages: MAX_PAGES.into() }
+        Self {
+            static_pages: BASIC_PAGES.into(),
+            max_pages: MAX_PAGES.into(),
+        }
     }
 }
 
@@ -44,19 +50,18 @@ pub struct RunNextResult {
 impl RunNextResult {
     /// Result that notes that some log message had been handled, otherwise empty.
     pub(crate) fn log() -> Self {
-        RunNextResult { handled: 1, ..Default::default() }
+        RunNextResult {
+            handled: 1,
+            ..Default::default()
+        }
     }
 
     /// Accrue one run of the message hadling
     pub fn accrue(&mut self, program_id: ProgramId, result: RunResult) {
         self.handled += 1;
         self.touched.extend(result.touched.into_iter());
-        self.gas_left.push(
-            (program_id, result.gas_left)
-        );
-        self.gas_spent.push(
-            (program_id, result.gas_spent)
-        );
+        self.gas_left.push((program_id, result.gas_left));
+        self.gas_spent.push((program_id, result.gas_spent));
     }
 
     /// Empty run result.
@@ -79,7 +84,7 @@ impl RunNextResult {
 pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
-    pub(crate) memory: WasmMemory,
+    pub(crate) memory: Box<dyn Memory>,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
     env: Environment<Ext<AS>>,
@@ -89,11 +94,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     /// New runner instance.
     ///
     /// Provide configuration, storage and memory state.
-    pub fn new(
-        config: &Config,
-        storage: Storage<AS, MQ, PS>,
-        persistent_memory: &[u8],
-    ) -> Self {
+    pub fn new(config: &Config, storage: Storage<AS, MQ, PS>, persistent_memory: &[u8]) -> Self {
         // memory need to be at least static_pages + persistent_memory length (in pages)
         let persistent_pages = persistent_memory.len() / BASIC_PAGE_SIZE;
         let total_pages = config.static_pages.raw() + persistent_pages as u32;
@@ -103,14 +104,20 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 
         let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
 
-        memory.write(persistent_region_start, persistent_memory).expect("Memory out of bounds.");
+        memory
+            .write(persistent_region_start, persistent_memory)
+            .expect("Memory out of bounds.");
 
-        let Storage { allocation_storage, message_queue, program_storage } = storage;
+        let Storage {
+            allocation_storage,
+            message_queue,
+            program_storage,
+        } = storage;
 
         Self {
             program_storage,
             message_queue,
-            memory,
+            memory: Box::new(memory),
             allocations: Allocations::new(allocation_storage),
             config: config.clone(),
             env,
@@ -124,7 +131,9 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     pub fn run_next(&mut self) -> Result<RunNextResult> {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
-            None => { return Ok(RunNextResult::empty()); }
+            None => {
+                return Ok(RunNextResult::empty());
+            }
         };
 
         if next_message.dest() == 0.into() {
@@ -144,23 +153,18 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 
             let gas_limit = next_message.gas_limit();
 
-            let module = Module::new(
-                self.env.engine(),
-                &gas::instrument(program.code())
-                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-            )?;
-
             let result = RunNextResult::from_single(
                 next_message.source(),
                 run(
                     &mut self.env,
                     &mut context,
-                    module,
+                    &gas::instrument(program.code())
+                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
                     &mut program,
                     EntryPoint::Handle,
                     &next_message.into(),
                     gas_limit,
-                )?
+                )?,
             );
 
             self.message_queue
@@ -175,10 +179,22 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     ///
     /// This will return underlyign storage and memory state.
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
-        let mut persistent_memory = vec![0u8; self.memory.data_size() - self.static_pages().raw() as usize * BASIC_PAGE_SIZE];
-        self.memory.read(self.static_pages().raw() as usize * BASIC_PAGE_SIZE, &mut persistent_memory).expect("Persistent memory out of bounds");
+        let mut persistent_memory = vec![
+            0u8;
+            self.memory.data_size()
+                - self.static_pages().raw() as usize * BASIC_PAGE_SIZE
+        ];
+        self.memory.read(
+            self.static_pages().raw() as usize * BASIC_PAGE_SIZE,
+            &mut persistent_memory,
+        );
 
-        let Runner { program_storage, message_queue, allocations, .. } = self;
+        let Runner {
+            program_storage,
+            message_queue,
+            allocations,
+            ..
+        } = self;
 
         let allocation_storage = match allocations.drain() {
             Ok(v) => v,
@@ -208,11 +224,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     }
 
     fn create_context(&self) -> RunningContext<AS> {
-        RunningContext::new(
-            &self.config,
-            self.memory.clone(),
-            self.allocations.clone(),
-        )
+        RunningContext::new(&self.config, self.memory.clone(), self.allocations.clone())
     }
 
     /// Initialize new program.
@@ -232,7 +244,8 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             program.clear_static();
             self.program_storage.set(program);
         } else {
-            self.program_storage.set(Program::new(program_id, code, vec![]));
+            self.program_storage
+                .set(Program::new(program_id, code, vec![]));
         }
 
         let mut context = self.create_context();
@@ -242,16 +255,11 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .expect("Added above; cannot fail");
         let msg = IncomingMessage::new_system(init_msg.into(), gas_limit, value);
 
-        let module = Module::new(
-            self.env.engine(),
-            &gas::instrument(program.code())
-                .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-        )?;
-
         let res = run(
             &mut self.env,
             &mut context,
-            module,
+            &gas::instrument(program.code())
+                .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
             &mut program,
             EntryPoint::Init,
             &msg,
@@ -273,8 +281,12 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         gas_limit: u64,
         value: u128,
     ) {
-        self.message_queue
-            .queue(Message::new_system(destination, payload.into(), gas_limit, value))
+        self.message_queue.queue(Message::new_system(
+            destination,
+            payload.into(),
+            gas_limit,
+            value,
+        ))
     }
 }
 
@@ -299,17 +311,13 @@ static MAX_PAGES: u32 = 16384;
 
 struct RunningContext<AS: AllocationStorage> {
     config: Config,
-    memory: WasmMemory,
+    memory: Box<dyn Memory>,
     allocations: Allocations<AS>,
     message_buf: Vec<Message>,
 }
 
 impl<AS: AllocationStorage> RunningContext<AS> {
-    fn new(
-        config: &Config,
-        memory: WasmMemory,
-        allocations: Allocations<AS>,
-    ) -> Self {
+    fn new(config: &Config, memory: Box<dyn Memory>, allocations: Allocations<AS>) -> Self {
         Self {
             config: config.clone(),
             message_buf: vec![],
@@ -318,8 +326,8 @@ impl<AS: AllocationStorage> RunningContext<AS> {
         }
     }
 
-    fn wasmtime_memory(&self) -> wasmtime::Memory {
-        self.memory.clone()
+    fn memory(&self) -> &dyn Memory {
+        &*self.memory
     }
 
     fn static_pages(&self) -> PageNumber {
@@ -348,7 +356,6 @@ pub struct RunResult {
     pub gas_spent: u64,
 }
 
-
 struct Ext<AS: AllocationStorage + 'static> {
     memory_context: MemoryContext<AS>,
     messages: MessageContext,
@@ -357,7 +364,9 @@ struct Ext<AS: AllocationStorage + 'static> {
 
 impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        self.memory_context.alloc(pages).map_err(|_e| "Allocation error")
+        self.memory_context
+            .alloc(pages)
+            .map_err(|_e| "Allocation error")
     }
 
     fn send(&mut self, msg: OutgoingMessage) -> Result<(), &'static str> {
@@ -378,10 +387,10 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 
     fn set_mem(&mut self, ptr: usize, val: &[u8]) {
-            self
-                .memory_context
-                .memory()
-                .write(ptr, val).expect("Memory out of bounds.");
+        self.memory_context
+            .memory()
+            .write(ptr, val)
+            .expect("Memory out of bounds.");
     }
 
     fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) {
@@ -428,19 +437,18 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
 fn run<AS: AllocationStorage + 'static>(
     env: &mut Environment<Ext<AS>>,
     context: &mut RunningContext<AS>,
-    module: Module,
+    binary: &[u8],
     program: &mut Program,
     entry_point: EntryPoint,
     message: &IncomingMessage,
     gas_limit: u64,
 ) -> Result<RunResult> {
-
     let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
-            Box::new(context.wasmtime_memory()),
+            context.memory().clone(),
             context.allocations.clone(),
             context.static_pages(),
             context.max_pages(),
@@ -455,18 +463,10 @@ fn run<AS: AllocationStorage + 'static>(
 
     let (res, mut ext, touched) = env.setup_and_run(
         ext,
-        module,
+        binary,
         static_area,
-        context.wasmtime_memory(),
-        move |instance| {
-            instance
-                .get_func(entry_point.into())
-                .ok_or(
-                    anyhow::format_err!("failed to find `{}` function export", Into::<&'static str>::into(entry_point))
-                )
-                .and_then(|entry_func| entry_func.call(&[]))
-                .map(|_| ())
-        },
+        context.memory(),
+        entry_point.into(),
     );
 
     res.map(move |_| {
@@ -557,7 +557,7 @@ mod tests {
 
         let mut runner = Runner::new(
             &Config::default(),
-            crate::storage::new_in_memory(
+            gear_core::storage::new_in_memory(
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -566,7 +566,13 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
+            .init_program(
+                1.into(),
+                parse_wat(wat),
+                "init".as_bytes().to_vec(),
+                u64::max_value(),
+                0,
+            )
             .expect("failed to init program");
 
         runner.run_next().expect("Failed to process next message");
@@ -582,7 +588,7 @@ mod tests {
             })
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), crate::gas::max_gas(), 0);
+        runner.queue_message(1.into(), "test".as_bytes().to_vec(), u64::max_value(), 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -653,7 +659,7 @@ mod tests {
 
         let mut runner = Runner::new(
             &Config::default(),
-            crate::storage::new_in_memory(
+            gear_core::storage::new_in_memory(
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -662,7 +668,7 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), vec![], crate::gas::max_gas(), 0)
+            .init_program(1.into(), parse_wat(wat), vec![], u64::max_value(), 0)
             .expect("Failed to init program");
 
         // check if page belongs to the program
@@ -682,7 +688,7 @@ mod tests {
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], crate::gas::max_gas(), 0);
+        runner.queue_message(1.into(), vec![256u32 as _], u64::max_value(), 0);
 
         runner.run_next().expect("Failed to process next message");
 
@@ -703,7 +709,7 @@ mod tests {
 
     #[test]
     // TODO: fix memory access logging for macos
-    #[cfg_attr(target_os="macos", ignore)]
+    #[cfg_attr(target_os = "macos", ignore)]
     fn mem_rw_access() {
         // Read in new allocatted page
         let wat_r = r#"
@@ -727,7 +733,7 @@ mod tests {
           )"#;
 
         // Write in new allocatted page
-        let wat_w= r#"
+        let wat_w = r#"
         (module
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "memory" (memory 1))
@@ -751,7 +757,7 @@ mod tests {
                 static_pages: 1.into(),
                 max_pages: 3.into(),
             },
-            crate::storage::new_in_memory(
+            gear_core::storage::new_in_memory(
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -759,12 +765,26 @@ mod tests {
             &[],
         );
 
-        let result = runner.init_program(1.into(), parse_wat(wat_r), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
+        let result = runner
+            .init_program(
+                1.into(),
+                parse_wat(wat_r),
+                "init".as_bytes().to_vec(),
+                u64::max_value(),
+                0,
+            )
             .expect("failed to init program 1");
 
         assert_eq!(result.touched[0], (1.into(), PageAction::Read));
 
-        let result = runner.init_program(2.into(), parse_wat(wat_w), "init".as_bytes().to_vec(), crate::gas::max_gas(), 0)
+        let result = runner
+            .init_program(
+                2.into(),
+                parse_wat(wat_w),
+                "init".as_bytes().to_vec(),
+                u64::max_value(),
+                0,
+            )
             .expect("failed to init program 2");
 
         assert_eq!(result.touched[0], (2.into(), PageAction::Write));
