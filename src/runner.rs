@@ -2,12 +2,12 @@ use gear_core::{
     memory::PageNumber,
     message::Message,
     program::{Program, ProgramId},
-    runner::{Config, Runner},
     storage::{
         new_in_memory, InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage,
         InMemoryStorage,
     },
 };
+use gear_runner::runner::{Config, Runner};
 use std::fmt::Write;
 use test_gear_sample::sample::{PayloadVariant, Test};
 
