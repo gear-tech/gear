@@ -6,5 +6,8 @@
 #[macro_use]
 extern crate alloc;
 
-#[cfg(feature = "wasmtime")]
+#[cfg(feature = "wasmtime_backend")]
 pub mod wasmtime;
+
+#[cfg(feature = "wasmi_backend")]
+pub mod wasmi;
