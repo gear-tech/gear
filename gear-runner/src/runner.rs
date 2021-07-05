@@ -9,7 +9,7 @@ use codec::{Decode, Encode};
 use gear_core::{
     env::{Ext as EnvExt, PageAction},
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
-    memory::{Allocations, MemoryContext, PageNumber, Memory},
+    memory::{Allocations, Memory, MemoryContext, PageNumber},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
@@ -159,7 +159,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     &mut self.env,
                     &mut context,
                     &gas::instrument(program.code())
-                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
+                        .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
                     &mut program,
                     EntryPoint::Handle,
                     &next_message.into(),

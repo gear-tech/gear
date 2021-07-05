@@ -1,10 +1,10 @@
 //! Module for programs.
 
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::fmt::{self, Write};
 
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 
 /// Program identifier.
 ///

@@ -1,10 +1,10 @@
 //! Module for memory and memory context.
 
-use codec::{Encode, Decode};
 use alloc::boxed::Box;
 use alloc::rc::Rc;
-use core::cell::RefCell;
+use codec::{Decode, Encode};
 use core::any::Any;
+use core::cell::RefCell;
 
 use crate::program::ProgramId;
 use crate::storage::AllocationStorage;
@@ -29,18 +29,22 @@ pub enum Error {
     ///
     /// It was allocated by another program.
     InvalidFree(PageNumber),
-    
+
     /// Out of bounds memory access
     MemoryAccessError,
 }
 
 /// Page number.
-#[derive(Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 pub struct PageNumber(u32);
 
 impl PageNumber {
     /// Return raw 32-bit page address.
-    pub fn raw(&self) -> u32 { self.0 }
+    pub fn raw(&self) -> u32 {
+        self.0
+    }
 }
 
 impl core::ops::Add for PageNumber {
@@ -60,7 +64,7 @@ impl core::ops::Sub for PageNumber {
 }
 
 /// Memory interface for the allocator.
-pub trait Memory : Any {
+pub trait Memory: Any {
     /// Grow memory by number of pages.
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
 
@@ -122,7 +126,7 @@ impl<AS: AllocationStorage> Allocations<AS> {
     /// Insert new allocation.
     pub fn insert(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
         if self.0.borrow().exists(page) {
-            return Err(Error::PageOccupied(page))
+            return Err(Error::PageOccupied(page));
         }
 
         self.0.borrow_mut().set(page, program_id);
@@ -145,9 +149,10 @@ impl<AS: AllocationStorage> Allocations<AS> {
 
     /// Drop allocation manager and return underlying `AllocationStorage`
     pub fn drain(self) -> Result<AS, Error> {
-        Ok(Rc::try_unwrap(self.0).map_err(|_| Error::AllocationsInUse)?.into_inner())
+        Ok(Rc::try_unwrap(self.0)
+            .map_err(|_| Error::AllocationsInUse)?
+            .into_inner())
     }
-
 }
 
 /// Memory context for the running program.
@@ -190,7 +195,13 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
-        Self { memory, program_id, allocations, static_pages, max_pages }
+        Self {
+            memory,
+            program_id,
+            allocations,
+            static_pages,
+            max_pages,
+        }
     }
 
     /// Return currently used program id.
@@ -206,7 +217,12 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 
         while found < pages.raw() {
             if candidate + pages.raw() > self.max_pages.raw() {
-                log::debug!("candidate: {}, pages: {}, max_pages: {}", candidate, pages.raw(), self.max_pages.raw());
+                log::debug!(
+                    "candidate: {}, pages: {}, max_pages: {}",
+                    candidate,
+                    pages.raw(),
+                    self.max_pages.raw()
+                );
                 return Err(Error::OutOfMemory);
             }
 
@@ -224,7 +240,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
             self.memory.grow(extra_grow.into())?;
         }
 
-        for page_num in candidate..candidate+found {
+        for page_num in candidate..candidate + found {
             self.allocations.insert(self.program_id, page_num.into())?;
         }
 
@@ -256,11 +272,13 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
 
     /// Lock memory access.
     pub fn memory_lock(&self) {
-        self.memory.lock(self.static_pages, self.max_pages - self.static_pages);
+        self.memory
+            .lock(self.static_pages, self.max_pages - self.static_pages);
     }
 
     /// Unlock memory access.
     pub fn memory_unlock(&self) {
-        self.memory.unlock(self.static_pages, self.max_pages - self.static_pages);
+        self.memory
+            .unlock(self.static_pages, self.max_pages - self.static_pages);
     }
 }
