@@ -1,4 +1,4 @@
-name: Rust
+name: CI
 
 on:
   push:
@@ -10,8 +10,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  fmt:
+    runs-on: ubuntu-latest
 
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,3 +34,7 @@ jobs:
       run: cargo build --features=strict
     - name: Run tests
       run: cargo test --features=strict
+    - name: Run gear-backend tests
+      run: cd gear-backend && cargo test --all-features
+    - name: Run gear-runner tests
+      run: cd gear-runner && cargo test

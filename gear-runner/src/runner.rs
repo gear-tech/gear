@@ -9,7 +9,7 @@ use codec::{Decode, Encode};
 use gear_core::{
     env::{Ext as EnvExt, PageAction},
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
-    memory::{Allocations, MemoryContext, PageNumber, Storable},
+    memory::{Allocations, Memory, MemoryContext, PageNumber},
     message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
@@ -84,7 +84,7 @@ impl RunNextResult {
 pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
-    pub(crate) memory: Box<dyn gear_core::memory::Storable>,
+    pub(crate) memory: Box<dyn Memory>,
     pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
     env: Environment<Ext<AS>>,
@@ -159,7 +159,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     &mut self.env,
                     &mut context,
                     &gas::instrument(program.code())
-                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
+                        .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
                     &mut program,
                     EntryPoint::Handle,
                     &next_message.into(),
@@ -311,13 +311,13 @@ static MAX_PAGES: u32 = 16384;
 
 struct RunningContext<AS: AllocationStorage> {
     config: Config,
-    memory: Box<dyn Storable>,
+    memory: Box<dyn Memory>,
     allocations: Allocations<AS>,
     message_buf: Vec<Message>,
 }
 
 impl<AS: AllocationStorage> RunningContext<AS> {
-    fn new(config: &Config, memory: Box<dyn Storable>, allocations: Allocations<AS>) -> Self {
+    fn new(config: &Config, memory: Box<dyn Memory>, allocations: Allocations<AS>) -> Self {
         Self {
             config: config.clone(),
             message_buf: vec![],
@@ -326,7 +326,7 @@ impl<AS: AllocationStorage> RunningContext<AS> {
         }
     }
 
-    fn memory(&self) -> &dyn Storable {
+    fn memory(&self) -> &dyn Memory {
         &*self.memory
     }
 
@@ -466,16 +466,7 @@ fn run<AS: AllocationStorage + 'static>(
         binary,
         static_area,
         context.memory(),
-        move |instance| {
-            instance
-                .get_func(entry_point.into())
-                .ok_or(anyhow::format_err!(
-                    "failed to find `{}` function export",
-                    Into::<&'static str>::into(entry_point)
-                ))
-                .and_then(|entry_func| entry_func.call(&[]))
-                .map(|_| ())
-        },
+        entry_point.into(),
     );
 
     res.map(move |_| {

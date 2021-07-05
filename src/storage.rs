@@ -1,14 +1,13 @@
 //! Storage backing abstractions
 
-use hashbrown::HashMap;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
-
+use hashbrown::HashMap;
 
 use crate::{
-    program::{ProgramId, Program},
-    message::Message,
     memory::PageNumber,
+    message::Message,
+    program::{Program, ProgramId},
 };
 
 /// Abstraction over program storage.
@@ -31,7 +30,9 @@ pub struct InMemoryProgramStorage {
 impl InMemoryProgramStorage {
     /// New in-memory program storage with specified number of programs already set.
     pub fn new(programs: Vec<Program>) -> Self {
-        Self { inner: programs.into_iter().map(|p| (p.id(), p)).collect() }
+        Self {
+            inner: programs.into_iter().map(|p| (p.id(), p)).collect(),
+        }
     }
 
     /// Drop the in-memory storage and return what is stored.
@@ -64,20 +65,25 @@ pub trait MessageQueue {
 
     /// Queue many messages.
     fn queue_many(&mut self, messages: Vec<Message>) {
-        for message in messages { self.queue(message) }
+        for message in messages {
+            self.queue(message)
+        }
     }
 }
 
 /// In-memory message queue (for tests).
 pub struct InMemoryMessageQueue {
     inner: VecDeque<Message>,
-    log: Vec<Message> // messages sent to /0
+    log: Vec<Message>, // messages sent to /0
 }
 
 impl InMemoryMessageQueue {
     /// New in-memory message queue consisting of the provided messages.
     pub fn new(messages: Vec<Message>) -> Self {
-        Self { inner: VecDeque::from(messages), log: Vec::new() }
+        Self {
+            inner: VecDeque::from(messages),
+            log: Vec::new(),
+        }
     }
 
     /// Drop the in-memory message queue returning what was stored in it.
@@ -131,7 +137,9 @@ pub struct InMemoryAllocationStorage {
 impl InMemoryAllocationStorage {
     /// New in-memory allocation storage.
     pub fn new(allocations: Vec<(PageNumber, ProgramId)>) -> Self {
-        Self { inner: allocations.into_iter().collect::<HashMap<_, _, _>>() }
+        Self {
+            inner: allocations.into_iter().collect::<HashMap<_, _, _>>(),
+        }
     }
 
     /// Drop the in-memory allocation storage returning what is allocated by what.
@@ -165,7 +173,8 @@ pub struct Storage<AS: AllocationStorage, MQ: MessageQueue, PS: ProgramStorage> 
 }
 
 /// Fully in-memory storage (for tests).
-pub type InMemoryStorage = Storage<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
+pub type InMemoryStorage =
+    Storage<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
 
 /// Create new in-memory storage for tests by providing all data.
 pub fn new_in_memory(

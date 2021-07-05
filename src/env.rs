@@ -69,7 +69,6 @@ pub trait Ext {
     fn value(&mut self) -> u128;
 }
 
-
 /// Struct for interacting with Ext
 pub struct LaterExt<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
