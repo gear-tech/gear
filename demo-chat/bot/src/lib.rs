@@ -83,7 +83,7 @@ pub unsafe extern "C" fn init() {
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
             STATE.set_name(s);
             let room_id = ProgramId::from_slice(
-                &decode_hex(room_id).expect("INTIALIZATION FAILED: INVALID ROOM ID"),
+                &decode_hex(room_id).expect("INITIALIZATION FAILED: INVALID ROOM ID"),
             );
             send_room(
                 room_id,
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn init() {
             );
         }
         _ => {
-            ext::debug("INITLAIZATION FAILED");
+            ext::debug("INITIALIZATION FAILED");
         }
     }
 
