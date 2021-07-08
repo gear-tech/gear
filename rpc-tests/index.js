@@ -204,7 +204,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
 
       // TODO: fix forever waiting
       // can wait forever if steps in expected parameter are higher than the actual processed messages
-      while (messagesProcessed.isNone || messagesProcessed.unwrap().toNumber() !== exp.step) {
+      while (messagesProcessed.toNumber() !== exp.step) {
         messagesProcessed = await api.query.gear.messagesProcessed();
       }
 
