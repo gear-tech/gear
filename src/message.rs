@@ -23,6 +23,10 @@ impl Payload {
 pub enum Error {
     /// Message limit exceeded.
     LimitExceeded,
+    /// An attempt to commit or to push a payload into an already formed message.
+    LateAccess,
+    /// No message found with given handle, or handle exceedes the maximum messages amount.
+    OutOfBounds,
 }
 
 /// Incoming message.
@@ -50,7 +54,7 @@ impl IncomingMessage {
         self.gas_limit
     }
 
-    /// Value of the message
+    /// Value of the message.
     pub fn value(&self) -> u128 {
         self.value
     }
@@ -78,7 +82,7 @@ impl IncomingMessage {
         }
     }
 
-    /// New system incominng messaage.
+    /// New system incoming message.
     pub fn new_system(payload: Payload, gas_limit: u64, value: u128) -> Self {
         Self {
             source: ProgramId::system(),
@@ -109,7 +113,7 @@ impl OutgoingMessage {
         }
     }
 
-    /// Convert outgoing message to the stored message by providing `source`
+    /// Convert outgoing message to the stored message by providing `source`.
     pub fn into_message(self, source: ProgramId) -> Message {
         Message {
             source,
@@ -132,7 +136,7 @@ pub struct Message {
     pub payload: Payload,
     /// Gas limit.
     pub gas_limit: u64,
-    /// Message value
+    /// Message value.
     pub value: u128,
 }
 
@@ -168,18 +172,27 @@ impl Message {
         self.gas_limit
     }
 
-    /// Message vaue
+    /// Message value.
     pub fn value(&self) -> u128 {
         self.value
     }
 }
 
+/// Message formation status.
+#[derive(Debug, PartialEq)]
+pub enum FormationStatus {
+    /// Message is fully formed and ready to be sent.
+    Formed,
+    /// Message is not fully formed yet.
+    NotFormed,
+}
+
 /// Message state of the current session.
 ///
-/// Contains all generated outgoing messages.
+/// Contains all generated outgoing messages with their formation statuses.
 #[derive(Debug)]
 pub struct MessageState {
-    outgoing: Vec<OutgoingMessage>,
+    outgoing: Vec<(OutgoingMessage, FormationStatus)>,
 }
 
 /// Message context for the currently running program.
@@ -202,13 +215,65 @@ impl MessageContext {
         }
     }
 
-    /// Send message to another program in this context.
-    pub fn send(&self, msg: OutgoingMessage) -> Result<(), Error> {
-        if self.state.borrow().outgoing.len() >= self.outgoing_limit {
+    /// Initialize a new message with `NotFormed` formation status and return its handle.
+    ///
+    /// Messages created this way should be commited with `commit(handle)` to be sent.
+    pub fn init(&self, msg: OutgoingMessage) -> Result<usize, Error> {
+        let mut state = self.state.borrow_mut();
+
+        let outgoing_count = state.outgoing.len();
+
+        if outgoing_count >= self.outgoing_limit {
             return Err(Error::LimitExceeded);
         }
 
-        self.state.borrow_mut().outgoing.push(msg);
+        state.outgoing.push((msg, FormationStatus::NotFormed));
+
+        Ok(outgoing_count)
+    }
+
+    /// Push an extra buffer into message payload by handle.
+    pub fn push(&self, handle: usize, buffer: &mut Vec<u8>) -> Result<(), Error> {
+        let mut state = self.state.borrow_mut();
+
+        if handle >= state.outgoing.len() {
+            return Err(Error::OutOfBounds);
+        }
+
+        if let (msg, FormationStatus::NotFormed) = &mut state.outgoing[handle] {
+            msg.payload.0.append(buffer);
+            return Ok(());
+        }
+
+        Err(Error::LateAccess)
+    }
+
+    /// Mark message as fully formed and ready for sending in this context by handle.
+    pub fn commit(&self, handle: usize) -> Result<(), Error> {
+        let mut state = self.state.borrow_mut();
+
+        if handle >= state.outgoing.len() {
+            return Err(Error::OutOfBounds);
+        }
+
+        match &mut state.outgoing[handle] {
+            (_, FormationStatus::Formed) => Err(Error::LateAccess),
+            (_, status) => {
+                *status = FormationStatus::Formed;
+                Ok(())
+            }
+        }
+    }
+
+    /// Send fully formed message to another program in this context.
+    pub fn send(&self, msg: OutgoingMessage) -> Result<(), Error> {
+        let mut state = self.state.borrow_mut();
+
+        if state.outgoing.len() >= self.outgoing_limit {
+            return Err(Error::LimitExceeded);
+        }
+
+        state.outgoing.push((msg, FormationStatus::Formed));
 
         Ok(())
     }
@@ -220,11 +285,20 @@ impl MessageContext {
 
     /// Drop this context.
     ///
-    /// Do it to retur nall message generated using this context.
+    /// Do it to return all messages generated using this context.
     pub fn drain(self) -> Vec<OutgoingMessage> {
-        let Self { state, .. } = self;
-        let mut st = state.borrow_mut();
+        let mut state = self.state.borrow_mut();
 
-        st.outgoing.drain(..).collect()
+        state
+            .outgoing
+            .drain(..)
+            .filter_map(|v| {
+                if v.1 == FormationStatus::Formed {
+                    Some(v.0)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
