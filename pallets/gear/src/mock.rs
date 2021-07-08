@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet;
+use crate as pallet_gear;
 use frame_support::parameter_types;
 use frame_system as system;
 use sp_core::H256;
@@ -25,8 +25,6 @@ use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-pub type AccountId = u64;
-type Balance = u128;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -35,15 +33,16 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		GearModule: pallet::{Pallet, Call, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Event<T>, Config<T>},
+		System: system::{Pallet, Call, Config, Storage, Event<T>},
+		Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Authorship: pallet_authorship::{Pallet, Storage},
 	}
 );
 
 impl pallet_balances::Config for Test {
 	type MaxLocks = ();
-	type Balance = Balance;
+	type Balance = u128;
 	type DustRemoval = ();
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
@@ -70,7 +69,7 @@ impl system::Config for Test {
 	type BlockNumber = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
-	type AccountId = AccountId;
+	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = Event;
@@ -85,7 +84,7 @@ impl system::Config for Test {
 	type OnSetCode = ();
 }
 
-impl pallet::Config for Test {
+impl pallet_gear::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type SubmitWeightPerByte = SubmitWeightPerByte;
@@ -106,10 +105,12 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 		.unwrap();
 
 	pallet_balances::GenesisConfig::<Test> {
-		balances: vec![(1, 1_u128 << 60), (2, 1_u128)],
+		balances: vec![(1, 1_000_000_000_000_u128), (2, 1_u128)],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
 
-	t.into()
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| System::set_block_number(1));
+	ext
 }

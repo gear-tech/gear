@@ -18,7 +18,7 @@ pub struct StorageQueue {
 }
 
 impl StorageQueue {
-    pub fn get(prefix: impl Into<Cow<'static, [u8]>>) -> StorageQueue {
+    pub fn get(prefix: impl Into<Cow<'static, [u8]>>) -> Self {
         let prefix: Cow<'static, [u8]> = prefix.into();
 
         let head_key = [prefix.as_ref(), b"head"].concat();
