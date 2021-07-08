@@ -3,7 +3,7 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
-use anyhow::Result;
+use anyhow::{Error, Result};
 use codec::{Decode, Encode};
 
 use gear_core::{
@@ -149,7 +149,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             let mut program = self
                 .program_storage
                 .get(next_message.dest())
-                .expect("Program not found");
+                .ok_or_else(|| Error::msg("Program not found"))?;
 
             let gas_limit = next_message.gas_limit();
 
