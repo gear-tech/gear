@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet;
-use sp_core::H256;
+use crate as pallet_gear;
 use frame_support::parameter_types;
-use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
-};
 use frame_system as system;
+use sp_core::H256;
+use sp_runtime::testing::Header;
+use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -34,9 +33,10 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		GearModule: pallet::{Pallet, Call, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Event<T>, Config<T>},
+		System: system::{Pallet, Call, Config, Storage, Event<T>},
+		Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Authorship: pallet_authorship::{Pallet, Storage},
 	}
 );
 
@@ -84,7 +84,7 @@ impl system::Config for Test {
 	type OnSetCode = ();
 }
 
-impl pallet::Config for Test {
+impl pallet_gear::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type SubmitWeightPerByte = SubmitWeightPerByte;
@@ -100,5 +100,17 @@ impl pallet_authorship::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+	let mut t = system::GenesisConfig::default()
+		.build_storage::<Test>()
+		.unwrap();
+
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![(1, 1_000_000_000_000_u128), (2, 1_u128)],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| System::set_block_number(1));
+	ext
 }

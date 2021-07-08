@@ -196,3 +196,34 @@ pub fn nonce_fetch_inc() -> u128 {
 
     original_nonce
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nonce_incremented() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            assert_eq!(nonce_fetch_inc(), 0_u128);
+            assert_eq!(nonce_fetch_inc(), 1_u128);
+            assert_eq!(nonce_fetch_inc(), 2_u128);
+        });
+    }
+
+    #[test]
+    fn program_decoded() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            let program_id = H256::from_low_u64_be(1);
+            let program = Program {
+                static_pages: Vec::new(),
+                code_hash,
+            };
+            set_code(code_hash, &code);
+            assert!(get_program(program_id).is_none());
+            set_program(program_id, program.clone());
+            assert_eq!(get_program(program_id).unwrap(), program);
+        });
+    }
+}

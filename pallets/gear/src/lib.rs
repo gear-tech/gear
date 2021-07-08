@@ -99,13 +99,16 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
+	#[pallet::getter(fn message_queue)]
 	pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn dequeue_limit)]
 	pub type DequeueLimit<T> = StorageValue<_, u32>;
 
 	#[pallet::storage]
-	pub type MessagesProcessed<T> = StorageValue<_, u32>;
+	#[pallet::getter(fn messages_processed)]
+	pub type MessagesProcessed<T> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -249,8 +252,11 @@ pub mod pallet {
 			//       specific pages.
 
 			let messages = <MessageQueue<T>>::take().unwrap_or_default();
-			let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
+			let messages_processed = <MessagesProcessed<T>>::get();
 
+			// `MessagesProcessed` counter should not be checked upfront because all the messages may turn out being the
+			// `init_program` variant which does not call `common::queue_message` and, therefore, can still be processed.
+			// TODO: consider moving this code inside the processing loop before the `rti::gear_executor::process()` call.
 			if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
 				return Ok(().into());
 			}
@@ -291,7 +297,7 @@ pub mod pallet {
 									Self::deposit_event(Event::InitFailure(program_id, MessageError::ValueTransfer));
 								} else {
 									Self::deposit_event(Event::ProgramInitialized(program_id));
-									total_handled += 1;
+									total_handled += execution_report.handled;
 
 									// handle refunds
 									for (destination, gas_charge) in execution_report.gas_charges {
@@ -339,16 +345,20 @@ pub mod pallet {
 			loop {
 				match rti::gear_executor::process() {
 					Ok(execution_report) => {
+						if execution_report.handled == 0 {
+							break;
+						}
+
 						total_handled += execution_report.handled;
 
-						<MessagesProcessed<T>>::mutate(|messages_processed| *messages_processed = Some(messages_processed.unwrap_or(0) + execution_report.handled));
-						let messages_processed = <MessagesProcessed<T>>::get().unwrap_or(0);
-						if <DequeueLimit<T>>::get().is_some() {
-							if <DequeueLimit<T>>::get().map(|limit| limit <= messages_processed).unwrap_or(false) {
+						<MessagesProcessed<T>>::mutate(|messages_processed|
+							*messages_processed = messages_processed.saturating_add(execution_report.handled));
+						let messages_processed = <MessagesProcessed<T>>::get();
+						if let Some(limit) = <DequeueLimit<T>>::get() {
+							if messages_processed >= limit {
 								break;
 							}
 						}
-						if execution_report.handled == 0 { break; }
 
 						for (destination, gas_left) in execution_report.gas_refunds {
 							let refund = gas_to_fee::<T>(gas_left);
