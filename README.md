@@ -2,7 +2,7 @@
 
 [![CI Status](https://github.com/gear-tech/gstd/workflows/CI/badge.svg)](https://github.com/gear-tech/gstd/actions)
 
-Standard library for smart contracts.
+Standard library for Gear smart contracts.
 
 ## License
 
