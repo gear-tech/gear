@@ -1,21 +1,19 @@
 [package]
 name = "gear-core"
 version = "0.1.0"
-authors = ["NikVolf <nikvolf@gmail.com>"]
+authors = ["Gear Technologies"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2", features = ["derive"] }
-derive_more = "0.99"
-anyhow = "1"
-log = "0.4"
-libc = "0.2"
-parity-wasm = "0.42"
-pwasm-utils = "0.17"
+anyhow = "1.0.41"
 cfg-if = "1.0.0"
+codec = { package = "parity-scale-codec", version = "2.2.0", features = ["derive"] }
+derive_more = "0.99.16"
 hashbrown = "0.11.2"
+log = "0.4.14"
+libc = "0.2.98"
+parity-wasm = "0.42.2"
+pwasm-utils = "0.18.1"
 
 [dev-dependencies]
 wabt = "0.10.0"

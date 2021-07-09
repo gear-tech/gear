@@ -175,7 +175,7 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 Signature::new(&[ValueType::I32][..], Some(ValueType::I32)),
                 self.alloc,
             ),
-            "send" => FuncInstance::alloc_host(
+            "gr_send" => FuncInstance::alloc_host(
                 Signature::new(
                     &[
                         ValueType::I32,
@@ -191,24 +191,24 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "free" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.free)
             }
-            "size" => {
+            "gr_size" => {
                 FuncInstance::alloc_host(Signature::new(&[][..], Some(ValueType::I32)), self.size)
             }
-            "read" => FuncInstance::alloc_host(
+            "gr_read" => FuncInstance::alloc_host(
                 Signature::new(&[ValueType::I32, ValueType::I32, ValueType::I32][..], None),
                 self.read,
             ),
-            "debug" => FuncInstance::alloc_host(
+            "gr_debug" => FuncInstance::alloc_host(
                 Signature::new(&[ValueType::I32, ValueType::I32][..], None),
                 self.debug,
             ),
-            "source" => {
+            "gr_source" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.source)
             }
             "gas" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.gas)
             }
-            "value" => {
+            "gr_value" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.value)
             }
             _ => {

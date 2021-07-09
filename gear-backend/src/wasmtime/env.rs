@@ -215,23 +215,23 @@ impl<E: Ext + 'static> Environment<E> {
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         for (ref import_name, ref mut ext) in imports.iter_mut() {
-            *ext = if import_name == &Some("send") {
+            *ext = if import_name == &Some("gr_send") {
                 Some(self.send.clone().into())
-            } else if import_name == &Some("source") {
+            } else if import_name == &Some("gr_source") {
                 Some(self.source.clone().into())
             } else if import_name == &Some("alloc") {
                 Some(self.alloc.clone().into())
             } else if import_name == &Some("free") {
                 Some(self.free.clone().into())
-            } else if import_name == &Some("size") {
+            } else if import_name == &Some("gr_size") {
                 Some(self.size.clone().into())
-            } else if import_name == &Some("read") {
+            } else if import_name == &Some("gr_read") {
                 Some(self.read.clone().into())
-            } else if import_name == &Some("debug") {
+            } else if import_name == &Some("gr_debug") {
                 Some(self.debug.clone().into())
             } else if import_name == &Some("gas") {
                 Some(self.gas.clone().into())
-            } else if import_name == &Some("value") {
+            } else if import_name == &Some("gr_value") {
                 Some(self.value.clone().into())
             } else if import_name == &Some("memory") {
                 let mem: &wasmtime::Memory =
