@@ -332,12 +332,15 @@ pub mod pallet {
 						};
 
 						common::queue_message(Message{
+							id,
 							source,
 							payload,
 							gas_limit,
 							dest: route.destination,
 							value,
-						}, id);
+							// TODO: user can actually reply to the messages with transactions
+							reply: None,
+						});
 					}
 				}
 			}
