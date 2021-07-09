@@ -10,7 +10,10 @@ use gear_core::{
     env::{Ext as EnvExt, PageAction},
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
     memory::{Allocations, Memory, MemoryContext, PageNumber},
-    message::{IncomingMessage, Message, MessageContext, OutgoingMessage},
+    message::{
+        IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator, OutgoingMessage,
+        OutgoingPacket, ReplyMessage, ReplyPacket,
+    },
     program::{Program, ProgramId},
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
 };
@@ -74,6 +77,27 @@ impl RunNextResult {
         let mut result = Self::empty();
         result.accrue(program_id, run_result);
         result
+    }
+}
+
+/// Blake2 Message Id Generator
+pub struct BlakeMessageIdGenerator {
+    program_id: ProgramId,
+    nonce: u64,
+}
+
+impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
+    fn next(&mut self) -> MessageId {
+        let mut data = self.program_id.as_slice().to_vec();
+        data.extend(&self.nonce.to_le_bytes());
+
+        self.nonce += 1;
+
+        MessageId::from_slice(&blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+    }
+
+    fn current(&self) -> u64 {
+        self.nonce
     }
 }
 
@@ -240,8 +264,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         value: u128,
     ) -> Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(program_id) {
-            program.set_code(code.to_vec());
-            program.clear_static();
+            program.reset(code.to_vec());
             self.program_storage.set(program);
         } else {
             self.program_storage
@@ -253,7 +276,14 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .program_storage
             .get(program_id)
             .expect("Added above; cannot fail");
-        let msg = IncomingMessage::new_system(init_msg.into(), gas_limit, value);
+
+        // TODO: figure out message id for initialization message
+        let msg = IncomingMessage::new_system(
+            self.next_system_message_id(),
+            init_msg.into(),
+            gas_limit,
+            value,
+        );
 
         let res = run(
             &mut self.env,
@@ -273,6 +303,26 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         Ok(res)
     }
 
+    // TODO: Remove once parallel and "system origin" is ditched
+    fn next_system_message_id(&mut self) -> MessageId {
+        let mut system_program = self
+            .program_storage
+            .get(ProgramId::default())
+            .unwrap_or_else(|| Program::new(ProgramId::default(), vec![], vec![]));
+
+        let mut id_generator = BlakeMessageIdGenerator {
+            program_id: ProgramId::default(),
+            nonce: system_program.message_nonce(),
+        };
+
+        let id = id_generator.next();
+
+        system_program.set_message_nonce(id_generator.nonce);
+        self.program_storage.set(system_program);
+
+        id
+    }
+
     /// Queue message for the underlying message queue.
     pub fn queue_message(
         &mut self,
@@ -281,12 +331,14 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         gas_limit: u64,
         value: u128,
     ) {
+        let message_id = self.next_system_message_id();
         self.message_queue.queue(Message::new_system(
+            message_id,
             destination,
             payload.into(),
             gas_limit,
             value,
-        ))
+        ));
     }
 }
 
@@ -350,6 +402,8 @@ pub struct RunResult {
     pub touched: Vec<(PageNumber, PageAction)>,
     /// Messages that were generated during the run.
     pub messages: Vec<OutgoingMessage>,
+    /// Reply that was received during the run.
+    pub reply: Option<ReplyMessage>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
@@ -358,7 +412,7 @@ pub struct RunResult {
 
 struct Ext<AS: AllocationStorage + 'static> {
     memory_context: MemoryContext<AS>,
-    messages: MessageContext,
+    messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
 }
 
@@ -369,12 +423,20 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
             .map_err(|_e| "Allocation error")
     }
 
-    fn send(&mut self, msg: OutgoingMessage) -> Result<(), &'static str> {
+    fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str> {
         self.messages.send(msg).map_err(|_e| "Message send error")
+    }
+
+    fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str> {
+        self.messages.reply(msg).map_err(|_e| "Reply error")
     }
 
     fn source(&mut self) -> ProgramId {
         self.messages.current().source()
+    }
+
+    fn message_id(&mut self) -> MessageId {
+        self.messages.current().id()
     }
 
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
@@ -445,6 +507,11 @@ fn run<AS: AllocationStorage + 'static>(
 ) -> Result<RunResult> {
     let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
+    let id_generator = BlakeMessageIdGenerator {
+        program_id: program.id(),
+        nonce: program.message_nonce(),
+    };
+
     let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
@@ -453,7 +520,7 @@ fn run<AS: AllocationStorage + 'static>(
             context.static_pages(),
             context.max_pages(),
         ),
-        messages: MessageContext::new(message.clone()),
+        messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
     };
 
@@ -475,7 +542,11 @@ fn run<AS: AllocationStorage + 'static>(
         *program.static_pages_mut() = static_pages;
 
         let mut messages = vec![];
-        for outgoing_msg in ext.messages.drain() {
+
+        program.set_message_nonce(ext.messages.nonce());
+        let (outgoing, reply) = ext.messages.drain();
+
+        for outgoing_msg in outgoing {
             messages.push(outgoing_msg.clone());
             context.push_message(outgoing_msg.into_message(program.id()));
         }
@@ -486,6 +557,7 @@ fn run<AS: AllocationStorage + 'static>(
         RunResult {
             touched,
             messages,
+            reply,
             gas_left,
             gas_spent,
         }
@@ -578,14 +650,11 @@ mod tests {
         runner.run_next().expect("Failed to process next message");
 
         assert_eq!(
-            runner.message_queue.dequeue(),
-            Some(Message {
-                source: 1.into(),
-                dest: 1.into(),
-                payload: "ok".as_bytes().to_vec().into(),
-                gas_limit: 0,
-                value: 0,
-            })
+            runner
+                .message_queue
+                .dequeue()
+                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
+            Some((b"ok".to_vec(), 1.into(), 1.into()))
         );
 
         runner.queue_message(1.into(), "test".as_bytes().to_vec(), u64::max_value(), 0);
@@ -593,14 +662,11 @@ mod tests {
         runner.run_next().expect("Failed to process next message");
 
         assert_eq!(
-            runner.message_queue.dequeue(),
-            Some(Message {
-                source: 1.into(),
-                dest: 1.into(),
-                payload: "test".as_bytes().to_vec().into(),
-                gas_limit: 0,
-                value: 0,
-            })
+            runner
+                .message_queue
+                .dequeue()
+                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
+            Some((b"test".to_vec(), 1.into(), 1.into()))
         );
     }
 
@@ -677,14 +743,11 @@ mod tests {
         runner.run_next().expect("Failed to process next message");
 
         assert_eq!(
-            runner.message_queue.dequeue(),
-            Some(Message {
-                source: 1.into(),
-                dest: 1.into(),
-                payload: "ok".as_bytes().to_vec().into(),
-                gas_limit: 18446744073709551615,
-                value: 0,
-            })
+            runner
+                .message_queue
+                .dequeue()
+                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
+            Some((b"ok".to_vec(), 1.into(), 1.into()))
         );
 
         // send page num to be freed
@@ -693,14 +756,11 @@ mod tests {
         runner.run_next().expect("Failed to process next message");
 
         assert_eq!(
-            runner.message_queue.dequeue(),
-            Some(Message {
-                source: 1.into(),
-                dest: 1.into(),
-                payload: vec![256u32 as _].into(),
-                gas_limit: 18446744073709551615,
-                value: 0,
-            })
+            runner
+                .message_queue
+                .dequeue()
+                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
+            Some((vec![256u32 as _].into(), 1.into(), 1.into()))
         );
 
         // page is now deallocated

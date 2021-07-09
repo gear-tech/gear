@@ -18,7 +18,7 @@ use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
 use gear_core::memory::{Memory, PageNumber};
-use gear_core::message::OutgoingMessage;
+use gear_core::message::{OutgoingPacket, ReplyPacket};
 use gear_core::program::ProgramId;
 
 /// Struct for implementing host functions
@@ -27,7 +27,9 @@ use gear_core::program::ProgramId;
 struct Runtime<E: Ext + 'static> {
     ext: LaterExt<E>,
     send: usize,
+    reply: usize,
     source: usize,
+    message_id: usize,
     alloc: usize,
     free: usize,
     size: usize,
@@ -68,7 +70,8 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 let value_ptr: i32 = args.nth(4);
                 let message_ptr = message_ptr as u32 as usize;
                 let message_len = message_len as u32 as usize;
-                if ext
+
+                let is_err = ext
                     .with(|ext: &mut E| {
                         let mut data = vec![0u8; message_len];
                         ext.get_mem(message_ptr, &mut data);
@@ -79,15 +82,47 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                         let mut value_le = [0u8; 16];
                         ext.get_mem(value_ptr as isize as _, &mut value_le);
 
-                        ext.send(OutgoingMessage::new(
+                        ext.send(OutgoingPacket::new(
                             program_id,
                             data.into(),
                             gas_limit as _,
                             u128::from_le_bytes(value_le),
                         ))
                     })
-                    .is_err()
-                {
+                    .is_err();
+
+                if is_err {
+                    return Err(Trap::new(TrapKind::UnexpectedSignature));
+                }
+
+                Ok(None)
+            }
+            id if id == self.reply => {
+                let ext = self.ext.clone();
+                let message_ptr: i32 = args.nth(1);
+                let message_len: i32 = args.nth(2);
+                let gas_limit: i64 = args.nth(3);
+                let value_ptr: i32 = args.nth(4);
+                let message_ptr = message_ptr as u32 as usize;
+                let message_len = message_len as u32 as usize;
+
+                let is_err = ext
+                    .with(|ext: &mut E| {
+                        let mut data = vec![0u8; message_len];
+                        ext.get_mem(message_ptr, &mut data);
+
+                        let mut value_le = [0u8; 16];
+                        ext.get_mem(value_ptr as isize as _, &mut value_le);
+
+                        ext.reply(ReplyPacket::new(
+                            data.into(),
+                            gas_limit as _,
+                            u128::from_le_bytes(value_le),
+                        ))
+                    })
+                    .is_err();
+
+                if is_err {
                     return Err(Trap::new(TrapKind::UnexpectedSignature));
                 }
 
@@ -140,6 +175,15 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 });
                 Ok(None)
             }
+            id if id == self.message_id => {
+                let ext = self.ext.clone();
+                let source_ptr = args.nth::<i32>(0) as usize;
+                ext.with(|ext: &mut E| {
+                    let source = ext.message_id();
+                    ext.set_mem(source_ptr as isize as _, source.as_slice());
+                });
+                Ok(None)
+            }
             id if id == self.gas => {
                 let ext = self.ext.clone();
                 let val = args.nth::<i32>(0);
@@ -188,6 +232,18 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 ),
                 self.send,
             ),
+            "gr_reply" => FuncInstance::alloc_host(
+                Signature::new(
+                    &[
+                        ValueType::I32,
+                        ValueType::I32,
+                        ValueType::I64,
+                        ValueType::I32,
+                    ][..],
+                    None,
+                ),
+                self.reply,
+            ),
             "free" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.free)
             }
@@ -205,6 +261,10 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "gr_source" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.source)
             }
+            "gr_msg_id" => FuncInstance::alloc_host(
+                Signature::new(&[ValueType::I32][..], None),
+                self.message_id,
+            ),
             "gas" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.gas)
             }
@@ -246,7 +306,9 @@ pub struct Environment<E: Ext + 'static> {
     ext: LaterExt<E>,
     memory: Option<Box<dyn Memory>>,
     send: usize,
+    reply: usize,
     source: usize,
+    message_id: usize,
     alloc: usize,
     free: usize,
     size: usize,
@@ -254,6 +316,12 @@ pub struct Environment<E: Ext + 'static> {
     debug: usize,
     gas: usize,
     value: usize,
+}
+
+impl<E: Ext + 'static> Default for Environment<E> {
+    fn default() -> Self {
+        Environment::<E>::new()
+    }
 }
 
 impl<E: Ext + 'static> Environment<E> {
@@ -266,24 +334,28 @@ impl<E: Ext + 'static> Environment<E> {
         // host func index
         let alloc = 1;
         let send = 2;
-        let free = 3;
-        let size = 4;
-        let read = 5;
-        let debug = 6;
-        let source = 7;
-        let gas = 8;
-        let value = 9;
+        let reply = 3;
+        let free = 4;
+        let size = 5;
+        let read = 6;
+        let debug = 7;
+        let source = 8;
+        let message_id = 9;
+        let gas = 10;
+        let value = 11;
 
         Self {
             ext,
             memory: None,
             alloc,
             send,
+            reply,
             free,
             size,
             read,
             debug,
             source,
+            message_id,
             gas,
             value,
         }
@@ -334,11 +406,13 @@ impl<E: Ext + 'static> Environment<E> {
             ext: self.ext.clone(),
             alloc: self.alloc,
             send: self.send,
+            reply: self.reply,
             free: self.free,
             size: self.size,
             read: self.read,
             debug: self.debug,
             source: self.source,
+            message_id: self.message_id,
             gas: self.gas,
             value: self.value,
         };

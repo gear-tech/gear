@@ -1,8 +1,7 @@
 //! Module for programs.
 
-use alloc::string::String;
 use alloc::vec::Vec;
-use core::fmt::{self, Write};
+use core::fmt;
 
 use codec::{Decode, Encode};
 
@@ -12,17 +11,9 @@ use codec::{Decode, Encode};
 #[derive(Clone, Copy, Debug, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq)]
 pub struct ProgramId([u8; 32]);
 
-fn encode_hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(&mut s, "{:02x}", b).expect("Format failed")
-    }
-    s
-}
-
 impl fmt::Display for ProgramId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", encode_hex(&self.0[..]))
+        write!(f, "{}", crate::util::encode_hex(&self.0[..]))
     }
 }
 
@@ -70,6 +61,8 @@ pub struct Program {
     code: Vec<u8>,
     // Saved state of static pages
     static_pages: Vec<u8>,
+    /// Message nonce
+    message_nonce: u64,
 }
 
 impl Program {
@@ -79,6 +72,7 @@ impl Program {
             id,
             code,
             static_pages,
+            message_nonce: 0,
         }
     }
 
@@ -111,13 +105,31 @@ impl Program {
     pub fn clear_static(&mut self) {
         self.static_pages = vec![];
     }
+
+    /// Message nonce.
+    pub fn message_nonce(&self) -> u64 {
+        self.message_nonce
+    }
+
+    /// Set message nonce.
+    pub fn set_message_nonce(&mut self, val: u64) {
+        self.message_nonce = val;
+    }
+
+    /// Reset the program.
+    pub fn reset(&mut self, code: Vec<u8>) {
+        self.set_code(code);
+        self.clear_static();
+        self.message_nonce = 0;
+    }
 }
 
 #[cfg(test)]
 /// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
-    use super::{encode_hex, ProgramId};
+    use super::ProgramId;
+    use crate::util::encode_hex;
 
     #[test]
     /// Test that `encode_hex(...)` encodes correctly

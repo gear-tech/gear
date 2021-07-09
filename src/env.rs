@@ -6,7 +6,7 @@ use core::cell::RefCell;
 use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
-use crate::message::OutgoingMessage;
+use crate::message::{MessageId, OutgoingPacket, ReplyPacket};
 use crate::program::ProgramId;
 
 /// Page access rights.
@@ -31,10 +31,16 @@ pub trait Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
 
     /// Send message to another program.
-    fn send(&mut self, msg: OutgoingMessage) -> Result<(), &'static str>;
+    fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str>;
+
+    /// Produce reply to the current message.
+    fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> ProgramId;
+
+    /// Get the id of the message currently being handled.
+    fn message_id(&mut self) -> MessageId;
 
     /// Free specific memory page.
     ///
@@ -135,11 +141,17 @@ mod tests {
         fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> {
             Err("")
         }
-        fn send(&mut self, _msg: OutgoingMessage) -> Result<(), &'static str> {
+        fn send(&mut self, _msg: OutgoingPacket) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
             Ok(())
         }
         fn source(&mut self) -> ProgramId {
             ProgramId::from(0)
+        }
+        fn message_id(&mut self) -> MessageId {
+            0.into()
         }
         fn free(&mut self, _ptr: PageNumber) -> Result<(), &'static str> {
             Ok(())

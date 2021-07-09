@@ -65,9 +65,7 @@ pub trait MessageQueue {
 
     /// Queue many messages.
     fn queue_many(&mut self, messages: Vec<Message>) {
-        for message in messages {
-            self.queue(message)
-        }
+        messages.into_iter().for_each(|m| self.queue(m));
     }
 }
 
@@ -253,6 +251,7 @@ mod tests {
 
         // Addition of new system message
         message_queue.queue(Message::new_system(
+            0.into(),
             ProgramId::system(),
             Payload::from(vec![0]),
             128,
@@ -265,8 +264,20 @@ mod tests {
 
         // Addition of multiple messages
         message_queue.queue_many(vec![
-            Message::new_system(ProgramId::from(1), Payload::from(vec![1]), 128, 512),
-            Message::new_system(ProgramId::from(2), Payload::from(vec![2]), 128, 1024),
+            Message::new_system(
+                0.into(),
+                ProgramId::from(1),
+                Payload::from(vec![1]),
+                128,
+                512,
+            ),
+            Message::new_system(
+                1.into(),
+                ProgramId::from(2),
+                Payload::from(vec![2]),
+                128,
+                1024,
+            ),
         ]);
 
         // Сhecking that the first message in queue is the one that we added first

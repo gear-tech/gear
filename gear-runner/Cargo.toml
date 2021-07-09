@@ -9,6 +9,7 @@ anyhow = "1.0.41"
 codec = { package = "parity-scale-codec", version = "2.2.0", features = ["derive"] }
 gear-core = { path = "../" }
 gear-backend = { path = "../gear-backend" }
+blake2-rfc = "*"
 log = "0.4.14"
 
 [dev-dependencies]

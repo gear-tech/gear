@@ -13,7 +13,7 @@ use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
 use gear_core::memory::{Memory, PageNumber};
-use gear_core::message::OutgoingMessage;
+use gear_core::message::{OutgoingPacket, ReplyPacket};
 use gear_core::program::ProgramId;
 
 /// Environment to run one module at a time providing Ext.
@@ -21,7 +21,9 @@ pub struct Environment<E: Ext + 'static> {
     store: wasmtime::Store,
     ext: LaterExt<E>,
     send: Func,
+    reply: Func,
     source: Func,
+    message_id: Func,
     alloc: Func,
     free: Func,
     size: Func,
@@ -79,8 +81,38 @@ impl<E: Ext + 'static> Environment<E> {
                         let mut value_le = [0u8; 16];
                         ext.get_mem(value_ptr as isize as _, &mut value_le);
 
-                        ext.send(OutgoingMessage::new(
+                        ext.send(OutgoingPacket::new(
                             program_id,
+                            data.into(),
+                            gas_limit as _,
+                            u128::from_le_bytes(value_le),
+                        ))
+                    });
+
+                    if result.is_err() {
+                        return Err(wasmtime::Trap::new("Trapping: unable to send message"));
+                    }
+
+                    Ok(())
+                },
+            )
+        };
+
+        let reply = {
+            let ext = ext.clone();
+            Func::wrap(
+                &store,
+                move |message_ptr: i32, message_len: i32, gas_limit: i64, value_ptr: i32| {
+                    let message_ptr = message_ptr as u32 as usize;
+                    let message_len = message_len as u32 as usize;
+                    let result = ext.with(|ext: &mut E| {
+                        let mut data = vec![0u8; message_len];
+                        ext.get_mem(message_ptr, &mut data);
+
+                        let mut value_le = [0u8; 16];
+                        ext.get_mem(value_ptr as isize as _, &mut value_le);
+
+                        ext.reply(ReplyPacket::new(
                             data.into(),
                             gas_limit as _,
                             u128::from_le_bytes(value_le),
@@ -157,6 +189,17 @@ impl<E: Ext + 'static> Environment<E> {
             })
         };
 
+        let message_id = {
+            let ext = ext.clone();
+            Func::wrap(&store, move |msg_id_ptr: i32| {
+                ext.with(|ext: &mut E| {
+                    let message_id = ext.message_id();
+                    ext.set_mem(msg_id_ptr as isize as _, message_id.as_slice());
+                });
+                Ok(())
+            })
+        };
+
         let gas = {
             let ext = ext.clone();
             Func::wrap(&store, move |val: i32| {
@@ -185,7 +228,9 @@ impl<E: Ext + 'static> Environment<E> {
             store,
             ext,
             send,
+            reply,
             source,
+            message_id,
             alloc,
             free,
             size,
@@ -217,8 +262,12 @@ impl<E: Ext + 'static> Environment<E> {
         for (ref import_name, ref mut ext) in imports.iter_mut() {
             *ext = if import_name == &Some("gr_send") {
                 Some(self.send.clone().into())
+            } else if import_name == &Some("gr_reply") {
+                Some(self.reply.clone().into())
             } else if import_name == &Some("gr_source") {
                 Some(self.source.clone().into())
+            } else if import_name == &Some("gr_msg_id") {
+                Some(self.message_id.clone().into())
             } else if import_name == &Some("alloc") {
                 Some(self.alloc.clone().into())
             } else if import_name == &Some("free") {
