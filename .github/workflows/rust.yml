@@ -22,11 +22,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - run: |
-        cargo clippy -- -D warnings
-        cd gear-backend && cargo clippy -- -D warnings
-        cd ..
-        cd gear-runner  && cargo clippy -- -D warnings
+    - run: cargo clippy --all --all-features -- -D warnings
 
   build:
     runs-on: ubuntu-latest
