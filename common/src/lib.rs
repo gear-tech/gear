@@ -223,6 +223,7 @@ mod tests {
             let program = Program {
                 static_pages: Vec::new(),
                 code_hash,
+                nonce: 0,
             };
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
