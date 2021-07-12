@@ -172,7 +172,7 @@ fn send_message_fails_with_insufficient_balance() {
 fn messages_processing_works() {
 	let wat = r#"
 	(module
-		(import "env" "send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
@@ -260,7 +260,7 @@ fn messages_processing_works() {
 fn dequeue_limit_works() {
 	let wat = r#"
 	(module
-		(import "env" "send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
