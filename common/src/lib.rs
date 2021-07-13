@@ -30,17 +30,20 @@ use storage_queue::StorageQueue;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Message {
+    pub id: H256,
     pub source: H256,
     pub dest: H256,
     pub payload: Vec<u8>,
     pub gas_limit: u64,
     pub value: u128,
+    pub reply: Option<H256>,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Program {
     pub static_pages: Vec<u8>,
     pub code_hash: H256,
+    pub nonce: u64,
 }
 
 pub trait Origin: Sized {
@@ -164,8 +167,9 @@ pub fn dequeue_message() -> Option<Message> {
     message_queue.dequeue()
 }
 
-pub fn queue_message(message: Message, id: H256) {
+pub fn queue_message(message: Message) {
     let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
+    let id = message.id.clone();
     message_queue.queue(message, id);
 }
 
@@ -219,6 +223,7 @@ mod tests {
             let program = Program {
                 static_pages: Vec::new(),
                 code_hash,
+                nonce: 0,
             };
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());

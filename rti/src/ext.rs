@@ -23,9 +23,6 @@ use gear_core::{
     message::Message,
 };
 
-use codec::Encode;
-use sp_core::H256;
-
 pub struct ExtAllocationStorage;
 
 pub struct ExtProgramStorage;
@@ -76,11 +73,6 @@ impl MessageQueue for ExtMessageQueue {
             return;
         }
 
-        let nonce = gear_common::nonce_fetch_inc();
-
-        let message_id = [message.payload.clone().into_raw().encode(), nonce.to_le_bytes().to_vec()].concat();
-        let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
-
-        gear_common::native::queue_message(message, message_id)
+        gear_common::native::queue_message(message)
     }
 }

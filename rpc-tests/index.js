@@ -336,11 +336,13 @@ async function main() {
     provider,
     types: {
       Message: {
+        id: 'H256',
         source: 'H256',
         dest: 'H256',
         payload: 'Vec<u8>',
         gas_limit: 'u64',
         value: 'u128',
+        reply: 'Option<H256>',
       },
       Node: {
         value: 'Message',

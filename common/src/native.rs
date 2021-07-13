@@ -17,34 +17,38 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    message::Message,
+    message::{Message, MessageId},
     program::{Program, ProgramId},
 };
 
 use sp_core::H256;
 
-pub fn queue_message(message: Message, id: H256) {
+pub fn queue_message(message: Message) {
 
     let message = crate::Message {
+        id: H256::from_slice(&message.id.as_slice()),
         source: H256::from_slice(&message.source.as_slice()),
         dest: H256::from_slice(&message.dest.as_slice()),
         payload: message.payload.into_raw(),
         gas_limit: message.gas_limit,
         value: message.value,
+        reply: message.reply.map(|reply| H256::from_slice(reply.as_slice())),
     };
 
-    crate::queue_message(message, id)
+    crate::queue_message(message)
 }
 
 pub fn dequeue_message() -> Option<Message> {
     crate::dequeue_message()
         .map(|msg| {
             Message {
+                id: MessageId::from_slice(&msg.id[..]),
                 source: ProgramId::from_slice(&msg.source[..]),
                 dest: ProgramId::from_slice(&msg.dest[..]),
                 payload: msg.payload.into(),
                 gas_limit: msg.gas_limit,
                 value: msg.value,
+                reply: msg.reply.map(|reply| MessageId::from_slice(&reply[..])),
             }
         })
 }
@@ -52,7 +56,9 @@ pub fn dequeue_message() -> Option<Message> {
 pub fn get_program(id: ProgramId) -> Option<Program> {
     crate::get_program(H256::from_slice(id.as_slice())).map(|prog| {
         if let Some(code) = crate::get_code(prog.code_hash) {
-            Program::new(id, code, prog.static_pages)
+            let mut program = Program::new(id, code, prog.static_pages);
+            program.set_message_nonce(prog.nonce);
+            program
         } else {
             Program::new(id, Vec::new(), prog.static_pages)
         }
@@ -67,6 +73,7 @@ pub fn set_program(program: Program) {
         crate::Program {
             static_pages: program.static_pages().to_vec(),
             code_hash,
+            nonce: program.message_nonce(),
         },
     );
 }
