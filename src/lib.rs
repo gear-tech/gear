@@ -1,6 +1,9 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
+#[macro_use]
+pub mod macros;
+
 extern crate alloc;
 
 #[global_allocator]
@@ -50,24 +53,8 @@ impl MessageId {
     }
 }
 
-
-#[macro_export]
-macro_rules! bail {
-    ($some:expr, $expl:expr, $fmt:expr, $($arg:tt)*) => {
-        match () {
-            #[cfg(feature = "debug")]
-            () => $some.expect(&format!($fmt, $($arg:tt)*)),
-            #[cfg(not(feature = "debug"))]
-            () => match $some {
-                Ok(v) => v,
-                Err(_) => core::panic!($expl),
-            }
-        }
-    };
-}
-
 pub mod msg {
-    use super::{ProgramId, MessageId};
+    use super::{MessageId, ProgramId};
     use alloc::vec::Vec;
 
     mod sys {
