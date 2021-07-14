@@ -13,6 +13,7 @@ static mut PROGRAM: ProgramId = ProgramId([0; 32]);
 static mut MESSAGE: Vec<u8> = Vec::new();
 static mut GAS_LIMIT: u64 = 0;
 static mut VALUE: u128 = 0;
+static mut GAS: u64 = 0;
 
 #[cfg(feature = "debug")]
 static mut DEBUG_MSG: Vec<u8> = Vec::new();
@@ -59,6 +60,11 @@ mod sys {
         core::ptr::copy(src, val, mem::size_of::<u128>());
     }
 
+    #[no_mangle]
+    unsafe extern "C" fn gr_charge(gas: u64) {
+        GAS += gas;
+    }
+
     #[cfg(feature = "debug")]
     #[no_mangle]
     unsafe extern "C" fn gr_debug(msg_ptr: *const u8, msg_len: u32) {
@@ -68,7 +74,7 @@ mod sys {
 }
 
 #[test]
-fn api() {
+fn messages() {
     let mut id: [u8; 32] = [0; 32];
     for i in 0..id.len() {
         id[i] = i as u8;
@@ -87,6 +93,18 @@ fn api() {
 
     let msg_value = msg::value();
     assert_eq!(msg_value, 12345678);
+}
+
+#[test]
+fn transfer_gas() {
+    msg::charge(1000);
+    unsafe {
+        assert_eq!(GAS, 1000);
+    }
+    msg::charge(2000);
+    unsafe {
+        assert_eq!(GAS, 3000);
+    }
 }
 
 #[cfg(feature = "debug")]

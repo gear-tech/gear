@@ -77,6 +77,7 @@ pub mod msg {
                 gas_limit: u64,
                 value_ptr: *const u8,
             );
+            pub fn gr_charge(gas: u64);
         }
     }
 
@@ -130,6 +131,13 @@ pub mod msg {
                 gas_limit,
                 value.to_le_bytes().as_ptr(),
             )
+        }
+    }
+
+    /// Transfers gas from program caller.
+    pub fn charge(gas: u64) {
+        unsafe {
+            sys::gr_charge(gas);
         }
     }
 }
