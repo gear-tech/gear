@@ -30,7 +30,7 @@ macro_rules! bail {
         $res.expect($fmtd);
     };
     ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
-        $res.expect(&alloc::format!($fmt, $($args)+));
+        $res.expect(&crate::prelude::format!($fmt, $($args)+));
     };
 }
 
@@ -40,29 +40,28 @@ macro_rules! bail {
     ($res:expr, $msg:literal) => {
         match $res {
             Ok(v) => v,
-            Err(_) => core::panic!($msg),
+            Err(_) => crate::prelude::panic!($msg),
         }
     };
     ($res:expr, $expl:literal, $fmtd:literal) => {
         match $res {
             Ok(v) => v,
-            Err(_) => core::panic!($expl),
+            Err(_) => crate::prelude::panic!($expl),
         }
     };
     ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
         match $res {
             Ok(v) => v,
-            Err(_) => core::panic!($expl),
+            Err(_) => crate::prelude::panic!($expl),
         }
     };
 }
 
 #[cfg(test)]
 mod tests {
-    #[derive(Clone, Copy)]
     struct SomeType(usize);
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug)]
     struct SomeError;
 
     #[test]

@@ -1,10 +1,7 @@
 #![no_std]
 
-extern crate alloc;
-
-use alloc::vec::Vec;
-use core::mem;
-use gstd::{msg, ProgramId};
+use gstd::msg::{self, ProgramId};
+use gstd::prelude::*;
 
 #[cfg(feature = "debug")]
 use gstd::ext;
@@ -29,9 +26,9 @@ mod sys {
         gas_limit: u64,
         value_ptr: *const u8,
     ) {
-        core::ptr::copy(program, PROGRAM.0.as_mut_ptr(), 32);
+        ptr::copy(program, PROGRAM.0.as_mut_ptr(), 32);
         MESSAGE.resize(data_len as _, 0);
-        core::ptr::copy(data_ptr, MESSAGE.as_mut_ptr(), data_len as _);
+        ptr::copy(data_ptr, MESSAGE.as_mut_ptr(), data_len as _);
         GAS_LIMIT = gas_limit;
         VALUE = *(value_ptr as *const u128);
     }
@@ -44,7 +41,7 @@ mod sys {
     #[no_mangle]
     unsafe extern "C" fn gr_read(at: u32, len: u32, dest: *mut u8) {
         let src = MESSAGE.as_ptr();
-        core::ptr::copy(src.offset(at as _), dest, len as _);
+        ptr::copy(src.offset(at as _), dest, len as _);
     }
 
     #[no_mangle]
@@ -57,7 +54,7 @@ mod sys {
     #[no_mangle]
     unsafe extern "C" fn gr_value(val: *mut u8) {
         let src = VALUE.to_ne_bytes().as_ptr();
-        core::ptr::copy(src, val, mem::size_of::<u128>());
+        ptr::copy(src, val, mem::size_of::<u128>());
     }
 
     #[no_mangle]
@@ -69,7 +66,7 @@ mod sys {
     #[no_mangle]
     unsafe extern "C" fn gr_debug(msg_ptr: *const u8, msg_len: u32) {
         DEBUG_MSG.resize(msg_len as _, 0);
-        core::ptr::copy(msg_ptr, DEBUG_MSG.as_mut_ptr(), msg_len as _);
+        ptr::copy(msg_ptr, DEBUG_MSG.as_mut_ptr(), msg_len as _);
     }
 }
 
@@ -79,6 +76,7 @@ fn messages() {
     for i in 0..id.len() {
         id[i] = i as u8;
     }
+
     msg::send(ProgramId(id), b"HELLO", 1000, 12345678);
 
     let msg_source = msg::source();
@@ -86,13 +84,6 @@ fn messages() {
 
     let msg_load = msg::load();
     assert_eq!(msg_load, b"HELLO");
-
-    unsafe {
-        assert_eq!(GAS_LIMIT, 1000);
-    }
-
-    let msg_value = msg::value();
-    assert_eq!(msg_value, 12345678);
 }
 
 #[test]
