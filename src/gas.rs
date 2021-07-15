@@ -21,7 +21,7 @@ pub enum InstrumentError {
     Decode,
     /// Error occured during injecting gas metering instructions.
     ///
-    /// This might be due to program contained unsupported/non-deterministic instructionns
+    /// This might be due to program contained unsupported/non-deterministic instructions
     /// (floats, manual memory grow, etc.).
     GasInjection,
     /// Error occured during encoding instrumented program.
@@ -41,13 +41,13 @@ pub struct GasCounterLimited(pub u64);
 /// Gas counter.
 pub trait GasCounter {
     /// Charge some gas.
-    fn charge(&mut self, val: u32) -> ChargeResult;
+    fn charge(&mut self, val: u64) -> ChargeResult;
     /// Report how much gas is left.
     fn left(&self) -> u64;
 }
 
 impl GasCounter for GasCounterUnlimited {
-    fn charge(&mut self, _val: u32) -> ChargeResult {
+    fn charge(&mut self, _val: u64) -> ChargeResult {
         ChargeResult::Enough
     }
 
@@ -57,9 +57,7 @@ impl GasCounter for GasCounterUnlimited {
 }
 
 impl GasCounter for GasCounterLimited {
-    fn charge(&mut self, val: u32) -> ChargeResult {
-        let val = val as u64;
-
+    fn charge(&mut self, val: u64) -> ChargeResult {
         if self.0 < val {
             return ChargeResult::NotEnough;
         }
@@ -131,7 +129,7 @@ mod tests {
         assert_eq!(result, ChargeResult::Enough);
         assert_eq!(counter.left(), max_gas());
 
-        let result = counter.charge(u32::MAX);
+        let result = counter.charge(u64::MAX);
 
         assert_eq!(result, ChargeResult::Enough);
         assert_eq!(counter.left(), max_gas());

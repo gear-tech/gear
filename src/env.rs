@@ -74,6 +74,9 @@ pub trait Ext {
     /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
+    /// Transfer gas to program from the caller side.
+    fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
+
     /// Value associated with message
     fn value(&mut self) -> u128;
 }
@@ -174,6 +177,9 @@ mod tests {
         }
         fn value(&mut self) -> u128 {
             0
+        }
+        fn charge(&mut self, _gas: u64) -> Result<(), &'static str> {
+            Ok(())
         }
     }
 

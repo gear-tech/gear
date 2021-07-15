@@ -37,6 +37,7 @@ struct Runtime<E: Ext + 'static> {
     debug: usize,
     gas: usize,
     value: usize,
+    charge: usize,
 }
 
 impl<E: Ext + 'static> Externals for Runtime<E> {
@@ -202,6 +203,15 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 });
                 Ok(None)
             }
+            id if id == self.charge => {
+                let ext = self.ext.clone();
+                let gas_ptr = args.nth::<i64>(0);
+                if ext.with(|ext: &mut E| ext.charge(gas_ptr as u64)).is_err() {
+                    Err(wasmi::Trap::new(TrapKind::InvalidConversionToInt))
+                } else {
+                    Ok(None)
+                }
+            }
             _ => panic!("unknown function index"),
         }
     }
@@ -271,6 +281,9 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "gr_value" => {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.value)
             }
+            "gr_charge" => {
+                FuncInstance::alloc_host(Signature::new(&[ValueType::I64][..], None), self.value)
+            }
             _ => {
                 return Err(InterpreterError::Function(format!(
                     "host module doesn't export function with name {}",
@@ -316,6 +329,7 @@ pub struct Environment<E: Ext + 'static> {
     debug: usize,
     gas: usize,
     value: usize,
+    charge: usize,
 }
 
 impl<E: Ext + 'static> Default for Environment<E> {
@@ -343,6 +357,7 @@ impl<E: Ext + 'static> Environment<E> {
         let message_id = 9;
         let gas = 10;
         let value = 11;
+        let charge = 12;
 
         Self {
             ext,
@@ -358,6 +373,7 @@ impl<E: Ext + 'static> Environment<E> {
             message_id,
             gas,
             value,
+            charge,
         }
     }
 
@@ -415,6 +431,7 @@ impl<E: Ext + 'static> Environment<E> {
             message_id: self.message_id,
             gas: self.gas,
             value: self.value,
+            charge: self.charge,
         };
 
         let result = self.run_inner(instance, static_area, memory, move |instance| {

@@ -31,6 +31,7 @@ pub struct Environment<E: Ext + 'static> {
     debug: Func,
     gas: Func,
     value: Func,
+    charge: Func,
 }
 
 impl<E: Ext + 'static> Environment<E> {
@@ -204,9 +205,7 @@ impl<E: Ext + 'static> Environment<E> {
             let ext = ext.clone();
             Func::wrap(&store, move |val: i32| {
                 if ext.with(|ext: &mut E| ext.gas(val as _)).is_err() {
-                    Err(wasmtime::Trap::new(
-                        "Trapping: unable to report about gas used",
-                    ))
+                    Err(wasmtime::Trap::new("Trapping: unable to charge gas"))
                 } else {
                     Ok(())
                 }
@@ -224,6 +223,19 @@ impl<E: Ext + 'static> Environment<E> {
             })
         };
 
+        let charge = {
+            let ext = ext.clone();
+            Func::wrap(&store, move |gas: i64| {
+                if ext.with(|ext: &mut E| ext.charge(gas as u64)).is_err() {
+                    Err(wasmtime::Trap::new(
+                        "Trapping: unable to charge gas for reserve",
+                    ))
+                } else {
+                    Ok(())
+                }
+            })
+        };
+
         Self {
             store,
             ext,
@@ -238,6 +250,7 @@ impl<E: Ext + 'static> Environment<E> {
             debug,
             gas,
             value,
+            charge,
         }
     }
 
@@ -282,6 +295,8 @@ impl<E: Ext + 'static> Environment<E> {
                 Some(self.gas.clone().into())
             } else if import_name == &Some("gr_value") {
                 Some(self.value.clone().into())
+            } else if import_name == &Some("gr_charge") {
+                Some(self.charge.clone().into())
             } else if import_name == &Some("memory") {
                 let mem: &wasmtime::Memory =
                     match memory.as_any().downcast_ref::<wasmtime::Memory>() {
@@ -330,7 +345,6 @@ impl<E: Ext + 'static> Environment<E> {
 
                 // Lock memory
                 ext.memory_lock();
-
 
                 let touched_clone = touched.clone();
                 let ext_clone = self.ext.clone();

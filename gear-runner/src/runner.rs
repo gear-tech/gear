@@ -59,12 +59,17 @@ impl RunNextResult {
         }
     }
 
-    /// Accrue one run of the message hadling
-    pub fn accrue(&mut self, program_id: ProgramId, result: RunResult) {
+    /// Accrue one run of the message hadling.
+    pub fn accrue(&mut self, caller_id: ProgramId, program_id: ProgramId, result: RunResult) {
         self.handled += 1;
         self.touched.extend(result.touched.into_iter());
-        self.gas_left.push((program_id, result.gas_left));
-        self.gas_spent.push((program_id, result.gas_spent));
+        // Report caller's left and spent gas
+        self.gas_left.push((caller_id, result.gas_left));
+        self.gas_spent.push((caller_id, result.gas_spent));
+        if result.gas_reserved > 0 {
+            // Report program's reserved gas
+            self.gas_left.push((program_id, result.gas_reserved));
+        }
     }
 
     /// Empty run result.
@@ -73,9 +78,9 @@ impl RunNextResult {
     }
 
     /// From one single run.
-    pub fn from_single(program_id: ProgramId, run_result: RunResult) -> Self {
+    pub fn from_single(caller_id: ProgramId, program_id: ProgramId, run_result: RunResult) -> Self {
         let mut result = Self::empty();
-        result.accrue(program_id, run_result);
+        result.accrue(caller_id, program_id, run_result);
         result
     }
 }
@@ -148,7 +153,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         }
     }
 
-    /// Run handlig next message in the queue.
+    /// Run handling next message in the queue.
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
@@ -179,6 +184,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 
             let result = RunNextResult::from_single(
                 next_message.source(),
+                next_message.dest(),
                 run(
                     &mut self.env,
                     &mut context,
@@ -408,12 +414,15 @@ pub struct RunResult {
     pub gas_left: u64,
     /// Gas that was spent.
     pub gas_spent: u64,
+    /// Gas reserved for future uses.
+    pub gas_reserved: u64,
 }
 
 struct Ext<AS: AllocationStorage + 'static> {
     memory_context: MemoryContext<AS>,
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
+    gas_reserved: u64,
 }
 
 impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
@@ -484,7 +493,16 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 
     fn gas(&mut self, val: u32) -> Result<(), &'static str> {
-        if self.gas_counter.charge(val) == ChargeResult::Enough {
+        if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
+            Ok(())
+        } else {
+            Err("Gas limit exceeded")
+        }
+    }
+
+    fn charge(&mut self, gas: u64) -> Result<(), &'static str> {
+        if self.gas_counter.charge(gas) == ChargeResult::Enough {
+            self.gas_reserved += gas;
             Ok(())
         } else {
             Err("Gas limit exceeded")
@@ -522,6 +540,7 @@ fn run<AS: AllocationStorage + 'static>(
         ),
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
+        gas_reserved: 0,
     };
 
     // Set static pages from saved program state.
@@ -553,6 +572,7 @@ fn run<AS: AllocationStorage + 'static>(
 
         let gas_left = ext.gas_counter.left();
         let gas_spent = gas_limit - gas_left;
+        let gas_reserved = ext.gas_reserved;
 
         RunResult {
             touched,
@@ -560,6 +580,7 @@ fn run<AS: AllocationStorage + 'static>(
             reply,
             gas_left,
             gas_spent,
+            gas_reserved,
         }
     })
 }
@@ -568,6 +589,7 @@ fn run<AS: AllocationStorage + 'static>(
 mod tests {
     extern crate wabt;
     use super::*;
+    use env_logger::Env;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -577,6 +599,13 @@ mod tests {
             .as_ref()
             .to_vec();
         module_bytes
+    }
+
+    #[test]
+    fn init_logger() {
+        env_logger::Builder::from_env(Env::default().default_filter_or("warn"))
+            .is_test(true)
+            .init();
     }
 
     #[test]
@@ -852,5 +881,53 @@ mod tests {
         let (_, persistent_memory) = runner.complete();
 
         assert_eq!(persistent_memory[0], 0);
+    }
+
+    #[test]
+    fn gas_transfer() {
+        // Charge 100_000 of gas.
+        let wat = r#"
+        (module
+          (import "env" "gr_charge"  (func $charge (param i64)))
+          (import "env" "memory" (memory 1))
+          (export "handle" (func $handle))
+          (export "init" (func $init))
+          (func $handle
+            i64.const 100000
+            call $charge
+          )
+          (func $init)
+        )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            gear_core::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        );
+
+        let gas_limit = 1000_000;
+        let program_id = 1.into();
+        let _ = runner
+            .init_program(
+                program_id,
+                parse_wat(wat),
+                "init".as_bytes().to_vec(),
+                gas_limit,
+                0,
+            )
+            .expect("failed to init `gas_transfer` program");
+
+        runner.queue_message(1.into(), vec![0], gas_limit, 0);
+
+        let result = runner.run_next().expect("Failed to process next message");
+        assert_eq!(result.gas_spent.len(), 1);
+        assert_eq!(result.gas_left.len(), 2);
+        assert!(result.gas_left[0].1 <= gas_limit - 100000);
+        assert_eq!(result.gas_left[1].0, program_id);
+        assert_eq!(result.gas_left[1].1, 100000);
     }
 }
