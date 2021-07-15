@@ -90,7 +90,7 @@ pub struct LaterExt<E: Ext> {
 impl<E: Ext> Clone for LaterExt<E> {
     fn clone(&self) -> Self {
         Self {
-            inner: self.inner.clone(),
+            inner: Rc::clone(&self.inner),
         }
     }
 }
