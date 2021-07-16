@@ -18,7 +18,8 @@ use gear_core::{
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
 };
 
-use gear_backend::wasmtime::env::Environment;
+use gear_backend::Environment;
+
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {

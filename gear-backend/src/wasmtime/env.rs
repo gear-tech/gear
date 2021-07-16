@@ -88,7 +88,7 @@ impl<E: Ext + 'static> Environment<E> {
         entry_point: &str,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
         let module = Module::new(self.store.engine(), binary).expect("Error creating module");
-        let touched: Rc<RefCell<Vec<PageInfo>>> = Rc::new(RefCell::new(Vec::new()));
+        let touched: Rc<RefCell<Vec<PageInfo>>> = Default::default();
 
         cfg_if::cfg_if! {
             if #[cfg(target_os = "linux")] {
@@ -97,7 +97,7 @@ impl<E: Ext + 'static> Environment<E> {
                 // Lock memory
                 ext.memory_lock();
 
-                let touched_clone = touched.clone();
+                let touched_clone = Rc::clone(&touched);
                 let ext_clone = self.ext.clone();
                 let base = memory.data_ptr();
 

@@ -208,8 +208,8 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             }
             id if id == self.charge => {
                 let ext = self.ext.clone();
-                let gas_ptr = args.nth::<i64>(0);
-                if ext.with(|ext: &mut E| ext.charge(gas_ptr as u64)).is_err() {
+                let gas = args.nth::<i64>(0);
+                if ext.with(|ext: &mut E| ext.charge(gas as u64)).is_err() {
                     Err(wasmi::Trap::new(TrapKind::InvalidConversionToInt))
                 } else {
                     Ok(None)
