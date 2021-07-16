@@ -564,3 +564,190 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         )
     }
 }
+
+#[cfg(test)]
+/// This module contains tests of the `MessageContext` structure
+/// functionality from the `message.rs` module
+mod tests {
+    use super::*;
+
+    // Struct that would produce MessageId generation
+    pub struct BlakeMessageIdGenerator {
+        program_id: ProgramId,
+        nonce: u64,
+    }
+
+    impl MessageIdGenerator for BlakeMessageIdGenerator {
+        fn next(&mut self) -> MessageId {
+            let mut data: Vec<u8> = self.program_id.as_slice().to_vec();
+            data.push(self.nonce as u8);
+            data.remove(0);
+
+            self.nonce += 1;
+
+            MessageId::from_slice(&data)
+        }
+
+        fn current(&self) -> u64 {
+            self.nonce
+        }
+    }
+
+    // Set of constants for clarity of a part of the test
+    const DEFAULT_GENERATOR_PROGRAM_ID: u64 = 1;
+    const DEFAULT_NONCE: u64 = 2;
+    const INCOMING_MESSAGE_ID: u64 = 3;
+    const INCOMING_MESSAGE_SOURCE: u64 = 4;
+    const OUTGOING_MESSAGE_DEST: u64 = 5;
+
+    #[test]
+    /// Test that covers full api of `MessageContext`
+    fn message_context_api() {
+        // Creating an id generator
+        let id_generator = BlakeMessageIdGenerator {
+            program_id: ProgramId::from(DEFAULT_GENERATOR_PROGRAM_ID),
+            nonce: DEFAULT_NONCE,
+        };
+        // Creating an incoming message around which the runner builds the `MessageContext`
+        let incoming_message = IncomingMessage {
+            id: MessageId::from(INCOMING_MESSAGE_ID),
+            source: ProgramId::from(INCOMING_MESSAGE_SOURCE),
+            payload: vec![1, 2].into(),
+            gas_limit: 0,
+            value: 0,
+            reply: None,
+        };
+
+        // Creating a message context
+        let context = MessageContext::new(incoming_message, id_generator);
+
+        // Сhecking that the initial parameters of the context match the passed constants
+        assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
+        assert_eq!(context.nonce(), DEFAULT_NONCE);
+        assert!(context.state.borrow_mut().reply.is_none());
+
+        // Creating a reply packet to set the `ReplyMessage`
+        let reply_packet = ReplyPacket::new(vec![0, 0, 0].into(), 0, 0);
+
+        // Setting reply message and making sure the operation was successful
+        assert!(context.reply(reply_packet.clone()).is_ok());
+
+        // After every successful generation of `Message`, `nonse` increases by one
+        assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
+
+        // Checking that the `ReplyMessage` mathes the passed one
+        assert_eq!(
+            context.state.borrow_mut().reply.as_ref().unwrap().payload,
+            vec![0, 0, 0].into()
+        );
+
+        // Checking that repeated call `reply(...)` returns error and does not
+        // increase nonse, because `ReplyMessage` is not generated
+        assert!(context.reply(reply_packet.clone()).is_err());
+        assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
+
+        // Creating an outgoing packet to send
+        let outgoing_packet = OutgoingPacket::new(
+            ProgramId::from(OUTGOING_MESSAGE_DEST),
+            vec![0, 0].into(),
+            0,
+            0,
+        );
+
+        // Checking that at this point vector of outgoing messages is empty
+        assert!(context.state.borrow_mut().outgoing.is_empty());
+
+        // Direct message sending and verification of the success of the operation
+        assert!(context.send(outgoing_packet.clone()).is_ok());
+
+        // Checking that vector of outgoing messages is not empty now
+        assert!(!context.state.borrow_mut().outgoing.is_empty());
+
+        // Checking that generated outgoing message mathes passed outgoing packet
+        assert_eq!(
+            context.state.borrow_mut().outgoing[0].0.dest,
+            outgoing_packet.dest
+        );
+        // And it is fully formed
+        assert_eq!(
+            context.state.borrow_mut().outgoing[0].1,
+            FormationStatus::Formed
+        );
+
+        // Creating an outgoing packet to send by parts
+        let outgoing_packet = OutgoingPacket::new(
+            ProgramId::from(OUTGOING_MESSAGE_DEST + 1),
+            vec![1, 1].into(),
+            0,
+            0,
+        );
+        // Creating an expected handle for a future initiated message
+        let expected_handle = 1;
+
+        // Initializing message and compare its handle with expected one
+        assert_eq!(
+            context
+                .init(outgoing_packet.clone())
+                .expect("Error initializing new message"),
+            expected_handle
+        );
+
+        // Checking that initialized outgoing message mathes passed outgoing packet
+        assert_eq!(
+            context.state.borrow_mut().outgoing[expected_handle].0.dest,
+            outgoing_packet.dest
+        );
+        // And it is not fully formed
+        assert_eq!(
+            context.state.borrow_mut().outgoing[expected_handle].1,
+            FormationStatus::NotFormed
+        );
+
+        // Checking that we are able to push payload for the
+        // message that we have not commited yet
+        assert!(context.push(expected_handle, &mut vec![5, 7]).is_ok());
+        assert!(context.push(expected_handle, &mut vec![9]).is_ok());
+
+        // Checking if commit is successful
+        assert!(context.commit(expected_handle).is_ok());
+
+        // Checking that we are **NOT** able to push payload for the message or
+        // commit it if we already commited it or directly pushed before
+        assert!(context.push(0, &mut vec![5, 7]).is_err());
+        assert!(context.push(expected_handle, &mut vec![5, 7]).is_err());
+        assert!(context.commit(0).is_err());
+        assert!(context.commit(expected_handle).is_err());
+
+        // Checking that we also get an error when trying
+        // to commit or send a non-existent message
+        assert!(context.push(15, &mut vec![0]).is_err());
+        assert!(context.commit(15).is_err());
+
+        // Creating an outgoing packet to init and do not commit later
+        // to show that the message will not be sent
+        let outgoing_packet = OutgoingPacket::new(
+            ProgramId::from(OUTGOING_MESSAGE_DEST + 2),
+            vec![2, 2].into(),
+            0,
+            0,
+        );
+        let expected_handle = 2;
+
+        assert_eq!(
+            context
+                .init(outgoing_packet)
+                .expect("Error initializing new message"),
+            expected_handle
+        );
+
+        // Checking that on drain we get only messages that were fully formed (directly sent or commited)
+        let expected_result: (Vec<OutgoingMessage>, Option<ReplyMessage>) = context.drain();
+        assert_eq!(expected_result.0.len(), 2);
+        assert_eq!(expected_result.0[0].payload.0, vec![0, 0]);
+        assert_eq!(expected_result.0[1].payload.0, vec![1, 1, 5, 7, 9]);
+
+        // Checking that reply message not lost and matches our initial
+        assert!(expected_result.1.is_some());
+        assert_eq!(expected_result.1.unwrap().payload.0, vec![0, 0, 0]);
+    }
+}
