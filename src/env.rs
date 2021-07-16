@@ -33,6 +33,15 @@ pub trait Ext {
     /// Send message to another program.
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str>;
 
+    /// Initialize a new incomplete message for another program and return its handle.
+    fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str>;
+
+    /// Push an extra buffer into message payload by handle.
+    fn push(&self, handle: usize, buffer: &mut [u8]) -> Result<(), &'static str>;
+
+    /// Complete message and send it to another program.
+    fn commit(&self, handle: usize) -> Result<(), &'static str>;
+
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
 
@@ -145,6 +154,15 @@ mod tests {
             Err("")
         }
         fn send(&mut self, _msg: OutgoingPacket) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn init(&self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
+            Ok(0)
+        }
+        fn push(&self, _handle: usize, _buffer: &mut [u8]) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn commit(&self, _handle: usize) -> Result<(), &'static str> {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {

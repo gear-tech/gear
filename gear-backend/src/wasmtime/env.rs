@@ -52,6 +52,12 @@ impl<E: Ext + 'static> Environment<E> {
             "gr_reply",
             Func::wrap(&store, Self::func_reply(ext.clone())),
         );
+        funcs.insert("gr_init", Func::wrap(&store, Self::func_init(ext.clone())));
+        funcs.insert("gr_push", Func::wrap(&store, Self::func_push(ext.clone())));
+        funcs.insert(
+            "gr_commit",
+            Func::wrap(&store, Self::func_commit(ext.clone())),
+        );
         funcs.insert("gr_send", Func::wrap(&store, Self::func_send(ext.clone())));
         funcs.insert("gr_size", Func::wrap(&store, Self::func_size(ext.clone())));
         funcs.insert(
@@ -342,6 +348,80 @@ impl<E: Ext + 'static> Environment<E> {
 
             if result.is_err() {
                 return Err(wasmtime::Trap::new("Trapping: unable to send message"));
+            }
+
+            Ok(())
+        }
+    }
+
+    fn func_init(
+        ext: LaterExt<E>,
+    ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<i32, wasmtime::Trap> {
+        move |program_id_ptr: i32,
+              message_ptr: i32,
+              message_len: i32,
+              gas_limit: i64,
+              value_ptr: i32| {
+            let message_ptr = message_ptr as u32 as usize;
+            let message_len = message_len as u32 as usize;
+            let result = ext.with(|ext: &mut E| {
+                let mut data = vec![0u8; message_len];
+                ext.get_mem(message_ptr, &mut data);
+                let mut program_id = [0u8; 32];
+                ext.get_mem(program_id_ptr as isize as _, &mut program_id);
+                let program_id = ProgramId::from_slice(&program_id);
+
+                let mut value_le = [0u8; 16];
+                ext.get_mem(value_ptr as isize as _, &mut value_le);
+
+                ext.init(OutgoingPacket::new(
+                    program_id,
+                    data.into(),
+                    gas_limit as _,
+                    u128::from_le_bytes(value_le),
+                ))
+            });
+
+            if result.is_err() {
+                return Err(wasmtime::Trap::new("Trapping: unable to init message"));
+            };
+
+            Ok(result.unwrap() as isize as i32)
+        }
+    }
+
+    fn func_push(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), wasmtime::Trap> {
+        move |handle_ptr: i32, message_ptr: i32, message_len: i32| {
+            let handle_ptr = handle_ptr as u32 as usize;
+            let message_ptr = message_ptr as u32 as usize;
+            let message_len = message_len as u32 as usize;
+
+            let result = ext.with(|ext: &mut E| {
+                let mut data = vec![0u8; message_len];
+                ext.get_mem(message_ptr, &mut data);
+
+                ext.push(handle_ptr, &mut data)
+            });
+
+            if result.is_err() {
+                return Err(wasmtime::Trap::new(
+                    "Trapping: unable to push payload into message",
+                ));
+            }
+
+            Ok(())
+        }
+    }
+
+    fn func_commit(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), wasmtime::Trap> {
+        move |handle_ptr: i32| {
+            let handle_ptr = handle_ptr as u32 as usize;
+
+            let result = ext.with(|ext: &mut E| ext.commit(handle_ptr));
+            if result.is_err() {
+                return Err(wasmtime::Trap::new(
+                    "Trapping: unable to commit and send message",
+                ));
             }
 
             Ok(())

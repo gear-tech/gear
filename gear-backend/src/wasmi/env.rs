@@ -38,6 +38,9 @@ struct Runtime<E: Ext + 'static> {
     gas: usize,
     value: usize,
     charge: usize,
+    init: usize,
+    push: usize,
+    commit: usize,
 }
 
 impl<E: Ext + 'static> Externals for Runtime<E> {
@@ -212,6 +215,76 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                     Ok(None)
                 }
             }
+            id if id == self.init => {
+                let ext = self.ext.clone();
+                let program_id_ptr: i32 = args.nth(0);
+                let message_ptr: i32 = args.nth(1);
+                let message_len: i32 = args.nth(2);
+                let gas_limit: i64 = args.nth(3);
+                let value_ptr: i32 = args.nth(4);
+                let message_ptr = message_ptr as u32 as usize;
+                let message_len = message_len as u32 as usize;
+
+                let result = ext.with(|ext: &mut E| {
+                    let mut data = vec![0u8; message_len];
+                    ext.get_mem(message_ptr, &mut data);
+                    let mut program_id = [0u8; 32];
+                    ext.get_mem(program_id_ptr as isize as _, &mut program_id);
+                    let program_id = ProgramId::from_slice(&program_id);
+
+                    let mut value_le = [0u8; 16];
+                    ext.get_mem(value_ptr as isize as _, &mut value_le);
+
+                    ext.init(OutgoingPacket::new(
+                        program_id,
+                        data.into(),
+                        gas_limit as _,
+                        u128::from_le_bytes(value_le),
+                    ))
+                });
+
+                if result.is_err() {
+                    return Err(Trap::new(TrapKind::UnexpectedSignature));
+                }
+
+                Ok(Some(RuntimeValue::I32(result.unwrap() as isize as i32)))
+            }
+            id if id == self.push => {
+                let ext = self.ext.clone();
+                let handle_ptr: i32 = args.nth(0);
+                let message_ptr: i32 = args.nth(1);
+                let message_len: i32 = args.nth(2);
+                let handle_ptr = handle_ptr as u32 as usize;
+                let message_ptr = message_ptr as u32 as usize;
+                let message_len = message_len as u32 as usize;
+
+                let is_err = ext
+                    .with(|ext: &mut E| {
+                        let mut data = vec![0u8; message_len];
+                        ext.get_mem(message_ptr, &mut data);
+                        ext.push(handle_ptr, &mut data)
+                    })
+                    .is_err();
+
+                if is_err {
+                    return Err(Trap::new(TrapKind::UnexpectedSignature));
+                }
+
+                Ok(None)
+            }
+            id if id == self.commit => {
+                let ext = self.ext.clone();
+                let handle_ptr: i32 = args.nth(0);
+                let handle_ptr = handle_ptr as u32 as usize;
+
+                let is_err = ext.with(|ext: &mut E| ext.commit(handle_ptr)).is_err();
+
+                if is_err {
+                    return Err(Trap::new(TrapKind::UnexpectedSignature));
+                }
+
+                Ok(None)
+            }
             _ => panic!("unknown function index"),
         }
     }
@@ -282,7 +355,27 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.value)
             }
             "gr_charge" => {
-                FuncInstance::alloc_host(Signature::new(&[ValueType::I64][..], None), self.value)
+                FuncInstance::alloc_host(Signature::new(&[ValueType::I64][..], None), self.charge)
+            }
+            "gr_init" => FuncInstance::alloc_host(
+                Signature::new(
+                    &[
+                        ValueType::I32,
+                        ValueType::I32,
+                        ValueType::I32,
+                        ValueType::I64,
+                        ValueType::I32,
+                    ][..],
+                    Some(ValueType::I32),
+                ),
+                self.init,
+            ),
+            "gr_push" => FuncInstance::alloc_host(
+                Signature::new(&[ValueType::I32, ValueType::I32, ValueType::I32][..], None),
+                self.push,
+            ),
+            "gr_commit" => {
+                FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.commit)
             }
             _ => {
                 return Err(InterpreterError::Function(format!(
@@ -330,6 +423,9 @@ pub struct Environment<E: Ext + 'static> {
     gas: usize,
     value: usize,
     charge: usize,
+    init: usize,
+    push: usize,
+    commit: usize,
 }
 
 impl<E: Ext + 'static> Default for Environment<E> {
@@ -358,6 +454,9 @@ impl<E: Ext + 'static> Environment<E> {
         let gas = 10;
         let value = 11;
         let charge = 12;
+        let init = 13;
+        let push = 14;
+        let commit = 15;
 
         Self {
             ext,
@@ -374,6 +473,9 @@ impl<E: Ext + 'static> Environment<E> {
             gas,
             value,
             charge,
+            init,
+            push,
+            commit,
         }
     }
 
@@ -432,6 +534,9 @@ impl<E: Ext + 'static> Environment<E> {
             gas: self.gas,
             value: self.value,
             charge: self.charge,
+            init: self.init,
+            push: self.push,
+            commit: self.commit,
         };
 
         let result = self.run_inner(instance, static_area, memory, move |instance| {
