@@ -1,7 +1,8 @@
 #![no_std]
 
-use gstd::msg::{self, ProgramId};
+use gstd::msg::{self};
 use gstd::prelude::*;
+use gstd::ProgramId;
 
 #[cfg(feature = "debug")]
 use gstd::ext;

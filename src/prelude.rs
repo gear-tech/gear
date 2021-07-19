@@ -7,6 +7,7 @@ pub use alloc::{
     format,
     str::FromStr,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 pub use core::{mem, panic, ptr};

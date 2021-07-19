@@ -6,6 +6,8 @@ pub mod macros;
 pub mod msg;
 pub mod prelude;
 
+pub use msg::{MessageId, ProgramId};
+
 #[cfg(feature = "debug")]
 pub mod ext {
     mod sys {
