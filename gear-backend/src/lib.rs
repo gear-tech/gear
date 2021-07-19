@@ -15,3 +15,5 @@ cfg_if::cfg_if! {
         pub use crate::wasmi::env::Environment;
     }
 }
+
+mod funcs;

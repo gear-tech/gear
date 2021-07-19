@@ -10,10 +10,12 @@ cfg-if = "1.0.0"
 gear-core = { path = "../" }
 libc = "0.2.98"
 log = "0.4.14"
+num-derive = { version = "0.3.3", optional = true }
+num-traits = { version = "0.2.14", optional = true }
 wasmtime = { version = "0.27.0", default-features = false, optional = true }
 wasmi = { version = "0.9.0", default-features = false, optional = true }
 
 [features]
 default = ["wasmtime_backend"]
 wasmtime_backend = ["wasmtime", "wasmtime/parallel-compilation"]
-wasmi_backend = ["wasmi", "wasmi/core"]
+wasmi_backend = ["num-derive", "num-traits", "wasmi", "wasmi/core"]

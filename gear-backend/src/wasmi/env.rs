@@ -8,375 +8,179 @@ use wasmi::{
 
 use alloc::boxed::Box;
 use alloc::rc::Rc;
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::RefCell;
-
-use ::anyhow::{self};
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
 use gear_core::memory::{Memory, PageNumber};
-use gear_core::message::{OutgoingPacket, ReplyPacket};
-use gear_core::program::ProgramId;
 
-/// Struct for implementing host functions
-///
-/// contains host func indices inherited from Environment
+use crate::funcs;
+
+/// Struct for implementing host functions.
 struct Runtime<E: Ext + 'static> {
     ext: LaterExt<E>,
-    send: usize,
-    reply: usize,
-    source: usize,
-    message_id: usize,
-    alloc: usize,
-    free: usize,
-    size: usize,
-    read: usize,
-    debug: usize,
-    gas: usize,
-    value: usize,
-    charge: usize,
-    init: usize,
-    push: usize,
-    commit: usize,
+}
+
+#[derive(FromPrimitive)]
+enum FuncIndex {
+    Alloc = 1,
+    Charge,
+    Commit,
+    Debug,
+    Free,
+    Gas,
+    MsgId,
+    Init,
+    Push,
+    Read,
+    Reply,
+    Send,
+    Size,
+    Source,
+    Value,
+}
+
+macro_rules! func_instance {
+    ($idx:ident, $($param:expr $(,)?)* => $res:expr) => {
+        FuncInstance::alloc_host(
+            Signature::new(&[$($param,)*][..], $res),
+            FuncIndex::$idx as usize,
+        )
+    };
 }
 
 impl<E: Ext + 'static> Externals for Runtime<E> {
-    /// host functions implementations
+    /// Host functions implementations.
     fn invoke_index(
         &mut self,
         index: usize,
         args: RuntimeArgs,
     ) -> Result<Option<RuntimeValue>, Trap> {
-        match index {
-            id if id == self.alloc => {
-                let ext = self.ext.clone();
-                let pages: u32 = args.nth(0);
-                let ptr = match ext.with(|ext: &mut E| ext.alloc(pages.into())) {
-                    Ok(ptr) => ptr.raw(),
-                    _ => {
-                        return Ok(Some(RuntimeValue::I32(0)));
-                    }
-                };
+        match FromPrimitive::from_usize(index) {
+            Some(FuncIndex::Alloc) => funcs::alloc(self.ext.clone())(args.nth(0))
+                .map(|v| Some(RuntimeValue::I32(v as i32)))
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-                log::debug!("ALLOC: {} pages at {}", pages, ptr);
+            Some(FuncIndex::Charge) => funcs::charge(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
 
-                Ok(Some(RuntimeValue::I32(ptr as i32)))
+            Some(FuncIndex::Commit) => funcs::commit(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::Debug) => funcs::debug(self.ext.clone())(args.nth(0), args.nth(1))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::Free) => funcs::free(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::Gas) => funcs::gas(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
+
+            Some(FuncIndex::MsgId) => funcs::msg_id(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::Init) => funcs::init(self.ext.clone())(
+                args.nth(0),
+                args.nth(1),
+                args.nth(2),
+                args.nth(3),
+                args.nth(4),
+            )
+            .map(|_| None)
+            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::Push) => {
+                funcs::push(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
-            id if id == self.send => {
-                let ext = self.ext.clone();
-                let program_id_ptr: i32 = args.nth(0);
-                let message_ptr: i32 = args.nth(1);
-                let message_len: i32 = args.nth(2);
-                let gas_limit: i64 = args.nth(3);
-                let value_ptr: i32 = args.nth(4);
-                let message_ptr = message_ptr as u32 as usize;
-                let message_len = message_len as u32 as usize;
 
-                let is_err = ext
-                    .with(|ext: &mut E| {
-                        let mut data = vec![0u8; message_len];
-                        ext.get_mem(message_ptr, &mut data);
-                        let mut program_id = [0u8; 32];
-                        ext.get_mem(program_id_ptr as isize as _, &mut program_id);
-                        let program_id = ProgramId::from_slice(&program_id);
-
-                        let mut value_le = [0u8; 16];
-                        ext.get_mem(value_ptr as isize as _, &mut value_le);
-
-                        ext.send(OutgoingPacket::new(
-                            program_id,
-                            data.into(),
-                            gas_limit as _,
-                            u128::from_le_bytes(value_le),
-                        ))
-                    })
-                    .is_err();
-
-                if is_err {
-                    return Err(Trap::new(TrapKind::UnexpectedSignature));
-                }
-
-                Ok(None)
+            Some(FuncIndex::Read) => {
+                funcs::read(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
-            id if id == self.reply => {
-                let ext = self.ext.clone();
-                let message_ptr: i32 = args.nth(1);
-                let message_len: i32 = args.nth(2);
-                let gas_limit: i64 = args.nth(3);
-                let value_ptr: i32 = args.nth(4);
-                let message_ptr = message_ptr as u32 as usize;
-                let message_len = message_len as u32 as usize;
 
-                let is_err = ext
-                    .with(|ext: &mut E| {
-                        let mut data = vec![0u8; message_len];
-                        ext.get_mem(message_ptr, &mut data);
-
-                        let mut value_le = [0u8; 16];
-                        ext.get_mem(value_ptr as isize as _, &mut value_le);
-
-                        ext.reply(ReplyPacket::new(
-                            data.into(),
-                            gas_limit as _,
-                            u128::from_le_bytes(value_le),
-                        ))
-                    })
-                    .is_err();
-
-                if is_err {
-                    return Err(Trap::new(TrapKind::UnexpectedSignature));
-                }
-
-                Ok(None)
+            Some(FuncIndex::Reply) => {
+                funcs::reply(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2), args.nth(3))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
-            id if id == self.free => {
-                let ext = self.ext.clone();
-                let page: i32 = args.nth(0);
-                let page = page as u32;
-                if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into())) {
-                    log::debug!("FREE ERROR: {:?}", e);
-                } else {
-                    log::debug!("FREE: {}", page);
-                }
-                Ok(None)
-            }
-            id if id == self.size => {
-                let ext = self.ext.clone();
-                ext.with(|ext: &mut E| Ok(Some(RuntimeValue::I32(ext.msg().len() as i32))))
-            }
-            id if id == self.read => {
-                let ext = self.ext.clone();
-                let at = args.nth::<i32>(0) as usize;
-                let len = args.nth::<i32>(1) as usize;
-                let dest = args.nth::<i32>(2) as usize;
-                ext.with(|ext: &mut E| {
-                    let msg = ext.msg().to_vec();
-                    ext.set_mem(dest, &msg[at..at + len]);
-                });
-                Ok(None)
-            }
-            id if id == self.debug => {
-                let ext = self.ext.clone();
-                let str_ptr = args.nth::<i32>(0) as usize;
-                let str_len = args.nth::<i32>(1) as usize;
-                ext.with(|ext: &mut E| {
-                    let mut data = vec![0u8; str_len];
-                    ext.get_mem(str_ptr, &mut data);
-                    let debug_str = unsafe { String::from_utf8_unchecked(data) };
-                    log::debug!("DEBUG: {}", debug_str);
-                });
-                Ok(None)
-            }
-            id if id == self.source => {
-                let ext = self.ext.clone();
-                let source_ptr = args.nth::<i32>(0) as usize;
-                ext.with(|ext: &mut E| {
-                    let source = ext.source();
-                    ext.set_mem(source_ptr as isize as _, source.as_slice());
-                });
-                Ok(None)
-            }
-            id if id == self.message_id => {
-                let ext = self.ext.clone();
-                let source_ptr = args.nth::<i32>(0) as usize;
-                ext.with(|ext: &mut E| {
-                    let source = ext.message_id();
-                    ext.set_mem(source_ptr as isize as _, source.as_slice());
-                });
-                Ok(None)
-            }
-            id if id == self.gas => {
-                let ext = self.ext.clone();
-                let val = args.nth::<i32>(0);
-                if ext.with(|ext: &mut E| ext.gas(val as _)).is_err() {
-                    Err(wasmi::Trap::new(TrapKind::InvalidConversionToInt))
-                } else {
-                    Ok(None)
-                }
-            }
-            id if id == self.value => {
-                let ext = self.ext.clone();
-                let value_ptr = args.nth::<i32>(0);
-                ext.with(|ext: &mut E| {
-                    let source = ext.value();
-                    ext.set_mem(value_ptr as isize as _, &source.to_le_bytes()[..]);
-                });
-                Ok(None)
-            }
-            id if id == self.charge => {
-                let ext = self.ext.clone();
-                let gas = args.nth::<i64>(0);
-                if ext.with(|ext: &mut E| ext.charge(gas as u64)).is_err() {
-                    Err(wasmi::Trap::new(TrapKind::InvalidConversionToInt))
-                } else {
-                    Ok(None)
-                }
-            }
-            id if id == self.init => {
-                let ext = self.ext.clone();
-                let program_id_ptr: i32 = args.nth(0);
-                let message_ptr: i32 = args.nth(1);
-                let message_len: i32 = args.nth(2);
-                let gas_limit: i64 = args.nth(3);
-                let value_ptr: i32 = args.nth(4);
-                let message_ptr = message_ptr as u32 as usize;
-                let message_len = message_len as u32 as usize;
 
-                let result = ext.with(|ext: &mut E| {
-                    let mut data = vec![0u8; message_len];
-                    ext.get_mem(message_ptr, &mut data);
-                    let mut program_id = [0u8; 32];
-                    ext.get_mem(program_id_ptr as isize as _, &mut program_id);
-                    let program_id = ProgramId::from_slice(&program_id);
+            Some(FuncIndex::Send) => funcs::send(self.ext.clone())(
+                args.nth(0),
+                args.nth(1),
+                args.nth(2),
+                args.nth(3),
+                args.nth(4),
+            )
+            .map(|_| None)
+            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-                    let mut value_le = [0u8; 16];
-                    ext.get_mem(value_ptr as isize as _, &mut value_le);
+            Some(FuncIndex::Size) => Ok(Some(RuntimeValue::I32(funcs::size(self.ext.clone())()))),
 
-                    ext.init(OutgoingPacket::new(
-                        program_id,
-                        data.into(),
-                        gas_limit as _,
-                        u128::from_le_bytes(value_le),
-                    ))
-                });
+            Some(FuncIndex::Source) => funcs::source(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-                if result.is_err() {
-                    return Err(Trap::new(TrapKind::UnexpectedSignature));
-                }
+            Some(FuncIndex::Value) => funcs::value(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-                Ok(Some(RuntimeValue::I32(result.unwrap() as isize as i32)))
-            }
-            id if id == self.push => {
-                let ext = self.ext.clone();
-                let handle_ptr: i32 = args.nth(0);
-                let message_ptr: i32 = args.nth(1);
-                let message_len: i32 = args.nth(2);
-                let handle_ptr = handle_ptr as u32 as usize;
-                let message_ptr = message_ptr as u32 as usize;
-                let message_len = message_len as u32 as usize;
-
-                let is_err = ext
-                    .with(|ext: &mut E| {
-                        let mut data = vec![0u8; message_len];
-                        ext.get_mem(message_ptr, &mut data);
-                        ext.push(handle_ptr, &mut data)
-                    })
-                    .is_err();
-
-                if is_err {
-                    return Err(Trap::new(TrapKind::UnexpectedSignature));
-                }
-
-                Ok(None)
-            }
-            id if id == self.commit => {
-                let ext = self.ext.clone();
-                let handle_ptr: i32 = args.nth(0);
-                let handle_ptr = handle_ptr as u32 as usize;
-
-                let is_err = ext.with(|ext: &mut E| ext.commit(handle_ptr)).is_err();
-
-                if is_err {
-                    return Err(Trap::new(TrapKind::UnexpectedSignature));
-                }
-
-                Ok(None)
-            }
             _ => panic!("unknown function index"),
         }
     }
 }
 
 impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
-    /// Provide imports corresponding concrete reference
+    /// Provide imports corresponding concrete reference.
     fn resolve_func(
         &self,
         field_name: &str,
         _signature: &Signature,
     ) -> Result<FuncRef, InterpreterError> {
         let func_ref = match field_name {
-            "alloc" => FuncInstance::alloc_host(
-                Signature::new(&[ValueType::I32][..], Some(ValueType::I32)),
-                self.alloc,
-            ),
-            "gr_send" => FuncInstance::alloc_host(
-                Signature::new(
-                    &[
-                        ValueType::I32,
-                        ValueType::I32,
-                        ValueType::I32,
-                        ValueType::I64,
-                        ValueType::I32,
-                    ][..],
-                    None,
-                ),
-                self.send,
-            ),
-            "gr_reply" => FuncInstance::alloc_host(
-                Signature::new(
-                    &[
-                        ValueType::I32,
-                        ValueType::I32,
-                        ValueType::I64,
-                        ValueType::I32,
-                    ][..],
-                    None,
-                ),
-                self.reply,
-            ),
-            "free" => {
-                FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.free)
+            "alloc" => func_instance!(Alloc, ValueType::I32 => Some(ValueType::I32)),
+            "free" => func_instance!(Free, ValueType::I32 => None),
+            "gas" => func_instance!(Gas, ValueType::I32 => None),
+            "gr_charge" => func_instance!(Charge, ValueType::I64 => None),
+            "gr_commit" => func_instance!(Commit, ValueType::I32 => None),
+            "gr_debug" => func_instance!(Debug, ValueType::I32, ValueType::I32 => None),
+            "gr_init" => func_instance!(Init, ValueType::I32,
+                ValueType::I32,
+                ValueType::I32,
+                ValueType::I64,
+                ValueType::I32 => Some(ValueType::I32)),
+            "gr_msg_id" => func_instance!(MsgId, ValueType::I32 => None),
+            "gr_push" => {
+                func_instance!(Push, ValueType::I32, ValueType::I32, ValueType::I32 => None)
             }
-            "gr_size" => {
-                FuncInstance::alloc_host(Signature::new(&[][..], Some(ValueType::I32)), self.size)
+            "gr_read" => {
+                func_instance!(Read, ValueType::I32, ValueType::I32, ValueType::I32 => None)
             }
-            "gr_read" => FuncInstance::alloc_host(
-                Signature::new(&[ValueType::I32, ValueType::I32, ValueType::I32][..], None),
-                self.read,
-            ),
-            "gr_debug" => FuncInstance::alloc_host(
-                Signature::new(&[ValueType::I32, ValueType::I32][..], None),
-                self.debug,
-            ),
-            "gr_source" => {
-                FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.source)
-            }
-            "gr_msg_id" => FuncInstance::alloc_host(
-                Signature::new(&[ValueType::I32][..], None),
-                self.message_id,
-            ),
-            "gas" => {
-                FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.gas)
-            }
-            "gr_value" => {
-                FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.value)
-            }
-            "gr_charge" => {
-                FuncInstance::alloc_host(Signature::new(&[ValueType::I64][..], None), self.charge)
-            }
-            "gr_init" => FuncInstance::alloc_host(
-                Signature::new(
-                    &[
-                        ValueType::I32,
-                        ValueType::I32,
-                        ValueType::I32,
-                        ValueType::I64,
-                        ValueType::I32,
-                    ][..],
-                    Some(ValueType::I32),
-                ),
-                self.init,
-            ),
-            "gr_push" => FuncInstance::alloc_host(
-                Signature::new(&[ValueType::I32, ValueType::I32, ValueType::I32][..], None),
-                self.push,
-            ),
-            "gr_commit" => {
-                FuncInstance::alloc_host(Signature::new(&[ValueType::I32][..], None), self.commit)
-            }
+            "gr_reply" => func_instance!(Reply, ValueType::I32,
+                ValueType::I32,
+                ValueType::I64,
+                ValueType::I32 => None),
+            "gr_send" => func_instance!(Send, ValueType::I32,
+                ValueType::I32,
+                ValueType::I32,
+                ValueType::I64,
+                ValueType::I32 => None),
+            "gr_size" => func_instance!(Size,  => Some(ValueType::I32)),
+            "gr_source" => func_instance!(Source, ValueType::I32 => None),
+            "gr_value" => func_instance!(Value, ValueType::I32 => None),
+
             _ => {
                 return Err(InterpreterError::Function(format!(
                     "host module doesn't export function with name {}",
@@ -411,21 +215,6 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
 pub struct Environment<E: Ext + 'static> {
     ext: LaterExt<E>,
     memory: Option<Box<dyn Memory>>,
-    send: usize,
-    reply: usize,
-    source: usize,
-    message_id: usize,
-    alloc: usize,
-    free: usize,
-    size: usize,
-    read: usize,
-    debug: usize,
-    gas: usize,
-    value: usize,
-    charge: usize,
-    init: usize,
-    push: usize,
-    commit: usize,
 }
 
 impl<E: Ext + 'static> Default for Environment<E> {
@@ -439,56 +228,10 @@ impl<E: Ext + 'static> Environment<E> {
     ///
     /// To run actual function with provided external environment, `setup_and_run` should be used.
     pub fn new() -> Self {
-        let ext = LaterExt::new();
-
-        // host func index
-        let alloc = 1;
-        let send = 2;
-        let reply = 3;
-        let free = 4;
-        let size = 5;
-        let read = 6;
-        let debug = 7;
-        let source = 8;
-        let message_id = 9;
-        let gas = 10;
-        let value = 11;
-        let charge = 12;
-        let init = 13;
-        let push = 14;
-        let commit = 15;
-
         Self {
-            ext,
+            ext: LaterExt::new(),
             memory: None,
-            alloc,
-            send,
-            reply,
-            free,
-            size,
-            read,
-            debug,
-            source,
-            message_id,
-            gas,
-            value,
-            charge,
-            init,
-            push,
-            commit,
         }
-    }
-
-    fn run_inner(
-        &mut self,
-        module: ModuleRef,
-        static_area: Vec<u8>,
-        memory: &dyn Memory,
-        func: impl FnOnce(ModuleRef) -> anyhow::Result<()>,
-    ) -> anyhow::Result<()> {
-        memory.write(0, &static_area).expect("Err write mem");
-
-        func(module)
     }
 
     /// Setup external environment and run closure.
@@ -522,21 +265,6 @@ impl<E: Ext + 'static> Environment<E> {
         self.ext.set(ext);
         let mut runtime = Runtime {
             ext: self.ext.clone(),
-            alloc: self.alloc,
-            send: self.send,
-            reply: self.reply,
-            free: self.free,
-            size: self.size,
-            read: self.read,
-            debug: self.debug,
-            source: self.source,
-            message_id: self.message_id,
-            gas: self.gas,
-            value: self.value,
-            charge: self.charge,
-            init: self.init,
-            push: self.push,
-            commit: self.commit,
         };
 
         let result = self.run_inner(instance, static_area, memory, move |instance| {
@@ -559,5 +287,17 @@ impl<E: Ext + 'static> Environment<E> {
             wasmi::MemoryInstance::alloc(wasmi::memory_units::Pages(total_pages as usize), None)
                 .expect("Create env memory fail"),
         )
+    }
+
+    fn run_inner(
+        &mut self,
+        module: ModuleRef,
+        static_area: Vec<u8>,
+        memory: &dyn Memory,
+        func: impl FnOnce(ModuleRef) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
+        memory.write(0, &static_area).expect("Err write mem");
+
+        func(module)
     }
 }

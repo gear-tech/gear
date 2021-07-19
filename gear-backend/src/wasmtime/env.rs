@@ -1,10 +1,9 @@
 //! Wasmtime environment for running a module.
 
-use wasmtime::{Engine, Extern, Func, Instance, Module, Store};
+use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
 
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::cell::RefCell;
 
@@ -14,8 +13,8 @@ use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
 use gear_core::memory::{Memory, PageNumber};
-use gear_core::message::{OutgoingPacket, ReplyPacket};
-use gear_core::program::ProgramId;
+
+use crate::funcs;
 /// Environment to run one module at a time providing Ext.
 pub struct Environment<E: Ext + 'static> {
     store: wasmtime::Store,
@@ -28,48 +27,29 @@ impl<E: Ext + 'static> Environment<E> {
     ///
     /// To run actual function with provided external environment, `setup_and_run` should be used.
     pub fn new() -> Self {
-        let store = Store::default();
-        let ext = LaterExt::new();
+        let mut result = Self {
+            store: Store::default(),
+            ext: LaterExt::new(),
+            funcs: BTreeMap::new(),
+        };
 
-        let mut funcs = BTreeMap::new();
-        funcs.insert("alloc", Func::wrap(&store, Self::func_alloc(ext.clone())));
-        funcs.insert("free", Func::wrap(&store, Self::func_free(ext.clone())));
-        funcs.insert("gas", Func::wrap(&store, Self::func_gas(ext.clone())));
-        funcs.insert(
-            "gr_charge",
-            Func::wrap(&store, Self::func_charge(ext.clone())),
-        );
-        funcs.insert(
-            "gr_debug",
-            Func::wrap(&store, Self::func_debug(ext.clone())),
-        );
-        funcs.insert(
-            "gr_msg_id",
-            Func::wrap(&store, Self::func_msg_id(ext.clone())),
-        );
-        funcs.insert("gr_read", Func::wrap(&store, Self::func_read(ext.clone())));
-        funcs.insert(
-            "gr_reply",
-            Func::wrap(&store, Self::func_reply(ext.clone())),
-        );
-        funcs.insert("gr_init", Func::wrap(&store, Self::func_init(ext.clone())));
-        funcs.insert("gr_push", Func::wrap(&store, Self::func_push(ext.clone())));
-        funcs.insert(
-            "gr_commit",
-            Func::wrap(&store, Self::func_commit(ext.clone())),
-        );
-        funcs.insert("gr_send", Func::wrap(&store, Self::func_send(ext.clone())));
-        funcs.insert("gr_size", Func::wrap(&store, Self::func_size(ext.clone())));
-        funcs.insert(
-            "gr_source",
-            Func::wrap(&store, Self::func_source(ext.clone())),
-        );
-        funcs.insert(
-            "gr_value",
-            Func::wrap(&store, Self::func_value(ext.clone())),
-        );
+        result.add_func_i32_to_u32("alloc", funcs::alloc);
+        result.add_func_i32("free", funcs::free);
+        result.add_func_i32("gas", funcs::gas);
+        result.add_func_i32("gr_commit", funcs::commit);
+        result.add_func_i64("gr_charge", funcs::charge);
+        result.add_func_i32_i32("gr_debug", funcs::debug);
+        result.add_func_i32_i32_i32_i64_i32_to_i32("gr_init", funcs::init);
+        result.add_func_i32("gr_msg_id", funcs::msg_id);
+        result.add_func_i32_i32_i32("gr_push", funcs::push);
+        result.add_func_i32_i32_i32("gr_read", funcs::read);
+        result.add_func_i32_i32_i64_i32("gr_reply", funcs::reply);
+        result.add_func_i32_i32_i32_i64_i32("gr_send", funcs::send);
+        result.add_func_to_i32("gr_size", funcs::size);
+        result.add_func_i32("gr_source", funcs::source);
+        result.add_func_i32("gr_value", funcs::value);
 
-        Self { store, ext, funcs }
+        result
     }
 
     /// Setup external environment and run closure.
@@ -204,252 +184,123 @@ impl<E: Ext + 'static> Environment<E> {
         func(instance)
     }
 
-    fn func_alloc(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, wasmtime::Trap> {
-        move |pages: i32| {
-            let pages = pages as u32;
-
-            let ptr = match ext.with(|ext: &mut E| ext.alloc(pages.into())) {
-                Ok(ptr) => ptr.raw(),
-                _ => return Ok(0u32),
-            };
-
-            log::debug!("ALLOC: {} pages at {}", pages, ptr);
-
-            Ok(ptr)
-        }
+    fn add_func_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap1(func(self.ext.clone()))),
+        );
     }
 
-    fn func_free(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), wasmtime::Trap> {
-        move |page: i32| {
-            let page = page as u32;
-            if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into())) {
-                log::debug!("FREE ERROR: {:?}", e);
-            } else {
-                log::debug!("FREE: {}", page);
-            }
-            Ok(())
-        }
+    fn add_func_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap2(func(self.ext.clone()))),
+        );
     }
 
-    fn func_charge(ext: LaterExt<E>) -> impl Fn(i64) -> Result<(), wasmtime::Trap> {
-        move |gas: i64| {
-            if ext.with(|ext: &mut E| ext.charge(gas as u64)).is_err() {
-                Err(wasmtime::Trap::new(
-                    "Trapping: unable to charge gas for reserve",
-                ))
-            } else {
-                Ok(())
-            }
-        }
+    fn add_func_i32_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap3(func(self.ext.clone()))),
+        );
     }
 
-    fn func_gas(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), wasmtime::Trap> {
-        move |val: i32| {
-            if ext.with(|ext: &mut E| ext.gas(val as _)).is_err() {
-                Err(wasmtime::Trap::new(
-                    "Trapping: unable to report about gas used",
-                ))
-            } else {
-                Ok(())
-            }
-        }
+    fn add_func_i32_i32_i32_i64_i32_to_i32<F>(
+        &mut self,
+        key: &'static str,
+        func: fn(LaterExt<E>) -> F,
+    ) where
+        F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<i32, &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
+        );
     }
 
-    fn func_debug(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), wasmtime::Trap> {
-        move |str_ptr: i32, str_len: i32| {
-            let str_ptr = str_ptr as u32 as usize;
-            let str_len = str_len as u32 as usize;
-            ext.with(|ext: &mut E| {
-                let mut data = vec![0u8; str_len];
-                ext.get_mem(str_ptr, &mut data);
-                let debug_str = unsafe { String::from_utf8_unchecked(data) };
-                log::debug!("DEBUG: {}", debug_str);
-            });
-            Ok(())
-        }
+    fn add_func_i32_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
+        );
     }
 
-    fn func_msg_id(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), wasmtime::Trap> {
-        move |msg_id_ptr: i32| {
-            ext.with(|ext: &mut E| {
-                let message_id = ext.message_id();
-                ext.set_mem(msg_id_ptr as isize as _, message_id.as_slice());
-            });
-            Ok(())
-        }
+    fn add_func_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32, i64, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap4(func(self.ext.clone()))),
+        );
     }
 
-    fn func_read(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), wasmtime::Trap> {
-        move |at: i32, len: i32, dest: i32| {
-            let at = at as u32 as usize;
-            let len = len as u32 as usize;
-            let dest = dest as u32 as usize;
-            ext.with(|ext: &mut E| {
-                let msg = ext.msg().to_vec();
-                ext.set_mem(dest, &msg[at..at + len]);
-            });
-            Ok(())
-        }
+    fn add_func_i32_to_u32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32) -> Result<u32, &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap1(func(self.ext.clone()))),
+        );
     }
 
-    fn func_reply(ext: LaterExt<E>) -> impl Fn(i32, i32, i64, i32) -> Result<(), wasmtime::Trap> {
-        move |message_ptr: i32, message_len: i32, gas_limit: i64, value_ptr: i32| {
-            let message_ptr = message_ptr as u32 as usize;
-            let message_len = message_len as u32 as usize;
-            let result = ext.with(|ext: &mut E| {
-                let mut data = vec![0u8; message_len];
-                ext.get_mem(message_ptr, &mut data);
-
-                let mut value_le = [0u8; 16];
-                ext.get_mem(value_ptr as isize as _, &mut value_le);
-
-                ext.reply(ReplyPacket::new(
-                    data.into(),
-                    gas_limit as _,
-                    u128::from_le_bytes(value_le),
-                ))
-            });
-
-            if result.is_err() {
-                return Err(wasmtime::Trap::new("Trapping: unable to send message"));
-            }
-
-            Ok(())
-        }
+    fn add_func_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i64) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap1(func(self.ext.clone()))),
+        );
     }
 
-    fn func_send(
-        ext: LaterExt<E>,
-    ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<(), wasmtime::Trap> {
-        move |program_id_ptr: i32,
-              message_ptr: i32,
-              message_len: i32,
-              gas_limit: i64,
-              value_ptr: i32| {
-            let message_ptr = message_ptr as u32 as usize;
-            let message_len = message_len as u32 as usize;
-            let result = ext.with(|ext: &mut E| {
-                let mut data = vec![0u8; message_len];
-                ext.get_mem(message_ptr, &mut data);
-                let mut program_id = [0u8; 32];
-                ext.get_mem(program_id_ptr as isize as _, &mut program_id);
-                let program_id = ProgramId::from_slice(&program_id);
-
-                let mut value_le = [0u8; 16];
-                ext.get_mem(value_ptr as isize as _, &mut value_le);
-
-                ext.send(OutgoingPacket::new(
-                    program_id,
-                    data.into(),
-                    gas_limit as _,
-                    u128::from_le_bytes(value_le),
-                ))
-            });
-
-            if result.is_err() {
-                return Err(wasmtime::Trap::new("Trapping: unable to send message"));
-            }
-
-            Ok(())
-        }
+    fn add_func_to_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn() -> i32,
+    {
+        self.funcs
+            .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
     }
 
-    fn func_init(
-        ext: LaterExt<E>,
-    ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<i32, wasmtime::Trap> {
-        move |program_id_ptr: i32,
-              message_ptr: i32,
-              message_len: i32,
-              gas_limit: i64,
-              value_ptr: i32| {
-            let message_ptr = message_ptr as u32 as usize;
-            let message_len = message_len as u32 as usize;
-            let result = ext.with(|ext: &mut E| {
-                let mut data = vec![0u8; message_len];
-                ext.get_mem(message_ptr, &mut data);
-                let mut program_id = [0u8; 32];
-                ext.get_mem(program_id_ptr as isize as _, &mut program_id);
-                let program_id = ProgramId::from_slice(&program_id);
-
-                let mut value_le = [0u8; 16];
-                ext.get_mem(value_ptr as isize as _, &mut value_le);
-
-                ext.init(OutgoingPacket::new(
-                    program_id,
-                    data.into(),
-                    gas_limit as _,
-                    u128::from_le_bytes(value_le),
-                ))
-            });
-
-            if result.is_err() {
-                return Err(wasmtime::Trap::new("Trapping: unable to init message"));
-            };
-
-            Ok(result.unwrap() as isize as i32)
-        }
+    fn wrap1<T, R>(func: impl Fn(T) -> Result<R, &'static str>) -> impl Fn(T) -> Result<R, Trap> {
+        move |a| func(a).map_err(Trap::new)
     }
 
-    fn func_push(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), wasmtime::Trap> {
-        move |handle_ptr: i32, message_ptr: i32, message_len: i32| {
-            let handle_ptr = handle_ptr as u32 as usize;
-            let message_ptr = message_ptr as u32 as usize;
-            let message_len = message_len as u32 as usize;
-
-            let result = ext.with(|ext: &mut E| {
-                let mut data = vec![0u8; message_len];
-                ext.get_mem(message_ptr, &mut data);
-
-                ext.push(handle_ptr, &mut data)
-            });
-
-            if result.is_err() {
-                return Err(wasmtime::Trap::new(
-                    "Trapping: unable to push payload into message",
-                ));
-            }
-
-            Ok(())
-        }
+    fn wrap2<T0, T1, R>(
+        func: impl Fn(T0, T1) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1) -> Result<R, Trap> {
+        move |a, b| func(a, b).map_err(Trap::new)
     }
 
-    fn func_commit(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), wasmtime::Trap> {
-        move |handle_ptr: i32| {
-            let handle_ptr = handle_ptr as u32 as usize;
-
-            let result = ext.with(|ext: &mut E| ext.commit(handle_ptr));
-            if result.is_err() {
-                return Err(wasmtime::Trap::new(
-                    "Trapping: unable to commit and send message",
-                ));
-            }
-
-            Ok(())
-        }
+    fn wrap3<T0, T1, T2, R>(
+        func: impl Fn(T0, T1, T2) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1, T2) -> Result<R, Trap> {
+        move |a, b, c| func(a, b, c).map_err(Trap::new)
     }
 
-    fn func_size(ext: LaterExt<E>) -> impl Fn() -> i32 {
-        move || ext.with(|ext: &mut E| ext.msg().len() as isize as i32)
+    fn wrap4<T0, T1, T2, T3, R>(
+        func: impl Fn(T0, T1, T2, T3) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1, T2, T3) -> Result<R, Trap> {
+        move |a, b, c, d| func(a, b, c, d).map_err(Trap::new)
     }
 
-    fn func_source(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), wasmtime::Trap> {
-        move |source_ptr: i32| {
-            ext.with(|ext: &mut E| {
-                let source = ext.source();
-                ext.set_mem(source_ptr as isize as _, source.as_slice());
-            });
-            Ok(())
-        }
-    }
-
-    fn func_value(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), wasmtime::Trap> {
-        move |value_ptr: i32| {
-            ext.with(|ext: &mut E| {
-                let source = ext.value();
-                ext.set_mem(value_ptr as isize as _, &source.to_le_bytes()[..]);
-            });
-            Ok(())
-        }
+    fn wrap5<T0, T1, T2, T3, T4, R>(
+        func: impl Fn(T0, T1, T2, T3, T4) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1, T2, T3, T4) -> Result<R, Trap> {
+        move |a, b, c, d, e| func(a, b, c, d, e).map_err(Trap::new)
     }
 }
 
