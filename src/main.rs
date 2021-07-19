@@ -63,7 +63,10 @@ pub enum MessageContentMismatch {
 pub enum MessagesError {
     Count(ContentMismatch<usize>),
     #[display(fmt = "at position: {}, mismatch {}", at, mismatch)]
-    AtPosition { at: usize, mismatch: MessageContentMismatch }
+    AtPosition {
+        at: usize,
+        mismatch: MessageContentMismatch,
+    },
 }
 
 impl MessagesError {
@@ -74,27 +77,30 @@ impl MessagesError {
     fn payload(at: usize, expected: Vec<u8>, actual: Vec<u8>) -> Self {
         Self::AtPosition {
             at,
-            mismatch: MessageContentMismatch::Payload(
-                ContentMismatch { expected: expected.into(), actual: actual.into() }
-            ),
+            mismatch: MessageContentMismatch::Payload(ContentMismatch {
+                expected: expected.into(),
+                actual: actual.into(),
+            }),
         }
     }
 
     fn destination(at: usize, expected: ProgramId, actual: ProgramId) -> Self {
         Self::AtPosition {
             at,
-            mismatch: MessageContentMismatch::Destination(
-                ContentMismatch { expected: expected.into(), actual: actual.into() }
-            ),
+            mismatch: MessageContentMismatch::Destination(ContentMismatch {
+                expected: expected.into(),
+                actual: actual.into(),
+            }),
         }
     }
 
     fn gas_limit(at: usize, expected: u64, actual: u64) -> Self {
         Self::AtPosition {
             at,
-            mismatch: MessageContentMismatch::GasLimit(
-                ContentMismatch { expected: expected.into(), actual: actual.into() }
-            ),
+            mismatch: MessageContentMismatch::GasLimit(ContentMismatch {
+                expected: expected.into(),
+                actual: actual.into(),
+            }),
         }
     }
 }
@@ -246,12 +252,11 @@ pub fn main() -> anyhow::Result<()> {
             print_log = true;
             env_logger::Builder::from_env(Env::default().default_filter_or("gear_backend=debug"))
                 .init();
-        },
+        }
         _ => {
             use env_logger::Env;
 
-            env_logger::Builder::from_env(Env::default().default_filter_or("debug"))
-                .init();
+            env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
         }
     }
 

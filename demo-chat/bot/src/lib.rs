@@ -1,14 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 use core::num::ParseIntError;
-use gstd::{ext, msg, ProgramId};
-
-#[macro_use]
-extern crate alloc;
-
-use alloc::boxed::Box;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use gstd::{ext, msg, prelude::*, ProgramId};
 
 use codec::{Decode as _, Encode as _};
 use core::convert::TryInto;

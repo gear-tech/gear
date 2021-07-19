@@ -1,14 +1,8 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-#[macro_use]
-extern crate alloc;
-
-use alloc::string::String;
-use alloc::vec::Vec;
-
-use gstd::{ext, msg, ProgramId};
 use core::{convert::TryInto, num::ParseIntError};
+use gstd::{ext, msg, prelude::*, ProgramId};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -41,7 +35,12 @@ pub unsafe extern "C" fn handle() {
     let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
-    msg::send(STATE.send_to(), &(new_msg + new_msg).to_ne_bytes(), u64::MAX, 0);
+    msg::send(
+        STATE.send_to(),
+        &(new_msg + new_msg).to_ne_bytes(),
+        u64::MAX,
+        0,
+    );
 
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
@@ -63,6 +62,6 @@ pub unsafe extern "C" fn init() {
 }
 
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
+fn panic(_info: &panic::PanicInfo) -> ! {
     loop {}
 }
