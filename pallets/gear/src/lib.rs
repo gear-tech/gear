@@ -273,7 +273,7 @@ pub mod pallet {
 					IntermediateMessage::InitProgram {
 						external_origin, code, program_id, payload, gas_limit, value
 					} => {
-						match rti::gear_executor::init_program(program_id, code, payload, gas_limit, value) {
+						match rti::gear_executor::init_program(external_origin, program_id, code, payload, gas_limit, value) {
 							Err(_) => {
 								stop_list.push(program_id);
 								Self::deposit_event(Event::InitFailure(program_id, MessageError::Dispatch));
