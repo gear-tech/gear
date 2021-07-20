@@ -93,6 +93,7 @@ pub trait GearExecutor {
     }
 
     fn init_program(
+        caller_id: H256,
         program_id: H256,
         program_code: Vec<u8>,
         init_payload: Vec<u8>,
@@ -102,6 +103,7 @@ pub trait GearExecutor {
         let mut runner = crate::runner::new();
 
         let result = RunNextResult::from_single(
+            ProgramId::from_slice(&caller_id[..]),
             ProgramId::from_slice(&program_id[..]),
             runner.init_program(
                 ProgramId::from_slice(&program_id[..]),
