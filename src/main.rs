@@ -87,20 +87,14 @@ impl MessagesError {
     fn destination(at: usize, expected: ProgramId, actual: ProgramId) -> Self {
         Self::AtPosition {
             at,
-            mismatch: MessageContentMismatch::Destination(ContentMismatch {
-                expected: expected.into(),
-                actual: actual.into(),
-            }),
+            mismatch: MessageContentMismatch::Destination(ContentMismatch { expected, actual }),
         }
     }
 
     fn gas_limit(at: usize, expected: u64, actual: u64) -> Self {
         Self::AtPosition {
             at,
-            mismatch: MessageContentMismatch::GasLimit(ContentMismatch {
-                expected: expected.into(),
-                actual: actual.into(),
-            }),
+            mismatch: MessageContentMismatch::GasLimit(ContentMismatch { expected, actual }),
         }
     }
 }
@@ -200,13 +194,23 @@ fn check_memory(
             sample::MemoryVariant::Static(case) => {
                 if let Some(id) = case.program_id {
                     for p in &mut *program_storage {
-                        if p.id() == ProgramId::from(id)
-                            && p.static_pages()[case.address..case.address + case.bytes.len()]
-                                != case.bytes
-                        {
-                            errors.push(
-                                "Expectation error (Static memory doesn't match)".to_string(),
-                            );
+                        if p.id() == ProgramId::from(id) {
+                            let page = case.address / 65536;
+                            if let Some(page_buf) = p.get_page((page as u32).into()) {
+                                if page_buf[case.address..case.address + case.bytes.len()]
+                                    != case.bytes
+                                {
+                                    errors.push(
+                                        "Expectation error (Static memory doesn't match)"
+                                            .to_string(),
+                                    );
+                                }
+                            } else {
+                                errors.push(
+                                    "Expectation error (Incorrect static memory address)"
+                                        .to_string(),
+                                );
+                            }
                         }
                     }
                 }
@@ -264,10 +268,8 @@ pub fn main() -> anyhow::Result<()> {
 
     for path in &opts.input {
         if path.is_dir() {
-            for entry in path.read_dir().expect("read_dir call failed") {
-                if let Ok(entry) = entry {
-                    tests.push(read_test_from_file(&entry.path())?);
-                }
+            for entry in path.read_dir().expect("read_dir call failed").flatten() {
+                tests.push(read_test_from_file(&entry.path())?);
             }
         } else {
             tests.push(read_test_from_file(&path)?);
@@ -302,7 +304,7 @@ pub fn main() -> anyhow::Result<()> {
                             if let Some(log) = &exp.log {
                                 if print_log {
                                     for message in &final_state.log {
-                                        if let Ok(utf8) = std::str::from_utf8(&message.payload()) {
+                                        if let Ok(utf8) = std::str::from_utf8(message.payload()) {
                                             println!("log({})", utf8)
                                         }
                                     }

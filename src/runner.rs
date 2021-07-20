@@ -64,7 +64,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
         let payload = match &message.payload {
             PayloadVariant::Utf8(s) => {
                 // Insert ProgramId
-                if let Some(caps) = re.captures(&s) {
+                if let Some(caps) = re.captures(s) {
                     let id = caps["id"].parse::<u64>().unwrap();
                     let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
                     (s.clone().into_bytes()).to_vec()
@@ -119,7 +119,7 @@ pub fn run(
         FinalState {
             log: message_queue.log().to_vec(),
             messages: message_queue.drain(),
-            allocation_storage: allocation_storage,
+            allocation_storage,
             program_storage: program_storage.drain(),
         },
         persistent_memory,
