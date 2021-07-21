@@ -2,19 +2,19 @@
 
 use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
 
+use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
 use core::cell::RefCell;
 
-use ::anyhow::{self, anyhow};
-
 use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
-use gear_core::memory::{Memory, PageNumber};
+use gear_core::memory::{Memory, PageBuf, PageNumber};
 
 use crate::funcs;
+
 /// Environment to run one module at a time providing Ext.
 pub struct Environment<E: Ext + 'static> {
     store: wasmtime::Store,
@@ -63,7 +63,7 @@ impl<E: Ext + 'static> Environment<E> {
         &mut self,
         ext: E,
         binary: &[u8],
-        static_area: Vec<u8>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
@@ -97,7 +97,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         self.ext.set(ext);
 
-        let result = self.run_inner(module, static_area, memory, move |instance| {
+        let result = self.run_inner(module, memory_pages, memory, move |instance| {
             instance
                 .get_func(entry_point)
                 .ok_or_else(|| {
@@ -140,7 +140,7 @@ impl<E: Ext + 'static> Environment<E> {
     fn run_inner(
         &mut self,
         module: Module,
-        static_area: Vec<u8>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         func: impl FnOnce(Instance) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
@@ -148,7 +148,7 @@ impl<E: Ext + 'static> Environment<E> {
             .imports()
             .map(|import| {
                 if import.module() != "env" {
-                    Err(anyhow!("Non-env imports are not supported"))
+                    Err(anyhow::anyhow!("Non-env imports are not supported"))
                 } else {
                     Ok((import.name(), Option::<Extern>::None))
                 }
@@ -174,12 +174,17 @@ impl<E: Ext + 'static> Environment<E> {
 
         let externs = imports
             .into_iter()
-            .map(|(_, host_function)| host_function.ok_or_else(|| anyhow!("Missing import")))
+            .map(|(_, host_function)| {
+                host_function.ok_or_else(|| anyhow::anyhow!("Missing import"))
+            })
             .collect::<anyhow::Result<Vec<_>>>()?;
 
         let instance = Instance::new(&self.store, &module, &externs)?;
 
-        memory.write(0, &static_area).expect("Err write mem");
+        // Set module memory.
+        memory
+            .set_pages(memory_pages)
+            .map_err(|e| anyhow::anyhow!("Can't set module memory: {:?}", e))?;
 
         func(instance)
     }

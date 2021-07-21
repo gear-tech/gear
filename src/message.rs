@@ -531,7 +531,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
     /// Return reference to the current incoming message.
     pub fn current(&self) -> &IncomingMessage {
-        &self.current.as_ref()
+        self.current.as_ref()
     }
 
     /// Last used nonce

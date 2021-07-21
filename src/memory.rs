@@ -1,13 +1,16 @@
 //! Module for memory and memory context.
 
+use crate::program::ProgramId;
+use crate::storage::AllocationStorage;
 use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use codec::{Decode, Encode};
 use core::any::Any;
 use core::cell::RefCell;
 
-use crate::program::ProgramId;
-use crate::storage::AllocationStorage;
+/// A WebAssembly page has a constant size of 65,536 bytes, i.e., 64KiB.
+pub const PAGE_SIZE: usize = 65536;
 
 /// Memory error.
 #[derive(Clone, Debug)]
@@ -34,6 +37,9 @@ pub enum Error {
     MemoryAccessError,
 }
 
+/// Page buffer.
+pub type PageBuf = [u8; PAGE_SIZE];
+
 /// Page number.
 #[derive(
     Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash,
@@ -44,6 +50,16 @@ impl PageNumber {
     /// Return raw 32-bit page address.
     pub fn raw(&self) -> u32 {
         self.0
+    }
+
+    /// Return page offset.
+    pub fn offset(&self) -> usize {
+        (self.0 as usize) * PAGE_SIZE
+    }
+
+    /// Return page size in bytes.
+    pub fn size() -> usize {
+        PAGE_SIZE
     }
 }
 
@@ -82,6 +98,18 @@ pub trait Memory: Any {
 
     /// Returns the base pointer, in the host’s address space, that the memory is located at.
     fn data_ptr(&self) -> *mut u8;
+
+    /// Set memory pages from PageBuf map, grow if possible.
+    fn set_pages(&self, pages: &BTreeMap<PageNumber, Box<PageBuf>>) -> Result<(), Error> {
+        for (num, buf) in pages {
+            let s = self.size() - 1.into();
+            if s < *num {
+                self.grow(*num - s)?;
+            }
+            self.write(num.offset(), &buf[..])?;
+        }
+        Ok(())
+    }
 
     /// Clone this memory.
     fn clone(&self) -> Box<dyn Memory>;

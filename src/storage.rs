@@ -205,8 +205,8 @@ mod tests {
 
         // Initialization of InMemoryProgramStorage with our custom vec<Program>
         let mut program_storage = InMemoryProgramStorage::new(vec![
-            Program::new(id1, vec![1], vec![]),
-            Program::new(id2, vec![2], vec![]),
+            Program::new(id1, vec![1], Default::default(), Some(1)).expect("err create program"),
+            Program::new(id2, vec![2], Default::default(), Some(1)).expect("err create program"),
         ]);
 
         // Сhecking that the Program with id2 exists in the storage
@@ -224,7 +224,9 @@ mod tests {
 
         // Сhecking that we are able to correctly set
         // the new Program with id3 in storage
-        program_storage.set(Program::new(id3, vec![3], vec![]));
+        program_storage.set(
+            Program::new(id3, vec![3], Default::default(), Some(1)).expect("err create program"),
+        );
         assert!(program_storage.get(id3).is_some());
 
         // Сhecking that the storage after all our interactions

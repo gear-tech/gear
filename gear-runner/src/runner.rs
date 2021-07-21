@@ -126,13 +126,13 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     /// Provide configuration, storage and memory state.
     pub fn new(config: &Config, storage: Storage<AS, MQ, PS>, persistent_memory: &[u8]) -> Self {
         // memory need to be at least static_pages + persistent_memory length (in pages)
-        let persistent_pages = persistent_memory.len() / BASIC_PAGE_SIZE;
+        let persistent_pages = persistent_memory.len() / PageNumber::size();
         let total_pages = config.static_pages.raw() + persistent_pages as u32;
 
         let env = Environment::new();
         let memory = env.create_memory(total_pages);
 
-        let persistent_region_start = config.static_pages.raw() as usize * BASIC_PAGE_SIZE;
+        let persistent_region_start = config.static_pages.offset();
 
         memory
             .write(persistent_region_start, persistent_memory)
@@ -210,15 +210,10 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     ///
     /// This will return underlyign storage and memory state.
     pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
-        let mut persistent_memory = vec![
-            0u8;
-            self.memory.data_size()
-                - self.static_pages().raw() as usize * BASIC_PAGE_SIZE
-        ];
-        self.memory.read(
-            self.static_pages().raw() as usize * BASIC_PAGE_SIZE,
-            &mut persistent_memory,
-        );
+        let mut persistent_memory =
+            vec![0u8; self.memory.data_size() - self.static_pages().offset()];
+        self.memory
+            .read(self.static_pages().offset(), &mut persistent_memory);
 
         let Runner {
             program_storage,
@@ -274,8 +269,12 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             program.reset(code.to_vec());
             self.program_storage.set(program);
         } else {
-            self.program_storage
-                .set(Program::new(program_id, code, vec![]));
+            self.program_storage.set(Program::new(
+                program_id,
+                code,
+                Default::default(),
+                Some(self.static_pages().raw()),
+            )?);
         }
 
         let mut context = self.create_context();
@@ -315,7 +314,15 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         let mut system_program = self
             .program_storage
             .get(ProgramId::default())
-            .unwrap_or_else(|| Program::new(ProgramId::default(), vec![], vec![]));
+            .unwrap_or_else(|| {
+                Program::new(
+                    ProgramId::default(),
+                    vec![],
+                    Default::default(),
+                    Some(self.static_pages().raw()),
+                )
+                .expect("Can't create program")
+            });
 
         let mut id_generator = BlakeMessageIdGenerator {
             program_id: ProgramId::default(),
@@ -365,7 +372,6 @@ impl From<EntryPoint> for &'static str {
 }
 
 static BASIC_PAGES: u32 = 256;
-static BASIC_PAGE_SIZE: usize = 65536;
 static MAX_PAGES: u32 = 16384;
 
 struct RunningContext<AS: AllocationStorage> {
@@ -562,20 +568,19 @@ fn run<AS: AllocationStorage + 'static>(
 
     // Set static pages from saved program state.
 
-    let static_area = program.static_pages().to_vec();
-
     let (res, mut ext, touched) = env.setup_and_run(
         ext,
         binary,
-        static_area,
+        program.get_pages(),
         context.memory(),
         entry_point.into(),
     );
 
     res.map(move |_| {
-        let mut static_pages = vec![0u8; context.static_pages().raw() as usize * BASIC_PAGE_SIZE];
-        ext.get_mem(0, &mut static_pages);
-        *program.static_pages_mut() = static_pages;
+        // TODO: Get all pages when isolated memory is introduced.
+        let mut memory_pages = vec![0u8; context.static_pages().offset()];
+        ext.get_mem(0, &mut memory_pages);
+        program.set_memory(&memory_pages);
 
         let mut messages = vec![];
 

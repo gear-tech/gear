@@ -1,9 +1,12 @@
 //! Module for programs.
 
-use alloc::vec::Vec;
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use anyhow::Result;
+use codec::{Decode, Encode};
+use core::convert::TryFrom;
 use core::fmt;
 
-use codec::{Decode, Encode};
+use crate::memory::{PageBuf, PageNumber};
 
 /// Program identifier.
 ///
@@ -59,21 +62,59 @@ impl ProgramId {
 pub struct Program {
     id: ProgramId,
     code: Vec<u8>,
-    // Saved state of static pages
-    static_pages: Vec<u8>,
+    /// Initial memory export size.
+    static_pages: u32,
+    /// Saved state of memory pages.
+    persistent_pages: BTreeMap<PageNumber, Box<PageBuf>>,
     /// Message nonce
     message_nonce: u64,
 }
 
 impl Program {
-    /// New program with speicif `id`, `code` and `static_pages`.
-    pub fn new(id: ProgramId, code: Vec<u8>, static_pages: Vec<u8>) -> Self {
-        Program {
+    /// New program with specific `id`, `code` and `persistent_memory`.
+    pub fn new(
+        id: ProgramId,
+        code: Vec<u8>,
+        persistent_pages: BTreeMap<u32, Vec<u8>>,
+        static_pages: Option<u32>,
+    ) -> Result<Self> {
+        // get initial memory size from memory import.
+        let static_pages: u32 = match static_pages {
+            Some(static_pages) => static_pages,
+            None => parity_wasm::elements::Module::from_bytes(&code)
+                .map_err(|e| anyhow::anyhow!("Error loading program: {}", e))?
+                .import_section()
+                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find import section"))?
+                .entries()
+                .iter()
+                .find_map(|entry| match entry.external() {
+                    parity_wasm::elements::External::Memory(mem_ty) => {
+                        Some(mem_ty.limits().initial())
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Error loading program: can't find memory export")
+                })?,
+        };
+
+        let persistent_pages: BTreeMap<PageNumber, Box<PageBuf>> = persistent_pages
+            .into_iter()
+            .map(|(num, buf)| {
+                (
+                    num.into(),
+                    Box::new(PageBuf::try_from(buf).expect("Incorrect page buffer")),
+                )
+            })
+            .collect();
+
+        Ok(Program {
             id,
             code,
             static_pages,
+            persistent_pages,
             message_nonce: 0,
-        }
+        })
     }
 
     /// Reference to code of this program.
@@ -86,24 +127,50 @@ impl Program {
         self.id
     }
 
-    /// Reference to static area memory of this program.
-    pub fn static_pages(&self) -> &[u8] {
-        &self.static_pages
+    /// Get initial memory size for this program.
+    pub fn static_pages(&self) -> u32 {
+        self.static_pages
     }
 
-    /// Mutable reference to static area memory of this program.
-    pub fn static_pages_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.static_pages
-    }
-
-    /// Set the fcode of this program.
+    /// Set the code of this program.
     pub fn set_code(&mut self, code: Vec<u8>) {
         self.code = code;
     }
 
-    /// Clear static are of this program.
-    pub fn clear_static(&mut self) {
-        self.static_pages = vec![];
+    /// Set memory from buffer.
+    pub fn set_memory(&mut self, buffer: &[u8]) {
+        self.persistent_pages.clear();
+        let boxed_slice: Box<[u8]> = buffer.into();
+        boxed_slice
+            .chunks_exact(PageNumber::size())
+            .enumerate()
+            .for_each(|(num, chunk)| {
+                self.persistent_pages.insert(
+                    (num as u32).into(),
+                    Box::new(PageBuf::try_from(chunk).expect("chunk err")),
+                );
+            });
+    }
+
+    /// Get reference to memory pages.
+    pub fn get_pages(&self) -> &BTreeMap<PageNumber, Box<PageBuf>> {
+        &self.persistent_pages
+    }
+
+    /// Get reference to memory page.
+    #[allow(clippy::borrowed_box)]
+    pub fn get_page(&self, page: PageNumber) -> Option<&Box<PageBuf>> {
+        self.persistent_pages.get(&page)
+    }
+
+    /// Get mut reference to memory page.
+    pub fn get_page_mut(&mut self, page: PageNumber) -> Option<&mut Box<PageBuf>> {
+        self.persistent_pages.get_mut(&page)
+    }
+
+    /// Clear static area of this program.
+    pub fn clear_memory(&mut self) {
+        self.persistent_pages.clear();
     }
 
     /// Message nonce.
@@ -119,7 +186,7 @@ impl Program {
     /// Reset the program.
     pub fn reset(&mut self, code: Vec<u8>) {
         self.set_code(code);
-        self.clear_static();
+        self.clear_memory();
         self.message_nonce = 0;
     }
 }

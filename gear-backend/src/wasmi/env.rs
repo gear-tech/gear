@@ -7,6 +7,7 @@ use wasmi::{
 };
 
 use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use alloc::vec::Vec;
 use core::cell::RefCell;
@@ -16,7 +17,7 @@ use num_traits::FromPrimitive;
 use super::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
-use gear_core::memory::{Memory, PageNumber};
+use gear_core::memory::{Memory, PageBuf, PageNumber};
 
 use crate::funcs;
 
@@ -245,7 +246,7 @@ impl<E: Ext + 'static> Environment<E> {
         &mut self,
         ext: E,
         binary: &[u8],
-        static_area: Vec<u8>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
     ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
@@ -267,7 +268,7 @@ impl<E: Ext + 'static> Environment<E> {
             ext: self.ext.clone(),
         };
 
-        let result = self.run_inner(instance, static_area, memory, move |instance| {
+        let result = self.run_inner(instance, memory_pages, memory, move |instance| {
             instance
                 .invoke_export(entry_point, &[], &mut runtime)
                 .map_err(|err| anyhow::format_err!("Failed export: {:?}", err))
@@ -292,11 +293,14 @@ impl<E: Ext + 'static> Environment<E> {
     fn run_inner(
         &mut self,
         module: ModuleRef,
-        static_area: Vec<u8>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         func: impl FnOnce(ModuleRef) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        memory.write(0, &static_area).expect("Err write mem");
+        // Set module memory.
+        memory
+            .set_pages(memory_pages)
+            .map_err(|_| anyhow::anyhow!("Can't set module memory"))?;
 
         func(module)
     }
