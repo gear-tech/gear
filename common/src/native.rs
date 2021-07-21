@@ -24,7 +24,6 @@ use gear_core::{
 use sp_core::H256;
 
 pub fn queue_message(message: Message) {
-
     let message = crate::Message {
         id: H256::from_slice(&message.id.as_slice()),
         source: H256::from_slice(&message.source.as_slice()),
@@ -32,35 +31,35 @@ pub fn queue_message(message: Message) {
         payload: message.payload.into_raw(),
         gas_limit: message.gas_limit,
         value: message.value,
-        reply: message.reply.map(|reply| H256::from_slice(reply.as_slice())),
+        reply: message
+            .reply
+            .map(|reply| H256::from_slice(reply.as_slice())),
     };
 
     crate::queue_message(message)
 }
 
 pub fn dequeue_message() -> Option<Message> {
-    crate::dequeue_message()
-        .map(|msg| {
-            Message {
-                id: MessageId::from_slice(&msg.id[..]),
-                source: ProgramId::from_slice(&msg.source[..]),
-                dest: ProgramId::from_slice(&msg.dest[..]),
-                payload: msg.payload.into(),
-                gas_limit: msg.gas_limit,
-                value: msg.value,
-                reply: msg.reply.map(|reply| MessageId::from_slice(&reply[..])),
-            }
-        })
+    crate::dequeue_message().map(|msg| Message {
+        id: MessageId::from_slice(&msg.id[..]),
+        source: ProgramId::from_slice(&msg.source[..]),
+        dest: ProgramId::from_slice(&msg.dest[..]),
+        payload: msg.payload.into(),
+        gas_limit: msg.gas_limit,
+        value: msg.value,
+        reply: msg.reply.map(|reply| MessageId::from_slice(&reply[..])),
+    })
 }
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
     crate::get_program(H256::from_slice(id.as_slice())).map(|prog| {
+        // TODO: static_pages should be None in future or removed altogether.
         if let Some(code) = crate::get_code(prog.code_hash) {
-            let mut program = Program::new(id, code, prog.static_pages);
+            let mut program = Program::new(id, code, prog.persistent_pages, Some(256)).unwrap();
             program.set_message_nonce(prog.nonce);
             program
         } else {
-            Program::new(id, Vec::new(), prog.static_pages)
+            Program::new(id, Vec::new(), prog.persistent_pages, Some(256)).unwrap()
         }
     })
 }
@@ -71,7 +70,12 @@ pub fn set_program(program: Program) {
     crate::set_program(
         H256::from_slice(program.id().as_slice()),
         crate::Program {
-            static_pages: program.static_pages().to_vec(),
+            static_pages: program.static_pages(),
+            persistent_pages: program
+                .get_pages()
+                .into_iter()
+                .map(|(num, buf)| (num.raw(), buf.to_vec()))
+                .collect(),
             code_hash,
             nonce: program.message_nonce(),
         },

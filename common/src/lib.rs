@@ -18,12 +18,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature="std")]
+#[cfg(feature = "std")]
 pub mod native;
 pub mod storage_queue;
 
-use codec::{Encode, Decode};
-use sp_core::{H256, crypto::UncheckedFrom};
+use codec::{Decode, Encode};
+use sp_core::{crypto::UncheckedFrom, H256};
+use sp_std::collections::btree_map::BTreeMap;
 use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
@@ -41,7 +42,8 @@ pub struct Message {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Program {
-    pub static_pages: Vec<u8>,
+    pub static_pages: u32,
+    pub persistent_pages: BTreeMap<u32, Vec<u8>>,
     pub code_hash: H256,
     pub nonce: u64,
 }
@@ -152,10 +154,7 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 pub fn set_program(id: H256, program: Program) {
-    sp_io::storage::set(
-        &program_key(id),
-        &program.encode(),
-    )
+    sp_io::storage::set(&program_key(id), &program.encode())
 }
 
 pub fn remove_program(_id: H256) {
@@ -174,10 +173,7 @@ pub fn queue_message(message: Message) {
 }
 
 pub fn alloc(page: u32, program: H256) {
-    sp_io::storage::set(
-        &page_key(page),
-        &program.encode(),
-    )
+    sp_io::storage::set(&page_key(page), &program.encode())
 }
 
 pub fn page_info(page: u32) -> Option<H256> {
@@ -221,7 +217,8 @@ mod tests {
             let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
             let program_id = H256::from_low_u64_be(1);
             let program = Program {
-                static_pages: Vec::new(),
+                static_pages: 256,
+                persistent_pages: Default::default(),
                 code_hash,
                 nonce: 0,
             };

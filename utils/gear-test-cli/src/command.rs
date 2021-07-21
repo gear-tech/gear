@@ -118,14 +118,23 @@ fn check_memory(
                 ext.execute_with(|| {
                     if let Some(id) = case.program_id {
                         if let Some(program) = program_storage.get(ProgramId::from(id)) {
-                            if program.id() == ProgramId::from(id)
-                                && program.static_pages()
-                                    [case.address..case.address + case.bytes.len()]
-                                    != case.bytes
-                            {
-                                errors.push(
-                                    "Expectation error (Static memory doesn't match)".to_string(),
-                                );
+                            if program.id() == ProgramId::from(id) {
+                                let page = case.address / 65536;
+                                if let Some(page_buf) = program.get_page((page as u32).into()) {
+                                    if page_buf[case.address..case.address + case.bytes.len()]
+                                        != case.bytes
+                                    {
+                                        errors.push(
+                                            "Expectation error (Static memory doesn't match)"
+                                                .to_string(),
+                                        );
+                                    }
+                                } else {
+                                    errors.push(
+                                        "Expectation error (Incorrect static memory address)"
+                                            .to_string(),
+                                    );
+                                }
                             }
                         }
                     }
@@ -248,9 +257,13 @@ impl GearTestCmd {
         }
 
         if total_failed > 0 {
-            Err(sc_cli::Error::Application(format!(
-                "{}/{} fixtures failed... See log above.", total_failed, total_fixtures
-            ).into()))
+            Err(sc_cli::Error::Application(
+                format!(
+                    "{}/{} fixtures failed... See log above.",
+                    total_failed, total_fixtures
+                )
+                .into(),
+            ))
         } else {
             Ok(())
         }
