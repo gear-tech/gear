@@ -383,6 +383,17 @@ pub mod pallet {
 							);
 						}
 
+						for (source, dest, gas_transfer) in execution_report.gas_transfers {
+							let transfer_fee = gas_to_fee::<T>(gas_transfer);
+
+							let _ = T::Currency::repatriate_reserved(
+								&<T::AccountId as Origin>::from_origin(source),
+								&<T::AccountId as Origin>::from_origin(dest),
+								transfer_fee,
+								BalanceStatus::Free,
+							);
+						}
+
 						for (program_id, payload) in execution_report.log {
 							Self::deposit_event(Event::Log(program_id, payload));
 						}
