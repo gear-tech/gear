@@ -49,6 +49,8 @@ pub struct RunNextResult {
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
     pub gas_spent: Vec<(ProgramId, u64)>,
+    /// Gas transfer requests.
+    pub gas_requests: Vec<(ProgramId, ProgramId, u64)>,
 }
 
 impl RunNextResult {
@@ -67,9 +69,10 @@ impl RunNextResult {
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
-        if result.gas_reserved > 0 {
-            // Report program's reserved gas
-            self.gas_left.push((program_id, result.gas_reserved));
+        if result.gas_requested > 0 {
+            // Report that program requested gas transfer
+            self.gas_requests
+                .push((caller_id, program_id, result.gas_requested));
         }
     }
 
@@ -421,15 +424,15 @@ pub struct RunResult {
     pub gas_left: u64,
     /// Gas that was spent.
     pub gas_spent: u64,
-    /// Gas reserved for future uses.
-    pub gas_reserved: u64,
+    /// Gas requested to be transferred.
+    pub gas_requested: u64,
 }
 
 struct Ext<AS: AllocationStorage + 'static> {
     memory_context: MemoryContext<AS>,
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
-    gas_reserved: u64,
+    gas_requested: u64,
 }
 
 impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
@@ -525,7 +528,7 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
 
     fn charge(&mut self, gas: u64) -> Result<(), &'static str> {
         if self.gas_counter.charge(gas) == ChargeResult::Enough {
-            self.gas_reserved += gas;
+            self.gas_requested += gas;
             Ok(())
         } else {
             Err("Gas limit exceeded")
@@ -563,7 +566,7 @@ fn run<AS: AllocationStorage + 'static>(
         ),
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
-        gas_reserved: 0,
+        gas_requested: 0,
     };
 
     // Set static pages from saved program state.
@@ -593,8 +596,8 @@ fn run<AS: AllocationStorage + 'static>(
         }
 
         let gas_left = ext.gas_counter.left();
-        let gas_spent = gas_limit - gas_left;
-        let gas_reserved = ext.gas_reserved;
+        let gas_requested = ext.gas_requested;
+        let gas_spent = gas_limit - gas_left - gas_requested;
 
         RunResult {
             touched,
@@ -602,7 +605,7 @@ fn run<AS: AllocationStorage + 'static>(
             reply,
             gas_left,
             gas_spent,
-            gas_reserved,
+            gas_requested,
         }
     })
 }
@@ -932,6 +935,7 @@ mod tests {
         );
 
         let gas_limit = 1000_000;
+        let caller_id = 0.into();
         let program_id = 1.into();
         let _ = runner
             .init_program(
@@ -947,9 +951,16 @@ mod tests {
 
         let result = runner.run_next().expect("Failed to process next message");
         assert_eq!(result.gas_spent.len(), 1);
-        assert_eq!(result.gas_left.len(), 2);
-        assert!(result.gas_left[0].1 <= gas_limit - 100000);
-        assert_eq!(result.gas_left[1].0, program_id);
-        assert_eq!(result.gas_left[1].1, 100000);
+        assert_eq!(result.gas_left.len(), 1);
+        assert_eq!(result.gas_requests.len(), 1);
+
+        assert_eq!(result.gas_left[0].0, caller_id);
+        assert!(result.gas_left[0].1 < gas_limit - 100_000);
+        assert_eq!(result.gas_spent[0].0, caller_id);
+        assert!(result.gas_spent[0].1 > 0 && result.gas_spent[0].1 < 100_000);
+
+        assert_eq!(result.gas_requests[0].0, caller_id);
+        assert_eq!(result.gas_requests[0].1, program_id);
+        assert_eq!(result.gas_requests[0].2, 100_000);
     }
 }
