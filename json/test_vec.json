@@ -1,0 +1,66 @@
+{
+    "title": "basic",
+    "programs": [
+        {
+            "id": 1,
+            "path": "target/wasm32-unknown-unknown/release/demo_sum.wasm",
+            "init_message": {
+                "kind": "utf-8",
+                "value": "{2}"
+            }
+        },
+        {
+            "id": 2,
+            "path": "target/wasm32-unknown-unknown/release/demo_vec.wasm"
+        }
+    ],
+    "fixtures": [
+        {
+            "title": "test-vec (20000 * size_of(i32) = 80 KiB = 2 pages)",
+            "messages": [
+                {
+                    "payload": {
+                        "kind": "i32",
+                        "value": 10000
+                    },
+                    "destination": 1
+                }
+            ],
+            "expected": [
+                {
+                    "step": 2,
+                    "messages": [
+                        {
+                            "payload": {
+                                "kind": "i32",
+                                "value": 20000
+                            },
+                            "destination": 1
+                        }
+                    ],
+                    "allocations": [
+                        {
+                            "page_num": 256,
+                            "program_id": 1
+                        },
+                        {
+                            "page_num": 257,
+                            "program_id": 2
+                        },
+                        {
+                            "page_num": 258,
+                            "program_id": 2
+                        }
+                    ],
+                    "memory": [
+                        {
+                            "kind": "shared",
+                            "at": "0x10238d4",
+                            "bytes": "0x01000000"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

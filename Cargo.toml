@@ -1,0 +1,40 @@
+[package]
+authors = ["NikVolf <nikvolf@gmail.com>"]
+edition = "2018"
+name = "test-gear"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+clap = "3.0.0-beta.2"
+env_logger = "0.8"
+gear-core = { path = "../gear-core" }
+gear-runner = { path = "../gear-core/gear-runner" }
+test-gear-sample = { path = "./sample" }
+serde_json = "*"
+termion = "1.5.6"
+regex = "1.4.5"
+derive_more = "0.99"
+
+[workspace]
+members = [
+    "demo-chat/bot",
+    "demo-chat/room",
+    "demo-collector",
+    "demo-condensator",
+    "demo-fib",
+    "demo-ping",
+    "demo-sum",
+    "demo-vec",
+    "sample",
+]
+
+[[bin]]
+name = "gtest"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+opt-level = 's'
