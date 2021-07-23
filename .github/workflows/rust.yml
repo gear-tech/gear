@@ -1,0 +1,70 @@
+name: Rust
+
+on:
+  push:
+    branches: [master, ci-test]
+  pull_request:
+    branches: [master, ci-test]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        name: "Checkout gear-node"
+        with:
+          path: "gear-node"
+      - uses: actions/checkout@v2
+        name: "Checkout gear-core"
+        with:
+          repository: "gear-computing/gear-core"
+          token: ${{ secrets.GEAR_PAT }}
+          path: gear-core
+      - uses: actions/checkout@v2
+        name: "Checkout test-gear"
+        with:
+          repository: "gear-computing/test-gear"
+          token: ${{ secrets.GEAR_PAT }}
+          path: test-gear
+      - uses: actions/checkout@v2
+        name: "Checkout gstd"
+        with:
+          repository: "gear-computing/gstd"
+          token: ${{ secrets.GEAR_PAT }}
+          path: gstd
+      - name: Install latest nightly & WASM toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+      - name: Artifact cache
+        uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: gear-node
+      - name: Build
+        run: cd gear-node && cargo build --release
+      - name: Run tests
+        run: cd gear-node && cargo test --release --all
+      - name: Build WASM
+        run: |
+          cd test-gear
+          ./build-wasm.sh
+          cp -r ./target/wasm32-unknown-unknown ../gear-node/target
+      - uses: actions/setup-node@v2
+        name: Install nodejs
+        with:
+          node-version: "16"
+      - run: cd gear-node/rpc-tests && npm install
+      - name: Run testsuite
+        run: |
+          cd gear-node
+          cargo run --release -- runtests ../test-gear/json/*.json
+      - name: Run rpc-test
+        run: |
+          cd gear-node
+          cargo run --release -- --dev & sleep 5
+          node rpc-tests/index.js ../test-gear/json/*.json
