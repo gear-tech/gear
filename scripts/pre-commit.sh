@@ -1,24 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
-cd "$(dirname "$(readlink -f "$0")")/.."
+cd "$(dirname ${BASH_SOURCE[0]})/.."
 
-# Format
+echo "*** Run fmt"
 cargo fmt --all
 
-# Run linter
-cargo clippy -- -D warnings
-cd gear-backend && cargo clippy -- -D warnings
-cd ..
-cd gear-runner  && cargo clippy -- -D warnings
-cd ..
+echo "*** Run clippy"
+# TODO: Spread clippy to `--workspace`
+cargo clippy --package gear-core -- -D warnings
+cargo clippy --package gear-core-backend -- -D warnings
+cargo clippy --package gear-core-runner -- -D warnings
+cargo clippy --package gstd -- -D warnings
 
-# Build
-cargo build --features=strict
-
-# Run tests
-cargo test --features=strict
-cd gear-backend && cargo test --all-features
-cd ..
-cd gear-runner && cargo test
-cd ..
+echo "*** Run tests"
+cargo test --workspace
