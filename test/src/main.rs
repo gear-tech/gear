@@ -7,9 +7,9 @@ use gear_core::{
     message::Message,
     program::{Program, ProgramId},
 };
+use gear_test_sample::sample::{self, Test};
 use std::{fmt, fs};
 use termion::{color, style};
-use gear_test_sample::sample::{self, Test};
 
 use clap::{AppSettings, Clap};
 

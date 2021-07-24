@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use gear_test_sample::sample::{PayloadVariant, Test};
 use regex::Regex;
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use rti::runner::ExtRunner;
-use gear_test_sample::sample::{PayloadVariant, Test};
 
 use gear_core::{message::Message, program::ProgramId, storage::Storage};
 
@@ -94,12 +94,7 @@ pub fn init_fixture(
                 _ => message.payload.clone().into_raw(),
             };
 
-            runner.queue_message(
-                message.destination.into(),
-                payload,
-                1000000000,
-                0,
-            )
+            runner.queue_message(message.destination.into(), payload, 1000000000, 0)
         }
 
         Ok(runner)

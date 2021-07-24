@@ -8,8 +8,8 @@ use gear_core::{
     },
 };
 use gear_core_runner::runner::{Config, Runner};
-use std::fmt::Write;
 use gear_test_sample::sample::{PayloadVariant, Test};
+use std::fmt::Write;
 
 use regex::Regex;
 

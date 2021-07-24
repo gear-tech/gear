@@ -25,58 +25,58 @@ use frame_system::RawOrigin;
 use sp_core::H256;
 
 pub(crate) fn init_logger() {
-	let _ = env_logger::Builder::from_default_env()
-		.format_module_path(false)
-		.format_level(true)
-		.try_init();
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
 }
 
 fn parse_wat(source: &str) -> Vec<u8> {
-	wabt::Wat2Wasm::new()
-		.validate(false)
-		.convert(source)
-		.expect("failed to parse module")
-		.as_ref()
-		.to_vec()
+    wabt::Wat2Wasm::new()
+        .validate(false)
+        .convert(source)
+        .expect("failed to parse module")
+        .as_ref()
+        .to_vec()
 }
 
 #[test]
 fn submit_program_enqueues_message() {
-	let wat = r#"
+    let wat = r#"
 	(module
 	)"#;
 
-	init_logger();
-	new_test_ext().execute_with(|| {
-		let code = parse_wat(wat);
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
 
-		assert_ok!(Pallet::<Test>::submit_program(
-			Origin::signed(1).into(),
-			code.clone(),
-			b"salt".to_vec(),
-			Vec::new(),
-			10_000u64,
-			0_u128
-		));
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
 
-		let messages: Vec<IntermediateMessage> = Gear::message_queue()
-			.expect("There should be a message in the queue");
-		assert_eq!(messages.len(), 1);
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        assert_eq!(messages.len(), 1);
 
-		let (msg_origin, msg_code, id) = match &messages[0] {
-			IntermediateMessage::InitProgram {
-				external_origin,
-				code,
-				program_id,
-				..
-			} => (*external_origin, code.to_vec(), *program_id),
-			_ => (Default::default(), Vec::new(), Default::default()),
-		};
-		assert_eq!(msg_origin, 1_u64.into_origin());
-		assert_eq!(msg_code, code);
+        let (msg_origin, msg_code, id) = match &messages[0] {
+            IntermediateMessage::InitProgram {
+                external_origin,
+                code,
+                program_id,
+                ..
+            } => (*external_origin, code.to_vec(), *program_id),
+            _ => (Default::default(), Vec::new(), Default::default()),
+        };
+        assert_eq!(msg_origin, 1_u64.into_origin());
+        assert_eq!(msg_code, code);
 
-		System::assert_last_event(crate::Event::NewProgram(id).into());
-	})
+        System::assert_last_event(crate::Event::NewProgram(id).into());
+    })
 }
 
 #[test]
@@ -85,92 +85,92 @@ fn submit_program_fails_with_insufficient_balance() {
 	(module
 	)"#;
 
-	init_logger();
-	new_test_ext().execute_with(|| {
-		let code = parse_wat(wat);
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
 
-		assert_noop!(
-			Pallet::<Test>::submit_program(
-				Origin::signed(2),
-				code.clone(),
-				b"salt".to_vec(),
-				Vec::new(),
-				10_000u64,
-				10_u128
-			),
-			Error::<Test>::NotEnoughBalanceForReserve
-		);
-	})
+        assert_noop!(
+            Pallet::<Test>::submit_program(
+                Origin::signed(2),
+                code.clone(),
+                b"salt".to_vec(),
+                Vec::new(),
+                10_000u64,
+                10_u128
+            ),
+            Error::<Test>::NotEnoughBalanceForReserve
+        );
+    })
 }
 
 #[test]
 fn send_message_adds_to_queue() {
-	init_logger();
-	new_test_ext().execute_with(|| {
-		assert_ok!(Pallet::<Test>::send_message(
-			Origin::signed(1).into(),
-			H256::from_low_u64_be(255),
-			b"payload".to_vec(),
-			10_000u64,
-			0_u128
-		));
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            H256::from_low_u64_be(255),
+            b"payload".to_vec(),
+            10_000u64,
+            0_u128
+        ));
 
-		let messages: Vec<IntermediateMessage> = Gear::message_queue()
-			.expect("There should be a message in the queue");
-		assert_eq!(messages.len(), 1);
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        assert_eq!(messages.len(), 1);
 
-		let mut id = b"payload".to_vec().encode();
-		id.extend_from_slice(&0_u128.to_le_bytes());
-		let id: H256 = sp_io::hashing::blake2_256(&id).into();
+        let mut id = b"payload".to_vec().encode();
+        id.extend_from_slice(&0_u128.to_le_bytes());
+        let id: H256 = sp_io::hashing::blake2_256(&id).into();
 
-		let msg_id = match &messages[0] {
-			IntermediateMessage::DispatchMessage { id, .. } => *id,
-			_ => Default::default(),
-		};
-		assert_eq!(msg_id, id);
-	})
+        let msg_id = match &messages[0] {
+            IntermediateMessage::DispatchMessage { id, .. } => *id,
+            _ => Default::default(),
+        };
+        assert_eq!(msg_id, id);
+    })
 }
 
 #[test]
 fn send_message_transfers_value() {
-	init_logger();
-	new_test_ext().execute_with(|| {
-		assert_eq!(Balances::free_balance(1), 1_000_000_000_000);
-		assert_eq!(Balances::free_balance(2), 1);
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_eq!(Balances::free_balance(1), 1_000_000_000_000);
+        assert_eq!(Balances::free_balance(2), 1);
 
-		assert_ok!(Pallet::<Test>::send_message(
-			Origin::signed(1).into(),
-			2.into_origin(),
-			Vec::new(),
-			0_u64,
-			1000000_u128,
-		));
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            2.into_origin(),
+            Vec::new(),
+            0_u64,
+            1000000_u128,
+        ));
 
-		assert_eq!(Balances::free_balance(1), 999_999_000_000);
-		assert_eq!(Balances::free_balance(2), 1000001);
-	})
+        assert_eq!(Balances::free_balance(1), 999_999_000_000);
+        assert_eq!(Balances::free_balance(2), 1000001);
+    })
 }
 
 #[test]
 fn send_message_fails_with_insufficient_balance() {
-	init_logger();
-	new_test_ext().execute_with(|| {
-		assert_noop!(
-			Pallet::<Test>::send_message(
-				Origin::signed(2).into(),
-				H256::from_low_u64_be(255),
-				b"payload".to_vec(),
-				10_000u64,
-				0_u128
-			),
-			Error::<Test>::NotEnoughBalanceForReserve
-		);
-	})
+    init_logger();
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Pallet::<Test>::send_message(
+                Origin::signed(2).into(),
+                H256::from_low_u64_be(255),
+                b"payload".to_vec(),
+                10_000u64,
+                0_u128
+            ),
+            Error::<Test>::NotEnoughBalanceForReserve
+        );
+    })
 }
 
 #[test]
 fn messages_processing_works() {
-	let wat = r#"
+    let wat = r#"
 	(module
 		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
 		(import "env" "memory" (memory 1))
@@ -187,78 +187,78 @@ fn messages_processing_works() {
 		(func $init)
 	)"#;
 
-	init_logger();
-	new_test_ext().execute_with(|| {
-		let code = parse_wat(wat);
-		let program_id = H256::from_low_u64_be(1001);
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = H256::from_low_u64_be(1001);
 
-		// Normal use-case: program initialized first, then called
-		MessageQueue::<Test>::put(vec![
-			IntermediateMessage::InitProgram {
-				external_origin: 1.into_origin(),
-				code,
-				program_id,
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 0,
-			},
-			IntermediateMessage::DispatchMessage {
-				id: H256::from_low_u64_be(102),
-				route: MessageRoute {
-					origin: MessageOrigin::External(1.into_origin()),
-					destination: program_id,
-				},
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 0,
-			},
-		]);
-		assert_eq!(
-			Gear::message_queue()
-				.expect("Failed to get messages from queue")
-				.len(),
-			2
-		);
+        // Normal use-case: program initialized first, then called
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::InitProgram {
+                external_origin: 1.into_origin(),
+                code,
+                program_id,
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(102),
+                route: MessageRoute {
+                    origin: MessageOrigin::External(1.into_origin()),
+                    destination: program_id,
+                },
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+            },
+        ]);
+        assert_eq!(
+            Gear::message_queue()
+                .expect("Failed to get messages from queue")
+                .len(),
+            2
+        );
 
-		let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
+        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
 
-		crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-		System::assert_last_event(crate::Event::MessagesDequeued(2).into());
-		assert_eq!(Gear::messages_processed(), 1);	// `InitProgram` doesn't increase the counter, hence 1, not 2
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+        assert_eq!(Gear::messages_processed(), 1); // `InitProgram` doesn't increase the counter, hence 1, not 2
 
-		// First message is sent to a non-existing program - error should be handled
-		// Second message still gets processed thereby adding 1 to the total processed messages counter.
-		MessageQueue::<Test>::put(vec![
-			IntermediateMessage::DispatchMessage {
-				id: H256::from_low_u64_be(102),
-				route: MessageRoute {
-					origin: MessageOrigin::External(1.into_origin()),
-					destination: 2.into_origin(),
-				},
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 100,
-			},
-			IntermediateMessage::DispatchMessage {
-				id: H256::from_low_u64_be(103),
-				route: MessageRoute {
-					origin: MessageOrigin::External(1.into_origin()),
-					destination: program_id,
-				},
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 0,
-			},
-		]);
-		crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-		System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-		assert_eq!(Gear::messages_processed(), 2);	// Counter not reset, 1 added
-	})
+        // First message is sent to a non-existing program - error should be handled
+        // Second message still gets processed thereby adding 1 to the total processed messages counter.
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(102),
+                route: MessageRoute {
+                    origin: MessageOrigin::External(1.into_origin()),
+                    destination: 2.into_origin(),
+                },
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 100,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(103),
+                route: MessageRoute {
+                    origin: MessageOrigin::External(1.into_origin()),
+                    destination: program_id,
+                },
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+            },
+        ]);
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+        assert_eq!(Gear::messages_processed(), 2); // Counter not reset, 1 added
+    })
 }
 
 #[test]
 fn dequeue_limit_works() {
-	let wat = r#"
+    let wat = r#"
 	(module
 		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
 		(import "env" "memory" (memory 1))
@@ -275,80 +275,78 @@ fn dequeue_limit_works() {
 		(func $init)
 	)"#;
 
-	init_logger();
-	new_test_ext().execute_with(|| {
-		let code = parse_wat(wat);
-		let program_id = H256::from_low_u64_be(1001);
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = H256::from_low_u64_be(1001);
 
-		// Set dequeue limit
-		DequeueLimit::<Test>::put(1);
+        // Set dequeue limit
+        DequeueLimit::<Test>::put(1);
 
-		MessageQueue::<Test>::put(vec![
-			IntermediateMessage::InitProgram {
-				external_origin: 1.into_origin(),
-				code,
-				program_id,
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 0,
-			},
-			IntermediateMessage::DispatchMessage {
-				id: H256::from_low_u64_be(102),
-				route: MessageRoute {
-					origin: MessageOrigin::External(1.into_origin()),
-					destination: program_id,
-				},
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 0,
-			},
-			IntermediateMessage::DispatchMessage {
-				id: H256::from_low_u64_be(103),
-				route: MessageRoute {
-					origin: MessageOrigin::External(1.into_origin()),
-					destination: program_id,
-				},
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 100,
-			},
-		]);
-		assert_eq!(
-			Gear::message_queue()
-				.expect("Failed to get messages from queue")
-				.len(),
-			3
-		);
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::InitProgram {
+                external_origin: 1.into_origin(),
+                code,
+                program_id,
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(102),
+                route: MessageRoute {
+                    origin: MessageOrigin::External(1.into_origin()),
+                    destination: program_id,
+                },
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(103),
+                route: MessageRoute {
+                    origin: MessageOrigin::External(1.into_origin()),
+                    destination: program_id,
+                },
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 100,
+            },
+        ]);
+        assert_eq!(
+            Gear::message_queue()
+                .expect("Failed to get messages from queue")
+                .len(),
+            3
+        );
 
-		let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
-		crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
 
-		// Expect only one message to have been processed
-		assert_eq!(Gear::messages_processed(), 1);
-		System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+        // Expect only one message to have been processed
+        assert_eq!(Gear::messages_processed(), 1);
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
 
-		// Put another message in queue
-		MessageQueue::<Test>::put(vec![
-			IntermediateMessage::DispatchMessage {
-				id: H256::from_low_u64_be(104),
-				route: MessageRoute {
-					origin: MessageOrigin::External(1.into_origin()),
-					destination: program_id,
-				},
-				payload: Vec::new(),
-				gas_limit: 10000,
-				value: 200,
-			},
-		]);
-		assert_eq!(
-			Gear::message_queue()
-				.expect("Failed to get messages from queue")
-				.len(),
-			1
-		);
-		crate::Pallet::<Test>::process_queue(none_origin).expect("Failed to process queue");
+        // Put another message in queue
+        MessageQueue::<Test>::put(vec![IntermediateMessage::DispatchMessage {
+            id: H256::from_low_u64_be(104),
+            route: MessageRoute {
+                origin: MessageOrigin::External(1.into_origin()),
+                destination: program_id,
+            },
+            payload: Vec::new(),
+            gas_limit: 10000,
+            value: 200,
+        }]);
+        assert_eq!(
+            Gear::message_queue()
+                .expect("Failed to get messages from queue")
+                .len(),
+            1
+        );
+        crate::Pallet::<Test>::process_queue(none_origin).expect("Failed to process queue");
 
-		// This time we are already above the dequeue limit, hence no messages end up being processed
-		assert_eq!(Gear::messages_processed(), 1);
-	})
+        // This time we are already above the dequeue limit, hence no messages end up being processed
+        assert_eq!(Gear::messages_processed(), 1);
+    })
 }

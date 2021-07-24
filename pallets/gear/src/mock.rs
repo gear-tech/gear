@@ -28,89 +28,89 @@ type Block = frame_system::mocking::MockBlock<Test>;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
-		System: system::{Pallet, Call, Config, Storage, Event<T>},
-		Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Authorship: pallet_authorship::{Pallet, Storage},
-	}
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Authorship: pallet_authorship::{Pallet, Storage},
+    }
 );
 
 impl pallet_balances::Config for Test {
-	type MaxLocks = ();
-	type Balance = u128;
-	type DustRemoval = ();
-	type Event = Event;
-	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = System;
-	type WeightInfo = ();
+    type MaxLocks = ();
+    type Balance = u128;
+    type DustRemoval = ();
+    type Event = Event;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
 }
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-	pub const SS58Prefix: u8 = 42;
-	pub const ExistentialDeposit: u64 = 1;
-	pub const SubmitWeightPerByte: u64 = 1_000_000;
-	pub const MessagePerByte: u64 = 100_000;
+    pub const BlockHashCount: u64 = 250;
+    pub const SS58Prefix: u8 = 42;
+    pub const ExistentialDeposit: u64 = 1;
+    pub const SubmitWeightPerByte: u64 = 1_000_000;
+    pub const MessagePerByte: u64 = 100_000;
 }
 
 impl system::Config for Test {
-	type BaseCallFilter = ();
-	type BlockWeights = ();
-	type BlockLength = ();
-	type DbWeight = ();
-	type Origin = Origin;
-	type Call = Call;
-	type Index = u64;
-	type BlockNumber = u64;
-	type Hash = H256;
-	type Hashing = BlakeTwo256;
-	type AccountId = u64;
-	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
-	type Event = Event;
-	type BlockHashCount = BlockHashCount;
-	type Version = ();
-	type PalletInfo = PalletInfo;
-	type AccountData = pallet_balances::AccountData<u128>;
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = SS58Prefix;
-	type OnSetCode = ();
+    type BaseCallFilter = ();
+    type BlockWeights = ();
+    type BlockLength = ();
+    type DbWeight = ();
+    type Origin = Origin;
+    type Call = Call;
+    type Index = u64;
+    type BlockNumber = u64;
+    type Hash = H256;
+    type Hashing = BlakeTwo256;
+    type AccountId = u64;
+    type Lookup = IdentityLookup<Self::AccountId>;
+    type Header = Header;
+    type Event = Event;
+    type BlockHashCount = BlockHashCount;
+    type Version = ();
+    type PalletInfo = PalletInfo;
+    type AccountData = pallet_balances::AccountData<u128>;
+    type OnNewAccount = ();
+    type OnKilledAccount = ();
+    type SystemWeightInfo = ();
+    type SS58Prefix = SS58Prefix;
+    type OnSetCode = ();
 }
 
 impl pallet_gear::Config for Test {
-	type Event = Event;
-	type Currency = Balances;
-	type SubmitWeightPerByte = SubmitWeightPerByte;
-	type MessagePerByte = MessagePerByte;
+    type Event = Event;
+    type Currency = Balances;
+    type SubmitWeightPerByte = SubmitWeightPerByte;
+    type MessagePerByte = MessagePerByte;
 }
 
 impl pallet_authorship::Config for Test {
-	type FindAuthor = ();
-	type UncleGenerations = ();
-	type FilterUncle = ();
-	type EventHandler = ();
+    type FindAuthor = ();
+    type UncleGenerations = ();
+    type FilterUncle = ();
+    type EventHandler = ();
 }
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let mut t = system::GenesisConfig::default()
-		.build_storage::<Test>()
-		.unwrap();
+    let mut t = system::GenesisConfig::default()
+        .build_storage::<Test>()
+        .unwrap();
 
-	pallet_balances::GenesisConfig::<Test> {
-		balances: vec![(1, 1_000_000_000_000_u128), (2, 1_u128)],
-	}
-	.assimilate_storage(&mut t)
-	.unwrap();
+    pallet_balances::GenesisConfig::<Test> {
+        balances: vec![(1, 1_000_000_000_000_u128), (2, 1_u128)],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
 
-	let mut ext = sp_io::TestExternalities::new(t);
-	ext.execute_with(|| System::set_block_number(1));
-	ext
+    let mut ext = sp_io::TestExternalities::new(t);
+    ext.execute_with(|| System::set_block_number(1));
+    ext
 }

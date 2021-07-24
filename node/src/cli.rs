@@ -16,47 +16,47 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use structopt::StructOpt;
 use sc_cli::RunCmd;
+use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 pub struct Cli {
-	#[structopt(subcommand)]
-	pub subcommand: Option<Subcommand>,
+    #[structopt(subcommand)]
+    pub subcommand: Option<Subcommand>,
 
-	#[structopt(flatten)]
-	pub run: RunCmd,
+    #[structopt(flatten)]
+    pub run: RunCmd,
 }
 
 #[derive(Debug, StructOpt)]
 pub enum Subcommand {
-	/// Key management cli utilities
-	Key(sc_cli::KeySubcommand),
-	/// Build a chain specification.
-	BuildSpec(sc_cli::BuildSpecCmd),
+    /// Key management cli utilities
+    Key(sc_cli::KeySubcommand),
+    /// Build a chain specification.
+    BuildSpec(sc_cli::BuildSpecCmd),
 
-	/// Validate blocks.
-	CheckBlock(sc_cli::CheckBlockCmd),
+    /// Validate blocks.
+    CheckBlock(sc_cli::CheckBlockCmd),
 
-	/// Export blocks.
-	ExportBlocks(sc_cli::ExportBlocksCmd),
+    /// Export blocks.
+    ExportBlocks(sc_cli::ExportBlocksCmd),
 
-	/// Export the state of a given block into a chain spec.
-	ExportState(sc_cli::ExportStateCmd),
+    /// Export the state of a given block into a chain spec.
+    ExportState(sc_cli::ExportStateCmd),
 
-	/// Import blocks.
-	ImportBlocks(sc_cli::ImportBlocksCmd),
+    /// Import blocks.
+    ImportBlocks(sc_cli::ImportBlocksCmd),
 
-	/// Remove the whole chain.
-	PurgeChain(sc_cli::PurgeChainCmd),
+    /// Remove the whole chain.
+    PurgeChain(sc_cli::PurgeChainCmd),
 
-	/// Revert the chain to a previous state.
-	Revert(sc_cli::RevertCmd),
+    /// Revert the chain to a previous state.
+    Revert(sc_cli::RevertCmd),
 
-	/// The custom benchmark subcommmand benchmarking runtime pallets.
-	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
-	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+    /// The custom benchmark subcommmand benchmarking runtime pallets.
+    #[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
+    Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-	#[structopt(name = "runtests", about = "Run gear tests with json.")]
-	GearTest(gear_test_cli::GearTestCmd),
+    #[structopt(name = "runtests", about = "Run gear tests with json.")]
+    GearTest(gear_test_cli::GearTestCmd),
 }

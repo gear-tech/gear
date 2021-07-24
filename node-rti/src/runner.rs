@@ -32,8 +32,10 @@ fn memory() -> Vec<u8> {
 }
 
 pub fn set_memory(data: Vec<u8>) {
-    sp_externalities::with_externalities(|ext| { ext.set_storage(MEMORY_KEY_PREFIX.to_vec(), data); })
-        .expect("Called outside of externalities context");
+    sp_externalities::with_externalities(|ext| {
+        ext.set_storage(MEMORY_KEY_PREFIX.to_vec(), data);
+    })
+    .expect("Called outside of externalities context");
 }
 
 pub fn new() -> ExtRunner {

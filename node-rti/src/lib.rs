@@ -24,16 +24,16 @@ pub mod ext;
 #[cfg(feature = "std")]
 pub mod runner;
 
-use sp_runtime_interface::runtime_interface;
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 use sp_core::H256;
+use sp_runtime_interface::runtime_interface;
 
-#[cfg(not(feature = "std"))]
-use sp_std::prelude::Vec;
+#[cfg(feature = "std")]
+use gear_core::{program::ProgramId, storage::Storage};
 #[cfg(feature = "std")]
 use gear_core_runner::runner::RunNextResult;
-#[cfg(feature = "std")]
-use gear_core::{storage::Storage, program::ProgramId};
+#[cfg(not(feature = "std"))]
+use sp_std::prelude::Vec;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -55,27 +55,46 @@ impl ExecutionReport {
     fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
         // TODO: actually compare touched from run result with
         //       that is what should be predefined in message
-        let RunNextResult { handled, gas_left, gas_spent, gas_requests, .. } = result;
+        let RunNextResult {
+            handled,
+            gas_left,
+            gas_spent,
+            gas_requests,
+            ..
+        } = result;
 
-        let log = message_queue.log.into_iter().map(
-            |msg| (
-                H256::from_slice(msg.source.as_slice()),
-                msg.payload.into_raw()
-            )
-        ).collect::<Vec<_>>();
+        let log = message_queue
+            .log
+            .into_iter()
+            .map(|msg| {
+                (
+                    H256::from_slice(msg.source.as_slice()),
+                    msg.payload.into_raw(),
+                )
+            })
+            .collect::<Vec<_>>();
 
         ExecutionReport {
             handled: handled as _,
             log,
-            gas_refunds: gas_left.into_iter().map(|(program_id, gas_left)| {
-                (H256::from_slice(program_id.as_slice()), gas_left)
-            }).collect(),
-            gas_charges: gas_spent.into_iter().map(|(program_id, gas_left)| {
-                (H256::from_slice(program_id.as_slice()), gas_left)
-            }).collect(),
-            gas_transfers: gas_requests.into_iter().map(|(source_id, dest_id, gas_requested)| {
-                (H256::from_slice(source_id.as_slice()), H256::from_slice(dest_id.as_slice()), gas_requested)
-            }).collect(),
+            gas_refunds: gas_left
+                .into_iter()
+                .map(|(program_id, gas_left)| (H256::from_slice(program_id.as_slice()), gas_left))
+                .collect(),
+            gas_charges: gas_spent
+                .into_iter()
+                .map(|(program_id, gas_left)| (H256::from_slice(program_id.as_slice()), gas_left))
+                .collect(),
+            gas_transfers: gas_requests
+                .into_iter()
+                .map(|(source_id, dest_id, gas_requested)| {
+                    (
+                        H256::from_slice(source_id.as_slice()),
+                        H256::from_slice(dest_id.as_slice()),
+                        gas_requested,
+                    )
+                })
+                .collect(),
         }
     }
 }
@@ -109,16 +128,18 @@ pub trait GearExecutor {
         let result = RunNextResult::from_single(
             ProgramId::from_slice(&caller_id[..]),
             ProgramId::from_slice(&program_id[..]),
-            runner.init_program(
-                ProgramId::from_slice(&program_id[..]),
-                program_code,
-                init_payload,
-                gas_limit,
-                value,
-            ).map_err(|e| {
-                log::error!("Error initialization program: {:?}", e);
-                Error::Runner
-            })?
+            runner
+                .init_program(
+                    ProgramId::from_slice(&program_id[..]),
+                    program_code,
+                    init_payload,
+                    gas_limit,
+                    value,
+                )
+                .map_err(|e| {
+                    log::error!("Error initialization program: {:?}", e);
+                    Error::Runner
+                })?,
         );
 
         let (Storage { message_queue, .. }, persistent_memory) = runner.complete();

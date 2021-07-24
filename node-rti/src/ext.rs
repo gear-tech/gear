@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    storage::{AllocationStorage, ProgramStorage, MessageQueue},
-    program::{ProgramId, Program},
     memory::PageNumber,
     message::Message,
+    program::{Program, ProgramId},
+    storage::{AllocationStorage, MessageQueue, ProgramStorage},
 };
 
 pub struct ExtAllocationStorage;

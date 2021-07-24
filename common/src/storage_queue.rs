@@ -58,11 +58,16 @@ impl StorageQueue {
 
         // update prev value
         if let Some(prev_node_key) = &self.tail {
-            if let Some(prev_node) = sp_io::storage::get(&self.key_with_prefix(prev_node_key.as_bytes())) {
+            if let Some(prev_node) =
+                sp_io::storage::get(&self.key_with_prefix(prev_node_key.as_bytes()))
+            {
                 let mut prev_node: Node<T> =
                     Node::<T>::decode(&mut &prev_node[..]).expect("Node<T> decode fail");
                 prev_node.next = Some(id);
-                sp_io::storage::set(&self.key_with_prefix(prev_node_key.as_bytes()), &prev_node.encode());
+                sp_io::storage::set(
+                    &self.key_with_prefix(prev_node_key.as_bytes()),
+                    &prev_node.encode(),
+                );
             }
         }
 
