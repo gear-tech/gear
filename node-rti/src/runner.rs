@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::storage::Storage;
-use gear_runner::runner::{Config, Runner};
+use gear_core_runner::runner::{Config, Runner};
 
 use crate::ext::*;
 

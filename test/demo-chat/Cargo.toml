@@ -1,10 +1,9 @@
 [package]
 name = "demo-chat"
 version = "0.1.0"
-authors = ["NikVolf <nikvolf@gmail.com>"]
+authors = ["Gear Technologies"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "GPL-3.0"
 
 [dependencies]
 gstd = { path = "../../gstd", features = ["debug"] }

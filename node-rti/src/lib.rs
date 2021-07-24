@@ -31,7 +31,7 @@ use sp_core::H256;
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 #[cfg(feature = "std")]
-use gear_runner::runner::RunNextResult;
+use gear_core_runner::runner::RunNextResult;
 #[cfg(feature = "std")]
 use gear_core::{storage::Storage, program::ProgramId};
 

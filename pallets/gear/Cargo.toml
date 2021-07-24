@@ -1,11 +1,11 @@
 [package]
+name = "pallet-gear"
+version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2018'
-name = 'pallet-gear'
-version = "2.0.0"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear-node"
+repository = "https://github.com/gear-tech/gear"
 description = "Gear main pallet"
 readme = "README.md"
 
@@ -17,7 +17,7 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-rti = { package = "gear-node-rti", path = "../../rti", default-features = false }
+rti = { package = "gear-node-rti", path = "../../node-rti", default-features = false }
 
 # Substrate deps
 frame-support = { version = "3.0", git = "https://github.com/paritytech/substrate.git", default-features = false }
@@ -38,15 +38,15 @@ wabt = "0.10"
 [features]
 default = ['std']
 std = [
-	'codec/std',
-	'frame-support/std',
-	'frame-system/std',
-	'rti/std',
-	'sp-io/std',
-	'sp-std/std',
-	'sp-core/std',
-	'sp-inherents/std',
-	'common/std',
-	'pallet-balances/std',
-	'pallet-authorship/std'
+	"codec/std",
+	"common/std",
+	"frame-support/std",
+	"frame-system/std",
+	"rti/std",
+	"sp-io/std",
+	"sp-std/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"pallet-balances/std",
+	"pallet-authorship/std",
 ]

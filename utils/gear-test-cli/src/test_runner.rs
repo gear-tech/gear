@@ -19,7 +19,7 @@
 use regex::Regex;
 use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
 use rti::runner::ExtRunner;
-use test_gear_sample::sample::{PayloadVariant, Test};
+use gear_test_sample::sample::{PayloadVariant, Test};
 
 use gear_core::{message::Message, program::ProgramId, storage::Storage};
 

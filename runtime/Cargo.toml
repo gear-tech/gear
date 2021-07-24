@@ -5,7 +5,7 @@ authors = ["Gear Technologies"]
 edition = "2018"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear-node"
+repository = "https://github.com/gear-tech/gear"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -65,8 +65,12 @@ std = [
 	"codec/std",
 	"frame-executive/std",
 	"frame-support/std",
+	"frame-system/std",
+	"frame-system-rpc-runtime-api/std",
 	"pallet-aura/std",
+	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-gear/std",
 	"pallet-grandpa/std",
 	"pallet-randomness-collective-flip/std",
 	"pallet-sudo/std",
@@ -86,18 +90,14 @@ std = [
 	"sp-std/std",
 	"sp-transaction-pool/std",
 	"sp-version/std",
-	"frame-system/std",
-	"frame-system-rpc-runtime-api/std",
-	"pallet-gear/std",
-	"pallet-authorship/std"
 ]
 runtime-benchmarks = [
-	"sp-runtime/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
 	"frame-system-benchmarking",
 	"hex-literal",
-	"frame-system/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks",
 ]

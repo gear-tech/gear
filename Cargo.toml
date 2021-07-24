@@ -1,0 +1,18 @@
+[profile.release]
+panic = 'unwind'
+
+[workspace]
+members = [
+    "common",
+    "core",
+    "core-backend",
+    "core-runner",
+    "gstd",
+    "node",
+    "node-rti",
+    "pallets/*",
+    "runtime",
+    "test",
+    "test-sample",
+    "utils/*",
+]

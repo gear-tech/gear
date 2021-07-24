@@ -9,7 +9,7 @@ use gear_core::{
 };
 use std::{fmt, fs};
 use termion::{color, style};
-use test_gear_sample::sample::{self, Test};
+use gear_test_sample::sample::{self, Test};
 
 use clap::{AppSettings, Clap};
 

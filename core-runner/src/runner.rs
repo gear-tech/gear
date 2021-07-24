@@ -18,7 +18,7 @@ use gear_core::{
     storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
 };
 
-use gear_backend::Environment;
+use gear_core_backend::Environment;
 
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]

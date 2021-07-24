@@ -7,9 +7,9 @@ use gear_core::{
         InMemoryStorage,
     },
 };
-use gear_runner::runner::{Config, Runner};
+use gear_core_runner::runner::{Config, Runner};
 use std::fmt::Write;
-use test_gear_sample::sample::{PayloadVariant, Test};
+use gear_test_sample::sample::{PayloadVariant, Test};
 
 use regex::Regex;
 

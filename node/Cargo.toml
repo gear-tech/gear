@@ -7,7 +7,7 @@ edition = "2018"
 license = "GPL-3.0"
 build = "build.rs"
 homepage = "https://gear-tech.io"
-repository = "https://github.com/gear-tech/gear-node"
+repository = "https://github.com/gear-tech/gear"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -36,6 +36,7 @@ sp-finality-grandpa = { version = "3.0.0", git = "https://github.com/paritytech/
 sc-client-api = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 sp-runtime = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 sp-timestamp = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
+
 # These dependencies are used for the node template's RPCs
 jsonrpc-core = "15.1.0"
 sc-rpc = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
@@ -53,7 +54,7 @@ frame-benchmarking-cli = { version = "3.0.0", git = "https://github.com/parityte
 
 # Internal
 gear-runtime = { path = "../runtime" }
-gear-node-rti = { path = "../rti" }
+gear-node-rti = { path = "../node-rti" }
 gear-test-cli = { path = "../utils/gear-test-cli" }
 
 [build-dependencies]
