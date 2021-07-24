@@ -1,5 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -e
-./build-wasm.sh
-cargo run --release -- json/*.json
+cd "$(dirname ${BASH_SOURCE[0]})/.."
+
+./scripts/build-wasm.sh
+cargo run --package gear-test --release -- test/json/*.json

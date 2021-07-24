@@ -3,7 +3,7 @@
     "programs": [
         {
             "id": 1,
-            "path": "target/wasm32-unknown-unknown/release/demo_condensator.wasm",
+            "path": "examples/target/wasm32-unknown-unknown/release/demo_condensator.wasm",
             "init_message": {
                 "kind": "utf-8",
                 "value": "200"

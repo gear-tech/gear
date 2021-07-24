@@ -1,2 +1,6 @@
-#!/bin/sh
-cargo +nightly build --release --workspace --exclude=test-gear --target=wasm32-unknown-unknown --verbose
+#!/usr/bin/env bash
+
+set -e
+cd "$(dirname ${BASH_SOURCE[0]})/../examples"
+
+cargo +nightly build --workspace --release --verbose

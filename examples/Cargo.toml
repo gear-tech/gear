@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "chat",
+    "chat/bot",
+    "chat/room",
+    "collector",
+    "condensator",
+    "fib",
+    "ping",
+    "sum",
+    "vec",
+]
