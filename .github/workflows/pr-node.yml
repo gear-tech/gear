@@ -47,11 +47,11 @@ jobs:
 
     - name: Build
       run: |
-        cargo build --release --package gear-node --all-features
+        cargo build --release --package gear-node # TODO: --all-features
 
     - name: Run tests
       run: |
-        cargo test --release --package gear-node --all-features
+        cargo test --release --package gear-node # TODO: --all-features
 
     - name: Build examples (WASM)
       run: |
