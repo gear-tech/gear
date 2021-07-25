@@ -45,3 +45,19 @@ jobs:
         cargo test --release --package gear-core --all-features
         cargo test --release --package gear-core-backend --all-features
         cargo test --release --package gear-core-runner --all-features
+
+  test:
+    if: contains(github.event.pull_request.labels.*.name, 'core')
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install toolchains
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        target: wasm32-unknown-unknown
+
+    - name: Test examples
+      run: ./scripts/test.sh
