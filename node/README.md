@@ -122,7 +122,3 @@ cargo run -- \
 ```
 
 Execute `cargo run -- --help` to learn more about the template node's CLI options.
-
-# License
-
-See `LICENSE`

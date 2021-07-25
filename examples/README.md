@@ -1,10 +1,10 @@
-# Gear Example
+# Gear Examples
 
 ## PING-PONG
 
 Gear is very easy to write code for!
 
-Here is minimal program for classic ping-pong contract:
+Here is a minimal program for a classic ping-pong contract:
 
 ```rust
 use gstd::{ext, msg};
@@ -19,12 +19,7 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
-
-}
-
-fn main() {
-}
+pub unsafe extern "C" fn init() {}
 ```
 
-It will just send `PONG` back to original sender (this can be you!)
+It will just send `PONG` back to the original sender (this can be you!)
