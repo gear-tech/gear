@@ -328,6 +328,7 @@ mod tests {
         assert_eq!(sum, PageNumber(300));
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "attempt to add with overflow")]
     /// Test that PageNumbers addition causes panic on overflow
@@ -343,6 +344,7 @@ mod tests {
         assert_eq!(subtraction, PageNumber(100))
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "attempt to subtract with overflow")]
     /// Test that PageNumbers subtraction causes panic on overflow

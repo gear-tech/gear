@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Install toolchains
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: Artifact cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Check fmt
+        run: cargo fmt --all -- --check
+
+      - name: Build
+        run: cargo build --workspace --release
+
+      - name: Run tests
+        run: cargo test --workspace --release
+
+      - name: Build examples (WASM)
+        run: |
+          ./scripts/build-wasm.sh
+          cp -r ./examples/target/wasm32-unknown-unknown ./target/
+
+      - uses: actions/setup-node@v2
+        name: Install nodejs
+        with:
+          node-version: "16"
+      - run: cd rpc-tests && npm install
+
+      - name: Run testsuite
+        run: |
+          cargo run --package gear-node --release -- runtests ./test/json/*.json
+
+      - name: Run rpc-test
+        run: |
+          cargo run --package gear-node --release -- --dev & sleep 5
+          node rpc-tests/index.js ./test/json/*.json
