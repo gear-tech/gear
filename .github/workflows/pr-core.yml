@@ -9,7 +9,7 @@ env:
 
 jobs:
   check:
-    if: ${{ github.event.label.name == 'core' }}
+    if: contains(github.event.pull_request.labels.*.name, 'core')
     runs-on: ubuntu-latest
 
     steps:
@@ -28,7 +28,7 @@ jobs:
         cargo clippy --package gear-core-runner --all-features -- -D warnings
 
   build:
-    if: ${{ github.event.label.name == 'core' }}
+    if: contains(github.event.pull_request.labels.*.name, 'core')
     runs-on: ubuntu-latest
 
     steps:
