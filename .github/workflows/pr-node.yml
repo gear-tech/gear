@@ -43,7 +43,7 @@ jobs:
         target: wasm32-unknown-unknown
 
     - name: Artifact cache
-        uses: Swatinem/rust-cache@v1
+      uses: Swatinem/rust-cache@v1
 
     - name: Build
       run: |
@@ -54,9 +54,9 @@ jobs:
         cargo test --release --package gear-node --all-features
 
     - name: Build examples (WASM)
-        run: |
-          ./scripts/build-wasm.sh
-          cp -r ./examples/target/wasm32-unknown-unknown ./target/
+      run: |
+        ./scripts/build-wasm.sh
+        cp -r ./examples/target/wasm32-unknown-unknown ./target/
 
     - name: Install Node.js
       uses: actions/setup-node@v2
