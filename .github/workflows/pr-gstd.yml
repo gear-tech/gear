@@ -1,0 +1,49 @@
+name: gstd-CI
+
+on:
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    if: contains(github.event.pull_request.labels.*.name, 'gstd')
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Check fmt
+      run: |
+        cargo fmt --package gstd -- --check
+
+    - name: Run clippy
+      run: |
+        cargo clippy --package gstd --all-features -- -D warnings
+
+  build:
+    if: contains(github.event.pull_request.labels.*.name, 'gstd')
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Build
+      run: |
+        cargo build --release --package gstd --all-features
+
+    - name: Run tests
+      run: |
+        cargo test --release --package gstd --all-features
+
+  test:
+    if: contains(github.event.pull_request.labels.*.name, 'gstd')
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Test examples
+      run: ./scripts/test.sh
