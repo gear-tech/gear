@@ -1,0 +1,47 @@
+name: core-CI
+
+on:
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    if: contains(github.event.pull_request.labels.*.name, 'core')
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Check fmt
+      run: |
+        cargo fmt --package gear-core -- --check
+        cargo fmt --package gear-core-backend -- --check
+        cargo fmt --package gear-core-runner -- --check
+
+    - name: Run clippy
+      run: |
+        cargo clippy --package gear-core --all-features -- -D warnings
+        cargo clippy --package gear-core-backend --all-features -- -D warnings
+        cargo clippy --package gear-core-runner --all-features -- -D warnings
+
+  build:
+    if: contains(github.event.pull_request.labels.*.name, 'core')
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Build
+      run: |
+        cargo build --release --package gear-core --all-features
+        cargo build --release --package gear-core-backend --all-features
+        cargo build --release --package gear-core-runner --all-features
+
+    - name: Run tests
+      run: |
+        cargo test --release --package gear-core --all-features
+        cargo test --release --package gear-core-backend --all-features
+        cargo test --release --package gear-core-runner --all-features
