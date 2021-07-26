@@ -10,3 +10,7 @@ members = [
     "sum",
     "vec",
 ]
+
+[profile.release]
+lto = true
+opt-level = 's'
