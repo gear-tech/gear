@@ -82,6 +82,44 @@
                         }
                     ]
                 }
+            ],
+            "expected_rpc": [
+                {
+                    "step": 4,
+                    "messages": [
+                        {
+                            "payload": {
+                                "kind": "bytes",
+                                "value": "0x016c23323037373238323132333133323338343732343a2068656c6c6f"
+                            },
+                            "destination": 2
+                        },
+                        {
+                            "payload": {
+                                "kind": "bytes",
+                                "value": "0x016c23323037373238323132333133323338343732343a2068656c6c6f"
+                            },
+                            "destination": 3
+                        }
+                    ],
+                    "memory": [
+                        {
+                            "kind": "shared",
+                            "at": "0x1000008",
+                            "bytes": "0x74657374"
+                        }
+                    ]
+                },
+                {
+                    "messages": [],
+                    "memory": [
+                        {
+                            "kind": "shared",
+                            "at": "0x1000100",
+                            "bytes": "0x68656c6c6f"
+                        }
+                    ]
+                }
             ]
         }
     ]
