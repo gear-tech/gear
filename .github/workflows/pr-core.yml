@@ -9,7 +9,7 @@ env:
 
 jobs:
   check:
-    if: contains(github.event.pull_request.labels.*.name, 'core')
+    if: contains(github.event.pull_request.labels.*.name, 'D1-core')
     runs-on: ubuntu-latest
 
     steps:
