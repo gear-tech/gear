@@ -89,21 +89,9 @@ impl Origin for H256 {
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
-pub enum MessageOrigin {
-    External(H256),
-    Internal(H256),
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct MessageRoute {
-    pub origin: MessageOrigin,
-    pub destination: H256,
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
 pub enum IntermediateMessage {
     InitProgram {
-        external_origin: H256,
+        origin: H256,
         program_id: H256,
         code: Vec<u8>,
         payload: Vec<u8>,
@@ -112,7 +100,8 @@ pub enum IntermediateMessage {
     },
     DispatchMessage {
         id: H256,
-        route: MessageRoute,
+        origin: H256,
+        destination: H256,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -159,6 +148,10 @@ pub fn set_program(id: H256, program: Program) {
 
 pub fn remove_program(_id: H256) {
     unimplemented!()
+}
+
+pub fn program_exists(id: H256) -> bool {
+    sp_io::storage::exists(&program_key(id))
 }
 
 pub fn dequeue_message() -> Option<Message> {
