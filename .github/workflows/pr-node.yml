@@ -70,5 +70,5 @@ jobs:
 
     - name: Run rpc-test
       run: |
-        echo cargo run --package gear-node --release -- --dev & sleep 5 # TODO: Fix
-        echo node rpc-tests/index.js ./test/json/*.json # TODO: Fix
+        cargo run --package gear-node --release -- --dev & sleep 5
+        node rpc-tests/index.js ./test/json/*.json

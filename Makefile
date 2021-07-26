@@ -37,15 +37,15 @@ fmt:
 
 .PHONY: node
 node:
-	@WASM_BUILD_TOOLCHAIN=nightly-2020-10-05 cargo build --package gear-node
+	@cargo build --package gear-node
 
 .PHONY: node-release
 node-release:
-	@WASM_BUILD_TOOLCHAIN=nightly-2020-10-05 cargo build --package gear-node --release
+	@cargo build --package gear-node --release
 
 .PHONY: node-run
 node-run:
-	@WASM_BUILD_TOOLCHAIN=nightly-2020-10-05 cargo run --package gear-node --release -- --dev --tmp
+	@cargo run --package gear-node --release -- --dev --tmp
 
 .PHONY: node-test
 node-test:
@@ -59,9 +59,18 @@ pre-commit:
 release:
 	@cargo build --workspace --release
 
+.PHONY: rpc-test
+rpc-test:
+	@./scripts/build-wasm.sh
+	@node rpc-tests/index.js ./test/json/*.json
+
 .PHONY: test
 test:
 	@cargo test --workspace
+
+.PHONY: test-release
+test-release:
+	@cargo test --workspace --release
 
 .PHONY: toolchain
 toolchain:
