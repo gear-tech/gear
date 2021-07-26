@@ -6,7 +6,7 @@ use gstd::ext;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    gstd_async::block_on(handle_async);
+    gstd_async::block_on(handle_async());
 }
 
 #[no_mangle]
