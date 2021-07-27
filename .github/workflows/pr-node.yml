@@ -9,7 +9,9 @@ env:
 
 jobs:
   check:
-    if: contains(github.event.pull_request.labels.*.name, 'node')
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'node') ||
+      ${{ github.event.label.name == 'node' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -30,7 +32,9 @@ jobs:
         echo cargo clippy --package pallet-gear --all-features -- -D warnings # TODO: Fix
 
   build:
-    if: contains(github.event.pull_request.labels.*.name, 'node')
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'node') ||
+      ${{ github.event.label.name == 'node' }}
     runs-on: ubuntu-latest
 
     steps:
