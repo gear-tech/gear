@@ -668,6 +668,10 @@ mod tests {
         // Creating a reply packet to set the `ReplyMessage`
         let reply_packet = ReplyPacket::new(vec![0, 0, 0].into(), 0, 0);
 
+        // Checking that we are not able to push extra payload into
+        // reply message if we have not set it yet
+        assert!(context.push_reply(&mut vec![0]).is_err());
+
         // Setting reply message and making sure the operation was successful
         assert!(context.reply(reply_packet.clone()).is_ok());
 
@@ -779,14 +783,28 @@ mod tests {
             expected_handle
         );
 
+        // Checking that reply message not lost and matches our initial
+        assert!(context.state.borrow().reply.is_some());
+        assert_eq!(
+            context.state.borrow().reply.as_ref().unwrap().payload.0,
+            vec![0, 0, 0]
+        );
+
+        // Checking that we are able to push extra payload into reply message
+        assert!(context.push_reply(&mut vec![1, 2]).is_ok());
+        assert!(context.push_reply(&mut vec![3, 4]).is_ok());
+
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
         let expected_result: (Vec<OutgoingMessage>, Option<ReplyMessage>) = context.drain();
         assert_eq!(expected_result.0.len(), 2);
         assert_eq!(expected_result.0[0].payload.0, vec![0, 0]);
         assert_eq!(expected_result.0[1].payload.0, vec![1, 1, 5, 7, 9]);
 
-        // Checking that reply message not lost and matches our initial
+        // Checking that we successfully pushed extra payload into reply
         assert!(expected_result.1.is_some());
-        assert_eq!(expected_result.1.unwrap().payload.0, vec![0, 0, 0]);
+        assert_eq!(
+            expected_result.1.unwrap().payload.0,
+            vec![0, 0, 0, 1, 2, 3, 4]
+        );
     }
 }
