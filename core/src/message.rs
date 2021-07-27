@@ -17,9 +17,11 @@ impl Payload {
     pub fn into_raw(self) -> Vec<u8> {
         self.0
     }
+}
 
+impl core::convert::AsRef<[u8]> for Payload {
     /// Raw bytes as reference.
-    pub fn as_ref(&self) -> &[u8] {
+    fn as_ref(&self) -> &[u8] {
         &self.0[..]
     }
 }

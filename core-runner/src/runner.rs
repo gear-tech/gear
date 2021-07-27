@@ -260,6 +260,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     ///
     /// This includes putting this program in the storage and dispatching
     /// initializationg message for it.
+    #[allow(clippy::too_many_arguments)]
     pub fn init_program(
         &mut self,
         source: ProgramId,
