@@ -122,10 +122,19 @@ fn check_messages(
                         msg.dest,
                     ))
                 }
-                if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
+                if exp
+                    .payload
+                    .as_ref()
+                    .map(|payload| !payload.equals(msg.payload.as_ref()))
+                    .unwrap_or(false)
+                {
                     errors.push(MessagesError::payload(
                         position,
-                        exp.payload.clone().into_raw(),
+                        exp.payload
+                            .as_ref()
+                            .expect("Checked above.")
+                            .clone()
+                            .into_raw(),
                         msg.payload.clone().into_raw(),
                     ))
                 }

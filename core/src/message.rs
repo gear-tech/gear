@@ -17,6 +17,11 @@ impl Payload {
     pub fn into_raw(self) -> Vec<u8> {
         self.0
     }
+
+    /// Raw bytes as reference.
+    pub fn as_ref(&self) -> &[u8] {
+        &self.0[..]
+    }
 }
 
 /// Message identifier.
@@ -282,6 +287,26 @@ impl Message {
         Message {
             id,
             source: 0.into(),
+            dest,
+            payload,
+            gas_limit,
+            value,
+            reply: None,
+        }
+    }
+
+    /// New system message to the specific program.
+    pub fn new(
+        id: MessageId,
+        source: ProgramId,
+        dest: ProgramId,
+        payload: Payload,
+        gas_limit: u64,
+        value: u128,
+    ) -> Message {
+        Message {
+            id,
+            source,
             dest,
             payload,
             gas_limit,

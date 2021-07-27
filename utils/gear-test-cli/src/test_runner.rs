@@ -43,6 +43,8 @@ fn encode_hex(bytes: &[u8]) -> String {
     s
 }
 
+const SOME_FIXED_USER: u64 = 1000001;
+
 pub fn init_fixture(
     ext: &mut sp_io::TestExternalities,
     test: &Test,
@@ -52,6 +54,7 @@ pub fn init_fixture(
         // Dispatch a signed extrinsic.
 
         let mut runner = rti::runner::new();
+        let mut nonce = 0;
         for program in test.programs.iter() {
             let code = std::fs::read(program.path.clone())
                 .map_err(|e| anyhow::anyhow!("Error openinng {}: {}", program.path.clone(), e))?;
@@ -75,26 +78,48 @@ pub fn init_fixture(
                 }
             }
 
-            runner.init_program(program.id.into(), code, init_message, u64::max_value(), 0)?;
+            runner.init_program(
+                SOME_FIXED_USER.into(),
+                nonce,
+                program.id.into(),
+                code,
+                init_message,
+                u64::max_value(),
+                0,
+            )?;
+            nonce += 1;
         }
         let fixture = &test.fixtures[fixture_no];
         for message in fixture.messages.iter() {
             let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
             let payload = match &message.payload {
-                PayloadVariant::Utf8(s) => {
+                Some(PayloadVariant::Utf8(s)) => {
                     // Insert ProgramId
                     if let Some(caps) = re.captures(&s) {
                         let id = caps["id"].parse::<u64>().unwrap();
                         let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
                         (s.clone().into_bytes()).to_vec()
                     } else {
-                        message.payload.clone().into_raw()
+                        message
+                            .payload
+                            .as_ref()
+                            .expect("Checked above")
+                            .clone()
+                            .into_raw()
                     }
                 }
-                _ => message.payload.clone().into_raw(),
+                _ => message.payload.clone().unwrap_or_default().into_raw(),
             };
 
-            runner.queue_message(message.destination.into(), payload, 1000000000, 0)
+            runner.queue_message(
+                SOME_FIXED_USER.into(),
+                nonce,
+                message.destination.into(),
+                payload,
+                1000000000,
+                0,
+            );
+            nonce += 1;
         }
 
         Ok(runner)

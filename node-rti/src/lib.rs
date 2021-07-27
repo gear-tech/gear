@@ -44,7 +44,7 @@ pub enum Error {
 #[derive(Debug, Encode, Decode)]
 pub struct ExecutionReport {
     pub handled: u32,
-    pub log: Vec<(H256, Vec<u8>)>,
+    pub log: Vec<gear_common::Message>,
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub gas_transfers: Vec<(H256, H256, u64)>,
@@ -66,12 +66,7 @@ impl ExecutionReport {
         let log = message_queue
             .log
             .into_iter()
-            .map(|msg| {
-                (
-                    H256::from_slice(msg.source.as_slice()),
-                    msg.payload.into_raw(),
-                )
-            })
+            .map(Into::into)
             .collect::<Vec<_>>();
 
         ExecutionReport {
@@ -130,6 +125,8 @@ pub trait GearExecutor {
             ProgramId::from_slice(&program_id[..]),
             runner
                 .init_program(
+                    ProgramId::from_slice(&caller_id[..]),
+                    gear_common::caller_nonce_fetch_inc(caller_id),
                     ProgramId::from_slice(&program_id[..]),
                     program_code,
                     init_payload,

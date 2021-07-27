@@ -23,20 +23,24 @@ use gear_core::{
 
 use sp_core::H256;
 
-pub fn queue_message(message: Message) {
-    let message = crate::Message {
-        id: H256::from_slice(&message.id.as_slice()),
-        source: H256::from_slice(&message.source.as_slice()),
-        dest: H256::from_slice(&message.dest.as_slice()),
-        payload: message.payload.into_raw(),
-        gas_limit: message.gas_limit,
-        value: message.value,
-        reply: message
-            .reply
-            .map(|reply| H256::from_slice(reply.as_slice())),
-    };
+impl From<Message> for crate::Message {
+    fn from(message: Message) -> crate::Message {
+        crate::Message {
+            id: H256::from_slice(&message.id.as_slice()),
+            source: H256::from_slice(&message.source.as_slice()),
+            dest: H256::from_slice(&message.dest.as_slice()),
+            payload: message.payload.into_raw(),
+            gas_limit: message.gas_limit,
+            value: message.value,
+            reply: message
+                .reply
+                .map(|reply| H256::from_slice(reply.as_slice())),
+        }
+    }
+}
 
-    crate::queue_message(message)
+pub fn queue_message(message: Message) {
+    crate::queue_message(message.into())
 }
 
 pub fn dequeue_message() -> Option<Message> {
@@ -84,6 +88,10 @@ pub fn set_program(program: Program) {
 
 pub fn remove_program(id: ProgramId) {
     crate::remove_program(H256::from_slice(id.as_slice()));
+}
+
+pub fn program_exists(id: ProgramId) -> bool {
+    crate::program_exists(H256::from_slice(id.as_slice()))
 }
 
 pub fn page_info(page: u32) -> Option<ProgramId> {
