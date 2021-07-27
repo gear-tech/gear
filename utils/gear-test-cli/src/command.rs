@@ -60,10 +60,15 @@ fn check_messages(
                         exp.destination, msg.dest
                     ));
                 }
-                if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
+                if exp
+                    .payload
+                    .as_ref()
+                    .map(|payload| !payload.equals(msg.payload.as_ref()))
+                    .unwrap_or(false)
+                {
                     errors.push(format!(
                         "Expectation error (payload doesn't match, expected: {:?}, actual: {:?})",
-                        encode_hex(&exp.payload.clone().into_raw()),
+                        encode_hex(&exp.payload.clone().unwrap_or_default().into_raw()),
                         encode_hex(&msg.payload.clone().into_raw()),
                     ));
                 }
