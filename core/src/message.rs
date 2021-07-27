@@ -77,6 +77,8 @@ pub enum Error {
     LateAccess,
     /// No message found with given handle, or handle exceedes the maximum messages amount.
     OutOfBounds,
+    /// An attempt to push a payload into reply that was not set
+    NoReplyFound,
 }
 
 /// Incoming message.
@@ -485,6 +487,16 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         self.state.borrow_mut().reply = Some(self.id_generator.borrow_mut().produce_reply(msg));
 
         Ok(())
+    }
+
+    /// Push an extra buffer into reply message.
+    pub fn push_reply(&self, buffer: &mut Vec<u8>) -> Result<(), Error> {
+        if let Some(reply) = &mut self.state.borrow_mut().reply {
+            reply.payload.0.append(buffer);
+            return Ok(());
+        }
+
+        Err(Error::NoReplyFound)
     }
 
     /// Send message to another program in this context.
