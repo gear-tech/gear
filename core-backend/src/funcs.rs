@@ -146,6 +146,26 @@ pub(crate) fn push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
     }
 }
 
+pub(crate) fn push_reply<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), &'static str> {
+    move |message_ptr: i32, message_len: i32| {
+        let message_ptr = message_ptr as u32 as usize;
+        let message_len = message_len as u32 as usize;
+
+        let result = ext.with(|ext: &mut E| {
+            let mut data = vec![0u8; message_len];
+            ext.get_mem(message_ptr, &mut data);
+
+            ext.push_reply(&mut data)
+        });
+
+        if result.is_err() {
+            return Err("Trapping: unable to push payload into reply");
+        }
+
+        Ok(())
+    }
+}
+
 pub(crate) fn read<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), &'static str> {
     move |at: i32, len: i32, dest: i32| {
         let at = at as u32 as usize;
@@ -181,26 +201,6 @@ pub(crate) fn reply<E: Ext>(
 
         if result.is_err() {
             return Err("Trapping: unable to send message");
-        }
-
-        Ok(())
-    }
-}
-
-pub(crate) fn push_reply<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), &'static str> {
-    move |message_ptr: i32, message_len: i32| {
-        let message_ptr = message_ptr as u32 as usize;
-        let message_len = message_len as u32 as usize;
-
-        let result = ext.with(|ext: &mut E| {
-            let mut data = vec![0u8; message_len];
-            ext.get_mem(message_ptr, &mut data);
-
-            ext.push_reply(&mut data)
-        });
-
-        if result.is_err() {
-            return Err("Trapping: unable to push payload into reply");
         }
 
         Ok(())
