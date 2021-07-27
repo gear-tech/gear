@@ -290,6 +290,26 @@ impl Message {
         }
     }
 
+    /// New system message to the specific program.
+    pub fn new(
+        id: MessageId,
+        source: ProgramId,
+        dest: ProgramId,
+        payload: Payload,
+        gas_limit: u64,
+        value: u128,
+    ) -> Message {
+        Message {
+            id,
+            source,
+            dest,
+            payload,
+            gas_limit,
+            value,
+            reply: None,
+        }
+    }
+
     /// Return destination of this message.
     pub fn dest(&self) -> ProgramId {
         self.dest

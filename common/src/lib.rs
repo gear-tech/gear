@@ -190,6 +190,21 @@ pub fn nonce_fetch_inc() -> u128 {
     original_nonce
 }
 
+pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
+    let mut key_id = b"g::msg::user_nonce".to_vec();
+    key_id.extend(&caller_id[..]);
+
+    let original_nonce = sp_io::storage::get(&key_id)
+        .map(|val| u64::decode(&mut &val[..]).expect("nonce decode fail"))
+        .unwrap_or(0);
+
+    let new_nonce = original_nonce.wrapping_add(1);
+
+    sp_io::storage::set(&key_id, &new_nonce.encode());
+
+    original_nonce
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

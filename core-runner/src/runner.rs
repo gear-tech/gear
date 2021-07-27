@@ -262,6 +262,8 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     /// initializationg message for it.
     pub fn init_program(
         &mut self,
+        source: ProgramId,
+        nonce: u64,
         program_id: ProgramId,
         code: Vec<u8>,
         init_msg: Vec<u8>,
@@ -287,8 +289,9 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .expect("Added above; cannot fail");
 
         // TODO: figure out message id for initialization message
-        let msg = IncomingMessage::new_system(
-            self.next_system_message_id(),
+        let msg = IncomingMessage::new(
+            self.next_message_id(source, nonce),
+            source,
             init_msg.into(),
             gas_limit,
             value,
@@ -313,44 +316,29 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     }
 
     // TODO: Remove once parallel and "system origin" is ditched
-    fn next_system_message_id(&mut self) -> MessageId {
-        let mut system_program = self
-            .program_storage
-            .get(ProgramId::default())
-            .unwrap_or_else(|| {
-                Program::new(
-                    ProgramId::default(),
-                    vec![],
-                    Default::default(),
-                    Some(self.static_pages().raw()),
-                )
-                .expect("Can't create program")
-            });
-
+    fn next_message_id(&mut self, source: ProgramId, nonce: u64) -> MessageId {
         let mut id_generator = BlakeMessageIdGenerator {
-            program_id: ProgramId::default(),
-            nonce: system_program.message_nonce(),
+            program_id: source,
+            nonce,
         };
 
-        let id = id_generator.next();
-
-        system_program.set_message_nonce(id_generator.nonce);
-        self.program_storage.set(system_program);
-
-        id
+        id_generator.next()
     }
 
     /// Queue message for the underlying message queue.
     pub fn queue_message(
         &mut self,
+        source: ProgramId,
+        nonce: u64,
         destination: ProgramId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
     ) {
-        let message_id = self.next_system_message_id();
-        self.message_queue.queue(Message::new_system(
+        let message_id = self.next_message_id(source, nonce);
+        self.message_queue.queue(Message::new(
             message_id,
+            source,
             destination,
             payload.into(),
             gas_limit,

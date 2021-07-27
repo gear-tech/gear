@@ -125,6 +125,8 @@ pub trait GearExecutor {
             ProgramId::from_slice(&program_id[..]),
             runner
                 .init_program(
+                    ProgramId::from_slice(&caller_id[..]),
+                    gear_common::caller_nonce_fetch_inc(caller_id),
                     ProgramId::from_slice(&program_id[..]),
                     program_code,
                     init_payload,

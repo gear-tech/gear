@@ -43,6 +43,8 @@ fn encode_hex(bytes: &[u8]) -> String {
     s
 }
 
+const SOME_FIXED_USER: u64 = 1000001;
+
 pub fn init_fixture(
     ext: &mut sp_io::TestExternalities,
     test: &Test,
@@ -52,6 +54,7 @@ pub fn init_fixture(
         // Dispatch a signed extrinsic.
 
         let mut runner = rti::runner::new();
+        let mut nonce = 0;
         for program in test.programs.iter() {
             let code = std::fs::read(program.path.clone())
                 .map_err(|e| anyhow::anyhow!("Error openinng {}: {}", program.path.clone(), e))?;
@@ -75,7 +78,8 @@ pub fn init_fixture(
                 }
             }
 
-            runner.init_program(program.id.into(), code, init_message, u64::max_value(), 0)?;
+            runner.init_program(SOME_FIXED_USER.into(), nonce, program.id.into(), code, init_message, u64::max_value(), 0)?;
+            nonce += 1;
         }
         let fixture = &test.fixtures[fixture_no];
         for message in fixture.messages.iter() {
@@ -94,7 +98,8 @@ pub fn init_fixture(
                 _ => message.payload.clone().into_raw(),
             };
 
-            runner.queue_message(message.destination.into(), payload, 1000000000, 0)
+            runner.queue_message(SOME_FIXED_USER.into(), nonce, message.destination.into(), payload, 1000000000, 0);
+            nonce += 1;
         }
 
         Ok(runner)
