@@ -42,6 +42,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_i32_i32_i64_i32_to_i32("gr_init", funcs::init);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32_i32_i32("gr_push", funcs::push);
+        result.add_func_i32_i32("gr_push_reply", funcs::push_reply);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
         result.add_func_i32_i32_i64_i32("gr_reply", funcs::reply);
         result.add_func_i32_i32_i32_i64_i32("gr_send", funcs::send);
