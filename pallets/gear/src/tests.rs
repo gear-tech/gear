@@ -221,10 +221,10 @@ fn messages_processing_works() {
         let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
 
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-        System::assert_last_event(crate::Event::MessagesDequeued(3).into());
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
 
-        // `InitProgram` doesn't increase the counter, but the reply message does; hence 2.
-        assert_eq!(Gear::messages_processed(), 2);
+        // `InitProgram` doesn't increase the counter, but the reply message does; hence 1.
+        assert_eq!(Gear::messages_processed(), 1);
 
         // First message is sent to a non-existing program - and should get into log.
         // Second message still gets processed thereby adding 1 to the total processed messages counter.
@@ -247,8 +247,8 @@ fn messages_processing_works() {
             },
         ]);
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
-        assert_eq!(Gear::messages_processed(), 4); // Counter not reset, 1 added
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+        assert_eq!(Gear::messages_processed(), 2); // Counter not reset, 1 added
     })
 }
 

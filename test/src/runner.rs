@@ -24,12 +24,15 @@ fn encode_hex(bytes: &[u8]) -> String {
     s
 }
 
+const SOME_FIXED_USER: u64 = 1000001;
+
 pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRunner> {
     let mut runner = Runner::new(
         &Config::default(),
         new_in_memory(Default::default(), Default::default(), Default::default()),
         &[],
     );
+    let mut nonce = 0;
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
         let mut init_message = Vec::new();
@@ -50,12 +53,16 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
             }
         }
         runner.init_program(
+            SOME_FIXED_USER.into(),
+            nonce,
             program.id.into(),
             code,
             init_message,
             program.init_gas_limit.unwrap_or(u64::MAX),
             program.init_value.unwrap_or(0) as _,
         )?;
+
+        nonce += 1;
     }
 
     let fixture = &test.fixtures[fixture_no];
@@ -75,11 +82,15 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
             _ => message.payload.clone().into_raw(),
         };
         runner.queue_message(
+            SOME_FIXED_USER.into(),
+            nonce,
             message.destination.into(),
             payload,
             message.gas_limit.unwrap_or(1000000000),
             message.value.unwrap_or_default() as _,
-        )
+        );
+
+        nonce += 1;
     }
 
     Ok(runner)

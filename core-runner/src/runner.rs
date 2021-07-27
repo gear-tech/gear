@@ -681,6 +681,8 @@ mod tests {
 
         runner
             .init_program(
+                1001.into(),
+                0,
                 1.into(),
                 parse_wat(wat),
                 "init".as_bytes().to_vec(),
@@ -699,7 +701,14 @@ mod tests {
             Some((b"ok".to_vec(), 1.into(), 1.into()))
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), u64::max_value(), 0);
+        runner.queue_message(
+            1001.into(),
+            0,
+            1.into(),
+            "test".as_bytes().to_vec(),
+            u64::max_value(),
+            0,
+        );
 
         runner.run_next().expect("Failed to process next message");
 
@@ -776,7 +785,15 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), vec![], u64::max_value(), 0)
+            .init_program(
+                1001.into(),
+                0,
+                1.into(),
+                parse_wat(wat),
+                vec![],
+                u64::max_value(),
+                0,
+            )
             .expect("Failed to init program");
 
         // check if page belongs to the program
@@ -793,7 +810,14 @@ mod tests {
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], u64::max_value(), 0);
+        runner.queue_message(
+            1001.into(),
+            1,
+            1.into(),
+            vec![256u32 as _],
+            u64::max_value(),
+            0,
+        );
 
         runner.run_next().expect("Failed to process next message");
 
@@ -869,6 +893,8 @@ mod tests {
 
         let result = runner
             .init_program(
+                1001.into(),
+                0,
                 1.into(),
                 parse_wat(wat_r),
                 "init".as_bytes().to_vec(),
@@ -881,6 +907,8 @@ mod tests {
 
         let result = runner
             .init_program(
+                1001.into(),
+                1,
                 2.into(),
                 parse_wat(wat_w),
                 "init".as_bytes().to_vec(),
@@ -927,6 +955,8 @@ mod tests {
         let program_id = 1.into();
         let _ = runner
             .init_program(
+                1001.into(),
+                0,
                 program_id,
                 parse_wat(wat),
                 "init".as_bytes().to_vec(),
@@ -935,7 +965,7 @@ mod tests {
             )
             .expect("failed to init `gas_transfer` program");
 
-        runner.queue_message(1.into(), vec![0], gas_limit, 0);
+        runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
 
         let result = runner.run_next().expect("Failed to process next message");
         assert_eq!(result.gas_spent.len(), 1);
