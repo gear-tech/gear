@@ -8,6 +8,7 @@ members = [
     "core-backend",
     "core-runner",
     "gstd",
+    "gstd-async",
     "node",
     "node-rti",
     "pallets/*",

@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "async",
     "chat",
     "chat/bot",
     "chat/room",
