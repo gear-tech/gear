@@ -61,7 +61,11 @@ fn check_messages(
                     ));
                 }
                 if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
-                    errors.push("Expectation error (payload doesn't match)".to_string());
+                    errors.push(format!(
+                        "Expectation error (payload doesn't match, expected: {:?}, actual: {:?})",
+                        encode_hex(&exp.payload.clone().into_raw()),
+                        encode_hex(&msg.payload.clone().into_raw()),
+                    ));
                 }
             });
     }
@@ -156,6 +160,16 @@ fn check_memory(
     } else {
         Err(errors)
     }
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        write!(&mut s, "{:02x}", b).expect("Format failed")
+    }
+    s
 }
 
 impl GearTestCmd {

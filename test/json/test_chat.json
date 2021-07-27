@@ -52,14 +52,14 @@
                         {
                             "payload": {
                                 "kind": "bytes",
-                                "value": "0x012423303a2068656c6c6f"
+                                "value": "013c23313030303030313a2068656c6c6f"
                             },
                             "destination": 2
                         },
                         {
                             "payload": {
                                 "kind": "bytes",
-                                "value": "0x012423303a2068656c6c6f"
+                                "value": "013c23313030303030313a2068656c6c6f"
                             },
                             "destination": 3
                         }
