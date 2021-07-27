@@ -78,7 +78,15 @@ pub fn init_fixture(
                 }
             }
 
-            runner.init_program(SOME_FIXED_USER.into(), nonce, program.id.into(), code, init_message, u64::max_value(), 0)?;
+            runner.init_program(
+                SOME_FIXED_USER.into(),
+                nonce,
+                program.id.into(),
+                code,
+                init_message,
+                u64::max_value(),
+                0,
+            )?;
             nonce += 1;
         }
         let fixture = &test.fixtures[fixture_no];
@@ -98,7 +106,14 @@ pub fn init_fixture(
                 _ => message.payload.clone().into_raw(),
             };
 
-            runner.queue_message(SOME_FIXED_USER.into(), nonce, message.destination.into(), payload, 1000000000, 0);
+            runner.queue_message(
+                SOME_FIXED_USER.into(),
+                nonce,
+                message.destination.into(),
+                payload,
+                1000000000,
+                0,
+            );
             nonce += 1;
         }
 

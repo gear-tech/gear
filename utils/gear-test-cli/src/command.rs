@@ -164,7 +164,7 @@ fn check_memory(
 
 fn encode_hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
-    
+
     let mut s = String::with_capacity(bytes.len() * 2);
     for &b in bytes {
         write!(&mut s, "{:02x}", b).expect("Format failed")
