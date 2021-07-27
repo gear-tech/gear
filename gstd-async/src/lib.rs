@@ -27,4 +27,6 @@ where
     }
 }
 
-fn gr_wake() {}
+fn gr_wake() {
+    // TODO: (?) Replace it by syscall for more advanced use cases
+}
