@@ -455,6 +455,12 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
         self.messages.reply(msg).map_err(|_e| "Reply error")
     }
 
+    fn push_reply(&self, buffer: &mut [u8]) -> Result<(), &'static str> {
+        self.messages
+            .push_reply(&mut Vec::from(buffer))
+            .map_err(|_e| "Reply payload push error")
+    }
+
     fn source(&mut self) -> ProgramId {
         self.messages.current().source()
     }

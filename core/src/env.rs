@@ -45,6 +45,9 @@ pub trait Ext {
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
 
+    /// Push an extra buffer into reply message.
+    fn push_reply(&self, buffer: &mut [u8]) -> Result<(), &'static str>;
+
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> ProgramId;
 
@@ -166,6 +169,9 @@ mod tests {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn push_reply(&self, _buffer: &mut [u8]) -> Result<(), &'static str> {
             Ok(())
         }
         fn source(&mut self) -> ProgramId {
