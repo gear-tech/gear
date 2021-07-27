@@ -146,7 +146,9 @@ pub(crate) fn push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
     }
 }
 
-pub(crate) fn push_reply<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), &'static str> {
+pub(crate) fn push_reply<E: Ext>(
+    ext: LaterExt<E>,
+) -> impl Fn(i32, i32) -> Result<(), &'static str> {
     move |message_ptr: i32, message_len: i32| {
         let message_ptr = message_ptr as u32 as usize;
         let message_len = message_len as u32 as usize;
