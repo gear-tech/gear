@@ -340,3 +340,113 @@ fn dequeue_limit_works() {
         assert_eq!(Gear::messages_processed(), 1);
     })
 }
+
+#[test]
+fn spent_gas_to_reward_block_author_works() {
+    let wat = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			i32.const 0
+			i32.const 32
+			i32.const 32
+			i64.const 1000000000
+			i32.const 1024
+			call $send
+		)
+		(func $init
+			call $handle
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = H256::from_low_u64_be(1001);
+
+        MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
+            origin: 1.into_origin(),
+            code,
+            program_id,
+            payload: "init".as_bytes().to_vec(),
+            gas_limit: 10000,
+            value: 0,
+        }]);
+
+        let block_author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
+        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
+
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+
+        // The block author should be paid the amount of Currency equal to
+        // the `gas_charge` incurred while processing the `InitProgram` message
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            block_author_initial_balance.saturating_add(7_000)
+        );
+    })
+}
+
+#[test]
+fn unused_gas_released_back_works() {
+    let wat = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			i32.const 0
+			i32.const 32
+			i32.const 32
+			i64.const 1000000000
+			i32.const 1024
+			call $send
+		)
+		(func $init)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = H256::from_low_u64_be(1001);
+
+        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
+
+        MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
+            origin: 1.into_origin(),
+            code,
+            program_id,
+            payload: "init".as_bytes().to_vec(),
+            gas_limit: 0_u64,
+            value: 0_u128,
+        }]);
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+
+        let external_origin_initial_balance = Balances::free_balance(1);
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id,
+            Vec::new(),
+            10_000_u64,
+            0_u128,
+        ));
+        // send_message reserves balance on the sender's account
+        assert_eq!(
+            Balances::free_balance(1),
+            external_origin_initial_balance.saturating_sub(10_000)
+        );
+
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+
+        // Unused gas should be converted back to currency and released to the external origin
+        assert_eq!(
+            Balances::free_balance(1),
+            external_origin_initial_balance.saturating_sub(6_000)
+        );
+    })
+}
