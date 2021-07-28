@@ -3,6 +3,7 @@ mod runner;
 use anyhow::anyhow;
 use derive_more::Display;
 use gear_core::{
+    memory::PAGE_SIZE,
     message::Message,
     program::{Program, ProgramId},
 };
@@ -173,23 +174,6 @@ fn check_allocations(
             }
         }
     }
-    // expected_pages
-    //     .iter()
-    //     .zip(programs.iter())
-    //     .for_each(|(exp, program)| {
-    //         if program.get_pages().contains_key(&exp.page_num.into()) {
-    //             errors.push(format!(
-    //                 "Expectation error (PageNumber doesn't match, expected: {})",
-    //                 exp.page_num
-    //             ));
-    //         }
-    //         if ProgramId::from(exp.program_id) != page.1 {
-    //             errors.push(format!(
-    //                 "Expectation error (ProgramId doesn't match, expected: {}, found: {:?})\n",
-    //                 exp.program_id, page.1
-    //             ));
-    //         }
-    //     });
 
     if errors.is_empty() {
         Ok(())
@@ -206,10 +190,10 @@ fn check_memory(
     for case in expected_memory {
         for p in &mut *program_storage {
             if p.id() == ProgramId::from(case.program_id) {
-                let page = case.address / 65536;
+                let page = case.address / PAGE_SIZE;
                 if let Some(page_buf) = p.get_page((page as u32).into()) {
-                    if page_buf[case.address - page * 65536
-                        ..(case.address - page * 65536) + case.bytes.len()]
+                    if page_buf[case.address - page * PAGE_SIZE
+                        ..(case.address - page * PAGE_SIZE) + case.bytes.len()]
                         != case.bytes
                     {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());

@@ -119,7 +119,7 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage> {
 impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     /// New runner instance.
     ///
-    /// Provide configuration, storage and memory state.
+    /// Provide configuration, storage.
     pub fn new(config: &Config, storage: Storage<MQ, PS>) -> Self {
         let env = Environment::new();
 
@@ -844,9 +844,6 @@ mod tests {
                 0,
             )
             .expect("Failed to init program");
-
-        // check if page belongs to the program
-        // assert_eq!(runner.allocations.get(256.into()), Some(ProgramId::from(1)));
 
         runner.run_next().expect("Failed to process next message");
 

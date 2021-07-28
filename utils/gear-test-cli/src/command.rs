@@ -16,17 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
+use rti::ext::ExtProgramStorage;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use std::{fs, path::Path};
 use termion::{color, style};
 
-use gear_core::{
-    message::Message,
-    program::ProgramId,
-    storage::{AllocationStorage, ProgramStorage},
-};
+use gear_core::{memory::PAGE_SIZE, message::Message, program::ProgramId, storage::ProgramStorage};
 use gear_test_sample::sample;
 
 use crate::test_runner;
@@ -84,25 +80,24 @@ fn check_messages(
 
 fn check_allocations(
     ext: &mut sp_io::TestExternalities,
-    allocations: &ExtAllocationStorage,
+    programs: &ExtProgramStorage,
     expected_pages: &[sample::AllocationStorage],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     ext.execute_with(|| {
-
-        for page in expected_pages {
-            if let Some(program_id) = allocations.get(page.page_num.into()) {
-                if program_id != page.program_id.into() {
+        for exp in expected_pages {
+            if let Some(program) = programs.get(exp.program_id.into()) {
+                if !program.get_pages().contains_key(&exp.page_num.into()) {
                     errors.push(format!(
-                        "Expectation error (ProgramId doesn't match, expected: {:?}, found: {:?})\n",
-                        program_id, page.program_id
+                        "Expectation error (PageNumber doesn't match, expected: {})",
+                        exp.page_num
                     ));
                 }
             } else {
                 errors.push(format!(
-                                    "Expectation error (PageNumber({}) doesn't exist)",
-                                    page.page_num,
-                                ));
+                    "Expectation error (Program doesn't exist, expected: {})",
+                    exp.program_id
+                ));
             }
         }
 
@@ -116,49 +111,26 @@ fn check_allocations(
 
 fn check_memory(
     ext: &mut sp_io::TestExternalities,
-    persistent_memory: &[u8],
     program_storage: &ExtProgramStorage,
-    expected_memory: &[sample::MemoryVariant],
+    expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        match case {
-            sample::MemoryVariant::Static(case) => {
-                ext.execute_with(|| {
-                    if let Some(id) = case.program_id {
-                        if let Some(program) = program_storage.get(ProgramId::from(id)) {
-                            if program.id() == ProgramId::from(id) {
-                                let page = case.address / 65536;
-                                if let Some(page_buf) = program.get_page((page as u32).into()) {
-                                    if page_buf[case.address..case.address + case.bytes.len()]
-                                        != case.bytes
-                                    {
-                                        errors.push(
-                                            "Expectation error (Static memory doesn't match)"
-                                                .to_string(),
-                                        );
-                                    }
-                                } else {
-                                    errors.push(
-                                        "Expectation error (Incorrect static memory address)"
-                                            .to_string(),
-                                    );
-                                }
-                            }
-                        }
+        ext.execute_with(|| {
+            if let Some(program) = program_storage.get(ProgramId::from(case.program_id)) {
+                let page = case.address / PAGE_SIZE;
+                if let Some(page_buf) = program.get_page((page as u32).into()) {
+                    if page_buf[case.address - page * PAGE_SIZE
+                        ..(case.address - page * PAGE_SIZE) + case.bytes.len()]
+                        != case.bytes
+                    {
+                        errors.push("Expectation error (Memory doesn't match)".to_string());
                     }
-                });
-            }
-            sample::MemoryVariant::Shared(case) => {
-                let offset = 256 * 65536;
-                if persistent_memory
-                    [case.address - offset..case.address - offset + case.bytes.len()]
-                    != case.bytes
-                {
-                    errors.push("Expectation error (Shared memory doesn't match)".to_string());
+                } else {
+                    errors.push("Expectation error (Incorrect static memory address)".to_string());
                 }
             }
-        }
+        });
     }
     if errors.is_empty() {
         Ok(())
@@ -204,7 +176,7 @@ impl GearTestCmd {
                     let output = match test_runner::init_fixture(&mut ext, &test, fixture_no) {
                         Ok(initialized_fixture) => {
                             match test_runner::run(&mut ext, initialized_fixture, exp.step) {
-                                Ok((final_state, persistent_memory)) => {
+                                Ok(final_state) => {
                                     let mut errors = Vec::new();
                                     if let Some(messages) = &exp.messages {
                                         if let Err(msg_errors) =
@@ -216,7 +188,7 @@ impl GearTestCmd {
                                     if let Some(alloc) = &exp.allocations {
                                         if let Err(alloc_errors) = check_allocations(
                                             &mut ext,
-                                            &final_state.allocation_storage,
+                                            &final_state.program_storage,
                                             alloc,
                                         ) {
                                             errors.extend(alloc_errors);
@@ -225,7 +197,6 @@ impl GearTestCmd {
                                     if let Some(mem) = &exp.memory {
                                         if let Err(mem_errors) = check_memory(
                                             &mut ext,
-                                            &persistent_memory,
                                             &final_state.program_storage,
                                             mem,
                                         ) {

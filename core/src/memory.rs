@@ -186,7 +186,7 @@ impl MemoryContext {
                 return Err(Error::OutOfMemory);
             }
 
-            if self.allocations.get(&(candidate + found).into()).is_some() {
+            if self.allocations.contains(&(candidate + found).into()) {
                 candidate += 1;
                 found = 0;
                 continue;
@@ -214,7 +214,6 @@ impl MemoryContext {
         if page < self.static_pages || page > self.max_pages {
             return Err(Error::InvalidFree(page));
         }
-        // self.allocations.retain(|value| *value != page);
         self.allocations.remove(&page);
 
         Ok(())

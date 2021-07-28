@@ -74,7 +74,6 @@ impl Clone for MemoryWrap {
 mod tests {
     use super::*;
     use gear_core::memory::MemoryContext;
-    // use gear_core::storage::InMemoryAllocationStorage;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
         use wasmtime::{Engine, Limits, Memory as WasmMemory, MemoryType, Store};
