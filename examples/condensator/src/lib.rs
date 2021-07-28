@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gstd::{ext, msg, Gas, prelude::*};
+use gstd::{ext, msg, Gas, gas, prelude::*};
 
 // Begin of demo
 static mut CHARGE: u32 = 0;
@@ -29,7 +29,7 @@ pub unsafe extern "C" fn handle() {
         msg::send(
             0.into(),
             format!("Discharged: {}", CHARGE).as_bytes(),
-            Gas(1000000000)
+            gas!(1 G)
         );
         DISCHARGE_HISTORY.push(CHARGE);
         CHARGE = 0;

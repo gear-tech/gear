@@ -57,8 +57,47 @@ macro_rules! bail {
     };
 }
 
+#[macro_export]
+macro_rules! gas {
+    () => {
+        Gas(0)
+    };
+    ($arg:literal) => {
+        Gas($arg)
+    };
+    ($arg:literal K) => {
+        Gas(($arg as f64 * 1_000.0) as _)
+    };
+    ($arg:literal M) => {
+        Gas(($arg as f64 * 1_000_000.0) as _)
+    };
+    ($arg:literal G) => {
+        Gas(($arg as f64 * 1_000_000_000.0) as _)
+    };
+    ($arg:literal T) => {
+        Gas(($arg as f64 * 1_000_000_000_000.0) as _)
+    };
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn gas_macro() {
+        use crate::Gas;
+
+        assert_eq!(gas!(), Gas(0));
+        assert_eq!(gas!(1234), Gas(1234));
+
+        assert_eq!(gas!(1 K), Gas(1_000));
+        assert_eq!(gas!(1 M), Gas(1_000_000));
+        assert_eq!(gas!(1 G), Gas(1_000_000_000));
+        assert_eq!(gas!(1 T), Gas(1_000_000_000_000));
+
+        assert_eq!(gas!(2.7 K), Gas(2_700));
+        assert_eq!(gas!(0.6 M), Gas(600_000));
+        assert_eq!(gas!(1002 K), Gas(1_002_000));
+    }
+
     struct SomeType(usize);
 
     #[derive(Debug)]
