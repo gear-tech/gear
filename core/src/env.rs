@@ -37,7 +37,10 @@ pub trait Ext {
     fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str>;
 
     /// Push an extra buffer into message payload by handle.
-    fn push(&self, handle: usize, buffer: &mut [u8]) -> Result<(), &'static str>;
+    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
+
+    /// Push an extra buffer into reply message.
+    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
     fn commit(&self, handle: usize) -> Result<(), &'static str>;
@@ -162,7 +165,10 @@ mod tests {
         fn init(&self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
             Ok(0)
         }
-        fn push(&self, _handle: usize, _buffer: &mut [u8]) -> Result<(), &'static str> {
+        fn push(&self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn push_reply(&self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
         fn commit(&self, _handle: usize) -> Result<(), &'static str> {

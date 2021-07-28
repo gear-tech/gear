@@ -264,6 +264,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     ///
     /// This includes putting this program in the storage and dispatching
     /// initializationg message for it.
+    #[allow(clippy::too_many_arguments)]
     pub fn init_program(
         &mut self,
         source: ProgramId,
@@ -351,6 +352,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     }
 
     /// Queue message for the underlying message queue.
+    #[allow(clippy::too_many_arguments)]
     pub fn queue_reply(
         &mut self,
         source: ProgramId,
@@ -467,10 +469,16 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
         self.messages.init(msg).map_err(|_e| "Message init error")
     }
 
-    fn push(&self, handle: usize, buffer: &mut [u8]) -> Result<(), &'static str> {
+    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push(handle, &mut Vec::from(buffer))
+            .push(handle, buffer)
             .map_err(|_e| "Payload push error")
+    }
+
+    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str> {
+        self.messages
+            .push_reply(buffer)
+            .map_err(|_e| "Reply payload push error")
     }
 
     fn commit(&self, handle: usize) -> Result<(), &'static str> {
