@@ -135,7 +135,7 @@ pub(crate) fn push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
             let mut data = vec![0u8; message_len];
             ext.get_mem(message_ptr, &mut data);
 
-            ext.push(handle_ptr, &mut data)
+            ext.push(handle_ptr, &data)
         });
 
         if result.is_err() {
@@ -157,7 +157,7 @@ pub(crate) fn push_reply<E: Ext>(
             let mut data = vec![0u8; message_len];
             ext.get_mem(message_ptr, &mut data);
 
-            ext.push_reply(&mut data)
+            ext.push_reply(&data)
         });
 
         if result.is_err() {

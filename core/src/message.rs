@@ -552,7 +552,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into message payload by handle.
-    pub fn push(&self, handle: usize, buffer: &mut Vec<u8>) -> Result<(), Error> {
+    pub fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -560,7 +560,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         }
 
         if let (msg, FormationStatus::NotFormed) = &mut state.outgoing[handle] {
-            msg.payload.0.append(buffer);
+            msg.payload.0.extend_from_slice(buffer);
             return Ok(());
         }
 
@@ -568,9 +568,9 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into reply message.
-    pub fn push_reply(&self, buffer: &mut Vec<u8>) -> Result<(), Error> {
+    pub fn push_reply(&self, buffer: &[u8]) -> Result<(), Error> {
         if let Some(reply) = &mut self.state.borrow_mut().reply {
-            reply.payload.0.append(buffer);
+            reply.payload.0.extend_from_slice(buffer);
             return Ok(());
         }
 
@@ -696,7 +696,7 @@ mod tests {
 
         // Checking that we are not able to push extra payload into
         // reply message if we have not set it yet
-        assert!(context.push_reply(&mut vec![0]).is_err());
+        assert!(context.push_reply(&[0]).is_err());
 
         // Setting reply message and making sure the operation was successful
         assert!(context.reply(reply_packet.clone()).is_ok());
@@ -774,22 +774,22 @@ mod tests {
 
         // Checking that we are able to push payload for the
         // message that we have not commited yet
-        assert!(context.push(expected_handle, &mut vec![5, 7]).is_ok());
-        assert!(context.push(expected_handle, &mut vec![9]).is_ok());
+        assert!(context.push(expected_handle, &[5, 7]).is_ok());
+        assert!(context.push(expected_handle, &[9]).is_ok());
 
         // Checking if commit is successful
         assert!(context.commit(expected_handle).is_ok());
 
         // Checking that we are **NOT** able to push payload for the message or
         // commit it if we already commited it or directly pushed before
-        assert!(context.push(0, &mut vec![5, 7]).is_err());
-        assert!(context.push(expected_handle, &mut vec![5, 7]).is_err());
+        assert!(context.push(0, &[5, 7]).is_err());
+        assert!(context.push(expected_handle, &[5, 7]).is_err());
         assert!(context.commit(0).is_err());
         assert!(context.commit(expected_handle).is_err());
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
-        assert!(context.push(15, &mut vec![0]).is_err());
+        assert!(context.push(15, &[0]).is_err());
         assert!(context.commit(15).is_err());
 
         // Creating an outgoing packet to init and do not commit later
@@ -817,8 +817,8 @@ mod tests {
         );
 
         // Checking that we are able to push extra payload into reply message
-        assert!(context.push_reply(&mut vec![1, 2]).is_ok());
-        assert!(context.push_reply(&mut vec![3, 4]).is_ok());
+        assert!(context.push_reply(&[1, 2]).is_ok());
+        assert!(context.push_reply(&[3, 4]).is_ok());
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
         let expected_result: (Vec<OutgoingMessage>, Option<ReplyMessage>) = context.drain();

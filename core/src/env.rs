@@ -37,7 +37,10 @@ pub trait Ext {
     fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str>;
 
     /// Push an extra buffer into message payload by handle.
-    fn push(&self, handle: usize, buffer: &mut [u8]) -> Result<(), &'static str>;
+    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
+
+    /// Push an extra buffer into reply message.
+    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
     fn commit(&self, handle: usize) -> Result<(), &'static str>;
@@ -45,8 +48,6 @@ pub trait Ext {
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
 
-    /// Push an extra buffer into reply message.
-    fn push_reply(&self, buffer: &mut [u8]) -> Result<(), &'static str>;
     /// Read the message id, if current message is a reply.
     fn reply_to(&self) -> Option<MessageId>;
 
@@ -164,10 +165,10 @@ mod tests {
         fn init(&self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
             Ok(0)
         }
-        fn push(&self, _handle: usize, _buffer: &mut [u8]) -> Result<(), &'static str> {
+        fn push(&self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn push_reply(&self, _buffer: &mut [u8]) -> Result<(), &'static str> {
+        fn push_reply(&self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
         fn commit(&self, _handle: usize) -> Result<(), &'static str> {

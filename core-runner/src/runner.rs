@@ -469,15 +469,15 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
         self.messages.init(msg).map_err(|_e| "Message init error")
     }
 
-    fn push(&self, handle: usize, buffer: &mut [u8]) -> Result<(), &'static str> {
+    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push(handle, &mut Vec::from(buffer))
+            .push(handle, buffer)
             .map_err(|_e| "Payload push error")
     }
 
-    fn push_reply(&self, buffer: &mut [u8]) -> Result<(), &'static str> {
+    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push_reply(&mut Vec::from(buffer))
+            .push_reply(buffer)
             .map_err(|_e| "Reply payload push error")
     }
 
