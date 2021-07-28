@@ -5,18 +5,9 @@
 pub mod macros;
 pub mod msg;
 pub mod prelude;
+pub mod structs;
+pub mod sys;
 
-pub use msg::{MessageId, ProgramId};
-
+pub use structs::*;
 #[cfg(feature = "debug")]
-pub mod ext {
-    mod sys {
-        extern "C" {
-            pub fn gr_debug(msg_ptr: *const u8, msg_len: u32);
-        }
-    }
-
-    pub fn debug(s: &str) {
-        unsafe { sys::gr_debug(s.as_ptr(), s.as_bytes().len() as _) }
-    }
-}
+pub use sys::ext;
