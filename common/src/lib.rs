@@ -89,21 +89,9 @@ impl Origin for H256 {
 }
 
 #[derive(Debug, Clone, Encode, Decode)]
-pub enum MessageOrigin {
-    External(H256),
-    Internal(H256),
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct MessageRoute {
-    pub origin: MessageOrigin,
-    pub destination: H256,
-}
-
-#[derive(Debug, Clone, Encode, Decode)]
 pub enum IntermediateMessage {
     InitProgram {
-        external_origin: H256,
+        origin: H256,
         program_id: H256,
         code: Vec<u8>,
         payload: Vec<u8>,
@@ -112,7 +100,8 @@ pub enum IntermediateMessage {
     },
     DispatchMessage {
         id: H256,
-        route: MessageRoute,
+        origin: H256,
+        destination: H256,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -161,6 +150,10 @@ pub fn remove_program(_id: H256) {
     unimplemented!()
 }
 
+pub fn program_exists(id: H256) -> bool {
+    sp_io::storage::exists(&program_key(id))
+}
+
 pub fn dequeue_message() -> Option<Message> {
     let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
     message_queue.dequeue()
@@ -193,6 +186,21 @@ pub fn nonce_fetch_inc() -> u128 {
     let new_nonce = original_nonce.wrapping_add(1);
 
     sp_io::storage::set(b"g::msg::nonce", &new_nonce.encode());
+
+    original_nonce
+}
+
+pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
+    let mut key_id = b"g::msg::user_nonce".to_vec();
+    key_id.extend(&caller_id[..]);
+
+    let original_nonce = sp_io::storage::get(&key_id)
+        .map(|val| u64::decode(&mut &val[..]).expect("nonce decode fail"))
+        .unwrap_or(0);
+
+    let new_nonce = original_nonce.wrapping_add(1);
+
+    sp_io::storage::set(&key_id, &new_nonce.encode());
 
     original_nonce
 }

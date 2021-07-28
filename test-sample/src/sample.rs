@@ -64,6 +64,12 @@ pub enum PayloadVariant {
     Bytes(Vec<u8>),
 }
 
+impl Default for PayloadVariant {
+    fn default() -> Self {
+        Self::Bytes(Vec::new())
+    }
+}
+
 impl PayloadVariant {
     pub fn into_raw(self) -> Vec<u8> {
         match self {
@@ -74,6 +80,15 @@ impl PayloadVariant {
             Self::Float64(v) => v.to_le_bytes().to_vec(),
             Self::Bytes(v) => v,
         }
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.clone().into_raw()
+    }
+
+    pub fn equals(&self, val: &[u8]) -> bool {
+        let bytes = self.as_bytes();
+        &bytes[..] == val
     }
 }
 
@@ -96,7 +111,7 @@ pub struct AllocationStorage {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Message {
     pub destination: u64,
-    pub payload: PayloadVariant,
+    pub payload: Option<PayloadVariant>,
     pub gas_limit: Option<u64>,
     pub value: Option<u64>,
 }
@@ -133,6 +148,9 @@ fn check_sample() {
                             {
                                 "payload": { "kind": "utf-8", "value": "PING" },
                                 "destination": 0
+                            },
+                            {
+                                "destination": 2
                             }
                         ],
                         "allocations": [

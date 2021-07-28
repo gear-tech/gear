@@ -187,6 +187,21 @@ pub(crate) fn reply<E: Ext>(
     }
 }
 
+pub(crate) fn reply_to<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |dest: i32| {
+        let maybe_message_id = ext.with(|ext: &mut E| ext.reply_to());
+
+        match maybe_message_id {
+            Some(message_id) => ext.with(|ext| {
+                ext.set_mem(dest as isize as _, message_id.as_slice());
+            }),
+            None => return Err("Not running in the reply context"),
+        };
+
+        Ok(())
+    }
+}
+
 pub(crate) fn send<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str> {

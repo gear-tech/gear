@@ -31,7 +31,7 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
-    use common::{self, IntermediateMessage, Message, MessageOrigin, MessageRoute, Origin};
+    use common::{self, IntermediateMessage, Message, Origin};
     use frame_support::inherent::{InherentData, InherentIdentifier};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
@@ -70,7 +70,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Log event from the specific program.
-        Log(H256, Vec<u8>),
+        Log(common::Message),
         /// Program created in the network.
         NewProgram(H256),
         /// Program initialization error.
@@ -170,7 +170,7 @@ pub mod pallet {
             <MessageQueue<T>>::mutate(|messages| {
                 let mut actual_messages = messages.take().unwrap_or_default();
                 actual_messages.push(IntermediateMessage::InitProgram {
-                    external_origin: who.into_origin(),
+                    origin: who.into_origin(),
                     code,
                     program_id: id,
                     payload: init_payload,
@@ -226,10 +226,8 @@ pub mod pallet {
 
                 actual_messages.push(IntermediateMessage::DispatchMessage {
                     id: message_id,
-                    route: MessageRoute {
-                        origin: MessageOrigin::External(who.into_origin()),
-                        destination,
-                    },
+                    origin: who.into_origin(),
+                    destination,
                     payload,
                     gas_limit,
                     value: value.into(),
@@ -270,10 +268,8 @@ pub mod pallet {
                 match message {
                     // Initialization queue is handled separately and on the first place
                     // Any programs failed to initialize are deleted and further messages to them are not processed
-                    //
-                    // TODO: also process `external_origin` once origins are introduced
                     IntermediateMessage::InitProgram {
-                        external_origin,
+                        origin,
                         code,
                         program_id,
                         payload,
@@ -281,12 +277,7 @@ pub mod pallet {
                         value,
                     } => {
                         match rti::gear_executor::init_program(
-                            external_origin,
-                            program_id,
-                            code,
-                            payload,
-                            gas_limit,
-                            value,
+                            origin, program_id, code, payload, gas_limit, value,
                         ) {
                             Err(_) => {
                                 stop_list.push(program_id);
@@ -298,12 +289,12 @@ pub mod pallet {
                             Ok(execution_report) => {
                                 // In case of init, we can unreserve everything right away.
                                 T::Currency::unreserve(
-                                    &<T::AccountId as Origin>::from_origin(external_origin),
+                                    &<T::AccountId as Origin>::from_origin(origin),
                                     gas_to_fee::<T>(gas_limit) + value.into(),
                                 );
 
                                 if let Err(_) = T::Currency::transfer(
-                                    &<T::AccountId as Origin>::from_origin(external_origin),
+                                    &<T::AccountId as Origin>::from_origin(origin),
                                     &<T::AccountId as Origin>::from_origin(program_id),
                                     value.into(),
                                     ExistenceRequirement::AllowDeath,
@@ -335,8 +326,8 @@ pub mod pallet {
                                         }
                                     }
 
-                                    for (program_id, payload) in execution_report.log {
-                                        Self::deposit_event(Event::Log(program_id, payload));
+                                    for message in execution_report.log {
+                                        Self::deposit_event(Event::Log(message));
                                     }
                                 }
                             }
@@ -344,22 +335,18 @@ pub mod pallet {
                     }
                     IntermediateMessage::DispatchMessage {
                         id,
-                        route,
+                        origin,
+                        destination,
                         payload,
                         gas_limit,
                         value,
                     } => {
-                        let source = match route.origin {
-                            MessageOrigin::External(_) => H256::zero(),
-                            MessageOrigin::Internal(program_id) => program_id,
-                        };
-
                         common::queue_message(Message {
                             id,
-                            source,
+                            source: origin,
                             payload,
                             gas_limit,
-                            dest: route.destination,
+                            dest: destination,
                             value,
                             // TODO: user can actually reply to the messages with transactions
                             reply: None,
@@ -419,8 +406,8 @@ pub mod pallet {
                             );
                         }
 
-                        for (program_id, payload) in execution_report.log {
-                            Self::deposit_event(Event::Log(program_id, payload));
+                        for message in execution_report.log {
+                            Self::deposit_event(Event::Log(message));
                         }
                     }
                     Err(_e) => {

@@ -94,22 +94,24 @@ async function checkMessages(api, exp, programs) {
     const message = api.createType('Message', messageQueue[index]);
     const expMessage = exp.messages[index];
 
-    let payload = [];
-    if (expMessage.payload.kind === 'bytes') {
-      payload = api.createType('Bytes', expMessage.payload.value);
-    } else if (expMessage.payload.kind === 'i32') {
-      payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
-    } else if (expMessage.payload.kind === 'i64') {
-      payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
-    } else if (expMessage.payload.kind === 'f32') {
-      payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
-    } else if (expMessage.payload.kind === 'f64') {
-      payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
-    } else if (expMessage.payload.kind === 'utf-8') {
-      payload = Buffer.from(expMessage.payload.value, 'utf8');
+    let payload = false;
+    if (expMessage.payload) {
+      if (expMessage.payload.kind === 'bytes') {
+        payload = api.createType('Bytes', expMessage.payload.value);
+      } else if (expMessage.payload.kind === 'i32') {
+        payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
+      } else if (expMessage.payload.kind === 'i64') {
+        payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
+      } else if (expMessage.payload.kind === 'f32') {
+        payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
+      } else if (expMessage.payload.kind === 'f64') {
+        payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
+      } else if (expMessage.payload.kind === 'utf-8') {
+        payload = Buffer.from(expMessage.payload.value, 'utf8');
+      }
     }
 
-    if (!message.payload.eq(payload)) {
+    if (payload && !message.payload.eq(payload)) {
       errors.push("Message payload doesn't match");
     }
     if (!message.dest.eq(programs[expMessage.destination])) {

@@ -68,11 +68,13 @@ impl MessageQueue for ExtMessageQueue {
     }
 
     fn queue(&mut self, message: Message) {
-        if message.dest == 0.into() {
-            self.log.push(message);
+        // We queue message only when there is a destination.
+        if gear_common::native::program_exists(message.dest) {
+            gear_common::native::queue_message(message);
             return;
         }
 
-        gear_common::native::queue_message(message)
+        // If no destination, message is considered to be a log record.
+        self.log.push(message);
     }
 }

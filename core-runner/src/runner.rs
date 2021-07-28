@@ -181,7 +181,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                     &gas::instrument(program.code())
                         .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
                     &mut program,
-                    EntryPoint::Handle,
+                    if next_message.reply().is_some() {
+                        EntryPoint::HandleReply
+                    } else {
+                        EntryPoint::Handle
+                    },
                     &next_message.into(),
                     gas_limit,
                 )?,
@@ -226,6 +230,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     /// initializationg message for it.
     pub fn init_program(
         &mut self,
+        source: ProgramId,
+        nonce: u64,
         program_id: ProgramId,
         code: Vec<u8>,
         init_msg: Vec<u8>,
@@ -252,8 +258,9 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         let mut context = self.create_context(allocations);
 
         // TODO: figure out message id for initialization message
-        let msg = IncomingMessage::new_system(
-            self.next_system_message_id(),
+        let msg = IncomingMessage::new(
+            self.next_message_id(source, nonce),
+            source,
             init_msg.into(),
             gas_limit,
             value,
@@ -278,43 +285,56 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     }
 
     // TODO: Remove once parallel and "system origin" is ditched
-    fn next_system_message_id(&mut self) -> MessageId {
-        let mut system_program = self
-            .program_storage
-            .get(ProgramId::default())
-            .unwrap_or_else(|| {
-                Program::new(ProgramId::default(), vec![], Default::default(), Some(0))
-                    .expect("Can't create program")
-            });
-
+    fn next_message_id(&mut self, source: ProgramId, nonce: u64) -> MessageId {
         let mut id_generator = BlakeMessageIdGenerator {
-            program_id: ProgramId::default(),
-            nonce: system_program.message_nonce(),
+            program_id: source,
+            nonce,
         };
 
-        let id = id_generator.next();
-
-        system_program.set_message_nonce(id_generator.nonce);
-        self.program_storage.set(system_program);
-
-        id
+        id_generator.next()
     }
 
     /// Queue message for the underlying message queue.
     pub fn queue_message(
         &mut self,
+        source: ProgramId,
+        nonce: u64,
         destination: ProgramId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
     ) {
-        let message_id = self.next_system_message_id();
-        self.message_queue.queue(Message::new_system(
+        let message_id = self.next_message_id(source, nonce);
+        self.message_queue.queue(Message::new(
             message_id,
+            source,
             destination,
             payload.into(),
             gas_limit,
             value,
+        ));
+    }
+
+    /// Queue message for the underlying message queue.
+    pub fn queue_reply(
+        &mut self,
+        source: ProgramId,
+        nonce: u64,
+        destination: ProgramId,
+        payload: Vec<u8>,
+        gas_limit: u64,
+        value: u128,
+        reply_to: MessageId,
+    ) {
+        let message_id = self.next_message_id(source, nonce);
+        self.message_queue.queue(Message::new_reply(
+            message_id,
+            source,
+            destination,
+            payload.into(),
+            gas_limit,
+            value,
+            reply_to,
         ));
     }
 }
@@ -322,6 +342,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
 #[derive(Clone, Copy, Debug)]
 enum EntryPoint {
     Handle,
+    HandleReply,
     Init,
 }
 
@@ -329,6 +350,7 @@ impl From<EntryPoint> for &'static str {
     fn from(entry_point: EntryPoint) -> &'static str {
         match entry_point {
             EntryPoint::Handle => "handle",
+            EntryPoint::HandleReply => "handle_reply",
             EntryPoint::Init => "init",
         }
     }
@@ -411,6 +433,10 @@ impl EnvExt for Ext {
 
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str> {
         self.messages.reply(msg).map_err(|_e| "Reply error")
+    }
+
+    fn reply_to(&self) -> Option<MessageId> {
+        self.messages.current().reply()
     }
 
     fn source(&mut self) -> ProgramId {
@@ -543,6 +569,9 @@ mod tests {
     extern crate wabt;
     use super::*;
     use env_logger::Env;
+    use gear_core::storage::{
+        InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage,
+    };
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -559,6 +588,99 @@ mod tests {
         env_logger::Builder::from_env(Env::default().default_filter_or("warn"))
             .is_test(true)
             .init();
+    }
+
+    fn new_test_runner(
+    ) -> Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage> {
+        Runner::new(
+            &Config::default(),
+            gear_core::storage::new_in_memory(
+                Default::default(),
+                Default::default(),
+                Default::default(),
+            ),
+            &[],
+        )
+    }
+
+    #[test]
+    fn reply_to_calls_works_and_traps() {
+        let wat = r#"
+            (module
+                (import "env" "gr_reply_to"  (func $gr_reply_to (param i32)))
+                (import "env" "memory" (memory 2))
+                (export "handle" (func $handle))
+                (export "handle_reply" (func $handle))
+                (export "init" (func $init))
+                (func $handle
+                    i32.const 65536
+                    call $gr_reply_to
+                )
+                (func $handle_reply
+                    i32.const 65536
+                    call $gr_reply_to
+                )
+                (func $init)
+            )"#;
+
+        let mut runner = new_test_runner();
+
+        runner
+            .init_program(
+                1001.into(),
+                0,
+                1.into(),
+                parse_wat(wat),
+                Vec::new(),
+                u64::max_value(),
+                0,
+            )
+            .expect("failed to init program");
+
+        runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
+
+        match runner.run_next() {
+            Ok(_) => panic!("This should be an error that we run "),
+            Err(anyhow_err) => {
+                format!("{}", anyhow_err).contains("Not running in the reply context");
+            }
+        };
+
+        let msg = vec![
+            1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
+            18, 20, 22, 24, 26, 28, 30, 32,
+        ];
+
+        runner.queue_reply(
+            1001.into(),
+            1,
+            1.into(),
+            Vec::new(),
+            u64::max_value(),
+            0,
+            MessageId::from_slice(&msg),
+        );
+
+        runner.run_next().expect("Should be ok now.");
+
+        let (
+            InMemoryStorage {
+                program_storage, ..
+            },
+            ..,
+        ) = runner.complete();
+
+        let persisted_program = program_storage
+            .get(1.into())
+            .expect("Program #1 should exist");
+
+        assert_eq!(
+            &persisted_program
+                .get_pages()
+                .get(&1.into())
+                .expect("Page #1 shoud exist")[0..32],
+            &msg,
+        );
     }
 
     #[test]
@@ -609,13 +731,12 @@ mod tests {
               )
           )"#;
 
-        let mut runner = Runner::new(
-            &Config::default(),
-            gear_core::storage::new_in_memory(Default::default(), Default::default()),
-        );
+        let mut runner = new_test_runner();
 
         runner
             .init_program(
+                1001.into(),
+                0,
                 1.into(),
                 parse_wat(wat),
                 "init".as_bytes().to_vec(),
@@ -634,7 +755,14 @@ mod tests {
             Some((b"ok".to_vec(), 1.into(), 1.into()))
         );
 
-        runner.queue_message(1.into(), "test".as_bytes().to_vec(), u64::max_value(), 0);
+        runner.queue_message(
+            1001.into(),
+            0,
+            1.into(),
+            "test".as_bytes().to_vec(),
+            u64::max_value(),
+            0,
+        );
 
         runner.run_next().expect("Failed to process next message");
 
@@ -706,7 +834,15 @@ mod tests {
         );
 
         runner
-            .init_program(1.into(), parse_wat(wat), vec![], u64::max_value(), 0)
+            .init_program(
+                1001.into(),
+                0,
+                1.into(),
+                parse_wat(wat),
+                vec![],
+                u64::max_value(),
+                0,
+            )
             .expect("Failed to init program");
 
         // check if page belongs to the program
@@ -723,7 +859,14 @@ mod tests {
         );
 
         // send page num to be freed
-        runner.queue_message(1.into(), vec![256u32 as _], u64::max_value(), 0);
+        runner.queue_message(
+            1001.into(),
+            1,
+            1.into(),
+            vec![256u32 as _],
+            u64::max_value(),
+            0,
+        );
 
         runner.run_next().expect("Failed to process next message");
 
@@ -734,9 +877,6 @@ mod tests {
                 .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
             Some((vec![256u32 as _].into(), 1.into(), 1.into()))
         );
-
-        // page is now deallocated
-        // assert_eq!(runner.get(256.into()), None);
     }
 
     #[test]
@@ -765,6 +905,8 @@ mod tests {
         let program_id = 1.into();
         let _ = runner
             .init_program(
+                1001.into(),
+                0,
                 program_id,
                 parse_wat(wat),
                 "init".as_bytes().to_vec(),
@@ -773,7 +915,7 @@ mod tests {
             )
             .expect("failed to init `gas_transfer` program");
 
-        runner.queue_message(1.into(), vec![0], gas_limit, 0);
+        runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
 
         let result = runner.run_next().expect("Failed to process next message");
         assert_eq!(result.gas_spent.len(), 1);

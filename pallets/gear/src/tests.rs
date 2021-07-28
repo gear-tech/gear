@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::*;
 use codec::Encode;
-use common::{self, IntermediateMessage, MessageOrigin, MessageRoute, Origin as _};
+use common::{self, IntermediateMessage, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
 use sp_core::H256;
@@ -65,11 +65,11 @@ fn submit_program_enqueues_message() {
 
         let (msg_origin, msg_code, id) = match &messages[0] {
             IntermediateMessage::InitProgram {
-                external_origin,
+                origin,
                 code,
                 program_id,
                 ..
-            } => (*external_origin, code.to_vec(), *program_id),
+            } => (*origin, code.to_vec(), *program_id),
             _ => (Default::default(), Vec::new(), Default::default()),
         };
         assert_eq!(msg_origin, 1_u64.into_origin());
@@ -195,7 +195,7 @@ fn messages_processing_works() {
         // Normal use-case: program initialized first, then called
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
-                external_origin: 1.into_origin(),
+                origin: 1.into_origin(),
                 code,
                 program_id,
                 payload: Vec::new(),
@@ -204,10 +204,8 @@ fn messages_processing_works() {
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(102),
-                route: MessageRoute {
-                    origin: MessageOrigin::External(1.into_origin()),
-                    destination: program_id,
-                },
+                origin: 1.into_origin(),
+                destination: program_id,
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 0,
@@ -224,27 +222,25 @@ fn messages_processing_works() {
 
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
         System::assert_last_event(crate::Event::MessagesDequeued(2).into());
-        assert_eq!(Gear::messages_processed(), 1); // `InitProgram` doesn't increase the counter, hence 1, not 2
 
-        // First message is sent to a non-existing program - error should be handled
+        // `InitProgram` doesn't increase the counter, but the reply message does; hence 1.
+        assert_eq!(Gear::messages_processed(), 1);
+
+        // First message is sent to a non-existing program - and should get into log.
         // Second message still gets processed thereby adding 1 to the total processed messages counter.
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(102),
-                route: MessageRoute {
-                    origin: MessageOrigin::External(1.into_origin()),
-                    destination: 2.into_origin(),
-                },
+                origin: 1.into_origin(),
+                destination: 2.into_origin(),
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 100,
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(103),
-                route: MessageRoute {
-                    origin: MessageOrigin::External(1.into_origin()),
-                    destination: program_id,
-                },
+                origin: 1.into_origin(),
+                destination: program_id,
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 0,
@@ -285,7 +281,7 @@ fn dequeue_limit_works() {
 
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
-                external_origin: 1.into_origin(),
+                origin: 1.into_origin(),
                 code,
                 program_id,
                 payload: Vec::new(),
@@ -294,20 +290,16 @@ fn dequeue_limit_works() {
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(102),
-                route: MessageRoute {
-                    origin: MessageOrigin::External(1.into_origin()),
-                    destination: program_id,
-                },
+                origin: 1.into_origin(),
+                destination: program_id,
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 0,
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(103),
-                route: MessageRoute {
-                    origin: MessageOrigin::External(1.into_origin()),
-                    destination: program_id,
-                },
+                origin: 1.into_origin(),
+                destination: program_id,
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 100,
@@ -330,10 +322,8 @@ fn dequeue_limit_works() {
         // Put another message in queue
         MessageQueue::<Test>::put(vec![IntermediateMessage::DispatchMessage {
             id: H256::from_low_u64_be(104),
-            route: MessageRoute {
-                origin: MessageOrigin::External(1.into_origin()),
-                destination: program_id,
-            },
+            origin: 1.into_origin(),
+            destination: program_id,
             payload: Vec::new(),
             gas_limit: 10000,
             value: 200,
@@ -348,5 +338,115 @@ fn dequeue_limit_works() {
 
         // This time we are already above the dequeue limit, hence no messages end up being processed
         assert_eq!(Gear::messages_processed(), 1);
+    })
+}
+
+#[test]
+fn spent_gas_to_reward_block_author_works() {
+    let wat = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			i32.const 0
+			i32.const 32
+			i32.const 32
+			i64.const 1000000000
+			i32.const 1024
+			call $send
+		)
+		(func $init
+			call $handle
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = H256::from_low_u64_be(1001);
+
+        MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
+            origin: 1.into_origin(),
+            code,
+            program_id,
+            payload: "init".as_bytes().to_vec(),
+            gas_limit: 10000,
+            value: 0,
+        }]);
+
+        let block_author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
+        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
+
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+
+        // The block author should be paid the amount of Currency equal to
+        // the `gas_charge` incurred while processing the `InitProgram` message
+        assert_eq!(
+            Balances::free_balance(BLOCK_AUTHOR),
+            block_author_initial_balance.saturating_add(7_000)
+        );
+    })
+}
+
+#[test]
+fn unused_gas_released_back_works() {
+    let wat = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			i32.const 0
+			i32.const 32
+			i32.const 32
+			i64.const 1000000000
+			i32.const 1024
+			call $send
+		)
+		(func $init)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = H256::from_low_u64_be(1001);
+
+        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
+
+        MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
+            origin: 1.into_origin(),
+            code,
+            program_id,
+            payload: "init".as_bytes().to_vec(),
+            gas_limit: 0_u64,
+            value: 0_u128,
+        }]);
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+
+        let external_origin_initial_balance = Balances::free_balance(1);
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id,
+            Vec::new(),
+            10_000_u64,
+            0_u128,
+        ));
+        // send_message reserves balance on the sender's account
+        assert_eq!(
+            Balances::free_balance(1),
+            external_origin_initial_balance.saturating_sub(10_000)
+        );
+
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+
+        // Unused gas should be converted back to currency and released to the external origin
+        assert_eq!(
+            Balances::free_balance(1),
+            external_origin_initial_balance.saturating_sub(6_000)
+        );
     })
 }

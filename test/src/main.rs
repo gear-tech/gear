@@ -3,7 +3,6 @@ mod runner;
 use anyhow::anyhow;
 use derive_more::Display;
 use gear_core::{
-    memory::PageNumber,
     message::Message,
     program::{Program, ProgramId},
 };
@@ -122,10 +121,19 @@ fn check_messages(
                         msg.dest,
                     ))
                 }
-                if exp.payload.clone().into_raw() != msg.payload.clone().into_raw() {
+                if exp
+                    .payload
+                    .as_ref()
+                    .map(|payload| !payload.equals(msg.payload.as_ref()))
+                    .unwrap_or(false)
+                {
                     errors.push(MessagesError::payload(
                         position,
-                        exp.payload.clone().into_raw(),
+                        exp.payload
+                            .as_ref()
+                            .expect("Checked above.")
+                            .clone()
+                            .into_raw(),
                         msg.payload.clone().into_raw(),
                     ))
                 }
@@ -149,7 +157,7 @@ fn check_messages(
 }
 
 fn check_allocations(
-    programs: &[(Program)],
+    programs: &[Program],
     expected_pages: &[sample::AllocationStorage],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();

@@ -14,10 +14,13 @@ struct State {
 
 impl State {
     fn set_room_name(&mut self, name: &'static str) {
-        self.room_name = &name;
+        self.room_name = name;
     }
     fn add_member(&mut self, member: (ProgramId, String)) {
         self.members.push(member);
+    }
+    fn get_member(&self, id: ProgramId) -> Option<&(ProgramId, String)> {
+        self.members.iter().find(|(member, _name)| *member == id)
     }
     fn room_name(&self) -> &'static str {
         ext::debug(&format!("room_name ptr -> {:p}", self.room_name));
@@ -60,8 +63,11 @@ unsafe fn room(room_msg: RoomMessage) {
                     send_member(
                         *id,
                         MemberMessage::Room(format!(
-                            "#{}: {}",
-                            u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
+                            "{}: {}",
+                            STATE
+                                .get_member(msg::source())
+                                .unwrap_or(&(ProgramId::default(), STATE.room_name().to_string()))
+                                .1,
                             text
                         )),
                     )

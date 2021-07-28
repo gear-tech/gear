@@ -12,6 +12,7 @@ cargo clippy --package gear-core -- -D warnings
 cargo clippy --package gear-core-backend -- -D warnings
 cargo clippy --package gear-core-runner -- -D warnings
 cargo clippy --package gstd -- -D warnings
+cargo clippy --package gstd-async -- -D warnings
 
 echo "*** Run tests"
 cargo test --workspace

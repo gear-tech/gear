@@ -55,6 +55,7 @@ mod sys {
         );
         pub fn gr_size() -> u32;
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
+        pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
         pub fn gr_msg_id(val: *mut u8);
@@ -121,4 +122,10 @@ pub fn charge(gas: u64) {
     unsafe {
         sys::gr_charge(gas);
     }
+}
+
+pub fn reply_to() -> MessageId {
+    let mut message_id = MessageId::default();
+    unsafe { sys::gr_reply_to(message_id.0.as_mut_ptr()) }
+    message_id
 }

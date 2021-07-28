@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use frame_support::parameter_types;
+use frame_support::traits::FindAuthor;
+use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::testing::Header;
@@ -26,8 +27,10 @@ use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
+pub const BLOCK_AUTHOR: u64 = 255;
+
 // Configure a mock runtime to test the pallet.
-frame_support::construct_runtime!(
+construct_runtime!(
     pub enum Test where
         Block = Block,
         NodeBlock = Block,
@@ -91,8 +94,19 @@ impl pallet_gear::Config for Test {
     type MessagePerByte = MessagePerByte;
 }
 
+pub struct FixedBlockAuthor;
+
+impl FindAuthor<u64> for FixedBlockAuthor {
+    fn find_author<'a, I>(_digests: I) -> Option<u64>
+    where
+        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
+    {
+        Some(BLOCK_AUTHOR)
+    }
+}
+
 impl pallet_authorship::Config for Test {
-    type FindAuthor = ();
+    type FindAuthor = FixedBlockAuthor;
     type UncleGenerations = ();
     type FilterUncle = ();
     type EventHandler = ();
@@ -105,7 +119,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(1, 1_000_000_000_000_u128), (2, 1_u128)],
+        balances: vec![
+            (1, 1_000_000_000_000_u128),
+            (2, 1_u128),
+            (BLOCK_AUTHOR, 1_u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
