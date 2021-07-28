@@ -4,7 +4,7 @@
 mod macros;
 pub mod msg;
 pub mod prelude;
-pub mod structs;
+mod structs;
 pub mod sys;
 
 pub use structs::*;
