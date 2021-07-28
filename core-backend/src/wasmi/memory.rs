@@ -52,31 +52,6 @@ impl Memory for MemoryWrap {
         Box::new(Clone::clone(self))
     }
 
-    fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8 {
-        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
-        let length = 65536usize * length.raw() as usize;
-
-        // So we can later trigger SIGSEGV by performing a read
-        unsafe {
-            libc::mprotect(base as *mut libc::c_void, length, libc::PROT_NONE);
-        }
-        base
-    }
-
-    fn unlock(&self, offset: PageNumber, length: PageNumber) {
-        let base = self.data_ptr().wrapping_add(65536 * offset.raw() as usize);
-        let length = 65536usize * length.raw() as usize;
-
-        // Set r/w protection
-        unsafe {
-            libc::mprotect(
-                base as *mut libc::c_void,
-                length,
-                libc::PROT_READ | libc::PROT_WRITE,
-            );
-        }
-    }
-
     fn as_any(&self) -> &dyn Any {
         &self.0
     }
@@ -92,13 +67,9 @@ impl Clone for MemoryWrap {
 mod tests {
     use super::*;
     use alloc::vec::Vec;
-    use gear_core::memory::{Allocations, MemoryContext};
-    use gear_core::storage::InMemoryAllocationStorage;
+    use gear_core::memory::MemoryContext;
 
-    fn new_test_memory(
-        static_pages: u32,
-        max_pages: u32,
-    ) -> MemoryContext<InMemoryAllocationStorage> {
+    fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
         use core::convert::TryInto;
         use wasmi::{memory_units::Pages, MemoryInstance as WasmMemory};
 
@@ -113,7 +84,7 @@ mod tests {
         MemoryContext::new(
             0.into(),
             Box::new(memory),
-            Allocations::new(InMemoryAllocationStorage::new(Vec::new())),
+            Default::default(),
             static_pages.into(),
             max_pages.into(),
         )
@@ -121,7 +92,7 @@ mod tests {
 
     #[test]
     fn smoky() {
-        let mem = new_test_memory(16, 256);
+        let mut mem = new_test_memory(16, 256);
 
         assert_eq!(mem.alloc(16.into()).expect("allocation failed"), 16.into());
 

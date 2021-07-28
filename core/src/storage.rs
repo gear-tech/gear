@@ -5,7 +5,6 @@ use alloc::vec::Vec;
 use hashbrown::HashMap;
 
 use crate::{
-    memory::PageNumber,
     message::Message,
     program::{Program, ProgramId},
 };
@@ -110,60 +109,8 @@ impl MessageQueue for InMemoryMessageQueue {
     }
 }
 
-/// Allocations storage.
-pub trait AllocationStorage {
-    /// Get the owner of the specific page.
-    fn get(&self, page: PageNumber) -> Option<ProgramId>;
-
-    /// Remove owner of the specific page.
-    fn remove(&mut self, page: PageNumber) -> Option<ProgramId>;
-
-    /// Set owner of the specific page.
-    fn set(&mut self, page: PageNumber, program: ProgramId);
-
-    /// Check if owner of the specific page is set.
-    fn exists(&self, id: PageNumber) -> bool {
-        self.get(id).is_some()
-    }
-}
-
-/// In-memory allocation storage.
-pub struct InMemoryAllocationStorage {
-    inner: HashMap<PageNumber, ProgramId>,
-}
-
-impl InMemoryAllocationStorage {
-    /// New in-memory allocation storage.
-    pub fn new(allocations: Vec<(PageNumber, ProgramId)>) -> Self {
-        Self {
-            inner: allocations.into_iter().collect::<HashMap<_, _, _>>(),
-        }
-    }
-
-    /// Drop the in-memory allocation storage returning what is allocated by what.
-    pub fn drain(self) -> Vec<(PageNumber, ProgramId)> {
-        self.inner.iter().map(|(page, pid)| (*page, *pid)).collect()
-    }
-}
-
-impl AllocationStorage for InMemoryAllocationStorage {
-    fn get(&self, id: PageNumber) -> Option<ProgramId> {
-        self.inner.get(&id).copied()
-    }
-
-    fn remove(&mut self, id: PageNumber) -> Option<ProgramId> {
-        self.inner.remove(&id)
-    }
-
-    fn set(&mut self, page: PageNumber, program: ProgramId) {
-        self.inner.insert(page, program);
-    }
-}
-
 /// Storage.
-pub struct Storage<AS: AllocationStorage, MQ: MessageQueue, PS: ProgramStorage> {
-    /// Allocation storage.
-    pub allocation_storage: AS,
+pub struct Storage<MQ: MessageQueue, PS: ProgramStorage> {
     /// Message queue stoage.
     pub message_queue: MQ,
     /// Program storage.
@@ -171,17 +118,11 @@ pub struct Storage<AS: AllocationStorage, MQ: MessageQueue, PS: ProgramStorage> 
 }
 
 /// Fully in-memory storage (for tests).
-pub type InMemoryStorage =
-    Storage<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
+pub type InMemoryStorage = Storage<InMemoryMessageQueue, InMemoryProgramStorage>;
 
 /// Create new in-memory storage for tests by providing all data.
-pub fn new_in_memory(
-    allocations: Vec<(PageNumber, ProgramId)>,
-    messages: Vec<Message>,
-    programs: Vec<Program>,
-) -> InMemoryStorage {
+pub fn new_in_memory(messages: Vec<Message>, programs: Vec<Program>) -> InMemoryStorage {
     Storage {
-        allocation_storage: InMemoryAllocationStorage::new(allocations),
         message_queue: InMemoryMessageQueue::new(messages),
         program_storage: InMemoryProgramStorage::new(programs),
     }
@@ -295,52 +236,5 @@ mod tests {
 
         assert_eq!(remaining_messages.len(), 1);
         assert_eq!(remaining_messages[0].dest(), ProgramId::from(2));
-    }
-
-    #[test]
-    /// Test that InMemoryAllocationStorage works correctly
-    fn allocation_storage_interaction() {
-        // Initialization of InMemoryAllocationStorage with our custom vec<(PageNumber, ProgramId)>
-        let mut allocation_storage = InMemoryAllocationStorage::new(vec![
-            (PageNumber::from(1), ProgramId::from(10)),
-            (PageNumber::from(2), ProgramId::from(20)),
-        ]);
-
-        // Сhecking that the storage's page number 2 is busy
-        // and it's owner is program with ProgramId::from(2)
-        assert!(allocation_storage.exists(PageNumber::from(2)));
-
-        let page_owner = allocation_storage.get(PageNumber::from(2));
-
-        assert_eq!(page_owner.unwrap(), ProgramId::from(20));
-        // Сhecking that the storage's page number 2 is still busy even after `get(...)`
-        assert!(allocation_storage.exists(PageNumber::from(2)));
-
-        // Сhecking that we are able to correctly remove the page number 2 from storage
-        let page_owner = allocation_storage.remove(PageNumber::from(2));
-
-        assert_eq!(page_owner.unwrap(), ProgramId::from(20));
-        assert!(!allocation_storage.exists(PageNumber::from(2)));
-
-        // Сhecking that we are able to correctly set the page number 2 with new owner
-        allocation_storage.set(PageNumber::from(2), ProgramId::from(200));
-
-        // Сhecking that the storage after all our interactions
-        // contains the only two busy pages with expected numbers and owners
-        let remaining_allocation_storage = allocation_storage.drain();
-
-        let expected_allocations = vec![
-            (PageNumber::from(1), ProgramId::from(10)),
-            (PageNumber::from(2), ProgramId::from(200)),
-        ];
-
-        assert_eq!(
-            remaining_allocation_storage.len(),
-            expected_allocations.len()
-        );
-
-        for allocation in expected_allocations {
-            assert!(remaining_allocation_storage.contains(&allocation));
-        }
     }
 }

@@ -71,15 +71,6 @@ pub trait Ext {
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
-    /// Query memory access rights to the specific page.
-    fn memory_access(&self, page: PageNumber) -> PageAction;
-
-    /// Lock entire memory from any access.
-    fn memory_lock(&self);
-
-    /// Unlock entire memory region for any access.
-    fn memory_unlock(&self);
-
     /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
@@ -185,11 +176,6 @@ mod tests {
         fn msg(&mut self) -> &[u8] {
             &[]
         }
-        fn memory_access(&self, _page: PageNumber) -> PageAction {
-            PageAction::None
-        }
-        fn memory_lock(&self) {}
-        fn memory_unlock(&self) {}
         fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }

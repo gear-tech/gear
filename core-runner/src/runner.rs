@@ -1,21 +1,22 @@
 //! Module for running programs.
 
 use alloc::boxed::Box;
+use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
 use anyhow::{Error, Result};
 use codec::{Decode, Encode};
 
 use gear_core::{
-    env::{Ext as EnvExt, PageAction},
+    env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
-    memory::{Allocations, Memory, MemoryContext, PageNumber},
+    memory::{Memory, MemoryContext, PageNumber},
     message::{
         IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator, OutgoingMessage,
         OutgoingPacket, ReplyMessage, ReplyPacket,
     },
     program::{Program, ProgramId},
-    storage::{AllocationStorage, MessageQueue, ProgramStorage, Storage},
+    storage::{MessageQueue, ProgramStorage, Storage},
 };
 
 use gear_core_backend::Environment;
@@ -23,8 +24,6 @@ use gear_core_backend::Environment;
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
-    /// Number of static pages.
-    pub static_pages: PageNumber,
     /// Totl pages count.
     pub max_pages: PageNumber,
 }
@@ -32,7 +31,6 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            static_pages: BASIC_PAGES.into(),
             max_pages: MAX_PAGES.into(),
         }
     }
@@ -43,8 +41,6 @@ impl Default for Config {
 pub struct RunNextResult {
     /// How many messages were handled
     pub handled: u32,
-    /// Pages that were touched during the run.
-    pub touched: Vec<(PageNumber, PageAction)>,
     /// Gas that was left.
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
@@ -65,7 +61,6 @@ impl RunNextResult {
     /// Accrue one run of the message hadling.
     pub fn accrue(&mut self, caller_id: ProgramId, program_id: ProgramId, result: RunResult) {
         self.handled += 1;
-        self.touched.extend(result.touched.into_iter());
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
@@ -114,35 +109,21 @@ impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
 ///
 /// This instance allows to handle multiple messages using underlying allocation, message and program
 /// storage.
-pub struct Runner<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> {
+pub struct Runner<MQ: MessageQueue, PS: ProgramStorage> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
-    pub(crate) memory: Box<dyn Memory>,
-    pub(crate) allocations: Allocations<AS>,
     pub(crate) config: Config,
-    env: Environment<Ext<AS>>,
+    env: Environment<Ext>,
 }
 
-impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runner<AS, MQ, PS> {
+impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     /// New runner instance.
     ///
     /// Provide configuration, storage and memory state.
-    pub fn new(config: &Config, storage: Storage<AS, MQ, PS>, persistent_memory: &[u8]) -> Self {
-        // memory need to be at least static_pages + persistent_memory length (in pages)
-        let persistent_pages = persistent_memory.len() / PageNumber::size();
-        let total_pages = config.static_pages.raw() + persistent_pages as u32;
-
+    pub fn new(config: &Config, storage: Storage<MQ, PS>) -> Self {
         let env = Environment::new();
-        let memory = env.create_memory(total_pages);
-
-        let persistent_region_start = config.static_pages.offset();
-
-        memory
-            .write(persistent_region_start, persistent_memory)
-            .expect("Memory out of bounds.");
 
         let Storage {
-            allocation_storage,
             message_queue,
             program_storage,
         } = storage;
@@ -150,8 +131,6 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         Self {
             program_storage,
             message_queue,
-            memory: Box::new(memory),
-            allocations: Allocations::new(allocation_storage),
             config: config.clone(),
             env,
         }
@@ -178,11 +157,18 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             }
             Ok(RunNextResult::log())
         } else {
-            let mut context = self.create_context();
             let mut program = self
                 .program_storage
                 .get(next_message.dest())
                 .ok_or_else(|| Error::msg("Program not found"))?;
+
+            let allocations: BTreeSet<PageNumber> = program
+                .get_pages()
+                .iter()
+                .map(|(page_num, _)| *page_num)
+                .collect();
+
+            let mut context = self.create_context(allocations);
 
             let gas_limit = next_message.gas_limit();
 
@@ -212,39 +198,17 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
     /// Drop this runner.
     ///
     /// This will return underlyign storage and memory state.
-    pub fn complete(self) -> (Storage<AS, MQ, PS>, Vec<u8>) {
-        let mut persistent_memory =
-            vec![0u8; self.memory.data_size() - self.static_pages().offset()];
-        self.memory
-            .read(self.static_pages().offset(), &mut persistent_memory);
-
+    pub fn complete(self) -> Storage<MQ, PS> {
         let Runner {
             program_storage,
             message_queue,
-            allocations,
             ..
         } = self;
 
-        let allocation_storage = match allocations.drain() {
-            Ok(v) => v,
-            Err(e) => {
-                panic!("Panic finalizing allocations: {:?}", e)
-            }
-        };
-
-        (
-            Storage {
-                allocation_storage,
-                message_queue,
-                program_storage,
-            },
-            persistent_memory,
-        )
-    }
-
-    /// Static pages configuratio of this runner.
-    pub fn static_pages(&self) -> PageNumber {
-        self.config.static_pages
+        Storage {
+            message_queue,
+            program_storage,
+        }
     }
 
     /// Max pages configuratio of this runner.
@@ -252,8 +216,8 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
         self.config.max_pages
     }
 
-    fn create_context(&self) -> RunningContext<AS> {
-        RunningContext::new(&self.config, self.memory.clone(), self.allocations.clone())
+    fn create_context(&self, allocations: BTreeSet<PageNumber>) -> RunningContext {
+        RunningContext::new(&self.config, allocations)
     }
 
     /// Initialize new program.
@@ -272,19 +236,20 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             program.reset(code.to_vec());
             self.program_storage.set(program);
         } else {
-            self.program_storage.set(Program::new(
-                program_id,
-                code,
-                Default::default(),
-                Some(self.static_pages().raw()),
-            )?);
+            self.program_storage
+                .set(Program::new(program_id, code, Default::default(), None)?);
         }
 
-        let mut context = self.create_context();
         let mut program = self
             .program_storage
             .get(program_id)
             .expect("Added above; cannot fail");
+
+        let allocations: BTreeSet<PageNumber> = (0..program.static_pages())
+            .map(|page| page.into())
+            .collect();
+
+        let mut context = self.create_context(allocations);
 
         // TODO: figure out message id for initialization message
         let msg = IncomingMessage::new_system(
@@ -318,13 +283,8 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
             .program_storage
             .get(ProgramId::default())
             .unwrap_or_else(|| {
-                Program::new(
-                    ProgramId::default(),
-                    vec![],
-                    Default::default(),
-                    Some(self.static_pages().raw()),
-                )
-                .expect("Can't create program")
+                Program::new(ProgramId::default(), vec![], Default::default(), Some(0))
+                    .expect("Can't create program")
             });
 
         let mut id_generator = BlakeMessageIdGenerator {
@@ -374,32 +334,21 @@ impl From<EntryPoint> for &'static str {
     }
 }
 
-static BASIC_PAGES: u32 = 256;
 static MAX_PAGES: u32 = 16384;
 
-struct RunningContext<AS: AllocationStorage> {
+struct RunningContext {
     config: Config,
-    memory: Box<dyn Memory>,
-    allocations: Allocations<AS>,
+    allocations: BTreeSet<PageNumber>,
     message_buf: Vec<Message>,
 }
 
-impl<AS: AllocationStorage> RunningContext<AS> {
-    fn new(config: &Config, memory: Box<dyn Memory>, allocations: Allocations<AS>) -> Self {
+impl RunningContext {
+    fn new(config: &Config, allocations: BTreeSet<PageNumber>) -> Self {
         Self {
             config: config.clone(),
             message_buf: vec![],
-            memory,
             allocations,
         }
-    }
-
-    fn memory(&self) -> &dyn Memory {
-        &*self.memory
-    }
-
-    fn static_pages(&self) -> PageNumber {
-        self.config.static_pages
     }
 
     fn max_pages(&self) -> PageNumber {
@@ -414,8 +363,6 @@ impl<AS: AllocationStorage> RunningContext<AS> {
 /// The result of running some program.
 #[derive(Clone, Debug, Default)]
 pub struct RunResult {
-    /// Pages that were touched during the run.
-    pub touched: Vec<(PageNumber, PageAction)>,
     /// Messages that were generated during the run.
     pub messages: Vec<OutgoingMessage>,
     /// Reply that was received during the run.
@@ -428,14 +375,14 @@ pub struct RunResult {
     pub gas_requested: u64,
 }
 
-struct Ext<AS: AllocationStorage + 'static> {
-    memory_context: MemoryContext<AS>,
+struct Ext {
+    memory_context: MemoryContext,
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
     gas_requested: u64,
 }
 
-impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
+impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
         self.memory_context
             .alloc(pages)
@@ -498,26 +445,6 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
         self.messages.current().payload()
     }
 
-    fn memory_access(&self, page: PageNumber) -> PageAction {
-        if let Some(id) = self.memory_context.allocations().get(page) {
-            if id == self.memory_context.program_id() {
-                PageAction::Write
-            } else {
-                PageAction::Read
-            }
-        } else {
-            PageAction::None
-        }
-    }
-
-    fn memory_lock(&self) {
-        self.memory_context.memory_lock();
-    }
-
-    fn memory_unlock(&self) {
-        self.memory_context.memory_unlock();
-    }
-
     fn gas(&mut self, val: u32) -> Result<(), &'static str> {
         if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
             Ok(())
@@ -540,9 +467,9 @@ impl<AS: AllocationStorage + 'static> EnvExt for Ext<AS> {
     }
 }
 
-fn run<AS: AllocationStorage + 'static>(
-    env: &mut Environment<Ext<AS>>,
-    context: &mut RunningContext<AS>,
+fn run(
+    env: &mut Environment<Ext>,
+    context: &mut RunningContext,
     binary: &[u8],
     program: &mut Program,
     entry_point: EntryPoint,
@@ -556,12 +483,14 @@ fn run<AS: AllocationStorage + 'static>(
         nonce: program.message_nonce(),
     };
 
+    let memory = env.create_memory(program.static_pages());
+
     let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
-            context.memory().clone(),
+            Memory::clone(&memory),
             context.allocations.clone(),
-            context.static_pages(),
+            program.static_pages().into(),
             context.max_pages(),
         ),
         messages: MessageContext::new(message.clone(), id_generator),
@@ -569,21 +498,21 @@ fn run<AS: AllocationStorage + 'static>(
         gas_requested: 0,
     };
 
-    // Set static pages from saved program state.
-
-    let (res, mut ext, touched) = env.setup_and_run(
+    let (res, mut ext) = env.setup_and_run(
         ext,
         binary,
         program.get_pages(),
-        context.memory(),
+        &memory,
         entry_point.into(),
     );
 
     res.map(move |_| {
-        // TODO: Get all pages when isolated memory is introduced.
-        let mut memory_pages = vec![0u8; context.static_pages().offset()];
-        ext.get_mem(0, &mut memory_pages);
-        program.set_memory(&memory_pages);
+        // get allocated pages
+        for page in ext.memory_context.allocations().clone() {
+            let mut buf = vec![0u8; PageNumber::size()];
+            ext.get_mem(page.offset(), &mut buf);
+            program.set_page(page, &buf);
+        }
 
         let mut messages = vec![];
 
@@ -600,7 +529,6 @@ fn run<AS: AllocationStorage + 'static>(
         let gas_spent = gas_limit - gas_left - gas_requested;
 
         RunResult {
-            touched,
             messages,
             reply,
             gas_left,
@@ -683,12 +611,7 @@ mod tests {
 
         let mut runner = Runner::new(
             &Config::default(),
-            gear_core::storage::new_in_memory(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ),
-            &[],
+            gear_core::storage::new_in_memory(Default::default(), Default::default()),
         );
 
         runner
@@ -779,12 +702,7 @@ mod tests {
 
         let mut runner = Runner::new(
             &Config::default(),
-            gear_core::storage::new_in_memory(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ),
-            &[],
+            gear_core::storage::new_in_memory(Default::default(), Default::default()),
         );
 
         runner
@@ -792,7 +710,7 @@ mod tests {
             .expect("Failed to init program");
 
         // check if page belongs to the program
-        assert_eq!(runner.allocations.get(256.into()), Some(ProgramId::from(1)));
+        // assert_eq!(runner.allocations.get(256.into()), Some(ProgramId::from(1)));
 
         runner.run_next().expect("Failed to process next message");
 
@@ -818,94 +736,7 @@ mod tests {
         );
 
         // page is now deallocated
-        assert_eq!(runner.allocations.get(256.into()), None);
-    }
-
-    #[test]
-    // TODO: fix memory access logging for macos
-    #[cfg_attr(target_os = "macos", ignore)]
-    fn mem_rw_access() {
-        // Read in new allocatted page
-        let wat_r = r#"
-        (module
-            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
-            (import "env" "memory" (memory 1))
-            (export "handle" (func $handle))
-            (export "init" (func $init))
-            (func $handle
-            )
-            (func $init
-                (local $alloc_pages i32)
-                (local $pages_offset i32)
-                (local.set $pages_offset (call $alloc (i32.const 1)))
-
-                i32.const 0
-                i32.load offset=65536
-
-                drop
-              )
-          )"#;
-
-        // Write in new allocatted page
-        let wat_w = r#"
-        (module
-            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
-            (import "env" "memory" (memory 1))
-            (export "handle" (func $handle))
-            (export "init" (func $init))
-            (func $handle
-            )
-            (func $init
-                (local $alloc_pages i32)
-                (local $pages_offset i32)
-                (local.set $pages_offset (call $alloc (i32.const 1)))
-                (i32.store offset=131072
-                    (i32.const 0)
-                    (i32.const 10)
-                )
-              )
-          )"#;
-
-        let mut runner = Runner::new(
-            &Config {
-                static_pages: 1.into(),
-                max_pages: 3.into(),
-            },
-            gear_core::storage::new_in_memory(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ),
-            &[],
-        );
-
-        let result = runner
-            .init_program(
-                1.into(),
-                parse_wat(wat_r),
-                "init".as_bytes().to_vec(),
-                u64::max_value(),
-                0,
-            )
-            .expect("failed to init program 1");
-
-        assert_eq!(result.touched[0], (1.into(), PageAction::Read));
-
-        let result = runner
-            .init_program(
-                2.into(),
-                parse_wat(wat_w),
-                "init".as_bytes().to_vec(),
-                u64::max_value(),
-                0,
-            )
-            .expect("failed to init program 2");
-
-        assert_eq!(result.touched[0], (2.into(), PageAction::Write));
-
-        let (_, persistent_memory) = runner.complete();
-
-        assert_eq!(persistent_memory[0], 0);
+        // assert_eq!(runner.get(256.into()), None);
     }
 
     #[test]
@@ -926,12 +757,7 @@ mod tests {
 
         let mut runner = Runner::new(
             &Config::default(),
-            gear_core::storage::new_in_memory(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ),
-            &[],
+            gear_core::storage::new_in_memory(Default::default(), Default::default()),
         );
 
         let gas_limit = 1000_000;

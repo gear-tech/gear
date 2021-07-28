@@ -8,15 +8,13 @@ use wasmi::{
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use alloc::rc::Rc;
 use alloc::vec::Vec;
-use core::cell::RefCell;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
 use super::memory::MemoryWrap;
 
-use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
+use gear_core::env::{Ext, LaterExt};
 use gear_core::memory::{Memory, PageBuf, PageNumber};
 
 use crate::funcs;
@@ -249,7 +247,7 @@ impl<E: Ext + 'static> Environment<E> {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
-    ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
+    ) -> (anyhow::Result<()>, E) {
         self.memory = Some(memory.clone());
 
         let module = wasmi::Module::from_buffer(binary).expect("Error creating module");
@@ -260,8 +258,6 @@ impl<E: Ext + 'static> Environment<E> {
         let instance = ModuleInstance::new(&module, &imports)
             .expect("failed to instantiate wasm module")
             .assert_no_start();
-
-        let touched: Rc<RefCell<Vec<PageInfo>>> = Rc::new(RefCell::new(Vec::new()));
 
         self.ext.set(ext);
         let mut runtime = Runtime {
@@ -277,9 +273,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         let ext = self.ext.unset();
 
-        let touched = touched.take().iter().map(|(a, b, _)| (*a, *b)).collect();
-
-        (result, ext, touched)
+        (result, ext)
     }
 
     /// Create memory inside this environment.

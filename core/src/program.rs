@@ -152,6 +152,12 @@ impl Program {
             });
     }
 
+    /// Set memory page from buffer.
+    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) {
+        self.persistent_pages
+            .insert(page, Box::new(PageBuf::try_from(buf).expect("chunk err")));
+    }
+
     /// Get reference to memory pages.
     pub fn get_pages(&self) -> &BTreeMap<PageNumber, Box<PageBuf>> {
         &self.persistent_pages
