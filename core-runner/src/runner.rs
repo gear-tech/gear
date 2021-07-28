@@ -569,9 +569,7 @@ mod tests {
     extern crate wabt;
     use super::*;
     use env_logger::Env;
-    use gear_core::storage::{
-        InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage,
-    };
+    use gear_core::storage::{InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage};
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -590,16 +588,10 @@ mod tests {
             .init();
     }
 
-    fn new_test_runner(
-    ) -> Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage> {
+    fn new_test_runner() -> Runner<InMemoryMessageQueue, InMemoryProgramStorage> {
         Runner::new(
             &Config::default(),
-            gear_core::storage::new_in_memory(
-                Default::default(),
-                Default::default(),
-                Default::default(),
-            ),
-            &[],
+            gear_core::storage::new_in_memory(Default::default(), Default::default()),
         )
     }
 
@@ -663,12 +655,9 @@ mod tests {
 
         runner.run_next().expect("Should be ok now.");
 
-        let (
-            InMemoryStorage {
-                program_storage, ..
-            },
-            ..,
-        ) = runner.complete();
+        let InMemoryStorage {
+            program_storage, ..
+        } = runner.complete();
 
         let persisted_program = program_storage
             .get(1.into())
