@@ -10,7 +10,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
 
     if &new_msg == "PING" {
-        msg::send(msg::source(), b"PONG", u64::MAX, 0);
+        msg::send(msg::source(), b"PONG", u64::MAX);
     }
 
     MESSAGE_LOG.push(new_msg);

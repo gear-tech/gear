@@ -12,7 +12,19 @@ pub fn load() -> Vec<u8> {
     }
 }
 
-pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) {
+pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) {
+    unsafe {
+        sys::gr_send(
+            program.as_slice().as_ptr(),
+            payload.as_ptr(),
+            payload.len() as _,
+            gas_limit,
+            0u128.to_le_bytes().as_ptr(),
+        )
+    }
+}
+
+pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) {
     unsafe {
         sys::gr_send(
             program.as_slice().as_ptr(),

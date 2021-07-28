@@ -36,7 +36,7 @@ static mut STATE: State = State {
 pub fn send_member(id: ProgramId, msg: MemberMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, u64::MAX, 0);
+    msg::send(id, &encoded, u64::MAX);
 }
 
 #[no_mangle]

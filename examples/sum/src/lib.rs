@@ -38,8 +38,7 @@ pub unsafe extern "C" fn handle() {
     msg::send(
         STATE.send_to(),
         &(new_msg + new_msg).to_ne_bytes(),
-        u64::MAX,
-        0,
+        u64::MAX
     );
 
     ext::debug(&format!(
