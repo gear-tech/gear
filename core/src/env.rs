@@ -47,6 +47,8 @@ pub trait Ext {
 
     /// Push an extra buffer into reply message.
     fn push_reply(&self, buffer: &mut [u8]) -> Result<(), &'static str>;
+    /// Read the message id, if current message is a reply.
+    fn reply_to(&self) -> Option<MessageId>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> ProgramId;
@@ -165,14 +167,17 @@ mod tests {
         fn push(&self, _handle: usize, _buffer: &mut [u8]) -> Result<(), &'static str> {
             Ok(())
         }
+        fn push_reply(&self, _buffer: &mut [u8]) -> Result<(), &'static str> {
+            Ok(())
+        }
         fn commit(&self, _handle: usize) -> Result<(), &'static str> {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
             Ok(())
         }
-        fn push_reply(&self, _buffer: &mut [u8]) -> Result<(), &'static str> {
-            Ok(())
+        fn reply_to(&self) -> Option<MessageId> {
+            None
         }
         fn source(&mut self) -> ProgramId {
             ProgramId::from(0)

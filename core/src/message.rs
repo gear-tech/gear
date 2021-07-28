@@ -119,6 +119,11 @@ impl IncomingMessage {
     pub fn id(&self) -> MessageId {
         self.id
     }
+
+    /// What this message is a reply to
+    pub fn reply(&self) -> Option<MessageId> {
+        self.reply
+    }
 }
 
 impl From<Message> for IncomingMessage {
@@ -319,6 +324,27 @@ impl Message {
         }
     }
 
+    /// New system message to the specific program.
+    pub fn new_reply(
+        id: MessageId,
+        source: ProgramId,
+        dest: ProgramId,
+        payload: Payload,
+        gas_limit: u64,
+        value: u128,
+        reply: MessageId,
+    ) -> Message {
+        Message {
+            id,
+            source,
+            dest,
+            payload,
+            gas_limit,
+            value,
+            reply: Some(reply),
+        }
+    }
+
     /// Return destination of this message.
     pub fn dest(&self) -> ProgramId {
         self.dest
@@ -491,16 +517,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Ok(())
     }
 
-    /// Push an extra buffer into reply message.
-    pub fn push_reply(&self, buffer: &mut Vec<u8>) -> Result<(), Error> {
-        if let Some(reply) = &mut self.state.borrow_mut().reply {
-            reply.payload.0.append(buffer);
-            return Ok(());
-        }
-
-        Err(Error::NoReplyFound)
-    }
-
     /// Send message to another program in this context.
     pub fn send(&self, msg: OutgoingPacket) -> Result<(), Error> {
         if self.state.borrow().outgoing.len() >= self.outgoing_limit {
@@ -549,6 +565,16 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         }
 
         Err(Error::LateAccess)
+    }
+
+    /// Push an extra buffer into reply message.
+    pub fn push_reply(&self, buffer: &mut Vec<u8>) -> Result<(), Error> {
+        if let Some(reply) = &mut self.state.borrow_mut().reply {
+            reply.payload.0.append(buffer);
+            return Ok(());
+        }
+
+        Err(Error::NoReplyFound)
     }
 
     /// Mark message as fully formed and ready for sending in this context by handle.

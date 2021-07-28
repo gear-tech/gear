@@ -50,9 +50,17 @@
                     "step": 4,
                     "messages": [
                         {
-                            "destination": 2  
+                            "payload": {
+                                "kind": "bytes",
+                                "value": "0x012c746573743a2068656c6c6f"
+                            },
+                            "destination": 2
                         },
                         {
+                            "payload": {
+                                "kind": "bytes",
+                                "value": "0x012c746573743a2068656c6c6f"
+                            },
                             "destination": 3
                         }
                     ],
