@@ -45,6 +45,9 @@ pub trait Ext {
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
 
+    /// Read the message id, if current message is a reply.
+    fn reply_to(&self) -> Option<MessageId>;
+
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> ProgramId;
 
@@ -167,6 +170,9 @@ mod tests {
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
             Ok(())
+        }
+        fn reply_to(&self) -> Option<MessageId> {
+            None
         }
         fn source(&mut self) -> ProgramId {
             ProgramId::from(0)
