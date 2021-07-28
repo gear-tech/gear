@@ -195,7 +195,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     &gas::instrument(program.code())
                         .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
                     &mut program,
-                    EntryPoint::Handle,
+                    if next_message.reply().is_some() { EntryPoint::HandleReply } else { EntryPoint::Handle },
                     &next_message.into(),
                     gas_limit,
                 )?,
@@ -373,6 +373,7 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
 #[derive(Clone, Copy, Debug)]
 enum EntryPoint {
     Handle,
+    HandleReply,
     Init,
 }
 
@@ -380,6 +381,7 @@ impl From<EntryPoint> for &'static str {
     fn from(entry_point: EntryPoint) -> &'static str {
         match entry_point {
             EntryPoint::Handle => "handle",
+            EntryPoint::HandleReply => "handle_reply",
             EntryPoint::Init => "init",
         }
     }
@@ -668,8 +670,13 @@ mod tests {
                 (import "env" "gr_reply_to"  (func $gr_reply_to (param i32)))
                 (import "env" "memory" (memory 2))
                 (export "handle" (func $handle))
+                (export "handle_reply" (func $handle))
                 (export "init" (func $init))
                 (func $handle
+                    i32.const 65536
+                    call $gr_reply_to
+                )
+                (func $handle_reply
                     i32.const 65536
                     call $gr_reply_to
                 )
