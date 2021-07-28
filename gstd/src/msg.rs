@@ -61,6 +61,16 @@ mod sys {
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_reply(data_ptr: *const u8, data_len: u32, gas_limit: u64, value_ptr: *const u8);
         pub fn gr_charge(gas: u64);
+        pub fn gr_init(
+            program: *const u8,
+            data_ptr: *const u8,
+            data_len: u32,
+            gas_limit: u64,
+            value_ptr: *const u8,
+        ) -> u32;
+        pub fn gr_push(handle: u32, data_ptr: *const u8, data_len: u32);
+        pub fn gr_commit(handle: u32);
+        pub fn gr_push_reply(data_ptr: *const u8, data_len: u32);
     }
 }
 
@@ -128,4 +138,28 @@ pub fn reply_to() -> MessageId {
     let mut message_id = MessageId::default();
     unsafe { sys::gr_reply_to(message_id.0.as_mut_ptr()) }
     message_id
+}
+
+pub fn init(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> usize {
+    unsafe {
+        sys::gr_init(
+            program.as_slice().as_ptr(),
+            payload.as_ptr(),
+            payload.len() as _,
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+        ) as usize
+    }
+}
+
+pub fn push(handle: usize, payload: &[u8]) {
+    unsafe { sys::gr_push(handle as u32, payload.as_ptr(), payload.len() as _) }
+}
+
+pub fn commit(handle: usize) {
+    unsafe { sys::gr_commit(handle as u32) }
+}
+
+pub fn push_reply(payload: &[u8]) {
+    unsafe { sys::gr_push_reply(payload.as_ptr(), payload.len() as _) }
 }
