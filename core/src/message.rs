@@ -115,6 +115,11 @@ impl IncomingMessage {
     pub fn id(&self) -> MessageId {
         self.id
     }
+
+    /// What this message is a reply to
+    pub fn reply(&self) -> Option<MessageId> {
+        self.reply
+    }
 }
 
 impl From<Message> for IncomingMessage {
@@ -312,6 +317,28 @@ impl Message {
             gas_limit,
             value,
             reply: None,
+        }
+    }
+
+
+    /// New system message to the specific program.
+    pub fn new_reply(
+        id: MessageId,
+        source: ProgramId,
+        dest: ProgramId,
+        payload: Payload,
+        gas_limit: u64,
+        value: u128,
+        reply: MessageId,
+    ) -> Message {
+        Message {
+            id,
+            source,
+            dest,
+            payload,
+            gas_limit,
+            value,
+            reply: Some(reply),
         }
     }
 
