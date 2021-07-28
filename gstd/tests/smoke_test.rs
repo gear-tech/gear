@@ -2,7 +2,7 @@
 
 use gstd::msg::{self};
 use gstd::prelude::*;
-use gstd::ProgramId;
+use gstd::{Gas, ProgramId};
 
 #[cfg(feature = "debug")]
 use gstd::ext;
@@ -11,7 +11,7 @@ static mut PROGRAM: ProgramId = ProgramId([0; 32]);
 static mut MESSAGE: Vec<u8> = Vec::new();
 static mut GAS_LIMIT: u64 = 0;
 static mut VALUE: u128 = 0;
-static mut GAS: u64 = 0;
+static mut GAS: Gas = Gas(0);
 
 #[cfg(feature = "debug")]
 static mut DEBUG_MSG: Vec<u8> = Vec::new();
@@ -60,7 +60,7 @@ mod sys {
 
     #[no_mangle]
     unsafe extern "C" fn gr_charge(gas: u64) {
-        GAS += gas;
+        GAS += Gas(gas);
     }
 
     #[cfg(feature = "debug")]
@@ -78,7 +78,7 @@ fn messages() {
         id[i] = i as u8;
     }
 
-    msg::send_with_value(ProgramId(id), b"HELLO", 1000, 12345678);
+    msg::send_with_value(ProgramId(id), b"HELLO", Gas(1000), 12345678);
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ProgramId(id));
@@ -89,13 +89,13 @@ fn messages() {
 
 #[test]
 fn transfer_gas() {
-    msg::charge(1000);
+    msg::charge(Gas(1000));
     unsafe {
-        assert_eq!(GAS, 1000);
+        assert_eq!(GAS, Gas(1000));
     }
-    msg::charge(2000);
+    msg::charge(Gas(2000));
     unsafe {
-        assert_eq!(GAS, 3000);
+        assert_eq!(GAS, Gas(3000));
     }
 }
 

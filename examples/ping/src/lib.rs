@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gstd::{ext, msg, prelude::*};
+use gstd::{ext, msg, Gas, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -10,7 +10,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
 
     if &new_msg == "PING" {
-        msg::send(msg::source(), b"PONG", u64::MAX);
+        msg::send(msg::source(), b"PONG", Gas::max());
     }
 
     MESSAGE_LOG.push(new_msg);

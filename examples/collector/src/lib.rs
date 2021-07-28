@@ -4,7 +4,7 @@
 extern crate alloc;
 
 use alloc::collections::BTreeMap;
-use gstd::{msg, prelude::*};
+use gstd::{msg, Gas, prelude::*};
 
 static mut MY_COLLECTION: BTreeMap<usize, String> = BTreeMap::new();
 
@@ -22,7 +22,7 @@ pub unsafe extern "C" fn handle() {
                 acc
             });
 
-        msg::send(msg::source(), collapsed.as_bytes(), 1000000000);
+        msg::send(msg::source(), collapsed.as_bytes(), Gas(1000000000));
 
         COUNTER = 0;
     } else {

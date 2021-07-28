@@ -1,9 +1,8 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
-use gstd::{ext, msg, prelude::*, ProgramId};
+use gstd::{ext, msg, prelude::*, ProgramId, Gas};
 
 use codec::{Decode as _, Encode as _};
-use core::convert::TryInto;
 use demo_chat::shared::{MemberMessage, RoomMessage};
 
 #[derive(Debug)]
@@ -36,7 +35,7 @@ static mut STATE: State = State {
 pub fn send_member(id: ProgramId, msg: MemberMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, u64::MAX);
+    msg::send(id, &encoded, Gas::max());
 }
 
 #[no_mangle]

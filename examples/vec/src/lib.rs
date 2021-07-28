@@ -2,7 +2,7 @@
 #![feature(default_alloc_error_handler)]
 
 use core::convert::TryInto;
-use gstd::{ext, msg, prelude::*};
+use gstd::{ext, msg, Gas, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -18,7 +18,7 @@ pub unsafe extern "C" fn handle() {
         &v[new_msg as usize - 1],
         v[new_msg as usize - 1]
     ));
-    msg::send(msg::source(), &(v.len() as i32).to_ne_bytes(), u64::MAX);
+    msg::send(msg::source(), &(v.len() as i32).to_ne_bytes(), Gas::max());
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
         MESSAGE_LOG.len()

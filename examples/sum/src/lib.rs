@@ -2,7 +2,7 @@
 #![feature(default_alloc_error_handler)]
 
 use core::{convert::TryInto, num::ParseIntError};
-use gstd::{ext, msg, prelude::*, ProgramId};
+use gstd::{ext, msg, prelude::*, ProgramId, Gas};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn handle() {
     msg::send(
         STATE.send_to(),
         &(new_msg + new_msg).to_ne_bytes(),
-        u64::MAX
+        Gas::max()
     );
 
     ext::debug(&format!(

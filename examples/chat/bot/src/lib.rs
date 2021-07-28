@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 use core::num::ParseIntError;
-use gstd::{ext, msg, prelude::*, ProgramId};
+use gstd::{ext, msg, prelude::*, ProgramId, Gas};
 
 use codec::{Decode as _, Encode as _};
 use core::convert::TryInto;
@@ -62,7 +62,7 @@ fn bot(message: MemberMessage) {
 pub fn send_room(id: ProgramId, msg: RoomMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, u64::MAX);
+    msg::send(id, &encoded, Gas::max());
 }
 
 #[no_mangle]

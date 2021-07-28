@@ -2,7 +2,7 @@
 #![feature(default_alloc_error_handler)]
 
 use core::convert::TryInto;
-use gstd::{ext, msg, prelude::*};
+use gstd::{ext, msg, Gas, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn handle() {
     msg::send(
         msg::source(),
         &make_fib(new_msg as usize)[new_msg as usize - 1].to_ne_bytes(),
-        u64::MAX
+        Gas::max()
     );
 
     ext::debug(&format!(

@@ -1,5 +1,5 @@
 use crate::prelude::Vec;
-use crate::structs::{MessageId, ProgramId};
+use crate::structs::*;
 use crate::sys;
 
 pub fn load() -> Vec<u8> {
@@ -12,25 +12,25 @@ pub fn load() -> Vec<u8> {
     }
 }
 
-pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) {
+pub fn send(program: ProgramId, payload: &[u8], gas_limit: Gas) {
     unsafe {
         sys::gr_send(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
-            gas_limit,
+            gas_limit.0,
             0u128.to_le_bytes().as_ptr(),
         )
     }
 }
 
-pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) {
+pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: Gas, value: u128) {
     unsafe {
         sys::gr_send(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
-            gas_limit,
+            gas_limit.0,
             value.to_le_bytes().as_ptr(),
         )
     }
@@ -56,21 +56,21 @@ pub fn value() -> u128 {
     u128::from_le_bytes(value_data)
 }
 
-pub fn reply(payload: &[u8], gas_limit: u64, value: u128) {
+pub fn reply(payload: &[u8], gas_limit: Gas, value: u128) {
     unsafe {
         sys::gr_reply(
             payload.as_ptr(),
             payload.len() as _,
-            gas_limit,
+            gas_limit.0,
             value.to_le_bytes().as_ptr(),
         )
     }
 }
 
 /// Transfers gas from program caller.
-pub fn charge(gas: u64) {
+pub fn charge(gas: Gas) {
     unsafe {
-        sys::gr_charge(gas);
+        sys::gr_charge(gas.0);
     }
 }
 
@@ -80,13 +80,13 @@ pub fn reply_to() -> MessageId {
     message_id
 }
 
-pub fn init(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> usize {
+pub fn init(program: ProgramId, payload: &[u8], gas_limit: Gas, value: u128) -> usize {
     unsafe {
         sys::gr_init(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
-            gas_limit,
+            gas_limit.0,
             value.to_le_bytes().as_ptr(),
         ) as usize
     }

@@ -3,6 +3,7 @@
 
 use gstd::prelude::*;
 use gstd::msg;
+use gstd::Gas;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -17,7 +18,7 @@ pub unsafe extern "C" fn handle() {
 pub unsafe extern "C" fn init() {}
 
 async fn handle_async() {
-    msg::send(0.into(), b"async_result", u64::MAX);
+    msg::send(0.into(), b"async_result", Gas::max());
 }
 
 #[panic_handler]
