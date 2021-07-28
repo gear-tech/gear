@@ -1,8 +1,7 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
-#[macro_use]
-pub mod macros;
+mod macros;
 pub mod msg;
 pub mod prelude;
 pub mod structs;
