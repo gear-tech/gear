@@ -40,22 +40,22 @@
                     ],
                     "allocations": [
                         {
-                            "page_num": 256,
+                            "page_num": 17,
                             "program_id": 1
                         },
                         {
-                            "page_num": 257,
+                            "page_num": 17,
                             "program_id": 2
                         },
                         {
-                            "page_num": 258,
+                            "page_num": 18,
                             "program_id": 2
                         }
                     ],
                     "memory": [
                         {
-                            "kind": "shared",
-                            "at": "0x10238d4",
+                            "program_id": 2,
+                            "at": "0x1238d4",
                             "bytes": "0x01000000"
                         }
                     ]

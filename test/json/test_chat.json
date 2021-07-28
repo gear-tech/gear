@@ -66,8 +66,8 @@
                     ],
                     "memory": [
                         {
-                            "kind": "shared",
-                            "at": "0x1000008",
+                            "program_id": 1,
+                            "at": "0x110008",
                             "bytes": "0x74657374"
                         }
                     ]
@@ -76,8 +76,8 @@
                     "messages": [],
                     "memory": [
                         {
-                            "kind": "shared",
-                            "at": "0x1000100",
+                            "program_id": 1,
+                            "at": "0x110100",
                             "bytes": "0x68656c6c6f"
                         }
                     ]
