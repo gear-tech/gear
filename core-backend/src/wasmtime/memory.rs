@@ -20,16 +20,7 @@ impl Memory for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.0
             .grow(pages.raw())
-            .map(|offset| {
-                cfg_if::cfg_if! {
-                    if #[cfg(target_os = "linux")] {
-
-                        // lock pages after grow
-                        self.lock(offset.into(), pages);
-                    }
-                }
-                offset.into()
-            })
+            .map(|offset| offset.into())
             .map_err(|_| Error::OutOfMemory)
     }
 
