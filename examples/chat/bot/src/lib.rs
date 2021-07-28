@@ -21,7 +21,7 @@ struct State {
 
 impl State {
     fn set_name(&mut self, name: &'static str) {
-        self.name = &name;
+        self.name = name;
     }
     fn name(&self) -> &'static str {
         self.name
