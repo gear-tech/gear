@@ -57,6 +57,20 @@ macro_rules! bail {
     };
 }
 
+/// **The `gas!` macro**
+///
+/// Returns `Gas` structure from numeric literal and suffix.
+///
+/// If argument is empty, returns `Gas` with 0 value.
+///
+/// Argument multiplier's [suffixes]:
+/// - [None] returns `Gas` with argument value
+/// - [K] returns `Gas` with argument value multiplied by 1 000.
+/// - [M] returns `Gas` with argument value multiplied by 1 000 000.
+/// - [G] - returns `Gas` with argument value multiplied by 1 000 000 000.
+/// - [T] - returns `Gas` with argument value multiplied by 1 000 000 000 000.
+///
+/// Never panics.
 #[macro_export]
 macro_rules! gas {
     () => {
