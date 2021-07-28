@@ -195,7 +195,11 @@ impl<AS: AllocationStorage + 'static, MQ: MessageQueue, PS: ProgramStorage> Runn
                     &gas::instrument(program.code())
                         .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
                     &mut program,
-                    if next_message.reply().is_some() { EntryPoint::HandleReply } else { EntryPoint::Handle },
+                    if next_message.reply().is_some() {
+                        EntryPoint::HandleReply
+                    } else {
+                        EntryPoint::Handle
+                    },
                     &next_message.into(),
                     gas_limit,
                 )?,
@@ -632,7 +636,9 @@ mod tests {
     extern crate wabt;
     use super::*;
     use env_logger::Env;
-    use gear_core::storage::{InMemoryAllocationStorage, InMemoryProgramStorage, InMemoryMessageQueue, InMemoryStorage};
+    use gear_core::storage::{
+        InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage,
+    };
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -651,7 +657,8 @@ mod tests {
             .init();
     }
 
-    fn new_test_runner() -> Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage> {
+    fn new_test_runner(
+    ) -> Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage> {
         Runner::new(
             &Config::default(),
             gear_core::storage::new_in_memory(
@@ -685,36 +692,30 @@ mod tests {
 
         let mut runner = new_test_runner();
 
-        runner.init_program(
-            1001.into(),
-            0,
-            1.into(),
-            parse_wat(wat),
-            Vec::new(),
-            u64::max_value(),
-            0,
-        )
-        .expect("failed to init program");
+        runner
+            .init_program(
+                1001.into(),
+                0,
+                1.into(),
+                parse_wat(wat),
+                Vec::new(),
+                u64::max_value(),
+                0,
+            )
+            .expect("failed to init program");
 
-        runner.queue_message(
-            1001.into(),
-            1,
-            1.into(),
-            Vec::new(),
-            u64::max_value(),
-            0,
-        );
+        runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
 
-        match runner.run_next() { 
+        match runner.run_next() {
             Ok(_) => panic!("This should be an error that we run "),
             Err(anyhow_err) => {
                 format!("{}", anyhow_err).contains("Not running in the reply context");
-            },
+            }
         };
 
         let msg = vec![
-            1, 3, 5, 7,  9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31,
-            2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32,
+            1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
+            18, 20, 22, 24, 26, 28, 30, 32,
         ];
 
         runner.queue_reply(
@@ -729,12 +730,22 @@ mod tests {
 
         runner.run_next().expect("Should be ok now.");
 
-        let (InMemoryStorage { program_storage, .. }, ..) = runner.complete();
+        let (
+            InMemoryStorage {
+                program_storage, ..
+            },
+            ..,
+        ) = runner.complete();
 
-        let persisted_program = program_storage.get(1.into()).expect("Program #1 should exist");
+        let persisted_program = program_storage
+            .get(1.into())
+            .expect("Program #1 should exist");
 
         assert_eq!(
-            &persisted_program.get_pages().get(&1.into()).expect("Page #1 shoud exist")[0..32], 
+            &persisted_program
+                .get_pages()
+                .get(&1.into())
+                .expect("Page #1 shoud exist")[0..32],
             &msg,
         );
     }

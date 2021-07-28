@@ -320,7 +320,6 @@ impl Message {
         }
     }
 
-
     /// New system message to the specific program.
     pub fn new_reply(
         id: MessageId,
