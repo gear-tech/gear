@@ -57,13 +57,12 @@ pub fn dequeue_message() -> Option<Message> {
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
     crate::get_program(H256::from_slice(id.as_slice())).map(|prog| {
-        // TODO: static_pages should be None in future or removed altogether.
         if let Some(code) = crate::get_code(prog.code_hash) {
-            let mut program = Program::new(id, code, prog.persistent_pages, Some(256)).unwrap();
+            let mut program = Program::new(id, code, prog.persistent_pages, None).unwrap();
             program.set_message_nonce(prog.nonce);
             program
         } else {
-            Program::new(id, Vec::new(), prog.persistent_pages, Some(256)).unwrap()
+            Program::new(id, Vec::new(), prog.persistent_pages, None).unwrap()
         }
     })
 }
