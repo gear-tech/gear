@@ -149,32 +149,39 @@ fn check_messages(
 }
 
 fn check_allocations(
-    pages: &[(PageNumber, ProgramId)],
+    programs: &[(Program)],
     expected_pages: &[sample::AllocationStorage],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
-    if expected_pages.len() != pages.len() {
-        errors.push("Expectation error (pages count doesn't match)\n".to_string());
-    } else {
-        expected_pages
-            .iter()
-            .zip(pages.iter())
-            .for_each(|(exp, page)| {
-                if exp.page_num != page.0.raw() {
+    for exp in expected_pages {
+        for program in programs {
+            if ProgramId::from(exp.program_id) == program.id() {
+                if !program.get_pages().contains_key(&exp.page_num.into()) {
                     errors.push(format!(
-                        "Expectation error (PageNumber doesn't match, expected: {}, found: {})",
-                        exp.page_num,
-                        page.0.raw()
+                        "Expectation error (PageNumber doesn't match, expected: {})",
+                        exp.page_num
                     ));
                 }
-                if ProgramId::from(exp.program_id) != page.1 {
-                    errors.push(format!(
-                        "Expectation error (ProgramId doesn't match, expected: {}, found: {:?})\n",
-                        exp.program_id, page.1
-                    ));
-                }
-            });
+            }
+        }
     }
+    // expected_pages
+    //     .iter()
+    //     .zip(programs.iter())
+    //     .for_each(|(exp, program)| {
+    //         if program.get_pages().contains_key(&exp.page_num.into()) {
+    //             errors.push(format!(
+    //                 "Expectation error (PageNumber doesn't match, expected: {})",
+    //                 exp.page_num
+    //             ));
+    //         }
+    //         if ProgramId::from(exp.program_id) != page.1 {
+    //             errors.push(format!(
+    //                 "Expectation error (ProgramId doesn't match, expected: {}, found: {:?})\n",
+    //                 exp.program_id, page.1
+    //             ));
+    //         }
+    //     });
 
     if errors.is_empty() {
         Ok(())
@@ -184,44 +191,23 @@ fn check_allocations(
 }
 
 fn check_memory(
-    persistent_memory: &[u8],
     program_storage: &mut Vec<Program>,
-    expected_memory: &[sample::MemoryVariant],
+    expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
-        match case {
-            sample::MemoryVariant::Static(case) => {
-                if let Some(id) = case.program_id {
-                    for p in &mut *program_storage {
-                        if p.id() == ProgramId::from(id) {
-                            let page = case.address / 65536;
-                            if let Some(page_buf) = p.get_page((page as u32).into()) {
-                                if page_buf[case.address..case.address + case.bytes.len()]
-                                    != case.bytes
-                                {
-                                    errors.push(
-                                        "Expectation error (Static memory doesn't match)"
-                                            .to_string(),
-                                    );
-                                }
-                            } else {
-                                errors.push(
-                                    "Expectation error (Incorrect static memory address)"
-                                        .to_string(),
-                                );
-                            }
-                        }
+        for p in &mut *program_storage {
+            if p.id() == ProgramId::from(case.program_id) {
+                let page = case.address / 65536;
+                if let Some(page_buf) = p.get_page((page as u32).into()) {
+                    if page_buf[case.address - page * 65536
+                        ..(case.address - page * 65536) + case.bytes.len()]
+                        != case.bytes
+                    {
+                        errors.push("Expectation error (Static memory doesn't match)".to_string());
                     }
-                }
-            }
-            sample::MemoryVariant::Shared(case) => {
-                let offset = 256 * 65536;
-                if persistent_memory
-                    [case.address - offset..case.address - offset + case.bytes.len()]
-                    != case.bytes
-                {
-                    errors.push("Expectation error (Shared memory doesn't match)".to_string());
+                } else {
+                    errors.push("Expectation error (Incorrect memory address)".to_string());
                 }
             }
         }
@@ -254,8 +240,10 @@ pub fn main() -> anyhow::Result<()> {
             use env_logger::Env;
 
             print_log = true;
-            env_logger::Builder::from_env(Env::default().default_filter_or("gear_backend=debug"))
-                .init();
+            env_logger::Builder::from_env(
+                Env::default().default_filter_or("gear_core_backend=debug"),
+            )
+            .init();
         }
         _ => {
             use env_logger::Env;
@@ -286,7 +274,7 @@ pub fn main() -> anyhow::Result<()> {
             for exp in &test.fixtures[fixture_no].expected {
                 let output = match runner::init_fixture(&test, fixture_no) {
                     Ok(initialized_fixture) => match runner::run(initialized_fixture, exp.step) {
-                        Ok((mut final_state, persistent_memory)) => {
+                        Ok(mut final_state) => {
                             let mut errors = Vec::new();
                             if !opts.skip_messages {
                                 if let Some(messages) = &exp.messages {
@@ -320,7 +308,7 @@ pub fn main() -> anyhow::Result<()> {
                             if !opts.skip_allocations {
                                 if let Some(alloc) = &exp.allocations {
                                     if let Err(alloc_errors) =
-                                        check_allocations(&final_state.allocation_storage, alloc)
+                                        check_allocations(&final_state.program_storage, alloc)
                                     {
                                         errors.extend(alloc_errors);
                                     }
@@ -328,11 +316,9 @@ pub fn main() -> anyhow::Result<()> {
                             }
                             if !opts.skip_memory {
                                 if let Some(mem) = &exp.memory {
-                                    if let Err(mem_errors) = check_memory(
-                                        &persistent_memory,
-                                        &mut final_state.program_storage,
-                                        mem,
-                                    ) {
+                                    if let Err(mem_errors) =
+                                        check_memory(&mut final_state.program_storage, mem)
+                                    {
                                         errors.extend(mem_errors);
                                     }
                                 }

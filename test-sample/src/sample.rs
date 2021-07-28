@@ -36,7 +36,7 @@ pub struct Expectation {
     pub step: Option<u64>,
     pub messages: Option<Vec<Message>>,
     pub allocations: Option<Vec<AllocationStorage>>,
-    pub memory: Option<Vec<MemoryVariant>>,
+    pub memory: Option<Vec<BytesAt>>,
     pub log: Option<Vec<Message>>,
 }
 
@@ -78,17 +78,8 @@ impl PayloadVariant {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(tag = "kind")]
-pub enum MemoryVariant {
-    #[serde(rename = "static")]
-    Static(BytesAt),
-    #[serde(rename = "shared")]
-    Shared(BytesAt),
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BytesAt {
-    pub program_id: Option<u64>, // required for static memory
+    pub program_id: u64, // required for static memory
     #[serde(rename = "at")]
     #[serde(deserialize_with = "de_address")]
     pub address: usize,
@@ -152,15 +143,9 @@ fn check_sample() {
                         ],
                          "memory": [
                             {
-                                "kind": "static",
                                 "program_id": 1,
                                 "at": "0x100038",
                                 "bytes": "0x54455354"
-                            },
-                            {
-                                "kind": "shared",
-                                "at": "0x10238d4",
-                                "bytes": "0x00000001"
                             }
                         ]
                     }

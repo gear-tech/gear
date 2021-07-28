@@ -13,8 +13,7 @@ use std::fmt::Write;
 
 use regex::Regex;
 
-type InMemoryRunner =
-    Runner<InMemoryAllocationStorage, InMemoryMessageQueue, InMemoryProgramStorage>;
+type InMemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage>;
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
@@ -27,8 +26,7 @@ fn encode_hex(bytes: &[u8]) -> String {
 pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRunner> {
     let mut runner = Runner::new(
         &Config::default(),
-        new_in_memory(Default::default(), Default::default(), Default::default()),
-        &[],
+        new_in_memory(Default::default(), Default::default()),
     );
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
@@ -88,14 +86,10 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
 pub struct FinalState {
     pub messages: Vec<Message>,
     pub log: Vec<Message>,
-    pub allocation_storage: Vec<(PageNumber, ProgramId)>,
     pub program_storage: Vec<Program>,
 }
 
-pub fn run(
-    mut runner: InMemoryRunner,
-    steps: Option<u64>,
-) -> anyhow::Result<(FinalState, Vec<u8>)> {
+pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<FinalState> {
     if let Some(steps) = steps {
         for _ in 0..steps {
             runner.run_next()?;
@@ -104,24 +98,16 @@ pub fn run(
         while runner.run_next()?.handled > 0 {}
     }
 
-    let (
-        InMemoryStorage {
-            message_queue,
-            allocation_storage,
-            program_storage,
-        },
-        persistent_memory,
-    ) = runner.complete();
+    let (InMemoryStorage {
+        message_queue,
+        program_storage,
+    }) = runner.complete();
     // sort allocation_storage for tests
-    let mut allocation_storage = allocation_storage.drain();
-    allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
-    Ok((
-        FinalState {
-            log: message_queue.log().to_vec(),
-            messages: message_queue.drain(),
-            allocation_storage,
-            program_storage: program_storage.drain(),
-        },
-        persistent_memory,
-    ))
+    // let mut allocation_storage = allocation_storage.drain();
+    // allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
+    Ok(FinalState {
+        log: message_queue.log().to_vec(),
+        messages: message_queue.drain(),
+        program_storage: program_storage.drain(),
+    })
 }
