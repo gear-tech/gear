@@ -4,4 +4,4 @@ set -e
 cd "$(dirname ${BASH_SOURCE[0]})/.."
 
 ./scripts/build-wasm.sh
-cargo run --package gear-test --release -- test/json/*.json
+cargo run --package gear-test --release -- test/code/*.(json|yaml|toml)
