@@ -5,7 +5,7 @@ id = 1
 path = "examples/target/wasm32-unknown-unknown/release/demo_ping.wasm"
 
 [[fixtures]]
-title = "ping-pong"
+title = "ping-pong-toml"
 
   [[fixtures.messages]]
   destination = 1

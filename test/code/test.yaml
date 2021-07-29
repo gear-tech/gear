@@ -5,7 +5,7 @@ programs:
   path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
 
 fixtures:
-- title: ping-pong
+- title: ping-pong-yaml
 
   messages:
   - payload:
