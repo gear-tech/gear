@@ -243,12 +243,26 @@ fn check_memory(
 }
 
 fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
+    use std::io::Read;
+
     let file = fs::File::open(path.as_ref())
         .map_err(|e| anyhow::anyhow!("Error loading '{}': {}", path.as_ref().display(), e))?;
-    let u = serde_json::from_reader(file)
-        .map_err(|e| anyhow::anyhow!("Error decoding '{}': {}", path.as_ref().display(), e))?;
-
-    Ok(u)
+    if let Some(extension) = path.as_ref().extension() {
+        let u = match extension.to_str().unwrap() {
+            "json" => serde_json::from_reader(file).map_err(|e| anyhow::anyhow!("Error decoding '{}': {}", path.as_ref().display(), e))?,
+            "yaml" => serde_yaml::from_reader(file).map_err(|e| anyhow::anyhow!("Error decoding '{}': {}", path.as_ref().display(), e))?,
+            "toml" => {
+                let mut text = String::new();
+                file.read_to_string(&mut text)?;
+                toml::from_str(&text).map_err(|e| anyhow::anyhow!("Error decoding '{}': {}", path.as_ref().display(), e))?
+            },
+            _ => return anyhow::anyhow!("Error decoding '{}': {}", path.as_ref().display(), "Invalid file format"),
+        };
+    
+        Ok(u)
+    } else {
+        anyhow::anyhow!("Error loading '{}': {}", path.as_ref().display(), "Unable to extract file extension")
+    }
 }
 
 pub fn main() -> anyhow::Result<()> {
