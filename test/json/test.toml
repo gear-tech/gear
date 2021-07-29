@@ -1,0 +1,19 @@
+title = "basic"
+
+[[programs]]
+id = 1
+path = "examples/target/wasm32-unknown-unknown/release/demo_ping.wasm"
+
+[[fixtures]]
+title = "ping-pong"
+
+  [[fixtures.messages]]
+  destination = 1
+
+    [fixtures.messages.payload]
+    kind = "utf-8"
+    value = "PING"
+
+  [[fixtures.expected]]
+  step = 1
+  messages = [ ]
