@@ -243,7 +243,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             self.program_storage.set(program);
         } else {
             self.program_storage
-                .set(Program::new(program_id, code, Default::default(), None)?);
+                .set(Program::new(program_id, code, Default::default())?);
         }
 
         let mut program = self

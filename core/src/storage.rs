@@ -137,6 +137,15 @@ mod tests {
     #[test]
     /// Test that InMemoryProgramStorage works correctly
     fn program_storage_interaction() {
+        let binary: Vec<u8> = vec![
+            0, 97, 115, 109, 1, 0, 0, 0, 1, 8, 2, 96, 1, 127, 0, 96, 0, 0, 2, 33, 2, 3, 101, 110,
+            118, 11, 103, 114, 95, 114, 101, 112, 108, 121, 95, 116, 111, 0, 0, 3, 101, 110, 118,
+            6, 109, 101, 109, 111, 114, 121, 2, 0, 2, 3, 4, 3, 1, 1, 1, 7, 32, 3, 6, 104, 97, 110,
+            100, 108, 101, 0, 1, 12, 104, 97, 110, 100, 108, 101, 95, 114, 101, 112, 108, 121, 0,
+            1, 4, 105, 110, 105, 116, 0, 3, 10, 22, 3, 8, 0, 65, 128, 128, 4, 16, 0, 11, 8, 0, 65,
+            128, 128, 4, 16, 0, 11, 2, 0, 11,
+        ];
+
         // Initialization of some ProgramIds
         let id1 = ProgramId::from(1);
 
@@ -146,14 +155,14 @@ mod tests {
 
         // Initialization of InMemoryProgramStorage with our custom vec<Program>
         let mut program_storage = InMemoryProgramStorage::new(vec![
-            Program::new(id1, vec![1], Default::default(), Some(1)).expect("err create program"),
-            Program::new(id2, vec![2], Default::default(), Some(1)).expect("err create program"),
+            Program::new(id1, binary.clone(), Default::default()).expect("err create program"),
+            Program::new(id2, binary.clone(), Default::default()).expect("err create program"),
         ]);
 
         // Сhecking that the Program with id2 exists in the storage
         // and it is the one that we put
         assert!(program_storage.get(id2).is_some());
-        assert_eq!(program_storage.get(id2).unwrap().code(), vec![2]);
+        assert_eq!(program_storage.get(id2).unwrap().code(), binary);
 
         // Сhecking that the Program with id3 does not exist in the storage
         assert!(program_storage.get(id3).is_none());
@@ -165,9 +174,8 @@ mod tests {
 
         // Сhecking that we are able to correctly set
         // the new Program with id3 in storage
-        program_storage.set(
-            Program::new(id3, vec![3], Default::default(), Some(1)).expect("err create program"),
-        );
+        program_storage
+            .set(Program::new(id3, binary, Default::default()).expect("err create program"));
         assert!(program_storage.get(id3).is_some());
 
         // Сhecking that the storage after all our interactions
