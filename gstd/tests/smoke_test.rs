@@ -1,12 +1,7 @@
 #![no_std]
 
-use gstd::msg;
 use gstd::prelude::*;
 use gstd::*;
-use gstd::{Gas, ProgramId};
-
-#[cfg(feature = "debug")]
-use gstd::ext;
 
 static mut PROGRAM: ProgramId = ProgramId([0; 32]);
 static mut MESSAGE: Vec<u8> = Vec::new();

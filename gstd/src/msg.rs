@@ -66,15 +66,7 @@ pub fn reply_to() -> MessageId {
 }
 
 pub fn send(program: ProgramId, payload: &[u8], gas_limit: Gas) {
-    unsafe {
-        sys::gr_send(
-            program.as_slice().as_ptr(),
-            payload.as_ptr(),
-            payload.len() as _,
-            gas_limit.0,
-            0u128.to_le_bytes().as_ptr(),
-        )
-    }
+    send_with_value(program, payload, gas_limit, 0u128);
 }
 
 pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: Gas, value: u128) {
