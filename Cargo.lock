@@ -2327,6 +2327,9 @@ dependencies = [
 [[package]]
 name = "gstd-async"
 version = "0.1.0"
+dependencies = [
+ "gstd",
+]
 
 [[package]]
 name = "h2"

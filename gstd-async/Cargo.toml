@@ -3,3 +3,6 @@ name = "gstd-async"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
+
+[dependencies]
+gstd = { path = "../gstd" }
