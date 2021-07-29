@@ -10,7 +10,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
 
     if new_msg == "PING" {
-        msg::reply(b"PONG", u64::MAX, 0);
+        msg::reply(b"PONG", 10_000_000, 0);
     }
 
     MESSAGE_LOG.push(new_msg);
@@ -27,7 +27,7 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle_reply() {
-    msg::reply(b"PONG", u64::MAX, 0);
+    msg::reply(b"PONG", 10_000_000, 0);
 }
 
 #[no_mangle]

@@ -4216,6 +4216,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
+ "gear-core",
  "gear-node-rti",
  "pallet-authorship",
  "pallet-balances",
