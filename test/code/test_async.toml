@@ -7,19 +7,19 @@ path = "examples/target/wasm32-unknown-unknown/release/demo_async.wasm"
 [[fixtures]]
 title = "async-toml"
 
-  [[fixtures.messages]]
-  destination = 1
+[[fixtures.messages]]
+destination = 1
 
-    [fixtures.messages.payload]
-    kind = "utf-8"
-    value = "call"
+[fixtures.messages.payload]
+kind = "utf-8"
+value = "call"
 
-  [[fixtures.expected]]
-  step = 1
+[[fixtures.expected]]
+step = 1
 
-    [[fixtures.expected.log]]
-    destination = 0
+[[fixtures.expected.log]]
+destination = 0
 
-      [fixtures.expected.log.payload]
-      kind = "utf-8"
-      value = "async_result"
+[fixtures.expected.log.payload]
+kind = "utf-8"
+value = "async_result"
