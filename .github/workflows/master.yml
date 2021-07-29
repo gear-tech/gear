@@ -51,7 +51,7 @@ jobs:
 
       - name: Run testsuite
         run: |
-          cargo run --package gear-node --release -- runtests ./test/json/*.json
+          cargo run --package gear-node --release -- runtests ./test/code/*
 
       - name: Run rpc-test
         run: |
