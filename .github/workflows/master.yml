@@ -12,7 +12,7 @@ env:
 jobs:
   build:
     if: |
-      !startsWith(github.event.head_commit.message, 'skip-ci:') &&
+      !startsWith(github.event.head_commit.message, 'skip-ci:') ||
       !contains(github.event.head_commit.message, 'skip CI')
     runs-on: ubuntu-latest
 
