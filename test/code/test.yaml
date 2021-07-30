@@ -1,0 +1,16 @@
+title: basic
+
+programs:
+- id: 1
+  path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+fixtures:
+- title: ping-pong
+  messages:
+  - destination: 1
+    payload:
+      kind: utf-8
+      value: PING
+  expected:
+  - step: 1
+    messages: []
