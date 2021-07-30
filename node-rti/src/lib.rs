@@ -104,8 +104,7 @@ pub trait GearExecutor {
             Error::Runner
         })?;
 
-        let (Storage { message_queue, .. }, persistent_memory) = runner.complete();
-        crate::runner::set_memory(persistent_memory);
+        let Storage { message_queue, .. } = runner.complete();
 
         Ok(ExecutionReport::collect(message_queue, result))
     }
@@ -139,9 +138,7 @@ pub trait GearExecutor {
                 })?,
         );
 
-        let (Storage { message_queue, .. }, persistent_memory) = runner.complete();
-
-        crate::runner::set_memory(persistent_memory);
+        let Storage { message_queue, .. } = runner.complete();
 
         Ok(ExecutionReport::collect(message_queue, result))
     }

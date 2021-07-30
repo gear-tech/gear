@@ -76,12 +76,10 @@ impl Program {
         id: ProgramId,
         code: Vec<u8>,
         persistent_pages: BTreeMap<u32, Vec<u8>>,
-        static_pages: Option<u32>,
     ) -> Result<Self> {
         // get initial memory size from memory import.
-        let static_pages: u32 = match static_pages {
-            Some(static_pages) => static_pages,
-            None => parity_wasm::elements::Module::from_bytes(&code)
+        let static_pages: u32 = {
+            parity_wasm::elements::Module::from_bytes(&code)
                 .map_err(|e| anyhow::anyhow!("Error loading program: {}", e))?
                 .import_section()
                 .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find import section"))?
@@ -93,9 +91,7 @@ impl Program {
                     }
                     _ => None,
                 })
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Error loading program: can't find memory export")
-                })?,
+                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
         };
 
         let persistent_pages: BTreeMap<PageNumber, Box<PageBuf>> = persistent_pages
@@ -150,6 +146,12 @@ impl Program {
                     Box::new(PageBuf::try_from(chunk).expect("chunk err")),
                 );
             });
+    }
+
+    /// Set memory page from buffer.
+    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) {
+        self.persistent_pages
+            .insert(page, Box::new(PageBuf::try_from(buf).expect("chunk err")));
     }
 
     /// Get reference to memory pages.

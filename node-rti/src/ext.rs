@@ -17,34 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    memory::PageNumber,
     message::Message,
     program::{Program, ProgramId},
-    storage::{AllocationStorage, MessageQueue, ProgramStorage},
+    storage::{MessageQueue, ProgramStorage},
 };
-
-pub struct ExtAllocationStorage;
 
 pub struct ExtProgramStorage;
 
 #[derive(Default)]
 pub struct ExtMessageQueue {
     pub log: Vec<Message>,
-}
-
-impl AllocationStorage for ExtAllocationStorage {
-    fn get(&self, id: PageNumber) -> Option<ProgramId> {
-        gear_common::native::page_info(id.raw())
-    }
-
-    fn remove(&mut self, id: PageNumber) -> Option<ProgramId> {
-        gear_common::native::dealloc(id.raw());
-        None
-    }
-
-    fn set(&mut self, page: PageNumber, program: ProgramId) {
-        gear_common::native::alloc(page.raw(), program)
-    }
 }
 
 impl ProgramStorage for ExtProgramStorage {

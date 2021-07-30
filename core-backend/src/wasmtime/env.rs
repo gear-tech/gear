@@ -4,13 +4,11 @@ use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use alloc::rc::Rc;
 use alloc::vec::Vec;
-use core::cell::RefCell;
 
 use super::memory::MemoryWrap;
 
-use gear_core::env::{Ext, LaterExt, PageAction, PageInfo};
+use gear_core::env::{Ext, LaterExt};
 use gear_core::memory::{Memory, PageBuf, PageNumber};
 
 use crate::funcs;
@@ -68,34 +66,8 @@ impl<E: Ext + 'static> Environment<E> {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
-    ) -> (anyhow::Result<()>, E, Vec<(PageNumber, PageAction)>) {
+    ) -> (anyhow::Result<()>, E) {
         let module = Module::new(self.store.engine(), binary).expect("Error creating module");
-        let touched: Rc<RefCell<Vec<PageInfo>>> = Default::default();
-
-        cfg_if::cfg_if! {
-            if #[cfg(target_os = "linux")] {
-                use wasmtime::unix::StoreExt;
-
-                // Lock memory
-                ext.memory_lock();
-
-                let touched_clone = Rc::clone(&touched);
-                let ext_clone = self.ext.clone();
-                let base = memory.data_ptr();
-
-                unsafe {
-                    self.store.set_signal_handler(move |signum, siginfo, _| {
-                        handle_sigsegv(
-                            &ext_clone,
-                            touched_clone.borrow_mut(),
-                            base,
-                            signum,
-                            siginfo,
-                        )
-                    });
-                }
-            }
-        }
 
         self.ext.set(ext);
 
@@ -110,17 +82,8 @@ impl<E: Ext + 'static> Environment<E> {
         });
 
         let ext = self.ext.unset();
-        cfg_if::cfg_if! {
-            if #[cfg(target_os = "linux")] {
 
-                // Unlock memory
-                ext.memory_unlock();
-            }
-        }
-
-        let touched = touched.take().iter().map(|(a, b, _)| (*a, *b)).collect();
-
-        (result, ext, touched)
+        (result, ext)
     }
 
     /// Return engine used by this environment.
@@ -315,86 +278,5 @@ impl<E: Ext + 'static> Default for Environment<E> {
     /// Creates a default environment.
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn handle_sigsegv<E: Ext + 'static>(
-    ext: &LaterExt<E>,
-    mut touched: core::cell::RefMut<Vec<PageInfo>>,
-    base: *mut u8,
-    signum: libc::c_int,
-    siginfo: *const libc::siginfo_t,
-) -> bool {
-    // SIGSEGV on Linux
-    if libc::SIGSEGV == signum {
-        let si_addr: *mut libc::c_void = unsafe { (*siginfo).si_addr() };
-
-        // Any signal from within module's memory we handle ourselves
-        let length = 65536;
-        let page = ((si_addr as usize) - (base as usize)) / length;
-
-        // Set the base address of the page that the program is trying to access
-        let page_base = base.wrapping_add(page * length);
-
-        let access = ext.with(|ext: &mut E| ext.memory_access((page as u32).into()));
-        if let Some(last) = touched.last_mut() {
-            if last.2 == (si_addr as *const u8).wrapping_sub(base as usize)
-                && last.1 == PageAction::Read
-                && access == PageAction::Write
-            {
-                *last = (
-                    last.0,
-                    PageAction::Write,
-                    (si_addr as *const u8).wrapping_sub(base as usize),
-                );
-                // Remove protections so the execution may resume
-                unsafe {
-                    libc::mprotect(
-                        page_base as *mut libc::c_void,
-                        length,
-                        libc::PROT_READ | libc::PROT_WRITE,
-                    );
-                }
-                log::debug!("MEMORY: ACCESS PAGE {} WRITE", page);
-
-                true
-            } else {
-                // Set READ prrotection
-                unsafe {
-                    libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
-                }
-                touched.push((
-                    (page as u32).into(),
-                    PageAction::Read,
-                    (si_addr as *const u8).wrapping_sub(base as usize),
-                ));
-
-                true
-            }
-        } else if access != PageAction::None {
-            // Set READ prrotection
-            unsafe {
-                libc::mprotect(page_base as *mut libc::c_void, length, libc::PROT_READ);
-            }
-            touched.push((
-                (page as u32).into(),
-                PageAction::Read,
-                (si_addr as *const u8).wrapping_sub(base as usize),
-            ));
-
-            true
-        } else {
-            touched.push((
-                (page as u32).into(),
-                PageAction::None,
-                (si_addr as *const u8).wrapping_sub(base as usize),
-            ));
-
-            false
-        }
-    } else {
-        // Otherwise, we forward to wasmtime's signal handler.
-        false
     }
 }

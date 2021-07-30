@@ -1,13 +1,10 @@
 //! Module for memory and memory context.
 
 use crate::program::ProgramId;
-use crate::storage::AllocationStorage;
-use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use alloc::rc::Rc;
+use alloc::{boxed::Box, collections::BTreeSet};
 use codec::{Decode, Encode};
 use core::any::Any;
-use core::cell::RefCell;
 
 /// A WebAssembly page has a constant size of 65,536 bytes, i.e., 64KiB.
 pub const PAGE_SIZE: usize = 65536;
@@ -114,85 +111,20 @@ pub trait Memory: Any {
     /// Clone this memory.
     fn clone(&self) -> Box<dyn Memory>;
 
-    /// Lock some memory pages.
-    fn lock(&self, offset: PageNumber, length: PageNumber) -> *mut u8;
-
-    /// Unlock some memory pages.
-    fn unlock(&self, offset: PageNumber, length: PageNumber);
-
     /// Downcast to exact memory type
     fn as_any(&self) -> &dyn Any;
 }
 
-/// Helper struct to manage allocations requested by programs.
-///
-/// Underlying allocation storage can be anything.
-pub struct Allocations<AS: AllocationStorage>(Rc<RefCell<AS>>);
-
-impl<AS: AllocationStorage> Clone for Allocations<AS> {
-    fn clone(&self) -> Self {
-        Allocations(self.0.clone())
-    }
-}
-
-impl<AS: AllocationStorage> Allocations<AS> {
-    /// New allocation maanager.
-    pub fn new(storage: AS) -> Self {
-        Self(Rc::new(RefCell::new(storage)))
-    }
-
-    /// Get page owner, if any.
-    pub fn get(&self, page: PageNumber) -> Option<ProgramId> {
-        self.0.borrow().get(page)
-    }
-
-    /// Check if specific page is allocated by anything.
-    pub fn occupied(&self, page: PageNumber) -> bool {
-        self.0.borrow().exists(page)
-    }
-
-    /// Insert new allocation.
-    pub fn insert(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
-        if self.0.borrow().exists(page) {
-            return Err(Error::PageOccupied(page));
-        }
-
-        self.0.borrow_mut().set(page, program_id);
-
-        Ok(())
-    }
-
-    /// Remove specific allocation.
-    ///
-    /// Owner and provided `program_id` must match.
-    pub fn remove(&self, program_id: ProgramId, page: PageNumber) -> Result<(), Error> {
-        if program_id != self.0.borrow().get(page).ok_or(Error::InvalidFree(page))? {
-            return Err(Error::InvalidFree(page));
-        }
-
-        self.0.borrow_mut().remove(page);
-
-        Ok(())
-    }
-
-    /// Drop allocation manager and return underlying `AllocationStorage`
-    pub fn drain(self) -> Result<AS, Error> {
-        Ok(Rc::try_unwrap(self.0)
-            .map_err(|_| Error::AllocationsInUse)?
-            .into_inner())
-    }
-}
-
 /// Memory context for the running program.
-pub struct MemoryContext<AS: AllocationStorage> {
+pub struct MemoryContext {
     program_id: ProgramId,
     memory: Box<dyn Memory>,
-    allocations: Allocations<AS>,
+    allocations: BTreeSet<PageNumber>,
     max_pages: PageNumber,
     static_pages: PageNumber,
 }
 
-impl<AS: AllocationStorage> Clone for MemoryContext<AS> {
+impl Clone for MemoryContext {
     fn clone(&self) -> Self {
         Self {
             program_id: self.program_id,
@@ -210,7 +142,7 @@ impl Clone for Box<dyn Memory> {
     }
 }
 
-impl<AS: AllocationStorage> MemoryContext<AS> {
+impl MemoryContext {
     /// New memory context.
     ///
     /// Provide currently running `program_id`, boxed memory abstraction
@@ -219,7 +151,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     pub fn new(
         program_id: ProgramId,
         memory: Box<dyn Memory>,
-        allocations: Allocations<AS>,
+        allocations: BTreeSet<PageNumber>,
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
@@ -238,7 +170,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     }
 
     /// Alloc specific number of pages for the currently running program.
-    pub fn alloc(&self, pages: PageNumber) -> Result<PageNumber, Error> {
+    pub fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
         let mut candidate = self.static_pages.raw();
         let mut found = 0u32;
@@ -254,7 +186,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
                 return Err(Error::OutOfMemory);
             }
 
-            if self.allocations.occupied((candidate + found).into()) {
+            if self.allocations.contains(&(candidate + found).into()) {
                 candidate += 1;
                 found = 0;
                 continue;
@@ -269,7 +201,7 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
         }
 
         for page_num in candidate..candidate + found {
-            self.allocations.insert(self.program_id, page_num.into())?;
+            self.allocations.insert(page_num.into());
         }
 
         Ok(candidate.into())
@@ -278,36 +210,23 @@ impl<AS: AllocationStorage> MemoryContext<AS> {
     /// Free specific page.
     ///
     /// Currently running program should own this page.
-    pub fn free(&self, page: PageNumber) -> Result<(), Error> {
+    pub fn free(&mut self, page: PageNumber) -> Result<(), Error> {
         if page < self.static_pages || page > self.max_pages {
             return Err(Error::InvalidFree(page));
         }
-
-        self.allocations.remove(self.program_id, page)?;
+        self.allocations.remove(&page);
 
         Ok(())
     }
 
     /// Return reference to the allocation manager.
-    pub fn allocations(&self) -> &Allocations<AS> {
+    pub fn allocations(&self) -> &BTreeSet<PageNumber> {
         &self.allocations
     }
 
     /// Return reference to the memory blob.
     pub fn memory(&self) -> &dyn Memory {
         &*self.memory
-    }
-
-    /// Lock memory access.
-    pub fn memory_lock(&self) {
-        self.memory
-            .lock(self.static_pages, self.max_pages - self.static_pages);
-    }
-
-    /// Unlock memory access.
-    pub fn memory_unlock(&self) {
-        self.memory
-            .unlock(self.static_pages, self.max_pages - self.static_pages);
     }
 }
 

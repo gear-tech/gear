@@ -18,7 +18,7 @@
 
 use gear_test_sample::sample::{PayloadVariant, Test};
 use regex::Regex;
-use rti::ext::{ExtAllocationStorage, ExtProgramStorage};
+use rti::ext::ExtProgramStorage;
 use rti::runner::ExtRunner;
 
 use gear_core::{message::Message, program::ProgramId, storage::Storage};
@@ -128,7 +128,6 @@ pub fn init_fixture(
 
 pub struct FinalState {
     pub message_queue: Vec<Message>,
-    pub allocation_storage: ExtAllocationStorage,
     pub program_storage: ExtProgramStorage,
 }
 
@@ -136,7 +135,7 @@ pub fn run(
     ext: &mut sp_io::TestExternalities,
     mut runner: ExtRunner,
     steps: Option<u64>,
-) -> anyhow::Result<(FinalState, Vec<u8>)> {
+) -> anyhow::Result<FinalState> {
     ext.execute_with(|| {
         if let Some(steps) = steps {
             for _ in 0..steps {
@@ -153,22 +152,14 @@ pub fn run(
             messages.push(message);
         }
 
-        let (
-            Storage {
-                message_queue: _,
-                allocation_storage,
-                program_storage,
-            },
-            persistent_memory,
-        ) = runner.complete();
+        let Storage {
+            message_queue: _,
+            program_storage,
+        } = runner.complete();
 
-        Ok((
-            FinalState {
-                message_queue: messages,
-                allocation_storage,
-                program_storage,
-            },
-            persistent_memory,
-        ))
+        Ok(FinalState {
+            message_queue: messages,
+            program_storage,
+        })
     })
 }
