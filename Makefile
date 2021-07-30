@@ -19,6 +19,10 @@ core-test:
 examples:
 	@./scripts/build-wasm.sh
 
+.PHONY: gstd-async-test
+gstd-async-test:
+	@cargo test --package gstd-async -- --nocapture
+
 .PHONY: gstd-test
 gstd-test:
 	@cargo test --package gstd

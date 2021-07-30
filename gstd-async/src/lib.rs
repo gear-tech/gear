@@ -7,7 +7,7 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-mod msg;
+pub mod msg;
 mod waker;
 
 /// Blocks the current thread on a future.
