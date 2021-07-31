@@ -4189,6 +4189,7 @@ dependencies = [
  "gear-node-rti",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-randomness-collective-flip",
  "parity-scale-codec",
  "serde",
  "sp-core",

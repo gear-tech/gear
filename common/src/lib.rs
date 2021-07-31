@@ -198,15 +198,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nonce_incremented() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            assert_eq!(nonce_fetch_inc(), 0_u128);
-            assert_eq!(nonce_fetch_inc(), 1_u128);
-            assert_eq!(nonce_fetch_inc(), 2_u128);
-        });
-    }
-
-    #[test]
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let code = b"pretended wasm code".to_vec();

@@ -18,7 +18,6 @@
 
 use super::*;
 use crate::mock::*;
-use codec::Encode;
 use common::{self, IntermediateMessage, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
@@ -119,15 +118,11 @@ fn send_message_adds_to_queue() {
             Gear::message_queue().expect("There should be a message in the queue");
         assert_eq!(messages.len(), 1);
 
-        let mut id = b"payload".to_vec().encode();
-        id.extend_from_slice(&0_u128.to_le_bytes());
-        let id: H256 = sp_io::hashing::blake2_256(&id).into();
-
-        let msg_id = match &messages[0] {
-            IntermediateMessage::DispatchMessage { id, .. } => *id,
-            _ => Default::default(),
+        let msg_payload = match &messages[0] {
+            IntermediateMessage::DispatchMessage { payload, .. } => payload.clone(),
+            _ => vec![],
         };
-        assert_eq!(msg_id, id);
+        assert_eq!(msg_payload, b"payload");
     })
 }
 

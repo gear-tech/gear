@@ -31,6 +31,7 @@ pallet-balances = { version = "3.0.0", default-features = false, git = "https://
 pallet-authorship = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 
 [dev-dependencies]
+pallet-randomness-collective-flip = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 serde = "1.0.101"
 env_logger = "0.8"
 wabt = "0.10"

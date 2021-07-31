@@ -40,6 +40,7 @@ construct_runtime!(
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
+        RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
     }
 );
 
@@ -92,6 +93,7 @@ impl pallet_gear::Config for Test {
     type Currency = Balances;
     type SubmitWeightPerByte = SubmitWeightPerByte;
     type MessagePerByte = MessagePerByte;
+    type RandomnessSource = RandomnessCollectiveFlip;
 }
 
 pub struct FixedBlockAuthor;
