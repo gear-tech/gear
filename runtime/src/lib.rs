@@ -321,6 +321,7 @@ impl pallet_gear::Config for Runtime {
     type Currency = Balances;
     type SubmitWeightPerByte = SubmitWeightPerByte;
     type MessagePerByte = MessagePerByte;
+    type RandomnessSource = RandomnessCollectiveFlip;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

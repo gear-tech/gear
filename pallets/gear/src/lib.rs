@@ -36,6 +36,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
         pallet_prelude::*,
+        traits::Randomness,
         traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
         weights::{IdentityFee, WeightToFeePolynomial},
     };
@@ -56,6 +57,8 @@ pub mod pallet {
 
         #[pallet::constant]
         type MessagePerByte: Get<u64>;
+
+        type RandomnessSource: Randomness<H256, Self::BlockNumber>;
     }
 
     type BalanceOf<T> =
@@ -218,11 +221,9 @@ pub mod pallet {
             <MessageQueue<T>>::mutate(|messages| {
                 let mut actual_messages = messages.take().unwrap_or_default();
 
-                let nonce = common::nonce_fetch_inc();
+                let message_id = payload.encode();
 
-                let mut message_id = payload.encode();
-                message_id.extend_from_slice(&nonce.to_le_bytes());
-                let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+                let (message_id, _) = T::RandomnessSource::random(&message_id);
 
                 actual_messages.push(IntermediateMessage::DispatchMessage {
                     id: message_id,

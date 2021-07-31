@@ -178,18 +178,6 @@ pub fn dealloc(page: u32) {
     sp_io::storage::clear(&page_key(page))
 }
 
-pub fn nonce_fetch_inc() -> u128 {
-    let original_nonce = sp_io::storage::get(b"g::msg::nonce")
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
-
-    let new_nonce = original_nonce.wrapping_add(1);
-
-    sp_io::storage::set(b"g::msg::nonce", &new_nonce.encode());
-
-    original_nonce
-}
-
 pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     let mut key_id = b"g::msg::user_nonce".to_vec();
     key_id.extend(&caller_id[..]);
