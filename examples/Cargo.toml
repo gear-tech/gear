@@ -7,6 +7,7 @@ members = [
     "collector",
     "condensator",
     "fib",
+    "meta",
     "ping",
     "sum",
     "vec",
