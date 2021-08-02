@@ -7,14 +7,14 @@ use gstd::{msg, MessageId, ProgramId};
 // Persistent state (must be stored between blocks)
 static mut MESSAGE_STATE: MessageState = MessageState::Idle;
 
-pub struct MessageFuture {}
-
 #[derive(PartialEq)]
 enum MessageState {
     Idle,
     Sent,
     WaitForReply,
 }
+
+pub struct MessageFuture;
 
 impl Future for MessageFuture {
     type Output = Vec<u8>;
@@ -48,7 +48,7 @@ pub fn send_and_wait_for_reply(
         msg::send(program, payload, gas_limit, value);
         set_state(MessageState::Sent);
     }
-    MessageFuture {}
+    MessageFuture
 }
 
 fn get_reply() -> Option<Vec<u8>> {
