@@ -1,27 +1,24 @@
 //! RPC interface for the gear module.
 
-use codec::{Codec, Decode};
+use codec::Codec;
 pub use gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_core::{Bytes, H256};
+use sp_core::Bytes;
 use sp_rpc::number::NumberOrHex;
-use sp_runtime::{
-    generic::BlockId,
-    traits::{Block as BlockT, MaybeDisplay},
-};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::convert::TryInto;
 use std::sync::Arc;
 #[rpc]
-pub trait GearApi<BlockHash> {
+pub trait GearApi<BlockHash, ProgramId> {
     #[rpc(name = "gear_getGasSpent")]
     fn get_gas_spent(
         &self,
-        at: Option<BlockHash>,
-        program_id: H256,
+        program_id: ProgramId,
         payload: Bytes,
+        at: Option<BlockHash>,
     ) -> Result<NumberOrHex>;
 }
 
@@ -60,27 +57,24 @@ impl From<Error> for i64 {
     }
 }
 
-impl<C, Block> GearApi<<Block as BlockT>::Hash> for Gear<C, Block>
+impl<C, Block, ProgramId> GearApi<<Block as BlockT>::Hash, ProgramId> for Gear<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-    C::Api: GearRuntimeApi<Block>,
+    C::Api: GearRuntimeApi<Block, ProgramId>,
+    ProgramId: Codec,
 {
     fn get_gas_spent(
         &self,
-        at: Option<<Block as BlockT>::Hash>,
-        program_id: H256,
+        program_id: ProgramId,
         payload: Bytes,
+        at: Option<<Block as BlockT>::Hash>,
     ) -> Result<NumberOrHex> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
 			// If the block hash is not supplied assume the best block.
 			self.client.info().best_hash));
-        // let payload = Decode::decode(&mut &*payload).map_err(|e| RpcError {
-        //     code: ErrorCode::ServerError(Error::DecodeError.into()),
-        //     message: "Unable to decode payload.".into(),
-        //     data: Some(format!("{:?}", e).into()),
-        // })?;
+
         let runtime_api_result = api
             .get_gas_spent(&at, program_id, payload.to_vec())
             .map_err(|e| RpcError {

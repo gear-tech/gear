@@ -31,7 +31,7 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
-    use common::{self, IntermediateMessage, Message, Origin, Program};
+    use common::{self, IntermediateMessage, Message, Origin};
     use frame_support::inherent::{InherentData, InherentIdentifier};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,

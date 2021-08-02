@@ -8,6 +8,9 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = [
+    "derive",
+] }
 sp-api = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-core = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-std = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }

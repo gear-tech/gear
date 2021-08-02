@@ -72,6 +72,9 @@ pub type Signature = MultiSignature;
 /// to the public key of our transaction signing scheme.
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
+/// Some way of identifying a program on the chain.
+pub type ProgramId = sp_core::H256;
+
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
 pub type AccountIndex = u32;
@@ -504,15 +507,11 @@ impl_runtime_apis! {
     }
 
     // Here we implement our custom runtime API.
-    impl gear_rpc_runtime_api::GearApi<Block> for Runtime {
+    impl gear_rpc_runtime_api::GearApi<Block, ProgramId> for Runtime {
         fn get_gas_spent(
-            program_id: Hash,
+            program_id: ProgramId,
             payload: Vec<u8>,
         ) -> u64 {
-            // This Runtime API calls into a specific pallet. Calling a pallet is a common
-            // design pattern. You can see most other APIs in this file do the same.
-            // It is also possible to write your logic right here in the runtime
-            // amalgamator file
             Gear::get_gas_spent(program_id, payload)
         }
     }
