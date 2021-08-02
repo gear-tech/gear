@@ -4,7 +4,7 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
-use anyhow::{Error, Result};
+use anyhow::{self, Error};
 use codec::{Decode, Encode};
 
 use gear_core::{
@@ -27,6 +27,8 @@ pub struct Config {
     /// Totl pages count.
     pub max_pages: PageNumber,
 }
+
+const EXIT_CODE_PANIC: i32 = 1;
 
 impl Default for Config {
     fn default() -> Self {
@@ -140,7 +142,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
-    pub fn run_next(&mut self) -> Result<RunNextResult> {
+    pub fn run_next(&mut self) -> anyhow::Result<RunNextResult> {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
             None => {
@@ -171,25 +173,49 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             let mut context = self.create_context(allocations);
 
             let gas_limit = next_message.gas_limit();
+            let next_message_id = next_message.id();
+            let next_message_source = next_message.source();
+            let next_message_dest = next_message.dest();
 
-            let result = RunNextResult::from_single(
-                next_message.source(),
-                next_message.dest(),
-                run(
-                    &mut self.env,
-                    &mut context,
-                    &gas::instrument(program.code())
-                        .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-                    &mut program,
-                    if next_message.reply().is_some() {
-                        EntryPoint::HandleReply
-                    } else {
-                        EntryPoint::Handle
-                    },
-                    &next_message.into(),
-                    gas_limit,
-                )?,
+            let run_result = run(
+                &mut self.env,
+                &mut context,
+                &gas::instrument(program.code())
+                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
+                &mut program,
+                if next_message.reply().is_some() {
+                    EntryPoint::HandleReply
+                } else {
+                    EntryPoint::Handle
+                },
+                &next_message.into(),
+                gas_limit,
             );
+
+            let result = match run_result {
+                Ok(result) => {
+                    RunNextResult::from_single(next_message_source, next_message_dest, result)
+                }
+                Err(error) => {
+                    // In case of trap, we generate trap reply message
+
+                    let program_id = program.id();
+                    let nonce = program.fetch_inc_message_nonce();
+                    let trap_message_id = self.next_message_id(program_id, nonce);
+
+                    self.message_queue.queue(Message {
+                        id: trap_message_id,
+                        source: program_id,
+                        dest: next_message_source,
+                        payload: vec![].into(),
+                        gas_limit: error.gas_left(),
+                        value: 0,
+                        reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                    });
+
+                    return Err(error.into_error());
+                }
+            };
 
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
@@ -238,7 +264,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         init_msg: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<RunResult> {
+    ) -> anyhow::Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(program_id) {
             program.reset(code.to_vec());
             self.program_storage.set(program);
@@ -276,7 +302,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             EntryPoint::Init,
             &msg,
             gas_limit,
-        )?;
+        )
+        .map_err(|err| err.into_error())?;
 
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
@@ -503,6 +530,21 @@ impl EnvExt for Ext {
     }
 }
 
+struct ErrorWithGasLeft<E> {
+    error: E,
+    gas_left: u64,
+}
+
+impl<E> ErrorWithGasLeft<E> {
+    fn into_error(self) -> E {
+        self.error
+    }
+
+    fn gas_left(&self) -> u64 {
+        self.gas_left
+    }
+}
+
 fn run(
     env: &mut Environment<Ext>,
     context: &mut RunningContext,
@@ -511,7 +553,7 @@ fn run(
     entry_point: EntryPoint,
     message: &IncomingMessage,
     gas_limit: u64,
-) -> Result<RunResult> {
+) -> Result<RunResult, ErrorWithGasLeft<anyhow::Error>> {
     let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
@@ -541,6 +583,8 @@ fn run(
         &memory,
         entry_point.into(),
     );
+
+    let gas_left = ext.gas_counter.left();
 
     res.map(move |_| {
         // get allocated pages
@@ -572,6 +616,7 @@ fn run(
             gas_requested,
         }
     })
+    .map_err(|error| ErrorWithGasLeft { error, gas_left })
 }
 
 #[cfg(test)]
