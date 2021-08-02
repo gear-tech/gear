@@ -51,9 +51,9 @@ jobs:
 
       - name: Run testsuite
         run: |
-          cargo run --package gear-node --release -- runtests ./test/json/*.json
+          cargo run --package gear-node --release -- runtests ./test/code/*.yaml
 
       - name: Run rpc-test
         run: |
           cargo run --package gear-node --release -- --dev & sleep 5
-          node rpc-tests/index.js ./test/json/*.json
+          node rpc-tests/index.js ./test/code/*.yaml
