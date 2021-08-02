@@ -60,7 +60,7 @@ jobs:
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
 
       - name: Run gear-test
-        run: ./target/release/gtest test/json/*.json
+        run: ./target/release/gtest test/code/*.yaml
 
       - name: Install nodejs
         uses: actions/setup-node@v2
