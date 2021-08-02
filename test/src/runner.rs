@@ -85,7 +85,7 @@ pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRu
                 .unwrap_or_default(),
         };
         runner.queue_message(
-            SOME_FIXED_USER.into(),
+            0.into(),
             nonce,
             message.destination.into(),
             payload,
