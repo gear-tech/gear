@@ -55,6 +55,10 @@ node-run:
 node-test:
 	@SKIP_WASM_BUILD=1 cargo test --package gear-node
 
+.PHONY: ntest
+ntest:
+	@cargo run --package gear-node --release -- runtests ./test/json/*.json
+
 .PHONY: pre-commit
 pre-commit:
 	@./scripts/pre-commit.sh
