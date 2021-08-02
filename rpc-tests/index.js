@@ -323,6 +323,7 @@ async function main() {
       tests.push(data);
     } catch (err) {
       console.error(err);
+      process.exit(1);
     }
   });
 
