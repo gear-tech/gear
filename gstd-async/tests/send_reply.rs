@@ -19,26 +19,21 @@ mod sys {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn gr_read(_at: u32, _len: u32, _dest: *mut u8) {
-    }
+    unsafe extern "C" fn gr_read(_at: u32, _len: u32, _dest: *mut u8) {}
 
     #[no_mangle]
-    unsafe extern "C" fn gr_source(_program: *mut u8) {
-    }
+    unsafe extern "C" fn gr_source(_program: *mut u8) {}
 
     #[no_mangle]
-    unsafe extern "C" fn gr_value(_val: *mut u8) {
-    }
+    unsafe extern "C" fn gr_value(_val: *mut u8) {}
 
     #[no_mangle]
-    unsafe extern "C" fn gr_charge(_gas: u64) {
-    }
+    unsafe extern "C" fn gr_charge(_gas: u64) {}
 }
 
 async fn handle_async() {
     msg::send_and_wait(1.into(), b"hi", u64::MAX, 0).await;
 }
-
 
 #[test]
 fn async_send() {
