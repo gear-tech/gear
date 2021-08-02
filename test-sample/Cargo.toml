@@ -8,4 +8,4 @@ license = "GPL-3.0"
 [dependencies]
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
-serde_json = "*"
+serde_yaml = "0.8.17"
