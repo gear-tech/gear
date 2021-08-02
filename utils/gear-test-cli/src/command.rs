@@ -32,7 +32,7 @@ fn read_test_from_file<P: AsRef<Path>>(path: P) -> Result<sample::Test, String> 
     let file = fs::File::open(path.as_ref())
         .map_err(|e| format!("Error opening {}: {}", path.as_ref().display(), e))?;
 
-    let u = serde_json::from_reader(file)
+    let u = serde_yaml::from_reader(file)
         .map_err(|e| format!("Error decoding {}: {}", path.as_ref().display(), e))?;
 
     Ok(u)
@@ -150,7 +150,7 @@ fn encode_hex(bytes: &[u8]) -> String {
 }
 
 impl GearTestCmd {
-    /// Runs tests from json files.
+    /// Runs tests from `.yaml` files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         let mut total_failed = 0i32;
         let mut tests = Vec::new();

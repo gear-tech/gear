@@ -2206,7 +2206,7 @@ dependencies = [
  "regex",
  "sc-cli",
  "sc-service",
- "serde_json",
+ "serde_yaml",
  "sp-io",
  "structopt",
  "termion",
