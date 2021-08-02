@@ -423,6 +423,12 @@ pub mod pallet {
         }
     }
 
+    impl<T: Config> Pallet<T> {
+        pub fn get_gas_amount() -> u32 {
+            1 + 1
+        }
+    }
+
     impl<T: Config> frame_support::inherent::ProvideInherent for Pallet<T>
     where
         T::AccountId: Origin,

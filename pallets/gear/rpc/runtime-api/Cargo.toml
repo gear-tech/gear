@@ -1,0 +1,19 @@
+[package]
+name = "gear-rpc-runtime-api"
+version = "2.0.0"
+authors = ['Gear Technologies']
+edition = '2018'
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+
+[dependencies]
+sp-api = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
+pallet-gear = { version = "2.0.0", default-features = false, path = "../../../gear" }
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[features]
+default = ["std"]
+std = ["sp-api/std"]

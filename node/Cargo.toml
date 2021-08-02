@@ -46,6 +46,7 @@ sp-blockchain = { version = "3.0.0", git = "https://github.com/paritytech/substr
 sp-block-builder = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 sc-basic-authorship = { version = "0.9.0", git = "https://github.com/paritytech/substrate.git" }
 substrate-frame-rpc-system = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
+pallet-gear-rpc = { path = "../pallets/gear/rpc" }
 pallet-transaction-payment-rpc = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git" }
 
 # These dependencies are used for runtime benchmarking
