@@ -12,9 +12,11 @@ fn main() {
         )
         .get_matches();
 
-    let input = matches.value_of("input").expect("is required; qed");
+    let input = matches
+        .value_of("input")
+        .expect("Input paramter is required by clap above; qed");
 
-    let module = parity_wasm::deserialize_file(&input).unwrap();
+    let module = parity_wasm::deserialize_file(&input).expect("Failed to load wasm file");
 
     // Invoke optimizer for the chain
     let mut binary_module = module.clone();
