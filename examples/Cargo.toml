@@ -8,6 +8,7 @@ members = [
     "condensator",
     "fib",
     "meta",
+    "minimal",
     "ping",
     "sum",
     "vec",
