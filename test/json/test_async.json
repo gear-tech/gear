@@ -13,7 +13,7 @@
                 {
                     "payload": {
                         "kind": "utf-8",
-                        "value": "call"
+                        "value": "START"
                     },
                     "destination": 1
                 }
@@ -25,7 +25,7 @@
                         {
                             "payload": {
                                 "kind": "utf-8",
-                                "value": "async_result"
+                                "value": "LOG"
                             },
                             "destination": 0
                         }

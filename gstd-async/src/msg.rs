@@ -12,6 +12,7 @@ pub struct MessageFuture {}
 #[derive(PartialEq)]
 enum MessageState {
     Idle,
+    Sent,
     WaitForReply,
 }
 
@@ -21,6 +22,10 @@ impl Future for MessageFuture {
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         match *state() {
             MessageState::Idle => Poll::Pending, // TODO: Unreachable, consider adding an assert here
+            MessageState::Sent => {
+                set_state(MessageState::WaitForReply);
+                Poll::Pending
+            }
             MessageState::WaitForReply => {
                 if let Some(reply) = get_reply() {
                     Poll::Ready(reply)
@@ -41,7 +46,7 @@ pub fn send_and_wait_for_reply(
 ) -> MessageFuture {
     if *state() == MessageState::Idle {
         msg::send(program, payload, gas_limit, value);
-        set_state(MessageState::WaitForReply);
+        set_state(MessageState::Sent);
     }
     MessageFuture {}
 }
