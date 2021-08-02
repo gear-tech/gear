@@ -2139,6 +2139,8 @@ dependencies = [
  "pallet-gear",
  "serde_json",
  "sp-api",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]

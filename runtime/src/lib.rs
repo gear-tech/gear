@@ -505,12 +505,15 @@ impl_runtime_apis! {
 
     // Here we implement our custom runtime API.
     impl gear_rpc_runtime_api::GearApi<Block> for Runtime {
-        fn get_gas_amount() -> u32 {
+        fn get_gas_spent(
+            program_id: Hash,
+            payload: Vec<u8>,
+        ) -> u64 {
             // This Runtime API calls into a specific pallet. Calling a pallet is a common
             // design pattern. You can see most other APIs in this file do the same.
             // It is also possible to write your logic right here in the runtime
             // amalgamator file
-            Gear::get_gas_amount()
+            Gear::get_gas_spent(program_id, payload)
         }
     }
 

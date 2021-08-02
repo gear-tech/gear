@@ -9,6 +9,8 @@ repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
 sp-api = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
+sp-core = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
+sp-std = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
 pallet-gear = { version = "2.0.0", default-features = false, path = "../../../gear" }
 
 [dev-dependencies]
@@ -16,4 +18,4 @@ serde_json = "1.0"
 
 [features]
 default = ["std"]
-std = ["sp-api/std"]
+std = ["sp-api/std", "sp-core/std"]

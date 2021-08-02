@@ -6,6 +6,7 @@ use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
+use sp_core::{Bytes, H256};
 use sp_rpc::number::NumberOrHex;
 use sp_runtime::{
     generic::BlockId,
@@ -15,8 +16,13 @@ use std::convert::TryInto;
 use std::sync::Arc;
 #[rpc]
 pub trait GearApi<BlockHash> {
-    #[rpc(name = "gear_getGasAmount")]
-    fn get_gas_amount(&self, at: Option<BlockHash>) -> Result<NumberOrHex>;
+    #[rpc(name = "gear_getGasSpent")]
+    fn get_gas_spent(
+        &self,
+        at: Option<BlockHash>,
+        program_id: H256,
+        payload: Bytes,
+    ) -> Result<NumberOrHex>;
 }
 
 /// A struct that implements the [`GearApi`].
@@ -60,19 +66,30 @@ where
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block>,
 {
-    fn get_gas_amount(&self, at: Option<<Block as BlockT>::Hash>) -> Result<NumberOrHex> {
+    fn get_gas_spent(
+        &self,
+        at: Option<<Block as BlockT>::Hash>,
+        program_id: H256,
+        payload: Bytes,
+    ) -> Result<NumberOrHex> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(||
 			// If the block hash is not supplied assume the best block.
 			self.client.info().best_hash));
+        // let payload = Decode::decode(&mut &*payload).map_err(|e| RpcError {
+        //     code: ErrorCode::ServerError(Error::DecodeError.into()),
+        //     message: "Unable to decode payload.".into(),
+        //     data: Some(format!("{:?}", e).into()),
+        // })?;
+        let runtime_api_result = api
+            .get_gas_spent(&at, program_id, payload.to_vec())
+            .map_err(|e| RpcError {
+                code: ErrorCode::ServerError(Error::RuntimeError.into()),
+                message: "Unable to get gas spent.".into(),
+                data: Some(format!("{:?}", e).into()),
+            })?;
 
-        let runtime_api_result = api.get_gas_amount(&at).map_err(|e| RpcError {
-            code: ErrorCode::ServerError(Error::RuntimeError.into()),
-            message: "Unable to query fee details.".into(),
-            data: Some(format!("{:?}", e).into()),
-        })?;
-
-        let try_into_rpc_gas_amount = |value: u32| {
+        let try_into_rpc_gas_spent = |value: u64| {
             value.try_into().map_err(|_| RpcError {
                 code: ErrorCode::InvalidParams,
                 message: format!("{} doesn't fit in NumberOrHex representation", value),
@@ -80,6 +97,6 @@ where
             })
         };
 
-        Ok(try_into_rpc_gas_amount(runtime_api_result)?)
+        Ok(try_into_rpc_gas_spent(runtime_api_result)?)
     }
 }
