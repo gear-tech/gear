@@ -14,8 +14,8 @@ struct MessageIn {
 
 #[derive(Debug, Encode, Decode)]
 struct MessageOut {
-    new_value: u64,
     old_value: u64,
+    new_value: u64,
 }
 
 #[no_mangle]
@@ -49,5 +49,5 @@ pub unsafe extern "C" fn meta_input() -> *mut [i32; 2] {
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_output() -> *mut [i32; 2] {
-    return_slice(b"{ new_value: 'u64', old_value: 'u64' }")
+    return_slice(b"{ old_value: 'u64', new_value: 'u64' }")
 }
