@@ -147,6 +147,7 @@ pub trait GearExecutor {
         let mut runner = crate::runner::new();
 
         runner.queue_message(
+            // TODO: find a better way to generate source
             ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
             gear_common::caller_nonce_fetch_inc(H256::from_low_u64_be(1)),
             ProgramId::from_slice(&program_id[..]),
@@ -162,6 +163,11 @@ pub trait GearExecutor {
 
         runner.complete();
 
-        Ok(result.gas_spent[0].1)
+        if let Some(gas_spent) = result.gas_spent.first() {
+            Ok(gas_spent.1)
+        } else {
+            log::error!("gas_spent: Empty run result");
+            Err(Error::Runner)
+        }
     }
 }
