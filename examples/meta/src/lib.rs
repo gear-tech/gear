@@ -36,7 +36,19 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {}
+pub unsafe extern "C" fn init() {
+    let message_in = MessageIn::decode(&mut &msg::load()[..]).expect("Failed to decode incoming message");
+    CURRENT_VALUE = message_in.value;
+
+    msg::reply(
+        &MessageOut {
+            old_value: 0,
+            new_value: CURRENT_VALUE,
+        }.encode(),
+        1000000,
+        0,
+    )
+}
 
 fn return_slice<T>(slice: &[T]) -> *mut [i32; 2] {
     Box::into_raw(Box::new([slice.as_ptr() as isize as _, slice.len() as isize as _]))
@@ -49,5 +61,20 @@ pub unsafe extern "C" fn meta_input() -> *mut [i32; 2] {
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_output() -> *mut [i32; 2] {
+    return_slice(b"{ old_value: 'u64', new_value: 'u64' }")
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn meta_title() -> *mut [i32; 2] {
+    return_slice(b"Example program with metadata")
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn meta_init_input() -> *mut [i32; 2] {
+    return_slice (b"{ value: 'u64', annotation: 'String' }")
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn meta_init_output() -> *mut [i32; 2] {
     return_slice(b"{ old_value: 'u64', new_value: 'u64' }")
 }
