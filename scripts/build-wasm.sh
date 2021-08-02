@@ -3,4 +3,4 @@
 set -e
 cd "$(dirname ${BASH_SOURCE[0]})/../examples"
 
-cargo +nightly build --workspace --release --verbose
+cargo +nightly build --workspace --release

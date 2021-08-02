@@ -3,7 +3,6 @@
 use gstd::{ext, msg, prelude::*, ProgramId};
 
 use codec::{Decode as _, Encode as _};
-use core::convert::TryInto;
 use demo_chat::shared::{MemberMessage, RoomMessage};
 
 #[derive(Debug)]
