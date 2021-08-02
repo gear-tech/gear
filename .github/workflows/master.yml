@@ -10,10 +10,29 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Check fmt
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: | # TODO: Expand clippy to be workspace-wide
+          cargo clippy --package gear-core --all-features -- -D warnings
+          cargo clippy --package gear-core-backend --all-features -- -D warnings
+          echo cargo clippy --package gear-core-runner --all-features -- -D warnings # TODO: Fix
+          echo cargo clippy --package gear-node --all-features -- -D warnings # TODO: Fix
+          echo cargo clippy --package gear-node-rti --all-features -- -D warnings # TODO: Fix
+          echo cargo clippy --package gear-runtime --all-features -- -D warnings # TODO: Fix
+          cargo clippy --package gstd --all-features -- -D warnings
+          cargo clippy --package gstd-async --all-features -- -D warnings
+          echo cargo clippy --package pallet-gear --all-features -- -D warnings # TODO: Fix
+
   build:
-    if: |
-      !startsWith(github.event.head_commit.message, 'skip-ci:') &&
-      !contains(github.event.head_commit.message, 'skip CI')
     runs-on: ubuntu-latest
 
     steps:
@@ -29,9 +48,6 @@ jobs:
       - name: Artifact cache
         uses: Swatinem/rust-cache@v1
 
-      - name: Check fmt
-        run: cargo fmt --all -- --check
-
       - name: Build
         run: cargo build --workspace --release
 
@@ -43,17 +59,19 @@ jobs:
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
 
-      - uses: actions/setup-node@v2
-        name: Install nodejs
+      - name: Run gear-test
+        run: ./target/release/gtest test/json/*.json
+
+      - name: Install nodejs
+        uses: actions/setup-node@v2
         with:
           node-version: "16"
       - run: cd rpc-tests && npm install
 
       - name: Run testsuite
-        run: |
-          cargo run --package gear-node --release -- runtests ./test/code/*.yaml
+        run: ./target/release/gear-node runtests ./test/code/*.yaml
 
       - name: Run rpc-test
         run: |
-          cargo run --package gear-node --release -- --dev & sleep 5
+          ./target/release/gear-node --dev & sleep 5
           node rpc-tests/index.js ./test/code/*.yaml
