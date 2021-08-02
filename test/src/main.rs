@@ -57,6 +57,7 @@ pub enum MessageContentMismatch {
     Destination(ContentMismatch<ProgramId>),
     Payload(ContentMismatch<DisplayedPayload>),
     GasLimit(ContentMismatch<u64>),
+    ExitCode(ContentMismatch<i32>),
 }
 
 #[derive(Debug, Display)]
@@ -95,6 +96,13 @@ impl MessagesError {
         Self::AtPosition {
             at,
             mismatch: MessageContentMismatch::GasLimit(ContentMismatch { expected, actual }),
+        }
+    }
+
+    fn exit_code(at: usize, expected: i32, actual: i32) -> Self {
+        Self::AtPosition {
+            at,
+            mismatch: MessageContentMismatch::ExitCode(ContentMismatch { expected, actual }),
         }
     }
 }
@@ -145,6 +153,29 @@ fn check_messages(
                             expected_gas_limit,
                             msg.gas_limit,
                         ))
+                    }
+                }
+
+                if let Some(expected_exit_code) = exp.exit_code {
+                    match msg.reply {
+                        Some((_, exit_code)) => {
+                            if exit_code != expected_exit_code {
+                                errors.push(MessagesError::exit_code(
+                                    position,
+                                    expected_exit_code,
+                                    exit_code,
+                                ))
+                            }
+                        }
+                        None => {
+                            if expected_exit_code != 0 {
+                                errors.push(MessagesError::exit_code(
+                                    position,
+                                    expected_exit_code,
+                                    0,
+                                ))
+                            }
+                        }
                     }
                 }
             });
@@ -265,76 +296,67 @@ pub fn main() -> anyhow::Result<()> {
         for fixture_no in 0..test.fixtures.len() {
             for exp in &test.fixtures[fixture_no].expected {
                 let output = match runner::init_fixture(&test, fixture_no) {
-                    Ok(initialized_fixture) => match runner::run(initialized_fixture, exp.step) {
-                        Ok(mut final_state) => {
-                            let mut errors = Vec::new();
-                            if !opts.skip_messages {
-                                if let Some(messages) = &exp.messages {
-                                    if let Err(msg_errors) =
-                                        check_messages(&final_state.messages, messages)
-                                    {
-                                        errors.extend(
-                                            msg_errors
-                                                .into_iter()
-                                                .map(|err| format!("Messages check [{}]", err)),
-                                        );
-                                    }
-                                }
-                            }
-                            if let Some(log) = &exp.log {
-                                if print_log {
-                                    for message in &final_state.log {
-                                        if let Ok(utf8) = std::str::from_utf8(message.payload()) {
-                                            println!("log({})", utf8)
-                                        }
-                                    }
-                                }
-                                if let Err(log_errors) = check_messages(&final_state.log, log) {
+                    Ok(initialized_fixture) => {
+                        let (mut final_state, result) = runner::run(initialized_fixture, exp.step);
+
+                        let mut errors = Vec::new();
+                        if !opts.skip_messages {
+                            if let Some(messages) = &exp.messages {
+                                if let Err(msg_errors) =
+                                    check_messages(&final_state.messages, messages)
+                                {
                                     errors.extend(
-                                        log_errors
+                                        msg_errors
                                             .into_iter()
-                                            .map(|err| format!("Log check [{}]", err)),
+                                            .map(|err| format!("Messages check [{}]", err)),
                                     );
                                 }
                             }
-                            if !opts.skip_allocations {
-                                if let Some(alloc) = &exp.allocations {
-                                    if let Err(alloc_errors) =
-                                        check_allocations(&final_state.program_storage, alloc)
-                                    {
-                                        errors.extend(alloc_errors);
+                        }
+                        if let Some(log) = &exp.log {
+                            if print_log {
+                                for message in &final_state.log {
+                                    if let Ok(utf8) = std::str::from_utf8(message.payload()) {
+                                        println!("log({})", utf8)
                                     }
                                 }
                             }
-                            if !opts.skip_memory {
-                                if let Some(mem) = &exp.memory {
-                                    if let Err(mem_errors) =
-                                        check_memory(&mut final_state.program_storage, mem)
-                                    {
-                                        errors.extend(mem_errors);
-                                    }
+                            if let Err(log_errors) = check_messages(&final_state.log, log) {
+                                errors.extend(
+                                    log_errors
+                                        .into_iter()
+                                        .map(|err| format!("Log check [{}]", err)),
+                                );
+                            }
+                        }
+                        if !opts.skip_allocations {
+                            if let Some(alloc) = &exp.allocations {
+                                if let Err(alloc_errors) =
+                                    check_allocations(&final_state.program_storage, alloc)
+                                {
+                                    errors.extend(alloc_errors);
                                 }
                             }
+                        }
+                        if !opts.skip_memory {
+                            if let Some(mem) = &exp.memory {
+                                if let Err(mem_errors) =
+                                    check_memory(&mut final_state.program_storage, mem)
+                                {
+                                    errors.extend(mem_errors);
+                                }
+                            }
+                        }
 
-                            if !errors.is_empty() {
-                                total_failed += 1;
-                                errors.insert(0, format!("{}", color::Fg(color::Red)));
-                                errors.insert(errors.len(), format!("{}", style::Reset));
-                                errors.join("\n")
-                            } else {
-                                format!("{}Ok{}", color::Fg(color::Green), style::Reset)
-                            }
-                        }
-                        Err(e) => {
+                        if !errors.is_empty() {
                             total_failed += 1;
-                            format!(
-                                "{}Running error ({}){}",
-                                color::Fg(color::Red),
-                                e,
-                                style::Reset
-                            )
+                            errors.insert(0, format!("{}", color::Fg(color::Red)));
+                            errors.insert(errors.len(), format!("{}", style::Reset));
+                            errors.join("\n")
+                        } else {
+                            format!("{}Ok{}", color::Fg(color::Green), style::Reset)
                         }
-                    },
+                    }
                     Err(e) => {
                         total_failed += 1;
                         format!(

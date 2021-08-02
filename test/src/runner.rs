@@ -105,13 +105,36 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
-pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<FinalState> {
+pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> (FinalState, anyhow::Result<()>) {
+    let mut result = Ok(());
     if let Some(steps) = steps {
-        for _ in 0..steps {
-            runner.run_next()?;
+        for step_no in 0..steps {
+            match runner.run_next() {
+                Ok(_) => {
+                    continue;
+                }
+                Err(err) => {
+                    if step_no + 1 == steps {
+                        result = Err(err);
+                    }
+                    continue;
+                }
+            }
         }
     } else {
-        while runner.run_next()?.handled > 0 {}
+        loop {
+            let handled = match runner.run_next() {
+                Err(e) => {
+                    result = Err(e);
+                    0
+                }
+                Ok(result) => result.handled,
+            };
+
+            if handled == 0 {
+                break;
+            }
+        }
     }
 
     let InMemoryStorage {
@@ -121,9 +144,12 @@ pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<Fin
     // sort allocation_storage for tests
     // let mut allocation_storage = allocation_storage.drain();
     // allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
-    Ok(FinalState {
-        log: message_queue.log().to_vec(),
-        messages: message_queue.drain(),
-        program_storage: program_storage.drain(),
-    })
+    (
+        FinalState {
+            log: message_queue.log().to_vec(),
+            messages: message_queue.drain(),
+            program_storage: program_storage.drain(),
+        },
+        result,
+    )
 }
