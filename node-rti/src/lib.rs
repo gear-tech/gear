@@ -142,4 +142,26 @@ pub trait GearExecutor {
 
         Ok(ExecutionReport::collect(message_queue, result))
     }
+
+    fn gas_spent(program_id: H256, payload: Vec<u8>, value: u128) -> Result<u64, Error> {
+        let mut runner = crate::runner::new();
+
+        runner.queue_message(
+            ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
+            gear_common::caller_nonce_fetch_inc(H256::from_low_u64_be(1)),
+            ProgramId::from_slice(&program_id[..]),
+            payload,
+            u64::MAX,
+            value,
+        );
+
+        let result = runner.run_next().map_err(|e| {
+            log::error!("Error process message: {:?}", e);
+            Error::Runner
+        })?;
+
+        runner.complete();
+
+        Ok(result.gas_spent[0].1)
+    }
 }
