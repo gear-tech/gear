@@ -1,6 +1,6 @@
 # Gear Examples
 
-You can write our own smart contrat or try to build from examples. L'ets Rock!
+You can write your own smart contract or try to build from examples. Let's Rock!
 
 ## Requirements
 
@@ -34,7 +34,6 @@ The project structure is following:
       ---Cargo.toml
       ---src
       ------lib.rs
-
 
 `Cargo.toml` is a project manifest in Rust, it contains all metadata necessary for compiling the project.
 Configure the `Cargo.toml` similarly to how it is configured [examples/ping/Cargo.toml](https://github.com/gear-tech/gear/blob/master/examples/ping/Cargo.toml);
@@ -71,4 +70,4 @@ We should compile our smart contract in the app folder:
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-Our application should compile successfully and the final file `target/wasm32-unknown-unknown/release/gear-app.wasm` should appear
+Our application should compile successfully and the final file `target/wasm32-unknown-unknown/release/gear-app.wasm` should appear.
