@@ -68,6 +68,9 @@ impl MessageId {
     }
 }
 
+/// Exit code type for message replies
+pub type ExitCode = i32;
+
 /// Error using messages.
 #[derive(Debug)]
 pub enum Error {
@@ -91,7 +94,7 @@ pub struct IncomingMessage {
     payload: Payload,
     gas_limit: u64,
     value: u128,
-    reply: Option<MessageId>,
+    reply: Option<(MessageId, ExitCode)>,
 }
 
 impl IncomingMessage {
@@ -121,7 +124,7 @@ impl IncomingMessage {
     }
 
     /// What this message is a reply to
-    pub fn reply(&self) -> Option<MessageId> {
+    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
         self.reply
     }
 }
@@ -166,6 +169,7 @@ impl IncomingMessage {
         gas_limit: u64,
         value: u128,
         reply: MessageId,
+        exit_code: ExitCode,
     ) -> Self {
         Self {
             id,
@@ -173,7 +177,7 @@ impl IncomingMessage {
             payload,
             gas_limit,
             value,
-            reply: Some(reply),
+            reply: Some((reply, exit_code)),
         }
     }
 
@@ -237,6 +241,8 @@ impl OutgoingMessage {
 pub struct ReplyMessage {
     /// Identifier of the reply message.
     id: MessageId,
+    /// Exit code
+    exit_code: ExitCode,
     /// Payload of the reply message.
     payload: Payload,
     /// Gas limit.
@@ -260,7 +266,7 @@ impl ReplyMessage {
             payload: self.payload,
             gas_limit: self.gas_limit,
             value: self.value,
-            reply: Some(source_message),
+            reply: Some((source_message, self.exit_code)),
         }
     }
 }
@@ -281,7 +287,7 @@ pub struct Message {
     /// Message value.
     pub value: u128,
     /// In reply of.
-    pub reply: Option<MessageId>,
+    pub reply: Option<(MessageId, ExitCode)>,
 }
 
 impl Message {
@@ -333,6 +339,7 @@ impl Message {
         gas_limit: u64,
         value: u128,
         reply: MessageId,
+        exit_code: ExitCode,
     ) -> Message {
         Message {
             id,
@@ -341,7 +348,7 @@ impl Message {
             payload,
             gas_limit,
             value,
-            reply: Some(reply),
+            reply: Some((reply, exit_code)),
         }
     }
 
@@ -371,7 +378,7 @@ impl Message {
     }
 
     /// Is message a reply and to what.
-    pub fn reply(&self) -> Option<MessageId> {
+    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
         self.reply
     }
 
@@ -411,15 +418,18 @@ pub struct ReplyPacket {
     pub gas_limit: u64,
     /// Message value.
     pub value: u128,
+    /// Exit code
+    pub exit_code: ExitCode,
 }
 
 impl ReplyPacket {
     /// New reply message in some message context.
-    pub fn new(payload: Payload, gas_limit: u64, value: u128) -> Self {
+    pub fn new(exit_code: ExitCode, payload: Payload, gas_limit: u64, value: u128) -> Self {
         Self {
             payload,
             gas_limit,
             value,
+            exit_code,
         }
     }
 }
@@ -466,6 +476,7 @@ pub trait MessageIdGenerator {
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
+            exit_code: packet.exit_code,
         }
     }
 }
@@ -692,7 +703,7 @@ mod tests {
         assert!(context.state.borrow_mut().reply.is_none());
 
         // Creating a reply packet to set the `ReplyMessage`
-        let reply_packet = ReplyPacket::new(vec![0, 0, 0].into(), 0, 0);
+        let reply_packet = ReplyPacket::new(0, vec![0, 0, 0].into(), 0, 0);
 
         // Checking that we are not able to push extra payload into
         // reply message if we have not set it yet

@@ -12,8 +12,8 @@ use gear_core::{
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
     memory::{Memory, MemoryContext, PageNumber},
     message::{
-        IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator, OutgoingMessage,
-        OutgoingPacket, ReplyMessage, ReplyPacket,
+        ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
+        OutgoingMessage, OutgoingPacket, ReplyMessage, ReplyPacket,
     },
     program::{Program, ProgramId},
     storage::{MessageQueue, ProgramStorage, Storage},
@@ -327,6 +327,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         gas_limit: u64,
         value: u128,
         reply_to: MessageId,
+        exit_code: ExitCode,
     ) {
         let message_id = self.next_message_id(source, nonce);
         self.message_queue.queue(Message::new_reply(
@@ -337,6 +338,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             gas_limit,
             value,
             reply_to,
+            exit_code,
         ));
     }
 }
@@ -443,7 +445,7 @@ impl EnvExt for Ext {
         self.messages.reply(msg).map_err(|_e| "Reply error")
     }
 
-    fn reply_to(&self) -> Option<MessageId> {
+    fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
         self.messages.current().reply()
     }
 
@@ -659,6 +661,7 @@ mod tests {
             u64::max_value(),
             0,
             MessageId::from_slice(&msg),
+            0,
         );
 
         runner.run_next().expect("Should be ok now.");
