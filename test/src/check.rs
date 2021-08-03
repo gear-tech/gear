@@ -12,27 +12,6 @@ use std::{fmt, fs};
 use termion::{color, style};
 use crate::runner::{self, CollectState};
 
-use clap::{AppSettings, Clap};
-
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
-struct Opts {
-    /// Skip messages checks
-    #[clap(long)]
-    pub skip_messages: bool,
-    /// Skip allocations checks
-    #[clap(long)]
-    pub skip_allocations: bool,
-    /// Skip memory checks
-    #[clap(long)]
-    pub skip_memory: bool,
-    /// JSON sample file(s) or dir
-    pub input: Vec<std::path::PathBuf>,
-    /// A level of verbosity, and can be used multiple times
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: i32,
-}
-
 #[derive(Debug, derive_more::From)]
 pub struct DisplayedPayload(Vec<u8>);
 
@@ -253,36 +232,19 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 }
 
 pub fn check_main<MQ: storage::MessageQueue, PS: storage::ProgramStorage>(
+    files: Vec<std::path::PathBuf>,
+    skip_messages: bool,
+    skip_allocations: bool,
+    skip_memory: bool,
+    print_log: bool,
     storage_factory: impl Fn() -> storage::Storage<MQ, PS>,
 ) -> anyhow::Result<()>
 where storage::Storage<MQ, PS>: CollectState
 {
-    let opts: Opts = Opts::parse();
-    let mut print_log = false;
-    match opts.verbose {
-        0 => env_logger::init(),
-        1 => {
-            print_log = true;
-        }
-        2 => {
-            use env_logger::Env;
-
-            print_log = true;
-            env_logger::Builder::from_env(
-                Env::default().default_filter_or("gear_core_backend=debug"),
-            )
-            .init();
-        }
-        _ => {
-            use env_logger::Env;
-
-            env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
-        }
-    }
 
     let mut tests = Vec::new();
 
-    for path in &opts.input {
+    for path in files {
         if path.is_dir() {
             for entry in path.read_dir().expect("read_dir call failed").flatten() {
                 tests.push(read_test_from_file(&entry.path())?);
@@ -305,7 +267,7 @@ where storage::Storage<MQ, PS>: CollectState
                         let (mut final_state, result) = runner::run(initialized_fixture, exp.step);
 
                         let mut errors = Vec::new();
-                        if !opts.skip_messages {
+                        if !skip_messages {
                             if let Some(messages) = &exp.messages {
                                 if let Err(msg_errors) =
                                     check_messages(&final_state.messages, messages)
@@ -334,7 +296,7 @@ where storage::Storage<MQ, PS>: CollectState
                                 );
                             }
                         }
-                        if !opts.skip_allocations {
+                        if !skip_allocations {
                             if let Some(alloc) = &exp.allocations {
                                 if let Err(alloc_errors) =
                                     check_allocations(&final_state.program_storage, alloc)
@@ -343,7 +305,7 @@ where storage::Storage<MQ, PS>: CollectState
                                 }
                             }
                         }
-                        if !opts.skip_memory {
+                        if !skip_memory {
                             if let Some(mem) = &exp.memory {
                                 if let Err(mem_errors) =
                                     check_memory(&mut final_state.program_storage, mem)

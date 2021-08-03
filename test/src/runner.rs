@@ -6,6 +6,7 @@ use gear_core::{
 use gear_core_runner::runner::{Config, Runner};
 use gear_test_sample::sample::{PayloadVariant, Test};
 use std::fmt::Write;
+use gear_node_rti::ext::{ExtProgramStorage, ExtMessageQueue};
 
 use regex::Regex;
 
@@ -34,6 +35,16 @@ impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage> {
             log: message_queue.log().to_vec(),
             messages: message_queue.drain(),
             program_storage: program_storage.drain(),
+        }
+    }
+}
+
+impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage> {
+    fn collect(self) -> FinalState {
+        FinalState {
+            log: Vec::new(),
+            messages: Vec::new(),
+            program_storage: Vec::new(),
         }
     }
 }

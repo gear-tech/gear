@@ -16,6 +16,7 @@ gear-test-sample = { path = "../test-sample" }
 regex = "1.4.5"
 serde_json = "*"
 termion = "1.5.6"
+gear-node-rti = { path = "../node-rti" }
 
 [[bin]]
 name = "gtest"
@@ -24,3 +25,5 @@ path = "src/main.rs"
 [profile.release]
 lto = true
 opt-level = 's'
+
+[lib]
