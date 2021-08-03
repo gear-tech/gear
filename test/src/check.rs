@@ -1,4 +1,5 @@
 use crate::runner::{self, CollectState};
+use crate::sample::{self, Test};
 use anyhow::anyhow;
 use derive_more::Display;
 use gear_core::{
@@ -7,7 +8,6 @@ use gear_core::{
     program::{Program, ProgramId},
     storage,
 };
-use crate::sample::{self, Test};
 use std::{fmt, fs};
 use termion::{color, style};
 

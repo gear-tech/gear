@@ -1,3 +1,4 @@
+use crate::sample::{PayloadVariant, Test};
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
@@ -7,7 +8,6 @@ use gear_core::{
 };
 use gear_core_runner::runner::{Config, Runner};
 use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage};
-use crate::sample::{PayloadVariant, Test};
 use std::fmt::Write;
 
 use regex::Regex;
