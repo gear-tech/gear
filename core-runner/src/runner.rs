@@ -4,7 +4,6 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
-use anyhow::{self, Error};
 use codec::{Decode, Encode};
 
 use gear_core::{
@@ -43,6 +42,8 @@ impl Default for Config {
 pub struct RunNextResult {
     /// How many messages were handled
     pub handled: u32,
+    /// How many messages ended as traps
+    pub traps: u32,
     /// Gas that was left.
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
@@ -60,9 +61,21 @@ impl RunNextResult {
         }
     }
 
+    /// Result that notes that some failed program has been tried to run but nothing really happened.
+    pub(crate) fn trap() -> Self {
+        RunNextResult {
+            handled: 1,
+            traps: 1,
+            ..Default::default()
+        }
+    }
+
     /// Accrue one run of the message hadling.
     pub fn accrue(&mut self, caller_id: ProgramId, program_id: ProgramId, result: RunResult) {
         self.handled += 1;
+        if result.was_trap {
+            self.traps += 1;
+        }
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
@@ -142,11 +155,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
-    pub fn run_next(&mut self) -> anyhow::Result<RunNextResult> {
+    pub fn run_next(&mut self) -> RunNextResult {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
             None => {
-                return Ok(RunNextResult::empty());
+                return RunNextResult::empty();
             }
         };
 
@@ -157,12 +170,22 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                     log::debug!("msg to /0: {:?}", next_message.payload())
                 }
             }
-            Ok(RunNextResult::log())
+            RunNextResult::log()
         } else {
-            let mut program = self
-                .program_storage
-                .get(next_message.dest())
-                .ok_or_else(|| Error::msg("Program not found"))?;
+            let mut program = match self.program_storage.get(next_message.dest()) {
+                Some(program) => program,
+                None => {
+                    return RunNextResult::trap();
+                }
+            };
+
+            let instrumeted_code = match gas::instrument(program.code()) {
+                Ok(code) => code,
+                Err(err) => {
+                    log::debug!("Instrumentation error: {:?}", err);
+                    return RunNextResult::trap();
+                }
+            };
 
             let allocations: BTreeSet<PageNumber> = program
                 .get_pages()
@@ -180,8 +203,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             let run_result = run(
                 &mut self.env,
                 &mut context,
-                &gas::instrument(program.code())
-                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
+                &instrumeted_code,
                 &mut program,
                 if next_message.reply().is_some() {
                     EntryPoint::HandleReply
@@ -192,36 +214,31 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                 gas_limit,
             );
 
-            let result = match run_result {
-                Ok(result) => {
-                    RunNextResult::from_single(next_message_source, next_message_dest, result)
-                }
-                Err(error) => {
-                    // In case of trap, we generate trap reply message
+            if run_result.was_trap {
+                // In case of trap, we generate trap reply message
+                let program_id = program.id();
+                let nonce = program.fetch_inc_message_nonce();
+                let trap_message_id = self.next_message_id(program_id, nonce);
 
-                    let program_id = program.id();
-                    let nonce = program.fetch_inc_message_nonce();
-                    let trap_message_id = self.next_message_id(program_id, nonce);
+                self.message_queue.queue(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                });
+            }
 
-                    self.message_queue.queue(Message {
-                        id: trap_message_id,
-                        source: program_id,
-                        dest: next_message_source,
-                        payload: vec![].into(),
-                        gas_limit: error.gas_left(),
-                        value: 0,
-                        reply: Some((next_message_id, EXIT_CODE_PANIC)),
-                    });
-
-                    return Err(error.into_error());
-                }
-            };
+            let result =
+                RunNextResult::from_single(next_message_source, next_message_dest, run_result);
 
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
             self.program_storage.set(program);
 
-            Ok(result)
+            result
         }
     }
 
@@ -302,8 +319,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             EntryPoint::Init,
             &msg,
             gas_limit,
-        )
-        .map_err(|err| err.into_error())?;
+        );
 
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
@@ -426,6 +442,8 @@ pub struct RunResult {
     pub gas_spent: u64,
     /// Gas requested to be transferred.
     pub gas_requested: u64,
+    /// Run result was a trap
+    pub was_trap: bool,
 }
 
 struct Ext {
@@ -530,21 +548,6 @@ impl EnvExt for Ext {
     }
 }
 
-struct ErrorWithGasLeft<E> {
-    error: E,
-    gas_left: u64,
-}
-
-impl<E> ErrorWithGasLeft<E> {
-    fn into_error(self) -> E {
-        self.error
-    }
-
-    fn gas_left(&self) -> u64 {
-        self.gas_left
-    }
-}
-
 fn run(
     env: &mut Environment<Ext>,
     context: &mut RunningContext,
@@ -553,7 +556,7 @@ fn run(
     entry_point: EntryPoint,
     message: &IncomingMessage,
     gas_limit: u64,
-) -> Result<RunResult, ErrorWithGasLeft<anyhow::Error>> {
+) -> RunResult {
     let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
@@ -584,39 +587,38 @@ fn run(
         entry_point.into(),
     );
 
+    let was_trap = res.is_err();
+    let _res = res.unwrap_or_default();
+
+    // get allocated pages
+    for page in ext.memory_context.allocations().clone() {
+        let mut buf = vec![0u8; PageNumber::size()];
+        ext.get_mem(page.offset(), &mut buf);
+        program.set_page(page, &buf);
+    }
+
+    let mut messages = vec![];
+
+    program.set_message_nonce(ext.messages.nonce());
+    let (outgoing, reply) = ext.messages.drain();
+
+    for outgoing_msg in outgoing {
+        messages.push(outgoing_msg.clone());
+        context.push_message(outgoing_msg.into_message(program.id()));
+    }
+
     let gas_left = ext.gas_counter.left();
+    let gas_requested = ext.gas_requested;
+    let gas_spent = gas_limit - gas_left - gas_requested;
 
-    res.map(move |_| {
-        // get allocated pages
-        for page in ext.memory_context.allocations().clone() {
-            let mut buf = vec![0u8; PageNumber::size()];
-            ext.get_mem(page.offset(), &mut buf);
-            program.set_page(page, &buf);
-        }
-
-        let mut messages = vec![];
-
-        program.set_message_nonce(ext.messages.nonce());
-        let (outgoing, reply) = ext.messages.drain();
-
-        for outgoing_msg in outgoing {
-            messages.push(outgoing_msg.clone());
-            context.push_message(outgoing_msg.into_message(program.id()));
-        }
-
-        let gas_left = ext.gas_counter.left();
-        let gas_requested = ext.gas_requested;
-        let gas_spent = gas_limit - gas_left - gas_requested;
-
-        RunResult {
-            messages,
-            reply,
-            gas_left,
-            gas_spent,
-            gas_requested,
-        }
-    })
-    .map_err(|error| ErrorWithGasLeft { error, gas_left })
+    RunResult {
+        messages,
+        reply,
+        gas_left,
+        gas_spent,
+        gas_requested,
+        was_trap,
+    }
 }
 
 #[cfg(test)]

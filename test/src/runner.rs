@@ -155,32 +155,12 @@ where
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
-            match runner.run_next() {
-                Ok(_) => {
-                    continue;
-                }
-                Err(err) => {
-                    if step_no + 1 == steps {
-                        result = Err(err);
-                    }
-                    continue;
-                }
+            if runner.run_next().traps > 0 && step_no + 1 == steps {
+                result = Err(anyhow::anyhow!("Runner resulted in a trap"));
             }
         }
     } else {
-        loop {
-            let handled = match runner.run_next() {
-                Err(e) => {
-                    result = Err(e);
-                    0
-                }
-                Ok(result) => result.handled,
-            };
-
-            if handled == 0 {
-                break;
-            }
-        }
+        while runner.run_next().handled != 0 {}
     }
 
     let storage = runner.complete();
