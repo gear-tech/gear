@@ -153,10 +153,7 @@ pub trait GearExecutor {
             value,
         );
 
-        let result = runner.run_next().map_err(|e| {
-            log::error!("Error process message: {:?}", e);
-            Error::Runner
-        })?;
+        let result = runner.run_next();
 
         runner.complete();
 
