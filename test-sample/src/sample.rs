@@ -84,12 +84,12 @@ impl PayloadVariant {
         }
     }
 
-    pub fn as_bytes(&self) -> Vec<u8> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         self.clone().into_raw()
     }
 
     pub fn equals(&self, val: &[u8]) -> bool {
-        let bytes = self.as_bytes();
+        let bytes = self.to_bytes();
         &bytes[..] == val
     }
 }
