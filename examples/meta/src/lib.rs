@@ -66,25 +66,25 @@ fn return_slice<T>(slice: &[T]) -> *mut [i32; 2] {
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_input() -> *mut [i32; 2] {
-    return_slice(b"{ \"value\": \"u64\", \"annotation\": \"String\" }")
+    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_output() -> *mut [i32; 2] {
-    return_slice(b"{ \"old_value\": \"u64\", \"new_value\": \"u64\" }")
+    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_title() -> *mut [i32; 2] {
-    return_slice(b"Example program with metadata")
+    return_slice(br#"Example program with metadata"#)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_init_input() -> *mut [i32; 2] {
-    return_slice(b"{ \"value\": \"u64\", \"annotation\": \"String\" }")
+    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_init_output() -> *mut [i32; 2] {
-    return_slice(b"{ \"old_value\": \"u64\", \"new_value\": \"u64\" }")
+    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
 }
