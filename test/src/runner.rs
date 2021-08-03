@@ -1,7 +1,7 @@
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
-    storage::{new_in_memory, InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage},
+    storage::{new_in_memory, InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, MessageQueue, ProgramStorage, Storage},
 };
 use gear_core_runner::runner::{Config, Runner};
 use gear_test_sample::sample::{PayloadVariant, Test};
@@ -21,10 +21,31 @@ fn encode_hex(bytes: &[u8]) -> String {
 
 const SOME_FIXED_USER: u64 = 1000001;
 
-pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRunner> {
+pub trait CollectState {
+    fn collect(self) -> FinalState;
+}
+
+impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage> {
+    fn collect(self) -> FinalState {
+        let message_queue = self.message_queue;
+        let program_storage = self.program_storage;
+
+        FinalState {
+            log: message_queue.log().to_vec(),
+            messages: message_queue.drain(),
+            program_storage: program_storage.drain(),
+        }
+    }
+}
+
+pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
+    storage: Storage<MQ, PS>,
+    test: &Test,
+    fixture_no: usize,
+) -> anyhow::Result<Runner<MQ, PS>> {
     let mut runner = Runner::new(
         &Config::default(),
-        new_in_memory(Default::default(), Default::default()),
+        storage,
     );
     let mut nonce = 0;
     for program in test.programs.iter() {
@@ -105,7 +126,9 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
-pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> (FinalState, anyhow::Result<()>) {
+pub fn run<MQ: MessageQueue, PS: ProgramStorage>(mut runner: Runner<MQ, PS>, steps: Option<u64>) -> (FinalState, anyhow::Result<()>)
+    where Storage<MQ, PS>: CollectState
+{
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
@@ -137,19 +160,11 @@ pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> (FinalState, anyho
         }
     }
 
-    let InMemoryStorage {
-        message_queue,
-        program_storage,
-    } = runner.complete();
-    // sort allocation_storage for tests
-    // let mut allocation_storage = allocation_storage.drain();
-    // allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
+    let storage = runner.complete();
+
     (
-        FinalState {
-            log: message_queue.log().to_vec(),
-            messages: message_queue.drain(),
-            program_storage: program_storage.drain(),
-        },
+        storage.collect(),
         result,
     )
+
 }
