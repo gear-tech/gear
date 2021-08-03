@@ -41,9 +41,20 @@ impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage> {
 
 impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage> {
     fn collect(self) -> FinalState {
+
+        let log = self.message_queue.log;
+
+        let mut messages = Vec::new();
+
+        let mut message_queue = common::storage_queue::StorageQueue::get("g::msg::".as_bytes().to_vec());
+        while let Some(message) = message_queue.dequeue() {
+            messages.push(message);
+        }
+
         FinalState {
-            log: Vec::new(),
-            messages: Vec::new(),
+            log,
+            messages,
+            // TODO: iterate program storage to list programs here
             program_storage: Vec::new(),
         }
     }
