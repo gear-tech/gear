@@ -7,7 +7,7 @@ use gear_core::{
     program::{Program, ProgramId},
     storage,
 };
-use gear_test_sample::sample::{self, Test};
+use crate::sample::{self, Test};
 use std::{fmt, fs};
 use termion::{color, style};
 

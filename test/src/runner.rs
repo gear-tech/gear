@@ -7,7 +7,7 @@ use gear_core::{
 };
 use gear_core_runner::runner::{Config, Runner};
 use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage};
-use gear_test_sample::sample::{PayloadVariant, Test};
+use crate::sample::{PayloadVariant, Test};
 use std::fmt::Write;
 
 use regex::Regex;
