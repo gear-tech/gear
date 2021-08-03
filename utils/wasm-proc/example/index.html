@@ -1,0 +1,79 @@
+<!doctype html>
+
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>WASM Metadata</title>
+</head>
+
+<body>
+    <input type="file" id="file-selector" accept=".wasm, .wasi">
+    <p id="meta_input">Meta input: </p>
+    <p id="meta_output">Meta output: </p>
+    <script>
+        const fileSelector = document.getElementById('file-selector');
+        fileSelector.addEventListener('change', (event) => {
+            const fileList = event.target.files;
+            console.log(fileList);
+            readFile(fileList[0])
+        });
+
+        function ab2str(buf) {
+            return String.fromCharCode.apply(null, new Uint8Array(buf));
+        }
+
+        function readFile(file) {
+            const reader = new FileReader();
+            reader.addEventListener('load', (event) => {
+                var wasmBytes = event.target.result;
+                const memory = new WebAssembly.Memory({ initial: 256, maximum: 512 });
+                const importObj = {
+                    env: {
+                        abortStackOverflow: () => { throw new Error('overflow'); },
+                        table: new WebAssembly.Table({ initial: 0, maximum: 0, element: 'anyfunc' }),
+                        tableBase: 0,
+                        memory: memory,
+                        memoryBase: 1024,
+                        STACKTOP: 0,
+                        STACK_MAX: memory.buffer.byteLength,
+                        alloc: (pages) => { return memory.grow(pages) },
+                        free: (pages) => { }
+                    }
+                };
+
+                WebAssembly.instantiate(wasmBytes, importObj)
+                    .then(obj => {
+                        let result = readMeta(memory, obj.instance.exports.meta_input());
+                        document.getElementById("meta_input").innerHTML += result;
+                        result = readMeta(memory, obj.instance.exports.meta_output());
+                        document.getElementById("meta_output").innerHTML += result;
+                    });
+            });
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function readMeta(memory, ptr) {
+
+            let length = memory.buffer.slice(ptr + 4, ptr + 8);
+            length = new Uint32Array(length)[0];
+
+            let pointer = memory.buffer.slice(ptr, ptr + 4);
+            pointer = new Uint32Array(pointer)[0];
+
+            console.log("vec -> ", pointer);
+
+            let buf = memory.buffer.slice(pointer, pointer + length);
+            console.log(buf);
+            return ab2str(buf);
+        }
+    </script>
+
+    <script>
+
+
+    </script>
+</body>
+
+</html>
