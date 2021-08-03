@@ -51,7 +51,7 @@ impl GearTestCmd {
     }
 }
 
-impl CliConfiguratcion for GearTestCmd {
+impl CliConfiguration for GearTestCmd {
     fn shared_params(&self) -> &SharedParams {
         &self.shared_params
     }
