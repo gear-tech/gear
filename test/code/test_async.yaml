@@ -1,20 +1,48 @@
-title: basic
+title: Async-await
 
 programs:
-- id: 1
-  path: examples/target/wasm32-unknown-unknown/release/demo_async.wasm
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/demo_async.wasm
+
+  - id: 2
+    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
 
 fixtures:
-- title: async
-  messages:
-  - payload:
-      kind: utf-8
-      value: call
-    destination: 1
-  expected:
-  - step: 1
-    log:
-    - payload:
-        kind: utf-8
-        value: async_result
-      destination: 0
+  - title: async-await
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: START
+
+    expected:
+      - step: 1
+        log:
+          - destination: 0
+            payload:
+              kind: utf-8
+              value: LOG
+
+        messages:
+          - destination: 2
+            payload: &ping
+              kind: utf-8
+              value: PING
+
+      - step: 2
+        messages:
+          - destination: 1
+            payload: &pong
+              kind: utf-8
+              value: PONG
+
+      - step: 3
+        messages:
+          - destination: 2
+            payload: *ping
+
+      - step: 4
+        messages:
+          - destination: 1
+            payload: *pong
