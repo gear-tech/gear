@@ -619,10 +619,6 @@ fn run(
     let gas_requested = ext.gas_requested;
     let gas_spent = gas_limit - gas_left - gas_requested;
 
-    let gas_left = ext.gas_counter.left();
-    let gas_requested = ext.gas_requested;
-    let gas_spent = gas_limit - gas_left - gas_requested;
-
     RunResult {
         messages,
         reply,
