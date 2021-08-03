@@ -67,6 +67,18 @@
                             "destination": 2
                         }
                     ]
+                },
+                {
+                    "step": 4,
+                    "messages": [
+                        {
+                            "payload": {
+                                "kind": "utf-8",
+                                "value": "PONG"
+                            },
+                            "destination": 1
+                        }
+                    ]
                 }
             ]
         }
