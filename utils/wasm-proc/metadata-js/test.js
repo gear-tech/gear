@@ -6,6 +6,14 @@ const wasmMetadata = require(".");
 let wasmBytes = fs.readFileSync("../../../examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm");
 wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
 
-    assert.deepStrictEqual(metadata, { input: { value: 'u64', annotation: 'String' }, output: { old_value: 'u64', new_value: 'u64' } })
+    assert.deepStrictEqual(
+        metadata,
+        {
+            init_input: { value: 'u64', annotation: 'String' },
+            init_output: { old_value: 'u64', new_value: 'u64' },
+            input: { value: 'u64', annotation: 'String' },
+            output: { old_value: 'u64', new_value: 'u64' },
+            title: 'Example program with metadata'
+        })
 
 });

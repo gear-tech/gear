@@ -14,14 +14,21 @@ exports.getWasmMetadata = async (wasmBytes) => {
         }
     };
     let metadata = {
+        init_input: "",
+        init_output: "",
         input: "",
-        output: ""
+        output: "",
+        title: "",
     }
 
     let module = await WebAssembly.instantiate(wasmBytes, importObj);
 
+    metadata.init_input = JSON.parse(readMeta(memory, module.instance.exports.meta_init_input()));
+    metadata.init_output = JSON.parse(readMeta(memory, module.instance.exports.meta_init_output()));
     metadata.input = JSON.parse(readMeta(memory, module.instance.exports.meta_input()));
     metadata.output = JSON.parse(readMeta(memory, module.instance.exports.meta_output()));
+    metadata.title = readMeta(memory, module.instance.exports.meta_title());
+
 
     return metadata;
 
@@ -36,10 +43,7 @@ function readMeta(memory, ptr) {
     let pointer = memory.buffer.slice(ptr, ptr + 4);
     pointer = new Uint32Array(pointer)[0];
 
-    console.log("vec -> ", pointer);
-
     let buf = memory.buffer.slice(pointer, pointer + length);
-    console.log(buf);
     return ab2str(buf);
 }
 
