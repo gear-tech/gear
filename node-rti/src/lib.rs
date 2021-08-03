@@ -99,10 +99,7 @@ pub trait GearExecutor {
     fn process() -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
-        let result = runner.run_next().map_err(|e| {
-            log::error!("Error handling message: {:?}", e);
-            Error::Runner
-        })?;
+        let result = runner.run_next();
 
         let Storage { message_queue, .. } = runner.complete();
 
@@ -141,5 +138,30 @@ pub trait GearExecutor {
         let Storage { message_queue, .. } = runner.complete();
 
         Ok(ExecutionReport::collect(message_queue, result))
+    }
+
+    fn gas_spent(program_id: H256, payload: Vec<u8>, value: u128) -> Result<u64, Error> {
+        let mut runner = crate::runner::new();
+
+        runner.queue_message(
+            // TODO: find a better way to generate source
+            ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
+            gear_common::caller_nonce_fetch_inc(H256::from_low_u64_be(1)),
+            ProgramId::from_slice(&program_id[..]),
+            payload,
+            u64::MAX,
+            value,
+        );
+
+        let result = runner.run_next();
+
+        runner.complete();
+
+        if let Some(gas_spent) = result.gas_spent.first() {
+            Ok(gas_spent.1)
+        } else {
+            log::error!("gas_spent: Empty run result");
+            Err(Error::Runner)
+        }
     }
 }

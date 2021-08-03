@@ -1,0 +1,19 @@
+title: Trap test
+
+programs:
+- id: 1
+  path: examples/target/wasm32-unknown-unknown/release/demo_panicker.wasm
+
+fixtures:
+- title: Test for trap result
+  messages:
+  - destination: 1
+    payload:
+      kind: utf-8
+      value: empty here
+  expected:
+  - step: 1
+    allowError: true
+    log:
+    - destination: 0
+      exitCode: 1

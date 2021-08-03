@@ -1,11 +1,12 @@
 [package]
-name = "gear-test-sample"
+name = "demo-panicker"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
 license = "GPL-3.0"
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
-hex = "0.4.2"
-serde = { version = "*", features = ["derive"] }
-serde_yaml = "0.8.17"
+gstd = { path = "../../gstd", features = ["debug"] }

@@ -6,7 +6,7 @@ use core::cell::RefCell;
 use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
-use crate::message::{MessageId, OutgoingPacket, ReplyPacket};
+use crate::message::{ExitCode, MessageId, OutgoingPacket, ReplyPacket};
 use crate::program::ProgramId;
 
 /// Page access rights.
@@ -49,7 +49,7 @@ pub trait Ext {
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
 
     /// Read the message id, if current message is a reply.
-    fn reply_to(&self) -> Option<MessageId>;
+    fn reply_to(&self) -> Option<(MessageId, ExitCode)>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> ProgramId;
@@ -168,7 +168,7 @@ mod tests {
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
             Ok(())
         }
-        fn reply_to(&self) -> Option<MessageId> {
+        fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
             None
         }
         fn source(&mut self) -> ProgramId {

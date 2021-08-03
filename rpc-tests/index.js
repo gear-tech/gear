@@ -11,6 +11,7 @@ const { xxhashAsHex, blake2AsU8a } = require('@polkadot/util-crypto');
 // import the test keyring (already has dev keys for Alice, Bob, Charlie, Eve & Ferdie)
 const testKeyring = require('@polkadot/keyring/testing');
 const fs = require('fs');
+const yaml = require('js-yaml');
 
 function xxKey(module, key) {
   return xxhashAsHex(module, 128) + xxhashAsHex(key, 128).slice(2);
@@ -314,12 +315,12 @@ async function processTest(test, api, sudoPair) {
 async function main() {
   const tests = [];
 
-  // Load json files
+  // Load yaml files
   process.argv.slice(2).forEach((path) => {
     const fileContents = fs.readFileSync(path, 'utf8');
 
     try {
-      const data = JSON.parse(fileContents);
+      const data = yaml.load(fileContents);
       tests.push(data);
     } catch (err) {
       console.error(err);
@@ -345,7 +346,7 @@ async function main() {
         payload: 'Vec<u8>',
         gas_limit: 'u64',
         value: 'u128',
-        reply: 'Option<H256>',
+        reply: 'Option<(H256, i32)>',
       },
       Node: {
         value: 'Message',
