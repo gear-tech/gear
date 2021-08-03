@@ -264,7 +264,7 @@ where storage::Storage<MQ, PS>: CollectState
             for exp in &test.fixtures[fixture_no].expected {
                 let output = match runner::init_fixture(storage_factory(), &test, fixture_no) {
                     Ok(initialized_fixture) => {
-                        let (mut final_state, result) = runner::run(initialized_fixture, exp.step);
+                        let (mut final_state, _result) = runner::run(initialized_fixture, exp.step);
 
                         let mut errors = Vec::new();
                         if !skip_messages {

@@ -1,7 +1,7 @@
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
-    storage::{new_in_memory, InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, MessageQueue, ProgramStorage, Storage},
+    storage::{InMemoryMessageQueue, InMemoryProgramStorage, MessageQueue, ProgramStorage, Storage},
 };
 use gear_core_runner::runner::{Config, Runner};
 use gear_test_sample::sample::{PayloadVariant, Test};
@@ -9,8 +9,6 @@ use std::fmt::Write;
 use gear_node_rti::ext::{ExtProgramStorage, ExtMessageQueue};
 
 use regex::Regex;
-
-type InMemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage>;
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);

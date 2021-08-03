@@ -16,14 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use rti::ext::ExtProgramStorage;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
-use std::{fs, path::Path};
-use termion::{color, style};
 
-use gear_core::{memory::PAGE_SIZE, message::Message, program::ProgramId, storage::ProgramStorage};
-use gear_test_sample::sample;
 use frame_system as system;
 
 use crate::GearTestCmd;
