@@ -2201,8 +2201,9 @@ dependencies = [
  "gear-core",
  "gear-core-runner",
  "gear-node-rti",
- "gear-test-sample",
+ "hex",
  "regex",
+ "serde",
  "serde_yaml",
  "termion",
 ]
@@ -2218,24 +2219,13 @@ dependencies = [
  "gear-node-rti",
  "gear-runtime",
  "gear-test",
- "gear-test-sample",
  "parity-scale-codec",
  "regex",
  "sc-cli",
  "sc-service",
- "serde_yaml",
  "sp-io",
  "structopt",
  "termion",
-]
-
-[[package]]
-name = "gear-test-sample"
-version = "0.1.0"
-dependencies = [
- "hex",
- "serde",
- "serde_yaml",
 ]
 
 [[package]]

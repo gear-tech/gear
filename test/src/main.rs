@@ -1,5 +1,6 @@
-pub mod check;
+mod check;
 mod runner;
+mod sample;
 
 use gear_core::storage;
 
