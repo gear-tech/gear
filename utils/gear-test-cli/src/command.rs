@@ -31,7 +31,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 }
 
 impl GearTestCmd {
-    /// Runs tests from json files.
+    /// Runs tests from `.yaml` files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         new_test_ext().execute_with(|| {
             gear_test::check::check_main(self.input.to_vec(), true, false, false, false, || {

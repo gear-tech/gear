@@ -1,0 +1,36 @@
+title: basic
+
+programs:
+- id: 1
+  path: examples/target/wasm32-unknown-unknown/release/demo_sum.wasm
+  init_message:
+    kind: utf-8
+    value: "{2}"
+- id: 2
+  path: examples/target/wasm32-unknown-unknown/release/demo_vec.wasm
+
+fixtures:
+- title: test-vec (20000 * size_of(i32) = 80 KiB = 2 pages)
+  messages:
+  - destination: 1
+    payload:
+      kind: i32
+      value: 10000
+  expected:
+  - step: 2
+    messages:
+    - destination: 1
+      payload:
+        kind: i32
+        value: 20000
+    allocations:
+    - page_num: 17
+      program_id: 1
+    - page_num: 17
+      program_id: 2
+    - page_num: 18
+      program_id: 2
+    memory:
+    - program_id: 2
+      at: '0x1238d4'
+      bytes: '0x01000000'

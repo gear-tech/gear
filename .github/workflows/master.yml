@@ -60,7 +60,7 @@ jobs:
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
 
       - name: Run gear-test
-        run: ./target/release/gtest test/json/*.json
+        run: ./target/release/gtest test/code/*.yaml
 
       - name: Install nodejs
         uses: actions/setup-node@v2
@@ -69,10 +69,9 @@ jobs:
       - run: cd rpc-tests && npm install
 
       - name: Run testsuite
-        run: |
-          ./target/release/gear-node runtests ./test/json/*.json
+        run: ./target/release/gear-node runtests ./test/code/*.yaml
 
       - name: Run rpc-test
         run: |
           ./target/release/gear-node --dev & sleep 5
-          node rpc-tests/index.js ./test/json/*.json
+          node rpc-tests/index.js ./test/code/*.yaml

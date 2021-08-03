@@ -70,7 +70,7 @@ release:
 .PHONY: rpc-test
 rpc-test:
 	@./scripts/build-wasm.sh
-	@node rpc-tests/index.js ./test/json/*.json
+	@node rpc-tests/index.js ./test/code/*.yaml
 
 .PHONY: test
 test:
