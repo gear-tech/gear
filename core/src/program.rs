@@ -186,6 +186,13 @@ impl Program {
         self.message_nonce = val;
     }
 
+    /// Fetch and incremet message nonce
+    pub fn fetch_inc_message_nonce(&mut self) -> u64 {
+        let nonce = self.message_nonce;
+        self.message_nonce += 1;
+        nonce
+    }
+
     /// Reset the program.
     pub fn reset(&mut self, code: Vec<u8>) {
         self.set_code(code);

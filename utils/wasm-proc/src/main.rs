@@ -30,8 +30,17 @@ fn main() {
     // Invoke optimizer for the metadata
     let mut metadata_module = module.clone();
     let metadata_file_name = PathBuf::from(input).with_extension("meta.wasm");
-    utils::optimize(&mut metadata_module, vec!["meta_input", "meta_output"])
-        .expect("Metadata optimizer failed");
+    utils::optimize(
+        &mut metadata_module,
+        vec![
+            "meta_input",
+            "meta_output",
+            "meta_init_input",
+            "meta_init_output",
+            "meta_title",
+        ],
+    )
+    .expect("Metadata optimizer failed");
     parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
         .expect("Serialization failed");
 

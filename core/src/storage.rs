@@ -128,6 +128,14 @@ pub fn new_in_memory(messages: Vec<Message>, programs: Vec<Program>) -> InMemory
     }
 }
 
+/// Create new empty in-memory storage for tests.
+pub fn new_in_memory_empty() -> InMemoryStorage {
+    Storage {
+        message_queue: InMemoryMessageQueue::new(Default::default()),
+        program_storage: InMemoryProgramStorage::new(Default::default()),
+    }
+}
+
 #[cfg(test)]
 /// This module contains tests of parts of InMemoryStorage:
 /// of allocation storage, message queue storage and program storage
