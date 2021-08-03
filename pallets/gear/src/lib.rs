@@ -423,6 +423,12 @@ pub mod pallet {
         }
     }
 
+    impl<T: Config> Pallet<T> {
+        pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> u64 {
+            rti::gear_executor::gas_spent(destination, payload, 0).unwrap_or(0)
+        }
+    }
+
     impl<T: Config> frame_support::inherent::ProvideInherent for Pallet<T>
     where
         T::AccountId: Origin,

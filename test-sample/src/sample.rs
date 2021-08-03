@@ -140,7 +140,11 @@ fn check_sample() {
           value: PING
       expected:
       - step: 1
-        messages: []
+        log:
+        - destination: 0
+          payload:
+            kind: utf-8
+            value: PONG
     "#;
 
     let test: Test = serde_yaml::from_str(yaml).unwrap();

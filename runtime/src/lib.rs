@@ -72,6 +72,9 @@ pub type Signature = MultiSignature;
 /// to the public key of our transaction signing scheme.
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
+/// Some way of identifying a program on the chain.
+pub type ProgramId = sp_core::H256;
+
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
 pub type AccountIndex = u32;
@@ -500,6 +503,16 @@ impl_runtime_apis! {
             len: u32,
         ) -> pallet_transaction_payment::FeeDetails<Balance> {
             TransactionPayment::query_fee_details(uxt, len)
+        }
+    }
+
+    // Here we implement our custom runtime API.
+    impl gear_rpc_runtime_api::GearApi<Block, ProgramId> for Runtime {
+        fn get_gas_spent(
+            program_id: ProgramId,
+            payload: Vec<u8>,
+        ) -> u64 {
+            Gear::get_gas_spent(program_id, payload)
         }
     }
 

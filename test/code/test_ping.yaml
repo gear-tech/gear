@@ -13,4 +13,8 @@ fixtures:
       value: PING
   expected:
   - step: 1
-    messages: []
+    log:
+    - destination: 0
+      payload:
+        kind: utf-8
+        value: PONG

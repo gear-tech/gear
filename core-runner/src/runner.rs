@@ -97,7 +97,7 @@ impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
 
         self.nonce += 1;
 
-        MessageId::from_slice(&blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+        MessageId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
     }
 
     fn current(&self) -> u64 {
@@ -558,6 +558,14 @@ fn run(
             context.push_message(outgoing_msg.into_message(program.id()));
         }
 
+        if let Some(reply_message) = &reply {
+            context.push_message(reply_message.clone().into_message(
+                message.id(),
+                program.id(),
+                message.source(),
+            ));
+        }
+
         let gas_left = ext.gas_counter.left();
         let gas_requested = ext.gas_requested;
         let gas_spent = gas_limit - gas_left - gas_requested;
@@ -642,7 +650,7 @@ mod tests {
         match runner.run_next() {
             Ok(_) => panic!("This should be an error that we run "),
             Err(anyhow_err) => {
-                format!("{}", anyhow_err).contains("Not running in the reply context");
+                assert!(format!("{}", anyhow_err).contains("Not running in the reply context"));
             }
         };
 
