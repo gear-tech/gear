@@ -4,7 +4,7 @@
 use gstd::{msg, prelude::*};
 use gstd_async::msg as msg_async;
 
-const PING_PROGRAM_ID: u64 = 3;
+const PING_PROGRAM_ID: u64 = 2;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -13,6 +13,11 @@ pub unsafe extern "C" fn handle() {
     if message == "START" {
         gstd_async::block_on(handle_async());
     }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn handle_reply() {
+    gstd_async::block_on(handle_async());
 }
 
 #[no_mangle]

@@ -4,6 +4,10 @@
         {
             "id": 1,
             "path": "examples/target/wasm32-unknown-unknown/release/demo_async.wasm"
+        },
+        {
+            "id": 2,
+            "path": "examples/target/wasm32-unknown-unknown/release/demo_ping.wasm"
         }
     ],
     "fixtures": [
@@ -28,6 +32,39 @@
                                 "value": "LOG"
                             },
                             "destination": 0
+                        }
+                    ],
+                    "messages": [
+                        {
+                            "payload": {
+                                "kind": "utf-8",
+                                "value": "PING"
+                            },
+                            "destination": 2
+                        }
+                    ]
+                },
+                {
+                    "step": 2,
+                    "messages": [
+                        {
+                            "payload": {
+                                "kind": "utf-8",
+                                "value": "PONG"
+                            },
+                            "destination": 1
+                        }
+                    ]
+                },
+                {
+                    "step": 3,
+                    "messages": [
+                        {
+                            "payload": {
+                                "kind": "utf-8",
+                                "value": "PING"
+                            },
+                            "destination": 2
                         }
                     ]
                 }
