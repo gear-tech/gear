@@ -53,7 +53,7 @@ pub fn main() -> anyhow::Result<()> {
         opts.skip_messages,
         opts.skip_allocations,
         opts.skip_memory,
-        opts.print_log,
+        print_log,
         || storage::new_in_memory_empty(),
     )
 }
