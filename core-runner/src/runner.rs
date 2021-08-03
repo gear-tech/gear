@@ -112,7 +112,7 @@ impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
 
         self.nonce += 1;
 
-        MessageId::from_slice(&blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+        MessageId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
     }
 
     fn current(&self) -> u64 {
@@ -606,6 +606,18 @@ fn run(
         messages.push(outgoing_msg.clone());
         context.push_message(outgoing_msg.into_message(program.id()));
     }
+
+    if let Some(reply_message) = &reply {
+        context.push_message(reply_message.clone().into_message(
+            message.id(),
+            program.id(),
+            message.source(),
+        ));
+    }
+
+    let gas_left = ext.gas_counter.left();
+    let gas_requested = ext.gas_requested;
+    let gas_spent = gas_limit - gas_left - gas_requested;
 
     let gas_left = ext.gas_counter.left();
     let gas_requested = ext.gas_requested;

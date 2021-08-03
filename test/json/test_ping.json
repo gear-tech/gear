@@ -21,7 +21,15 @@
             "expected": [
                 {
                     "step": 1,
-                    "messages": []
+                    "log": [
+                        {
+                            "payload": {
+                                "kind": "utf-8",
+                                "value": "PONG"
+                            },
+                            "destination": 0
+                        }
+                    ]
                 }
             ]
         }
