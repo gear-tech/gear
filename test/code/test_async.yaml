@@ -3,6 +3,9 @@ title: Async-await
 programs:
   - id: 1
     path: examples/target/wasm32-unknown-unknown/release/demo_async.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
 
   - id: 2
     path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
