@@ -86,6 +86,14 @@ impl MessagesError {
     }
 }
 
+fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl FnOnce(T, T)) {
+    if let Some(expected) = expectation {
+        if expected != value {
+            f(expected, value);
+        }
+    }
+}
+
 fn check_messages(
     messages: &[Message],
     expected_messages: &[sample::Message],
@@ -102,13 +110,6 @@ fn check_messages(
             .zip(messages.iter())
             .enumerate()
             .for_each(|(position, (exp, msg))| {
-                if ProgramId::from(exp.destination) != msg.dest {
-                    errors.push(MessagesError::destination(
-                        position,
-                        exp.destination.into(),
-                        msg.dest,
-                    ))
-                }
                 if exp
                     .payload
                     .as_ref()
@@ -125,38 +126,26 @@ fn check_messages(
                         msg.payload.clone().into_raw(),
                     ))
                 }
-                if let Some(expected_gas_limit) = exp.gas_limit {
-                    if expected_gas_limit != msg.gas_limit {
-                        errors.push(MessagesError::gas_limit(
-                            position,
-                            expected_gas_limit,
-                            msg.gas_limit,
-                        ))
-                    }
-                }
 
-                if let Some(expected_exit_code) = exp.exit_code {
-                    match msg.reply {
-                        Some((_, exit_code)) => {
-                            if exit_code != expected_exit_code {
-                                errors.push(MessagesError::exit_code(
-                                    position,
-                                    expected_exit_code,
-                                    exit_code,
-                                ))
-                            }
-                        }
-                        None => {
-                            if expected_exit_code != 0 {
-                                errors.push(MessagesError::exit_code(
-                                    position,
-                                    expected_exit_code,
-                                    0,
-                                ))
-                            }
-                        }
-                    }
-                }
+                match_or_else(
+                    Some(ProgramId::from(exp.destination)),
+                    msg.dest,
+                    |expected, actual| {
+                        errors.push(MessagesError::destination(position, expected, actual))
+                    },
+                );
+
+                match_or_else(exp.gas_limit, msg.gas_limit, |expected, actual| {
+                    errors.push(MessagesError::gas_limit(position, expected, actual))
+                });
+
+                match_or_else(
+                    exp.exit_code,
+                    msg.reply.map(|(_, exit_code)| exit_code).unwrap_or(0),
+                    |expected, actual| {
+                        errors.push(MessagesError::exit_code(position, expected, actual))
+                    },
+                );
             });
     }
 
