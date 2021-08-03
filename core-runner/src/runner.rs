@@ -688,12 +688,7 @@ mod tests {
 
         runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
 
-        match runner.run_next() {
-            Ok(_) => panic!("This should be an error that we run "),
-            Err(anyhow_err) => {
-                format!("{}", anyhow_err).contains("Not running in the reply context");
-            }
-        };
+        assert_eq!(runner.run_next().traps, 1);
 
         let msg = vec![
             1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
@@ -711,7 +706,8 @@ mod tests {
             0,
         );
 
-        runner.run_next().expect("Should be ok now.");
+        assert_eq!(runner.run_next().traps, 1); // this is handling of automatic reply when first message was trapped; it will also fail
+        runner.run_next();
 
         let InMemoryStorage {
             program_storage, ..
@@ -792,7 +788,7 @@ mod tests {
             )
             .expect("failed to init program");
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -811,7 +807,7 @@ mod tests {
             0,
         );
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -892,7 +888,7 @@ mod tests {
             )
             .expect("Failed to init program");
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -912,7 +908,7 @@ mod tests {
             0,
         );
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -961,7 +957,7 @@ mod tests {
 
         runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
 
-        let result = runner.run_next().expect("Failed to process next message");
+        let result = runner.run_next();
         assert_eq!(result.gas_spent.len(), 1);
         assert_eq!(result.gas_left.len(), 1);
         assert_eq!(result.gas_requests.len(), 1);
