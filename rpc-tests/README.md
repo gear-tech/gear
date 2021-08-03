@@ -1,10 +1,10 @@
 # rpc-test
-### Command-line tool to test Gear node with JSON files.
+### Command-line tool to test Gear node with YAML files.
 
-#### Some JSON templates are defined in [json/](https://github.com/gear-tech/gear/tree/master/test/json "json/") directory.
+#### Some YAML templates are defined in [code/](https://github.com/gear-tech/gear/tree/master/test/code "code/") directory.
 
 #### Install dependecies:
 - `npm i`
 
 #### Usage:
-- `node index.js test.json`
+- `node index.js test.yaml`

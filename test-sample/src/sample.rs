@@ -1,6 +1,6 @@
 use hex::FromHex;
 use serde::{de, Deserialize, Deserializer, Serialize};
-use serde_json::Value;
+use serde_yaml::Value;
 
 fn de_address<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
     Ok(match Value::deserialize(deserializer)? {
@@ -128,56 +128,30 @@ pub struct Test {
 
 #[test]
 fn check_sample() {
-    let json = r#"{
-        "title": "basic",
-        "programs": [
-            {
-                "id": 1,
-                "path": "../../demo-chat/target/wasm32-unknown-unknown/release/demo1.wasm"
-            }
-        ],
-        "fixtures": [
-            {
-                "title": "ping-pong",
-                "messages": [
-                    {
-                        "payload": { "kind": "utf-8", "value": "PING" },
-                        "destination": 1,
-                        "gas_limit": 1000000
-                    }
-                ],
-                "expected": [
-                    {
-                        "messages": [
-                            {
-                                "payload": { "kind": "utf-8", "value": "PING" },
-                                "destination": 0
-                            },
-                            {
-                                "destination": 2
-                            }
-                        ],
-                        "allocations": [
-                            {
-                                "page_num": 256,
-                                "program_id": 1
-                            }
-                        ],
-                         "memory": [
-                            {
-                                "program_id": 1,
-                                "at": "0x100038",
-                                "bytes": "0x54455354"
-                            }
-                        ]
-                    }
-                ]
-            }
-        ]
-    }
+    let yaml = r#"
+    title: basic
+
+    programs:
+    - id: 1
+      path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    
+    fixtures:
+    - title: ping-pong
+      messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: PING
+      expected:
+      - step: 1
+        log:
+        - destination: 0
+          payload:
+            kind: utf-8
+            value: PONG
     "#;
 
-    let test: Test = serde_json::from_str(json).unwrap();
+    let test: Test = serde_yaml::from_str(yaml).unwrap();
 
     assert_eq!(test.fixtures[0].messages.len(), 1);
     assert_eq!(test.fixtures[0].messages.len(), 1);

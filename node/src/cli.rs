@@ -57,6 +57,6 @@ pub enum Subcommand {
     #[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-    #[structopt(name = "runtests", about = "Run gear tests with json.")]
+    #[structopt(name = "runtests", about = "Run gear tests with yaml.")]
     GearTest(gear_test_cli::GearTestCmd),
 }
