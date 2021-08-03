@@ -1,5 +1,5 @@
-mod runner;
 pub mod check;
+mod runner;
 
 use gear_core::storage;
 
@@ -25,7 +25,6 @@ struct Opts {
 }
 
 pub fn main() -> anyhow::Result<()> {
-
     let opts: Opts = Opts::parse();
     let mut print_log = false;
     match opts.verbose {
@@ -55,6 +54,6 @@ pub fn main() -> anyhow::Result<()> {
         opts.skip_allocations,
         opts.skip_memory,
         opts.print_log,
-        || storage::new_in_memory_empty()
+        || storage::new_in_memory_empty(),
     )
 }

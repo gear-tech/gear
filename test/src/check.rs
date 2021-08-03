@@ -1,4 +1,4 @@
-
+use crate::runner::{self, CollectState};
 use anyhow::anyhow;
 use derive_more::Display;
 use gear_core::{
@@ -10,7 +10,6 @@ use gear_core::{
 use gear_test_sample::sample::{self, Test};
 use std::{fmt, fs};
 use termion::{color, style};
-use crate::runner::{self, CollectState};
 
 #[derive(Debug, derive_more::From)]
 pub struct DisplayedPayload(Vec<u8>);
@@ -239,9 +238,9 @@ pub fn check_main<MQ: storage::MessageQueue, PS: storage::ProgramStorage>(
     print_log: bool,
     storage_factory: impl Fn() -> storage::Storage<MQ, PS>,
 ) -> anyhow::Result<()>
-where storage::Storage<MQ, PS>: CollectState
+where
+    storage::Storage<MQ, PS>: CollectState,
 {
-
     let mut tests = Vec::new();
 
     for path in files {

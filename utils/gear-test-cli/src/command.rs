@@ -34,23 +34,17 @@ impl GearTestCmd {
     /// Runs tests from json files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         new_test_ext().execute_with(|| {
-            gear_test::check::check_main(
-                self.input.to_vec(),
-                true,
-                true,
-                true,
-                true,
-                || {
-                    sp_io::storage::clear_prefix(b"g::code");
-                    sp_io::storage::clear_prefix(b"g::alloc");
-                    sp_io::storage::clear_prefix(b"g::msg");
-                    sp_io::storage::clear_prefix(b"g::prog");
-                    gear_core::storage::Storage {
-                        message_queue: rti::ext::ExtMessageQueue::default(),
-                        program_storage: rti::ext::ExtProgramStorage,
-                    }
+            gear_test::check::check_main(self.input.to_vec(), true, true, true, true, || {
+                sp_io::storage::clear_prefix(b"g::code");
+                sp_io::storage::clear_prefix(b"g::alloc");
+                sp_io::storage::clear_prefix(b"g::msg");
+                sp_io::storage::clear_prefix(b"g::prog");
+                gear_core::storage::Storage {
+                    message_queue: rti::ext::ExtMessageQueue::default(),
+                    program_storage: rti::ext::ExtProgramStorage,
                 }
-            ).expect("what is it failed?");
+            })
+            .expect("what is it failed?");
         });
 
         Ok(())

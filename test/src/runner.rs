@@ -1,12 +1,14 @@
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
-    storage::{InMemoryMessageQueue, InMemoryProgramStorage, MessageQueue, ProgramStorage, Storage},
+    storage::{
+        InMemoryMessageQueue, InMemoryProgramStorage, MessageQueue, ProgramStorage, Storage,
+    },
 };
 use gear_core_runner::runner::{Config, Runner};
+use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage};
 use gear_test_sample::sample::{PayloadVariant, Test};
 use std::fmt::Write;
-use gear_node_rti::ext::{ExtProgramStorage, ExtMessageQueue};
 
 use regex::Regex;
 
@@ -52,10 +54,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
     test: &Test,
     fixture_no: usize,
 ) -> anyhow::Result<Runner<MQ, PS>> {
-    let mut runner = Runner::new(
-        &Config::default(),
-        storage,
-    );
+    let mut runner = Runner::new(&Config::default(), storage);
     let mut nonce = 0;
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
@@ -135,8 +134,12 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
-pub fn run<MQ: MessageQueue, PS: ProgramStorage>(mut runner: Runner<MQ, PS>, steps: Option<u64>) -> (FinalState, anyhow::Result<()>)
-    where Storage<MQ, PS>: CollectState
+pub fn run<MQ: MessageQueue, PS: ProgramStorage>(
+    mut runner: Runner<MQ, PS>,
+    steps: Option<u64>,
+) -> (FinalState, anyhow::Result<()>)
+where
+    Storage<MQ, PS>: CollectState,
 {
     let mut result = Ok(());
     if let Some(steps) = steps {
@@ -171,9 +174,5 @@ pub fn run<MQ: MessageQueue, PS: ProgramStorage>(mut runner: Runner<MQ, PS>, ste
 
     let storage = runner.complete();
 
-    (
-        storage.collect(),
-        result,
-    )
-
+    (storage.collect(), result)
 }
