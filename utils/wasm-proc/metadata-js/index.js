@@ -1,4 +1,4 @@
-module.exports.getWasmMetadata = async function (wasmBytes) {
+exports.getWasmMetadata = async (wasmBytes) => {
     const memory = new WebAssembly.Memory({ initial: 256, maximum: 512 });
     const importObj = {
         env: {

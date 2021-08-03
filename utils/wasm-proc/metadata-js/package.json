@@ -1,7 +1,7 @@
 {
     "name": "gear-metadata",
     "version": "0.0.1",
-    "type": "commonjs",
+    "type": "module",
     "scripts": {
         "test": "node test.js"
     }
