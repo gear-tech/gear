@@ -32,9 +32,9 @@ impl From<Message> for crate::Message {
             payload: message.payload.into_raw(),
             gas_limit: message.gas_limit,
             value: message.value,
-            reply: message
-                .reply
-                .map(|reply| H256::from_slice(reply.as_slice())),
+            reply: message.reply.map(|(message_id, exit_code)| {
+                (H256::from_slice(message_id.as_slice()), exit_code)
+            }),
         }
     }
 }
@@ -51,7 +51,9 @@ pub fn dequeue_message() -> Option<Message> {
         payload: msg.payload.into(),
         gas_limit: msg.gas_limit,
         value: msg.value,
-        reply: msg.reply.map(|reply| MessageId::from_slice(&reply[..])),
+        reply: msg
+            .reply
+            .map(|(message_id, exit_code)| (MessageId::from_slice(&message_id[..]), exit_code)),
     })
 }
 

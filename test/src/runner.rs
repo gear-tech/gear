@@ -1,15 +1,16 @@
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
-    storage::{new_in_memory, InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage},
+    storage::{
+        InMemoryMessageQueue, InMemoryProgramStorage, MessageQueue, ProgramStorage, Storage,
+    },
 };
 use gear_core_runner::runner::{Config, Runner};
+use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage};
 use gear_test_sample::sample::{PayloadVariant, Test};
 use std::fmt::Write;
 
 use regex::Regex;
-
-type InMemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage>;
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
@@ -21,11 +22,50 @@ fn encode_hex(bytes: &[u8]) -> String {
 
 const SOME_FIXED_USER: u64 = 1000001;
 
-pub fn init_fixture(test: &Test, fixture_no: usize) -> anyhow::Result<InMemoryRunner> {
-    let mut runner = Runner::new(
-        &Config::default(),
-        new_in_memory(Default::default(), Default::default()),
-    );
+pub trait CollectState {
+    fn collect(self) -> FinalState;
+}
+
+impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage> {
+    fn collect(self) -> FinalState {
+        let message_queue = self.message_queue;
+        let program_storage = self.program_storage;
+
+        FinalState {
+            log: message_queue.log().to_vec(),
+            messages: message_queue.drain(),
+            program_storage: program_storage.drain(),
+        }
+    }
+}
+
+impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage> {
+    fn collect(self) -> FinalState {
+        let log = self.message_queue.log;
+
+        let mut messages = Vec::new();
+
+        let mut message_queue =
+            common::storage_queue::StorageQueue::get("g::msg::".as_bytes().to_vec());
+        while let Some(message) = message_queue.dequeue() {
+            messages.push(message);
+        }
+
+        FinalState {
+            log,
+            messages,
+            // TODO: iterate program storage to list programs here
+            program_storage: Vec::new(),
+        }
+    }
+}
+
+pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
+    storage: Storage<MQ, PS>,
+    test: &Test,
+    fixture_no: usize,
+) -> anyhow::Result<Runner<MQ, PS>> {
+    let mut runner = Runner::new(&Config::default(), storage);
     let mut nonce = 0;
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
@@ -105,25 +145,25 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
-pub fn run(mut runner: InMemoryRunner, steps: Option<u64>) -> anyhow::Result<FinalState> {
+pub fn run<MQ: MessageQueue, PS: ProgramStorage>(
+    mut runner: Runner<MQ, PS>,
+    steps: Option<u64>,
+) -> (FinalState, anyhow::Result<()>)
+where
+    Storage<MQ, PS>: CollectState,
+{
+    let mut result = Ok(());
     if let Some(steps) = steps {
-        for _ in 0..steps {
-            runner.run_next()?;
+        for step_no in 0..steps {
+            if runner.run_next().traps > 0 && step_no + 1 == steps {
+                result = Err(anyhow::anyhow!("Runner resulted in a trap"));
+            }
         }
     } else {
-        while runner.run_next()?.handled > 0 {}
+        while runner.run_next().handled != 0 {}
     }
 
-    let InMemoryStorage {
-        message_queue,
-        program_storage,
-    } = runner.complete();
-    // sort allocation_storage for tests
-    // let mut allocation_storage = allocation_storage.drain();
-    // allocation_storage.sort_by(|a, b| a.0.raw().partial_cmp(&b.0.raw()).unwrap());
-    Ok(FinalState {
-        log: message_queue.log().to_vec(),
-        messages: message_queue.drain(),
-        program_storage: program_storage.drain(),
-    })
+    let storage = runner.complete();
+
+    (storage.collect(), result)
 }

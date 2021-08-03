@@ -13,9 +13,11 @@ env_logger = "0.8"
 gear-core = { path = "../core" }
 gear-core-runner = { path = "../core-runner" }
 gear-test-sample = { path = "../test-sample" }
+common = { package = "gear-common", path = "../common" }
 regex = "1.4.5"
 serde_yaml = "0.8.17"
 termion = "1.5.6"
+gear-node-rti = { path = "../node-rti" }
 
 [[bin]]
 name = "gtest"
@@ -24,3 +26,5 @@ path = "src/main.rs"
 [profile.release]
 lto = true
 opt-level = 's'
+
+[lib]

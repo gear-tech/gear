@@ -38,6 +38,8 @@ pub struct Expectation {
     pub allocations: Option<Vec<AllocationStorage>>,
     pub memory: Option<Vec<BytesAt>>,
     pub log: Option<Vec<Message>>,
+    #[serde(rename = "allowError")]
+    pub allow_error: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -114,6 +116,8 @@ pub struct Message {
     pub payload: Option<PayloadVariant>,
     pub gas_limit: Option<u64>,
     pub value: Option<u64>,
+    #[serde(rename = "exitCode")]
+    pub exit_code: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

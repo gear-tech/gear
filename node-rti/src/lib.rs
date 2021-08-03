@@ -99,10 +99,7 @@ pub trait GearExecutor {
     fn process() -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
-        let result = runner.run_next().map_err(|e| {
-            log::error!("Error handling message: {:?}", e);
-            Error::Runner
-        })?;
+        let result = runner.run_next();
 
         let Storage { message_queue, .. } = runner.complete();
 
@@ -156,10 +153,7 @@ pub trait GearExecutor {
             value,
         );
 
-        let result = runner.run_next().map_err(|e| {
-            log::error!("Error process message: {:?}", e);
-            Error::Runner
-        })?;
+        let result = runner.run_next();
 
         runner.complete();
 

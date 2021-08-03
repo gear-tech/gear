@@ -247,8 +247,8 @@ fn messages_processing_works() {
             },
         ]);
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::messages_processed(), 2); // Counter not reset, 1 added
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+        assert_eq!(Gear::messages_processed(), 3); // Counter not reset, 1 added
     })
 }
 
