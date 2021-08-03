@@ -4,7 +4,7 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
-use core::fmt;
+use core::{cmp, fmt};
 
 use crate::memory::{PageBuf, PageNumber};
 
@@ -16,7 +16,8 @@ pub struct ProgramId([u8; 32]);
 
 impl fmt::Display for ProgramId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", crate::util::encode_hex(&self.0[..]))
+        let p = cmp::min(self.0.len(), f.precision().unwrap_or(self.0.len()));
+        write!(f, "{}", crate::util::encode_hex(&self.0[0..p]))
     }
 }
 

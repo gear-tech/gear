@@ -9,8 +9,8 @@ static mut MESSAGE_LOG: Vec<String> = vec![];
 pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
 
-    if &new_msg == "PING" {
-        msg::send(msg::source(), b"PONG", u64::MAX, 0);
+    if new_msg == "PING" {
+        msg::reply(b"PONG", u64::MAX, 0);
     }
 
     MESSAGE_LOG.push(new_msg);
