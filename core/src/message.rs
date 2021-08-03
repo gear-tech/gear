@@ -330,6 +330,7 @@ impl Message {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// New system message to the specific program.
     pub fn new_reply(
         id: MessageId,
