@@ -9,6 +9,7 @@ members = [
     "fib",
     "meta",
     "minimal",
+    "panicker",
     "ping",
     "sum",
     "vec",

@@ -4,7 +4,6 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
-use anyhow::{Error, Result};
 use codec::{Decode, Encode};
 
 use gear_core::{
@@ -12,8 +11,8 @@ use gear_core::{
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
     memory::{Memory, MemoryContext, PageNumber},
     message::{
-        IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator, OutgoingMessage,
-        OutgoingPacket, ReplyMessage, ReplyPacket,
+        ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
+        OutgoingMessage, OutgoingPacket, ReplyMessage, ReplyPacket,
     },
     program::{Program, ProgramId},
     storage::{MessageQueue, ProgramStorage, Storage},
@@ -28,6 +27,8 @@ pub struct Config {
     pub max_pages: PageNumber,
 }
 
+const EXIT_CODE_PANIC: i32 = 1;
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -41,6 +42,8 @@ impl Default for Config {
 pub struct RunNextResult {
     /// How many messages were handled
     pub handled: u32,
+    /// How many messages ended as traps
+    pub traps: u32,
     /// Gas that was left.
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
@@ -58,9 +61,21 @@ impl RunNextResult {
         }
     }
 
+    /// Result that notes that some failed program has been tried to run but nothing really happened.
+    pub(crate) fn trap() -> Self {
+        RunNextResult {
+            handled: 1,
+            traps: 1,
+            ..Default::default()
+        }
+    }
+
     /// Accrue one run of the message hadling.
     pub fn accrue(&mut self, caller_id: ProgramId, program_id: ProgramId, result: RunResult) {
         self.handled += 1;
+        if result.was_trap {
+            self.traps += 1;
+        }
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
@@ -140,11 +155,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
-    pub fn run_next(&mut self) -> Result<RunNextResult> {
+    pub fn run_next(&mut self) -> RunNextResult {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
             None => {
-                return Ok(RunNextResult::empty());
+                return RunNextResult::empty();
             }
         };
 
@@ -155,12 +170,22 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                     log::debug!("msg to /0: {:?}", next_message.payload())
                 }
             }
-            Ok(RunNextResult::log())
+            RunNextResult::log()
         } else {
-            let mut program = self
-                .program_storage
-                .get(next_message.dest())
-                .ok_or_else(|| Error::msg("Program not found"))?;
+            let mut program = match self.program_storage.get(next_message.dest()) {
+                Some(program) => program,
+                None => {
+                    return RunNextResult::trap();
+                }
+            };
+
+            let instrumeted_code = match gas::instrument(program.code()) {
+                Ok(code) => code,
+                Err(err) => {
+                    log::debug!("Instrumentation error: {:?}", err);
+                    return RunNextResult::trap();
+                }
+            };
 
             let allocations: BTreeSet<PageNumber> = program
                 .get_pages()
@@ -171,31 +196,49 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             let mut context = self.create_context(allocations);
 
             let gas_limit = next_message.gas_limit();
+            let next_message_id = next_message.id();
+            let next_message_source = next_message.source();
+            let next_message_dest = next_message.dest();
 
-            let result = RunNextResult::from_single(
-                next_message.source(),
-                next_message.dest(),
-                run(
-                    &mut self.env,
-                    &mut context,
-                    &gas::instrument(program.code())
-                        .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-                    &mut program,
-                    if next_message.reply().is_some() {
-                        EntryPoint::HandleReply
-                    } else {
-                        EntryPoint::Handle
-                    },
-                    &next_message.into(),
-                    gas_limit,
-                )?,
+            let run_result = run(
+                &mut self.env,
+                &mut context,
+                &instrumeted_code,
+                &mut program,
+                if next_message.reply().is_some() {
+                    EntryPoint::HandleReply
+                } else {
+                    EntryPoint::Handle
+                },
+                &next_message.into(),
+                gas_limit,
             );
+
+            if run_result.was_trap {
+                // In case of trap, we generate trap reply message
+                let program_id = program.id();
+                let nonce = program.fetch_inc_message_nonce();
+                let trap_message_id = self.next_message_id(program_id, nonce);
+
+                self.message_queue.queue(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                });
+            }
+
+            let result =
+                RunNextResult::from_single(next_message_source, next_message_dest, run_result);
 
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
             self.program_storage.set(program);
 
-            Ok(result)
+            result
         }
     }
 
@@ -238,7 +281,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         init_msg: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<RunResult> {
+    ) -> anyhow::Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(program_id) {
             program.reset(code.to_vec());
             self.program_storage.set(program);
@@ -276,7 +319,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             EntryPoint::Init,
             &msg,
             gas_limit,
-        )?;
+        );
 
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
@@ -327,6 +370,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         gas_limit: u64,
         value: u128,
         reply_to: MessageId,
+        exit_code: ExitCode,
     ) {
         let message_id = self.next_message_id(source, nonce);
         self.message_queue.queue(Message::new_reply(
@@ -337,6 +381,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             gas_limit,
             value,
             reply_to,
+            exit_code,
         ));
     }
 }
@@ -397,6 +442,8 @@ pub struct RunResult {
     pub gas_spent: u64,
     /// Gas requested to be transferred.
     pub gas_requested: u64,
+    /// Run result was a trap
+    pub was_trap: bool,
 }
 
 struct Ext {
@@ -443,7 +490,7 @@ impl EnvExt for Ext {
         self.messages.reply(msg).map_err(|_e| "Reply error")
     }
 
-    fn reply_to(&self) -> Option<MessageId> {
+    fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
         self.messages.current().reply()
     }
 
@@ -509,7 +556,7 @@ fn run(
     entry_point: EntryPoint,
     message: &IncomingMessage,
     gas_limit: u64,
-) -> Result<RunResult> {
+) -> RunResult {
     let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
@@ -540,44 +587,46 @@ fn run(
         entry_point.into(),
     );
 
-    res.map(move |_| {
-        // get allocated pages
-        for page in ext.memory_context.allocations().clone() {
-            let mut buf = vec![0u8; PageNumber::size()];
-            ext.get_mem(page.offset(), &mut buf);
-            program.set_page(page, &buf);
-        }
+    let was_trap = res.is_err();
+    let _res = res.unwrap_or_default();
 
-        let mut messages = vec![];
+    // get allocated pages
+    for page in ext.memory_context.allocations().clone() {
+        let mut buf = vec![0u8; PageNumber::size()];
+        ext.get_mem(page.offset(), &mut buf);
+        program.set_page(page, &buf);
+    }
 
-        program.set_message_nonce(ext.messages.nonce());
-        let (outgoing, reply) = ext.messages.drain();
+    let mut messages = vec![];
 
-        for outgoing_msg in outgoing {
-            messages.push(outgoing_msg.clone());
-            context.push_message(outgoing_msg.into_message(program.id()));
-        }
+    program.set_message_nonce(ext.messages.nonce());
+    let (outgoing, reply) = ext.messages.drain();
 
-        if let Some(reply_message) = &reply {
-            context.push_message(reply_message.clone().into_message(
-                message.id(),
-                program.id(),
-                message.source(),
-            ));
-        }
+    for outgoing_msg in outgoing {
+        messages.push(outgoing_msg.clone());
+        context.push_message(outgoing_msg.into_message(program.id()));
+    }
 
-        let gas_left = ext.gas_counter.left();
-        let gas_requested = ext.gas_requested;
-        let gas_spent = gas_limit - gas_left - gas_requested;
+    if let Some(reply_message) = &reply {
+        context.push_message(reply_message.clone().into_message(
+            message.id(),
+            program.id(),
+            message.source(),
+        ));
+    }
 
-        RunResult {
-            messages,
-            reply,
-            gas_left,
-            gas_spent,
-            gas_requested,
-        }
-    })
+    let gas_left = ext.gas_counter.left();
+    let gas_requested = ext.gas_requested;
+    let gas_spent = gas_limit - gas_left - gas_requested;
+
+    RunResult {
+        messages,
+        reply,
+        gas_left,
+        gas_spent,
+        gas_requested,
+        was_trap,
+    }
 }
 
 #[cfg(test)]
@@ -647,12 +696,7 @@ mod tests {
 
         runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
 
-        match runner.run_next() {
-            Ok(_) => panic!("This should be an error that we run "),
-            Err(anyhow_err) => {
-                assert!(format!("{}", anyhow_err).contains("Not running in the reply context"));
-            }
-        };
+        assert_eq!(runner.run_next().traps, 1);
 
         let msg = vec![
             1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
@@ -667,9 +711,11 @@ mod tests {
             u64::max_value(),
             0,
             MessageId::from_slice(&msg),
+            0,
         );
 
-        runner.run_next().expect("Should be ok now.");
+        assert_eq!(runner.run_next().traps, 1); // this is handling of automatic reply when first message was trapped; it will also fail
+        runner.run_next();
 
         let InMemoryStorage {
             program_storage, ..
@@ -750,7 +796,7 @@ mod tests {
             )
             .expect("failed to init program");
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -769,7 +815,7 @@ mod tests {
             0,
         );
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -850,7 +896,7 @@ mod tests {
             )
             .expect("Failed to init program");
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -870,7 +916,7 @@ mod tests {
             0,
         );
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next();
 
         assert_eq!(
             runner
@@ -919,7 +965,7 @@ mod tests {
 
         runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
 
-        let result = runner.run_next().expect("Failed to process next message");
+        let result = runner.run_next();
         assert_eq!(result.gas_spent.len(), 1);
         assert_eq!(result.gas_left.len(), 1);
         assert_eq!(result.gas_requests.len(), 1);

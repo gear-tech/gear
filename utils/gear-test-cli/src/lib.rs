@@ -19,7 +19,6 @@
 use std::fmt::Debug;
 
 mod command;
-mod test_runner;
 
 /// The `runtests` command used to test gear with json.
 #[derive(Debug, structopt::StructOpt)]
