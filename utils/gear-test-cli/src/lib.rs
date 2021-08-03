@@ -21,10 +21,10 @@ use std::fmt::Debug;
 mod command;
 mod test_runner;
 
-/// The `runtests` command used to test gear with json.
+/// The `runtests` command used to test gear with yaml.
 #[derive(Debug, structopt::StructOpt)]
 pub struct GearTestCmd {
-    /// Input dir/file with json for testing.
+    /// Input dir/file with yaml for testing.
     #[structopt(parse(from_os_str))]
     pub input: Vec<std::path::PathBuf>,
 
