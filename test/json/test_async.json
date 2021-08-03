@@ -1,5 +1,6 @@
 {
-    "title": "basic",
+    "title": "Async-await",
+    "skipRpcTest": true,
     "programs": [
         {
             "id": 1,
