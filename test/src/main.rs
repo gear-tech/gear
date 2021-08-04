@@ -27,18 +27,19 @@ struct Opts {
 
 pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
-    let mut print_log = false;
     match opts.verbose {
         0 => env_logger::init(),
         1 => {
-            print_log = true;
+            use env_logger::Env;
+
+            env_logger::Builder::from_env(Env::default().default_filter_or("gtest=info")).init();
         }
         2 => {
             use env_logger::Env;
 
-            print_log = true;
             env_logger::Builder::from_env(
-                Env::default().default_filter_or("gear_core_backend=debug"),
+                Env::default()
+                    .default_filter_or("gtest=info,gear_core=debug,gear_core_backend=debug"),
             )
             .init();
         }
@@ -54,7 +55,6 @@ pub fn main() -> anyhow::Result<()> {
         opts.skip_messages,
         opts.skip_allocations,
         opts.skip_memory,
-        print_log,
         || storage::new_in_memory_empty(),
     )
 }

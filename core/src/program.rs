@@ -11,13 +11,19 @@ use crate::memory::{PageBuf, PageNumber};
 /// Program identifier.
 ///
 /// 256-bit program identifier. In production environments, should be the result of a cryptohash function.
-#[derive(Clone, Copy, Debug, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq)]
 pub struct ProgramId([u8; 32]);
 
 impl fmt::Display for ProgramId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let p = cmp::min(self.0.len(), f.precision().unwrap_or(self.0.len()));
         write!(f, "{}", crate::util::encode_hex(&self.0[0..p]))
+    }
+}
+
+impl fmt::Debug for ProgramId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
