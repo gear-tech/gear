@@ -591,10 +591,21 @@ fn run(
         nonce: program.message_nonce(),
     };
 
-    // Charge gas for each initial page.
-    (0..program.static_pages()).for_each(|_| {
-        gas_counter.charge(context.config.init_cost);
-    });
+    // Charge gas for initial pages.
+    match gas_counter.charge(context.config.init_cost * program.static_pages() as u64) {
+        gas::ChargeResult::NotEnough => {
+            let gas_left = gas_counter.left();
+            return RunResult {
+                messages: vec![],
+                reply: None,
+                gas_left,
+                gas_spent: 0,
+                gas_requested: 0,
+                was_trap: true,
+            };
+        }
+        _ => (),
+    }
 
     let memory = env.create_memory(program.static_pages());
 
