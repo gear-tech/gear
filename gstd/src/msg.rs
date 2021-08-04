@@ -98,13 +98,13 @@ pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) {
     send_with_value(program, payload, gas_limit, 0u128);
 }
 
-pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: Gas, value: u128) {
+pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) {
     unsafe {
         sys::gr_send(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
-            gas_limit.0,
+            gas_limit,
             value.to_le_bytes().as_ptr(),
         )
     }
