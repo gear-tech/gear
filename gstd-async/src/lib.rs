@@ -7,26 +7,26 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
+pub mod msg;
 mod waker;
 
 /// Blocks the current thread on a future.
-pub fn block_on<F, T>(future: F) -> T
+pub fn block_on<F, T>(future: F) -> Option<T>
 where
     F: Future<Output = T>,
 {
+    // Pin future
     let mut future = future;
-    let mut future = unsafe { Pin::new_unchecked(&mut future) };
+    let future = unsafe { Pin::new_unchecked(&mut future) };
 
-    let waker = waker::from_fn(gr_wake);
+    // Create context based on an empty waker
+    let waker = waker::empty();
     let mut cx = Context::from_waker(&waker);
 
-    loop {
-        if let Poll::Ready(t) = future.as_mut().poll(&mut cx) {
-            return t;
-        }
+    // Poll
+    if let Poll::Ready(v) = future.poll(&mut cx) {
+        Some(v)
+    } else {
+        None
     }
-}
-
-fn gr_wake() {
-    // TODO: (?) Replace it by syscall for more advanced use cases
 }

@@ -179,6 +179,11 @@ function submitProgram(api, sudoPair, program, salt, programs) {
   return api.tx.gear.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 1000000000, 0);
 }
 
+function runWithTimeout(promise, time) {
+  const timeout = new Promise((_, reject) => setTimeout(reject, time, new Error("Timeout")));
+  return Promise.race([promise, timeout]);
+}
+
 async function processExpected(api, sudoPair, fixture, programs) {
   const output = [];
   const errors = [];
@@ -203,12 +208,20 @@ async function processExpected(api, sudoPair, fixture, programs) {
         await api.tx.utility.batch(tx).signAndSend(sudoPair, { nonce: -1 });
       }
 
-      let messagesProcessed = await api.query.gear.messagesProcessed();
+      async function queryProcessedMessages() {
+        let messagesProcessed = await api.query.gear.messagesProcessed();
+        console.log(`Processed ${messagesProcessed} message(s) out of ${exp.step} expected`);
+        if (messagesProcessed.toNumber() < exp.step) {
+          await new Promise(r => setTimeout(r, 5000));
+          await queryProcessedMessages();
+        }
+      }
 
-      // TODO: fix forever waiting
-      // can wait forever if steps in expected parameter are higher than the actual processed messages
-      while (messagesProcessed.toNumber() !== exp.step) {
-        messagesProcessed = await api.query.gear.messagesProcessed();
+      // Poll the number of processed messages for 60 seconds, then break
+      try {
+        await runWithTimeout(queryProcessedMessages(), 60000);
+      } catch(err) {
+        errors.push(`${err}`);
       }
 
       if ('messages' in exp) {
@@ -339,40 +352,40 @@ async function main() {
   const api = await ApiPromise.create({
     provider,
     types: {
-      Message: {
-        id: 'H256',
-        source: 'H256',
-        dest: 'H256',
-        payload: 'Vec<u8>',
-        gas_limit: 'u64',
-        value: 'u128',
-        reply: 'Option<(H256, i32)>',
+      "Message": {
+        "id": "H256",
+        "source": "H256",
+        "dest": "H256",
+        "payload": "Vec<u8>",
+        "gas_limit": "u64",
+        "value": "u128",
+        "reply": "Option<(H256, i32)>"
       },
-      Node: {
-        value: 'Message',
-        next: 'Option<H256>',
+      "Node": {
+        "value": "Message",
+        "next": "Option<H256>"
       },
-      IntermediateMessage: {
-        _enum: {
-          InitProgram: {
-            external_origin: 'H256',
-            program_id: 'H256',
-            code: 'Vec<u8>',
-            payload: 'Vec<u8>',
-            gas_limit: 'u64',
-            value: 'u128',
+      "IntermediateMessage": {
+        "_enum": {
+          "InitProgram": {
+            "external_origin": "H256",
+            "program_id": "H256",
+            "code": "Vec<u8>",
+            "payload": "Vec<u8>",
+            "gas_limit": "u64",
+            "value": "u128"
           },
-          DispatchMessage: {
-            id: 'H256',
-            route: 'MessageRoute',
-            payload: 'Vec<u8>',
-            gas_limit: 'u64',
-            value: 'u128',
-          },
-        },
+          "DispatchMessage": {
+            "id": "H256",
+            "route": "MessageRoute",
+            "payload": "Vec<u8>",
+            "gas_limit": "u64",
+            "value": "u128",
+          }
+        }
       },
-      MessageError: {
-        _enum: ['ValueTransfer', 'Dispatch'],
+      "MessageError": {
+        "_enum": ["ValueTransfer", "Dispatch"]
       },
     },
   });
@@ -387,6 +400,9 @@ async function main() {
   const adminPair = keyring.getPair(adminId.toString());
 
   for (const test of tests) {
+    if (test.skipRpcTest)
+      continue;
+    console.log("Test:", test.title);
     await processTest(test, api, adminPair);
   }
   process.exit(0);

@@ -73,5 +73,10 @@ jobs:
 
       - name: Run rpc-test
         run: |
-          ./target/release/gear-node --dev & sleep 5
+          ./target/release/gear-node --dev -l 2 & sleep 5
           node rpc-tests/index.js ./test/code/*.yaml
+      
+      - name: Run metadata test
+        run: |
+          ./target/release/wasm-proc ./target/wasm32-unknown-unknown/release/demo_meta.wasm
+          node ./utils/wasm-proc/metadata-js test
