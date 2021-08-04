@@ -312,6 +312,7 @@ fn messages_processing_works() {
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 0,
+                reply: None,
             },
         ]);
         assert_eq!(
@@ -328,6 +329,32 @@ fn messages_processing_works() {
 
         // `InitProgram` doesn't increase the counter, but the reply message does; hence 1.
         assert_eq!(Gear::messages_processed(), 1);
+
+        // First message is sent to a non-existing program - and should get into log.
+        // Second message still gets processed thereby adding 1 to the total processed messages counter.
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(102),
+                origin: 1.into_origin(),
+                destination: 2.into_origin(),
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 100,
+                reply: None,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(103),
+                origin: 1.into_origin(),
+                destination: program_id,
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+                reply: None,
+            },
+        ]);
+        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+        assert_eq!(Gear::messages_processed(), 3); // Counter not reset, 1 added
     })
 }
 
@@ -374,6 +401,7 @@ fn dequeue_limit_works() {
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 0,
+                reply: None,
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(103),
@@ -382,6 +410,7 @@ fn dequeue_limit_works() {
                 payload: Vec::new(),
                 gas_limit: 10000,
                 value: 100,
+                reply: None,
             },
         ]);
         assert_eq!(
@@ -406,6 +435,7 @@ fn dequeue_limit_works() {
             payload: Vec::new(),
             gas_limit: 10000,
             value: 200,
+            reply: None,
         }]);
         assert_eq!(
             Gear::message_queue()
@@ -605,6 +635,7 @@ fn block_gas_limit_works() {
                 payload: Vec::new(),
                 gas_limit: 10_000,
                 value: 0,
+                reply: None,
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(103),
@@ -613,6 +644,7 @@ fn block_gas_limit_works() {
                 payload: Vec::new(),
                 gas_limit: 10_000,
                 value: 100,
+                reply: None,
             },
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),
@@ -647,6 +679,7 @@ fn block_gas_limit_works() {
                 payload: Vec::new(),
                 gas_limit: 10_000,
                 value: 0,
+                reply: None,
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(105),
@@ -655,6 +688,7 @@ fn block_gas_limit_works() {
                 payload: Vec::new(),
                 gas_limit: 95_000,
                 value: 100,
+                reply: None,
             },
             IntermediateMessage::DispatchMessage {
                 id: H256::from_low_u64_be(106),
@@ -663,6 +697,7 @@ fn block_gas_limit_works() {
                 payload: Vec::new(),
                 gas_limit: 20_000,
                 value: 200,
+                reply: None,
             },
         ]);
 
