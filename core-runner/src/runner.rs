@@ -23,8 +23,14 @@ use gear_core_backend::Environment;
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
-    /// Totl pages count.
+    /// Maximum initial memory pages count.
+    pub max_init_pages: PageNumber,
+    /// Total memory pages count.
     pub max_pages: PageNumber,
+    /// Gas cost for memory page allocation.
+    pub alloc_cost: u64,
+    /// Gas cost for init memory page.
+    pub init_cost: u64,
 }
 
 const EXIT_CODE_PANIC: i32 = 1;
@@ -32,7 +38,10 @@ const EXIT_CODE_PANIC: i32 = 1;
 impl Default for Config {
     fn default() -> Self {
         Self {
+            max_init_pages: MAX_INIT_PAGES.into(),
             max_pages: MAX_PAGES.into(),
+            alloc_cost: ALLOC_COST.into(),
+            init_cost: INIT_COST.into(),
         }
     }
 }
@@ -258,9 +267,24 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         }
     }
 
+    /// Max initial pages configuratio of this runner.
+    pub fn max_init_pages(&self) -> PageNumber {
+        self.config.max_init_pages
+    }
+
     /// Max pages configuratio of this runner.
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
+    }
+
+    /// Gas memory page allocation cost configuratio of this runner.
+    pub fn alloc_cost(&self) -> u64 {
+        self.config.alloc_cost
+    }
+
+    /// Gas initial memory page cost of this runner.
+    pub fn init_cost(&self) -> u64 {
+        self.config.init_cost
     }
 
     fn create_context(&self, allocations: BTreeSet<PageNumber>) -> RunningContext {
@@ -403,7 +427,10 @@ impl From<EntryPoint> for &'static str {
     }
 }
 
+static MAX_INIT_PAGES: u32 = 256;
 static MAX_PAGES: u32 = 16384;
+static INIT_COST: u32 = 200;
+static ALLOC_COST: u32 = 1000;
 
 struct RunningContext {
     config: Config,
