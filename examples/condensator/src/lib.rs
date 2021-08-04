@@ -29,7 +29,7 @@ pub unsafe extern "C" fn handle() {
         msg::send(
             0.into(),
             format!("Discharged: {}", CHARGE).as_bytes(),
-            1000000000
+            1000000000,
         );
         DISCHARGE_HISTORY.push(CHARGE);
         CHARGE = 0;
@@ -52,5 +52,7 @@ pub unsafe extern "C" fn init() {
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    unsafe { core::arch::wasm32::unreachable(); }
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }
