@@ -1,5 +1,8 @@
 use crate::prelude::Vec;
-use crate::{MessageHandle, MessageId, ProgramId};
+use crate::{MessageId, ProgramId};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MessageHandle(u32);
 
 mod sys {
     extern "C" {

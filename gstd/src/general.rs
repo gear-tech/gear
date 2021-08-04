@@ -1,5 +1,3 @@
-pub struct MessageHandle(pub u32);
-
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
 pub struct MessageId(pub [u8; 32]);
 
