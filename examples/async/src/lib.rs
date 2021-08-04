@@ -17,7 +17,7 @@ pub unsafe extern "C" fn handle() {
 pub unsafe extern "C" fn init() {}
 
 async fn handle_async() {
-    msg::send(0.into(), b"async_result", u64::MAX, 0);
+    msg::send(0.into(), b"async_result", u64::MAX);
 }
 
 #[panic_handler]
