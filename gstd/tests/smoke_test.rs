@@ -1,8 +1,7 @@
 #![no_std]
 
-use gstd::msg::{self};
 use gstd::prelude::*;
-use gstd::ProgramId;
+use gstd::{msg, ProgramId};
 
 #[cfg(feature = "debug")]
 use gstd::ext;
@@ -78,7 +77,7 @@ fn messages() {
         id[i] = i as u8;
     }
 
-    msg::send(ProgramId(id), b"HELLO", 1000, 12345678);
+    msg::send_with_value(ProgramId(id), b"HELLO", 1000, 12345678);
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ProgramId(id));
