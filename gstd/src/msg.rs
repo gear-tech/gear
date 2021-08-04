@@ -117,7 +117,7 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) {
     }
 }
 
-/// Transfers gas from program caller.
+/// Transfer gas from program caller.
 pub fn charge(gas: u64) {
     unsafe {
         sys::gr_charge(gas);

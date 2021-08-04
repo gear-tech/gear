@@ -5,6 +5,7 @@ cd "$(dirname ${BASH_SOURCE[0]})/.."
 
 echo "*** Run fmt"
 cargo fmt --all
+cd examples && cargo fmt --all && cd ..
 
 echo "*** Run clippy"
 # TODO: Spread clippy to `--workspace`

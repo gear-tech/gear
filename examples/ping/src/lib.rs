@@ -26,6 +26,11 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn handle_reply() {
+    msg::reply(b"PONG", u64::MAX, 0);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn init() {}
 
 #[panic_handler]

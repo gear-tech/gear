@@ -387,6 +387,9 @@ async function main() {
   const adminPair = keyring.getPair(adminId.toString());
 
   for (const test of tests) {
+    if (test.skipRpcTest)
+      continue;
+    console.log("Test:", test.title);
     await processTest(test, api, adminPair);
   }
   process.exit(0);
