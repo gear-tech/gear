@@ -2202,6 +2202,7 @@ dependencies = [
  "gear-core-runner",
  "gear-node-rti",
  "hex",
+ "log",
  "regex",
  "serde",
  "serde_yaml",
