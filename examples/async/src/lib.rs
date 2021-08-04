@@ -22,5 +22,5 @@ async fn handle_async() {
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    loop {}
+    unsafe { core::arch::wasm32::unreachable(); }
 }
