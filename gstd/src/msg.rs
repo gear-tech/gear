@@ -1,5 +1,5 @@
 use crate::prelude::Vec;
-use crate::{MessageId, ProgramId};
+use crate::{MessageHandle, MessageId, ProgramId};
 
 mod sys {
     extern "C" {
@@ -37,8 +37,8 @@ pub fn charge(gas: u64) {
     }
 }
 
-pub fn commit(handle: usize) {
-    unsafe { sys::gr_commit(handle as u32) }
+pub fn commit(handle: MessageHandle) {
+    unsafe { sys::gr_commit(handle.0) }
 }
 
 pub fn id() -> MessageId {
@@ -47,15 +47,15 @@ pub fn id() -> MessageId {
     msg_id
 }
 
-pub fn init(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> usize {
+pub fn init(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageHandle {
     unsafe {
-        sys::gr_init(
+        MessageHandle(sys::gr_init(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
             gas_limit,
             value.to_le_bytes().as_ptr(),
-        ) as usize
+        ))
     }
 }
 
@@ -69,8 +69,8 @@ pub fn load() -> Vec<u8> {
     }
 }
 
-pub fn push(handle: usize, payload: &[u8]) {
-    unsafe { sys::gr_push(handle as u32, payload.as_ptr(), payload.len() as _) }
+pub fn push(handle: MessageHandle, payload: &[u8]) {
+    unsafe { sys::gr_push(handle.0, payload.as_ptr(), payload.len() as _) }
 }
 
 pub fn push_reply(payload: &[u8]) {
