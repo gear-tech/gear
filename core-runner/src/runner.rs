@@ -457,6 +457,18 @@ impl RunningContext {
         self.config.max_pages
     }
 
+    pub fn max_init_pages(&self) -> PageNumber {
+        self.config.max_init_pages
+    }
+
+    pub fn alloc_cost(&self) -> u64 {
+        self.config.alloc_cost
+    }
+
+    pub fn init_cost(&self) -> u64 {
+        self.config.init_cost
+    }
+
     fn push_message(&mut self, msg: Message) {
         self.message_buf.push(msg)
     }
@@ -484,10 +496,12 @@ struct Ext {
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
     gas_requested: u64,
+    alloc_cost: u64,
 }
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
+        self.gas(self.alloc_cost as u32)?;
         self.memory_context
             .alloc(pages)
             .map_err(|_e| "Allocation error")
@@ -598,19 +612,18 @@ fn run(
     };
 
     // Charge gas for initial pages.
-    match gas_counter.charge(context.config.init_cost * program.static_pages() as u64) {
-        gas::ChargeResult::NotEnough => {
-            let gas_left = gas_counter.left();
-            return RunResult {
-                messages: vec![],
-                reply: None,
-                gas_left,
-                gas_spent: 0,
-                gas_requested: 0,
-                was_trap: true,
-            };
-        }
-        _ => (),
+    if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
+        == gas::ChargeResult::NotEnough
+    {
+        let gas_left = gas_counter.left();
+        return RunResult {
+            messages: vec![],
+            reply: None,
+            gas_left,
+            gas_spent: 0,
+            gas_requested: 0,
+            was_trap: true,
+        };
     }
 
     let memory = env.create_memory(program.static_pages());
@@ -626,6 +639,7 @@ fn run(
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
         gas_requested: 0,
+        alloc_cost: context.alloc_cost(),
     };
 
     let (res, mut ext) = env.setup_and_run(
