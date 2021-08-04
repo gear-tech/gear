@@ -584,12 +584,17 @@ fn run(
     message: &IncomingMessage,
     gas_limit: u64,
 ) -> RunResult {
-    let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
+    let mut gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
         program_id: program.id(),
         nonce: program.message_nonce(),
     };
+
+    // Charge gas for each initial page.
+    (0..program.static_pages()).for_each(|_| {
+        gas_counter.charge(context.config.init_cost);
+    });
 
     let memory = env.create_memory(program.static_pages());
 
