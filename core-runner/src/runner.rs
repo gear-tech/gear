@@ -319,6 +319,12 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             .get(program_id)
             .expect("Added above; cannot fail");
 
+        if program.static_pages() > self.max_init_pages().raw() {
+            return Err(anyhow::anyhow!(
+                "Error initialisation: initial memory limit exceeded"
+            ));
+        }
+
         let allocations: BTreeSet<PageNumber> = (0..program.static_pages())
             .map(|page| page.into())
             .collect();
