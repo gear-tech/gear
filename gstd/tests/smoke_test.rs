@@ -19,6 +19,24 @@ mod sys {
     use super::*;
 
     #[no_mangle]
+    unsafe extern "C" fn gr_charge(gas: u64) {
+        GAS += gas;
+    }
+
+    #[cfg(feature = "debug")]
+    #[no_mangle]
+    unsafe extern "C" fn gr_debug(msg_ptr: *const u8, msg_len: u32) {
+        DEBUG_MSG.resize(msg_len as _, 0);
+        ptr::copy(msg_ptr, DEBUG_MSG.as_mut_ptr(), msg_len as _);
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn gr_read(at: u32, len: u32, dest: *mut u8) {
+        let src = MESSAGE.as_ptr();
+        ptr::copy(src.offset(at as _), dest, len as _);
+    }
+
+    #[no_mangle]
     unsafe extern "C" fn gr_send(
         program: *const u8,
         data_ptr: *const u8,
@@ -39,12 +57,6 @@ mod sys {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn gr_read(at: u32, len: u32, dest: *mut u8) {
-        let src = MESSAGE.as_ptr();
-        ptr::copy(src.offset(at as _), dest, len as _);
-    }
-
-    #[no_mangle]
     unsafe extern "C" fn gr_source(program: *mut u8) {
         for i in 0..PROGRAM.0.len() {
             *program.offset(i as isize) = PROGRAM.0[i];
@@ -55,18 +67,6 @@ mod sys {
     unsafe extern "C" fn gr_value(val: *mut u8) {
         let src = VALUE.to_ne_bytes().as_ptr();
         ptr::copy(src, val, mem::size_of::<u128>());
-    }
-
-    #[no_mangle]
-    unsafe extern "C" fn gr_charge(gas: u64) {
-        GAS += gas;
-    }
-
-    #[cfg(feature = "debug")]
-    #[no_mangle]
-    unsafe extern "C" fn gr_debug(msg_ptr: *const u8, msg_len: u32) {
-        DEBUG_MSG.resize(msg_len as _, 0);
-        ptr::copy(msg_ptr, DEBUG_MSG.as_mut_ptr(), msg_len as _);
     }
 }
 
