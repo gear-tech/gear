@@ -546,6 +546,17 @@ impl EnvExt for Ext {
     fn value(&mut self) -> u128 {
         self.messages.current().value()
     }
+
+    fn wait(&mut self) -> Result<(), &'static str> {
+        //let out_msg: OutgoingMessage = in_msg.into();
+        log::warn!("GAS LIMIT {:?}", self.messages.current().gas_limit());
+        //self.messages.//push(handle, buffer)
+        //self.messages.push(handle, buffer)
+        // TODO: Implement
+        self.messages
+            .queue_back()
+            .map_err(|_| "Unable to queue the message back")
+    }
 }
 
 fn run(
@@ -588,7 +599,7 @@ fn run(
     );
 
     let was_trap = res.is_err();
-    let _res = res.unwrap_or_default();
+    let _res = res.unwrap_or_default(); // TODO: What's it for?
 
     // get allocated pages
     for page in ext.memory_context.allocations().clone() {
@@ -600,7 +611,7 @@ fn run(
     let mut messages = vec![];
 
     program.set_message_nonce(ext.messages.nonce());
-    let (outgoing, reply) = ext.messages.drain();
+    let (outgoing, reply, queue_back) = ext.messages.drain();
 
     for outgoing_msg in outgoing {
         messages.push(outgoing_msg.clone());
@@ -618,6 +629,11 @@ fn run(
     let gas_left = ext.gas_counter.left();
     let gas_requested = ext.gas_requested;
     let gas_spent = gas_limit - gas_left - gas_requested;
+
+    if let Some(mut queue_back_msg) = queue_back {
+        queue_back_msg.set_gas_limit(gas_left);
+        context.push_message(queue_back_msg.into_message(program.id()));
+    }
 
     RunResult {
         messages,
@@ -932,7 +948,7 @@ mod tests {
         // Charge 100_000 of gas.
         let wat = r#"
         (module
-          (import "env" "gr_charge"  (func $charge (param i64)))
+          (import "env" "gr_charge" (func $charge (param i64)))
           (import "env" "memory" (memory 1))
           (export "handle" (func $handle))
           (export "init" (func $init))
@@ -978,5 +994,47 @@ mod tests {
         assert_eq!(result.gas_requests[0].0, caller_id);
         assert_eq!(result.gas_requests[0].1, program_id);
         assert_eq!(result.gas_requests[0].2, 100_000);
+    }
+
+    #[test]
+    fn wait() {
+        let wat = r#"
+        (module
+          (import "env" "gr_wait" (func $gr_wait))
+          (import "env" "memory" (memory 1))
+          (export "handle" (func $handle))
+          (export "init" (func $init))
+          (func $handle
+            call $gr_wait
+            call $gr_wait ;; This call is unreachable due to execution interrupt on previous call
+          )
+          (func $init)
+        )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            gear_core::storage::new_in_memory(Default::default(), Default::default()),
+        );
+
+        let _ = runner
+            .init_program(
+                1001.into(),
+                0,
+                1.into(),
+                parse_wat(wat),
+                "init".as_bytes().to_vec(),
+                u64::MAX,
+                0,
+            )
+            .expect("failed to init `gas_transfer` program");
+
+        runner.queue_message(1001.into(), 1, 1.into(), b"test".to_vec(), 1000_000, 0);
+
+        let _result = runner.run_next();
+
+        let InMemoryStorage { message_queue, .. } = runner.complete();
+        let messages = message_queue.drain();
+
+        log::warn!("MSG QUEUE LEN: {}", messages.len());
     }
 }

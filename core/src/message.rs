@@ -113,6 +113,11 @@ impl IncomingMessage {
         self.gas_limit
     }
 
+    /// Set gas limit of the message.
+    pub fn set_gas_limit(&mut self, gas_limit: u64) {
+        self.gas_limit = gas_limit;
+    }
+
     /// Value of the message.
     pub fn value(&self) -> u128 {
         self.value
@@ -190,6 +195,19 @@ impl IncomingMessage {
             gas_limit,
             value,
             reply: None,
+        }
+    }
+
+    /// Convert incoming message to the stored message by providing `dest`.
+    pub fn into_message(self, dest: ProgramId) -> Message {
+        Message {
+            id: self.id,
+            source: self.source,
+            dest,
+            payload: self.payload,
+            gas_limit: self.gas_limit,
+            value: self.value,
+            reply: self.reply,
         }
     }
 }
@@ -491,6 +509,8 @@ pub struct MessageState {
     pub outgoing: Vec<(OutgoingMessage, FormationStatus)>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
+    /// Collection of incoming messages to be pushed back to the queue.
+    pub queue_back: Option<IncomingMessage>,
 }
 
 /// Message context for the currently running program.
@@ -511,6 +531,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             state: Rc::new(RefCell::new(MessageState {
                 outgoing: vec![],
                 reply: None,
+                queue_back: None,
             })),
             outgoing_limit: 128,
             current: Rc::new(incoming_message),
@@ -589,6 +610,14 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Err(Error::NoReplyFound)
     }
 
+    /// Push the incoming message back to the queue.
+    pub fn queue_back(&self) -> Result<(), Error> {
+        let mut state = self.state.borrow_mut();
+        state.queue_back = Some(self.current().clone());
+
+        Ok(())
+    }
+
     /// Mark message as fully formed and ready for sending in this context by handle.
     pub fn commit(&self, handle: usize) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
@@ -619,7 +648,13 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Drop this context.
     ///
     /// Do it to return all outgoing messages and optional reply generated using this context.
-    pub fn drain(self) -> (Vec<OutgoingMessage>, Option<ReplyMessage>) {
+    pub fn drain(
+        self,
+    ) -> (
+        Vec<OutgoingMessage>,
+        Option<ReplyMessage>,
+        Option<IncomingMessage>,
+    ) {
         let Self { state, .. } = self;
         let mut state = Rc::try_unwrap(state)
             .expect("Calling drain with references to the memory context left")
@@ -638,6 +673,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                 })
                 .collect(),
             state.reply,
+            state.queue_back,
         )
     }
 }
@@ -833,7 +869,7 @@ mod tests {
         assert!(context.push_reply(&[3, 4]).is_ok());
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
-        let expected_result: (Vec<OutgoingMessage>, Option<ReplyMessage>) = context.drain();
+        let expected_result = context.drain();
         assert_eq!(expected_result.0.len(), 2);
         assert_eq!(expected_result.0[0].payload.0, vec![0, 0]);
         assert_eq!(expected_result.0[1].payload.0, vec![1, 1, 5, 7, 9]);

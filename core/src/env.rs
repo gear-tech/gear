@@ -83,8 +83,11 @@ pub trait Ext {
     /// Transfer gas to program from the caller side.
     fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
 
-    /// Value associated with message
+    /// Value associated with message.
     fn value(&mut self) -> u128;
+
+    /// Interrupt the program and reschedule execution.
+    fn wait(&mut self) -> Result<(), &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -195,6 +198,9 @@ mod tests {
             0
         }
         fn charge(&mut self, _gas: u64) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())
         }
     }

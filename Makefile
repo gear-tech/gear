@@ -13,7 +13,7 @@ clean:
 
 .PHONY: core-test
 core-test:
-	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner
+	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner -- --nocapture
 
 .PHONY: examples
 examples:
