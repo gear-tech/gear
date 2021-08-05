@@ -501,7 +501,9 @@ struct Ext {
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        self.gas(self.alloc_cost as u32)?;
+        let allocated = self.memory_context.allocations().len() as u32;
+        (allocated..allocated + pages.raw())
+            .try_for_each(|page| self.gas(page * self.alloc_cost as u32))?;
         self.memory_context
             .alloc(pages)
             .map_err(|_e| "Allocation error")
