@@ -464,25 +464,27 @@ impl EnvExt for Ext {
         self.messages.send(msg).map_err(|_e| "Message send error")
     }
 
-    fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str> {
-        self.messages.init(msg).map_err(|_e| "Message init error")
+    fn send_init(&self, msg: OutgoingPacket) -> Result<usize, &'static str> {
+        self.messages
+            .send_init(msg)
+            .map_err(|_e| "Message init error")
     }
 
-    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
+    fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push(handle, buffer)
+            .send_push(handle, buffer)
             .map_err(|_e| "Payload push error")
     }
 
-    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str> {
+    fn reply_push(&self, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push_reply(buffer)
+            .reply_push(buffer)
             .map_err(|_e| "Reply payload push error")
     }
 
-    fn commit(&self, handle: usize) -> Result<(), &'static str> {
+    fn send_commit(&self, handle: usize) -> Result<(), &'static str> {
         self.messages
-            .commit(handle)
+            .send_commit(handle)
             .map_err(|_e| "Message commit error")
     }
 
