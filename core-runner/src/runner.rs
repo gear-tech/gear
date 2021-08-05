@@ -1064,7 +1064,7 @@ mod tests {
         let payload = b"Test Wait";
         runner.queue_message(source, 1, dest, payload.to_vec(), 1000_000, 0);
 
-        let _result = runner.run_next();
+        let _result = runner.run_next(u64::MAX);
 
         let InMemoryStorage { message_queue, .. } = runner.complete();
         let messages = message_queue.drain();
