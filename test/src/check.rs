@@ -224,7 +224,6 @@ pub fn check_main<MQ: storage::MessageQueue, PS: storage::ProgramStorage>(
     skip_messages: bool,
     skip_allocations: bool,
     skip_memory: bool,
-    print_log: bool,
     storage_factory: impl Fn() -> storage::Storage<MQ, PS>,
 ) -> anyhow::Result<()>
 where
@@ -269,13 +268,12 @@ where
                             }
                         }
                         if let Some(log) = &exp.log {
-                            if print_log {
-                                for message in &final_state.log {
-                                    if let Ok(utf8) = std::str::from_utf8(message.payload()) {
-                                        println!("log({})", utf8)
-                                    }
+                            for message in &final_state.log {
+                                if let Ok(utf8) = std::str::from_utf8(message.payload()) {
+                                    log::info!("log({})", utf8)
                                 }
                             }
+
                             if let Err(log_errors) = check_messages(&final_state.log, log) {
                                 errors.extend(
                                     log_errors

@@ -2202,6 +2202,7 @@ dependencies = [
  "gear-core-runner",
  "gear-node-rti",
  "hex",
+ "log",
  "regex",
  "serde",
  "serde_yaml",
@@ -2353,6 +2354,9 @@ dependencies = [
 [[package]]
 name = "gstd-async"
 version = "0.1.0"
+dependencies = [
+ "gstd",
+]
 
 [[package]]
 name = "h2"

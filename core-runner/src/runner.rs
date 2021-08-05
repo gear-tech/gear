@@ -901,7 +901,7 @@ mod tests {
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "free"  (func $free (param i32)))
             (import "env" "memory" (memory 1))
-  				(data (i32.const 0) "ok")
+            (data (i32.const 0) "ok")
             (export "handle" (func $handle))
             (export "init" (func $init))
             (func $handle

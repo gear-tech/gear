@@ -43,8 +43,8 @@ fn parse_wat(source: &str) -> Vec<u8> {
 #[test]
 fn submit_program_enqueues_message() {
     let wat = r#"
-	(module
-	)"#;
+    (module
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -82,8 +82,8 @@ fn submit_program_enqueues_message() {
 #[test]
 fn submit_program_fails_with_insufficient_balance() {
     let wat = r#"
-	(module
-	)"#;
+    (module
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -171,21 +171,21 @@ fn send_message_fails_with_insufficient_balance() {
 #[test]
 fn messages_processing_works() {
     let wat = r#"
-	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $handle
-			i32.const 0
-			i32.const 32
-			i32.const 32
-			i64.const 1000000000
-			i32.const 1024
-			call $send
-		)
-		(func $init)
-	)"#;
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $handle
+            i32.const 0
+            i32.const 32
+            i32.const 32
+            i64.const 1000000000
+            i32.const 1024
+            call $send
+        )
+        (func $init)
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -255,21 +255,21 @@ fn messages_processing_works() {
 #[test]
 fn dequeue_limit_works() {
     let wat = r#"
-	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $handle
-			i32.const 0
-			i32.const 32
-			i32.const 32
-			i64.const 1000000000
-			i32.const 1024
-			call $send
-		)
-		(func $init)
-	)"#;
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $handle
+            i32.const 0
+            i32.const 32
+            i32.const 32
+            i64.const 1000000000
+            i32.const 1024
+            call $send
+        )
+        (func $init)
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -344,23 +344,23 @@ fn dequeue_limit_works() {
 #[test]
 fn spent_gas_to_reward_block_author_works() {
     let wat = r#"
-	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $handle
-			i32.const 0
-			i32.const 32
-			i32.const 32
-			i64.const 1000000000
-			i32.const 1024
-			call $send
-		)
-		(func $init
-			call $handle
-		)
-	)"#;
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $handle
+            i32.const 0
+            i32.const 32
+            i32.const 32
+            i64.const 1000000000
+            i32.const 1024
+            call $send
+        )
+        (func $init
+            call $handle
+        )
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -394,21 +394,21 @@ fn spent_gas_to_reward_block_author_works() {
 #[test]
 fn unused_gas_released_back_works() {
     let wat = r#"
-	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $handle
-			i32.const 0
-			i32.const 32
-			i32.const 32
-			i64.const 1000000000
-			i32.const 1024
-			call $send
-		)
-		(func $init)
-	)"#;
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $handle
+            i32.const 0
+            i32.const 32
+            i32.const 32
+            i64.const 1000000000
+            i32.const 1024
+            call $send
+        )
+        (func $init)
+    )"#;
 
     init_logger();
     new_test_ext().execute_with(|| {

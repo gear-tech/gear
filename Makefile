@@ -19,6 +19,10 @@ core-test:
 examples:
 	@./scripts/build-wasm.sh
 
+.PHONY: gstd-async-test
+gstd-async-test:
+	@cargo test --package gstd-async -- --nocapture
+
 .PHONY: gstd-test
 gstd-test:
 	@cargo test --package gstd
@@ -50,6 +54,10 @@ node-run:
 .PHONY: node-test
 node-test:
 	@SKIP_WASM_BUILD=1 cargo test --package gear-node
+
+.PHONY: ntest
+ntest:
+	@cargo run --package gear-node --release -- runtests ./test/json/*.json
 
 .PHONY: pre-commit
 pre-commit:
