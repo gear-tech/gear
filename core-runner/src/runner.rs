@@ -31,6 +31,8 @@ pub struct Config {
     pub alloc_cost: u64,
     /// Gas cost for init memory page.
     pub init_cost: u64,
+    /// Gas cost divider for loading memory page from program state.
+    pub load_page_cost: u64,
 }
 
 const EXIT_CODE_PANIC: i32 = 1;
@@ -42,6 +44,7 @@ impl Default for Config {
             max_pages: MAX_PAGES.into(),
             alloc_cost: ALLOC_COST.into(),
             init_cost: INIT_COST.into(),
+            load_page_cost: LOAD_PAGE_COST.into(),
         }
     }
 }
@@ -416,7 +419,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum EntryPoint {
     Handle,
     HandleReply,
@@ -437,6 +440,7 @@ static MAX_INIT_PAGES: u32 = 256;
 static MAX_PAGES: u32 = 512;
 static INIT_COST: u32 = 5000;
 static ALLOC_COST: u32 = 10000;
+static LOAD_PAGE_COST: u32 = 3000;
 
 struct RunningContext {
     config: Config,
@@ -467,6 +471,10 @@ impl RunningContext {
 
     pub fn init_cost(&self) -> u64 {
         self.config.init_cost
+    }
+
+    pub fn load_page_cost(&self) -> u64 {
+        self.config.load_page_cost
     }
 
     fn push_message(&mut self, msg: Message) {
@@ -611,20 +619,39 @@ fn run(
         nonce: program.message_nonce(),
     };
 
-    // Charge gas for initial pages.
-    if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
-        == gas::ChargeResult::NotEnough
-    {
-        let gas_left = gas_counter.left();
-        return RunResult {
-            messages: vec![],
-            reply: None,
-            gas_left,
-            gas_spent: 0,
-            gas_requested: 0,
-            was_trap: true,
-        };
-    }
+    // Charge gas for initial or loaded pages.
+    match entry_point {
+        EntryPoint::Init => {
+            if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
+                == gas::ChargeResult::NotEnough
+            {
+                let gas_left = gas_counter.left();
+                return RunResult {
+                    messages: vec![],
+                    reply: None,
+                    gas_left,
+                    gas_spent: 0,
+                    gas_requested: 0,
+                    was_trap: true,
+                };
+            }
+        }
+        _ => {
+            if gas_counter.charge(context.config.load_page_cost * program.get_pages().len() as u64)
+                == gas::ChargeResult::NotEnough
+            {
+                let gas_left = gas_counter.left();
+                return RunResult {
+                    messages: vec![],
+                    reply: None,
+                    gas_left,
+                    gas_spent: 0,
+                    gas_requested: 0,
+                    was_trap: true,
+                };
+            }
+        }
+    };
 
     let memory = env.create_memory(program.static_pages());
 
