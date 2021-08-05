@@ -34,7 +34,7 @@ impl GearTestCmd {
     /// Runs tests from `.yaml` files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         new_test_ext().execute_with(|| {
-            gear_test::check::check_main(self.input.to_vec(), true, false, false, false, || {
+            gear_test::check::check_main(self.input.to_vec(), true, false, false, || {
                 sp_io::storage::clear_prefix(b"g::code");
                 sp_io::storage::clear_prefix(b"g::alloc");
                 sp_io::storage::clear_prefix(b"g::msg");
