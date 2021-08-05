@@ -22,7 +22,7 @@ pub unsafe extern "C" fn handle() {
                 acc
             });
 
-        msg::send(msg::source(), collapsed.as_bytes(), 1000000000, 0);
+        msg::send(msg::source(), collapsed.as_bytes(), 10_000_000);
 
         COUNTER = 0;
     } else {

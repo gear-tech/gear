@@ -62,7 +62,7 @@ fn bot(message: MemberMessage) {
 pub fn send_room(id: ProgramId, msg: RoomMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, u64::MAX, 0);
+    msg::send(id, &encoded, 10_000_000);
 }
 
 #[no_mangle]

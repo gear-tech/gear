@@ -38,12 +38,12 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 async fn handle_async() {
-    msg::send(0.into(), b"LOG", u64::MAX, 0);
+    msg::send(0.into(), b"LOG", 10_000_000);
     let dest = unsafe { PING_PROGRAM_ID };
-    let another_reply = msg_async::send_and_wait_for_reply(dest, b"PING", u64::MAX, 0).await;
+    let another_reply = msg_async::send_and_wait_for_reply(dest, b"PING", 30_000_000, 0).await;
     let another_reply = String::from_utf8(another_reply).expect("Invalid reply: should be utf-8");
     if another_reply == "PONG" {
-        msg::reply(b"PING", u64::MAX, 0);
+        msg::reply(b"PING", 20_000_000, 0);
     }
 }
 

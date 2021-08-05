@@ -96,10 +96,10 @@ impl ExecutionReport {
 
 #[runtime_interface]
 pub trait GearExecutor {
-    fn process() -> Result<ExecutionReport, Error> {
+    fn process(max_gas_limit: u64) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
-        let result = runner.run_next();
+        let result = runner.run_next(max_gas_limit);
 
         let Storage { message_queue, .. } = runner.complete();
 
@@ -153,7 +153,7 @@ pub trait GearExecutor {
             value,
         );
 
-        let result = runner.run_next();
+        let result = runner.run_next(u64::MAX);
 
         runner.complete();
 

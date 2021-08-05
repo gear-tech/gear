@@ -28,14 +28,14 @@ struct Runtime<E: Ext + 'static> {
 enum FuncIndex {
     Alloc = 1,
     Charge,
-    Commit,
+    SendCommit,
     Debug,
     Free,
     Gas,
     MsgId,
-    Init,
-    Push,
-    PushReply,
+    SendInit,
+    SendPush,
+    ReplyPush,
     Read,
     Reply,
     ReplyTo,
@@ -70,7 +70,7 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
 
-            Some(FuncIndex::Commit) => funcs::commit(self.ext.clone())(args.nth(0))
+            Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(args.nth(0))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
@@ -90,7 +90,7 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-            Some(FuncIndex::Init) => funcs::init(self.ext.clone())(
+            Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())(
                 args.nth(0),
                 args.nth(1),
                 args.nth(2),
@@ -100,14 +100,14 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-            Some(FuncIndex::Push) => {
-                funcs::push(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
+            Some(FuncIndex::SendPush) => {
+                funcs::send_push(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
                     .map(|_| None)
                     .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
 
-            Some(FuncIndex::PushReply) => {
-                funcs::push_reply(self.ext.clone())(args.nth(0), args.nth(1))
+            Some(FuncIndex::ReplyPush) => {
+                funcs::reply_push(self.ext.clone())(args.nth(0), args.nth(1))
                     .map(|_| None)
                     .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
@@ -163,19 +163,19 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "free" => func_instance!(Free, ValueType::I32 => None),
             "gas" => func_instance!(Gas, ValueType::I32 => None),
             "gr_charge" => func_instance!(Charge, ValueType::I64 => None),
-            "gr_commit" => func_instance!(Commit, ValueType::I32 => None),
+            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32 => None),
             "gr_debug" => func_instance!(Debug, ValueType::I32, ValueType::I32 => None),
-            "gr_init" => func_instance!(Init, ValueType::I32,
+            "gr_send_init" => func_instance!(SendInit, ValueType::I32,
                 ValueType::I32,
                 ValueType::I32,
                 ValueType::I64,
                 ValueType::I32 => Some(ValueType::I32)),
             "gr_msg_id" => func_instance!(MsgId, ValueType::I32 => None),
-            "gr_push" => {
-                func_instance!(Push, ValueType::I32, ValueType::I32, ValueType::I32 => None)
+            "gr_send_push" => {
+                func_instance!(SendPush, ValueType::I32, ValueType::I32, ValueType::I32 => None)
             }
-            "gr_push_reply" => {
-                func_instance!(PushReply, ValueType::I32, ValueType::I32 => None)
+            "gr_reply_push" => {
+                func_instance!(ReplyPush, ValueType::I32, ValueType::I32 => None)
             }
             "gr_read" => {
                 func_instance!(Read, ValueType::I32, ValueType::I32, ValueType::I32 => None)

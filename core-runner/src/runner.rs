@@ -37,6 +37,8 @@ impl Default for Config {
     }
 }
 
+type GasRequest = (ProgramId, ProgramId, u64);
+
 /// Result of one or more message handling.
 #[derive(Debug, Default, Clone)]
 pub struct RunNextResult {
@@ -49,7 +51,7 @@ pub struct RunNextResult {
     /// Gas that was spent.
     pub gas_spent: Vec<(ProgramId, u64)>,
     /// Gas transfer requests.
-    pub gas_requests: Vec<(ProgramId, ProgramId, u64)>,
+    pub gas_requests: Vec<GasRequest>,
 }
 
 impl RunNextResult {
@@ -66,6 +68,16 @@ impl RunNextResult {
         RunNextResult {
             handled: 1,
             traps: 1,
+            ..Default::default()
+        }
+    }
+
+    /// Add request all the gas to be reserved for the destination
+    pub(crate) fn refund(gas_request: GasRequest) -> Self {
+        RunNextResult {
+            handled: 1,
+            traps: 1,
+            gas_requests: vec![gas_request],
             ..Default::default()
         }
     }
@@ -155,7 +167,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
-    pub fn run_next(&mut self) -> RunNextResult {
+    pub fn run_next(&mut self, max_gas_limit: u64) -> RunNextResult {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
             None => {
@@ -172,12 +184,32 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             }
             RunNextResult::log()
         } else {
-            let mut program = match self.program_storage.get(next_message.dest()) {
+            let gas_limit = next_message.gas_limit();
+            let next_message_source = next_message.source();
+            let next_message_dest = next_message.dest();
+
+            let mut program = match self.program_storage.get(next_message_dest) {
                 Some(program) => program,
                 None => {
-                    return RunNextResult::trap();
+                    // Reserve the entire `gas_limit` so that it is transferred to the addressee eventually
+                    return RunNextResult::refund((
+                        next_message_source,
+                        next_message_dest,
+                        gas_limit,
+                    ));
                 }
             };
+
+            if gas_limit > max_gas_limit {
+                // Re-queue the message to be processed in one of the following blocks
+                log::info!(
+                    "Message gas limit of {} exceeds the remaining block gas allowance of {}",
+                    gas_limit,
+                    max_gas_limit
+                );
+                self.message_queue.queue(next_message);
+                return RunNextResult::empty();
+            }
 
             let instrumeted_code = match gas::instrument(program.code()) {
                 Ok(code) => code,
@@ -194,11 +226,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                 .collect();
 
             let mut context = self.create_context(allocations);
-
-            let gas_limit = next_message.gas_limit();
             let next_message_id = next_message.id();
-            let next_message_source = next_message.source();
-            let next_message_dest = next_message.dest();
 
             let run_result = run(
                 &mut self.env,
@@ -464,25 +492,27 @@ impl EnvExt for Ext {
         self.messages.send(msg).map_err(|_e| "Message send error")
     }
 
-    fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str> {
-        self.messages.init(msg).map_err(|_e| "Message init error")
+    fn send_init(&self, msg: OutgoingPacket) -> Result<usize, &'static str> {
+        self.messages
+            .send_init(msg)
+            .map_err(|_e| "Message init error")
     }
 
-    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
+    fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push(handle, buffer)
+            .send_push(handle, buffer)
             .map_err(|_e| "Payload push error")
     }
 
-    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str> {
+    fn reply_push(&self, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push_reply(buffer)
+            .reply_push(buffer)
             .map_err(|_e| "Reply payload push error")
     }
 
-    fn commit(&self, handle: usize) -> Result<(), &'static str> {
+    fn send_commit(&self, handle: usize) -> Result<(), &'static str> {
         self.messages
-            .commit(handle)
+            .send_commit(handle)
             .map_err(|_e| "Message commit error")
     }
 
@@ -696,7 +726,7 @@ mod tests {
 
         runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
 
-        assert_eq!(runner.run_next().traps, 1);
+        assert_eq!(runner.run_next(u64::MAX).traps, 1);
 
         let msg = vec![
             1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
@@ -714,8 +744,8 @@ mod tests {
             0,
         );
 
-        assert_eq!(runner.run_next().traps, 1); // this is handling of automatic reply when first message was trapped; it will also fail
-        runner.run_next();
+        assert_eq!(runner.run_next(u64::MAX).traps, 1); // this is handling of automatic reply when first message was trapped; it will also fail
+        runner.run_next(u64::MAX);
 
         let InMemoryStorage {
             program_storage, ..
@@ -796,7 +826,7 @@ mod tests {
             )
             .expect("failed to init program");
 
-        runner.run_next();
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -815,7 +845,7 @@ mod tests {
             0,
         );
 
-        runner.run_next();
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -838,7 +868,7 @@ mod tests {
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "free"  (func $free (param i32)))
             (import "env" "memory" (memory 1))
-  				(data (i32.const 0) "ok")
+            (data (i32.const 0) "ok")
             (export "handle" (func $handle))
             (export "init" (func $init))
             (func $handle
@@ -896,7 +926,7 @@ mod tests {
             )
             .expect("Failed to init program");
 
-        runner.run_next();
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -916,7 +946,7 @@ mod tests {
             0,
         );
 
-        runner.run_next();
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -965,7 +995,7 @@ mod tests {
 
         runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
 
-        let result = runner.run_next();
+        let result = runner.run_next(u64::MAX);
         assert_eq!(result.gas_spent.len(), 1);
         assert_eq!(result.gas_left.len(), 1);
         assert_eq!(result.gas_requests.len(), 1);

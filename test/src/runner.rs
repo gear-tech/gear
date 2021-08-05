@@ -129,7 +129,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
             nonce,
             message.destination.into(),
             payload,
-            message.gas_limit.unwrap_or(1000000000),
+            message.gas_limit.unwrap_or(u64::MAX),
             message.value.unwrap_or_default() as _,
         );
 
@@ -155,12 +155,25 @@ where
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
-            if runner.run_next().traps > 0 && step_no + 1 == steps {
+            let run_result = runner.run_next(u64::MAX);
+
+            log::info!("step: {}", step_no + 1);
+            log::info!("{:#?}", run_result);
+
+            if run_result.traps > 0 && step_no + 1 == steps {
                 result = Err(anyhow::anyhow!("Runner resulted in a trap"));
             }
         }
     } else {
-        while runner.run_next().handled != 0 {}
+        loop {
+            let run_result = runner.run_next(u64::MAX);
+
+            if run_result.handled == 0 {
+                break;
+            }
+
+            log::info!("{:#?}", run_result);
+        }
     }
 
     let storage = runner.complete();

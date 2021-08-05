@@ -34,13 +34,13 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_to_u32("alloc", funcs::alloc);
         result.add_func_i32("free", funcs::free);
         result.add_func_i32("gas", funcs::gas);
-        result.add_func_i32("gr_commit", funcs::commit);
+        result.add_func_i32("gr_send_commit", funcs::send_commit);
         result.add_func_i64("gr_charge", funcs::charge);
         result.add_func_i32_i32("gr_debug", funcs::debug);
-        result.add_func_i32_i32_i32_i64_i32_to_i32("gr_init", funcs::init);
+        result.add_func_i32_i32_i32_i64_i32_to_i32("gr_send_init", funcs::send_init);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32_i32_i32("gr_push", funcs::push);
-        result.add_func_i32_i32("gr_push_reply", funcs::push_reply);
+        result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
         result.add_func_i32_i32_i64_i32("gr_reply", funcs::reply);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
