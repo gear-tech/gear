@@ -57,7 +57,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use sp_runtime::{Perbill, Permill};
+pub use sp_runtime::{Perbill, Percent, Permill};
 
 /// Import the template pallet.
 pub use pallet_gear;
@@ -318,12 +318,16 @@ impl pallet_utility::Config for Runtime {
     type WeightInfo = ();
 }
 
-/// Configure the pallet template in pallets/template.
+parameter_types! {
+    pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
+    pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
+}
 impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type SubmitWeightPerByte = SubmitWeightPerByte;
     type MessagePerByte = MessagePerByte;
+    type BlockGasLimit = BlockGasLimit;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

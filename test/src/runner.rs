@@ -155,7 +155,7 @@ where
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
-            let run_result = runner.run_next();
+            let run_result = runner.run_next(u64::MAX);
 
             log::info!("step: {}", step_no + 1);
             log::info!("{:#?}", run_result);
@@ -166,7 +166,7 @@ where
         }
     } else {
         loop {
-            let run_result = runner.run_next();
+            let run_result = runner.run_next(u64::MAX);
 
             if run_result.handled == 0 {
                 break;

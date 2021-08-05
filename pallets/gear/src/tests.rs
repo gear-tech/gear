@@ -22,6 +22,7 @@ use codec::Encode;
 use common::{self, IntermediateMessage, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
+use gear_core::program::{Program, ProgramId};
 use sp_core::H256;
 
 pub(crate) fn init_logger() {
@@ -41,7 +42,7 @@ fn parse_wat(source: &str) -> Vec<u8> {
 }
 
 #[test]
-fn submit_program_enqueues_message() {
+fn submit_program_works() {
     let wat = r#"
     (module
     )"#;
@@ -74,13 +75,12 @@ fn submit_program_enqueues_message() {
         };
         assert_eq!(msg_origin, 1_u64.into_origin());
         assert_eq!(msg_code, code);
-
         System::assert_last_event(crate::Event::NewProgram(id).into());
     })
 }
 
 #[test]
-fn submit_program_fails_with_insufficient_balance() {
+fn submit_program_expected_failure() {
     let wat = r#"
     (module
     )"#;
@@ -89,29 +89,98 @@ fn submit_program_fails_with_insufficient_balance() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
 
+        // Insufficient account balance to reserve gas
         assert_noop!(
             Pallet::<Test>::submit_program(
                 Origin::signed(2),
                 code.clone(),
                 b"salt".to_vec(),
                 Vec::new(),
-                10_000u64,
+                10_000_u64,
                 10_u128
             ),
             Error::<Test>::NotEnoughBalanceForReserve
+        );
+
+        // Gas limit is too high
+        assert_noop!(
+            Pallet::<Test>::submit_program(
+                Origin::signed(1),
+                code.clone(),
+                b"salt".to_vec(),
+                Vec::new(),
+                100_001_u64,
+                0_u128
+            ),
+            Error::<Test>::GasLimitTooHigh
+        );
+    })
+}
+#[test]
+fn submit_program_fails_on_duplicate_id() {
+    let wat = r#"(module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+
+        // Finalize block to let queue processing run
+        run_to_block(2);
+
+        // By now this program id is already in the storage
+        assert_noop!(
+            Pallet::<Test>::submit_program(
+                Origin::signed(1),
+                code.clone(),
+                b"salt".to_vec(),
+                Vec::new(),
+                10_000_u64,
+                0_u128
+            ),
+            Error::<Test>::ProgramAlreadyExists
         );
     })
 }
 
 #[test]
-fn send_message_adds_to_queue() {
+fn send_message_works() {
     init_logger();
+
     new_test_ext().execute_with(|| {
+        // Make sure we have a program in the program storage
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            parse_wat(
+                r#"(module
+                    (import "env" "memory" (memory 1))
+                    (export "handle" (func $handle))
+                    (func $handle)
+                )"#,
+            ),
+            Default::default(),
+        )
+        .unwrap();
+        common::native::set_program(program);
+
         assert_ok!(Pallet::<Test>::send_message(
             Origin::signed(1).into(),
-            H256::from_low_u64_be(255),
+            program_id,
             b"payload".to_vec(),
-            10_000u64,
+            10_000_u64,
             0_u128
         ));
 
@@ -128,42 +197,77 @@ fn send_message_adds_to_queue() {
             _ => Default::default(),
         };
         assert_eq!(msg_id, id);
-    })
-}
 
-#[test]
-fn send_message_transfers_value() {
-    init_logger();
-    new_test_ext().execute_with(|| {
-        assert_eq!(Balances::free_balance(1), 1_000_000_000_000);
+        // Sending message to a non-program address works as a simple value transfer
+        assert_eq!(Balances::free_balance(1), 90_000);
         assert_eq!(Balances::free_balance(2), 1);
-
         assert_ok!(Pallet::<Test>::send_message(
             Origin::signed(1).into(),
             2.into_origin(),
             Vec::new(),
-            0_u64,
-            1000000_u128,
+            10_000_u64,
+            20_000_u128,
         ));
-
-        assert_eq!(Balances::free_balance(1), 999_999_000_000);
-        assert_eq!(Balances::free_balance(2), 1000001);
+        // `value + gas_limit` have been deducted from the sender's balance
+        assert_eq!(Balances::free_balance(1), 60_000);
+        // However, only `value` has been transferred to the recepient yet
+        assert_eq!(Balances::free_balance(2), 20_001);
+        // The `gas_limit` part will be released to the recepient in the next block
+        run_to_block(2);
+        assert_eq!(Balances::free_balance(2), 30_001);
     })
 }
 
 #[test]
-fn send_message_fails_with_insufficient_balance() {
+fn send_message_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            parse_wat(
+                r#"(module
+                    (import "env" "memory" (memory 1))
+                )"#,
+            ),
+            Default::default(),
+        )
+        .unwrap();
+        common::native::set_program(program);
+
         assert_noop!(
             Pallet::<Test>::send_message(
                 Origin::signed(2).into(),
-                H256::from_low_u64_be(255),
+                program_id,
                 b"payload".to_vec(),
-                10_000u64,
+                10_000_u64,
                 0_u128
             ),
             Error::<Test>::NotEnoughBalanceForReserve
+        );
+
+        // Sending message to a non-program address triggers balance tansfer
+        assert_noop!(
+            Pallet::<Test>::send_message(
+                Origin::signed(2).into(),
+                H256::from_low_u64_be(1002),
+                b"payload".to_vec(),
+                0_u64,
+                100_u128
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        // Gas limit too high
+        assert_noop!(
+            Pallet::<Test>::send_message(
+                Origin::signed(1).into(),
+                program_id,
+                b"payload".to_vec(),
+                100_001_u64,
+                0_u128
+            ),
+            Error::<Test>::GasLimitTooHigh
         );
     })
 }
@@ -192,7 +296,6 @@ fn messages_processing_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
-        // Normal use-case: program initialized first, then called
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),
@@ -225,30 +328,6 @@ fn messages_processing_works() {
 
         // `InitProgram` doesn't increase the counter, but the reply message does; hence 1.
         assert_eq!(Gear::messages_processed(), 1);
-
-        // First message is sent to a non-existing program - and should get into log.
-        // Second message still gets processed thereby adding 1 to the total processed messages counter.
-        MessageQueue::<Test>::put(vec![
-            IntermediateMessage::DispatchMessage {
-                id: H256::from_low_u64_be(102),
-                origin: 1.into_origin(),
-                destination: 2.into_origin(),
-                payload: Vec::new(),
-                gas_limit: 10000,
-                value: 100,
-            },
-            IntermediateMessage::DispatchMessage {
-                id: H256::from_low_u64_be(103),
-                origin: 1.into_origin(),
-                destination: program_id,
-                payload: Vec::new(),
-                gas_limit: 10000,
-                value: 0,
-            },
-        ]);
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
-        assert_eq!(Gear::messages_processed(), 3); // Counter not reset, 1 added
     })
 }
 
@@ -448,5 +527,174 @@ fn unused_gas_released_back_works() {
             Balances::free_balance(1),
             external_origin_initial_balance.saturating_sub(6_000)
         );
+    })
+}
+
+#[test]
+fn block_gas_limit_works() {
+    // A module with $handle function being worth 6000 gas
+    let wat1 = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			i32.const 0
+			i32.const 32
+			i32.const 32
+			i64.const 1000000000
+			i32.const 1024
+			call $send
+		)
+		(func $init)
+	)"#;
+
+    // A module with $handle function being worth 94000 gas
+    let wat2 = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "gr_charge" (func $charge (param i64)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $init)
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $handle
+            i32.const 10
+            call $doWork
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code1 = parse_wat(wat1);
+        let code2 = parse_wat(wat2);
+        let pid1 = H256::from_low_u64_be(1001);
+        let pid2 = H256::from_low_u64_be(1002);
+
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::InitProgram {
+                origin: 1.into_origin(),
+                code: code1,
+                program_id: pid1,
+                payload: Vec::new(),
+                gas_limit: 10_000,
+                value: 0,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(102),
+                origin: 1.into_origin(),
+                destination: pid1,
+                payload: Vec::new(),
+                gas_limit: 10_000,
+                value: 0,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(103),
+                origin: 1.into_origin(),
+                destination: pid1,
+                payload: Vec::new(),
+                gas_limit: 10_000,
+                value: 100,
+            },
+            IntermediateMessage::InitProgram {
+                origin: 1.into_origin(),
+                code: code2,
+                program_id: pid2,
+                payload: Vec::new(),
+                gas_limit: 10_000,
+                value: 0,
+            },
+        ]);
+
+        // Run to block #2 where the queue processing takes place
+        run_to_block(2);
+
+        System::assert_last_event(crate::Event::MessagesDequeued(4).into());
+        assert_eq!(Gear::gas_allowance(), 88_000);
+
+        // Run to the next block to reset the gas limit
+        run_to_block(3);
+        assert_eq!(Gear::gas_allowance(), 100_000);
+        assert!(MessageQueue::<Test>::get().is_none());
+
+        // Add more messages to queue
+        // Total `gas_limit` of three messages exceeds the block gas limit
+        // Messages #1 abd #3 take 6000 gas
+        // Message #2 takes 94000 gas
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(104),
+                origin: 1.into_origin(),
+                destination: pid1,
+                payload: Vec::new(),
+                gas_limit: 10_000,
+                value: 0,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(105),
+                origin: 1.into_origin(),
+                destination: pid2,
+                payload: Vec::new(),
+                gas_limit: 95_000,
+                value: 100,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(106),
+                origin: 1.into_origin(),
+                destination: pid1,
+                payload: Vec::new(),
+                gas_limit: 20_000,
+                value: 200,
+            },
+        ]);
+
+        run_to_block(4);
+        // Message #2 steps beyond the block gas allowance and is requeued
+        // Message #1 is dequeued and processed, message #3 stays in the queue:
+        //
+        // | 1 |        | 3 |
+        // | 2 |  ===>  | 2 |
+        // | 3 |        |   |
+        //
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+        assert_eq!(Gear::gas_allowance(), 94_000);
+
+        // Run to the next block to reset the gas limit
+        run_to_block(5);
+        // Message #3 get dequeued and processed
+        // Message #2 gas limit still exceeds the remaining allowance:
+        //
+        // | 3 |        | 2 |
+        // | 2 |  ===>  |   |
+        //
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+        assert_eq!(Gear::gas_allowance(), 94_000);
+
+        run_to_block(6);
+        // This time message #2 makes it into the block:
+        //
+        // | 2 |        |   |
+        // |   |  ===>  |   |
+        //
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+        assert_eq!(Gear::gas_allowance(), 6_000);
     })
 }
