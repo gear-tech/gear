@@ -31,7 +31,7 @@ pub struct Config {
     pub alloc_cost: u64,
     /// Gas cost for init memory page.
     pub init_cost: u64,
-    /// Gas cost divider for loading memory page from program state.
+    /// Gas cost for loading memory page from program state.
     pub load_page_cost: u64,
 }
 
