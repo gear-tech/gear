@@ -434,9 +434,9 @@ impl From<EntryPoint> for &'static str {
 }
 
 static MAX_INIT_PAGES: u32 = 256;
-static MAX_PAGES: u32 = 16384;
-static INIT_COST: u32 = 200;
-static ALLOC_COST: u32 = 1000;
+static MAX_PAGES: u32 = 512;
+static INIT_COST: u32 = 5000;
+static ALLOC_COST: u32 = 10000;
 
 struct RunningContext {
     config: Config,
