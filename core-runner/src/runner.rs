@@ -1017,22 +1017,23 @@ mod tests {
             gear_core::storage::new_in_memory(Default::default(), Default::default()),
         );
 
+        let source = 1001.into();
+        let dest = 1.into();
+        let gas_limit = 1000_000;
+
         let _ = runner
             .init_program(
-                1001.into(),
+                source,
                 0,
-                1.into(),
+                dest,
                 parse_wat(wat),
                 "init".as_bytes().to_vec(),
-                u64::MAX,
+                gas_limit,
                 0,
             )
             .expect("failed to init `gas_transfer` program");
 
-        let source = 1001.into();
-        let dest = 1.into();
         let payload = b"Test Wait";
-        let gas_limit = 1000_000;
         runner.queue_message(source, 1, dest, payload.to_vec(), 1000_000, 0);
 
         let _result = runner.run_next();
