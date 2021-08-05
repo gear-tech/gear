@@ -550,11 +550,6 @@ impl EnvExt for Ext {
     }
 
     fn wait(&mut self) -> Result<(), &'static str> {
-        //let out_msg: OutgoingMessage = in_msg.into();
-        log::warn!("GAS LIMIT {:?}", self.messages.current().gas_limit());
-        //self.messages.//push(handle, buffer)
-        //self.messages.push(handle, buffer)
-        // TODO: Implement
         self.messages
             .queue_back()
             .map_err(|_| "Unable to queue the message back")
@@ -628,12 +623,15 @@ fn run(
         ));
     }
 
-    let gas_left = ext.gas_counter.left();
+    let mut gas_left = ext.gas_counter.left();
     let gas_requested = ext.gas_requested;
     let gas_spent = gas_limit - gas_left - gas_requested;
 
     if let Some(mut queue_back_msg) = queue_back {
+        // Update gas limit according to gas already spent
         queue_back_msg.set_gas_limit(gas_left);
+        // Keep user's balance reserved until message will be really processed
+        gas_left = 0;
         context.push_message(queue_back_msg.into_message(program.id()));
     }
 
@@ -950,15 +948,15 @@ mod tests {
         // Charge 100_000 of gas.
         let wat = r#"
         (module
-          (import "env" "gr_charge" (func $charge (param i64)))
-          (import "env" "memory" (memory 1))
-          (export "handle" (func $handle))
-          (export "init" (func $init))
-          (func $handle
-            i64.const 100000
-            call $charge
-          )
-          (func $init)
+            (import "env" "gr_charge" (func $charge (param i64)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+                i64.const 100000
+                call $charge
+            )
+            (func $init)
         )"#;
 
         let mut runner = Runner::new(
@@ -1000,17 +998,18 @@ mod tests {
 
     #[test]
     fn wait() {
+        // Call `gr_wait` function
         let wat = r#"
         (module
-          (import "env" "gr_wait" (func $gr_wait))
-          (import "env" "memory" (memory 1))
-          (export "handle" (func $handle))
-          (export "init" (func $init))
-          (func $handle
-            call $gr_wait
-            call $gr_wait ;; This call is unreachable due to execution interrupt on previous call
-          )
-          (func $init)
+            (import "env" "gr_wait" (func $gr_wait))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+                call $gr_wait
+                call $gr_wait ;; This call is unreachable due to execution interrupt on previous call
+            )
+            (func $init)
         )"#;
 
         let mut runner = Runner::new(
@@ -1030,13 +1029,22 @@ mod tests {
             )
             .expect("failed to init `gas_transfer` program");
 
-        runner.queue_message(1001.into(), 1, 1.into(), b"test".to_vec(), 1000_000, 0);
+        let source = 1001.into();
+        let dest = 1.into();
+        let payload = b"Test Wait";
+        let gas_limit = 1000_000;
+        runner.queue_message(source, 1, dest, payload.to_vec(), 1000_000, 0);
 
         let _result = runner.run_next();
 
         let InMemoryStorage { message_queue, .. } = runner.complete();
         let messages = message_queue.drain();
 
-        log::warn!("MSG QUEUE LEN: {}", messages.len());
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].source, source);
+        assert_eq!(messages[0].dest, dest);
+        assert_eq!(messages[0].payload(), payload);
+        log::warn!("New gas limit: {}", messages[0].gas_limit);
+        assert!(messages[0].gas_limit < gas_limit);
     }
 }
