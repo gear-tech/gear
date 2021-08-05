@@ -176,7 +176,7 @@ function submitProgram(api, sudoPair, program, salt, programs) {
       initMessage = program.init_message.value;
     }
   }
-  return api.tx.gear.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 1000000000, 0);
+  return api.tx.gear.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 10000000000, 0);
 }
 
 function runWithTimeout(promise, time) {
@@ -291,7 +291,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
     } else {
       msg = message.payload.value;
     }
-    txs.push(api.tx.gear.sendMessage(programs[message.destination], msg, 1000000000, 0));
+    txs.push(api.tx.gear.sendMessage(programs[message.destination], msg, 10000000000, 0));
   }
 
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
@@ -368,7 +368,7 @@ async function main() {
       "IntermediateMessage": {
         "_enum": {
           "InitProgram": {
-            "external_origin": "H256",
+            "origin": "H256",
             "program_id": "H256",
             "code": "Vec<u8>",
             "payload": "Vec<u8>",
@@ -377,15 +377,16 @@ async function main() {
           },
           "DispatchMessage": {
             "id": "H256",
-            "route": "MessageRoute",
+            "origin": "H256",
+            "destination": "H256",
             "payload": "Vec<u8>",
             "gas_limit": "u64",
             "value": "u128",
           }
         }
       },
-      "MessageError": {
-        "_enum": ["ValueTransfer", "Dispatch"]
+      "Reason": {
+        "_enum": ["ValueTransfer", "Dispatch", "BlockGasLimitExceeded"]
       },
     },
   });
