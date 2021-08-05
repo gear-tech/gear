@@ -22,7 +22,7 @@ pub unsafe extern "C" fn handle() {
                 acc
             });
 
-        msg::send(msg::source(), collapsed.as_bytes(), 1000000000, 0);
+        msg::send(msg::source(), collapsed.as_bytes(), 1000000000);
 
         COUNTER = 0;
     } else {
@@ -36,5 +36,7 @@ pub unsafe extern "C" fn init() {}
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    unsafe { core::arch::wasm32::unreachable(); }
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }

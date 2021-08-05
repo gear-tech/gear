@@ -19,6 +19,7 @@ termion = "1.5.6"
 gear-node-rti = { path = "../node-rti" }
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
+log = "0.4.14"
 
 [[bin]]
 name = "gtest"

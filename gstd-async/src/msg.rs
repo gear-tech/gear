@@ -45,7 +45,7 @@ pub fn send_and_wait_for_reply(
     value: u128,
 ) -> MessageFuture {
     if *state() == MessageState::Idle {
-        msg::send(program, payload, gas_limit, value);
+        msg::send_with_value(program, payload, gas_limit, value);
         set_state(MessageState::Sent);
     }
     MessageFuture

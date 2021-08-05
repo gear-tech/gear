@@ -42,11 +42,11 @@ pub(crate) fn charge<E: Ext>(ext: LaterExt<E>) -> impl Fn(i64) -> Result<(), &'s
     }
 }
 
-pub(crate) fn commit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+pub(crate) fn send_commit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |handle_ptr: i32| {
         let handle_ptr = handle_ptr as u32 as usize;
 
-        let result = ext.with(|ext: &mut E| ext.commit(handle_ptr));
+        let result = ext.with(|ext: &mut E| ext.send_commit(handle_ptr));
         if result.is_err() {
             return Err("Trapping: unable to commit and send message");
         }
@@ -79,7 +79,7 @@ pub(crate) fn gas<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'stat
     }
 }
 
-pub(crate) fn init<E: Ext>(
+pub(crate) fn send_init<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<i32, &'static str> {
     move |program_id_ptr: i32,
@@ -99,7 +99,7 @@ pub(crate) fn init<E: Ext>(
             let mut value_le = [0u8; 16];
             ext.get_mem(value_ptr as isize as _, &mut value_le);
 
-            ext.init(OutgoingPacket::new(
+            ext.send_init(OutgoingPacket::new(
                 program_id,
                 data.into(),
                 gas_limit as _,
@@ -135,7 +135,7 @@ pub(crate) fn push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
             let mut data = vec![0u8; message_len];
             ext.get_mem(message_ptr, &mut data);
 
-            ext.push(handle_ptr, &data)
+            ext.send_push(handle_ptr, &data)
         });
 
         if result.is_err() {
@@ -146,7 +146,7 @@ pub(crate) fn push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
     }
 }
 
-pub(crate) fn push_reply<E: Ext>(
+pub(crate) fn reply_push<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32) -> Result<(), &'static str> {
     move |message_ptr: i32, message_len: i32| {
@@ -157,7 +157,7 @@ pub(crate) fn push_reply<E: Ext>(
             let mut data = vec![0u8; message_len];
             ext.get_mem(message_ptr, &mut data);
 
-            ext.push_reply(&data)
+            ext.reply_push(&data)
         });
 
         if result.is_err() {

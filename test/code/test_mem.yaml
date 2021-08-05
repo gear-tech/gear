@@ -1,0 +1,24 @@
+title: Memory test
+
+programs:
+- id: 1
+  path: examples/target/wasm32-unknown-unknown/release/demo_mem.wasm
+
+fixtures:
+- title: Test for memory result
+  messages:
+  - destination: 1
+    payload:
+      kind: utf-8
+      value: empty here
+  - destination: 1
+    payload:
+      kind: utf-8
+      value: empty here
+  expected:
+    - allocations:
+      - page_num: 17
+        program_id: 1
+      - page_num: 18
+        program_id: 1
+

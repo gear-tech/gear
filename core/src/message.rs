@@ -567,7 +567,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Initialize a new message with `NotFormed` formation status and return its handle.
     ///
     /// Messages created this way should be commited with `commit(handle)` to be sent.
-    pub fn init(&self, msg: OutgoingPacket) -> Result<usize, Error> {
+    pub fn send_init(&self, msg: OutgoingPacket) -> Result<usize, Error> {
         let mut state = self.state.borrow_mut();
 
         let outgoing_count = state.outgoing.len();
@@ -585,7 +585,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into message payload by handle.
-    pub fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
+    pub fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -601,7 +601,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into reply message.
-    pub fn push_reply(&self, buffer: &[u8]) -> Result<(), Error> {
+    pub fn reply_push(&self, buffer: &[u8]) -> Result<(), Error> {
         if let Some(reply) = &mut self.state.borrow_mut().reply {
             reply.payload.0.extend_from_slice(buffer);
             return Ok(());
@@ -619,7 +619,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Mark message as fully formed and ready for sending in this context by handle.
-    pub fn commit(&self, handle: usize) -> Result<(), Error> {
+    pub fn send_commit(&self, handle: usize) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -744,7 +744,7 @@ mod tests {
 
         // Checking that we are not able to push extra payload into
         // reply message if we have not set it yet
-        assert!(context.push_reply(&[0]).is_err());
+        assert!(context.reply_push(&[0]).is_err());
 
         // Setting reply message and making sure the operation was successful
         assert!(context.reply(reply_packet.clone()).is_ok());
@@ -804,7 +804,7 @@ mod tests {
         // Initializing message and compare its handle with expected one
         assert_eq!(
             context
-                .init(outgoing_packet.clone())
+                .send_init(outgoing_packet.clone())
                 .expect("Error initializing new message"),
             expected_handle
         );
@@ -822,23 +822,23 @@ mod tests {
 
         // Checking that we are able to push payload for the
         // message that we have not commited yet
-        assert!(context.push(expected_handle, &[5, 7]).is_ok());
-        assert!(context.push(expected_handle, &[9]).is_ok());
+        assert!(context.send_push(expected_handle, &[5, 7]).is_ok());
+        assert!(context.send_push(expected_handle, &[9]).is_ok());
 
         // Checking if commit is successful
-        assert!(context.commit(expected_handle).is_ok());
+        assert!(context.send_commit(expected_handle).is_ok());
 
         // Checking that we are **NOT** able to push payload for the message or
         // commit it if we already commited it or directly pushed before
-        assert!(context.push(0, &[5, 7]).is_err());
-        assert!(context.push(expected_handle, &[5, 7]).is_err());
-        assert!(context.commit(0).is_err());
-        assert!(context.commit(expected_handle).is_err());
+        assert!(context.send_push(0, &[5, 7]).is_err());
+        assert!(context.send_push(expected_handle, &[5, 7]).is_err());
+        assert!(context.send_commit(0).is_err());
+        assert!(context.send_commit(expected_handle).is_err());
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
-        assert!(context.push(15, &[0]).is_err());
-        assert!(context.commit(15).is_err());
+        assert!(context.send_push(15, &[0]).is_err());
+        assert!(context.send_commit(15).is_err());
 
         // Creating an outgoing packet to init and do not commit later
         // to show that the message will not be sent
@@ -852,7 +852,7 @@ mod tests {
 
         assert_eq!(
             context
-                .init(outgoing_packet)
+                .send_init(outgoing_packet)
                 .expect("Error initializing new message"),
             expected_handle
         );
@@ -865,8 +865,8 @@ mod tests {
         );
 
         // Checking that we are able to push extra payload into reply message
-        assert!(context.push_reply(&[1, 2]).is_ok());
-        assert!(context.push_reply(&[3, 4]).is_ok());
+        assert!(context.reply_push(&[1, 2]).is_ok());
+        assert!(context.reply_push(&[3, 4]).is_ok());
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
         let expected_result = context.drain();
