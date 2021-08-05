@@ -7,18 +7,21 @@ use gstd::{msg, prelude::*};
 pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
 
-    let code: Vec<usize> = new_msg.split_whitespace().map(|v| v.parse::<usize>()).collect();
+    let code: Vec<usize> = new_msg
+        .split_whitespace()
+        .map(|v| {
+            v.parse::<usize>()
+                .expect("Not a number was sent in sequence")
+                - 1
+        })
+        .collect();
 
     let nodes = &code.len() + 2;
 
     let mut degrees = vec![1; nodes];
     for vertex in &code {
-        if *vertex < 1 || *vertex > nodes {
-            msg::send(
-                msg::source(),
-                b"Invalid code",
-                u64::MAX
-            );
+        if *vertex >= nodes {
+            msg::send(msg::source(), b"Invalid code", u64::MAX);
             return;
         }
         degrees[*vertex] += 1;
@@ -31,20 +34,16 @@ pub unsafe extern "C" fn handle() {
         }
     }
 
-    let handle = msg::init(
-        msg::source(),
-        b"Graph edges:",
-        u64::MAX
-    )
+    let handle = msg::send_init(msg::source(), b"Graph edges > ", u64::MAX, 0);
 
     for vertex in &code {
         leaves.sort_unstable();
         leaves.reverse();
         let leaf = leaves.pop().expect("An error occured during calculating");
 
-        msg::push(
+        msg::send_push(
             handle,
-            format!(" ({} , {}) ", leaf + 1, vertex + 1).as_bytes()
+            format!("[{}, {}] ", leaf + 1, vertex + 1).as_bytes(),
         );
 
         degrees[*vertex] -= 1;
@@ -54,7 +53,12 @@ pub unsafe extern "C" fn handle() {
         }
     }
 
-    msg::commit(handle);
+    msg::send_push(
+        handle,
+        format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1).as_bytes(),
+    );
+
+    msg::send_commit(handle);
 }
 
 #[no_mangle]
@@ -62,5 +66,7 @@ pub unsafe extern "C" fn init() {}
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    unsafe { core::arch::wasm32::unreachable(); }
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }

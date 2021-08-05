@@ -6,6 +6,7 @@ members = [
     "chat/room",
     "collector",
     "condensator",
+    "decoder",
     "fib",
     "mem",
     "meta",
