@@ -1,7 +1,7 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
-mod macros;
+mod bail;
 pub mod msg;
 pub mod prelude;
 
