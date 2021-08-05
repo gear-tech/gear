@@ -489,6 +489,9 @@ impl EnvExt for Ext {
     }
 
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str> {
+        if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
+            return Err("Gas limit exceeded while trying to send message");
+        }
         self.messages.send(msg).map_err(|_e| "Message send error")
     }
 
@@ -806,7 +809,7 @@ mod tests {
                 i32.const 12
                 i32.const 0
                 i32.const 2
-                i64.const 18446744073709551615
+                i64.const 10000000
                 i32.const 0
                 call $send
               )
@@ -889,14 +892,14 @@ mod tests {
               get_local $var0
               i32.const 255
               i32.and
-              i64.const 18446744073709551615
+              i64.const 1000000000
               i32.const 32768
               call $send
               i32.const 256
               call $free
             )
             (func $init
-            (local $id i32)
+              (local $id i32)
               (local $msg_size i32)
               (local $alloc_pages i32)
               (local $pages_offset i32)
@@ -905,7 +908,7 @@ mod tests {
                 (get_local $id)
                 (i32.const 1)
               )
-              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 18446744073709551615) (i32.const 32768))
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 10000000000) (i32.const 32768))
             )
           )"#;
 

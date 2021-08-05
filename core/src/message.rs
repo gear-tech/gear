@@ -408,6 +408,26 @@ impl OutgoingPacket {
             value,
         }
     }
+
+    /// Gas limit.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
+
+    /// Value.
+    pub fn value(&self) -> u128 {
+        self.value
+    }
+
+    /// Payload.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    /// Destination.
+    pub fn dest(&self) -> ProgramId {
+        self.dest
+    }
 }
 
 /// Reply message packet.
