@@ -57,7 +57,7 @@ node-test:
 
 .PHONY: ntest
 ntest:
-	@cargo run --package gear-node --release -- runtests ./test/json/*.json
+	@cargo run --package gear-node --release -- runtests ./test/code/*.yaml
 
 .PHONY: pre-commit
 pre-commit:
