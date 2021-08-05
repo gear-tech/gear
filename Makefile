@@ -13,7 +13,7 @@ clean:
 
 .PHONY: core-test
 core-test:
-	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner
+	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner -- --nocapture
 
 .PHONY: examples
 examples:
@@ -57,7 +57,7 @@ node-test:
 
 .PHONY: ntest
 ntest:
-	@cargo run --package gear-node --release -- runtests ./test/json/*.json
+	@cargo run --package gear-node --release -- runtests ./test/code/*.yaml
 
 .PHONY: pre-commit
 pre-commit:

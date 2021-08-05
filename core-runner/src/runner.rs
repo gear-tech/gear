@@ -576,6 +576,12 @@ impl EnvExt for Ext {
     fn value(&mut self) -> u128 {
         self.messages.current().value()
     }
+
+    fn wait(&mut self) -> Result<(), &'static str> {
+        self.messages
+            .queue_back()
+            .map_err(|_| "Unable to queue the message back")
+    }
 }
 
 fn run(
@@ -618,7 +624,7 @@ fn run(
     );
 
     let was_trap = res.is_err();
-    let _res = res.unwrap_or_default();
+    let _res = res.unwrap_or_default(); // TODO: What's it for?
 
     // get allocated pages
     for page in ext.memory_context.allocations().clone() {
@@ -630,7 +636,7 @@ fn run(
     let mut messages = vec![];
 
     program.set_message_nonce(ext.messages.nonce());
-    let (outgoing, reply) = ext.messages.drain();
+    let (outgoing, reply, queue_back) = ext.messages.drain();
 
     for outgoing_msg in outgoing {
         messages.push(outgoing_msg.clone());
@@ -645,9 +651,17 @@ fn run(
         ));
     }
 
-    let gas_left = ext.gas_counter.left();
+    let mut gas_left = ext.gas_counter.left();
     let gas_requested = ext.gas_requested;
     let gas_spent = gas_limit - gas_left - gas_requested;
+
+    if let Some(mut queue_back_msg) = queue_back {
+        // Update gas limit according to gas already spent
+        queue_back_msg.set_gas_limit(gas_left);
+        // Keep user's balance reserved until message will be really processed
+        gas_left = 0;
+        context.push_message(queue_back_msg.into_message(program.id()));
+    }
 
     RunResult {
         messages,
@@ -962,15 +976,15 @@ mod tests {
         // Charge 100_000 of gas.
         let wat = r#"
         (module
-          (import "env" "gr_charge"  (func $charge (param i64)))
-          (import "env" "memory" (memory 1))
-          (export "handle" (func $handle))
-          (export "init" (func $init))
-          (func $handle
-            i64.const 100000
-            call $charge
-          )
-          (func $init)
+            (import "env" "gr_charge" (func $charge (param i64)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+                i64.const 100000
+                call $charge
+            )
+            (func $init)
         )"#;
 
         let mut runner = Runner::new(
@@ -1008,5 +1022,58 @@ mod tests {
         assert_eq!(result.gas_requests[0].0, caller_id);
         assert_eq!(result.gas_requests[0].1, program_id);
         assert_eq!(result.gas_requests[0].2, 100_000);
+    }
+
+    #[test]
+    fn wait() {
+        // Call `gr_wait` function
+        let wat = r#"
+        (module
+            (import "env" "gr_wait" (func $gr_wait))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+                call $gr_wait
+                call $gr_wait ;; This call is unreachable due to execution interrupt on previous call
+            )
+            (func $init)
+        )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            gear_core::storage::new_in_memory(Default::default(), Default::default()),
+        );
+
+        let source = 1001.into();
+        let dest = 1.into();
+        let gas_limit = 1000_000;
+
+        let _ = runner
+            .init_program(
+                source,
+                0,
+                dest,
+                parse_wat(wat),
+                "init".as_bytes().to_vec(),
+                gas_limit,
+                0,
+            )
+            .expect("failed to init `gas_transfer` program");
+
+        let payload = b"Test Wait";
+        runner.queue_message(source, 1, dest, payload.to_vec(), 1000_000, 0);
+
+        let _result = runner.run_next(u64::MAX);
+
+        let InMemoryStorage { message_queue, .. } = runner.complete();
+        let messages = message_queue.drain();
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].source, source);
+        assert_eq!(messages[0].dest, dest);
+        assert_eq!(messages[0].payload(), payload);
+        log::warn!("New gas limit: {}", messages[0].gas_limit);
+        assert!(messages[0].gas_limit < gas_limit);
     }
 }

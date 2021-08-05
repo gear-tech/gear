@@ -1,0 +1,22 @@
+title: Wait test
+
+programs:
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/demo_wait.wasm
+
+fixtures:
+  - title: wait
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: PAYLOAD
+
+    expected:
+      - step: 1
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: PAYLOAD

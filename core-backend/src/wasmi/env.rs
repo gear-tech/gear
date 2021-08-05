@@ -8,7 +8,6 @@ use wasmi::{
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -43,6 +42,7 @@ enum FuncIndex {
     Size,
     Source,
     Value,
+    Wait,
 }
 
 macro_rules! func_instance {
@@ -146,6 +146,12 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
+            Some(FuncIndex::Wait) => {
+                funcs::wait(self.ext.clone())()
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for `gr_wait` trap
+            }
+
             _ => panic!("unknown function index"),
         }
     }
@@ -190,9 +196,10 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 ValueType::I32,
                 ValueType::I64,
                 ValueType::I32 => None),
-            "gr_size" => func_instance!(Size,  => Some(ValueType::I32)),
+            "gr_size" => func_instance!(Size, => Some(ValueType::I32)),
             "gr_source" => func_instance!(Source, ValueType::I32 => None),
             "gr_value" => func_instance!(Value, ValueType::I32 => None),
+            "gr_wait" => func_instance!(Wait, => None),
 
             _ => {
                 return Err(InterpreterError::Function(format!(
@@ -279,8 +286,15 @@ impl<E: Ext + 'static> Environment<E> {
         };
 
         let result = self.run_inner(instance, memory_pages, memory, move |instance| {
-            instance
-                .invoke_export(entry_point, &[], &mut runtime)
+            let result = instance.invoke_export(entry_point, &[], &mut runtime);
+            if let Err(InterpreterError::Trap(trap)) = &result {
+                // TODO: Define custom HostError for `gr_wait` trap
+                if let TrapKind::Unreachable = trap.kind() {
+                    // We don't propagate a trap from `gr_wait`
+                    return Ok(());
+                }
+            }
+            result
                 .map_err(|err| anyhow::format_err!("Failed export: {:?}", err))
                 .map(|_| ())
         });
