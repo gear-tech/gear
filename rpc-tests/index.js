@@ -151,6 +151,17 @@ async function checkMemory(api, exp) {
 function submitProgram(api, sudoPair, program, salt, programs) {
   const binary = fs.readFileSync(program.path);
 
+  let init_gas_limit = 1000000;
+  let init_value = 0;
+
+  if (program.init_gas_limit) {
+    init_gas_limit = program.init_gas_limit
+  }
+
+  if (program.init_value) {
+    init_value = program.init_value
+  }
+
   let initMessage = [];
   if (program.init_message !== undefined) {
     if (program.init_message.kind === 'bytes') {
@@ -176,7 +187,7 @@ function submitProgram(api, sudoPair, program, salt, programs) {
       initMessage = program.init_message.value;
     }
   }
-  return api.tx.gear.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, 10000000000, 0);
+  return api.tx.gear.submitProgram(api.createType('Bytes', Array.from(binary)), salt, initMessage, init_gas_limit, init_value);
 }
 
 function runWithTimeout(promise, time) {
@@ -220,7 +231,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
       // Poll the number of processed messages for 60 seconds, then break
       try {
         await runWithTimeout(queryProcessedMessages(), 60000);
-      } catch(err) {
+      } catch (err) {
         errors.push(`${err}`);
       }
 
@@ -268,17 +279,28 @@ async function processFixture(api, sudoPair, fixture, programs) {
   // Send messages
   for (let index = 0; index < fixture.messages.length; index++) {
     const message = fixture.messages[index];
-    let msg = [];
+    let payload = [];
+    let gas_limit = 1000000;
+    let value = 0;
+
+    if (message.gas_limit) {
+      gas_limit = message.gas_limit;
+    }
+
+    if (message.value) {
+      value = message.value;
+    }
+
     if (message.payload.kind === 'bytes') {
-      msg = api.createType('Bytes', message.payload.value);
+      payload = api.createType('Bytes', message.payload.value);
     } else if (message.payload.kind === 'i32') {
-      msg = api.createType('Bytes', Array.from(api.createType('i32', message.payload.value).toU8a()));
+      payload = api.createType('Bytes', Array.from(api.createType('i32', message.payload.value).toU8a()));
     } else if (message.payload.kind === 'i64') {
-      msg = api.createType('Bytes', Array.from(api.createType('i64', message.payload.value).toU8a()));
+      payload = api.createType('Bytes', Array.from(api.createType('i64', message.payload.value).toU8a()));
     } else if (message.payload.kind === 'f32') {
-      msg = api.createType('Bytes', Array.from(api.createType('f32', message.payload.value).toU8a()));
+      payload = api.createType('Bytes', Array.from(api.createType('f32', message.payload.value).toU8a()));
     } else if (message.payload.kind === 'f64') {
-      msg = api.createType('Bytes', Array.from(api.createType('f64', message.payload.value).toU8a()));
+      payload = api.createType('Bytes', Array.from(api.createType('f64', message.payload.value).toU8a()));
     } else if (message.payload.kind === 'utf-8') {
       if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
         const res = message.payload.value.match(/{([0-9]*)\}/);
@@ -287,11 +309,11 @@ async function processFixture(api, sudoPair, fixture, programs) {
           message.payload.value = message.payload.value.replace(res[0], programs[id].toString().slice(2));
         }
       }
-      msg = message.payload.value;
+      payload = message.payload.value;
     } else {
-      msg = message.payload.value;
+      payload = message.payload.value;
     }
-    txs.push(api.tx.gear.sendMessage(programs[message.destination], msg, 10000000000, 0));
+    txs.push(api.tx.gear.sendMessage(programs[message.destination], payload, gas_limit, value));
   }
 
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
