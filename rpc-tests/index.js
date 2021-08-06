@@ -151,7 +151,7 @@ async function checkMemory(api, exp) {
 function submitProgram(api, sudoPair, program, salt, programs) {
   const binary = fs.readFileSync(program.path);
 
-  let init_gas_limit = 1000000;
+  let init_gas_limit = 100000000;
   let init_value = 0;
 
   if (program.init_gas_limit) {
@@ -280,7 +280,7 @@ async function processFixture(api, sudoPair, fixture, programs) {
   for (let index = 0; index < fixture.messages.length; index++) {
     const message = fixture.messages[index];
     let payload = [];
-    let gas_limit = 1000000;
+    let gas_limit = 100000000;
     let value = 0;
 
     if (message.gas_limit) {
