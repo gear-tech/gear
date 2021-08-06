@@ -574,7 +574,6 @@ pub fn init_test_program(origin: H256, program_id: H256, wat: &str) {
     crate::Pallet::<Test>::process_queue(RawOrigin::None.into()).expect("Failed to process queue");
 }
 
-
 #[test]
 fn block_gas_limit_works() {
     // A module with $handle function being worth 6000 gas
