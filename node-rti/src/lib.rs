@@ -53,8 +53,6 @@ pub struct ExecutionReport {
 #[cfg(feature = "std")]
 impl ExecutionReport {
     fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
-        // TODO: actually compare touched from run result with
-        //       that is what should be predefined in message
         let RunNextResult {
             handled,
             gas_left,
@@ -144,7 +142,6 @@ pub trait GearExecutor {
         let mut runner = crate::runner::new();
 
         runner.queue_message(
-            // TODO: find a better way to generate source
             ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
             gear_common::caller_nonce_fetch_inc(H256::from_low_u64_be(1)),
             ProgramId::from_slice(&program_id[..]),
