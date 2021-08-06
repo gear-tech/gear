@@ -11,7 +11,6 @@ pub unsafe extern "C" fn handle() {
         STATE = 1;
         msg::wait();
     }
-    // Unreachable code
     msg::send(msg::source(), b"WAITED", 1_000_000);
 }
 
