@@ -732,7 +732,7 @@ mod tests {
         };
 
         // Creating a message context
-        let context = MessageContext::new(incoming_message, id_generator);
+        let mut context = MessageContext::new(incoming_message, id_generator);
 
         // Сhecking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
