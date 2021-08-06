@@ -43,7 +43,7 @@ pub trait Ext {
     fn reply_push(&self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&self, handle: usize) -> Result<(), &'static str>;
+    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str>;
 
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
@@ -162,7 +162,7 @@ mod tests {
         fn reply_push(&self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn send_commit(&self, _handle: usize) -> Result<(), &'static str> {
+        fn send_commit(&mut self, _handle: usize) -> Result<(), &'static str> {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {

@@ -513,7 +513,16 @@ impl EnvExt for Ext {
             .map_err(|_e| "Reply payload push error")
     }
 
-    fn send_commit(&self, handle: usize) -> Result<(), &'static str> {
+    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str> {
+        {
+            let gas_limit = self.messages.get_gas_limit(handle).
+                map_err(|_e| "Message commit error")?;
+
+            if self.gas_counter.charge(gas_limit) != ChargeResult::Enough {
+                return Err("Gas limit exceeded while trying to send message");
+            }
+        }
+
         self.messages
             .send_commit(handle)
             .map_err(|_e| "Message commit error")
