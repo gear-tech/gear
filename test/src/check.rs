@@ -322,10 +322,15 @@ where
                 };
 
                 println!(
-                    "Fixture {}{}{}: {}",
+                    "Fixture {}{}{}(step: {}): {}",
                     style::Bold,
                     test.fixtures[fixture_no].title,
                     style::Reset,
+                    if let Some(step) = exp.step {
+                        format!("{}", step)
+                    } else {
+                        "final".to_string()
+                    },
                     output
                 );
             }
