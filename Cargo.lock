@@ -4218,6 +4218,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-node-rti",
+ "hex-literal",
  "pallet-authorship",
  "pallet-balances",
  "parity-scale-codec",

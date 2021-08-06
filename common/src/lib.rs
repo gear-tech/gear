@@ -107,6 +107,7 @@ pub enum IntermediateMessage {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
+        reply: Option<H256>,
     },
 }
 
