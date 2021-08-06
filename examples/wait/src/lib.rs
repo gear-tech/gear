@@ -3,11 +3,15 @@
 
 use gstd::{msg, prelude::*};
 
+static mut STATE: u32 = 0;
+
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    msg::wait();
-    // Unreachable code
-    msg::send(msg::source(), b"UNREACHABLE", 1000_000);
+    if STATE == 0 {
+        STATE = 1;
+        msg::wait();
+    }
+    msg::send(msg::source(), b"WAITED", 1_000_000);
 }
 
 #[no_mangle]
