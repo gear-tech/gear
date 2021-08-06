@@ -89,7 +89,7 @@ impl system::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockGasLimit: u64 = 100_000;
+    pub const BlockGasLimit: u64 = 100_000_000;
 }
 
 impl pallet_gear::Config for Test {
@@ -125,7 +125,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(1, 100_000_u128), (2, 1_u128), (BLOCK_AUTHOR, 1_u128)],
+        balances: vec![(1, 100_000_000_u128), (2, 1_u128), (BLOCK_AUTHOR, 1_u128)],
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -135,12 +135,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     ext
 }
 
-pub fn run_to_block(n: u64) {
+pub fn run_to_block(n: u64, gas_allowance: Option<u64>) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
+        if let Some(gas_allowance) = gas_allowance {
+            pallet_gear::GasAllowance::<Test>::mutate(|v| *v = gas_allowance);
+        }
         Gear::process_queue(RawOrigin::None.into()).expect("Failed to process queue");
     }
 }

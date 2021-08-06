@@ -356,7 +356,6 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         Ok(res)
     }
 
-    // TODO: Remove once parallel and "system origin" is ditched
     fn next_message_id(&mut self, source: ProgramId, nonce: u64) -> MessageId {
         let mut id_generator = BlakeMessageIdGenerator {
             program_id: source,
@@ -489,6 +488,9 @@ impl EnvExt for Ext {
     }
 
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str> {
+        if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
+            return Err("Gas limit exceeded while trying to send message");
+        }
         self.messages.send(msg).map_err(|_e| "Message send error")
     }
 
@@ -510,7 +512,18 @@ impl EnvExt for Ext {
             .map_err(|_e| "Reply payload push error")
     }
 
-    fn send_commit(&self, handle: usize) -> Result<(), &'static str> {
+    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str> {
+        {
+            let gas_limit = self
+                .messages
+                .get_gas_limit(handle)
+                .map_err(|_e| "Message commit error")?;
+
+            if self.gas_counter.charge(gas_limit) != ChargeResult::Enough {
+                return Err("Gas limit exceeded while trying to send message");
+            }
+        }
+
         self.messages
             .send_commit(handle)
             .map_err(|_e| "Message commit error")
@@ -820,7 +833,7 @@ mod tests {
                 i32.const 12
                 i32.const 0
                 i32.const 2
-                i64.const 18446744073709551615
+                i64.const 10000000
                 i32.const 0
                 call $send
               )
@@ -903,14 +916,14 @@ mod tests {
               get_local $var0
               i32.const 255
               i32.and
-              i64.const 18446744073709551615
+              i64.const 1000000000
               i32.const 32768
               call $send
               i32.const 256
               call $free
             )
             (func $init
-            (local $id i32)
+              (local $id i32)
               (local $msg_size i32)
               (local $alloc_pages i32)
               (local $pages_offset i32)
@@ -919,7 +932,7 @@ mod tests {
                 (get_local $id)
                 (i32.const 1)
               )
-              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 18446744073709551615) (i32.const 32768))
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 10000000000) (i32.const 32768))
             )
           )"#;
 
