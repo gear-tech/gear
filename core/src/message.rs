@@ -252,6 +252,11 @@ impl OutgoingMessage {
             reply: None,
         }
     }
+
+    /// Return declared gas_limit of the message.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
 }
 
 /// Reply message.
@@ -425,6 +430,26 @@ impl OutgoingPacket {
             gas_limit,
             value,
         }
+    }
+
+    /// Gas limit.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
+
+    /// Value.
+    pub fn value(&self) -> u128 {
+        self.value
+    }
+
+    /// Payload.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    /// Destination.
+    pub fn dest(&self) -> ProgramId {
+        self.dest
     }
 }
 
@@ -619,7 +644,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Mark message as fully formed and ready for sending in this context by handle.
-    pub fn send_commit(&self, handle: usize) -> Result<(), Error> {
+    pub fn send_commit(&mut self, handle: usize) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -643,6 +668,17 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Last used nonce
     pub fn nonce(&self) -> u64 {
         self.id_generator.borrow().current()
+    }
+
+    /// Return gas_limit of the message by handle.
+    pub fn get_gas_limit(&self, handle: usize) -> Result<u64, Error> {
+        let state = self.state.borrow();
+
+        if handle >= state.outgoing.len() {
+            return Err(Error::OutOfBounds);
+        }
+
+        Ok(state.outgoing[handle].0.gas_limit())
     }
 
     /// Drop this context.
@@ -732,7 +768,7 @@ mod tests {
         };
 
         // Creating a message context
-        let context = MessageContext::new(incoming_message, id_generator);
+        let mut context = MessageContext::new(incoming_message, id_generator);
 
         // Сhecking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
