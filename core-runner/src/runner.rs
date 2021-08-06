@@ -356,7 +356,6 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         Ok(res)
     }
 
-    // TODO: Remove once parallel and "system origin" is ditched
     fn next_message_id(&mut self, source: ProgramId, nonce: u64) -> MessageId {
         let mut id_generator = BlakeMessageIdGenerator {
             program_id: source,
