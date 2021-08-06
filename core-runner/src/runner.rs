@@ -636,8 +636,13 @@ fn run(
         entry_point.into(),
     );
 
-    let was_trap = res.is_err();
-    let _res = res.unwrap_or_default(); // TODO: What's it for?
+    let was_trap = match res {
+        Ok(_) => false,
+        Err(e) => {
+            log::debug!("Trap during message processing: {}", e);
+            true
+        }
+    };
 
     // get allocated pages
     for page in ext.memory_context.allocations().clone() {
