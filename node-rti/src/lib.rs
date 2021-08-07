@@ -163,7 +163,7 @@ pub trait GearExecutor {
                 total_gas_spent += gas_spent.1;
             }
 
-            if run_result.traps > 0 {
+            if run_result.any_traps() {
                 log::error!("gas_spent: Empty run result");
                 return Err(Error::Runner);
             }
