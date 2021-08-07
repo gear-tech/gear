@@ -160,7 +160,7 @@ where
             log::info!("step: {}", step_no + 1);
             log::info!("{:#?}", run_result);
 
-            if run_result.traps > 0 && step_no + 1 == steps {
+            if run_result.any_traps() && step_no + 1 == steps {
                 result = Err(anyhow::anyhow!("Runner resulted in a trap"));
             }
         }

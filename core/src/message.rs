@@ -27,7 +27,20 @@ impl core::convert::AsRef<[u8]> for Payload {
 }
 
 /// Message identifier.
-#[derive(Clone, Copy, Debug, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Decode,
+    Default,
+    Encode,
+    derive_more::From,
+    Hash,
+    Ord,
+    PartialOrd,
+    PartialEq,
+    Eq,
+)]
 pub struct MessageId([u8; 32]);
 
 impl fmt::Display for MessageId {
