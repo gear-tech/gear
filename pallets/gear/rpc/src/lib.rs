@@ -91,6 +91,13 @@ where
             })
         };
 
-        Ok(try_into_rpc_gas_spent(runtime_api_result)?)
+        match runtime_api_result {
+            Some(value) => Ok(try_into_rpc_gas_spent(value)?),
+            None => Err(RpcError {
+                code: ErrorCode::ServerError(Error::RuntimeError.into()),
+                message: format!("Empty run result"),
+                data: None,
+            }),
+        }
     }
 }

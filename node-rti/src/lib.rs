@@ -150,15 +150,27 @@ pub trait GearExecutor {
             value,
         );
 
-        let result = runner.run_next(u64::MAX);
+        let mut total_gas_spent = 0;
+
+        loop {
+            let run_result = runner.run_next(u64::MAX);
+
+            if let Some(gas_spent) = run_result.gas_spent.first() {
+                total_gas_spent += gas_spent.1;
+            }
+
+            if run_result.traps > 0 {
+                log::error!("gas_spent: Empty run result");
+                return Err(Error::Runner);
+            }
+
+            if run_result.handled == 0 {
+                break;
+            }
+        }
 
         runner.complete();
 
-        if let Some(gas_spent) = result.gas_spent.first() {
-            Ok(gas_spent.1)
-        } else {
-            log::error!("gas_spent: Empty run result");
-            Err(Error::Runner)
-        }
+        Ok(total_gas_spent)
     }
 }
