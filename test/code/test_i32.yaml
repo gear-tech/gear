@@ -1,31 +1,32 @@
 title: basic
 
 programs:
-- id: 1
-  path: examples/target/wasm32-unknown-unknown/release/demo_sum.wasm
-  init_message:
-    kind: utf-8
-    value: "{2}"
-- id: 2
-  path: examples/target/wasm32-unknown-unknown/release/demo_fib.wasm
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/demo_sum.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
+  - id: 2
+    path: examples/target/wasm32-unknown-unknown/release/demo_fib.wasm
 
 fixtures:
-- title: fibonacci-sum
-  messages:
-  - destination: 1
-    payload:
-      kind: i32
-      value: 20
-  expected:
-  - step: 1
+  - title: fibonacci-sum
     messages:
-    - destination: 2
-      payload:
-        kind: i32
-        value: 40
-  - step: 2
-    messages:
-    - destination: 1
-      payload:
-        kind: i32
-        value: 102334155
+      - destination: 1
+        payload:
+          kind: i32
+          value: 20
+        gas_limit: 100_000_000_000
+    expected:
+      - step: 1
+        messages:
+          - destination: 2
+            payload:
+              kind: i32
+              value: 40
+      - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: i32
+              value: 102334155
