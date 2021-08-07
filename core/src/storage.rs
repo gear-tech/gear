@@ -140,19 +140,41 @@ pub fn new_in_memory_empty() -> InMemoryStorage {
 /// This module contains tests of parts of InMemoryStorage:
 /// of allocation storage, message queue storage and program storage
 mod tests {
+    extern crate wabt;
     use super::*;
+
+    fn parse_wat(source: &str) -> Vec<u8> {
+        let module_bytes = wabt::Wat2Wasm::new()
+            .validate(false)
+            .convert(source)
+            .expect("failed to parse module")
+            .as_ref()
+            .to_vec();
+        module_bytes
+    }
 
     #[test]
     /// Test that InMemoryProgramStorage works correctly
     fn program_storage_interaction() {
-        let binary: Vec<u8> = vec![
-            0, 97, 115, 109, 1, 0, 0, 0, 1, 8, 2, 96, 1, 127, 0, 96, 0, 0, 2, 33, 2, 3, 101, 110,
-            118, 11, 103, 114, 95, 114, 101, 112, 108, 121, 95, 116, 111, 0, 0, 3, 101, 110, 118,
-            6, 109, 101, 109, 111, 114, 121, 2, 0, 2, 3, 4, 3, 1, 1, 1, 7, 32, 3, 6, 104, 97, 110,
-            100, 108, 101, 0, 1, 12, 104, 97, 110, 100, 108, 101, 95, 114, 101, 112, 108, 121, 0,
-            1, 4, 105, 110, 105, 116, 0, 3, 10, 22, 3, 8, 0, 65, 128, 128, 4, 16, 0, 11, 8, 0, 65,
-            128, 128, 4, 16, 0, 11, 2, 0, 11,
-        ];
+        let wat = r#"
+            (module
+                (import "env" "gr_reply_to"  (func $gr_reply_to (param i32)))
+                (import "env" "memory" (memory 2))
+                (export "handle" (func $handle))
+                (export "handle_reply" (func $handle))
+                (export "init" (func $init))
+                (func $handle
+                    i32.const 65536
+                    call $gr_reply_to
+                )
+                (func $handle_reply
+                    i32.const 65536
+                    call $gr_reply_to
+                )
+                (func $init)
+            )"#;
+
+        let binary: Vec<u8> = parse_wat(wat);
 
         // Initialization of some ProgramIds
         let id1 = ProgramId::from(1);
