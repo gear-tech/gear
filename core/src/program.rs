@@ -17,7 +17,11 @@ pub struct ProgramId([u8; 32]);
 impl fmt::Display for ProgramId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let p = cmp::min(self.0.len(), f.precision().unwrap_or(self.0.len()));
-        write!(f, "{}", crate::util::encode_hex(&self.0[0..p]))
+        if let Ok(hex) = crate::util::encode_hex(&self.0[..p]) {
+            write!(f, "{}", hex)
+        } else {
+            Err(fmt::Error)
+        }
     }
 }
 
@@ -246,7 +250,7 @@ mod tests {
     /// Test that `encode_hex(...)` encodes correctly
     fn hex_encoding() {
         let bytes = "foobar".as_bytes();
-        let result = encode_hex(&bytes);
+        let result = encode_hex(&bytes).unwrap();
 
         assert_eq!(result, "666f6f626172");
     }
