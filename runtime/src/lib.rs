@@ -515,7 +515,7 @@ impl_runtime_apis! {
         fn get_gas_spent(
             program_id: ProgramId,
             payload: Vec<u8>,
-        ) -> u64 {
+        ) -> Option<u64> {
             Gear::get_gas_spent(program_id, payload)
         }
     }
