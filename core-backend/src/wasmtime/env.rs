@@ -4,6 +4,7 @@ use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
+use alloc::string::ToString;
 use alloc::vec::Vec;
 
 use super::memory::MemoryWrap;
@@ -34,13 +35,13 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_to_u32("alloc", funcs::alloc);
         result.add_func_i32("free", funcs::free);
         result.add_func_i32("gas", funcs::gas);
-        result.add_func_i32("gr_commit", funcs::commit);
+        result.add_func_i32("gr_send_commit", funcs::send_commit);
         result.add_func_i64("gr_charge", funcs::charge);
         result.add_func_i32_i32("gr_debug", funcs::debug);
-        result.add_func_i32_i32_i32_i64_i32_to_i32("gr_init", funcs::init);
+        result.add_func_i32_i32_i32_i64_i32_to_i32("gr_send_init", funcs::send_init);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32_i32_i32("gr_push", funcs::push);
-        result.add_func_i32_i32("gr_push_reply", funcs::push_reply);
+        result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
         result.add_func_i32_i32_i64_i32("gr_reply", funcs::reply);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
@@ -48,6 +49,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_to_i32("gr_size", funcs::size);
         result.add_func_i32("gr_source", funcs::source);
         result.add_func_i32("gr_value", funcs::value);
+        result.add_func("gr_wait", funcs::wait);
 
         result
     }
@@ -72,13 +74,22 @@ impl<E: Ext + 'static> Environment<E> {
         self.ext.set(ext);
 
         let result = self.run_inner(module, memory_pages, memory, move |instance| {
-            instance
+            let result = instance
                 .get_func(entry_point)
                 .ok_or_else(|| {
                     anyhow::format_err!("failed to find `{}` function export", entry_point)
                 })
                 .and_then(|entry_func| entry_func.call(&[]))
-                .map(|_| ())
+                .map(|_| ());
+            if let Err(e) = &result {
+                if let Some(trap) = e.downcast_ref::<Trap>() {
+                    if trap.to_string().starts_with("wait") {
+                        // We don't propagate a trap from `gr_wait`
+                        return Ok(());
+                    }
+                }
+            }
+            result
         });
 
         let ext = self.ext.unset();
@@ -152,6 +163,16 @@ impl<E: Ext + 'static> Environment<E> {
             .map_err(|e| anyhow::anyhow!("Can't set module memory: {:?}", e))?;
 
         func(instance)
+    }
+
+    fn add_func<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn() -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap0(func(self.ext.clone()))),
+        );
     }
 
     fn add_func_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
@@ -243,6 +264,10 @@ impl<E: Ext + 'static> Environment<E> {
     {
         self.funcs
             .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
+    }
+
+    fn wrap0<R>(func: impl Fn() -> Result<R, &'static str>) -> impl Fn() -> Result<R, Trap> {
+        move || func().map_err(Trap::new)
     }
 
     fn wrap1<T, R>(func: impl Fn(T) -> Result<R, &'static str>) -> impl Fn(T) -> Result<R, Trap> {

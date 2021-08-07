@@ -23,8 +23,7 @@ pub unsafe extern "C" fn handle() {
     msg::send(
         msg::source(),
         &make_fib(new_msg as usize)[new_msg as usize - 1].to_ne_bytes(),
-        u64::MAX,
-        0,
+        10_000_000,
     );
 
     ext::debug(&format!(
@@ -42,5 +41,7 @@ pub unsafe extern "C" fn init() {}
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    loop {}
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }

@@ -3,7 +3,6 @@
 use gstd::{ext, msg, prelude::*, ProgramId};
 
 use codec::{Decode as _, Encode as _};
-use core::convert::TryInto;
 use demo_chat::shared::{MemberMessage, RoomMessage};
 
 #[derive(Debug)]
@@ -36,7 +35,7 @@ static mut STATE: State = State {
 pub fn send_member(id: ProgramId, msg: MemberMessage) {
     let mut encoded = vec![];
     msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, u64::MAX, 0);
+    msg::send(id, &encoded, 10_000_000);
 }
 
 #[no_mangle]

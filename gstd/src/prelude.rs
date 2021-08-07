@@ -1,3 +1,8 @@
+#[global_allocator]
+pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
+
+pub use core::{mem, panic, ptr};
+
 extern crate alloc;
 
 pub use alloc::{
@@ -10,7 +15,3 @@ pub use alloc::{
     vec,
     vec::Vec,
 };
-pub use core::{mem, panic, ptr};
-
-#[global_allocator]
-pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;

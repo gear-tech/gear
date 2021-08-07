@@ -1335,6 +1335,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
+name = "dtoa"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56899898ce76aaf4a0f24d914c97ea6ed976d42fec6ad33fcbb0a1103e07b2b0"
+
+[[package]]
 name = "dyn-clonable"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1420,6 +1426,19 @@ name = "env_logger"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
+dependencies = [
+ "atty",
+ "humantime 2.1.0",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
 dependencies = [
  "atty",
  "humantime 2.1.0",
@@ -2178,11 +2197,15 @@ dependencies = [
  "clap 3.0.0-beta.2",
  "derive_more",
  "env_logger 0.8.4",
+ "gear-common",
  "gear-core",
  "gear-core-runner",
- "gear-test-sample",
+ "gear-node-rti",
+ "hex",
+ "log",
  "regex",
- "serde_json",
+ "serde",
+ "serde_yaml",
  "termion",
 ]
 
@@ -2196,24 +2219,14 @@ dependencies = [
  "gear-core",
  "gear-node-rti",
  "gear-runtime",
- "gear-test-sample",
+ "gear-test",
  "parity-scale-codec",
  "regex",
  "sc-cli",
  "sc-service",
- "serde_json",
  "sp-io",
  "structopt",
  "termion",
-]
-
-[[package]]
-name = "gear-test-sample"
-version = "0.1.0"
-dependencies = [
- "hex",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -2341,6 +2354,9 @@ dependencies = [
 [[package]]
 name = "gstd-async"
 version = "0.1.0"
+dependencies = [
+ "gstd",
+]
 
 [[package]]
 name = "h2"
@@ -4200,7 +4216,9 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
+ "gear-core",
  "gear-node-rti",
+ "hex-literal",
  "pallet-authorship",
  "pallet-balances",
  "parity-scale-codec",
@@ -6585,6 +6603,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_yaml"
+version = "0.8.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15654ed4ab61726bf918a39cb8d98a2e2995b002387807fa6ba58fdf7f59bb23"
+dependencies = [
+ "dtoa",
+ "linked-hash-map",
+ "serde",
+ "yaml-rust",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8585,6 +8615,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-proc"
+version = "0.1.0"
+dependencies = [
+ "clap 2.33.3",
+ "env_logger 0.9.0",
+ "pwasm-utils",
+]
+
+[[package]]
 name = "wasm-timer"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8985,6 +9024,15 @@ dependencies = [
  "curve25519-dalek 3.0.2",
  "rand_core 0.5.1",
  "zeroize",
+]
+
+[[package]]
+name = "yaml-rust"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
+dependencies = [
+ "linked-hash-map",
 ]
 
 [[package]]

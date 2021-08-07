@@ -6,7 +6,7 @@ use core::cell::RefCell;
 use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
-use crate::message::{MessageId, OutgoingPacket, ReplyPacket};
+use crate::message::{ExitCode, MessageId, OutgoingPacket, ReplyPacket};
 use crate::program::ProgramId;
 
 /// Page access rights.
@@ -34,22 +34,22 @@ pub trait Ext {
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str>;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str>;
+    fn send_init(&self, msg: OutgoingPacket) -> Result<usize, &'static str>;
 
     /// Push an extra buffer into message payload by handle.
-    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
+    fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Push an extra buffer into reply message.
-    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str>;
+    fn reply_push(&self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
-    fn commit(&self, handle: usize) -> Result<(), &'static str>;
+    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str>;
 
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
 
     /// Read the message id, if current message is a reply.
-    fn reply_to(&self) -> Option<MessageId>;
+    fn reply_to(&self) -> Option<(MessageId, ExitCode)>;
 
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> ProgramId;
@@ -83,8 +83,11 @@ pub trait Ext {
     /// Transfer gas to program from the caller side.
     fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
 
-    /// Value associated with message
+    /// Value associated with message.
     fn value(&mut self) -> u128;
+
+    /// Interrupt the program and reschedule execution.
+    fn wait(&mut self) -> Result<(), &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -153,22 +156,22 @@ mod tests {
         fn send(&mut self, _msg: OutgoingPacket) -> Result<(), &'static str> {
             Ok(())
         }
-        fn init(&self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
+        fn send_init(&self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
             Ok(0)
         }
-        fn push(&self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn send_push(&self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn push_reply(&self, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn reply_push(&self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn commit(&self, _handle: usize) -> Result<(), &'static str> {
+        fn send_commit(&mut self, _handle: usize) -> Result<(), &'static str> {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
             Ok(())
         }
-        fn reply_to(&self) -> Option<MessageId> {
+        fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
             None
         }
         fn source(&mut self) -> ProgramId {
@@ -195,6 +198,9 @@ mod tests {
             0
         }
         fn charge(&mut self, _gas: u64) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())
         }
     }

@@ -68,6 +68,9 @@ impl MessageId {
     }
 }
 
+/// Exit code type for message replies
+pub type ExitCode = i32;
+
 /// Error using messages.
 #[derive(Debug)]
 pub enum Error {
@@ -91,7 +94,7 @@ pub struct IncomingMessage {
     payload: Payload,
     gas_limit: u64,
     value: u128,
-    reply: Option<MessageId>,
+    reply: Option<(MessageId, ExitCode)>,
 }
 
 impl IncomingMessage {
@@ -110,6 +113,11 @@ impl IncomingMessage {
         self.gas_limit
     }
 
+    /// Set gas limit of the message.
+    pub fn set_gas_limit(&mut self, gas_limit: u64) {
+        self.gas_limit = gas_limit;
+    }
+
     /// Value of the message.
     pub fn value(&self) -> u128 {
         self.value
@@ -121,7 +129,7 @@ impl IncomingMessage {
     }
 
     /// What this message is a reply to
-    pub fn reply(&self) -> Option<MessageId> {
+    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
         self.reply
     }
 }
@@ -166,6 +174,7 @@ impl IncomingMessage {
         gas_limit: u64,
         value: u128,
         reply: MessageId,
+        exit_code: ExitCode,
     ) -> Self {
         Self {
             id,
@@ -173,7 +182,7 @@ impl IncomingMessage {
             payload,
             gas_limit,
             value,
-            reply: Some(reply),
+            reply: Some((reply, exit_code)),
         }
     }
 
@@ -186,6 +195,19 @@ impl IncomingMessage {
             gas_limit,
             value,
             reply: None,
+        }
+    }
+
+    /// Convert incoming message to the stored message by providing `dest`.
+    pub fn into_message(self, dest: ProgramId) -> Message {
+        Message {
+            id: self.id,
+            source: self.source,
+            dest,
+            payload: self.payload,
+            gas_limit: self.gas_limit,
+            value: self.value,
+            reply: self.reply,
         }
     }
 }
@@ -230,6 +252,11 @@ impl OutgoingMessage {
             reply: None,
         }
     }
+
+    /// Return declared gas_limit of the message.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
 }
 
 /// Reply message.
@@ -237,6 +264,8 @@ impl OutgoingMessage {
 pub struct ReplyMessage {
     /// Identifier of the reply message.
     id: MessageId,
+    /// Exit code
+    exit_code: ExitCode,
     /// Payload of the reply message.
     payload: Payload,
     /// Gas limit.
@@ -260,7 +289,7 @@ impl ReplyMessage {
             payload: self.payload,
             gas_limit: self.gas_limit,
             value: self.value,
-            reply: Some(source_message),
+            reply: Some((source_message, self.exit_code)),
         }
     }
 }
@@ -281,7 +310,7 @@ pub struct Message {
     /// Message value.
     pub value: u128,
     /// In reply of.
-    pub reply: Option<MessageId>,
+    pub reply: Option<(MessageId, ExitCode)>,
 }
 
 impl Message {
@@ -324,6 +353,7 @@ impl Message {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// New system message to the specific program.
     pub fn new_reply(
         id: MessageId,
@@ -333,6 +363,7 @@ impl Message {
         gas_limit: u64,
         value: u128,
         reply: MessageId,
+        exit_code: ExitCode,
     ) -> Message {
         Message {
             id,
@@ -341,7 +372,7 @@ impl Message {
             payload,
             gas_limit,
             value,
-            reply: Some(reply),
+            reply: Some((reply, exit_code)),
         }
     }
 
@@ -371,7 +402,7 @@ impl Message {
     }
 
     /// Is message a reply and to what.
-    pub fn reply(&self) -> Option<MessageId> {
+    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
         self.reply
     }
 
@@ -400,6 +431,26 @@ impl OutgoingPacket {
             value,
         }
     }
+
+    /// Gas limit.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
+
+    /// Value.
+    pub fn value(&self) -> u128 {
+        self.value
+    }
+
+    /// Payload.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    /// Destination.
+    pub fn dest(&self) -> ProgramId {
+        self.dest
+    }
 }
 
 /// Reply message packet.
@@ -411,15 +462,18 @@ pub struct ReplyPacket {
     pub gas_limit: u64,
     /// Message value.
     pub value: u128,
+    /// Exit code
+    pub exit_code: ExitCode,
 }
 
 impl ReplyPacket {
     /// New reply message in some message context.
-    pub fn new(payload: Payload, gas_limit: u64, value: u128) -> Self {
+    pub fn new(exit_code: ExitCode, payload: Payload, gas_limit: u64, value: u128) -> Self {
         Self {
             payload,
             gas_limit,
             value,
+            exit_code,
         }
     }
 }
@@ -466,6 +520,7 @@ pub trait MessageIdGenerator {
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
+            exit_code: packet.exit_code,
         }
     }
 }
@@ -479,6 +534,8 @@ pub struct MessageState {
     pub outgoing: Vec<(OutgoingMessage, FormationStatus)>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
+    /// Collection of incoming messages to be pushed back to the queue.
+    pub queue_back: Option<IncomingMessage>,
 }
 
 /// Message context for the currently running program.
@@ -499,6 +556,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             state: Rc::new(RefCell::new(MessageState {
                 outgoing: vec![],
                 reply: None,
+                queue_back: None,
             })),
             outgoing_limit: 128,
             current: Rc::new(incoming_message),
@@ -534,7 +592,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Initialize a new message with `NotFormed` formation status and return its handle.
     ///
     /// Messages created this way should be commited with `commit(handle)` to be sent.
-    pub fn init(&self, msg: OutgoingPacket) -> Result<usize, Error> {
+    pub fn send_init(&self, msg: OutgoingPacket) -> Result<usize, Error> {
         let mut state = self.state.borrow_mut();
 
         let outgoing_count = state.outgoing.len();
@@ -552,7 +610,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into message payload by handle.
-    pub fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
+    pub fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -568,7 +626,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into reply message.
-    pub fn push_reply(&self, buffer: &[u8]) -> Result<(), Error> {
+    pub fn reply_push(&self, buffer: &[u8]) -> Result<(), Error> {
         if let Some(reply) = &mut self.state.borrow_mut().reply {
             reply.payload.0.extend_from_slice(buffer);
             return Ok(());
@@ -577,8 +635,16 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Err(Error::NoReplyFound)
     }
 
+    /// Push the incoming message back to the queue.
+    pub fn queue_back(&self) -> Result<(), Error> {
+        let mut state = self.state.borrow_mut();
+        state.queue_back = Some(self.current().clone());
+
+        Ok(())
+    }
+
     /// Mark message as fully formed and ready for sending in this context by handle.
-    pub fn commit(&self, handle: usize) -> Result<(), Error> {
+    pub fn send_commit(&mut self, handle: usize) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -604,10 +670,27 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         self.id_generator.borrow().current()
     }
 
+    /// Return gas_limit of the message by handle.
+    pub fn get_gas_limit(&self, handle: usize) -> Result<u64, Error> {
+        let state = self.state.borrow();
+
+        if handle >= state.outgoing.len() {
+            return Err(Error::OutOfBounds);
+        }
+
+        Ok(state.outgoing[handle].0.gas_limit())
+    }
+
     /// Drop this context.
     ///
     /// Do it to return all outgoing messages and optional reply generated using this context.
-    pub fn drain(self) -> (Vec<OutgoingMessage>, Option<ReplyMessage>) {
+    pub fn drain(
+        self,
+    ) -> (
+        Vec<OutgoingMessage>,
+        Option<ReplyMessage>,
+        Option<IncomingMessage>,
+    ) {
         let Self { state, .. } = self;
         let mut state = Rc::try_unwrap(state)
             .expect("Calling drain with references to the memory context left")
@@ -626,6 +709,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                 })
                 .collect(),
             state.reply,
+            state.queue_back,
         )
     }
 }
@@ -684,7 +768,7 @@ mod tests {
         };
 
         // Creating a message context
-        let context = MessageContext::new(incoming_message, id_generator);
+        let mut context = MessageContext::new(incoming_message, id_generator);
 
         // Сhecking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
@@ -692,11 +776,11 @@ mod tests {
         assert!(context.state.borrow_mut().reply.is_none());
 
         // Creating a reply packet to set the `ReplyMessage`
-        let reply_packet = ReplyPacket::new(vec![0, 0, 0].into(), 0, 0);
+        let reply_packet = ReplyPacket::new(0, vec![0, 0, 0].into(), 0, 0);
 
         // Checking that we are not able to push extra payload into
         // reply message if we have not set it yet
-        assert!(context.push_reply(&[0]).is_err());
+        assert!(context.reply_push(&[0]).is_err());
 
         // Setting reply message and making sure the operation was successful
         assert!(context.reply(reply_packet.clone()).is_ok());
@@ -756,7 +840,7 @@ mod tests {
         // Initializing message and compare its handle with expected one
         assert_eq!(
             context
-                .init(outgoing_packet.clone())
+                .send_init(outgoing_packet.clone())
                 .expect("Error initializing new message"),
             expected_handle
         );
@@ -774,23 +858,23 @@ mod tests {
 
         // Checking that we are able to push payload for the
         // message that we have not commited yet
-        assert!(context.push(expected_handle, &[5, 7]).is_ok());
-        assert!(context.push(expected_handle, &[9]).is_ok());
+        assert!(context.send_push(expected_handle, &[5, 7]).is_ok());
+        assert!(context.send_push(expected_handle, &[9]).is_ok());
 
         // Checking if commit is successful
-        assert!(context.commit(expected_handle).is_ok());
+        assert!(context.send_commit(expected_handle).is_ok());
 
         // Checking that we are **NOT** able to push payload for the message or
         // commit it if we already commited it or directly pushed before
-        assert!(context.push(0, &[5, 7]).is_err());
-        assert!(context.push(expected_handle, &[5, 7]).is_err());
-        assert!(context.commit(0).is_err());
-        assert!(context.commit(expected_handle).is_err());
+        assert!(context.send_push(0, &[5, 7]).is_err());
+        assert!(context.send_push(expected_handle, &[5, 7]).is_err());
+        assert!(context.send_commit(0).is_err());
+        assert!(context.send_commit(expected_handle).is_err());
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
-        assert!(context.push(15, &[0]).is_err());
-        assert!(context.commit(15).is_err());
+        assert!(context.send_push(15, &[0]).is_err());
+        assert!(context.send_commit(15).is_err());
 
         // Creating an outgoing packet to init and do not commit later
         // to show that the message will not be sent
@@ -804,7 +888,7 @@ mod tests {
 
         assert_eq!(
             context
-                .init(outgoing_packet)
+                .send_init(outgoing_packet)
                 .expect("Error initializing new message"),
             expected_handle
         );
@@ -817,11 +901,11 @@ mod tests {
         );
 
         // Checking that we are able to push extra payload into reply message
-        assert!(context.push_reply(&[1, 2]).is_ok());
-        assert!(context.push_reply(&[3, 4]).is_ok());
+        assert!(context.reply_push(&[1, 2]).is_ok());
+        assert!(context.reply_push(&[3, 4]).is_ok());
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
-        let expected_result: (Vec<OutgoingMessage>, Option<ReplyMessage>) = context.drain();
+        let expected_result = context.drain();
         assert_eq!(expected_result.0.len(), 2);
         assert_eq!(expected_result.0[0].payload.0, vec![0, 0]);
         assert_eq!(expected_result.0[1].payload.0, vec![1, 1, 5, 7, 9]);

@@ -7,9 +7,14 @@ members = [
     "collector",
     "condensator",
     "fib",
+    "mem",
+    "meta",
+    "minimal",
+    "panicker",
     "ping",
     "sum",
     "vec",
+    "wait",
 ]
 
 [profile.release]

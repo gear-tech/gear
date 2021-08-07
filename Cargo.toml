@@ -14,6 +14,5 @@ members = [
     "pallets/*",
     "runtime",
     "test",
-    "test-sample",
     "utils/*",
 ]

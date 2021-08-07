@@ -53,8 +53,6 @@ pub struct ExecutionReport {
 #[cfg(feature = "std")]
 impl ExecutionReport {
     fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
-        // TODO: actually compare touched from run result with
-        //       that is what should be predefined in message
         let RunNextResult {
             handled,
             gas_left,
@@ -96,13 +94,10 @@ impl ExecutionReport {
 
 #[runtime_interface]
 pub trait GearExecutor {
-    fn process() -> Result<ExecutionReport, Error> {
+    fn process(max_gas_limit: u64) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
-        let result = runner.run_next().map_err(|e| {
-            log::error!("Error handling message: {:?}", e);
-            Error::Runner
-        })?;
+        let result = runner.run_next(max_gas_limit);
 
         let Storage { message_queue, .. } = runner.complete();
 
@@ -147,7 +142,6 @@ pub trait GearExecutor {
         let mut runner = crate::runner::new();
 
         runner.queue_message(
-            // TODO: find a better way to generate source
             ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
             gear_common::caller_nonce_fetch_inc(H256::from_low_u64_be(1)),
             ProgramId::from_slice(&program_id[..]),
@@ -156,10 +150,7 @@ pub trait GearExecutor {
             value,
         );
 
-        let result = runner.run_next().map_err(|e| {
-            log::error!("Error process message: {:?}", e);
-            Error::Runner
-        })?;
+        let result = runner.run_next(u64::MAX);
 
         runner.complete();
 

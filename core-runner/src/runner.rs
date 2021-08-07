@@ -4,7 +4,6 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
-use anyhow::{Error, Result};
 use codec::{Decode, Encode};
 
 use gear_core::{
@@ -12,8 +11,8 @@ use gear_core::{
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
     memory::{Memory, MemoryContext, PageNumber},
     message::{
-        IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator, OutgoingMessage,
-        OutgoingPacket, ReplyMessage, ReplyPacket,
+        ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
+        OutgoingMessage, OutgoingPacket, ReplyMessage, ReplyPacket,
     },
     program::{Program, ProgramId},
     storage::{MessageQueue, ProgramStorage, Storage},
@@ -28,6 +27,8 @@ pub struct Config {
     pub max_pages: PageNumber,
 }
 
+const EXIT_CODE_PANIC: i32 = 1;
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -36,17 +37,21 @@ impl Default for Config {
     }
 }
 
+type GasRequest = (ProgramId, ProgramId, u64);
+
 /// Result of one or more message handling.
 #[derive(Debug, Default, Clone)]
 pub struct RunNextResult {
     /// How many messages were handled
     pub handled: u32,
+    /// How many messages ended as traps
+    pub traps: u32,
     /// Gas that was left.
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
     pub gas_spent: Vec<(ProgramId, u64)>,
     /// Gas transfer requests.
-    pub gas_requests: Vec<(ProgramId, ProgramId, u64)>,
+    pub gas_requests: Vec<GasRequest>,
 }
 
 impl RunNextResult {
@@ -58,9 +63,31 @@ impl RunNextResult {
         }
     }
 
+    /// Result that notes that some failed program has been tried to run but nothing really happened.
+    pub(crate) fn trap() -> Self {
+        RunNextResult {
+            handled: 1,
+            traps: 1,
+            ..Default::default()
+        }
+    }
+
+    /// Add request all the gas to be reserved for the destination
+    pub(crate) fn refund(gas_request: GasRequest) -> Self {
+        RunNextResult {
+            handled: 1,
+            traps: 1,
+            gas_requests: vec![gas_request],
+            ..Default::default()
+        }
+    }
+
     /// Accrue one run of the message hadling.
     pub fn accrue(&mut self, caller_id: ProgramId, program_id: ProgramId, result: RunResult) {
         self.handled += 1;
+        if result.was_trap {
+            self.traps += 1;
+        }
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
@@ -97,7 +124,7 @@ impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
 
         self.nonce += 1;
 
-        MessageId::from_slice(&blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+        MessageId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
     }
 
     fn current(&self) -> u64 {
@@ -140,11 +167,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
-    pub fn run_next(&mut self) -> Result<RunNextResult> {
+    pub fn run_next(&mut self, max_gas_limit: u64) -> RunNextResult {
         let next_message = match self.message_queue.dequeue() {
             Some(msg) => msg,
             None => {
-                return Ok(RunNextResult::empty());
+                return RunNextResult::empty();
             }
         };
 
@@ -155,12 +182,42 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                     log::debug!("msg to /0: {:?}", next_message.payload())
                 }
             }
-            Ok(RunNextResult::log())
+            RunNextResult::log()
         } else {
-            let mut program = self
-                .program_storage
-                .get(next_message.dest())
-                .ok_or_else(|| Error::msg("Program not found"))?;
+            let gas_limit = next_message.gas_limit();
+            let next_message_source = next_message.source();
+            let next_message_dest = next_message.dest();
+
+            let mut program = match self.program_storage.get(next_message_dest) {
+                Some(program) => program,
+                None => {
+                    // Reserve the entire `gas_limit` so that it is transferred to the addressee eventually
+                    return RunNextResult::refund((
+                        next_message_source,
+                        next_message_dest,
+                        gas_limit,
+                    ));
+                }
+            };
+
+            if gas_limit > max_gas_limit {
+                // Re-queue the message to be processed in one of the following blocks
+                log::info!(
+                    "Message gas limit of {} exceeds the remaining block gas allowance of {}",
+                    gas_limit,
+                    max_gas_limit
+                );
+                self.message_queue.queue(next_message);
+                return RunNextResult::empty();
+            }
+
+            let instrumeted_code = match gas::instrument(program.code()) {
+                Ok(code) => code,
+                Err(err) => {
+                    log::debug!("Instrumentation error: {:?}", err);
+                    return RunNextResult::trap();
+                }
+            };
 
             let allocations: BTreeSet<PageNumber> = program
                 .get_pages()
@@ -169,33 +226,47 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                 .collect();
 
             let mut context = self.create_context(allocations);
+            let next_message_id = next_message.id();
 
-            let gas_limit = next_message.gas_limit();
-
-            let result = RunNextResult::from_single(
-                next_message.source(),
-                next_message.dest(),
-                run(
-                    &mut self.env,
-                    &mut context,
-                    &gas::instrument(program.code())
-                        .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-                    &mut program,
-                    if next_message.reply().is_some() {
-                        EntryPoint::HandleReply
-                    } else {
-                        EntryPoint::Handle
-                    },
-                    &next_message.into(),
-                    gas_limit,
-                )?,
+            let run_result = run(
+                &mut self.env,
+                &mut context,
+                &instrumeted_code,
+                &mut program,
+                if next_message.reply().is_some() {
+                    EntryPoint::HandleReply
+                } else {
+                    EntryPoint::Handle
+                },
+                &next_message.into(),
+                gas_limit,
             );
+
+            if run_result.was_trap {
+                // In case of trap, we generate trap reply message
+                let program_id = program.id();
+                let nonce = program.fetch_inc_message_nonce();
+                let trap_message_id = self.next_message_id(program_id, nonce);
+
+                self.message_queue.queue(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                });
+            }
+
+            let result =
+                RunNextResult::from_single(next_message_source, next_message_dest, run_result);
 
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
             self.program_storage.set(program);
 
-            Ok(result)
+            result
         }
     }
 
@@ -238,7 +309,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         init_msg: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<RunResult> {
+    ) -> anyhow::Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(program_id) {
             program.reset(code.to_vec());
             self.program_storage.set(program);
@@ -276,7 +347,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             EntryPoint::Init,
             &msg,
             gas_limit,
-        )?;
+        );
 
         self.message_queue
             .queue_many(context.message_buf.drain(..).collect());
@@ -285,7 +356,6 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         Ok(res)
     }
 
-    // TODO: Remove once parallel and "system origin" is ditched
     fn next_message_id(&mut self, source: ProgramId, nonce: u64) -> MessageId {
         let mut id_generator = BlakeMessageIdGenerator {
             program_id: source,
@@ -327,6 +397,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         gas_limit: u64,
         value: u128,
         reply_to: MessageId,
+        exit_code: ExitCode,
     ) {
         let message_id = self.next_message_id(source, nonce);
         self.message_queue.queue(Message::new_reply(
@@ -337,6 +408,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             gas_limit,
             value,
             reply_to,
+            exit_code,
         ));
     }
 }
@@ -397,6 +469,8 @@ pub struct RunResult {
     pub gas_spent: u64,
     /// Gas requested to be transferred.
     pub gas_requested: u64,
+    /// Run result was a trap
+    pub was_trap: bool,
 }
 
 struct Ext {
@@ -414,28 +488,44 @@ impl EnvExt for Ext {
     }
 
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str> {
+        if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
+            return Err("Gas limit exceeded while trying to send message");
+        }
         self.messages.send(msg).map_err(|_e| "Message send error")
     }
 
-    fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str> {
-        self.messages.init(msg).map_err(|_e| "Message init error")
+    fn send_init(&self, msg: OutgoingPacket) -> Result<usize, &'static str> {
+        self.messages
+            .send_init(msg)
+            .map_err(|_e| "Message init error")
     }
 
-    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
+    fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push(handle, buffer)
+            .send_push(handle, buffer)
             .map_err(|_e| "Payload push error")
     }
 
-    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str> {
+    fn reply_push(&self, buffer: &[u8]) -> Result<(), &'static str> {
         self.messages
-            .push_reply(buffer)
+            .reply_push(buffer)
             .map_err(|_e| "Reply payload push error")
     }
 
-    fn commit(&self, handle: usize) -> Result<(), &'static str> {
+    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str> {
+        {
+            let gas_limit = self
+                .messages
+                .get_gas_limit(handle)
+                .map_err(|_e| "Message commit error")?;
+
+            if self.gas_counter.charge(gas_limit) != ChargeResult::Enough {
+                return Err("Gas limit exceeded while trying to send message");
+            }
+        }
+
         self.messages
-            .commit(handle)
+            .send_commit(handle)
             .map_err(|_e| "Message commit error")
     }
 
@@ -443,7 +533,7 @@ impl EnvExt for Ext {
         self.messages.reply(msg).map_err(|_e| "Reply error")
     }
 
-    fn reply_to(&self) -> Option<MessageId> {
+    fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
         self.messages.current().reply()
     }
 
@@ -499,6 +589,12 @@ impl EnvExt for Ext {
     fn value(&mut self) -> u128 {
         self.messages.current().value()
     }
+
+    fn wait(&mut self) -> Result<(), &'static str> {
+        self.messages
+            .queue_back()
+            .map_err(|_| "Unable to queue the message back")
+    }
 }
 
 fn run(
@@ -509,7 +605,7 @@ fn run(
     entry_point: EntryPoint,
     message: &IncomingMessage,
     gas_limit: u64,
-) -> Result<RunResult> {
+) -> RunResult {
     let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
@@ -540,36 +636,54 @@ fn run(
         entry_point.into(),
     );
 
-    res.map(move |_| {
-        // get allocated pages
-        for page in ext.memory_context.allocations().clone() {
-            let mut buf = vec![0u8; PageNumber::size()];
-            ext.get_mem(page.offset(), &mut buf);
-            program.set_page(page, &buf);
-        }
+    let was_trap = res.is_err();
+    let _res = res.unwrap_or_default(); // TODO: What's it for?
 
-        let mut messages = vec![];
+    // get allocated pages
+    for page in ext.memory_context.allocations().clone() {
+        let mut buf = vec![0u8; PageNumber::size()];
+        ext.get_mem(page.offset(), &mut buf);
+        program.set_page(page, &buf);
+    }
 
-        program.set_message_nonce(ext.messages.nonce());
-        let (outgoing, reply) = ext.messages.drain();
+    let mut messages = vec![];
 
-        for outgoing_msg in outgoing {
-            messages.push(outgoing_msg.clone());
-            context.push_message(outgoing_msg.into_message(program.id()));
-        }
+    program.set_message_nonce(ext.messages.nonce());
+    let (outgoing, reply, queue_back) = ext.messages.drain();
 
-        let gas_left = ext.gas_counter.left();
-        let gas_requested = ext.gas_requested;
-        let gas_spent = gas_limit - gas_left - gas_requested;
+    for outgoing_msg in outgoing {
+        messages.push(outgoing_msg.clone());
+        context.push_message(outgoing_msg.into_message(program.id()));
+    }
 
-        RunResult {
-            messages,
-            reply,
-            gas_left,
-            gas_spent,
-            gas_requested,
-        }
-    })
+    if let Some(reply_message) = &reply {
+        context.push_message(reply_message.clone().into_message(
+            message.id(),
+            program.id(),
+            message.source(),
+        ));
+    }
+
+    let mut gas_left = ext.gas_counter.left();
+    let gas_requested = ext.gas_requested;
+    let gas_spent = gas_limit - gas_left - gas_requested;
+
+    if let Some(mut queue_back_msg) = queue_back {
+        // Update gas limit according to gas already spent
+        queue_back_msg.set_gas_limit(gas_left);
+        // Keep user's balance reserved until message will be really processed
+        gas_left = 0;
+        context.push_message(queue_back_msg.into_message(program.id()));
+    }
+
+    RunResult {
+        messages,
+        reply,
+        gas_left,
+        gas_spent,
+        gas_requested,
+        was_trap,
+    }
 }
 
 #[cfg(test)]
@@ -639,12 +753,7 @@ mod tests {
 
         runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
 
-        match runner.run_next() {
-            Ok(_) => panic!("This should be an error that we run "),
-            Err(anyhow_err) => {
-                format!("{}", anyhow_err).contains("Not running in the reply context");
-            }
-        };
+        assert_eq!(runner.run_next(u64::MAX).traps, 1);
 
         let msg = vec![
             1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
@@ -659,9 +768,11 @@ mod tests {
             u64::max_value(),
             0,
             MessageId::from_slice(&msg),
+            0,
         );
 
-        runner.run_next().expect("Should be ok now.");
+        assert_eq!(runner.run_next(u64::MAX).traps, 1); // this is handling of automatic reply when first message was trapped; it will also fail
+        runner.run_next(u64::MAX);
 
         let InMemoryStorage {
             program_storage, ..
@@ -722,7 +833,7 @@ mod tests {
                 i32.const 12
                 i32.const 0
                 i32.const 2
-                i64.const 18446744073709551615
+                i64.const 10000000
                 i32.const 0
                 call $send
               )
@@ -742,7 +853,7 @@ mod tests {
             )
             .expect("failed to init program");
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -761,7 +872,7 @@ mod tests {
             0,
         );
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -784,7 +895,7 @@ mod tests {
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "free"  (func $free (param i32)))
             (import "env" "memory" (memory 1))
-  				(data (i32.const 0) "ok")
+            (data (i32.const 0) "ok")
             (export "handle" (func $handle))
             (export "init" (func $init))
             (func $handle
@@ -805,14 +916,14 @@ mod tests {
               get_local $var0
               i32.const 255
               i32.and
-              i64.const 18446744073709551615
+              i64.const 1000000000
               i32.const 32768
               call $send
               i32.const 256
               call $free
             )
             (func $init
-            (local $id i32)
+              (local $id i32)
               (local $msg_size i32)
               (local $alloc_pages i32)
               (local $pages_offset i32)
@@ -821,7 +932,7 @@ mod tests {
                 (get_local $id)
                 (i32.const 1)
               )
-              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 18446744073709551615) (i32.const 32768))
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 10000000000) (i32.const 32768))
             )
           )"#;
 
@@ -842,7 +953,7 @@ mod tests {
             )
             .expect("Failed to init program");
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -862,7 +973,7 @@ mod tests {
             0,
         );
 
-        runner.run_next().expect("Failed to process next message");
+        runner.run_next(u64::MAX);
 
         assert_eq!(
             runner
@@ -878,15 +989,15 @@ mod tests {
         // Charge 100_000 of gas.
         let wat = r#"
         (module
-          (import "env" "gr_charge"  (func $charge (param i64)))
-          (import "env" "memory" (memory 1))
-          (export "handle" (func $handle))
-          (export "init" (func $init))
-          (func $handle
-            i64.const 100000
-            call $charge
-          )
-          (func $init)
+            (import "env" "gr_charge" (func $charge (param i64)))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+                i64.const 100000
+                call $charge
+            )
+            (func $init)
         )"#;
 
         let mut runner = Runner::new(
@@ -911,7 +1022,7 @@ mod tests {
 
         runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
 
-        let result = runner.run_next().expect("Failed to process next message");
+        let result = runner.run_next(u64::MAX);
         assert_eq!(result.gas_spent.len(), 1);
         assert_eq!(result.gas_left.len(), 1);
         assert_eq!(result.gas_requests.len(), 1);
@@ -924,5 +1035,58 @@ mod tests {
         assert_eq!(result.gas_requests[0].0, caller_id);
         assert_eq!(result.gas_requests[0].1, program_id);
         assert_eq!(result.gas_requests[0].2, 100_000);
+    }
+
+    #[test]
+    fn wait() {
+        // Call `gr_wait` function
+        let wat = r#"
+        (module
+            (import "env" "gr_wait" (func $gr_wait))
+            (import "env" "memory" (memory 1))
+            (export "handle" (func $handle))
+            (export "init" (func $init))
+            (func $handle
+                call $gr_wait
+                call $gr_wait ;; This call is unreachable due to execution interrupt on previous call
+            )
+            (func $init)
+        )"#;
+
+        let mut runner = Runner::new(
+            &Config::default(),
+            gear_core::storage::new_in_memory(Default::default(), Default::default()),
+        );
+
+        let source = 1001.into();
+        let dest = 1.into();
+        let gas_limit = 1000_000;
+
+        let _ = runner
+            .init_program(
+                source,
+                0,
+                dest,
+                parse_wat(wat),
+                "init".as_bytes().to_vec(),
+                gas_limit,
+                0,
+            )
+            .expect("failed to init `gas_transfer` program");
+
+        let payload = b"Test Wait";
+        runner.queue_message(source, 1, dest, payload.to_vec(), 1000_000, 0);
+
+        let _result = runner.run_next(u64::MAX);
+
+        let InMemoryStorage { message_queue, .. } = runner.complete();
+        let messages = message_queue.drain();
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].source, source);
+        assert_eq!(messages[0].dest, dest);
+        assert_eq!(messages[0].payload(), payload);
+        log::warn!("New gas limit: {}", messages[0].gas_limit);
+        assert!(messages[0].gas_limit < gas_limit);
     }
 }

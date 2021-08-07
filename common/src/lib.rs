@@ -29,6 +29,8 @@ use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
 
+pub type ExitCode = i32;
+
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Message {
     pub id: H256,
@@ -37,7 +39,7 @@ pub struct Message {
     pub payload: Vec<u8>,
     pub gas_limit: u64,
     pub value: u128,
-    pub reply: Option<H256>,
+    pub reply: Option<(H256, ExitCode)>,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
@@ -105,6 +107,7 @@ pub enum IntermediateMessage {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
+        reply: Option<H256>,
     },
 }
 

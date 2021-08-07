@@ -10,7 +10,6 @@ anyhow = "1.0.40"
 codec = { version = "2.0.0", package = "parity-scale-codec" }
 regex = "1.4"
 structopt = "0.3.8"
-serde_json = "1.0.64"
 termion = "1.5.6"
 
 # Substrate deps
@@ -22,6 +21,6 @@ sp-io = { version = "3.0.0", git = "https://github.com/paritytech/substrate.git"
 # Internal deps
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
-gear-test-sample = { path = "../../test-sample" }
 gear-runtime = { path = "../../runtime" }
 rti = { package = "gear-node-rti", path = "../../node-rti" }
+gear-test = { path = "../../test" }

@@ -9,8 +9,8 @@ static mut MESSAGE_LOG: Vec<String> = vec![];
 pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
 
-    if &new_msg == "PING" {
-        msg::send(msg::source(), b"PONG", u64::MAX, 0);
+    if new_msg == "PING" {
+        msg::reply(b"PONG", 10_000_000, 0);
     }
 
     MESSAGE_LOG.push(new_msg);
@@ -26,9 +26,16 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn handle_reply() {
+    msg::reply(b"PONG", 10_000_000, 0);
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn init() {}
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    loop {}
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }

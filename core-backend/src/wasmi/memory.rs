@@ -66,7 +66,6 @@ impl Clone for MemoryWrap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec::Vec;
     use gear_core::memory::MemoryContext;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {

@@ -13,11 +13,15 @@ clean:
 
 .PHONY: core-test
 core-test:
-	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner
+	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner -- --nocapture
 
 .PHONY: examples
 examples:
 	@./scripts/build-wasm.sh
+
+.PHONY: gstd-async-test
+gstd-async-test:
+	@cargo test --package gstd-async -- --nocapture
 
 .PHONY: gstd-test
 gstd-test:
@@ -51,6 +55,10 @@ node-run:
 node-test:
 	@SKIP_WASM_BUILD=1 cargo test --package gear-node
 
+.PHONY: ntest
+ntest:
+	@cargo run --package gear-node --release -- runtests ./test/code/*.yaml
+
 .PHONY: pre-commit
 pre-commit:
 	@./scripts/pre-commit.sh
@@ -62,7 +70,7 @@ release:
 .PHONY: rpc-test
 rpc-test:
 	@./scripts/build-wasm.sh
-	@node rpc-tests/index.js ./test/json/*.json
+	@node rpc-tests/index.js ./test/code/*.yaml
 
 .PHONY: test
 test:
