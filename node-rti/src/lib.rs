@@ -114,23 +114,27 @@ pub trait GearExecutor {
     ) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
+        let (initialization_message_id, run_result) = runner
+            .init_program(
+                ProgramId::from_slice(&caller_id[..]),
+                gear_common::caller_nonce_fetch_inc(caller_id),
+                ProgramId::from_slice(&program_id[..]),
+                program_code,
+                init_payload,
+                gas_limit,
+                value,
+            )
+            .map_err(|e| {
+                log::error!("Error initialization program: {:?}", e);
+                Error::Runner
+            })?;
+
         let result = RunNextResult::from_single(
+            // TODO: take message id somewhere
+            initialization_message_id,
             ProgramId::from_slice(&caller_id[..]),
             ProgramId::from_slice(&program_id[..]),
-            runner
-                .init_program(
-                    ProgramId::from_slice(&caller_id[..]),
-                    gear_common::caller_nonce_fetch_inc(caller_id),
-                    ProgramId::from_slice(&program_id[..]),
-                    program_code,
-                    init_payload,
-                    gas_limit,
-                    value,
-                )
-                .map_err(|e| {
-                    log::error!("Error initialization program: {:?}", e);
-                    Error::Runner
-                })?,
+            run_result,
         );
 
         let Storage { message_queue, .. } = runner.complete();
@@ -159,7 +163,7 @@ pub trait GearExecutor {
                 total_gas_spent += gas_spent.1;
             }
 
-            if run_result.traps > 0 {
+            if run_result.any_traps() {
                 log::error!("gas_spent: Empty run result");
                 return Err(Error::Runner);
             }

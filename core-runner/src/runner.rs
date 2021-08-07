@@ -1,7 +1,7 @@
 //! Module for running programs.
 
 use alloc::boxed::Box;
-use alloc::collections::BTreeSet;
+use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
@@ -44,8 +44,8 @@ type GasRequest = (ProgramId, ProgramId, u64);
 pub struct RunNextResult {
     /// How many messages were handled
     pub handled: u32,
-    /// How many messages ended as traps
-    pub traps: u32,
+    /// Execution outcome per each message
+    pub outcomes: BTreeMap<MessageId, ExecutionOutcome>,
     /// Gas that was left.
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
@@ -67,7 +67,6 @@ impl RunNextResult {
     pub(crate) fn trap() -> Self {
         RunNextResult {
             handled: 1,
-            traps: 1,
             ..Default::default()
         }
     }
@@ -76,18 +75,21 @@ impl RunNextResult {
     pub(crate) fn refund(gas_request: GasRequest) -> Self {
         RunNextResult {
             handled: 1,
-            traps: 1,
             gas_requests: vec![gas_request],
             ..Default::default()
         }
     }
 
     /// Accrue one run of the message hadling.
-    pub fn accrue(&mut self, caller_id: ProgramId, program_id: ProgramId, result: RunResult) {
+    pub fn accrue(
+        &mut self,
+        message_id: MessageId,
+        caller_id: ProgramId,
+        program_id: ProgramId,
+        result: RunResult,
+    ) {
         self.handled += 1;
-        if result.was_trap {
-            self.traps += 1;
-        }
+        self.outcomes.insert(message_id, result.outcome);
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
@@ -104,10 +106,25 @@ impl RunNextResult {
     }
 
     /// From one single run.
-    pub fn from_single(caller_id: ProgramId, program_id: ProgramId, run_result: RunResult) -> Self {
+    pub fn from_single(
+        message_id: MessageId,
+        caller_id: ProgramId,
+        program_id: ProgramId,
+        run_result: RunResult,
+    ) -> Self {
         let mut result = Self::empty();
-        result.accrue(caller_id, program_id, run_result);
+        result.accrue(message_id, caller_id, program_id, run_result);
         result
+    }
+
+    /// Has any trap outcome
+    pub fn any_traps(&self) -> bool {
+        for (_msg_id, outcome) in self.outcomes.iter() {
+            if outcome.was_trap() {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -242,7 +259,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                 gas_limit,
             );
 
-            if run_result.was_trap {
+            if run_result.outcome.was_trap() {
                 // In case of trap, we generate trap reply message
                 let program_id = program.id();
                 let nonce = program.fetch_inc_message_nonce();
@@ -259,8 +276,12 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
                 });
             }
 
-            let result =
-                RunNextResult::from_single(next_message_source, next_message_dest, run_result);
+            let result = RunNextResult::from_single(
+                next_message_id,
+                next_message_source,
+                next_message_dest,
+                run_result,
+            );
 
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
@@ -309,7 +330,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         init_msg: Vec<u8>,
         gas_limit: u64,
         value: u128,
-    ) -> anyhow::Result<RunResult> {
+    ) -> anyhow::Result<(MessageId, RunResult)> {
         if let Some(mut program) = self.program_storage.get(program_id) {
             program.reset(code.to_vec());
             self.program_storage.set(program);
@@ -329,9 +350,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
 
         let mut context = self.create_context(allocations);
 
+        let initialization_message_id = self.next_message_id(source, nonce);
+
         // TODO: figure out message id for initialization message
         let msg = IncomingMessage::new(
-            self.next_message_id(source, nonce),
+            initialization_message_id,
             source,
             init_msg.into(),
             gas_limit,
@@ -353,7 +376,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
             .queue_many(context.message_buf.drain(..).collect());
         self.program_storage.set(program);
 
-        Ok(res)
+        Ok((initialization_message_id, res))
     }
 
     fn next_message_id(&mut self, source: ProgramId, nonce: u64) -> MessageId {
@@ -456,6 +479,32 @@ impl RunningContext {
     }
 }
 
+/// Execution outcome.
+///
+/// If trap occured, possible explanation can be attached
+#[derive(Clone, Debug)]
+pub enum ExecutionOutcome {
+    /// Outcome was a trap with some possible explanation.
+    Trap(Option<&'static str>),
+    /// Outcome was fine.
+    Normal,
+}
+
+impl Default for ExecutionOutcome {
+    fn default() -> Self {
+        ExecutionOutcome::Normal
+    }
+}
+
+impl ExecutionOutcome {
+    fn was_trap(&self) -> bool {
+        match self {
+            ExecutionOutcome::Trap(_) => true,
+            ExecutionOutcome::Normal => false,
+        }
+    }
+}
+
 /// The result of running some program.
 #[derive(Clone, Debug, Default)]
 pub struct RunResult {
@@ -469,8 +518,8 @@ pub struct RunResult {
     pub gas_spent: u64,
     /// Gas requested to be transferred.
     pub gas_requested: u64,
-    /// Run result was a trap
-    pub was_trap: bool,
+    /// Run outcome (trap/succes).
+    pub outcome: ExecutionOutcome,
 }
 
 struct Ext {
@@ -478,59 +527,101 @@ struct Ext {
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
     gas_requested: u64,
+    last_error_returned: Option<&'static str>,
+}
+
+impl Ext {
+    fn return_with_tracing<T>(
+        &mut self,
+        result: Result<T, &'static str>,
+    ) -> Result<T, &'static str> {
+        match result {
+            Ok(result) => Ok(result),
+            Err(error_string) => {
+                self.last_error_returned = Some(error_string);
+                Err(error_string)
+            }
+        }
+    }
 }
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        self.memory_context
+        let result = self
+            .memory_context
             .alloc(pages)
-            .map_err(|_e| "Allocation error")
+            .map_err(|_e| "Allocation error");
+
+        self.return_with_tracing(result)
     }
 
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str> {
         if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
             return Err("Gas limit exceeded while trying to send message");
         }
-        self.messages.send(msg).map_err(|_e| "Message send error")
+        let result = self.messages.send(msg).map_err(|_e| "Message send error");
+
+        self.return_with_tracing(result)
     }
 
-    fn send_init(&self, msg: OutgoingPacket) -> Result<usize, &'static str> {
-        self.messages
+    fn send_init(&mut self, msg: OutgoingPacket) -> Result<usize, &'static str> {
+        let result = self
+            .messages
             .send_init(msg)
-            .map_err(|_e| "Message init error")
+            .map_err(|_e| "Message init error");
+
+        self.return_with_tracing(result)
     }
 
-    fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
-        self.messages
+    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
+        let result = self
+            .messages
             .send_push(handle, buffer)
-            .map_err(|_e| "Payload push error")
+            .map_err(|_e| "Payload push error");
+
+        self.return_with_tracing(result)
     }
 
-    fn reply_push(&self, buffer: &[u8]) -> Result<(), &'static str> {
-        self.messages
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
+        let result = self
+            .messages
             .reply_push(buffer)
-            .map_err(|_e| "Reply payload push error")
+            .map_err(|_e| "Reply payload push error");
+
+        self.return_with_tracing(result)
     }
 
     fn send_commit(&mut self, handle: usize) -> Result<(), &'static str> {
         {
-            let gas_limit = self
+            let gas_limit = match self
                 .messages
                 .get_gas_limit(handle)
-                .map_err(|_e| "Message commit error")?;
+                .map_err(|_e| "Message commit error")
+            {
+                Ok(gas) => gas,
+                anything_else => {
+                    return self.return_with_tracing(anything_else.map(|_never| ()));
+                }
+            };
 
             if self.gas_counter.charge(gas_limit) != ChargeResult::Enough {
-                return Err("Gas limit exceeded while trying to send message");
+                return self
+                    .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
             }
         }
 
-        self.messages
+        let result = self
+            .messages
             .send_commit(handle)
-            .map_err(|_e| "Message commit error")
+            .map_err(|_e| "Message commit error");
+
+        self.return_with_tracing(result)
     }
 
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str> {
-        self.messages.reply(msg).map_err(|_e| "Reply error")
+        let result = self.messages.reply(msg).map_err(|_e| "Reply error");
+
+        self.return_with_tracing(result)
     }
 
     fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
@@ -546,7 +637,8 @@ impl EnvExt for Ext {
     }
 
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
-        self.memory_context.free(ptr).map_err(|_e| "Free error")
+        let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
+        self.return_with_tracing(result)
     }
 
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
@@ -558,6 +650,7 @@ impl EnvExt for Ext {
         self.memory_context
             .memory()
             .write(ptr, val)
+            // TODO: remove and propagate error, issue #97
             .expect("Memory out of bounds.");
     }
 
@@ -573,7 +666,7 @@ impl EnvExt for Ext {
         if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
             Ok(())
         } else {
-            Err("Gas limit exceeded")
+            self.return_with_tracing(Err("Gas limit exceeded"))
         }
     }
 
@@ -582,7 +675,7 @@ impl EnvExt for Ext {
             self.gas_requested += gas;
             Ok(())
         } else {
-            Err("Gas limit exceeded")
+            self.return_with_tracing(Err("Gas limit exceeded"))
         }
     }
 
@@ -591,9 +684,12 @@ impl EnvExt for Ext {
     }
 
     fn wait(&mut self) -> Result<(), &'static str> {
-        self.messages
+        let result = self
+            .messages
             .queue_back()
-            .map_err(|_| "Unable to queue the message back")
+            .map_err(|_| "Unable to queue the message back");
+
+        self.return_with_tracing(result)
     }
 }
 
@@ -626,6 +722,7 @@ fn run(
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
         gas_requested: 0,
+        last_error_returned: None,
     };
 
     let (res, mut ext) = env.setup_and_run(
@@ -636,8 +733,18 @@ fn run(
         entry_point.into(),
     );
 
-    let was_trap = res.is_err();
-    let _res = res.unwrap_or_default(); // TODO: What's it for?
+    let outcome = match res {
+        Ok(_) => ExecutionOutcome::Normal,
+        Err(e) => {
+            let explanation = ext.last_error_returned.take();
+            log::debug!(
+                "Trap during execution: {}, explanation: {}",
+                e,
+                explanation.unwrap_or("N/A")
+            );
+            ExecutionOutcome::Trap(explanation)
+        }
+    };
 
     // get allocated pages
     for page in ext.memory_context.allocations().clone() {
@@ -682,7 +789,7 @@ fn run(
         gas_left,
         gas_spent,
         gas_requested,
-        was_trap,
+        outcome,
     }
 }
 
@@ -753,7 +860,7 @@ mod tests {
 
         runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
 
-        assert_eq!(runner.run_next(u64::MAX).traps, 1);
+        assert!(runner.run_next(u64::MAX).any_traps());
 
         let msg = vec![
             1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
@@ -771,7 +878,7 @@ mod tests {
             0,
         );
 
-        assert_eq!(runner.run_next(u64::MAX).traps, 1); // this is handling of automatic reply when first message was trapped; it will also fail
+        assert!(!runner.run_next(u64::MAX).any_traps()); // this is handling of automatic reply when first message was trapped; it will also fail
         runner.run_next(u64::MAX);
 
         let InMemoryStorage {
