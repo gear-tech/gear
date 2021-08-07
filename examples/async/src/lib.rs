@@ -43,7 +43,7 @@ async fn handle_async() {
     let another_reply = msg_async::send_and_wait_for_reply(dest, b"PING", 50_000_000, 0).await;
     let another_reply = String::from_utf8(another_reply).expect("Invalid reply: should be utf-8");
     if another_reply == "PONG" {
-        msg::reply(b"PING", 20_000_000, 0);
+        msg::reply(b"PING", 2_000_000, 0);
     }
 }
 

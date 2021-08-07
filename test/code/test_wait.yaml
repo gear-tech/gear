@@ -26,4 +26,3 @@ fixtures:
             payload:
               kind: utf-8
               value: WAITED
-
