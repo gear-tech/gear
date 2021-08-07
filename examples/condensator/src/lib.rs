@@ -27,7 +27,7 @@ pub unsafe extern "C" fn handle() {
         ext::debug(&format!("Discharge #{} due to limit {}", CHARGE, LIMIT,));
 
         msg::send(
-            0.into(),
+            msg::source(),
             format!("Discharged: {}", CHARGE).as_bytes(),
             10_000_000,
         );
