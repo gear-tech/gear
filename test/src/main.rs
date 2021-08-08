@@ -20,7 +20,7 @@ mod check;
 mod runner;
 mod sample;
 
-use gear_core::storage;
+use gear_core::storage::InMemoryStorage;
 
 use clap::{AppSettings, Clap};
 
@@ -73,6 +73,6 @@ pub fn main() -> anyhow::Result<()> {
         opts.skip_messages,
         opts.skip_allocations,
         opts.skip_memory,
-        || storage::new_in_memory_empty(),
+        InMemoryStorage::default,
     )
 }

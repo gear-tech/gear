@@ -24,6 +24,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 
+use gear_core::storage::WaitList;
 use gear_core::{
     env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, GasCounterLimited},
@@ -171,28 +172,31 @@ impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
 ///
 /// This instance allows to handle multiple messages using underlying allocation, message and program
 /// storage.
-pub struct Runner<MQ: MessageQueue, PS: ProgramStorage> {
+pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
+    pub(crate) wait_list: WL,
     pub(crate) config: Config,
     env: Environment<Ext>,
 }
 
-impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
+impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     /// New runner instance.
     ///
     /// Provide configuration, storage.
-    pub fn new(config: &Config, storage: Storage<MQ, PS>) -> Self {
+    pub fn new(config: &Config, storage: Storage<MQ, PS, WL>) -> Self {
         let env = Environment::new();
 
         let Storage {
             message_queue,
             program_storage,
+            wait_list,
         } = storage;
 
         Self {
             program_storage,
             message_queue,
+            wait_list,
             config: config.clone(),
             env,
         }
@@ -312,16 +316,18 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
     /// Drop this runner.
     ///
     /// This will return underlyign storage and memory state.
-    pub fn complete(self) -> Storage<MQ, PS> {
+    pub fn complete(self) -> Storage<MQ, PS, WL> {
         let Runner {
             program_storage,
             message_queue,
+            wait_list,
             ..
         } = self;
 
         Storage {
             message_queue,
             program_storage,
+            wait_list,
         }
     }
 
@@ -768,7 +774,7 @@ fn run(
     for page in ext.memory_context.allocations().clone() {
         let mut buf = vec![0u8; PageNumber::size()];
         ext.get_mem(page.offset(), &mut buf);
-        program.set_page(page, &buf);
+        let _ = program.set_page(page, &buf);
     }
 
     let mut messages = vec![];
@@ -816,7 +822,9 @@ mod tests {
     extern crate wabt;
     use super::*;
     use env_logger::Env;
-    use gear_core::storage::{InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage};
+    use gear_core::storage::{
+        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
+    };
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -835,11 +843,8 @@ mod tests {
             .init();
     }
 
-    fn new_test_runner() -> Runner<InMemoryMessageQueue, InMemoryProgramStorage> {
-        Runner::new(
-            &Config::default(),
-            gear_core::storage::new_in_memory(Default::default(), Default::default()),
-        )
+    fn new_test_runner() -> Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
+        Runner::new(&Config::default(), Default::default())
     }
 
     #[test]
@@ -1061,10 +1066,7 @@ mod tests {
             )
           )"#;
 
-        let mut runner = Runner::new(
-            &Config::default(),
-            gear_core::storage::new_in_memory(Default::default(), Default::default()),
-        );
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         runner
             .init_program(
@@ -1125,10 +1127,7 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(
-            &Config::default(),
-            gear_core::storage::new_in_memory(Default::default(), Default::default()),
-        );
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         let gas_limit = 1000_000;
         let caller_id = 0.into();
@@ -1178,10 +1177,7 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(
-            &Config::default(),
-            gear_core::storage::new_in_memory(Default::default(), Default::default()),
-        );
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         let source = 1001.into();
         let dest = 1.into();
@@ -1205,7 +1201,7 @@ mod tests {
         let _result = runner.run_next(u64::MAX);
 
         let InMemoryStorage { message_queue, .. } = runner.complete();
-        let messages = message_queue.drain();
+        let messages: Vec<Message> = message_queue.into();
 
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].source, source);

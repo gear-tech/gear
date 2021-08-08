@@ -132,6 +132,13 @@ fn page_key(page: u32) -> Vec<u8> {
     key
 }
 
+fn waker_key(id: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(b"g::waker::");
+    id.encode_to(&mut key);
+    key
+}
+
 pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
     sp_io::storage::get(&code_key(code_hash))
 }
@@ -206,6 +213,21 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     sp_io::storage::set(&key_id, &new_nonce.encode());
 
     original_nonce
+}
+
+pub(crate) fn insert_waiting_message(id: H256, message: Message) {
+    sp_io::storage::set(&waker_key(id), &message.encode());
+}
+
+pub(crate) fn remove_waiting_message(id: H256) -> Option<Message> {
+    let id = waker_key(id);
+    let msg: Option<Message> = sp_io::storage::get(&id)
+        .map(|val| Message::decode(&mut &val[..]).expect("message encoded correctly"));
+
+    if msg.is_some() {
+        sp_io::storage::clear(&id);
+    }
+    msg
 }
 
 #[cfg(test)]

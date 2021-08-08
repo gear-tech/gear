@@ -237,15 +237,15 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
     Ok(u)
 }
 
-pub fn check_main<MQ: storage::MessageQueue, PS: storage::ProgramStorage>(
+pub fn check_main<MQ: storage::MessageQueue, PS: storage::ProgramStorage, WL: storage::WaitList>(
     files: Vec<std::path::PathBuf>,
     skip_messages: bool,
     skip_allocations: bool,
     skip_memory: bool,
-    storage_factory: impl Fn() -> storage::Storage<MQ, PS>,
+    storage_factory: impl Fn() -> storage::Storage<MQ, PS, WL>,
 ) -> anyhow::Result<()>
 where
-    storage::Storage<MQ, PS>: CollectState,
+    storage::Storage<MQ, PS, WL>: CollectState,
 {
     let mut tests = Vec::new();
 

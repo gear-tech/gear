@@ -21,7 +21,7 @@ use gear_core_runner::runner::{Config, Runner};
 
 use crate::ext::*;
 
-pub type ExtRunner = Runner<ExtMessageQueue, ExtProgramStorage>;
+pub type ExtRunner = Runner<ExtMessageQueue, ExtProgramStorage, ExtWaitList>;
 
 pub fn new() -> ExtRunner {
     Runner::new(
@@ -29,6 +29,7 @@ pub fn new() -> ExtRunner {
         Storage {
             message_queue: ExtMessageQueue::default(),
             program_storage: ExtProgramStorage,
+            wait_list: ExtWaitList::default(),
         },
     )
 }
