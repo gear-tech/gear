@@ -332,7 +332,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Runner<MQ, PS> {
         value: u128,
     ) -> anyhow::Result<(MessageId, RunResult)> {
         if let Some(mut program) = self.program_storage.get(program_id) {
-            program.reset(code.to_vec());
+            program.reset(code.to_vec())?;
             self.program_storage.set(program);
         } else {
             self.program_storage

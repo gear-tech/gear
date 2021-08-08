@@ -45,7 +45,11 @@ pub struct MessageId([u8; 32]);
 
 impl fmt::Display for MessageId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", crate::util::encode_hex(&self.0[..]))
+        if let Ok(hex) = crate::util::encode_hex(&self.0[..]) {
+            write!(f, "{}", hex)
+        } else {
+            Err(fmt::Error)
+        }
     }
 }
 

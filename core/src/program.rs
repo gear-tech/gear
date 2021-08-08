@@ -17,7 +17,11 @@ pub struct ProgramId([u8; 32]);
 impl fmt::Display for ProgramId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let p = cmp::min(self.0.len(), f.precision().unwrap_or(self.0.len()));
-        write!(f, "{}", crate::util::encode_hex(&self.0[0..p]))
+        if let Ok(hex) = crate::util::encode_hex(&self.0[..p]) {
+            write!(f, "{}", hex)
+        } else {
+            Err(fmt::Error)
+        }
     }
 }
 
@@ -79,11 +83,7 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(
-        id: ProgramId,
-        code: Vec<u8>,
-        persistent_pages: BTreeMap<u32, Vec<u8>>,
-    ) -> Result<Self> {
+    pub fn new(id: ProgramId, code: Vec<u8>, pages: BTreeMap<u32, Vec<u8>>) -> Result<Self> {
         // get initial memory size from memory import.
         let static_pages: u32 = {
             parity_wasm::elements::Module::from_bytes(&code)
@@ -101,15 +101,18 @@ impl Program {
                 .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
         };
 
-        let persistent_pages: BTreeMap<PageNumber, Box<PageBuf>> = persistent_pages
-            .into_iter()
-            .map(|(num, buf)| {
-                (
-                    num.into(),
-                    Box::new(PageBuf::try_from(buf).expect("Incorrect page buffer")),
-                )
-            })
-            .collect();
+        let mut persistent_pages: BTreeMap<PageNumber, Box<PageBuf>> = BTreeMap::new();
+
+        for (num, buf) in pages {
+            persistent_pages.insert(
+                num.into(),
+                Box::new(
+                    PageBuf::try_from(buf).map_err(|_| {
+                        anyhow::anyhow!("Error loading program: invalid page buffer")
+                    })?,
+                ),
+            );
+        }
 
         Ok(Program {
             id,
@@ -136,29 +139,43 @@ impl Program {
     }
 
     /// Set the code of this program.
-    pub fn set_code(&mut self, code: Vec<u8>) {
+    pub fn set_code(&mut self, code: Vec<u8>) -> Result<()> {
+        self.static_pages = {
+            parity_wasm::elements::Module::from_bytes(&code)
+                .map_err(|e| anyhow::anyhow!("Error loading program: {}", e))?
+                .import_section()
+                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find import section"))?
+                .entries()
+                .iter()
+                .find_map(|entry| match entry.external() {
+                    parity_wasm::elements::External::Memory(mem_ty) => {
+                        Some(mem_ty.limits().initial())
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
+        };
         self.code = code;
+
+        Ok(())
     }
 
     /// Set memory from buffer.
-    pub fn set_memory(&mut self, buffer: &[u8]) {
+    pub fn set_memory(&mut self, buffer: &[u8]) -> Result<()> {
         self.persistent_pages.clear();
         let boxed_slice: Box<[u8]> = buffer.into();
-        boxed_slice
-            .chunks_exact(PageNumber::size())
-            .enumerate()
-            .for_each(|(num, chunk)| {
-                self.persistent_pages.insert(
-                    (num as u32).into(),
-                    Box::new(PageBuf::try_from(chunk).expect("chunk err")),
-                );
-            });
+        // TODO: also alloc remainder.
+        for (num, buf) in boxed_slice.chunks_exact(PageNumber::size()).enumerate() {
+            self.set_page((num as u32 + 1).into(), buf)?;
+        }
+        Ok(())
     }
 
     /// Set memory page from buffer.
-    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) {
+    pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<()> {
         self.persistent_pages
-            .insert(page, Box::new(PageBuf::try_from(buf).expect("chunk err")));
+            .insert(page, Box::new(PageBuf::try_from(buf)?));
+        Ok(())
     }
 
     /// Get reference to memory pages.
@@ -200,10 +217,12 @@ impl Program {
     }
 
     /// Reset the program.
-    pub fn reset(&mut self, code: Vec<u8>) {
-        self.set_code(code);
+    pub fn reset(&mut self, code: Vec<u8>) -> Result<()> {
+        self.set_code(code)?;
         self.clear_memory();
         self.message_nonce = 0;
+
+        Ok(())
     }
 }
 
@@ -211,14 +230,27 @@ impl Program {
 /// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
-    use super::ProgramId;
+    use super::{Program, ProgramId};
+    use crate::memory::PageBuf;
     use crate::util::encode_hex;
+    use alloc::collections::BTreeMap;
+    use alloc::vec::Vec;
+
+    fn parse_wat(source: &str) -> Vec<u8> {
+        let module_bytes = wabt::Wat2Wasm::new()
+            .validate(false)
+            .convert(source)
+            .expect("failed to parse module")
+            .as_ref()
+            .to_vec();
+        module_bytes
+    }
 
     #[test]
     /// Test that `encode_hex(...)` encodes correctly
     fn hex_encoding() {
         let bytes = "foobar".as_bytes();
-        let result = encode_hex(&bytes);
+        let result = encode_hex(&bytes).unwrap();
 
         assert_eq!(result, "666f6f626172");
     }
@@ -230,5 +262,49 @@ mod tests {
     fn program_id_from_slice_error_implementation() {
         let bytes = b"foobar";
         let _ = ProgramId::from_slice(bytes);
+    }
+
+    #[test]
+    /// Test that Program constructor fails when pages can't be converted into PageBuf.
+    fn program_memory() {
+        let wat = r#"
+            (module
+                (import "env" "gr_reply_to"  (func $gr_reply_to (param i32)))
+                (import "env" "memory" (memory 2))
+                (export "handle" (func $handle))
+                (export "handle_reply" (func $handle))
+                (export "init" (func $init))
+                (func $handle
+                    i32.const 65536
+                    call $gr_reply_to
+                )
+                (func $handle_reply
+                    i32.const 65536
+                    call $gr_reply_to
+                )
+                (func $init)
+            )"#;
+
+        let binary: Vec<u8> = parse_wat(wat);
+        let mut pages = BTreeMap::new();
+
+        // invalid PageBuf
+        pages.insert(1, vec![]);
+
+        assert!(Program::new(ProgramId::from(1), binary.clone(), pages.clone()).is_err());
+
+        pages.insert(1, vec![0; 65537]);
+
+        assert!(Program::new(ProgramId::from(1), binary.clone(), pages).is_err());
+
+        let mut program = Program::new(ProgramId::from(1), binary, BTreeMap::default()).unwrap();
+
+        // 2 initial pages
+        assert_eq!(program.static_pages(), 2);
+
+        assert!(program.set_page(1.into(), &vec![0; 123]).is_err());
+
+        assert!(program.set_page(1.into(), &vec![0; 65536]).is_ok());
+        assert_eq!(program.get_pages().len(), 1);
     }
 }
