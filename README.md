@@ -21,6 +21,8 @@ Gear is the most advanced L2 smart contracts, allowing for anyone to launch any 
 
 ## Getting Started
 
+Please refer to the [technical paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf) for some insights about how Gear works internally.
+
 **TODO**: *Describe the easiest way to start with. Pay attention to smart contract examples.*
 
 ## Running Node
