@@ -25,12 +25,12 @@ fixtures:
               kind: i32
               value: 20000
         allocations:
-          - page_num: 17
-            program_id: 1
-          - page_num: 17
-            program_id: 2
-          - page_num: 18
-            program_id: 2
+          - program_id: 1
+            filter: dynamic
+            exact_pages: [17]
+          - program_id: 2
+            filter: dynamic
+            exact_pages: [17, 18]
         memory:
           - program_id: 2
             at: "0x1238d4"
