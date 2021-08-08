@@ -102,7 +102,7 @@ mod tests {
     use gear_core::storage::{
         InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, Storage,
     };
-    use gear_core_runner::{Config, ExtMessage, ProgramInitialization, Runner};
+    use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
 
     #[test]
     fn binary_available() {
@@ -125,7 +125,7 @@ mod tests {
         let mut runner = new_test_runner();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 0.into(),
                 code: wasm_code().to_vec(),

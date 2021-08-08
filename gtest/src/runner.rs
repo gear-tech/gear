@@ -25,7 +25,7 @@ use gear_core::{
         ProgramStorage, Storage, WaitList,
     },
 };
-use gear_core_runner::{Config, ExtMessage, MessageDispatch, ProgramInitialization, Runner};
+use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
 use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList};
 use std::fmt::Write;
 
@@ -104,7 +104,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 _ => init_msg.clone().into_raw(),
             }
         }
-        runner.init_program(ProgramInitialization {
+        runner.init_program(InitializeProgramInfo {
             new_program_id: program.id.into(),
             source_id: SOME_FIXED_USER.into(),
             code,
