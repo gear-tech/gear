@@ -27,7 +27,7 @@ services:
       - "gear-data-bob:/data"
     links:
       - "node_alice:alice"
-    command: gear-node --chain=local --bob -d /data --port 30344 --rpc-port 9935 --ws-port 9945 --bootnodes '/ip4/172.28.1.1/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR'
+    command: gear-node --chain=local --bob -d /data --port 30344 --rpc-port 9935 --ws-port 9945 --bootnodes '/ip4/172.28.1.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp'
     networks:
       testing_net:
         ipv4_address: 172.28.1.2
