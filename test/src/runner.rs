@@ -21,11 +21,12 @@ use gear_core::{
     message::Message,
     program::{Program, ProgramId},
     storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, MessageQueue, ProgramStorage, Storage,
+        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, MessageMap, MessageQueue,
+        ProgramStorage, Storage, WaitList,
     },
 };
 use gear_core_runner::runner::{Config, Runner};
-use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage};
+use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList};
 use std::fmt::Write;
 
 use regex::Regex;
@@ -44,20 +45,18 @@ pub trait CollectState {
     fn collect(self) -> FinalState;
 }
 
-impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage> {
+impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
     fn collect(self) -> FinalState {
-        let message_queue = self.message_queue;
-        let program_storage = self.program_storage;
-
         FinalState {
-            log: message_queue.log().to_vec(),
-            messages: message_queue.drain(),
-            program_storage: program_storage.drain(),
+            log: self.message_queue.log().to_vec(),
+            messages: self.message_queue.into(),
+            program_storage: self.program_storage.into(),
+            wait_list: self.wait_list.into(),
         }
     }
 }
 
-impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage> {
+impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
     fn collect(self) -> FinalState {
         let log = self.message_queue.log;
 
@@ -74,15 +73,16 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage> {
             messages,
             // TODO: iterate program storage to list programs here
             program_storage: Vec::new(),
+            wait_list: MessageMap::new(),
         }
     }
 }
 
-pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
-    storage: Storage<MQ, PS>,
+pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
+    storage: Storage<MQ, PS, WL>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<Runner<MQ, PS>> {
+) -> anyhow::Result<Runner<MQ, PS, WL>> {
     let mut runner = Runner::new(&Config::default(), storage);
     let mut nonce = 0;
     for program in test.programs.iter() {
@@ -161,14 +161,15 @@ pub struct FinalState {
     pub messages: Vec<Message>,
     pub log: Vec<Message>,
     pub program_storage: Vec<Program>,
+    pub wait_list: MessageMap,
 }
 
-pub fn run<MQ: MessageQueue, PS: ProgramStorage>(
-    mut runner: Runner<MQ, PS>,
+pub fn run<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
+    mut runner: Runner<MQ, PS, WL>,
     steps: Option<u64>,
 ) -> (FinalState, anyhow::Result<()>)
 where
-    Storage<MQ, PS>: CollectState,
+    Storage<MQ, PS, WL>: CollectState,
 {
     let mut result = Ok(());
     if let Some(steps) = steps {
