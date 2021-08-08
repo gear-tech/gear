@@ -6,7 +6,7 @@ services:
     ports:
       - "127.0.0.1:30333:30333/tcp"
       - "127.0.0.1:9933:9933/tcp"
-    image: chevdor/gear:latest
+    image: rockabil/gear:latest
     volumes:
       - "gear-data:/data"
     command: gear-node

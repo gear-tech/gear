@@ -5,7 +5,6 @@ ARG PROFILE=release
 WORKDIR /gear
 
 COPY . /gear
-RUN ls -la
 RUN cargo build -p gear-node --$PROFILE
 
 # ===== SECOND STAGE ======
