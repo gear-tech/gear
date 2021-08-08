@@ -1,3 +1,18 @@
+[[bin]]
+name = "gear"
+path = "src/node"
+
+[package]
+name = "gear"
+description = "Computational Component of Polkadot Network."
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+readme = "README.md"
+
 [profile.release]
 panic = 'unwind'
 
