@@ -231,7 +231,6 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::{Program, ProgramId};
-    use crate::memory::PageBuf;
     use crate::util::encode_hex;
     use alloc::collections::BTreeMap;
     use alloc::vec::Vec;

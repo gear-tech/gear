@@ -3,6 +3,7 @@
 use alloc::rc::Rc;
 use core::cell::RefCell;
 
+use anyhow::Result;
 use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
@@ -118,16 +119,16 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Call fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R {
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         let mut brw = self.inner.borrow_mut();
         let mut ext = brw
             .take()
-            .expect("with should be called only when inner is set");
+            .ok_or("with should be called only when inner is set")?;
         let res = f(&mut ext);
 
         *brw = Some(ext);
 
-        res
+        Ok(res)
     }
 
     /// Unset inner ext
@@ -279,16 +280,15 @@ mod tests {
 
         let converted_inner = ext.with(converter);
 
-        assert_eq!(converted_inner, 0);
+        assert!(converted_inner.is_ok());
     }
 
     #[test]
-    #[should_panic(expected = "with should be called only when inner is set")]
-    /// Test that calling ext's `with<R>(...)` causes panic
+    /// Test that calling ext's `with<R>(...)` throws error
     /// when the inner value was not set or was unsetted
     fn calling_fn_with_empty_ext() {
         let ext = LaterExt::<ExtImplementedStruct>::new();
 
-        let _ = ext.with(converter);
+        assert!(ext.with(converter).is_err());
     }
 }
