@@ -210,6 +210,64 @@ pub struct ProgramInitialization {
     pub code: Vec<u8>,
 }
 
+/// New message dispatch request.
+///
+/// Message is dispatched from some identity to some identity, both should be known in advance.
+pub struct MessageDispatch {
+    /// Identity of the message origin.
+    pub source_id: ProgramId,
+    /// Identity of the destination.
+    pub destination_id: ProgramId,
+    /// Message payload and economic data.
+    pub data: ExtMessage,
+}
+
+impl MessageDispatch {
+    fn into_message(self) -> Message {
+        Message::new(
+            self.data.id,
+            self.source_id,
+            self.destination_id,
+            self.data.payload.into(),
+            self.data.gas_limit,
+            self.data.value,
+        )
+    }
+}
+
+/// New reply dispatch request.
+///
+/// Reply is dispatched from some identity to some identity, both should be known in advance.
+/// Reply also references the message it replies to and have an exit code of what was the dispatch
+/// result of that referenced message.
+pub struct ReplyDispatch {
+    /// Identity of the message origin.
+    pub source_id: ProgramId,
+    /// Identity of the destination.
+    pub destination_id: ProgramId,
+    /// Id of the referrenced message,
+    pub original_message_id: MessageId,
+    /// Dispatch result of the referenced message.
+    pub original_exit_code: ExitCode,
+    /// Message payload and economic data.
+    pub data: ExtMessage,
+}
+
+impl ReplyDispatch {
+    fn into_message(self) -> Message {
+        Message::new_reply(
+            self.data.id,
+            self.source_id,
+            self.destination_id,
+            self.data.payload.into(),
+            self.data.gas_limit,
+            self.data.value,
+            self.original_message_id,
+            self.original_exit_code,
+        )
+    }
+}
+
 impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     /// New runner instance.
     ///
@@ -436,50 +494,13 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     }
 
     /// Queue message for the underlying message queue.
-    pub fn queue_message(
-        &mut self,
-        source: ProgramId,
-        nonce: u64,
-        destination: ProgramId,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: u128,
-    ) {
-        let message_id = self.next_message_id(source, nonce);
-        self.message_queue.queue(Message::new(
-            message_id,
-            source,
-            destination,
-            payload.into(),
-            gas_limit,
-            value,
-        ));
+    pub fn queue_message(&mut self, dispatch: MessageDispatch) {
+        self.message_queue.queue(dispatch.into_message());
     }
 
-    /// Queue message for the underlying message queue.
-    #[allow(clippy::too_many_arguments)]
-    pub fn queue_reply(
-        &mut self,
-        source: ProgramId,
-        nonce: u64,
-        destination: ProgramId,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: u128,
-        reply_to: MessageId,
-        exit_code: ExitCode,
-    ) {
-        let message_id = self.next_message_id(source, nonce);
-        self.message_queue.queue(Message::new_reply(
-            message_id,
-            source,
-            destination,
-            payload.into(),
-            gas_limit,
-            value,
-            reply_to,
-            exit_code,
-        ));
+    /// Queue a reply message for the underlying message queue.
+    pub fn queue_reply(&mut self, dispatch: ReplyDispatch) {
+        self.message_queue.queue(dispatch.into_message());
     }
 }
 
@@ -911,7 +932,16 @@ mod tests {
             })
             .expect("failed to init program");
 
-        runner.queue_message(1001.into(), 1, 1.into(), Vec::new(), u64::max_value(), 0);
+        runner.queue_message(MessageDispatch {
+            source_id: 1001.into(),
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000002.into(),
+                payload: vec![],
+                gas_limit: u64::MAX,
+                value: 0,
+            },
+        });
 
         assert!(runner.run_next(u64::MAX).any_traps());
 
@@ -920,16 +950,18 @@ mod tests {
             18, 20, 22, 24, 26, 28, 30, 32,
         ];
 
-        runner.queue_reply(
-            1001.into(),
-            1,
-            1.into(),
-            Vec::new(),
-            u64::max_value(),
-            0,
-            MessageId::from_slice(&msg),
-            0,
-        );
+        runner.queue_reply(ReplyDispatch {
+            source_id: 1001.into(),
+            destination_id: 1.into(),
+            original_message_id: MessageId::from_slice(&msg),
+            original_exit_code: 0,
+            data: ExtMessage {
+                id: 1000003.into(),
+                payload: vec![],
+                gas_limit: u64::MAX,
+                value: 0,
+            },
+        });
 
         assert!(!runner.run_next(u64::MAX).any_traps()); // this is handling of automatic reply when first message was trapped; it will also fail
         runner.run_next(u64::MAX);
@@ -1025,14 +1057,16 @@ mod tests {
             Some((b"ok".to_vec(), 1.into(), 1.into()))
         );
 
-        runner.queue_message(
-            1001.into(),
-            0,
-            1.into(),
-            "test".as_bytes().to_vec(),
-            u64::max_value(),
-            0,
-        );
+        runner.queue_message(MessageDispatch {
+            source_id: 1001.into(),
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000002.into(),
+                payload: b"test".to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
+            },
+        });
 
         runner.run_next(u64::MAX);
 
@@ -1125,14 +1159,16 @@ mod tests {
         );
 
         // send page num to be freed
-        runner.queue_message(
-            1001.into(),
-            1,
-            1.into(),
-            vec![256u32 as _],
-            u64::max_value(),
-            0,
-        );
+        runner.queue_message(MessageDispatch {
+            source_id: 1001.into(),
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000002.into(),
+                payload: vec![256u32 as _],
+                gas_limit: u64::MAX,
+                value: 0,
+            },
+        });
 
         runner.run_next(u64::MAX);
 
@@ -1181,7 +1217,16 @@ mod tests {
             })
             .expect("failed to init program");
 
-        runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
+        runner.queue_message(MessageDispatch {
+            source_id: caller_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000002.into(),
+                payload: vec![0],
+                gas_limit,
+                value: 0,
+            },
+        });
 
         let result = runner.run_next(u64::MAX);
         assert_eq!(result.gas_spent.len(), 1);
@@ -1235,7 +1280,17 @@ mod tests {
             .expect("failed to init program");
 
         let payload = b"Test Wait";
-        runner.queue_message(source_id, 1, dest, payload.to_vec(), 1000_000, 0);
+
+        runner.queue_message(MessageDispatch {
+            source_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: payload.to_vec(),
+                gas_limit: 1_000_000,
+                value: 0,
+            },
+        });
 
         let _result = runner.run_next(u64::MAX);
 
