@@ -91,7 +91,7 @@ pub trait Ext {
     fn set_mem(&mut self, ptr: usize, val: &[u8]);
 
     /// Reads memory contents at the given offset into a buffer.
-    fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]);
+    fn get_mem(&self, ptr: usize, buffer: &mut [u8]);
 
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
@@ -103,7 +103,7 @@ pub trait Ext {
     fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
 
     /// Value associated with message.
-    fn value(&mut self) -> u128;
+    fn value(&self) -> u128;
 
     /// Interrupt the program and reschedule execution.
     fn wait(&mut self) -> Result<(), &'static str>;
@@ -206,14 +206,14 @@ mod tests {
             Ok(())
         }
         fn set_mem(&mut self, _ptr: usize, _val: &[u8]) {}
-        fn get_mem(&mut self, _ptr: usize, _buffer: &mut [u8]) {}
+        fn get_mem(&self, _ptr: usize, _buffer: &mut [u8]) {}
         fn msg(&mut self) -> &[u8] {
             &[]
         }
         fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
-        fn value(&mut self) -> u128 {
+        fn value(&self) -> u128 {
             0
         }
         fn charge(&mut self, _gas: u64) -> Result<(), &'static str> {
