@@ -619,6 +619,7 @@ dependencies = [
  "gear-core",
  "gear-core-runner",
  "gstd",
+ "parity-scale-codec",
  "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

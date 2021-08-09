@@ -9,8 +9,7 @@ license = "GPL-3.0"
 gstd = { path = "../gstd", features = ["debug"] }
 gear-core-runner = { path = "../core-runner", optional = true }
 gear-core = { path = "../core", optional = true }
-
-[dev-dependencies]
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
 
 [build-dependencies]
 substrate-wasm-builder = "4.0.0"
@@ -18,5 +17,5 @@ substrate-wasm-builder = "4.0.0"
 [lib]
 
 [features]
-std = ["gear-core-runner", "gear-core"]
+std = ["gear-core-runner", "gear-core", "codec/std"]
 default = ["std"]
