@@ -393,6 +393,7 @@ async function main() {
             "origin": "H256",
             "program_id": "H256",
             "code": "Vec<u8>",
+            "init_message_id": "H256",
             "payload": "Vec<u8>",
             "gas_limit": "u64",
             "value": "u128"

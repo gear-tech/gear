@@ -29,9 +29,9 @@ use sp_core::H256;
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
-use gear_core::{program::ProgramId, storage::Storage};
+use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 #[cfg(feature = "std")]
-use gear_core_runner::runner::RunNextResult;
+use gear_core_runner::{ExtMessage, ProgramInitialization, RunNextResult};
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 
@@ -108,22 +108,26 @@ pub trait GearExecutor {
         caller_id: H256,
         program_id: H256,
         program_code: Vec<u8>,
+        init_message_id: H256,
         init_payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
     ) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
-        let (initialization_message_id, run_result) = runner
-            .init_program(
-                ProgramId::from_slice(&caller_id[..]),
-                gear_common::caller_nonce_fetch_inc(caller_id),
-                ProgramId::from_slice(&program_id[..]),
-                program_code,
-                init_payload,
-                gas_limit,
-                value,
-            )
+        let init_message_id = MessageId::from_slice(&init_message_id[..]);
+        let run_result = runner
+            .init_program(ProgramInitialization {
+                new_program_id: ProgramId::from_slice(&program_id[..]),
+                source_id: ProgramId::from_slice(&caller_id[..]),
+                code: program_code,
+                message: ExtMessage {
+                    id: init_message_id,
+                    payload: init_payload,
+                    gas_limit,
+                    value,
+                },
+            })
             .map_err(|e| {
                 log::error!("Error initialization program: {:?}", e);
                 Error::Runner
@@ -131,7 +135,7 @@ pub trait GearExecutor {
 
         let result = RunNextResult::from_single(
             // TODO: take message id somewhere
-            initialization_message_id,
+            init_message_id,
             ProgramId::from_slice(&caller_id[..]),
             ProgramId::from_slice(&program_id[..]),
             run_result,
