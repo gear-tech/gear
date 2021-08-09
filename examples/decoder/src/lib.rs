@@ -33,7 +33,7 @@ pub unsafe extern "C" fn handle() {
     let handle = msg::send_init(msg::source(), b"Edges:", 0, 0);
 
     for vertex in &code {
-        leaves.sort_unstable();
+        leaves.sort();
         leaves.reverse();
         let leaf = leaves.pop().expect("An error occured during calculating");
 
