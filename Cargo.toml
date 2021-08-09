@@ -16,5 +16,6 @@ members = [
     "pallets/*",
     "runtime",
     "test",
-    "utils/*",
+    "utils/gear-test-cli",
+    "utils/wasm-proc",
 ]
