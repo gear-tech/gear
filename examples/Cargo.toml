@@ -15,6 +15,7 @@ members = [
     "ping",
     "sum",
     "vec",
+    "wait",
 ]
 
 [profile.release]

@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -e
-cd "$(dirname ${BASH_SOURCE[0]})/../examples"
+cd "$(dirname "$0")/../examples"
 
 cargo +nightly build --workspace --release

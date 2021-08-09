@@ -41,7 +41,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use sp_core::H256;
-    use sp_std::prelude::*;
+    use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -93,7 +93,6 @@ pub mod pallet {
         ///
         /// Usually occurs when gas_limit specified is such that origin account can't afford the message.
         NotEnoughBalanceForReserve,
-
         /// Gas limit too high.
         ///
         /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
@@ -103,6 +102,10 @@ pub mod pallet {
         ///
         /// Occurs if a program with some specific program id already exists in program storage.
         ProgramAlreadyExists,
+        /// No message in the mailbox.
+        ///
+        /// The user tried to reply on message that was not found in his personal mailbox.
+        NoMessageInMailbox,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq)]
@@ -128,9 +131,14 @@ pub mod pallet {
     pub fn DefaultForGasLimit<T: Config>() -> u64 {
         T::BlockGasLimit::get()
     }
+
     #[pallet::storage]
     #[pallet::getter(fn gas_allowance)]
     pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
+
+    #[pallet::storage]
+    pub type Mailbox<T: Config> =
+        StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -154,6 +162,33 @@ pub mod pallet {
 
     fn block_author<T: Config + pallet_authorship::Config>() -> T::AccountId {
         <pallet_authorship::Pallet<T>>::author()
+    }
+
+    pub fn insert_to_mailbox<T: Config>(user: H256, message: common::Message)
+    where
+        T::AccountId: Origin,
+    {
+        let user_id = &<T::AccountId as Origin>::from_origin(user);
+
+        <Mailbox<T>>::mutate(user_id, |value| {
+            value
+                .get_or_insert(BTreeMap::new())
+                .insert(message.id, message)
+        });
+    }
+
+    pub fn remove_from_mailbox<T: Config>(user: H256, message_id: H256) -> Option<common::Message>
+    where
+        T::AccountId: Origin,
+    {
+        let user_id = &<T::AccountId as Origin>::from_origin(user);
+
+        <Mailbox<T>>::try_mutate(user_id, |value| match value {
+            Some(ref mut btree) => Ok(btree.remove(&message_id)),
+            None => Err(()),
+        })
+        .ok()
+        .flatten()
     }
 
     #[pallet::call]
@@ -205,6 +240,7 @@ pub mod pallet {
                 origin: who.into_origin(),
                 code,
                 program_id: id,
+                init_message_id: common::next_message_id(&init_payload),
                 payload: init_payload,
                 gas_limit,
                 value: value.into(),
@@ -249,17 +285,66 @@ pub mod pallet {
             )?;
 
             // Only after reservation the message is actually put in the queue.
-            let nonce = common::nonce_fetch_inc();
-            let mut message_id = payload.encode();
-            message_id.extend_from_slice(&nonce.to_le_bytes());
-            let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
-                id: message_id,
+                id: common::next_message_id(&payload),
                 origin: who.into_origin(),
                 destination,
                 payload,
                 gas_limit,
                 value: value.into(),
+                reply: None,
+            });
+
+            Ok(().into())
+        }
+
+        #[pallet::weight(
+			T::DbWeight::get().writes(4) +
+			*gas_limit +
+			T::MessagePerByte::get()*(payload.len() as u64)
+		)]
+        pub fn send_reply(
+            origin: OriginFor<T>,
+            reply_to_id: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let original_message = remove_from_mailbox::<T>(who.clone().into_origin(), reply_to_id)
+                .ok_or(Error::<T>::NoMessageInMailbox)?;
+
+            let destination = original_message.source;
+
+            let gas_limit_reserve = gas_to_fee::<T>(gas_limit);
+
+            // First we reserve enough funds on the account to pay for 'gas_limit'
+            T::Currency::reserve(&who, gas_limit_reserve)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            // Since messages a guaranteed to be dispatched, we transfer value immediately
+            T::Currency::transfer(
+                &who,
+                &<T::AccountId as Origin>::from_origin(destination),
+                value,
+                ExistenceRequirement::AllowDeath,
+            )?;
+            // Only after reservation the message is actually put in the queue.
+            <MessageQueue<T>>::mutate(|messages| {
+                let mut actual_messages = messages.take().unwrap_or_default();
+
+                actual_messages.push(IntermediateMessage::DispatchMessage {
+                    id: common::next_message_id(&payload),
+                    origin: who.into_origin(),
+                    destination,
+                    payload,
+                    gas_limit,
+                    value: value.into(),
+                    reply: Some(reply_to_id),
+                });
+
+                *messages = Some(actual_messages);
             });
 
             Ok(().into())
@@ -291,6 +376,7 @@ pub mod pallet {
                         origin,
                         ref code,
                         program_id,
+                        init_message_id,
                         ref payload,
                         gas_limit,
                         value,
@@ -309,6 +395,7 @@ pub mod pallet {
                             origin,
                             program_id,
                             code.to_vec(),
+                            init_message_id,
                             payload.to_vec(),
                             gas_limit,
                             value,
@@ -407,6 +494,7 @@ pub mod pallet {
                         payload,
                         gas_limit,
                         value,
+                        reply,
                     } => {
                         common::queue_message(Message {
                             id,
@@ -415,8 +503,7 @@ pub mod pallet {
                             gas_limit,
                             dest: destination,
                             value,
-                            // TODO: user can actually reply to the messages with transactions
-                            reply: None,
+                            reply: reply.map(|r| (r, 0)),
                         });
                     }
                 }
@@ -477,6 +564,8 @@ pub mod pallet {
                         }
 
                         for message in execution_report.log {
+                            insert_to_mailbox::<T>(message.dest, message.clone());
+
                             Self::deposit_event(Event::Log(message));
                         }
                     }
@@ -494,8 +583,8 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> u64 {
-            rti::gear_executor::gas_spent(destination, payload, 0).unwrap_or(0)
+        pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
+            rti::gear_executor::gas_spent(destination, payload, 0).ok()
         }
     }
 

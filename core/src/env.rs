@@ -1,8 +1,27 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Environment for running a module.
 
 use alloc::rc::Rc;
 use core::cell::RefCell;
 
+use anyhow::Result;
 use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
@@ -34,16 +53,16 @@ pub trait Ext {
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str>;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn send_init(&self, msg: OutgoingPacket) -> Result<usize, &'static str>;
+    fn send_init(&mut self, msg: OutgoingPacket) -> Result<usize, &'static str>;
 
     /// Push an extra buffer into message payload by handle.
-    fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
+    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Push an extra buffer into reply message.
-    fn reply_push(&self, buffer: &[u8]) -> Result<(), &'static str>;
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&self, handle: usize) -> Result<(), &'static str>;
+    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str>;
 
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
@@ -83,8 +102,11 @@ pub trait Ext {
     /// Transfer gas to program from the caller side.
     fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
 
-    /// Value associated with message
+    /// Value associated with message.
     fn value(&mut self) -> u128;
+
+    /// Interrupt the program and reschedule execution.
+    fn wait(&mut self) -> Result<(), &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -115,16 +137,16 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Call fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R {
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         let mut brw = self.inner.borrow_mut();
         let mut ext = brw
             .take()
-            .expect("with should be called only when inner is set");
+            .ok_or("with should be called only when inner is set")?;
         let res = f(&mut ext);
 
         *brw = Some(ext);
 
-        res
+        Ok(res)
     }
 
     /// Unset inner ext
@@ -153,16 +175,16 @@ mod tests {
         fn send(&mut self, _msg: OutgoingPacket) -> Result<(), &'static str> {
             Ok(())
         }
-        fn send_init(&self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
+        fn send_init(&mut self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
             Ok(0)
         }
-        fn send_push(&self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn reply_push(&self, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn send_commit(&self, _handle: usize) -> Result<(), &'static str> {
+        fn send_commit(&mut self, _handle: usize) -> Result<(), &'static str> {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
@@ -195,6 +217,9 @@ mod tests {
             0
         }
         fn charge(&mut self, _gas: u64) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())
         }
     }
@@ -273,16 +298,15 @@ mod tests {
 
         let converted_inner = ext.with(converter);
 
-        assert_eq!(converted_inner, 0);
+        assert!(converted_inner.is_ok());
     }
 
     #[test]
-    #[should_panic(expected = "with should be called only when inner is set")]
-    /// Test that calling ext's `with<R>(...)` causes panic
+    /// Test that calling ext's `with<R>(...)` throws error
     /// when the inner value was not set or was unsetted
     fn calling_fn_with_empty_ext() {
         let ext = LaterExt::<ExtImplementedStruct>::new();
 
-        let _ = ext.with(converter);
+        assert!(ext.with(converter).is_err());
     }
 }

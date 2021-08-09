@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -e
-cd "$(dirname ${BASH_SOURCE[0]})/.."
+cd "$(dirname "$0")/.."
 
 echo "*** Run fmt"
 cargo fmt --all

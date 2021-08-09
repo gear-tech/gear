@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use alloc::string::String;
 use gear_core::env::{Ext, LaterExt};
 use gear_core::message::{OutgoingPacket, ReplyPacket};
@@ -8,7 +26,7 @@ pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'s
         let pages = pages as u32;
 
         let ptr = ext
-            .with(|ext: &mut E| ext.alloc(pages.into()))
+            .with(|ext: &mut E| ext.alloc(pages.into()))?
             .map(|v| {
                 let ptr = v.raw();
                 log::debug!("ALLOC: {} pages at {}", pages, ptr);
@@ -23,7 +41,7 @@ pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'s
 pub(crate) fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |page: i32| {
         let page = page as u32;
-        if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into())) {
+        if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into()))? {
             log::debug!("FREE ERROR: {:?}", e);
         } else {
             log::debug!("FREE: {}", page);
@@ -34,7 +52,7 @@ pub(crate) fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'sta
 
 pub(crate) fn charge<E: Ext>(ext: LaterExt<E>) -> impl Fn(i64) -> Result<(), &'static str> {
     move |gas: i64| {
-        if ext.with(|ext: &mut E| ext.charge(gas as u64)).is_err() {
+        if ext.with(|ext: &mut E| ext.charge(gas as u64))?.is_err() {
             Err("Trapping: unable to charge gas for reserve")
         } else {
             Ok(())
@@ -46,7 +64,7 @@ pub(crate) fn send_commit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<()
     move |handle_ptr: i32| {
         let handle_ptr = handle_ptr as u32 as usize;
 
-        let result = ext.with(|ext: &mut E| ext.send_commit(handle_ptr));
+        let result = ext.with(|ext: &mut E| ext.send_commit(handle_ptr))?;
         if result.is_err() {
             return Err("Trapping: unable to commit and send message");
         }
@@ -64,14 +82,14 @@ pub(crate) fn debug<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(),
             ext.get_mem(str_ptr, &mut data);
             let debug_str = unsafe { String::from_utf8_unchecked(data) };
             log::debug!("DEBUG: {}", debug_str);
-        });
+        })?;
         Ok(())
     }
 }
 
 pub(crate) fn gas<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |val: i32| {
-        if ext.with(|ext: &mut E| ext.gas(val as _)).is_err() {
+        if ext.with(|ext: &mut E| ext.gas(val as _))?.is_err() {
             Err("Trapping: unable to report about gas used")
         } else {
             Ok(())
@@ -105,7 +123,7 @@ pub(crate) fn send_init<E: Ext>(
                 gas_limit as _,
                 u128::from_le_bytes(value_le),
             ))
-        });
+        })?;
 
         if result.is_err() {
             return Err("Trapping: unable to init message");
@@ -120,12 +138,14 @@ pub(crate) fn msg_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'s
         ext.with(|ext: &mut E| {
             let message_id = ext.message_id();
             ext.set_mem(msg_id_ptr as isize as _, message_id.as_slice());
-        });
+        })?;
         Ok(())
     }
 }
 
-pub(crate) fn push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), &'static str> {
+pub(crate) fn send_push<E: Ext>(
+    ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32) -> Result<(), &'static str> {
     move |handle_ptr: i32, message_ptr: i32, message_len: i32| {
         let handle_ptr = handle_ptr as u32 as usize;
         let message_ptr = message_ptr as u32 as usize;
@@ -136,7 +156,7 @@ pub(crate) fn push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
             ext.get_mem(message_ptr, &mut data);
 
             ext.send_push(handle_ptr, &data)
-        });
+        })?;
 
         if result.is_err() {
             return Err("Trapping: unable to push payload into message");
@@ -158,7 +178,7 @@ pub(crate) fn reply_push<E: Ext>(
             ext.get_mem(message_ptr, &mut data);
 
             ext.reply_push(&data)
-        });
+        })?;
 
         if result.is_err() {
             return Err("Trapping: unable to push payload into reply");
@@ -176,7 +196,7 @@ pub(crate) fn read<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
         ext.with(|ext: &mut E| {
             let msg = ext.msg().to_vec();
             ext.set_mem(dest, &msg[at..at + len]);
-        });
+        })?;
         Ok(())
     }
 }
@@ -200,7 +220,7 @@ pub(crate) fn reply<E: Ext>(
                 gas_limit as _,
                 u128::from_le_bytes(value_le),
             ))
-        });
+        })?;
 
         if result.is_err() {
             return Err("Trapping: unable to send message");
@@ -212,12 +232,12 @@ pub(crate) fn reply<E: Ext>(
 
 pub(crate) fn reply_to<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |dest: i32| {
-        let maybe_message_id = ext.with(|ext: &mut E| ext.reply_to());
+        let maybe_message_id = ext.with(|ext: &mut E| ext.reply_to())?;
 
         match maybe_message_id {
             Some((message_id, _)) => ext.with(|ext| {
                 ext.set_mem(dest as isize as _, message_id.as_slice());
-            }),
+            })?,
             None => return Err("Not running in the reply context"),
         };
 
@@ -262,7 +282,10 @@ pub(crate) fn send<E: Ext>(
 }
 
 pub(crate) fn size<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
-    move || ext.with(|ext: &mut E| ext.msg().len() as isize as i32)
+    move || {
+        ext.with(|ext: &mut E| ext.msg().len() as isize as i32)
+            .unwrap_or(0)
+    }
 }
 
 pub(crate) fn source<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
@@ -270,7 +293,7 @@ pub(crate) fn source<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'s
         ext.with(|ext: &mut E| {
             let source = ext.source();
             ext.set_mem(source_ptr as isize as _, source.as_slice());
-        });
+        })?;
         Ok(())
     }
 }
@@ -280,7 +303,15 @@ pub(crate) fn value<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'st
         ext.with(|ext: &mut E| {
             let source = ext.value();
             ext.set_mem(value_ptr as isize as _, &source.to_le_bytes()[..]);
-        });
+        })?;
         Ok(())
+    }
+}
+
+pub(crate) fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
+    move || {
+        let _ = ext.with(|ext: &mut E| ext.wait())?;
+        // Intentionally return an error to break the execution
+        Err("wait")
     }
 }

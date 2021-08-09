@@ -17,14 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    message::{Message, MessageId},
+    message::{Message as CoreMessage, MessageId},
     program::{Program, ProgramId},
 };
 
 use sp_core::H256;
 
-impl From<Message> for crate::Message {
-    fn from(message: Message) -> crate::Message {
+impl From<CoreMessage> for crate::Message {
+    fn from(message: CoreMessage) -> crate::Message {
         crate::Message {
             id: H256::from_slice(&message.id.as_slice()),
             source: H256::from_slice(&message.source.as_slice()),
@@ -39,12 +39,28 @@ impl From<Message> for crate::Message {
     }
 }
 
-pub fn queue_message(message: Message) {
+impl From<crate::Message> for CoreMessage {
+    fn from(message: crate::Message) -> CoreMessage {
+        CoreMessage {
+            id: MessageId::from_slice(message.id.as_ref()),
+            source: ProgramId::from_slice(message.id.as_ref()),
+            dest: ProgramId::from_slice(message.id.as_ref()),
+            payload: message.payload.into(),
+            gas_limit: message.gas_limit,
+            value: message.value,
+            reply: message.reply.map(|(message_id, exit_code)| {
+                (MessageId::from_slice(message_id.as_ref()), exit_code)
+            }),
+        }
+    }
+}
+
+pub fn queue_message(message: CoreMessage) {
     crate::queue_message(message.into())
 }
 
-pub fn dequeue_message() -> Option<Message> {
-    crate::dequeue_message().map(|msg| Message {
+pub fn dequeue_message() -> Option<CoreMessage> {
+    crate::dequeue_message().map(|msg| CoreMessage {
         id: MessageId::from_slice(&msg.id[..]),
         source: ProgramId::from_slice(&msg.source[..]),
         dest: ProgramId::from_slice(&msg.dest[..]),
@@ -105,4 +121,12 @@ pub fn alloc(page: u32, pid: ProgramId) {
 
 pub fn dealloc(page: u32) {
     crate::dealloc(page);
+}
+
+pub fn insert_waiting_message(waker_id: MessageId, message: CoreMessage) {
+    crate::insert_waiting_message(H256::from_slice(waker_id.as_slice()), message.into());
+}
+
+pub fn remove_waiting_message(waker_id: MessageId) -> Option<CoreMessage> {
+    crate::remove_waiting_message(H256::from_slice(waker_id.as_slice())).map(|msg| msg.into())
 }
