@@ -387,13 +387,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             }
 
             if let Some(waiting_msg) = run_result.waiting.take() {
-                log::warn!("WAIT!");
                 self.wait_list.insert(waiting_msg.id, waiting_msg);
             }
 
             if let Some(waker_id) = run_result.awakening {
                 if let Some(msg) = self.wait_list.remove(waker_id) {
-                log::warn!("AWAKE!");
                 context.message_buf.push(msg);
                 }
             }
@@ -875,11 +873,6 @@ fn run(
         gas_left = 0;
         msg.into_message(program.id())
     });
-
-    // TODO: !!! REMOVE !!!
-    if let Some(ref waiting_msg) = waiting {
-        context.push_message(waiting_msg.clone());
-    }
 
     RunResult {
         messages,

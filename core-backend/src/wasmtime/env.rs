@@ -88,8 +88,6 @@ impl<E: Ext + 'static> Environment<E> {
         memory: &dyn Memory,
         entry_point: &str,
     ) -> (anyhow::Result<()>, E) {
-        log::warn!("ENTRY: {}", entry_point);
-
         let module = Module::new(self.store.engine(), binary).expect("Error creating module");
 
         self.ext.set(ext);
