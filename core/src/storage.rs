@@ -99,7 +99,7 @@ pub trait MessageQueue: Default {
 }
 
 /// In-memory message queue (for tests).
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct InMemoryMessageQueue {
     inner: VecDeque<Message>,
     log: Vec<Message>, // messages sent to /0
