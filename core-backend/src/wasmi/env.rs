@@ -89,10 +89,6 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
 
-            Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(args.nth(0))
-                .map(|_| None)
-                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
-
             Some(FuncIndex::Debug) => funcs::debug(self.ext.clone())(args.nth(0), args.nth(1))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
@@ -113,6 +109,42 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
+            Some(FuncIndex::Read) => {
+                funcs::read(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
+            }
+
+            Some(FuncIndex::Reply) => {
+                funcs::reply(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2), args.nth(3))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
+            }
+
+            Some(FuncIndex::ReplyPush) => {
+                funcs::reply_push(self.ext.clone())(args.nth(0), args.nth(1))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
+            }
+
+            Some(FuncIndex::ReplyTo) => funcs::reply_to(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::Send) => funcs::send(self.ext.clone())(
+                args.nth(0),
+                args.nth(1),
+                args.nth(2),
+                args.nth(3),
+                args.nth(4),
+            )
+            .map(|_| None)
+            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
             Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())(
                 args.nth(0),
                 args.nth(1),
@@ -128,36 +160,6 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                     .map(|_| None)
                     .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
-
-            Some(FuncIndex::ReplyPush) => {
-                funcs::reply_push(self.ext.clone())(args.nth(0), args.nth(1))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
-
-            Some(FuncIndex::Read) => {
-                funcs::read(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
-
-            Some(FuncIndex::Reply) => {
-                funcs::reply(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2), args.nth(3))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
-            Some(FuncIndex::ReplyTo) => funcs::reply_to(self.ext.clone())(args.nth(0))
-                .map(|_| None)
-                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
-            Some(FuncIndex::Send) => funcs::send(self.ext.clone())(
-                args.nth(0),
-                args.nth(1),
-                args.nth(2),
-                args.nth(3),
-                args.nth(4),
-            )
-            .map(|_| None)
-            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
             Some(FuncIndex::Size) => Ok(Some(RuntimeValue::I32(funcs::size(self.ext.clone())()))),
 
@@ -193,20 +195,8 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "gas" => func_instance!(Gas, ValueType::I32 => None),
             "gr_gas_available" => func_instance!(GasAvailable, => Some(ValueType::I64)),
             "gr_charge" => func_instance!(Charge, ValueType::I64 => None),
-            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32 => None),
             "gr_debug" => func_instance!(Debug, ValueType::I32, ValueType::I32 => None),
-            "gr_send_init" => func_instance!(SendInit, ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I64,
-                ValueType::I32 => Some(ValueType::I32)),
             "gr_msg_id" => func_instance!(MsgId, ValueType::I32 => None),
-            "gr_send_push" => {
-                func_instance!(SendPush, ValueType::I32, ValueType::I32, ValueType::I32 => None)
-            }
-            "gr_reply_push" => {
-                func_instance!(ReplyPush, ValueType::I32, ValueType::I32 => None)
-            }
             "gr_read" => {
                 func_instance!(Read, ValueType::I32, ValueType::I32, ValueType::I32 => None)
             }
@@ -214,12 +204,24 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 ValueType::I32,
                 ValueType::I64,
                 ValueType::I32 => None),
+            "gr_reply_push" => {
+                func_instance!(ReplyPush, ValueType::I32, ValueType::I32 => None)
+            }
             "gr_reply_to" => func_instance!(ReplyTo, ValueType::I32 => None),
             "gr_send" => func_instance!(Send, ValueType::I32,
                 ValueType::I32,
                 ValueType::I32,
                 ValueType::I64,
                 ValueType::I32 => None),
+            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32 => None),
+            "gr_send_init" => func_instance!(SendInit, ValueType::I32,
+                ValueType::I32,
+                ValueType::I32,
+                ValueType::I64,
+                ValueType::I32 => Some(ValueType::I32)),
+            "gr_send_push" => {
+                func_instance!(SendPush, ValueType::I32, ValueType::I32, ValueType::I32 => None)
+            }
             "gr_size" => func_instance!(Size, => Some(ValueType::I32)),
             "gr_source" => func_instance!(Source, ValueType::I32 => None),
             "gr_value" => func_instance!(Value, ValueType::I32 => None),
