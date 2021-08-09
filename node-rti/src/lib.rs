@@ -29,9 +29,9 @@ use sp_core::H256;
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
-use gear_core::{program::ProgramId, storage::Storage, message::MessageId};
+use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 #[cfg(feature = "std")]
-use gear_core_runner::{RunNextResult, ProgramInitialization, ExtMessage};
+use gear_core_runner::{ExtMessage, ProgramInitialization, RunNextResult};
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 
@@ -117,19 +117,17 @@ pub trait GearExecutor {
 
         let init_message_id = MessageId::from_slice(&init_message_id[..]);
         let run_result = runner
-            .init_program(
-                ProgramInitialization {
-                    new_program_id: ProgramId::from_slice(&program_id[..]),
-                    source_id: ProgramId::from_slice(&caller_id[..]),
-                    code: program_code,
-                    message: ExtMessage {
-                        id: init_message_id,
-                        payload: init_payload,
-                        gas_limit,
-                        value,
-                    },
-                }
-            )
+            .init_program(ProgramInitialization {
+                new_program_id: ProgramId::from_slice(&program_id[..]),
+                source_id: ProgramId::from_slice(&caller_id[..]),
+                code: program_code,
+                message: ExtMessage {
+                    id: init_message_id,
+                    payload: init_payload,
+                    gas_limit,
+                    value,
+                },
+            })
             .map_err(|e| {
                 log::error!("Error initialization program: {:?}", e);
                 Error::Runner
