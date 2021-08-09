@@ -224,9 +224,7 @@ pub(crate) fn value<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'st
 
 pub(crate) fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
     move || {
-        let _ = ext.with(|ext: &mut E| {
-            ext.wait()
-        })?;
+        let _ = ext.with(|ext: &mut E| ext.wait())?;
         // Intentionally return an error to break the execution
         Err("exit")
     }
