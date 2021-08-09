@@ -2,6 +2,8 @@
 panic = 'unwind'
 
 [workspace]
+default-members = ["node"]
+
 members = [
     "common",
     "core",

@@ -1,0 +1,44 @@
+version: '3'
+services:
+  node_alice:
+    build:
+      context: .
+    ports:
+      - "30333:30333"
+      - "9933:9933"
+      - "9944:9944"
+    image: rockabil/gear:latest
+    volumes:
+      - "gear-data-alice:/data"
+    command: gear-node --chain=local --alice -d /data --node-key 0000000000000000000000000000000000000000000000000000000000000001
+    networks:
+      testing_net:
+        ipv4_address: 172.28.1.1
+
+  node_bob:
+    build:
+      context: .
+    ports:
+      - "30344:30344"
+      - "9935:9935"
+      - "9945:9945"
+    image: rockabil/gear:latest
+    volumes:
+      - "gear-data-bob:/data"
+    links:
+      - "node_alice:alice"
+    command: gear-node --chain=local --bob -d /data --port 30344 --rpc-port 9935 --ws-port 9945 --bootnodes '/ip4/172.28.1.1/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp'
+    networks:
+      testing_net:
+        ipv4_address: 172.28.1.2
+
+volumes:
+  gear-data-alice:
+  gear-data-bob:
+
+networks:
+  testing_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
