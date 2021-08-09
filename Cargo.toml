@@ -5,6 +5,7 @@ panic = 'unwind'
 default-members = ["node"]
 
 members = [
+    "btest",
     "common",
     "core",
     "core-backend",
