@@ -1350,7 +1350,16 @@ mod tests {
             })
             .expect("failed to init program");
 
-        runner.queue_message(caller_id, 1, 1.into(), vec![0], gas_limit, 0);
+        runner.queue_message(MessageDispatch {
+            source_id: caller_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: 1_000_000,
+                value: 0,
+            },
+        });
 
         let result = runner.run_next(u64::MAX);
         assert_eq!(result.gas_spent.len(), 1);
