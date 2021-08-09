@@ -216,6 +216,9 @@ mod tests {
         fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
+        fn gas_available(&mut self) -> u64 {
+            1_000_000
+        }
         fn value(&mut self) -> u128 {
             0
         }
