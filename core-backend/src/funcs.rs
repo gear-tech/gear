@@ -94,6 +94,10 @@ pub(crate) fn gas<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'stat
     }
 }
 
+pub(crate) fn gas_available<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> u64 {
+    move || ext.with(|ext: &mut E| ext.gas_available()).unwrap_or(0)
+}
+
 pub(crate) fn send_init<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<i32, &'static str> {

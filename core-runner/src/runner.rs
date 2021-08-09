@@ -694,6 +694,10 @@ impl EnvExt for Ext {
         }
     }
 
+    fn gas_available(&mut self) -> u64 {
+        self.gas_counter.left()
+    }
+
     fn charge(&mut self, gas: u64) -> Result<(), &'static str> {
         if self.gas_counter.charge(gas) == ChargeResult::Enough {
             self.gas_requested += gas;

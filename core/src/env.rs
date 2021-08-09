@@ -99,6 +99,9 @@ pub trait Ext {
     /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
+    /// Tell how much gas is left in running context.
+    fn gas_available(&mut self) -> u64;
+
     /// Transfer gas to program from the caller side.
     fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
 
