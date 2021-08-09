@@ -201,13 +201,13 @@ pub struct ProgramInitialization {
     /// Identity of the program creator.
     ///
     /// Either user who sends an external transaction or another program.
-    source_id: ProgramId,
+    pub source_id: ProgramId,
     /// Identity of the new program.
-    new_program_id: ProgramId,
+    pub new_program_id: ProgramId,
     /// Initialization message with economic data.
-    message: ExtMessage,
+    pub message: ExtMessage,
     /// Code of the new program.
-    code: Vec<u8>,
+    pub code: Vec<u8>,
 }
 
 impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {

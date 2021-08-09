@@ -240,6 +240,7 @@ pub mod pallet {
                 origin: who.into_origin(),
                 code,
                 program_id: id,
+                init_message_id: common::next_message_id(&init_payload),
                 payload: init_payload,
                 gas_limit,
                 value: value.into(),
@@ -284,12 +285,8 @@ pub mod pallet {
             )?;
 
             // Only after reservation the message is actually put in the queue.
-            let nonce = common::nonce_fetch_inc();
-            let mut message_id = payload.encode();
-            message_id.extend_from_slice(&nonce.to_le_bytes());
-            let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
-                id: message_id,
+                id: common::next_message_id(&payload),
                 origin: who.into_origin(),
                 destination,
                 payload,
@@ -337,14 +334,8 @@ pub mod pallet {
             <MessageQueue<T>>::mutate(|messages| {
                 let mut actual_messages = messages.take().unwrap_or_default();
 
-                let nonce = common::nonce_fetch_inc();
-
-                let mut message_id = payload.encode();
-                message_id.extend_from_slice(&nonce.to_le_bytes());
-                let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
-
                 actual_messages.push(IntermediateMessage::DispatchMessage {
-                    id: message_id,
+                    id: common::next_message_id(&payload),
                     origin: who.into_origin(),
                     destination,
                     payload,
@@ -385,6 +376,7 @@ pub mod pallet {
                         origin,
                         ref code,
                         program_id,
+                        init_message_id,
                         ref payload,
                         gas_limit,
                         value,
@@ -403,6 +395,7 @@ pub mod pallet {
                             origin,
                             program_id,
                             code.to_vec(),
+                            init_message_id,
                             payload.to_vec(),
                             gas_limit,
                             value,
