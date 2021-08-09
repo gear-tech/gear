@@ -16,3 +16,4 @@ members = [
     "test",
     "utils/*",
 ]
+default-members = ["node"]
