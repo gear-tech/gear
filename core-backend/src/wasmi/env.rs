@@ -170,13 +170,13 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             Some(FuncIndex::Wait) => {
                 funcs::wait(self.ext.clone())()
                     .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for `gr_wait` trap
+                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for "exit" trap
             }
 
             Some(FuncIndex::Wake) => {
                 funcs::wake(self.ext.clone())(args.nth(0))
                     .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for `gr_wait` trap
+                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for "exit" trap
             }
 
             _ => panic!("unknown function index"),
@@ -227,7 +227,7 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "gr_source" => func_instance!(Source, ValueType::I32 => None),
             "gr_value" => func_instance!(Value, ValueType::I32 => None),
             "gr_wait" => func_instance!(Wait, => None),
-            "gr_wake" => func_instance!(Wait, ValueType::I32 => None),
+            "gr_wake" => func_instance!(Wake, ValueType::I32 => None),
 
             _ => {
                 return Err(InterpreterError::Function(format!(
