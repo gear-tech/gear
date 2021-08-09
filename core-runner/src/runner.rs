@@ -722,7 +722,7 @@ impl EnvExt for Ext {
             .expect("Memory out of bounds.");
     }
 
-    fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]) {
+    fn get_mem(&self, ptr: usize, buffer: &mut [u8]) {
         self.memory_context.memory().read(ptr, buffer);
     }
 
@@ -747,7 +747,7 @@ impl EnvExt for Ext {
         }
     }
 
-    fn value(&mut self) -> u128 {
+    fn value(&self) -> u128 {
         self.messages.current().value()
     }
 
