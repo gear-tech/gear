@@ -1322,7 +1322,6 @@ mod tests {
         } = runner.complete();
         let mut wait_list: MessageMap = wait_list.into();
 
-        log::warn!("{:?}", wait_list.contains_key(&msg_id));
         assert!(wait_list.contains_key(&msg_id));
         let msg = wait_list.remove(&msg_id).unwrap();
 
