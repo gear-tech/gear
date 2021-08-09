@@ -2,7 +2,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-#[cfg(not(feature = "gstd"))]
+#[cfg(not(feature = "std"))]
 use gstd::prelude::*;
 
 #[cfg(feature = "std")]
