@@ -225,6 +225,9 @@ mod tests {
         fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())
         }
+        fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
+            Ok(())
+        }
     }
 
     #[test]

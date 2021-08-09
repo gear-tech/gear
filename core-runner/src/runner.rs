@@ -392,7 +392,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
 
             if let Some(waker_id) = run_result.awakening {
                 if let Some(msg) = self.wait_list.remove(waker_id) {
-                context.message_buf.push(msg);
+                    context.message_buf.push(msg);
                 }
             }
 
@@ -590,7 +590,7 @@ pub struct RunResult {
     pub messages: Vec<OutgoingMessage>,
     /// Reply that was received during the run.
     pub reply: Option<ReplyMessage>,
-    /// Message waiting for being waked.
+    /// Message to be added to the wait list.
     pub waiting: Option<Message>,
     /// Message to be woken.
     pub awakening: Option<MessageId>,
@@ -892,7 +892,7 @@ mod tests {
     use super::*;
     use env_logger::Env;
     use gear_core::storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
+        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList, MessageMap,
     };
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -1284,6 +1284,7 @@ mod tests {
         let source_id = 1001.into();
         let dest = 1.into();
         let gas_limit = 1_000_000;
+        let msg_id: MessageId = 1000001.into();
 
         runner
             .init_program(ProgramInitialization {
@@ -1305,7 +1306,7 @@ mod tests {
             source_id,
             destination_id: 1.into(),
             data: ExtMessage {
-                id: 1000001.into(),
+                id: msg_id,
                 payload: payload.to_vec(),
                 gas_limit: 1_000_000,
                 value: 0,
@@ -1314,14 +1315,20 @@ mod tests {
 
         let _result = runner.run_next(u64::MAX);
 
-        let InMemoryStorage { message_queue, .. } = runner.complete();
-        let messages: Vec<Message> = message_queue.into();
+        let InMemoryStorage {
+            message_queue: _,
+            program_storage: _,
+            wait_list,
+        } = runner.complete();
+        let mut wait_list: MessageMap = wait_list.into();
 
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].source, source_id);
-        assert_eq!(messages[0].dest, dest);
-        assert_eq!(messages[0].payload(), payload);
-        log::warn!("New gas limit: {}", messages[0].gas_limit);
-        assert!(messages[0].gas_limit < gas_limit);
+        log::warn!("{:?}", wait_list.contains_key(&msg_id));
+        assert!(wait_list.contains_key(&msg_id));
+        let msg = wait_list.remove(&msg_id).unwrap();
+
+        assert_eq!(msg.source, source_id);
+        assert_eq!(msg.dest, dest);
+        assert_eq!(msg.payload(), payload);
+        assert!(msg.gas_limit < gas_limit);
     }
 }

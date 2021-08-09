@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gstd::{msg, MessageId, prelude::*};
+use gstd::{msg, prelude::*, MessageId};
 
 static mut STATE: u32 = 0;
 static mut MSG_ID: MessageId = MessageId([0; 32]);
