@@ -57,7 +57,7 @@ node-test:
 
 .PHONY: ntest
 ntest:
-	@cargo run --package gear-node --release -- runtests ./test/code/*.yaml
+	@cargo run --package gear-node --release -- runtests ./gtest/spec/*.yaml
 
 .PHONY: pre-commit
 pre-commit:
@@ -70,7 +70,7 @@ release:
 .PHONY: rpc-test
 rpc-test:
 	@./scripts/build-wasm.sh
-	@node rpc-tests/index.js ./test/code/*.yaml
+	@node rpc-tests/index.js ./gtest/spec/*.yaml
 
 .PHONY: test
 test:
