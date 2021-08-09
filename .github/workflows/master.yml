@@ -54,6 +54,9 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --release
 
+      - name: Test wasmi backend
+        run: cargo test -p gear-core-backend --release --no-default-features --features wasmi_backend
+
       - name: Build examples (WASM)
         run: |
           ./scripts/build-wasm.sh
@@ -75,7 +78,7 @@ jobs:
         run: |
           ./target/release/gear-node --dev -l 2 & sleep 5
           node rpc-tests/index.js ./test/code/*.yaml
-      
+
       - name: Run metadata test
         run: |
           ./target/release/wasm-proc ./target/wasm32-unknown-unknown/release/demo_meta.wasm
