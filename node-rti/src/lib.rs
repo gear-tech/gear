@@ -31,7 +31,7 @@ use sp_runtime_interface::runtime_interface;
 #[cfg(feature = "std")]
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 #[cfg(feature = "std")]
-use gear_core_runner::{ExtMessage, ProgramInitialization, RunNextResult};
+use gear_core_runner::{ExtMessage, MessageDispatch, ProgramInitialization, RunNextResult};
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 
@@ -149,14 +149,16 @@ pub trait GearExecutor {
     fn gas_spent(program_id: H256, payload: Vec<u8>, value: u128) -> Result<u64, Error> {
         let mut runner = crate::runner::new();
 
-        runner.queue_message(
-            ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
-            gear_common::caller_nonce_fetch_inc(H256::from_low_u64_be(1)),
-            ProgramId::from_slice(&program_id[..]),
-            payload,
-            u64::MAX,
-            value,
-        );
+        runner.queue_message(MessageDispatch {
+            source_id: ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
+            destination_id: ProgramId::from_slice(&program_id[..]),
+            data: ExtMessage {
+                id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
+                gas_limit: u64::MAX,
+                payload: payload,
+                value,
+            },
+        });
 
         let mut total_gas_spent = 0;
 
