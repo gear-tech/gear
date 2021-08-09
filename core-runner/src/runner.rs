@@ -1282,13 +1282,13 @@ mod tests {
         let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         let source_id = 1001.into();
-        let dest = 1.into();
+        let dest_id = 1.into();
         let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
         runner
             .init_program(ProgramInitialization {
-                new_program_id: dest,
+                new_program_id: dest_id,
                 source_id,
                 code: parse_wat(wat),
                 message: ExtMessage {
@@ -1326,7 +1326,7 @@ mod tests {
         let msg = wait_list.remove(&msg_id).unwrap();
 
         assert_eq!(msg.source, source_id);
-        assert_eq!(msg.dest, dest);
+        assert_eq!(msg.dest, dest_id);
         assert_eq!(msg.payload(), payload);
         assert!(msg.gas_limit < gas_limit);
     }

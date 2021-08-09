@@ -45,10 +45,7 @@ impl GearTestCmd {
                     wait_list: rti::ext::ExtWaitList,
                 }
             })
-            .expect("what is it failed?");
-        });
-
-        Ok(())
+        }).map_err(|e| sc_cli::Error::Application(e.into()))
     }
 }
 

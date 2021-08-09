@@ -181,7 +181,6 @@ where
             let run_result = runner.run_next(u64::MAX);
 
             log::info!("step: {}", step_no + 1);
-            log::info!("{:#?}", run_result);
 
             if run_result.any_traps() && step_no + 1 == steps {
                 result = Err(anyhow::anyhow!("Runner resulted in a trap"));
