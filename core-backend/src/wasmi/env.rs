@@ -105,7 +105,9 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
 
-            Some(FuncIndex::GasAbailable) => Ok(Some(funcs::gas_available(self.ext.clone())())),
+            Some(FuncIndex::GasAvailable) => Ok(Some(RuntimeValue::I64(funcs::gas_available(
+                self.ext.clone(),
+            )()))),
 
             Some(FuncIndex::MsgId) => funcs::msg_id(self.ext.clone())(args.nth(0))
                 .map(|_| None)
@@ -189,7 +191,7 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "alloc" => func_instance!(Alloc, ValueType::I32 => Some(ValueType::I32)),
             "free" => func_instance!(Free, ValueType::I32 => None),
             "gas" => func_instance!(Gas, ValueType::I32 => None),
-            "gr_gas_available" => func_instance!(GasAbailable, => Some(ValueType::I64)),
+            "gr_gas_available" => func_instance!(GasAvailable, => Some(ValueType::I64)),
             "gr_charge" => func_instance!(Charge, ValueType::I64 => None),
             "gr_send_commit" => func_instance!(SendCommit, ValueType::I32 => None),
             "gr_debug" => func_instance!(Debug, ValueType::I32, ValueType::I32 => None),

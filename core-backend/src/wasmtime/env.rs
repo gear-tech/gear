@@ -53,7 +53,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_to_u32("alloc", funcs::alloc);
         result.add_func_i32("free", funcs::free);
         result.add_func_i32("gas", funcs::gas);
-        result.add_func_to_u64("gr_gas_available", funcs::gas_available);
+        result.add_func_to_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32("gr_send_commit", funcs::send_commit);
         result.add_func_i64("gr_charge", funcs::charge);
         result.add_func_i32_i32("gr_debug", funcs::debug);
@@ -285,9 +285,9 @@ impl<E: Ext + 'static> Environment<E> {
             .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
     }
 
-    fn add_func_to_u64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    fn add_func_to_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
-        F: 'static + Fn() -> u64,
+        F: 'static + Fn() -> i64,
     {
         self.funcs
             .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
