@@ -107,6 +107,9 @@ pub trait Ext {
 
     /// Interrupt the program and reschedule execution.
     fn wait(&mut self) -> Result<(), &'static str>;
+
+    /// Wake the waiting message and move it to the processing queue.
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str>;
 }
 
 /// Struct for interacting with Ext

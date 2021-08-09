@@ -14,13 +14,13 @@ fixtures:
           value: PAYLOAD
 
     expected:
-      - step: 1
+      - step: 2
         messages:
           - destination: 1
             payload:
               kind: utf-8
               value: PAYLOAD
-      - step: 2
+      - step: 3
         log:
           - destination: 0
             payload:

@@ -355,7 +355,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             let mut context = self.create_context(allocations);
             let next_message_id = next_message.id();
 
-            let run_result = run(
+            let mut run_result = run(
                 &mut self.env,
                 &mut context,
                 &instrumeted_code,
@@ -384,6 +384,18 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                     value: 0,
                     reply: Some((next_message_id, EXIT_CODE_PANIC)),
                 });
+            }
+
+            if let Some(waiting_msg) = run_result.waiting.take() {
+                log::warn!("WAIT!");
+                self.wait_list.insert(waiting_msg.id, waiting_msg);
+            }
+
+            if let Some(waker_id) = run_result.awakening {
+                if let Some(msg) = self.wait_list.remove(waker_id) {
+                log::warn!("AWAKE!");
+                context.message_buf.push(msg);
+                }
             }
 
             let result = RunNextResult::from_single(
@@ -580,6 +592,10 @@ pub struct RunResult {
     pub messages: Vec<OutgoingMessage>,
     /// Reply that was received during the run.
     pub reply: Option<ReplyMessage>,
+    /// Message waiting for being waked.
+    pub waiting: Option<Message>,
+    /// Message to be woken.
+    pub awakening: Option<MessageId>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
@@ -754,8 +770,17 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
             .messages
-            .queue_back()
-            .map_err(|_| "Unable to queue the message back");
+            .wait()
+            .map_err(|_| "Unable to add the message to the wait list");
+
+        self.return_with_tracing(result)
+    }
+
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
+        let result = self
+            .messages
+            .wake(waker_id)
+            .map_err(|_| "Unable to mark the message to be woken");
 
         self.return_with_tracing(result)
     }
@@ -824,7 +849,7 @@ fn run(
     let mut messages = vec![];
 
     program.set_message_nonce(ext.messages.nonce());
-    let (outgoing, reply, queue_back) = ext.messages.drain();
+    let (outgoing, reply, waiting, awakening) = ext.messages.drain();
 
     for outgoing_msg in outgoing {
         messages.push(outgoing_msg.clone());
@@ -843,17 +868,24 @@ fn run(
     let gas_requested = ext.gas_requested;
     let gas_spent = gas_limit - gas_left - gas_requested;
 
-    if let Some(mut queue_back_msg) = queue_back {
+    let waiting = waiting.map(|mut msg| {
         // Update gas limit according to gas already spent
-        queue_back_msg.set_gas_limit(gas_left);
+        msg.set_gas_limit(gas_left);
         // Keep user's balance reserved until message will be really processed
         gas_left = 0;
-        context.push_message(queue_back_msg.into_message(program.id()));
+        msg.into_message(program.id())
+    });
+
+    // TODO: !!! REMOVE !!!
+    if let Some(ref waiting_msg) = waiting {
+        context.push_message(waiting_msg.clone());
     }
 
     RunResult {
         messages,
         reply,
+        waiting,
+        awakening,
         gas_left,
         gas_spent,
         gas_requested,

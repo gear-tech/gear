@@ -46,26 +46,22 @@ struct Opts {
 pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
     match opts.verbose {
-        0 => env_logger::init(),
-        1 => {
-            use env_logger::Env;
+        0 => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
+            "gtest=warn,gear_core=warn,gear_core_backend=warn,gear_core_runner=warn",
+        ))
+        .init(),
+        1 => env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("gtest=info"),
+        )
+        .init(),
+        2 => env_logger::Builder::from_env(
+            env_logger::Env::default()
+                .default_filter_or("gtest=info,gear_core=debug,gear_core_backend=debug"),
+        )
+        .init(),
 
-            env_logger::Builder::from_env(Env::default().default_filter_or("gtest=info")).init();
-        }
-        2 => {
-            use env_logger::Env;
-
-            env_logger::Builder::from_env(
-                Env::default()
-                    .default_filter_or("gtest=info,gear_core=debug,gear_core_backend=debug"),
-            )
-            .init();
-        }
-        _ => {
-            use env_logger::Env;
-
-            env_logger::Builder::from_env(Env::default().default_filter_or("debug")).init();
-        }
+        _ => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
+            .init(),
     }
 
     check::check_main(

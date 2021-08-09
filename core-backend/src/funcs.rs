@@ -19,7 +19,7 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use gear_core::env::{Ext, LaterExt};
-use gear_core::message::{OutgoingPacket, ReplyPacket};
+use gear_core::message::{MessageId, OutgoingPacket, ReplyPacket};
 use gear_core::program::ProgramId;
 
 pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'static str> {
@@ -224,9 +224,22 @@ pub(crate) fn value<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'st
 
 pub(crate) fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
     move || {
-        let _ = ext.with(|ext: &mut E| ext.wait())?;
+        let _ = ext.with(|ext: &mut E| {
+            ext.wait()
+        })?;
         // Intentionally return an error to break the execution
-        Err("wait")
+        Err("exit")
+    }
+}
+
+pub(crate) fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |waker_id_ptr| {
+        let _ = ext.with(|ext: &mut E| {
+            let waker_id: MessageId = get_id(ext, waker_id_ptr).into();
+            ext.wake(waker_id)
+        })?;
+        // Intentionally return an error to break the execution
+        Err("exit")
     }
 }
 
