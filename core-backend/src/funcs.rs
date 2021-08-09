@@ -25,14 +25,11 @@ pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'s
     move |pages: i32| {
         let pages = pages as u32;
 
-        let ptr = ext
-            .with(|ext: &mut E| ext.alloc(pages.into()))?
-            .map(|v| {
-                let ptr = v.raw();
-                log::debug!("ALLOC: {} pages at {}", pages, ptr);
-                ptr
-            })
-            .unwrap_or(0u32);
+        let ptr = ext.with(|ext: &mut E| ext.alloc(pages.into()))?.map(|v| {
+            let ptr = v.raw();
+            log::debug!("ALLOC: {} pages at {}", pages, ptr);
+            ptr
+        })?;
 
         Ok(ptr)
     }
