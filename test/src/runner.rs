@@ -73,7 +73,7 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
             messages,
             // TODO: iterate program storage to list programs here
             program_storage: Vec::new(),
-            wait_list: MessageMap::new(),
+            wait_list: self.wait_list.into(),
         }
     }
 }
@@ -194,7 +194,7 @@ where
                 break;
             }
 
-            log::info!("{:#?}", run_result);
+            log::info!("handled: {}", run_result.handled);
         }
     }
 

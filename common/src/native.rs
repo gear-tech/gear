@@ -123,10 +123,14 @@ pub fn dealloc(page: u32) {
     crate::dealloc(page);
 }
 
-pub fn insert_waiting_message(waker_id: MessageId, message: CoreMessage) {
-    crate::insert_waiting_message(H256::from_slice(waker_id.as_slice()), message.into());
+pub fn insert_waiting_message(id: MessageId, message: CoreMessage) {
+    crate::insert_waiting_message(H256::from_slice(id.as_slice()), message.into());
 }
 
-pub fn remove_waiting_message(waker_id: MessageId) -> Option<CoreMessage> {
-    crate::remove_waiting_message(H256::from_slice(waker_id.as_slice())).map(|msg| msg.into())
+pub fn get_waiting_message(id: MessageId) -> Option<CoreMessage> {
+    crate::get_waiting_message(H256::from_slice(id.as_slice())).map(|msg| msg.into())
+}
+
+pub fn remove_waiting_message(id: MessageId) -> Option<CoreMessage> {
+    crate::remove_waiting_message(H256::from_slice(id.as_slice())).map(|msg| msg.into())
 }
