@@ -455,6 +455,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         self.config.init_cost
     }
 
+    /// Gas cost for loading memory page.
+    pub fn load_page_cost(&self) -> u64 {
+        self.config.load_page_cost
+    }
+
     fn create_context(&self, allocations: BTreeSet<PageNumber>) -> RunningContext {
         RunningContext::new(&self.config, allocations)
     }
@@ -858,6 +863,8 @@ fn run(
                 return RunResult {
                     messages: vec![],
                     reply: None,
+                    waiting: None,
+                    awakening: None,
                     gas_left,
                     gas_spent: 0,
                     gas_requested: 0,
@@ -873,6 +880,8 @@ fn run(
                 return RunResult {
                     messages: vec![],
                     reply: None,
+                    waiting: None,
+                    awakening: None,
                     gas_left,
                     gas_spent: 0,
                     gas_requested: 0,
@@ -1500,5 +1509,64 @@ mod tests {
 
         assert!(u64::from_le_bytes(gas_available) > result.gas_left[0].1);
         assert!(u64::from_le_bytes(gas_available) < gas_limit);
+    }
+
+    #[test]
+    fn gas_allocations() {
+        let wat = r#"
+        (module
+            (export "handle" (func $handle))
+            (import "env" "memory" (memory 1))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (func $handle
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 1)))
+            )
+            (func $init
+            )
+        )"#;
+
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+
+        let gas_limit = 1000_000;
+        let caller_id = 1001.into();
+
+        let init_result = runner
+            .init_program(ProgramInitialization {
+                new_program_id: 1.into(),
+                source_id: caller_id,
+                code: parse_wat(wat),
+                message: ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            })
+            .expect("failed to init program");
+
+        runner.queue_message(MessageDispatch {
+            source_id: caller_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: 1_000_000,
+                value: 0,
+            },
+        });
+
+        // Charge 1000 of gas for initial memory.
+        assert_eq!(init_result.gas_spent, runner.init_cost() * 1);
+
+        let result = runner.run_next(u64::MAX);
+
+        assert_eq!(
+            result.gas_spent[0].1,
+            runner.alloc_cost() * 1 + runner.load_page_cost() * 1 + 3000
+        );
+
+        runner.complete();
     }
 }
