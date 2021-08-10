@@ -148,7 +148,10 @@ mod tests {
 
     #[test]
     fn simple() {
-        use super::{Reply, Request::{self, *}};
+        use super::{
+            Reply,
+            Request::{self, *},
+        };
         assert_eq!(
             common::do_requests_in_order::<Request, Reply>(
                 new_test_runner(),

@@ -16,7 +16,7 @@ members = [
     "node-rti",
     "pallets/*",
     "runtime",
-    "tests/btest",
+    "tests/btree",
     "tests/common",
     "utils/gear-test-cli",
     "utils/wasm-proc",
