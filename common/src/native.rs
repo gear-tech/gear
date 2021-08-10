@@ -43,8 +43,8 @@ impl From<crate::Message> for CoreMessage {
     fn from(message: crate::Message) -> CoreMessage {
         CoreMessage {
             id: MessageId::from_slice(message.id.as_ref()),
-            source: ProgramId::from_slice(message.id.as_ref()),
-            dest: ProgramId::from_slice(message.id.as_ref()),
+            source: ProgramId::from_slice(message.source.as_ref()),
+            dest: ProgramId::from_slice(message.dest.as_ref()),
             payload: message.payload.into(),
             gas_limit: message.gas_limit,
             value: message.value,
