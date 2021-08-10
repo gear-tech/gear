@@ -22,6 +22,8 @@ use gear_core::env::{Ext, LaterExt};
 use gear_core::message::{MessageId, OutgoingPacket, ReplyPacket};
 use gear_core::program::ProgramId;
 
+const EXIT_TRAP_STR: &str = "exit";
+
 pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'static str> {
     move |pages: i32| {
         let pages = pages as u32;
@@ -227,7 +229,7 @@ pub(crate) fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static
     move || {
         let _ = ext.with(|ext: &mut E| ext.wait())?;
         // Intentionally return an error to break the execution
-        Err("exit")
+        Err(EXIT_TRAP_STR)
     }
 }
 
@@ -238,11 +240,15 @@ pub(crate) fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'sta
             ext.wake(waker_id)
         })?;
         // Intentionally return an error to break the execution
-        Err("exit")
+        Err(EXIT_TRAP_STR)
     }
 }
 
 // Helper functions
+pub(crate) fn is_exit_trap(trap: &str) -> bool {
+    trap.starts_with(EXIT_TRAP_STR)
+}
+
 fn get_id<E: Ext>(ext: &E, ptr: i32) -> [u8; 32] {
     let mut id = [0u8; 32];
     ext.get_mem(ptr as _, &mut id);
