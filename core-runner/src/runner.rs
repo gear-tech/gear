@@ -42,8 +42,6 @@ use gear_core_backend::Environment;
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
-    /// Maximum initial memory pages count.
-    pub max_init_pages: PageNumber,
     /// Total memory pages count.
     pub max_pages: PageNumber,
     /// Gas cost for memory page allocation.
@@ -59,7 +57,6 @@ const EXIT_CODE_PANIC: i32 = 1;
 impl Default for Config {
     fn default() -> Self {
         Self {
-            max_init_pages: MAX_INIT_PAGES.into(),
             max_pages: MAX_PAGES.into(),
             alloc_cost: ALLOC_COST.into(),
             init_cost: INIT_COST.into(),
@@ -431,11 +428,6 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         }
     }
 
-    /// Max initial pages configuration of this runner.
-    pub fn max_init_pages(&self) -> PageNumber {
-        self.config.max_init_pages
-    }
-
     /// Max pages configuration of this runner.
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
@@ -479,9 +471,9 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             .get(initialization.new_program_id)
             .expect("Added above; cannot fail");
 
-        if program.static_pages() > self.max_init_pages().raw() {
+        if program.static_pages() > self.max_pages().raw() {
             return Err(anyhow::anyhow!(
-                "Error initialisation: initial memory limit exceeded"
+                "Error initialisation: memory limit exceeded"
             ));
         }
 
@@ -554,7 +546,6 @@ impl From<EntryPoint> for &'static str {
     }
 }
 
-static MAX_INIT_PAGES: u32 = 256;
 static MAX_PAGES: u32 = 512;
 static INIT_COST: u32 = 5000;
 static ALLOC_COST: u32 = 10000;
@@ -577,10 +568,6 @@ impl RunningContext {
 
     fn max_pages(&self) -> PageNumber {
         self.config.max_pages
-    }
-
-    pub fn max_init_pages(&self) -> PageNumber {
-        self.config.max_init_pages
     }
 
     pub fn alloc_cost(&self) -> u64 {
