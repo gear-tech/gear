@@ -355,7 +355,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             let mut context = self.create_context(allocations);
             let next_message_id = next_message.id();
 
-            let run_result = run(
+            let mut run_result = run(
                 &mut self.env,
                 &mut context,
                 &instrumeted_code,
@@ -384,6 +384,18 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                     value: 0,
                     reply: Some((next_message_id, EXIT_CODE_PANIC)),
                 });
+            }
+
+            if let Some(waiting_msg) = run_result.waiting.take() {
+                self.wait_list.insert(waiting_msg.id, waiting_msg);
+            }
+
+            if let Some((gas, waker_id)) = run_result.awakening {
+                if let Some(mut msg) = self.wait_list.remove(waker_id) {
+                    // Increase gas available to the message
+                    msg.gas_limit += gas;
+                    context.message_buf.push(msg);
+                }
             }
 
             let result = RunNextResult::from_single(
@@ -580,6 +592,10 @@ pub struct RunResult {
     pub messages: Vec<OutgoingMessage>,
     /// Reply that was received during the run.
     pub reply: Option<ReplyMessage>,
+    /// Message to be added to the wait list.
+    pub waiting: Option<Message>,
+    /// Message to be woken.
+    pub awakening: Option<(u64, MessageId)>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
@@ -758,8 +774,17 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
             .messages
-            .queue_back()
-            .map_err(|_| "Unable to queue the message back");
+            .wait()
+            .map_err(|_| "Unable to add the message to the wait list");
+
+        self.return_with_tracing(result)
+    }
+
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
+        let result = self
+            .messages
+            .wake(waker_id)
+            .map_err(|_| "Unable to mark the message to be woken");
 
         self.return_with_tracing(result)
     }
@@ -828,7 +853,7 @@ fn run(
     let mut messages = vec![];
 
     program.set_message_nonce(ext.messages.nonce());
-    let (outgoing, reply, queue_back) = ext.messages.drain();
+    let (outgoing, reply, waiting, awakening) = ext.messages.drain();
 
     for outgoing_msg in outgoing {
         messages.push(outgoing_msg.clone());
@@ -847,17 +872,26 @@ fn run(
     let gas_requested = ext.gas_requested;
     let gas_spent = gas_limit - gas_left - gas_requested;
 
-    if let Some(mut queue_back_msg) = queue_back {
+    let waiting = waiting.map(|mut msg| {
         // Update gas limit according to gas already spent
-        queue_back_msg.set_gas_limit(gas_left);
+        msg.set_gas_limit(gas_left);
         // Keep user's balance reserved until message will be really processed
         gas_left = 0;
-        context.push_message(queue_back_msg.into_message(program.id()));
-    }
+        msg.into_message(program.id())
+    });
+
+    let awakening = awakening.map(|id| {
+        let gas_available = gas_left;
+        // Transfer current messages's gas to the woken message
+        gas_left = 0;
+        (gas_available, id)
+    });
 
     RunResult {
         messages,
         reply,
+        waiting,
+        awakening,
         gas_left,
         gas_spent,
         gas_requested,
@@ -872,7 +906,7 @@ mod tests {
     use super::*;
     use env_logger::Env;
     use gear_core::storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
+        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList, MessageMap,
     };
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -1262,12 +1296,13 @@ mod tests {
         let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         let source_id = 1001.into();
-        let dest = 1.into();
+        let dest_id = 1.into();
         let gas_limit = 1_000_000;
+        let msg_id: MessageId = 1000001.into();
 
         runner
             .init_program(ProgramInitialization {
-                new_program_id: dest,
+                new_program_id: dest_id,
                 source_id,
                 code: parse_wat(wat),
                 message: ExtMessage {
@@ -1285,7 +1320,7 @@ mod tests {
             source_id,
             destination_id: 1.into(),
             data: ExtMessage {
-                id: 1000001.into(),
+                id: msg_id,
                 payload: payload.to_vec(),
                 gas_limit: 1_000_000,
                 value: 0,
@@ -1294,15 +1329,20 @@ mod tests {
 
         let _result = runner.run_next(u64::MAX);
 
-        let InMemoryStorage { message_queue, .. } = runner.complete();
-        let messages: Vec<Message> = message_queue.into();
+        let InMemoryStorage {
+            message_queue: _,
+            program_storage: _,
+            wait_list,
+        } = runner.complete();
+        let mut wait_list: MessageMap = wait_list.into();
 
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].source, source_id);
-        assert_eq!(messages[0].dest, dest);
-        assert_eq!(messages[0].payload(), payload);
-        log::warn!("New gas limit: {}", messages[0].gas_limit);
-        assert!(messages[0].gas_limit < gas_limit);
+        assert!(wait_list.contains_key(&msg_id));
+        let msg = wait_list.remove(&msg_id).unwrap();
+
+        assert_eq!(msg.source, source_id);
+        assert_eq!(msg.dest, dest_id);
+        assert_eq!(msg.payload(), payload);
+        assert!(msg.gas_limit < gas_limit);
     }
 
     #[test]

@@ -113,6 +113,10 @@ pub enum Error {
     LimitExceeded,
     /// Duplicate reply message.
     DuplicateReply,
+    /// Duplicate waiting message.
+    DuplicateWaiting,
+    /// Duplicate message to be woken.
+    DuplicateAwakening,
     /// An attempt to commit or to push a payload into an already formed message.
     LateAccess,
     /// No message found with given handle, or handle exceedes the maximum messages amount.
@@ -563,14 +567,16 @@ pub trait MessageIdGenerator {
 /// Message state of the current session.
 ///
 /// Contains all generated outgoing messages with their formation statuses.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MessageState {
     /// Collection of outgoing messages generated.
     pub outgoing: Vec<(OutgoingMessage, FormationStatus)>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
-    /// Collection of incoming messages to be pushed back to the queue.
-    pub queue_back: Option<IncomingMessage>,
+    /// Message to be added to wait list.
+    pub waiting: Option<IncomingMessage>,
+    /// Message to be waken.
+    pub awakening: Option<MessageId>,
 }
 
 /// Message context for the currently running program.
@@ -588,11 +594,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Create context by providing incoming message for the program.
     pub fn new(incoming_message: IncomingMessage, id_generator: IG) -> MessageContext<IG> {
         MessageContext {
-            state: Rc::new(RefCell::new(MessageState {
-                outgoing: vec![],
-                reply: None,
-                queue_back: None,
-            })),
+            state: Default::default(),
             outgoing_limit: 128,
             current: Rc::new(incoming_message),
             id_generator: Rc::new(id_generator.into()),
@@ -670,11 +672,21 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Err(Error::NoReplyFound)
     }
 
-    /// Push the incoming message back to the queue.
-    pub fn queue_back(&self) -> Result<(), Error> {
-        let mut state = self.state.borrow_mut();
-        state.queue_back = Some(self.current().clone());
+    /// Add the current message to the wait list.
+    pub fn wait(&self) -> Result<(), Error> {
+        if self.state.borrow().waiting.is_some() {
+            return Err(Error::DuplicateWaiting);
+        }
+        self.state.borrow_mut().waiting = Some(self.current().clone());
+        Ok(())
+    }
 
+    /// Mark a message to be woken using `waker_id`.
+    pub fn wake(&self, waker_id: MessageId) -> Result<(), Error> {
+        if self.state.borrow().awakening.is_some() {
+            return Err(Error::DuplicateAwakening);
+        }
+        self.state.borrow_mut().awakening = Some(waker_id);
         Ok(())
     }
 
@@ -725,6 +737,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Vec<OutgoingMessage>,
         Option<ReplyMessage>,
         Option<IncomingMessage>,
+        Option<MessageId>,
     ) {
         let Self { state, .. } = self;
         let mut state = Rc::try_unwrap(state)
@@ -744,7 +757,8 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                 })
                 .collect(),
             state.reply,
-            state.queue_back,
+            state.waiting,
+            state.awakening,
         )
     }
 }

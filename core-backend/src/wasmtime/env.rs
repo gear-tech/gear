@@ -69,6 +69,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32("gr_source", funcs::source);
         result.add_func_i32("gr_value", funcs::value);
         result.add_func("gr_wait", funcs::wait);
+        result.add_func_i32("gr_wake", funcs::wake);
 
         result
     }
@@ -102,8 +103,8 @@ impl<E: Ext + 'static> Environment<E> {
                 .map(|_| ());
             if let Err(e) = &result {
                 if let Some(trap) = e.downcast_ref::<Trap>() {
-                    if trap.to_string().starts_with("wait") {
-                        // We don't propagate a trap from `gr_wait`
+                    if funcs::is_exit_trap(&trap.to_string()) {
+                        // We don't propagate a trap when exit
                         return Ok(());
                     }
                 }

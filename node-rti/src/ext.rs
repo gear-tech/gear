@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::BTreeSet;
+
 use gear_core::{
     message::{Message, MessageId},
     program::{Program, ProgramId},
-    storage::{MessageQueue, ProgramStorage, WaitList},
+    storage::{MessageMap, MessageQueue, ProgramStorage, WaitList},
 };
 #[derive(Default)]
 pub struct ExtProgramStorage;
@@ -30,7 +32,9 @@ pub struct ExtMessageQueue {
 }
 
 #[derive(Default)]
-pub struct ExtWaitList;
+pub struct ExtWaitList {
+    cache: BTreeSet<MessageId>,
+}
 
 impl ProgramStorage for ExtProgramStorage {
     fn get(&self, id: ProgramId) -> Option<Program> {
@@ -65,11 +69,25 @@ impl MessageQueue for ExtMessageQueue {
 }
 
 impl WaitList for ExtWaitList {
-    fn insert(&mut self, waker_id: MessageId, message: Message) {
-        gear_common::native::insert_waiting_message(waker_id, message);
+    fn insert(&mut self, id: MessageId, message: Message) {
+        self.cache.insert(id);
+        gear_common::native::insert_waiting_message(id, message);
     }
 
-    fn remove(&mut self, waker_id: MessageId) -> Option<Message> {
-        gear_common::native::remove_waiting_message(waker_id)
+    fn remove(&mut self, id: MessageId) -> Option<Message> {
+        self.cache.remove(&id);
+        gear_common::native::remove_waiting_message(id)
+    }
+}
+
+impl From<ExtWaitList> for MessageMap {
+    fn from(queue: ExtWaitList) -> MessageMap {
+        let mut map = MessageMap::new();
+        queue.cache.into_iter().for_each(|id| {
+            if let Some(msg) = gear_common::native::get_waiting_message(id) {
+                map.insert(id, msg);
+            }
+        });
+        map
     }
 }
