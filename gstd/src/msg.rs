@@ -51,6 +51,7 @@ mod sys {
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
         pub fn gr_wait();
+        pub fn gr_wake(waker_id_ptr: *const u8);
     }
 }
 
@@ -154,5 +155,11 @@ pub fn value() -> u128 {
 pub fn wait() {
     unsafe {
         sys::gr_wait();
+    }
+}
+
+pub fn wake(waker_id: MessageId) {
+    unsafe {
+        sys::gr_wake(waker_id.as_slice().as_ptr());
     }
 }

@@ -153,10 +153,10 @@ pub type MessageMap = BTreeMap<MessageId, Message>;
 /// Wait list for suspended messages.
 pub trait WaitList: Default {
     /// Insert a message to the wait list.
-    fn insert(&mut self, waker_id: MessageId, message: Message);
+    fn insert(&mut self, id: MessageId, message: Message);
 
     /// Remove the message from the wait list and return it if any.
-    fn remove(&mut self, waker_id: MessageId) -> Option<Message>;
+    fn remove(&mut self, id: MessageId) -> Option<Message>;
 }
 
 /// In-memory wait list (for tests).
@@ -173,12 +173,12 @@ impl InMemoryWaitList {
 }
 
 impl WaitList for InMemoryWaitList {
-    fn insert(&mut self, waker_id: MessageId, message: Message) {
-        self.inner.insert(waker_id, message);
+    fn insert(&mut self, id: MessageId, message: Message) {
+        self.inner.insert(id, message);
     }
 
-    fn remove(&mut self, waker_id: MessageId) -> Option<Message> {
-        self.inner.remove(&waker_id)
+    fn remove(&mut self, id: MessageId) -> Option<Message> {
+        self.inner.remove(&id)
     }
 }
 

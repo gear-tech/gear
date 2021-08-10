@@ -73,7 +73,7 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
             messages,
             // TODO: iterate program storage to list programs here
             program_storage: Vec::new(),
-            wait_list: MessageMap::new(),
+            wait_list: self.wait_list.into(),
         }
     }
 }
@@ -181,7 +181,6 @@ where
             let run_result = runner.run_next(u64::MAX);
 
             log::info!("step: {}", step_no + 1);
-            log::info!("{:#?}", run_result);
 
             if run_result.any_traps() && step_no + 1 == steps {
                 result = Err(anyhow::anyhow!("Runner resulted in a trap"));
@@ -195,7 +194,7 @@ where
                 break;
             }
 
-            log::info!("{:#?}", run_result);
+            log::info!("handled: {}", run_result.handled);
         }
     }
 
