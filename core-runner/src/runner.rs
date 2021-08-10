@@ -390,8 +390,10 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                 self.wait_list.insert(waiting_msg.id, waiting_msg);
             }
 
-            if let Some(waker_id) = run_result.awakening {
-                if let Some(msg) = self.wait_list.remove(waker_id) {
+            if let Some((gas, waker_id)) = run_result.awakening {
+                if let Some(mut msg) = self.wait_list.remove(waker_id) {
+                    // Increase gas available to the message
+                    msg.gas_limit += gas;
                     context.message_buf.push(msg);
                 }
             }
@@ -593,7 +595,7 @@ pub struct RunResult {
     /// Message to be added to the wait list.
     pub waiting: Option<Message>,
     /// Message to be woken.
-    pub awakening: Option<MessageId>,
+    pub awakening: Option<(u64, MessageId)>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
@@ -876,6 +878,13 @@ fn run(
         // Keep user's balance reserved until message will be really processed
         gas_left = 0;
         msg.into_message(program.id())
+    });
+
+    let awakening = awakening.map(|id| {
+        let gas_available = gas_left;
+        // Transfer current messages's gas to the woken message
+        gas_left = 0;
+        (gas_available, id)
     });
 
     RunResult {
