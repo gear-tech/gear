@@ -431,17 +431,17 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         }
     }
 
-    /// Max initial pages configuratio of this runner.
+    /// Max initial pages configuration of this runner.
     pub fn max_init_pages(&self) -> PageNumber {
         self.config.max_init_pages
     }
 
-    /// Max pages configuratio of this runner.
+    /// Max pages configuration of this runner.
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
     }
 
-    /// Gas memory page allocation cost configuratio of this runner.
+    /// Gas memory page allocation cost configuration of this runner.
     pub fn alloc_cost(&self) -> u64 {
         self.config.alloc_cost
     }
@@ -849,7 +849,7 @@ fn run(
                     gas_left,
                     gas_spent: 0,
                     gas_requested: 0,
-                    was_trap: true,
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
                 };
             }
         }
@@ -864,7 +864,7 @@ fn run(
                     gas_left,
                     gas_spent: 0,
                     gas_requested: 0,
-                    was_trap: true,
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
                 };
             }
         }
