@@ -42,6 +42,7 @@ impl GearTestCmd {
                 gear_core::storage::Storage {
                     message_queue: rti::ext::ExtMessageQueue::default(),
                     program_storage: rti::ext::ExtProgramStorage,
+                    wait_list: rti::ext::ExtWaitList,
                 }
             })
             .expect("what is it failed?");

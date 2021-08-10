@@ -1,8 +1,27 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Environment for running a module.
 
 use alloc::rc::Rc;
 use core::cell::RefCell;
 
+use anyhow::Result;
 use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
@@ -34,16 +53,16 @@ pub trait Ext {
     fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str>;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn init(&self, msg: OutgoingPacket) -> Result<usize, &'static str>;
+    fn send_init(&mut self, msg: OutgoingPacket) -> Result<usize, &'static str>;
 
     /// Push an extra buffer into message payload by handle.
-    fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
+    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Push an extra buffer into reply message.
-    fn push_reply(&self, buffer: &[u8]) -> Result<(), &'static str>;
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
-    fn commit(&self, handle: usize) -> Result<(), &'static str>;
+    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str>;
 
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
@@ -72,7 +91,7 @@ pub trait Ext {
     fn set_mem(&mut self, ptr: usize, val: &[u8]);
 
     /// Reads memory contents at the given offset into a buffer.
-    fn get_mem(&mut self, ptr: usize, buffer: &mut [u8]);
+    fn get_mem(&self, ptr: usize, buffer: &mut [u8]);
 
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
@@ -80,11 +99,17 @@ pub trait Ext {
     /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
+    /// Tell how much gas is left in running context.
+    fn gas_available(&mut self) -> u64;
+
     /// Transfer gas to program from the caller side.
     fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
 
-    /// Value associated with message
-    fn value(&mut self) -> u128;
+    /// Value associated with message.
+    fn value(&self) -> u128;
+
+    /// Interrupt the program and reschedule execution.
+    fn wait(&mut self) -> Result<(), &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -115,16 +140,16 @@ impl<E: Ext> LaterExt<E> {
     }
 
     /// Call fn with inner ext
-    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> R {
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
         let mut brw = self.inner.borrow_mut();
         let mut ext = brw
             .take()
-            .expect("with should be called only when inner is set");
+            .ok_or("with should be called only when inner is set")?;
         let res = f(&mut ext);
 
         *brw = Some(ext);
 
-        res
+        Ok(res)
     }
 
     /// Unset inner ext
@@ -153,16 +178,16 @@ mod tests {
         fn send(&mut self, _msg: OutgoingPacket) -> Result<(), &'static str> {
             Ok(())
         }
-        fn init(&self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
+        fn send_init(&mut self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
             Ok(0)
         }
-        fn push(&self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn push_reply(&self, _buffer: &[u8]) -> Result<(), &'static str> {
+        fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn commit(&self, _handle: usize) -> Result<(), &'static str> {
+        fn send_commit(&mut self, _handle: usize) -> Result<(), &'static str> {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
@@ -184,17 +209,23 @@ mod tests {
             Ok(())
         }
         fn set_mem(&mut self, _ptr: usize, _val: &[u8]) {}
-        fn get_mem(&mut self, _ptr: usize, _buffer: &mut [u8]) {}
+        fn get_mem(&self, _ptr: usize, _buffer: &mut [u8]) {}
         fn msg(&mut self) -> &[u8] {
             &[]
         }
         fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
-        fn value(&mut self) -> u128 {
+        fn gas_available(&mut self) -> u64 {
+            1_000_000
+        }
+        fn value(&self) -> u128 {
             0
         }
         fn charge(&mut self, _gas: u64) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())
         }
     }
@@ -273,16 +304,15 @@ mod tests {
 
         let converted_inner = ext.with(converter);
 
-        assert_eq!(converted_inner, 0);
+        assert!(converted_inner.is_ok());
     }
 
     #[test]
-    #[should_panic(expected = "with should be called only when inner is set")]
-    /// Test that calling ext's `with<R>(...)` causes panic
+    /// Test that calling ext's `with<R>(...)` throws error
     /// when the inner value was not set or was unsetted
     fn calling_fn_with_empty_ext() {
         let ext = LaterExt::<ExtImplementedStruct>::new();
 
-        let _ = ext.with(converter);
+        assert!(ext.with(converter).is_err());
     }
 }

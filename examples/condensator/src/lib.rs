@@ -27,10 +27,9 @@ pub unsafe extern "C" fn handle() {
         ext::debug(&format!("Discharge #{} due to limit {}", CHARGE, LIMIT,));
 
         msg::send(
-            0.into(),
+            msg::source(),
             format!("Discharged: {}", CHARGE).as_bytes(),
-            1000000000,
-            0,
+            10_000_000,
         );
         DISCHARGE_HISTORY.push(CHARGE);
         CHARGE = 0;
@@ -53,5 +52,7 @@ pub unsafe extern "C" fn init() {
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    unsafe { core::arch::wasm32::unreachable(); }
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }

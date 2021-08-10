@@ -1,22 +1,31 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
-#[macro_use]
-pub mod macros;
+mod bail;
 pub mod msg;
 pub mod prelude;
 
-pub use msg::{MessageId, ProgramId};
+mod general;
+pub use general::*;
 
+mod utils;
 #[cfg(feature = "debug")]
-pub mod ext {
-    mod sys {
-        extern "C" {
-            pub fn gr_debug(msg_ptr: *const u8, msg_len: u32);
-        }
-    }
-
-    pub fn debug(s: &str) {
-        unsafe { sys::gr_debug(s.as_ptr(), s.as_bytes().len() as _) }
-    }
-}
+pub use utils::ext;

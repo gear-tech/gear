@@ -41,7 +41,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use sp_core::H256;
-    use sp_std::prelude::*;
+    use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -56,6 +56,9 @@ pub mod pallet {
 
         #[pallet::constant]
         type MessagePerByte: Get<u64>;
+
+        #[pallet::constant]
+        type BlockGasLimit: Get<u64>;
     }
 
     type BalanceOf<T> =
@@ -74,13 +77,13 @@ pub mod pallet {
         /// Program created in the network.
         NewProgram(H256),
         /// Program initialization error.
-        InitFailure(H256, MessageError),
+        InitFailure(H256, Reason),
         /// Program initialized.
         ProgramInitialized(H256),
         /// Some number of messages processed.
         MessagesDequeued(u32),
         /// Message dispatch resulted in error
-        MessageNotProcessed(MessageError),
+        MessageNotProcessed(Reason),
     }
 
     // Gear pallet error.
@@ -90,12 +93,26 @@ pub mod pallet {
         ///
         /// Usually occurs when gas_limit specified is such that origin account can't afford the message.
         NotEnoughBalanceForReserve,
+        /// Gas limit too high.
+        ///
+        /// Occurs when an extrinsic's declared `gas_limit` is greater than a block's maximum gas limit.
+        GasLimitTooHigh,
+
+        /// Program already exists.
+        ///
+        /// Occurs if a program with some specific program id already exists in program storage.
+        ProgramAlreadyExists,
+        /// No message in the mailbox.
+        ///
+        /// The user tried to reply on message that was not found in his personal mailbox.
+        NoMessageInMailbox,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq)]
-    pub enum MessageError {
+    pub enum Reason {
         ValueTransfer,
         Dispatch,
+        BlockGasLimitExceeded,
     }
 
     #[pallet::storage]
@@ -110,11 +127,26 @@ pub mod pallet {
     #[pallet::getter(fn messages_processed)]
     pub type MessagesProcessed<T> = StorageValue<_, u32, ValueQuery>;
 
+    #[pallet::type_value]
+    pub fn DefaultForGasLimit<T: Config>() -> u64 {
+        T::BlockGasLimit::get()
+    }
+
+    #[pallet::storage]
+    #[pallet::getter(fn gas_allowance)]
+    pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
+
+    #[pallet::storage]
+    pub type Mailbox<T: Config> =
+        StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
-            0
+            // Reset block gas allowance
+            GasAllowance::<T>::put(T::BlockGasLimit::get());
+            T::DbWeight::get().writes(1)
         }
 
         /// Finalization
@@ -130,6 +162,33 @@ pub mod pallet {
 
     fn block_author<T: Config + pallet_authorship::Config>() -> T::AccountId {
         <pallet_authorship::Pallet<T>>::author()
+    }
+
+    pub fn insert_to_mailbox<T: Config>(user: H256, message: common::Message)
+    where
+        T::AccountId: Origin,
+    {
+        let user_id = &<T::AccountId as Origin>::from_origin(user);
+
+        <Mailbox<T>>::mutate(user_id, |value| {
+            value
+                .get_or_insert(BTreeMap::new())
+                .insert(message.id, message)
+        });
+    }
+
+    pub fn remove_from_mailbox<T: Config>(user: H256, message_id: H256) -> Option<common::Message>
+    where
+        T::AccountId: Origin,
+    {
+        let user_id = &<T::AccountId as Origin>::from_origin(user);
+
+        <Mailbox<T>>::try_mutate(user_id, |value| match value {
+            Some(ref mut btree) => Ok(btree.remove(&message_id)),
+            None => Err(()),
+        })
+        .ok()
+        .flatten()
     }
 
     #[pallet::call]
@@ -154,12 +213,10 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let reserve_fee = gas_to_fee::<T>(gas_limit);
-
-            // First we reserve enough funds on the account to pay for 'gas_limit'
-            // and to transfer declared value.
-            T::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+            // Check that provided `gas_limit` value does not exceed the block gas limit
+            if gas_limit > T::BlockGasLimit::get() {
+                return Err(Error::<T>::GasLimitTooHigh.into());
+            }
 
             let mut data = Vec::new();
             code.encode_to(&mut data);
@@ -167,18 +224,26 @@ pub mod pallet {
 
             let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
-            <MessageQueue<T>>::mutate(|messages| {
-                let mut actual_messages = messages.take().unwrap_or_default();
-                actual_messages.push(IntermediateMessage::InitProgram {
-                    origin: who.into_origin(),
-                    code,
-                    program_id: id,
-                    payload: init_payload,
-                    gas_limit,
-                    value: value.into(),
-                });
+            // Make sure there is no program with such id in program storage
+            if common::program_exists(id) {
+                return Err(Error::<T>::ProgramAlreadyExists.into());
+            }
 
-                *messages = Some(actual_messages);
+            let reserve_fee = gas_to_fee::<T>(gas_limit);
+
+            // First we reserve enough funds on the account to pay for 'gas_limit'
+            // and to transfer declared value.
+            T::Currency::reserve(&who, reserve_fee + value)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
+                origin: who.into_origin(),
+                code,
+                program_id: id,
+                init_message_id: common::next_message_id(&init_payload),
+                payload: init_payload,
+                gas_limit,
+                value: value.into(),
             });
 
             Self::deposit_event(Event::NewProgram(id));
@@ -200,6 +265,11 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            // Check that provided `gas_limit` value does not exceed the block gas limit
+            if gas_limit > T::BlockGasLimit::get() {
+                return Err(Error::<T>::GasLimitTooHigh.into());
+            }
+
             let gas_limit_reserve = gas_to_fee::<T>(gas_limit);
 
             // First we reserve enough funds on the account to pay for 'gas_limit'
@@ -215,22 +285,63 @@ pub mod pallet {
             )?;
 
             // Only after reservation the message is actually put in the queue.
+            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
+                id: common::next_message_id(&payload),
+                origin: who.into_origin(),
+                destination,
+                payload,
+                gas_limit,
+                value: value.into(),
+                reply: None,
+            });
+
+            Ok(().into())
+        }
+
+        #[pallet::weight(
+			T::DbWeight::get().writes(4) +
+			*gas_limit +
+			T::MessagePerByte::get()*(payload.len() as u64)
+		)]
+        pub fn send_reply(
+            origin: OriginFor<T>,
+            reply_to_id: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let original_message = remove_from_mailbox::<T>(who.clone().into_origin(), reply_to_id)
+                .ok_or(Error::<T>::NoMessageInMailbox)?;
+
+            let destination = original_message.source;
+
+            let gas_limit_reserve = gas_to_fee::<T>(gas_limit);
+
+            // First we reserve enough funds on the account to pay for 'gas_limit'
+            T::Currency::reserve(&who, gas_limit_reserve)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            // Since messages a guaranteed to be dispatched, we transfer value immediately
+            T::Currency::transfer(
+                &who,
+                &<T::AccountId as Origin>::from_origin(destination),
+                value,
+                ExistenceRequirement::AllowDeath,
+            )?;
+            // Only after reservation the message is actually put in the queue.
             <MessageQueue<T>>::mutate(|messages| {
                 let mut actual_messages = messages.take().unwrap_or_default();
 
-                let nonce = common::nonce_fetch_inc();
-
-                let mut message_id = payload.encode();
-                message_id.extend_from_slice(&nonce.to_le_bytes());
-                let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
-
                 actual_messages.push(IntermediateMessage::DispatchMessage {
-                    id: message_id,
+                    id: common::next_message_id(&payload),
                     origin: who.into_origin(),
                     destination,
                     payload,
                     gas_limit,
                     value: value.into(),
+                    reply: Some(reply_to_id),
                 });
 
                 *messages = Some(actual_messages);
@@ -244,16 +355,9 @@ pub mod pallet {
             ensure_none(origin)?;
 
             // At the beginning of a new block, we process all queued messages
-            // TODO: When gas is introduced, processing should be limited to the specific max gas
-            // TODO: When memory regions introduced, processing should be limited to the messages that touch
-            //       specific pages.
-
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
             let messages_processed = <MessagesProcessed<T>>::get();
 
-            // `MessagesProcessed` counter should not be checked upfront because all the messages may turn out being the
-            // `init_program` variant which does not call `common::queue_message` and, therefore, can still be processed.
-            // TODO: consider moving this code inside the processing loop before the `rti::gear_executor::process()` call.
             if <DequeueLimit<T>>::get()
                 .map(|limit| limit <= messages_processed)
                 .unwrap_or(false)
@@ -270,20 +374,45 @@ pub mod pallet {
                     // Any programs failed to initialize are deleted and further messages to them are not processed
                     IntermediateMessage::InitProgram {
                         origin,
-                        code,
+                        ref code,
                         program_id,
-                        payload,
+                        init_message_id,
+                        ref payload,
                         gas_limit,
                         value,
                     } => {
+                        // Block gas allowance must be checked here for `InitProgram` messages
+                        // as they are not placed in the internal message queue
+                        if gas_limit > GasAllowance::<T>::get() {
+                            // Put message back to storage to let it be processed in future blocks
+                            MessageQueue::<T>::append(message);
+                            Self::deposit_event(Event::MessageNotProcessed(
+                                Reason::BlockGasLimitExceeded,
+                            ));
+                            continue;
+                        }
                         match rti::gear_executor::init_program(
-                            origin, program_id, code, payload, gas_limit, value,
+                            origin,
+                            program_id,
+                            code.to_vec(),
+                            init_message_id,
+                            payload.to_vec(),
+                            gas_limit,
+                            value,
                         ) {
                             Err(_) => {
                                 stop_list.push(program_id);
                                 Self::deposit_event(Event::InitFailure(
                                     program_id,
-                                    MessageError::Dispatch,
+                                    Reason::Dispatch,
+                                ));
+                                // Decrease remaining block gas allowance
+                                // TODO: audit if it is safe to use the self-declared `gas_limit` here.
+                                // Alternatively, find a way to report the acutal amount of gas spent.
+                                GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_limit));
+                                Self::deposit_event(Event::InitFailure(
+                                    program_id,
+                                    Reason::Dispatch,
                                 ));
                             }
                             Ok(execution_report) => {
@@ -299,12 +428,19 @@ pub mod pallet {
                                     value.into(),
                                     ExistenceRequirement::AllowDeath,
                                 ) {
-                                    // if transfer failed, gas spent and gas left does not matter since initialization
-                                    // failed, and we unreserved gas_limit deposit already above.
+                                    // if transfer failed, gas left does not matter since initialization
+                                    // had failed, and we already unreserved gas_limit deposit above.
                                     Self::deposit_event(Event::InitFailure(
                                         program_id,
-                                        MessageError::ValueTransfer,
+                                        Reason::ValueTransfer,
                                     ));
+                                    // However, spend pas should still be accounted for to adjust global allowance
+                                    let gas_spent = execution_report
+                                        .gas_charges
+                                        .iter()
+                                        .fold(0, |acc, (_, x)| acc + x);
+                                    // Decrease block gas allowance
+                                    GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_spent));
                                 } else {
                                     Self::deposit_event(Event::ProgramInitialized(program_id));
                                     total_handled += execution_report.handled;
@@ -324,6 +460,24 @@ pub mod pallet {
                                             // the transfer
                                             // TODO: audit this
                                         }
+
+                                        // Decrease block gas allowance
+                                        GasAllowance::<T>::mutate(|x| {
+                                            *x = x.saturating_sub(gas_charge)
+                                        });
+                                    }
+
+                                    for (source, dest, gas_transfer) in
+                                        execution_report.gas_transfers
+                                    {
+                                        let transfer_fee = gas_to_fee::<T>(gas_transfer);
+
+                                        let _ = T::Currency::repatriate_reserved(
+                                            &<T::AccountId as Origin>::from_origin(source),
+                                            &<T::AccountId as Origin>::from_origin(dest),
+                                            transfer_fee,
+                                            BalanceStatus::Free,
+                                        );
                                     }
 
                                     for message in execution_report.log {
@@ -340,6 +494,7 @@ pub mod pallet {
                         payload,
                         gas_limit,
                         value,
+                        reply,
                     } => {
                         common::queue_message(Message {
                             id,
@@ -348,15 +503,14 @@ pub mod pallet {
                             gas_limit,
                             dest: destination,
                             value,
-                            // TODO: user can actually reply to the messages with transactions
-                            reply: None,
+                            reply: reply.map(|r| (r, 0)),
                         });
                     }
                 }
             }
 
             loop {
-                match rti::gear_executor::process() {
+                match rti::gear_executor::process(GasAllowance::<T>::get()) {
                     Ok(execution_report) => {
                         if execution_report.handled == 0 {
                             break;
@@ -393,6 +547,9 @@ pub mod pallet {
                                 charge,
                                 BalanceStatus::Free,
                             );
+
+                            // Decrease block gas allowance
+                            GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
                         }
 
                         for (source, dest, gas_transfer) in execution_report.gas_transfers {
@@ -407,6 +564,8 @@ pub mod pallet {
                         }
 
                         for message in execution_report.log {
+                            insert_to_mailbox::<T>(message.dest, message.clone());
+
                             Self::deposit_event(Event::Log(message));
                         }
                     }
@@ -424,8 +583,8 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> u64 {
-            rti::gear_executor::gas_spent(destination, payload, 0).unwrap_or(0)
+        pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
+            rti::gear_executor::gas_spent(destination, payload, 0).ok()
         }
     }
 

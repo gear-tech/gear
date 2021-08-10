@@ -13,7 +13,7 @@ clean:
 
 .PHONY: core-test
 core-test:
-	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner
+	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner -- --nocapture
 
 .PHONY: examples
 examples:
@@ -57,7 +57,7 @@ node-test:
 
 .PHONY: ntest
 ntest:
-	@cargo run --package gear-node --release -- runtests ./test/json/*.json
+	@cargo run --package gear-node --release -- runtests ./gtest/spec/*.yaml
 
 .PHONY: pre-commit
 pre-commit:
@@ -70,7 +70,7 @@ release:
 .PHONY: rpc-test
 rpc-test:
 	@./scripts/build-wasm.sh
-	@node rpc-tests/index.js ./test/code/*.yaml
+	@node rpc-tests/index.js ./gtest/spec/*.yaml
 
 .PHONY: test
 test:

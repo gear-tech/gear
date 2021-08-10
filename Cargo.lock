@@ -613,6 +613,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "btest"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "build-helper"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -690,6 +701,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0226944a63d1bf35a3b5f948dd7c59e263db83695c9e8bffc4037de02e30f1d7"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "cargo_metadata"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7714a157da7991e23d90686b9524b9e12e0407a108647f52e9328f4b3d51ac7f"
+dependencies = [
+ "cargo-platform",
+ "semver 0.11.0",
+ "semver-parser 0.10.2",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2185,7 +2209,7 @@ dependencies = [
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
- "substrate-wasm-builder",
+ "substrate-wasm-builder 4.0.0 (git+https://github.com/paritytech/substrate.git)",
  "wabt",
 ]
 
@@ -4216,7 +4240,9 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
+ "gear-core",
  "gear-node-rti",
+ "hex-literal",
  "pallet-authorship",
  "pallet-balances",
  "parity-scale-codec",
@@ -7629,12 +7655,28 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder"
 version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93a3d51ad6abbc408b03ea962062bfcc959b438a318d7d4bedd181e1effd0610"
+dependencies = [
+ "ansi_term 0.12.1",
+ "atty",
+ "build-helper",
+ "cargo_metadata 0.12.3",
+ "tempfile",
+ "toml",
+ "walkdir",
+ "wasm-gc-api",
+]
+
+[[package]]
+name = "substrate-wasm-builder"
+version = "4.0.0"
 source = "git+https://github.com/paritytech/substrate.git#4652f9e00f0e3079b9ed40ff806829f17fd1ddcf"
 dependencies = [
  "ansi_term 0.12.1",
  "atty",
  "build-helper",
- "cargo_metadata",
+ "cargo_metadata 0.13.1",
  "sp-maybe-compressed-blob",
  "tempfile",
  "toml",

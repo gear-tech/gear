@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -e
-cd "$(dirname ${BASH_SOURCE[0]})/.."
+cd "$(dirname "$0")/.."
 
 ./scripts/build-wasm.sh
-cargo run --package gear-test --release -- test/code/*.yaml
+cargo run --package gear-test --release -- gtest/spec/*.yaml

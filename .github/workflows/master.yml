@@ -54,13 +54,16 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --release
 
+      - name: Test wasmi backend
+        run: cargo test -p gear-core-backend --release --no-default-features --features wasmi_backend
+
       - name: Build examples (WASM)
         run: |
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
 
       - name: Run gear-test
-        run: ./target/release/gtest test/code/*.yaml
+        run: ./target/release/gtest ./gtest/spec/*.yaml
 
       - name: Install nodejs
         uses: actions/setup-node@v2
@@ -69,13 +72,13 @@ jobs:
       - run: cd rpc-tests && npm install
 
       - name: Run testsuite
-        run: ./target/release/gear-node runtests ./test/code/*.yaml
+        run: ./target/release/gear-node runtests ./gtest/spec/*.yaml
 
       - name: Run rpc-test
         run: |
           ./target/release/gear-node --dev -l 2 & sleep 5
-          node rpc-tests/index.js ./test/code/*.yaml
-      
+          node rpc-tests/index.js ./gtest/spec/*.yaml
+
       - name: Run metadata test
         run: |
           ./target/release/wasm-proc ./target/wasm32-unknown-unknown/release/demo_meta.wasm

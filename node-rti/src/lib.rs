@@ -29,9 +29,9 @@ use sp_core::H256;
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
-use gear_core::{program::ProgramId, storage::Storage};
+use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 #[cfg(feature = "std")]
-use gear_core_runner::runner::RunNextResult;
+use gear_core_runner::{ExtMessage, MessageDispatch, ProgramInitialization, RunNextResult};
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 
@@ -53,8 +53,6 @@ pub struct ExecutionReport {
 #[cfg(feature = "std")]
 impl ExecutionReport {
     fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
-        // TODO: actually compare touched from run result with
-        //       that is what should be predefined in message
         let RunNextResult {
             handled,
             gas_left,
@@ -96,10 +94,10 @@ impl ExecutionReport {
 
 #[runtime_interface]
 pub trait GearExecutor {
-    fn process() -> Result<ExecutionReport, Error> {
+    fn process(max_gas_limit: u64) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
-        let result = runner.run_next();
+        let result = runner.run_next(max_gas_limit);
 
         let Storage { message_queue, .. } = runner.complete();
 
@@ -110,29 +108,37 @@ pub trait GearExecutor {
         caller_id: H256,
         program_id: H256,
         program_code: Vec<u8>,
+        init_message_id: H256,
         init_payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
     ) -> Result<ExecutionReport, Error> {
         let mut runner = crate::runner::new();
 
-        let result = RunNextResult::from_single(
-            ProgramId::from_slice(&caller_id[..]),
-            ProgramId::from_slice(&program_id[..]),
-            runner
-                .init_program(
-                    ProgramId::from_slice(&caller_id[..]),
-                    gear_common::caller_nonce_fetch_inc(caller_id),
-                    ProgramId::from_slice(&program_id[..]),
-                    program_code,
-                    init_payload,
+        let init_message_id = MessageId::from_slice(&init_message_id[..]);
+        let run_result = runner
+            .init_program(ProgramInitialization {
+                new_program_id: ProgramId::from_slice(&program_id[..]),
+                source_id: ProgramId::from_slice(&caller_id[..]),
+                code: program_code,
+                message: ExtMessage {
+                    id: init_message_id,
+                    payload: init_payload,
                     gas_limit,
                     value,
-                )
-                .map_err(|e| {
-                    log::error!("Error initialization program: {:?}", e);
-                    Error::Runner
-                })?,
+                },
+            })
+            .map_err(|e| {
+                log::error!("Error initialization program: {:?}", e);
+                Error::Runner
+            })?;
+
+        let result = RunNextResult::from_single(
+            // TODO: take message id somewhere
+            init_message_id,
+            ProgramId::from_slice(&caller_id[..]),
+            ProgramId::from_slice(&program_id[..]),
+            run_result,
         );
 
         let Storage { message_queue, .. } = runner.complete();
@@ -143,25 +149,38 @@ pub trait GearExecutor {
     fn gas_spent(program_id: H256, payload: Vec<u8>, value: u128) -> Result<u64, Error> {
         let mut runner = crate::runner::new();
 
-        runner.queue_message(
-            // TODO: find a better way to generate source
-            ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
-            gear_common::caller_nonce_fetch_inc(H256::from_low_u64_be(1)),
-            ProgramId::from_slice(&program_id[..]),
-            payload,
-            u64::MAX,
-            value,
-        );
+        runner.queue_message(MessageDispatch {
+            source_id: ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
+            destination_id: ProgramId::from_slice(&program_id[..]),
+            data: ExtMessage {
+                id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
+                gas_limit: u64::MAX,
+                payload: payload,
+                value,
+            },
+        });
 
-        let result = runner.run_next();
+        let mut total_gas_spent = 0;
+
+        loop {
+            let run_result = runner.run_next(u64::MAX);
+
+            if let Some(gas_spent) = run_result.gas_spent.first() {
+                total_gas_spent += gas_spent.1;
+            }
+
+            if run_result.any_traps() {
+                log::error!("gas_spent: Empty run result");
+                return Err(Error::Runner);
+            }
+
+            if run_result.handled == 0 {
+                break;
+            }
+        }
 
         runner.complete();
 
-        if let Some(gas_spent) = result.gas_spent.first() {
-            Ok(gas_spent.1)
-        } else {
-            log::error!("gas_spent: Empty run result");
-            Err(Error::Runner)
-        }
+        Ok(total_gas_spent)
     }
 }

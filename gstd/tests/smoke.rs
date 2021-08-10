@@ -1,8 +1,25 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![no_std]
 
-use gstd::msg::{self};
 use gstd::prelude::*;
-use gstd::ProgramId;
+use gstd::{msg, ProgramId};
 
 #[cfg(feature = "debug")]
 use gstd::ext;
@@ -18,6 +35,24 @@ static mut DEBUG_MSG: Vec<u8> = Vec::new();
 
 mod sys {
     use super::*;
+
+    #[no_mangle]
+    unsafe extern "C" fn gr_charge(gas: u64) {
+        GAS += gas;
+    }
+
+    #[cfg(feature = "debug")]
+    #[no_mangle]
+    unsafe extern "C" fn gr_debug(msg_ptr: *const u8, msg_len: u32) {
+        DEBUG_MSG.resize(msg_len as _, 0);
+        ptr::copy(msg_ptr, DEBUG_MSG.as_mut_ptr(), msg_len as _);
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn gr_read(at: u32, len: u32, dest: *mut u8) {
+        let src = MESSAGE.as_ptr();
+        ptr::copy(src.offset(at as _), dest, len as _);
+    }
 
     #[no_mangle]
     unsafe extern "C" fn gr_send(
@@ -40,12 +75,6 @@ mod sys {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn gr_read(at: u32, len: u32, dest: *mut u8) {
-        let src = MESSAGE.as_ptr();
-        ptr::copy(src.offset(at as _), dest, len as _);
-    }
-
-    #[no_mangle]
     unsafe extern "C" fn gr_source(program: *mut u8) {
         for i in 0..PROGRAM.0.len() {
             *program.offset(i as isize) = PROGRAM.0[i];
@@ -57,18 +86,6 @@ mod sys {
         let src = VALUE.to_ne_bytes().as_ptr();
         ptr::copy(src, val, mem::size_of::<u128>());
     }
-
-    #[no_mangle]
-    unsafe extern "C" fn gr_charge(gas: u64) {
-        GAS += gas;
-    }
-
-    #[cfg(feature = "debug")]
-    #[no_mangle]
-    unsafe extern "C" fn gr_debug(msg_ptr: *const u8, msg_len: u32) {
-        DEBUG_MSG.resize(msg_len as _, 0);
-        ptr::copy(msg_ptr, DEBUG_MSG.as_mut_ptr(), msg_len as _);
-    }
 }
 
 #[test]
@@ -78,7 +95,7 @@ fn messages() {
         id[i] = i as u8;
     }
 
-    msg::send(ProgramId(id), b"HELLO", 1000, 12345678);
+    msg::send_with_value(ProgramId(id), b"HELLO", 1000, 12345678);
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ProgramId(id));

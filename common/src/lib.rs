@@ -96,6 +96,7 @@ pub enum IntermediateMessage {
         origin: H256,
         program_id: H256,
         code: Vec<u8>,
+        init_message_id: H256,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
@@ -107,6 +108,7 @@ pub enum IntermediateMessage {
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
+        reply: Option<H256>,
     },
 }
 
@@ -128,6 +130,13 @@ fn page_key(page: u32) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(b"g::alloc::");
     page.encode_to(&mut key);
+    key
+}
+
+fn waker_key(id: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(b"g::waker::");
+    id.encode_to(&mut key);
     key
 }
 
@@ -192,6 +201,15 @@ pub fn nonce_fetch_inc() -> u128 {
     original_nonce
 }
 
+// WARN: Never call that in threads
+pub fn next_message_id(payload: &Vec<u8>) -> H256 {
+    let nonce = nonce_fetch_inc();
+    let mut message_id = payload.encode();
+    message_id.extend_from_slice(&nonce.to_le_bytes());
+    let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+    message_id
+}
+
 pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     let mut key_id = b"g::msg::user_nonce".to_vec();
     key_id.extend(&caller_id[..]);
@@ -205,6 +223,21 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     sp_io::storage::set(&key_id, &new_nonce.encode());
 
     original_nonce
+}
+
+pub(crate) fn insert_waiting_message(id: H256, message: Message) {
+    sp_io::storage::set(&waker_key(id), &message.encode());
+}
+
+pub(crate) fn remove_waiting_message(id: H256) -> Option<Message> {
+    let id = waker_key(id);
+    let msg: Option<Message> = sp_io::storage::get(&id)
+        .map(|val| Message::decode(&mut &val[..]).expect("message encoded correctly"));
+
+    if msg.is_some() {
+        sp_io::storage::clear(&id);
+    }
+    msg
 }
 
 #[cfg(test)]

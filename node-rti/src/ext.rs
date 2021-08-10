@@ -17,17 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    message::Message,
+    message::{Message, MessageId},
     program::{Program, ProgramId},
-    storage::{MessageQueue, ProgramStorage},
+    storage::{MessageQueue, ProgramStorage, WaitList},
 };
-
+#[derive(Default)]
 pub struct ExtProgramStorage;
 
 #[derive(Default)]
 pub struct ExtMessageQueue {
     pub log: Vec<Message>,
 }
+
+#[derive(Default)]
+pub struct ExtWaitList;
 
 impl ProgramStorage for ExtProgramStorage {
     fn get(&self, id: ProgramId) -> Option<Program> {
@@ -58,5 +61,15 @@ impl MessageQueue for ExtMessageQueue {
 
         // If no destination, message is considered to be a log record.
         self.log.push(message);
+    }
+}
+
+impl WaitList for ExtWaitList {
+    fn insert(&mut self, waker_id: MessageId, message: Message) {
+        gear_common::native::insert_waiting_message(waker_id, message);
+    }
+
+    fn remove(&mut self, waker_id: MessageId) -> Option<Message> {
+        gear_common::native::remove_waiting_message(waker_id)
     }
 }

@@ -35,20 +35,23 @@ pub unsafe extern "C" fn handle() {
     let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
-    msg::send(
-        STATE.send_to(),
-        &(new_msg + new_msg).to_ne_bytes(),
-        u64::MAX,
-        0,
-    );
+    if msg::gas_available() > 4_000_000_000 {
+        msg::send(
+            STATE.send_to(),
+            &(new_msg + new_msg).to_ne_bytes(),
+            4_000_000_000,
+        );
 
-    ext::debug(&format!(
-        "{:?} total message(s) stored: ",
-        MESSAGE_LOG.len()
-    ));
+        ext::debug(&format!(
+            "{:?} total message(s) stored: ",
+            MESSAGE_LOG.len()
+        ));
 
-    for log in MESSAGE_LOG.iter() {
-        ext::debug(log);
+        for log in MESSAGE_LOG.iter() {
+            ext::debug(log);
+        }
+    } else {
+        ext::debug(&format!("Not enough gas"));
     }
 }
 
@@ -63,5 +66,7 @@ pub unsafe extern "C" fn init() {
 
 #[panic_handler]
 fn panic(_info: &panic::PanicInfo) -> ! {
-    unsafe { core::arch::wasm32::unreachable(); }
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }

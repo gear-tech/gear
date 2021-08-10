@@ -1,13 +1,32 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::sample::{PayloadVariant, Test};
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
     storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, MessageQueue, ProgramStorage, Storage,
+        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, MessageMap, MessageQueue,
+        ProgramStorage, Storage, WaitList,
     },
 };
-use gear_core_runner::runner::{Config, Runner};
-use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage};
+use gear_core_runner::{Config, ExtMessage, MessageDispatch, ProgramInitialization, Runner};
+use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList};
 use std::fmt::Write;
 
 use regex::Regex;
@@ -26,20 +45,18 @@ pub trait CollectState {
     fn collect(self) -> FinalState;
 }
 
-impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage> {
+impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
     fn collect(self) -> FinalState {
-        let message_queue = self.message_queue;
-        let program_storage = self.program_storage;
-
         FinalState {
-            log: message_queue.log().to_vec(),
-            messages: message_queue.drain(),
-            program_storage: program_storage.drain(),
+            log: self.message_queue.log().to_vec(),
+            messages: self.message_queue.into(),
+            program_storage: self.program_storage.into(),
+            wait_list: self.wait_list.into(),
         }
     }
 }
 
-impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage> {
+impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
     fn collect(self) -> FinalState {
         let log = self.message_queue.log;
 
@@ -56,15 +73,16 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage> {
             messages,
             // TODO: iterate program storage to list programs here
             program_storage: Vec::new(),
+            wait_list: MessageMap::new(),
         }
     }
 }
 
-pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
-    storage: Storage<MQ, PS>,
+pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
+    storage: Storage<MQ, PS, WL>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<Runner<MQ, PS>> {
+) -> anyhow::Result<Runner<MQ, PS, WL>> {
     let mut runner = Runner::new(&Config::default(), storage);
     let mut nonce = 0;
     for program in test.programs.iter() {
@@ -86,15 +104,17 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
                 _ => init_msg.clone().into_raw(),
             }
         }
-        runner.init_program(
-            SOME_FIXED_USER.into(),
-            nonce,
-            program.id.into(),
+        runner.init_program(ProgramInitialization {
+            new_program_id: program.id.into(),
+            source_id: SOME_FIXED_USER.into(),
             code,
-            init_message,
-            program.init_gas_limit.unwrap_or(u64::MAX),
-            program.init_value.unwrap_or(0) as _,
-        )?;
+            message: ExtMessage {
+                id: nonce.into(),
+                payload: init_message,
+                gas_limit: program.init_gas_limit.unwrap_or(u64::MAX),
+                value: program.init_value.unwrap_or(0) as _,
+            },
+        })?;
 
         nonce += 1;
     }
@@ -124,14 +144,16 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage>(
                 .map(|payload| payload.clone().into_raw())
                 .unwrap_or_default(),
         };
-        runner.queue_message(
-            0.into(),
-            nonce,
-            message.destination.into(),
-            payload,
-            message.gas_limit.unwrap_or(u64::MAX),
-            message.value.unwrap_or_default() as _,
-        );
+        runner.queue_message(MessageDispatch {
+            source_id: 0.into(),
+            destination_id: message.destination.into(),
+            data: ExtMessage {
+                id: nonce.into(),
+                payload,
+                gas_limit: message.gas_limit.unwrap_or(u64::MAX),
+                value: message.value.unwrap_or_default() as _,
+            },
+        });
 
         nonce += 1;
     }
@@ -143,30 +165,31 @@ pub struct FinalState {
     pub messages: Vec<Message>,
     pub log: Vec<Message>,
     pub program_storage: Vec<Program>,
+    pub wait_list: MessageMap,
 }
 
-pub fn run<MQ: MessageQueue, PS: ProgramStorage>(
-    mut runner: Runner<MQ, PS>,
+pub fn run<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
+    mut runner: Runner<MQ, PS, WL>,
     steps: Option<u64>,
 ) -> (FinalState, anyhow::Result<()>)
 where
-    Storage<MQ, PS>: CollectState,
+    Storage<MQ, PS, WL>: CollectState,
 {
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
-            let run_result = runner.run_next();
+            let run_result = runner.run_next(u64::MAX);
 
             log::info!("step: {}", step_no + 1);
             log::info!("{:#?}", run_result);
 
-            if run_result.traps > 0 && step_no + 1 == steps {
+            if run_result.any_traps() && step_no + 1 == steps {
                 result = Err(anyhow::anyhow!("Runner resulted in a trap"));
             }
         }
     } else {
         loop {
-            let run_result = runner.run_next();
+            let run_result = runner.run_next(u64::MAX);
 
             if run_result.handled == 0 {
                 break;

@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Message processing module and context.
 
 use alloc::{rc::Rc, vec::Vec};
@@ -27,12 +45,29 @@ impl core::convert::AsRef<[u8]> for Payload {
 }
 
 /// Message identifier.
-#[derive(Clone, Copy, Debug, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Decode,
+    Default,
+    Encode,
+    derive_more::From,
+    Hash,
+    Ord,
+    PartialOrd,
+    PartialEq,
+    Eq,
+)]
 pub struct MessageId([u8; 32]);
 
 impl fmt::Display for MessageId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", crate::util::encode_hex(&self.0[..]))
+        if let Ok(hex) = crate::util::encode_hex(&self.0[..]) {
+            write!(f, "{}", hex)
+        } else {
+            Err(fmt::Error)
+        }
     }
 }
 
@@ -111,6 +146,11 @@ impl IncomingMessage {
     /// Gas limit of the message.
     pub fn gas_limit(&self) -> u64 {
         self.gas_limit
+    }
+
+    /// Set gas limit of the message.
+    pub fn set_gas_limit(&mut self, gas_limit: u64) {
+        self.gas_limit = gas_limit;
     }
 
     /// Value of the message.
@@ -192,6 +232,19 @@ impl IncomingMessage {
             reply: None,
         }
     }
+
+    /// Convert incoming message to the stored message by providing `dest`.
+    pub fn into_message(self, dest: ProgramId) -> Message {
+        Message {
+            id: self.id,
+            source: self.source,
+            dest,
+            payload: self.payload,
+            gas_limit: self.gas_limit,
+            value: self.value,
+            reply: self.reply,
+        }
+    }
 }
 
 /// Outgoing message.
@@ -233,6 +286,11 @@ impl OutgoingMessage {
             value: self.value,
             reply: None,
         }
+    }
+
+    /// Return declared gas_limit of the message.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
     }
 }
 
@@ -408,6 +466,26 @@ impl OutgoingPacket {
             value,
         }
     }
+
+    /// Gas limit.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
+
+    /// Value.
+    pub fn value(&self) -> u128 {
+        self.value
+    }
+
+    /// Payload.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    /// Destination.
+    pub fn dest(&self) -> ProgramId {
+        self.dest
+    }
 }
 
 /// Reply message packet.
@@ -491,6 +569,8 @@ pub struct MessageState {
     pub outgoing: Vec<(OutgoingMessage, FormationStatus)>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
+    /// Collection of incoming messages to be pushed back to the queue.
+    pub queue_back: Option<IncomingMessage>,
 }
 
 /// Message context for the currently running program.
@@ -511,6 +591,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             state: Rc::new(RefCell::new(MessageState {
                 outgoing: vec![],
                 reply: None,
+                queue_back: None,
             })),
             outgoing_limit: 128,
             current: Rc::new(incoming_message),
@@ -546,7 +627,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Initialize a new message with `NotFormed` formation status and return its handle.
     ///
     /// Messages created this way should be commited with `commit(handle)` to be sent.
-    pub fn init(&self, msg: OutgoingPacket) -> Result<usize, Error> {
+    pub fn send_init(&self, msg: OutgoingPacket) -> Result<usize, Error> {
         let mut state = self.state.borrow_mut();
 
         let outgoing_count = state.outgoing.len();
@@ -564,7 +645,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into message payload by handle.
-    pub fn push(&self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
+    pub fn send_push(&self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -580,7 +661,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into reply message.
-    pub fn push_reply(&self, buffer: &[u8]) -> Result<(), Error> {
+    pub fn reply_push(&self, buffer: &[u8]) -> Result<(), Error> {
         if let Some(reply) = &mut self.state.borrow_mut().reply {
             reply.payload.0.extend_from_slice(buffer);
             return Ok(());
@@ -589,8 +670,16 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Err(Error::NoReplyFound)
     }
 
+    /// Push the incoming message back to the queue.
+    pub fn queue_back(&self) -> Result<(), Error> {
+        let mut state = self.state.borrow_mut();
+        state.queue_back = Some(self.current().clone());
+
+        Ok(())
+    }
+
     /// Mark message as fully formed and ready for sending in this context by handle.
-    pub fn commit(&self, handle: usize) -> Result<(), Error> {
+    pub fn send_commit(&mut self, handle: usize) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -616,10 +705,27 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         self.id_generator.borrow().current()
     }
 
+    /// Return gas_limit of the message by handle.
+    pub fn get_gas_limit(&self, handle: usize) -> Result<u64, Error> {
+        let state = self.state.borrow();
+
+        if handle >= state.outgoing.len() {
+            return Err(Error::OutOfBounds);
+        }
+
+        Ok(state.outgoing[handle].0.gas_limit())
+    }
+
     /// Drop this context.
     ///
     /// Do it to return all outgoing messages and optional reply generated using this context.
-    pub fn drain(self) -> (Vec<OutgoingMessage>, Option<ReplyMessage>) {
+    pub fn drain(
+        self,
+    ) -> (
+        Vec<OutgoingMessage>,
+        Option<ReplyMessage>,
+        Option<IncomingMessage>,
+    ) {
         let Self { state, .. } = self;
         let mut state = Rc::try_unwrap(state)
             .expect("Calling drain with references to the memory context left")
@@ -638,6 +744,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                 })
                 .collect(),
             state.reply,
+            state.queue_back,
         )
     }
 }
@@ -696,7 +803,7 @@ mod tests {
         };
 
         // Creating a message context
-        let context = MessageContext::new(incoming_message, id_generator);
+        let mut context = MessageContext::new(incoming_message, id_generator);
 
         // Сhecking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
@@ -708,7 +815,7 @@ mod tests {
 
         // Checking that we are not able to push extra payload into
         // reply message if we have not set it yet
-        assert!(context.push_reply(&[0]).is_err());
+        assert!(context.reply_push(&[0]).is_err());
 
         // Setting reply message and making sure the operation was successful
         assert!(context.reply(reply_packet.clone()).is_ok());
@@ -768,7 +875,7 @@ mod tests {
         // Initializing message and compare its handle with expected one
         assert_eq!(
             context
-                .init(outgoing_packet.clone())
+                .send_init(outgoing_packet.clone())
                 .expect("Error initializing new message"),
             expected_handle
         );
@@ -786,23 +893,23 @@ mod tests {
 
         // Checking that we are able to push payload for the
         // message that we have not commited yet
-        assert!(context.push(expected_handle, &[5, 7]).is_ok());
-        assert!(context.push(expected_handle, &[9]).is_ok());
+        assert!(context.send_push(expected_handle, &[5, 7]).is_ok());
+        assert!(context.send_push(expected_handle, &[9]).is_ok());
 
         // Checking if commit is successful
-        assert!(context.commit(expected_handle).is_ok());
+        assert!(context.send_commit(expected_handle).is_ok());
 
         // Checking that we are **NOT** able to push payload for the message or
         // commit it if we already commited it or directly pushed before
-        assert!(context.push(0, &[5, 7]).is_err());
-        assert!(context.push(expected_handle, &[5, 7]).is_err());
-        assert!(context.commit(0).is_err());
-        assert!(context.commit(expected_handle).is_err());
+        assert!(context.send_push(0, &[5, 7]).is_err());
+        assert!(context.send_push(expected_handle, &[5, 7]).is_err());
+        assert!(context.send_commit(0).is_err());
+        assert!(context.send_commit(expected_handle).is_err());
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
-        assert!(context.push(15, &[0]).is_err());
-        assert!(context.commit(15).is_err());
+        assert!(context.send_push(15, &[0]).is_err());
+        assert!(context.send_commit(15).is_err());
 
         // Creating an outgoing packet to init and do not commit later
         // to show that the message will not be sent
@@ -816,7 +923,7 @@ mod tests {
 
         assert_eq!(
             context
-                .init(outgoing_packet)
+                .send_init(outgoing_packet)
                 .expect("Error initializing new message"),
             expected_handle
         );
@@ -829,11 +936,11 @@ mod tests {
         );
 
         // Checking that we are able to push extra payload into reply message
-        assert!(context.push_reply(&[1, 2]).is_ok());
-        assert!(context.push_reply(&[3, 4]).is_ok());
+        assert!(context.reply_push(&[1, 2]).is_ok());
+        assert!(context.reply_push(&[3, 4]).is_ok());
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
-        let expected_result: (Vec<OutgoingMessage>, Option<ReplyMessage>) = context.drain();
+        let expected_result = context.drain();
         assert_eq!(expected_result.0.len(), 2);
         assert_eq!(expected_result.0[0].payload.0, vec![0, 0]);
         assert_eq!(expected_result.0[1].payload.0, vec![1, 1, 5, 7, 9]);

@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 //! Wasmi environment for running a module.
 
 use wasmi::{
@@ -8,7 +26,6 @@ use wasmi::{
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -28,14 +45,15 @@ struct Runtime<E: Ext + 'static> {
 enum FuncIndex {
     Alloc = 1,
     Charge,
-    Commit,
+    SendCommit,
     Debug,
     Free,
     Gas,
+    GasAvailable,
     MsgId,
-    Init,
-    Push,
-    PushReply,
+    SendInit,
+    SendPush,
+    ReplyPush,
     Read,
     Reply,
     ReplyTo,
@@ -43,6 +61,7 @@ enum FuncIndex {
     Size,
     Source,
     Value,
+    Wait,
 }
 
 macro_rules! func_instance {
@@ -70,10 +89,6 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
 
-            Some(FuncIndex::Commit) => funcs::commit(self.ext.clone())(args.nth(0))
-                .map(|_| None)
-                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
-
             Some(FuncIndex::Debug) => funcs::debug(self.ext.clone())(args.nth(0), args.nth(1))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
@@ -86,31 +101,13 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
 
+            Some(FuncIndex::GasAvailable) => Ok(Some(RuntimeValue::I64(funcs::gas_available(
+                self.ext.clone(),
+            )()))),
+
             Some(FuncIndex::MsgId) => funcs::msg_id(self.ext.clone())(args.nth(0))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
-
-            Some(FuncIndex::Init) => funcs::init(self.ext.clone())(
-                args.nth(0),
-                args.nth(1),
-                args.nth(2),
-                args.nth(3),
-                args.nth(4),
-            )
-            .map(|_| None)
-            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
-
-            Some(FuncIndex::Push) => {
-                funcs::push(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
-
-            Some(FuncIndex::PushReply) => {
-                funcs::push_reply(self.ext.clone())(args.nth(0), args.nth(1))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
 
             Some(FuncIndex::Read) => {
                 funcs::read(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
@@ -123,9 +120,17 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                     .map(|_| None)
                     .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
+
+            Some(FuncIndex::ReplyPush) => {
+                funcs::reply_push(self.ext.clone())(args.nth(0), args.nth(1))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
+            }
+
             Some(FuncIndex::ReplyTo) => funcs::reply_to(self.ext.clone())(args.nth(0))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
             Some(FuncIndex::Send) => funcs::send(self.ext.clone())(
                 args.nth(0),
                 args.nth(1),
@@ -136,6 +141,26 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
+            Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(args.nth(0))
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())(
+                args.nth(0),
+                args.nth(1),
+                args.nth(2),
+                args.nth(3),
+                args.nth(4),
+            )
+            .map(|_| None)
+            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::SendPush) => {
+                funcs::send_push(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
+            }
+
             Some(FuncIndex::Size) => Ok(Some(RuntimeValue::I32(funcs::size(self.ext.clone())()))),
 
             Some(FuncIndex::Source) => funcs::source(self.ext.clone())(args.nth(0))
@@ -145,6 +170,12 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             Some(FuncIndex::Value) => funcs::value(self.ext.clone())(args.nth(0))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::Wait) => {
+                funcs::wait(self.ext.clone())()
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for `gr_wait` trap
+            }
 
             _ => panic!("unknown function index"),
         }
@@ -162,21 +193,10 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "alloc" => func_instance!(Alloc, ValueType::I32 => Some(ValueType::I32)),
             "free" => func_instance!(Free, ValueType::I32 => None),
             "gas" => func_instance!(Gas, ValueType::I32 => None),
+            "gr_gas_available" => func_instance!(GasAvailable, => Some(ValueType::I64)),
             "gr_charge" => func_instance!(Charge, ValueType::I64 => None),
-            "gr_commit" => func_instance!(Commit, ValueType::I32 => None),
             "gr_debug" => func_instance!(Debug, ValueType::I32, ValueType::I32 => None),
-            "gr_init" => func_instance!(Init, ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I64,
-                ValueType::I32 => Some(ValueType::I32)),
             "gr_msg_id" => func_instance!(MsgId, ValueType::I32 => None),
-            "gr_push" => {
-                func_instance!(Push, ValueType::I32, ValueType::I32, ValueType::I32 => None)
-            }
-            "gr_push_reply" => {
-                func_instance!(PushReply, ValueType::I32, ValueType::I32 => None)
-            }
             "gr_read" => {
                 func_instance!(Read, ValueType::I32, ValueType::I32, ValueType::I32 => None)
             }
@@ -184,15 +204,28 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 ValueType::I32,
                 ValueType::I64,
                 ValueType::I32 => None),
+            "gr_reply_push" => {
+                func_instance!(ReplyPush, ValueType::I32, ValueType::I32 => None)
+            }
             "gr_reply_to" => func_instance!(ReplyTo, ValueType::I32 => None),
             "gr_send" => func_instance!(Send, ValueType::I32,
                 ValueType::I32,
                 ValueType::I32,
                 ValueType::I64,
                 ValueType::I32 => None),
-            "gr_size" => func_instance!(Size,  => Some(ValueType::I32)),
+            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32 => None),
+            "gr_send_init" => func_instance!(SendInit, ValueType::I32,
+                ValueType::I32,
+                ValueType::I32,
+                ValueType::I64,
+                ValueType::I32 => Some(ValueType::I32)),
+            "gr_send_push" => {
+                func_instance!(SendPush, ValueType::I32, ValueType::I32, ValueType::I32 => None)
+            }
+            "gr_size" => func_instance!(Size, => Some(ValueType::I32)),
             "gr_source" => func_instance!(Source, ValueType::I32 => None),
             "gr_value" => func_instance!(Value, ValueType::I32 => None),
+            "gr_wait" => func_instance!(Wait, => None),
 
             _ => {
                 return Err(InterpreterError::Function(format!(
@@ -279,8 +312,15 @@ impl<E: Ext + 'static> Environment<E> {
         };
 
         let result = self.run_inner(instance, memory_pages, memory, move |instance| {
-            instance
-                .invoke_export(entry_point, &[], &mut runtime)
+            let result = instance.invoke_export(entry_point, &[], &mut runtime);
+            if let Err(InterpreterError::Trap(trap)) = &result {
+                // TODO: Define custom HostError for `gr_wait` trap
+                if let TrapKind::Unreachable = trap.kind() {
+                    // We don't propagate a trap from `gr_wait`
+                    return Ok(());
+                }
+            }
+            result
                 .map_err(|err| anyhow::format_err!("Failed export: {:?}", err))
                 .map(|_| ())
         });
