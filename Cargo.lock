@@ -613,17 +613,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "btest"
-version = "0.1.0"
-dependencies = [
- "gear-core",
- "gear-core-runner",
- "gstd",
- "parity-scale-codec",
- "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "build-helper"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7770,6 +7759,29 @@ dependencies = [
  "numtoa",
  "redox_syscall 0.2.5",
  "redox_termios",
+]
+
+[[package]]
+name = "tests-btree"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tests-common",
+]
+
+[[package]]
+name = "tests-common"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
