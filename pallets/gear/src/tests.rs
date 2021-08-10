@@ -752,7 +752,7 @@ fn block_gas_limit_works() {
         // |   |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 6_000);
+        assert_eq!(Gear::gas_allowance(), 11_000);
     });
 }
 
