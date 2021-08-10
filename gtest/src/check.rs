@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::runner::{self, CollectState};
-use crate::sample::{self, AllocationCheckKind, AllocationFilter, Test};
+use crate::sample::{self, AllocationExpectationKind, AllocationFilter, Test};
 use anyhow::anyhow;
 use derive_more::Display;
 use gear_core::{
@@ -176,37 +176,37 @@ fn check_messages(
 
 fn check_allocations(
     programs: &[Program],
-    allocation_checks: &[sample::Allocations],
+    expected_allocations: &[sample::Allocations],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
-    for check in allocation_checks {
+    for exp in expected_allocations {
         if let Some(program) = programs
             .iter()
-            .find(|p| p.id() == ProgramId::from(check.program_id))
+            .find(|p| p.id() == ProgramId::from(exp.program_id))
         {
             let actual_pages = program
                 .get_pages()
                 .iter()
-                .filter(|(page, _buf)| match check.filter {
+                .filter(|(page, _buf)| match exp.filter {
                     Some(AllocationFilter::Static) => page.raw() < program.static_pages(),
                     Some(AllocationFilter::Dynamic) => page.raw() >= program.static_pages(),
                     None => true,
                 })
                 .collect::<Vec<_>>();
 
-            match &check.kind {
-                AllocationCheckKind::PageCount(expected_page_count) => {
+            match &exp.kind {
+                AllocationExpectationKind::PageCount(expected_page_count) => {
                     if actual_pages.len() != *expected_page_count as usize {
                         errors.push(format!(
                             "Expectation error (Allocation page count does not match, expected: {}; actual: {}. Program id: {})",
                             expected_page_count,
                             actual_pages.len(),
-                            check.program_id,
+                            exp.program_id,
                         ));
                     }
                 }
-                AllocationCheckKind::ExactPages(expected_pages) => {
+                AllocationExpectationKind::ExactPages(expected_pages) => {
                     let mut actual_pages = actual_pages
                         .iter()
                         .map(|(page, _buf)| page.raw())
@@ -221,11 +221,11 @@ fn check_allocations(
                             "Expectation error (Following allocation pages expected: {:?}; actual: {:?}. Program id: {})",
                             expeceted_pages,
                             actual_pages,
-                            check.program_id,
+                            exp.program_id,
                         ))
                     }
                 }
-                AllocationCheckKind::ContainsPages(expected_pages) => {
+                AllocationExpectationKind::ContainsPages(expected_pages) => {
                     for expected_page in expected_pages {
                         if !actual_pages
                             .iter()
@@ -235,7 +235,7 @@ fn check_allocations(
                             errors.push(format!(
                                 "Expectation error (Allocation page {} expected, but not found. Program id: {})",
                                 expected_page,
-                                check.program_id,
+                                exp.program_id,
                             ));
                         }
                     }
@@ -244,7 +244,7 @@ fn check_allocations(
         } else {
             errors.push(format!(
                 "Expectation error (Program id not found: {})",
-                check.program_id
+                exp.program_id
             ))
         }
     }

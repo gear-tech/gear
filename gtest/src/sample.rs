@@ -127,12 +127,12 @@ pub struct Allocations {
     pub program_id: u64,
     pub filter: Option<AllocationFilter>,
     #[serde(flatten)]
-    pub kind: AllocationCheckKind,
+    pub kind: AllocationExpectationKind,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AllocationCheckKind {
+pub enum AllocationExpectationKind {
     PageCount(u64),
     ExactPages(Vec<u32>),
     ContainsPages(Vec<u32>),

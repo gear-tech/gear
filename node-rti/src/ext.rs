@@ -23,6 +23,7 @@ use gear_core::{
     program::{Program, ProgramId},
     storage::{MessageMap, MessageQueue, ProgramStorage, WaitList},
 };
+
 #[derive(Default)]
 pub struct ExtProgramStorage;
 
@@ -48,6 +49,40 @@ impl ProgramStorage for ExtProgramStorage {
 
     fn remove(&mut self, _id: ProgramId) -> Option<Program> {
         unimplemented!()
+    }
+}
+
+impl ExtProgramStorage {
+    pub fn iter(&self) -> ExtProgramStorageIter {
+        ExtProgramStorageIter {
+            key: Some(b"g::prog::".to_vec()),
+        }
+    }
+}
+
+pub struct ExtProgramStorageIter {
+    key: Option<Vec<u8>>,
+}
+
+impl Iterator for ExtProgramStorageIter {
+    type Item = Program;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(key) = &self.key {
+            let new_key = sp_io::storage::next_key(key.as_ref());
+            self.key = new_key;
+        }
+        if let Some(key) = &self.key {
+            if key.starts_with(b"g::prog::") {
+                let id = ProgramId::from_slice(&key[b"g::prog::".len()..]);
+                gear_common::native::get_program(id)
+            } else {
+                self.key = None;
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
