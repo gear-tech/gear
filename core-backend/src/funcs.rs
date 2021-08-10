@@ -26,14 +26,11 @@ pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'s
     move |pages: i32| {
         let pages = pages as u32;
 
-        let ptr = ext
-            .with(|ext: &mut E| ext.alloc(pages.into()))?
-            .map(|v| {
-                let ptr = v.raw();
-                log::debug!("ALLOC: {} pages at {}", pages, ptr);
-                ptr
-            })
-            .unwrap_or_default();
+        let ptr = ext.with(|ext: &mut E| ext.alloc(pages.into()))?.map(|v| {
+            let ptr = v.raw();
+            log::debug!("ALLOC: {} pages at {}", pages, ptr);
+            ptr
+        })?;
 
         Ok(ptr)
     }
@@ -76,6 +73,10 @@ pub(crate) fn gas<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'stat
         ext.with(|ext: &mut E| ext.gas(val as _))?
             .map_err(|_| "Trapping: unable to report about gas used")
     }
+}
+
+pub(crate) fn gas_available<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i64 {
+    move || ext.with(|ext: &mut E| ext.gas_available()).unwrap_or(0) as i64
 }
 
 pub(crate) fn msg_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {

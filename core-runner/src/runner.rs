@@ -752,6 +752,10 @@ impl EnvExt for Ext {
         }
     }
 
+    fn gas_available(&mut self) -> u64 {
+        self.gas_counter.left()
+    }
+
     fn charge(&mut self, gas: u64) -> Result<(), &'static str> {
         if self.gas_counter.charge(gas) == ChargeResult::Enough {
             self.gas_requested += gas;
@@ -889,6 +893,7 @@ fn run(
 #[cfg(test)]
 mod tests {
     extern crate wabt;
+
     use super::*;
     use env_logger::Env;
     use gear_core::storage::{
@@ -1329,5 +1334,85 @@ mod tests {
         assert_eq!(msg.dest, dest_id);
         assert_eq!(msg.payload(), payload);
         assert!(msg.gas_limit < gas_limit);
+    }
+
+    #[test]
+    fn gas_available() {
+        // Charge 100_000 of gas.
+        let wat = r#"
+        (module
+            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32)))
+            (export "handle" (func $handle))
+            (import "env" "gr_gas_available" (func $gas_available (result i64)))
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (func $handle
+                (local $id i32)
+                (local $gas_av i32)
+                (i32.store offset=12
+                    (get_local $id)
+                    (i32.const 1001)
+                )
+                (i64.store offset=18
+                    (get_local $gas_av)
+                    (call $gas_available)
+                )
+                (call $send (i32.const 12) (i32.const 18) (i32.const 8) (i64.const 1000) (i32.const 32768))
+            )
+            (func $init)
+        )"#;
+
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+
+        let gas_limit = 1000_000;
+        let caller_id = 1001.into();
+
+        runner
+            .init_program(ProgramInitialization {
+                new_program_id: 1.into(),
+                source_id: 1001.into(),
+                code: parse_wat(wat),
+                message: ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            })
+            .expect("failed to init program");
+
+        runner.queue_message(MessageDispatch {
+            source_id: caller_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: 1_000_000,
+                value: 0,
+            },
+        });
+
+        let result = runner.run_next(u64::MAX);
+        assert_eq!(result.gas_spent.len(), 1);
+        assert_eq!(result.gas_left.len(), 1);
+
+        assert_eq!(result.gas_left[0].0, caller_id);
+        assert!(result.gas_left[0].1 < gas_limit);
+
+        let (gas_available, _, _) = runner
+            .message_queue
+            .dequeue()
+            .map(|m| (m.payload().to_vec(), m.source(), m.dest()))
+            .unwrap();
+
+        use core::convert::TryInto;
+
+        let gas_available = gas_available
+            .as_slice()
+            .try_into()
+            .expect("slice with incorrect length");
+
+        assert!(u64::from_le_bytes(gas_available) > result.gas_left[0].1);
+        assert!(u64::from_le_bytes(gas_available) < gas_limit);
     }
 }

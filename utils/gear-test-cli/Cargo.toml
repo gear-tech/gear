@@ -23,4 +23,4 @@ gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime" }
 rti = { package = "gear-node-rti", path = "../../node-rti" }
-gear-test = { path = "../../test" }
+gear-test = { path = "../../gtest" }

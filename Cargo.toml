@@ -5,6 +5,7 @@ panic = 'unwind'
 default-members = ["node"]
 
 members = [
+    "btest",
     "common",
     "core",
     "core-backend",
@@ -15,6 +16,7 @@ members = [
     "node-rti",
     "pallets/*",
     "runtime",
-    "test",
-    "utils/*",
+    "gtest",
+    "utils/gear-test-cli",
+    "utils/wasm-proc",
 ]
