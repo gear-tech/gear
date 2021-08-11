@@ -683,7 +683,7 @@ impl EnvExt for Ext {
                 .map_err(|_e| "Message commit error")
             {
                 Ok(gas) => gas,
-                Err(e) => {
+                Err(_e) => {
                     return self.return_with_tracing(Err("No message to commit"));
                 }
             };

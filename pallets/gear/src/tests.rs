@@ -520,7 +520,7 @@ fn spent_gas_to_reward_block_author_works() {
         // the `gas_charge` incurred while processing the `InitProgram` message
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            block_author_initial_balance.saturating_add(7_000)
+            block_author_initial_balance.saturating_add(8_000)
         );
     })
 }
@@ -582,7 +582,7 @@ fn unused_gas_released_back_works() {
         // Unused gas should be converted back to currency and released to the external origin
         assert_eq!(
             Balances::free_balance(1),
-            external_origin_initial_balance.saturating_sub(6_000)
+            external_origin_initial_balance.saturating_sub(7_000)
         );
     })
 }
@@ -753,7 +753,7 @@ fn block_gas_limit_works() {
         // | 3 |        |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 94_000);
+        assert_eq!(Gear::gas_allowance(), 93_000);
 
         // Run to the next block to reset the gas limit
         run_to_block(5, Some(100_000));
@@ -765,7 +765,7 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 94_000);
+        assert_eq!(Gear::gas_allowance(), 93_000);
 
         run_to_block(6, Some(100_000));
 
@@ -1072,7 +1072,7 @@ fn program_lifecycle_works() {
 fn events_logging_works() {
     let wat_ok = r#"
 	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
@@ -1082,6 +1082,7 @@ fn events_logging_works() {
 			i32.const 32
 			i64.const 1000000
 			i32.const 1024
+            i32.const 40000
 			call $send
 		)
 		(func $init)

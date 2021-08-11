@@ -178,8 +178,8 @@ mod tests {
         fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> {
             Err("")
         }
-        fn send(&mut self, _msg: OutgoingPacket) -> Result<(), &'static str> {
-            Ok(())
+        fn send(&mut self, _msg: OutgoingPacket) -> Result<MessageId, &'static str> {
+            Ok(MessageId::default())
         }
         fn send_init(&mut self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
             Ok(0)
@@ -191,7 +191,7 @@ mod tests {
             Ok(())
         }
         fn send_commit(&mut self, _handle: usize) -> Result<MessageId, &'static str> {
-            Ok(())
+            Ok(MessageId::default())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
             Ok(())
