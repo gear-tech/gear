@@ -520,7 +520,7 @@ fn spent_gas_to_reward_block_author_works() {
         // the `gas_charge` incurred while processing the `InitProgram` message
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            block_author_initial_balance.saturating_add(8_000)
+            block_author_initial_balance.saturating_add(6_000)
         );
     })
 }
@@ -558,7 +558,7 @@ fn unused_gas_released_back_works() {
             program_id,
             init_message_id: H256::from_low_u64_be(1000001),
             payload: "init".as_bytes().to_vec(),
-            gas_limit: 0_u64,
+            gas_limit: 100_000_u64,
             value: 0_u128,
         }]);
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
@@ -568,13 +568,13 @@ fn unused_gas_released_back_works() {
             Origin::signed(1).into(),
             program_id,
             Vec::new(),
-            10_000_u64,
+            20_000_u64,
             0_u128,
         ));
         // send_message reserves balance on the sender's account
         assert_eq!(
             Balances::free_balance(1),
-            external_origin_initial_balance.saturating_sub(10_000)
+            external_origin_initial_balance.saturating_sub(20_000)
         );
 
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
@@ -582,7 +582,7 @@ fn unused_gas_released_back_works() {
         // Unused gas should be converted back to currency and released to the external origin
         assert_eq!(
             Balances::free_balance(1),
-            external_origin_initial_balance.saturating_sub(7_000)
+            external_origin_initial_balance.saturating_sub(10_000)
         );
     })
 }
@@ -626,7 +626,6 @@ fn block_gas_limit_works() {
     // A module with $handle function being worth 94000 gas
     let wat2 = r#"
 	(module
-        (import "env" "gr_charge" (func $charge (param i64)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
@@ -753,7 +752,7 @@ fn block_gas_limit_works() {
         // | 3 |        |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 93_000);
+        assert_eq!(Gear::gas_allowance(), 90_000);
 
         // Run to the next block to reset the gas limit
         run_to_block(5, Some(100_000));
@@ -765,7 +764,7 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 93_000);
+        assert_eq!(Gear::gas_allowance(), 90_000);
 
         run_to_block(6, Some(100_000));
 
@@ -775,7 +774,7 @@ fn block_gas_limit_works() {
         // |   |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 6_000);
+        assert_eq!(Gear::gas_allowance(), 11_000);
     });
 }
 
