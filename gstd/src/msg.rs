@@ -37,8 +37,9 @@ mod sys {
             data_len: u32,
             gas_limit: u64,
             value_ptr: *const u8,
+            message_id_ptr: *mut u8,
         );
-        pub fn gr_send_commit(handle: u32);
+        pub fn gr_send_commit(handle: u32, message_id_ptr: *mut u8);
         pub fn gr_send_init(
             program: *const u8,
             data_ptr: *const u8,
@@ -102,12 +103,16 @@ pub fn reply_to() -> MessageId {
     message_id
 }
 
-pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) {
-    send_with_value(program, payload, gas_limit, 0u128);
+pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) -> MessageId {
+    send_with_value(program, payload, gas_limit, 0u128)
 }
 
-pub fn send_commit(handle: MessageHandle) {
-    unsafe { sys::gr_send_commit(handle.0) }
+pub fn send_commit(handle: MessageHandle) -> MessageId {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send_commit(handle.0, message_id.as_mut_slice().as_mut_ptr());
+        message_id
+    }
 }
 
 pub fn send_init(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageHandle {
@@ -126,15 +131,18 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) {
     unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _) }
 }
 
-pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) {
+pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     unsafe {
+        let mut message_id = MessageId::default();
         sys::gr_send(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
             gas_limit,
             value.to_le_bytes().as_ptr(),
-        )
+            message_id.as_mut_slice().as_mut_ptr(),
+        );
+        message_id
     }
 }
 

@@ -190,7 +190,7 @@ mod tests {
         fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn send_commit(&mut self, _handle: usize) -> Result<(), &'static str> {
+        fn send_commit(&mut self, _handle: usize) -> Result<MessageId, &'static str> {
             Ok(())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
