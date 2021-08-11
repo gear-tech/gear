@@ -15,6 +15,9 @@ common = { package = "tests-common", path = "../common", optional = true }
 [build-dependencies]
 substrate-wasm-builder = "4.0.0"
 
+[dev-dependencies]
+env_logger = "0.8"
+
 [lib]
 
 [features]

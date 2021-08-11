@@ -7789,6 +7789,7 @@ dependencies = [
 name = "tests-node"
 version = "0.1.0"
 dependencies = [
+ "env_logger 0.8.4",
  "gear-core",
  "gear-core-runner",
  "gstd",

@@ -26,13 +26,14 @@ pub struct Initialization {
 pub enum Request {
     IsReady(Operation),
     Process(Operation),
-    Join(u64),
+    Add(u64),
 }
 
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Reply {
     Yes,
     No,
+    NotNeeded,
     Success,
     Failure,
 }
@@ -47,9 +48,15 @@ mod wasm {
 
     use super::{Initialization, Operation, Reply, Request};
 
+    struct QueryingState {
+        asked: ProgramId,
+        in_message: MessageId,
+    }
+
     struct NodeState {
         status: u32,
         sub_nodes: BTreeSet<u64>,
+        querying_state: BTreeSet<MessageId, QueryingState>,
     }
 
     static mut STATE: Option<NodeState> = None;
@@ -71,8 +78,32 @@ mod wasm {
         unsafe { STATE.as_mut().unwrap() }
     }
 
-    fn process(request: super::Request) -> Reply {
-        unimplemented!()
+    fn process(request: Request) -> Reply {
+        match request {
+            Request::IsReady(Operation { from_status, to_status }) => {
+                if to_status == state().status {
+                    Reply::NotNeeded
+                } else if from_status == state().status {
+                    Reply::Yes
+                } else {
+                    Reply::No
+                }
+            },
+            Request::Process(Operation {from_status, to_status }) => {
+                if to_status == state().status {
+                    Reply::Success
+                } else if from_status == state().status {
+                    state().status = to_status;
+                    Reply::Success
+                } else {
+                    Reply::Failure
+                }
+            },
+            Request::Add(sub_node) => {
+                state().sub_nodes.insert(sub_node);
+                Reply::Success;
+            }
+        }
     }
 
     #[no_mangle]
@@ -159,6 +190,8 @@ mod tests {
 
     #[test]
     fn one_node_can_change_status() {
+        env_logger::Builder::from_env(env_logger::Env::default()).init();
+
         let runner = new_test_runner();
 
         let program_id_1: ProgramId = 1.into();
@@ -198,7 +231,43 @@ mod tests {
                 },
             },
         );
-
         assert_eq!(reply, Some(Reply::Yes));
+
+        let (runner, reply) = common::do_reqrep(
+            runner,
+            MessageDispatchData {
+                source_id: 0.into(),
+                destination_id: program_id_1,
+                data: MessageData {
+                    id: nonce.into(),
+                    payload: Request::IsReady(Operation {
+                        from_status: 6,
+                        to_status: 7,
+                    }),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        assert_eq!(reply, Some(Reply::No));
+
+        let (runner, reply) = common::do_reqrep(
+            runner,
+            MessageDispatchData {
+                source_id: 0.into(),
+                destination_id: program_id_1,
+                data: MessageData {
+                    id: nonce.into(),
+                    payload: Request::Process(Operation {
+                        from_status: 5,
+                        to_status: 7,
+                    }),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        assert_eq!(reply, Some(Reply::Success));
+
     }
 }

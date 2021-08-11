@@ -130,6 +130,8 @@ pub fn do_reqrep<Req: Encode, Rep: Decode>(
         },
     });
 
+    while runner.run_next(u64::MAX).handled > 0 {}
+
     let Storage {
         message_queue,
         program_storage,
@@ -148,6 +150,8 @@ pub fn do_reqrep<Req: Encode, Rep: Decode>(
                 Some(Rep::decode(&mut message.payload.as_ref()).expect("Failed to decode reply"));
         }
     }
+
+    println!("mq: {:?}", message_queue.log());
 
     (
         Runner::new(
