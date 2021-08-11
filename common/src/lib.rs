@@ -119,11 +119,13 @@ fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
-fn code_key(code_hash: H256) -> Vec<u8> {
-    let mut key = Vec::new();
+fn code_key(code_hash: H256) -> (Vec<u8>, Vec<u8>) {
+    let (mut key, mut ref_counter) = (Vec::new(), Vec::new());
     key.extend(b"g::code::");
     code_hash.encode_to(&mut key);
-    key
+    code_hash.encode_to(&mut ref_counter);
+    ref_counter.extend(b"g::code::refs");
+    (key, ref_counter)
 }
 
 fn page_key(page: u32) -> Vec<u8> {
@@ -141,11 +143,42 @@ fn wait_key(id: H256) -> Vec<u8> {
 }
 
 pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_hash))
+    sp_io::storage::get(&code_key(code_hash).0)
 }
 
-pub fn set_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash), code)
+fn set_code(code_hash: H256, code: &[u8]) {
+    sp_io::storage::set(&code_key(code_hash).0, code)
+}
+
+fn get_code_refs(code_hash: H256) -> u32 {
+    sp_io::storage::get(&code_key(code_hash).1)
+        .map(|val| {
+            let mut v = [0u8; 4];
+            if val.len() == 4 {
+                v.copy_from_slice(&val[0..4]);
+            }
+            u32::from_le_bytes(v)
+        })
+        .unwrap_or_default()
+}
+
+fn set_code_refs(code_hash: H256, value: u32) {
+    sp_io::storage::set(&code_key(code_hash).1, &value.to_le_bytes())
+}
+
+fn add_code_ref(code_hash: H256) {
+    set_code_refs(code_hash, get_code_refs(code_hash).saturating_add(1))
+}
+
+fn release_code(code_hash: H256) {
+    let new_refs = get_code_refs(code_hash).saturating_sub(1);
+    if new_refs == 0 {
+        // Clearing storage for both code itself and its reference counter
+        sp_io::storage::clear(&code_key(code_hash).1);
+        sp_io::storage::clear(&code_key(code_hash).0);
+        return;
+    }
+    set_code_refs(code_hash, new_refs)
 }
 
 pub fn get_program(id: H256) -> Option<Program> {
@@ -154,11 +187,16 @@ pub fn get_program(id: H256) -> Option<Program> {
 }
 
 pub fn set_program(id: H256, program: Program) {
+    if !program_exists(id) {
+        add_code_ref(program.code_hash);
+    }
     sp_io::storage::set(&program_key(id), &program.encode())
 }
 
 pub fn remove_program(id: H256) {
-    // TODO: remove the corresponding code, if it's not referenced by any other program (#126)
+    if let Some(program) = get_program(id) {
+        release_code(program.code_hash);
+    }
     sp_io::storage::clear(&program_key(id))
 }
 
@@ -277,6 +315,51 @@ mod tests {
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone());
             assert_eq!(get_program(program_id).unwrap(), program);
+            assert_eq!(get_code(program.code_hash).unwrap(), code);
+        });
+    }
+
+    #[test]
+    fn unused_code_removal_works() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            set_code(code_hash, &code);
+
+            // At first no program references the code
+            assert_eq!(get_code_refs(code_hash), 0u32);
+
+            set_program(
+                H256::from_low_u64_be(1),
+                Program {
+                    static_pages: 256,
+                    persistent_pages: Default::default(),
+                    code_hash,
+                    nonce: 0,
+                },
+            );
+            assert_eq!(get_code_refs(code_hash), 1u32);
+
+            set_program(
+                H256::from_low_u64_be(2),
+                Program {
+                    static_pages: 128,
+                    persistent_pages: Default::default(),
+                    code_hash,
+                    nonce: 1,
+                },
+            );
+            assert_eq!(get_code_refs(code_hash), 2u32);
+
+            remove_program(H256::from_low_u64_be(1));
+            assert_eq!(get_code_refs(code_hash), 1u32);
+
+            assert!(get_code(code_hash).is_some());
+
+            remove_program(H256::from_low_u64_be(2));
+            assert_eq!(get_code_refs(code_hash), 0u32);
+
+            assert!(get_code(code_hash).is_none());
         });
     }
 }
