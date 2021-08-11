@@ -613,17 +613,21 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Send message to another program in this context.
-    pub fn send(&self, msg: OutgoingPacket) -> Result<(), Error> {
+    pub fn send(&self, msg: OutgoingPacket) -> Result<MessageId, Error> {
         if self.state.borrow().outgoing.len() >= self.outgoing_limit {
             return Err(Error::LimitExceeded);
         }
 
+        let outgoing = self.id_generator.borrow_mut().produce_outgoing(msg);
+
+        let message_id = outgoing.id();
+
         self.state.borrow_mut().outgoing.push((
-            self.id_generator.borrow_mut().produce_outgoing(msg),
+            outgoing,
             FormationStatus::Formed,
         ));
 
-        Ok(())
+        Ok(message_id)
     }
 
     /// Initialize a new message with `NotFormed` formation status and return its handle.
