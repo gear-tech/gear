@@ -157,8 +157,9 @@ pub fn set_program(id: H256, program: Program) {
     sp_io::storage::set(&program_key(id), &program.encode())
 }
 
-pub fn remove_program(_id: H256) {
-    unimplemented!()
+pub fn remove_program(id: H256) {
+    // TODO: remove the corresponding code, if it's not referenced by any other program (#126)
+    sp_io::storage::clear(&program_key(id))
 }
 
 pub fn program_exists(id: H256) -> bool {

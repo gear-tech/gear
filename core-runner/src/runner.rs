@@ -90,7 +90,7 @@ impl RunNextResult {
         }
     }
 
-    /// Add request all the gas to be reserved for the destination
+    /// Request all the gas to be reserved for the destination
     pub(crate) fn refund(gas_request: GasRequest) -> Self {
         RunNextResult {
             handled: 1,
@@ -197,7 +197,7 @@ pub struct ExtMessage {
 /// Program is initializaed from some user identity. The identity of the program itself must be known.
 /// The initialization message id also must be known in advance (all message chain about program initialization
 /// will start from the deterministic message known in advance).
-pub struct ProgramInitialization {
+pub struct InitializeProgramInfo {
     /// Identity of the program creator.
     ///
     /// Either user who sends an external transaction or another program.
@@ -446,7 +446,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     /// initializationg message for it.
     pub fn init_program(
         &mut self,
-        initialization: ProgramInitialization,
+        initialization: InitializeProgramInfo,
     ) -> anyhow::Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(initialization.new_program_id) {
             program.reset(initialization.code)?;
@@ -953,7 +953,7 @@ mod tests {
         let mut runner = new_test_runner();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1068,7 +1068,7 @@ mod tests {
         let mut runner = new_test_runner();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1169,7 +1169,7 @@ mod tests {
         let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1238,7 +1238,7 @@ mod tests {
         let program_id = 1.into();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1301,7 +1301,7 @@ mod tests {
         let msg_id: MessageId = 1000001.into();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: dest_id,
                 source_id,
                 code: parse_wat(wat),
@@ -1377,7 +1377,7 @@ mod tests {
         let caller_id = 1001.into();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),

@@ -31,7 +31,9 @@ use sp_runtime_interface::runtime_interface;
 #[cfg(feature = "std")]
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 #[cfg(feature = "std")]
-use gear_core_runner::{ExtMessage, MessageDispatch, ProgramInitialization, RunNextResult};
+use gear_core_runner::{
+    ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult,
+};
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 
@@ -48,6 +50,7 @@ pub struct ExecutionReport {
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub gas_transfers: Vec<(H256, H256, u64)>,
+    pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
 }
 
 #[cfg(feature = "std")]
@@ -58,6 +61,7 @@ impl ExecutionReport {
             gas_left,
             gas_spent,
             gas_requests,
+            outcomes,
             ..
         } = result;
 
@@ -85,6 +89,21 @@ impl ExecutionReport {
                         H256::from_slice(source_id.as_slice()),
                         H256::from_slice(dest_id.as_slice()),
                         gas_requested,
+                    )
+                })
+                .collect(),
+            outcomes: outcomes
+                .into_iter()
+                .map(|(message_id, exec_outcome)| {
+                    (
+                        H256::from_slice(message_id.as_slice()),
+                        match exec_outcome {
+                            ExecutionOutcome::Normal => Ok(()),
+                            ExecutionOutcome::Trap(t) => match t {
+                                Some(s) => Err(String::from(s).encode()),
+                                _ => Err(vec![]),
+                            },
+                        },
                     )
                 })
                 .collect(),
@@ -117,7 +136,7 @@ pub trait GearExecutor {
 
         let init_message_id = MessageId::from_slice(&init_message_id[..]);
         let run_result = runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: ProgramId::from_slice(&program_id[..]),
                 source_id: ProgramId::from_slice(&caller_id[..]),
                 code: program_code,
@@ -134,7 +153,6 @@ pub trait GearExecutor {
             })?;
 
         let result = RunNextResult::from_single(
-            // TODO: take message id somewhere
             init_message_id,
             ProgramId::from_slice(&caller_id[..]),
             ProgramId::from_slice(&program_id[..]),
