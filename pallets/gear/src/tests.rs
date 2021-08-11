@@ -517,7 +517,7 @@ fn spent_gas_to_reward_block_author_works() {
         // the `gas_charge` incurred while processing the `InitProgram` message
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            block_author_initial_balance.saturating_add(7_000)
+            block_author_initial_balance.saturating_add(6_000)
         );
     })
 }
@@ -747,7 +747,7 @@ fn block_gas_limit_works() {
         // | 3 |        |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 94_000);
+        assert_eq!(Gear::gas_allowance(), 91_000);
 
         // Run to the next block to reset the gas limit
         run_to_block(5, Some(100_000));
@@ -759,7 +759,7 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 94_000);
+        assert_eq!(Gear::gas_allowance(), 91_000);
 
         run_to_block(6, Some(100_000));
 
@@ -769,7 +769,7 @@ fn block_gas_limit_works() {
         // |   |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 6_000);
+        assert_eq!(Gear::gas_allowance(), 11_000);
     });
 }
 
