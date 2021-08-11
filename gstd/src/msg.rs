@@ -131,7 +131,12 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) {
     unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _) }
 }
 
-pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+pub fn send_with_value(
+    program: ProgramId,
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send(
