@@ -18,7 +18,7 @@
 <br/>
 
 <p>Gear is a new Polkadot/Kusama parachain and most advanced L2 smart-contract engine allowing anyone to launch any dApp for networks with untrusted code.</p>
-<p>Gear provides the easiest and most cost-effective way to run WebAssembly programs (smart-contracts) compiled from many popular languages, such as C/C++, C#, Rust, Go and more.</p>
+<p>Gear provides the easiest and most cost-effective way to run WebAssembly programs (smart-contracts) compiled from many popular languages, such as C/C++, Rust and more.</p>
 <p>Gear ensures very minimal, intuitive and sufficient API for running both - newly written and existing programs on other networks without the need to rewrite them.</p>
 
 ## Getting Started
