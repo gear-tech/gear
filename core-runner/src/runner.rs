@@ -1533,7 +1533,7 @@ mod tests {
         let caller_id = 1001.into();
 
         let init_result = runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: caller_id,
                 code: parse_wat(wat),
