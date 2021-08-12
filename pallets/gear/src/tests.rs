@@ -554,7 +554,7 @@ fn unused_gas_released_back_works() {
             program_id,
             init_message_id: H256::from_low_u64_be(1000001),
             payload: "init".as_bytes().to_vec(),
-            gas_limit: 0_u64,
+            gas_limit: 5000_u64,
             value: 0_u128,
         }]);
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
@@ -578,7 +578,7 @@ fn unused_gas_released_back_works() {
         // Unused gas should be converted back to currency and released to the external origin
         assert_eq!(
             Balances::free_balance(1),
-            external_origin_initial_balance.saturating_sub(6_000)
+            external_origin_initial_balance.saturating_sub(9_000)
         );
     })
 }
