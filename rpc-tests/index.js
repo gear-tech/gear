@@ -387,6 +387,16 @@ async function main() {
         "value": "Message",
         "next": "Option<H256>"
       },
+      "MessageInfo": {
+        "message_id": "H256",
+        "program_id": "H256"
+      },
+      "DispatchOutcome": {
+        "message_id": "H256",
+        "outcome": {
+          "_enum": ["Success","Failure"]
+        }
+      },
       "IntermediateMessage": {
         "_enum": {
           "InitProgram": {
@@ -404,7 +414,7 @@ async function main() {
             "destination": "H256",
             "payload": "Vec<u8>",
             "gas_limit": "u64",
-            "value": "u128",
+            "value": "u128"
           }
         }
       },
