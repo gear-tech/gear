@@ -42,8 +42,14 @@ use gear_core_backend::Environment;
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
-    /// Totl pages count.
+    /// Total memory pages count.
     pub max_pages: PageNumber,
+    /// Gas cost for memory page allocation.
+    pub alloc_cost: u64,
+    /// Gas cost for init memory page.
+    pub init_cost: u64,
+    /// Gas cost for loading memory page from program state.
+    pub load_page_cost: u64,
 }
 
 const EXIT_CODE_PANIC: i32 = 1;
@@ -52,6 +58,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             max_pages: MAX_PAGES.into(),
+            alloc_cost: ALLOC_COST.into(),
+            init_cost: INIT_COST.into(),
+            load_page_cost: LOAD_PAGE_COST.into(),
         }
     }
 }
@@ -90,7 +99,7 @@ impl RunNextResult {
         }
     }
 
-    /// Add request all the gas to be reserved for the destination
+    /// Request all the gas to be reserved for the destination
     pub(crate) fn refund(gas_request: GasRequest) -> Self {
         RunNextResult {
             handled: 1,
@@ -197,7 +206,7 @@ pub struct ExtMessage {
 /// Program is initializaed from some user identity. The identity of the program itself must be known.
 /// The initialization message id also must be known in advance (all message chain about program initialization
 /// will start from the deterministic message known in advance).
-pub struct ProgramInitialization {
+pub struct InitializeProgramInfo {
     /// Identity of the program creator.
     ///
     /// Either user who sends an external transaction or another program.
@@ -431,9 +440,24 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         }
     }
 
-    /// Max pages configuratio of this runner.
+    /// Max pages configuration of this runner.
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
+    }
+
+    /// Gas memory page allocation cost configuration of this runner.
+    pub fn alloc_cost(&self) -> u64 {
+        self.config.alloc_cost
+    }
+
+    /// Gas initial memory page cost of this runner.
+    pub fn init_cost(&self) -> u64 {
+        self.config.init_cost
+    }
+
+    /// Gas cost for loading memory page.
+    pub fn load_page_cost(&self) -> u64 {
+        self.config.load_page_cost
     }
 
     fn create_context(&self, allocations: BTreeSet<PageNumber>) -> RunningContext {
@@ -446,7 +470,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     /// initializationg message for it.
     pub fn init_program(
         &mut self,
-        initialization: ProgramInitialization,
+        initialization: InitializeProgramInfo,
     ) -> anyhow::Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(initialization.new_program_id) {
             program.reset(initialization.code)?;
@@ -463,6 +487,12 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             .program_storage
             .get(initialization.new_program_id)
             .expect("Added above; cannot fail");
+
+        if program.static_pages() > self.max_pages().raw() {
+            return Err(anyhow::anyhow!(
+                "Error initialisation: memory limit exceeded"
+            ));
+        }
 
         let allocations: BTreeSet<PageNumber> = (0..program.static_pages())
             .map(|page| page.into())
@@ -516,7 +546,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum EntryPoint {
     Handle,
     HandleReply,
@@ -533,7 +563,10 @@ impl From<EntryPoint> for &'static str {
     }
 }
 
-static MAX_PAGES: u32 = 16384;
+static MAX_PAGES: u32 = 512;
+static INIT_COST: u32 = 5000;
+static ALLOC_COST: u32 = 10000;
+static LOAD_PAGE_COST: u32 = 3000;
 
 struct RunningContext {
     config: Config,
@@ -552,6 +585,18 @@ impl RunningContext {
 
     fn max_pages(&self) -> PageNumber {
         self.config.max_pages
+    }
+
+    pub fn alloc_cost(&self) -> u64 {
+        self.config.alloc_cost
+    }
+
+    pub fn init_cost(&self) -> u64 {
+        self.config.init_cost
+    }
+
+    pub fn load_page_cost(&self) -> u64 {
+        self.config.load_page_cost
     }
 
     fn push_message(&mut self, msg: Message) {
@@ -611,6 +656,7 @@ struct Ext {
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
     gas_requested: u64,
+    alloc_cost: u64,
     last_error_returned: Option<&'static str>,
 }
 
@@ -631,6 +677,7 @@ impl Ext {
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
+        self.gas(pages.raw() * self.alloc_cost as u32)?;
         let result = self
             .memory_context
             .alloc(pages)
@@ -799,11 +846,49 @@ fn run(
     message: &IncomingMessage,
     gas_limit: u64,
 ) -> RunResult {
-    let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
+    let mut gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
         program_id: program.id(),
         nonce: program.message_nonce(),
+    };
+
+    // Charge gas for initial or loaded pages.
+    match entry_point {
+        EntryPoint::Init => {
+            if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
+                == gas::ChargeResult::NotEnough
+            {
+                let gas_left = gas_counter.left();
+                return RunResult {
+                    messages: vec![],
+                    reply: None,
+                    waiting: None,
+                    awakening: None,
+                    gas_left,
+                    gas_spent: 0,
+                    gas_requested: 0,
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
+                };
+            }
+        }
+        _ => {
+            if gas_counter.charge(context.config.load_page_cost * program.get_pages().len() as u64)
+                == gas::ChargeResult::NotEnough
+            {
+                let gas_left = gas_counter.left();
+                return RunResult {
+                    messages: vec![],
+                    reply: None,
+                    waiting: None,
+                    awakening: None,
+                    gas_left,
+                    gas_spent: 0,
+                    gas_requested: 0,
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
+                };
+            }
+        }
     };
 
     let memory = env.create_memory(program.static_pages());
@@ -819,6 +904,7 @@ fn run(
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
         gas_requested: 0,
+        alloc_cost: context.alloc_cost(),
         last_error_returned: None,
     };
 
@@ -953,7 +1039,7 @@ mod tests {
         let mut runner = new_test_runner();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1068,7 +1154,7 @@ mod tests {
         let mut runner = new_test_runner();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1169,7 +1255,7 @@ mod tests {
         let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1238,7 +1324,7 @@ mod tests {
         let program_id = 1.into();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1301,7 +1387,7 @@ mod tests {
         let msg_id: MessageId = 1000001.into();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: dest_id,
                 source_id,
                 code: parse_wat(wat),
@@ -1377,7 +1463,7 @@ mod tests {
         let caller_id = 1001.into();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1423,5 +1509,64 @@ mod tests {
 
         assert!(u64::from_le_bytes(gas_available) > result.gas_left[0].1);
         assert!(u64::from_le_bytes(gas_available) < gas_limit);
+    }
+
+    #[test]
+    fn gas_allocations() {
+        let wat = r#"
+        (module
+            (export "handle" (func $handle))
+            (import "env" "memory" (memory 1))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (func $handle
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 1)))
+            )
+            (func $init
+            )
+        )"#;
+
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+
+        let gas_limit = 1000_000;
+        let caller_id = 1001.into();
+
+        let init_result = runner
+            .init_program(InitializeProgramInfo {
+                new_program_id: 1.into(),
+                source_id: caller_id,
+                code: parse_wat(wat),
+                message: ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            })
+            .expect("failed to init program");
+
+        runner.queue_message(MessageDispatch {
+            source_id: caller_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: 1_000_000,
+                value: 0,
+            },
+        });
+
+        // Charge 1000 of gas for initial memory.
+        assert_eq!(init_result.gas_spent, runner.init_cost() * 1);
+
+        let result = runner.run_next(u64::MAX);
+
+        assert_eq!(
+            result.gas_spent[0].1,
+            runner.alloc_cost() * 1 + runner.load_page_cost() * 1 + 3000
+        );
+
+        runner.complete();
     }
 }

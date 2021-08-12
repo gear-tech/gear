@@ -2,7 +2,7 @@ use codec::{Decode, Encode};
 
 use gear_core::message::MessageId;
 use gear_core::storage::{InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, Storage};
-use gear_core_runner::{ExtMessage, MessageDispatch, ProgramInitialization, Runner};
+use gear_core_runner::{ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
 
 pub type MemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
 
@@ -12,7 +12,7 @@ pub fn do_requests_in_order<Req: Encode, Rep: Decode>(
     requests: Vec<Req>,
 ) -> Vec<Rep> {
     runner
-        .init_program(ProgramInitialization {
+        .init_program(InitializeProgramInfo {
             new_program_id: 1.into(),
             source_id: 0.into(),
             code,

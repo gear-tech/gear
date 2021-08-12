@@ -23,6 +23,7 @@ use common::{self, IntermediateMessage, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::RawOrigin;
 use gear_core::program::{Program, ProgramId};
+use hex_literal::hex;
 use sp_core::H256;
 
 pub(crate) fn init_logger() {
@@ -51,6 +52,9 @@ fn submit_program_works() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
 
+        let messages: Option<Vec<IntermediateMessage>> = Gear::message_queue();
+        assert!(messages.is_none());
+
         assert_ok!(Pallet::<Test>::submit_program(
             Origin::signed(1).into(),
             code.clone(),
@@ -64,18 +68,30 @@ fn submit_program_works() {
             Gear::message_queue().expect("There should be a message in the queue");
         assert_eq!(messages.len(), 1);
 
-        let (msg_origin, msg_code, id) = match &messages[0] {
+        let (msg_origin, msg_code, program_id, message_id) = match &messages[0] {
             IntermediateMessage::InitProgram {
                 origin,
                 code,
                 program_id,
+                init_message_id,
                 ..
-            } => (*origin, code.to_vec(), *program_id),
-            _ => (Default::default(), Vec::new(), Default::default()),
+            } => (*origin, code.to_vec(), *program_id, *init_message_id),
+            _ => (
+                Default::default(),
+                Vec::new(),
+                Default::default(),
+                Default::default(),
+            ),
         };
         assert_eq!(msg_origin, 1_u64.into_origin());
         assert_eq!(msg_code, code);
-        System::assert_last_event(crate::Event::NewProgram(id).into());
+        System::assert_last_event(
+            crate::Event::InitMessageEnqueued(crate::MessageInfo {
+                message_id,
+                program_id,
+            })
+            .into(),
+        );
     })
 }
 
@@ -175,6 +191,9 @@ fn send_message_works() {
         )
         .unwrap();
         common::native::set_program(program);
+
+        let messages: Option<Vec<IntermediateMessage>> = Gear::message_queue();
+        assert!(messages.is_none());
 
         assert_ok!(Pallet::<Test>::send_message(
             Origin::signed(1).into(),
@@ -498,7 +517,7 @@ fn spent_gas_to_reward_block_author_works() {
         // the `gas_charge` incurred while processing the `InitProgram` message
         assert_eq!(
             Balances::free_balance(BLOCK_AUTHOR),
-            block_author_initial_balance.saturating_add(7_000)
+            block_author_initial_balance.saturating_add(6_000)
         );
     })
 }
@@ -535,7 +554,7 @@ fn unused_gas_released_back_works() {
             program_id,
             init_message_id: H256::from_low_u64_be(1000001),
             payload: "init".as_bytes().to_vec(),
-            gas_limit: 0_u64,
+            gas_limit: 5000_u64,
             value: 0_u128,
         }]);
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
@@ -559,7 +578,7 @@ fn unused_gas_released_back_works() {
         // Unused gas should be converted back to currency and released to the external origin
         assert_eq!(
             Balances::free_balance(1),
-            external_origin_initial_balance.saturating_sub(6_000)
+            external_origin_initial_balance.saturating_sub(9_000)
         );
     })
 }
@@ -602,8 +621,6 @@ fn block_gas_limit_works() {
     // A module with $handle function being worth 94000 gas
     let wat2 = r#"
 	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
-        (import "env" "gr_charge" (func $charge (param i64)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
@@ -730,7 +747,7 @@ fn block_gas_limit_works() {
         // | 3 |        |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 94_000);
+        assert_eq!(Gear::gas_allowance(), 91_000);
 
         // Run to the next block to reset the gas limit
         run_to_block(5, Some(100_000));
@@ -742,7 +759,7 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 94_000);
+        assert_eq!(Gear::gas_allowance(), 91_000);
 
         run_to_block(6, Some(100_000));
 
@@ -752,7 +769,7 @@ fn block_gas_limit_works() {
         // |   |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 6_000);
+        assert_eq!(Gear::gas_allowance(), 11_000);
     });
 }
 
@@ -797,22 +814,504 @@ fn mailbox_works() {
         ));
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
 
-        let mailbox_message = crate::remove_from_mailbox::<Test>(
+        let mailbox_message = crate::Pallet::<Test>::remove_from_mailbox(
             1.into_origin(),
             // this is fixed (nonce based)
-            hex_literal::hex!("211a310ae0d68d7a4523ccecc7e5c0fd435496008c56ba8c86c5bba45d466e3a")
-                .into(),
+            hex!("211a310ae0d68d7a4523ccecc7e5c0fd435496008c56ba8c86c5bba45d466e3a").into(),
         )
         .expect("There should be a message for user #1 in the mailbox");
 
         assert_eq!(
             mailbox_message.id,
-            hex_literal::hex!("211a310ae0d68d7a4523ccecc7e5c0fd435496008c56ba8c86c5bba45d466e3a")
-                .into(),
+            hex!("211a310ae0d68d7a4523ccecc7e5c0fd435496008c56ba8c86c5bba45d466e3a").into(),
         );
 
         assert_eq!(mailbox_message.payload, vec![0u8; 32]);
 
         assert_eq!(mailbox_message.gas_limit, 1000000);
+    })
+}
+
+#[test]
+fn init_message_logging_works() {
+    let wat1 = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    let wat2 = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "init" (func $init))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $init
+            i32.const 4
+            call $doWork
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat1);
+
+        System::reset_events();
+
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+
+        let (program_id, message_id) = match &messages[0] {
+            IntermediateMessage::InitProgram {
+                program_id,
+                init_message_id,
+                ..
+            } => (*program_id, *init_message_id),
+            _ => Default::default(),
+        };
+        System::assert_last_event(
+            crate::Event::InitMessageEnqueued(crate::MessageInfo {
+                message_id,
+                program_id,
+            })
+            .into(),
+        );
+
+        run_to_block(2, None);
+
+        // Expecting the log to have an InitSuccess event
+        System::assert_has_event(
+            crate::Event::InitSuccess(crate::MessageInfo {
+                message_id,
+                program_id,
+            })
+            .into(),
+        );
+
+        let code = parse_wat(wat2);
+        System::reset_events();
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+
+        let (program_id, message_id) = match &messages[0] {
+            IntermediateMessage::InitProgram {
+                program_id,
+                init_message_id,
+                ..
+            } => (*program_id, *init_message_id),
+            _ => Default::default(),
+        };
+        System::assert_last_event(
+            crate::Event::InitMessageEnqueued(crate::MessageInfo {
+                message_id,
+                program_id,
+            })
+            .into(),
+        );
+
+        run_to_block(3, None);
+
+        // Expecting the log to have an InitFailure event (due to insufficient gas)
+        System::assert_has_event(
+            crate::Event::InitFailure(
+                crate::MessageInfo {
+                    message_id,
+                    program_id,
+                },
+                crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
+            )
+            .into(),
+        );
+    })
+}
+
+#[test]
+fn program_lifecycle_works() {
+    let wat1 = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    let wat2 = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "init" (func $init))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $init
+            i32.const 4
+            call $doWork
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat1);
+
+        System::reset_events();
+
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        let program_id = match &messages[0] {
+            IntermediateMessage::InitProgram { program_id, .. } => *program_id,
+            _ => Default::default(),
+        };
+        assert!(common::get_program(program_id).is_none());
+        run_to_block(2, None);
+        // Expect the program to be in PS by now
+        assert!(common::get_program(program_id).is_some());
+
+        // Submitting another program
+        let code = parse_wat(wat2);
+        System::reset_events();
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        let program_id = match &messages[0] {
+            IntermediateMessage::InitProgram { program_id, .. } => *program_id,
+            _ => Default::default(),
+        };
+
+        assert!(common::get_program(program_id).is_none());
+        run_to_block(3, None);
+        // Expect the program to have made it to the PS
+        assert!(common::get_program(program_id).is_some());
+        // while at the same time being stuck in "limbo"
+        assert!(crate::Pallet::<Test>::is_uninitialized(program_id));
+        assert_eq!(
+            ProgramsLimbo::<Test>::get(program_id).unwrap(),
+            1.into_origin()
+        );
+        // Program author is allowed to remove the program and reclaim funds
+        assert_ok!(Pallet::<Test>::remove_stale_program(
+            Origin::signed(1).into(),
+            program_id,
+        ));
+        run_to_block(4, None);
+        assert!(common::get_program(program_id).is_none());
+        assert!(ProgramsLimbo::<Test>::get(program_id).is_none());
+    })
+}
+
+#[test]
+fn events_logging_works() {
+    let wat_ok = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			i32.const 0
+			i32.const 32
+			i32.const 32
+			i64.const 1000000
+			i32.const 1024
+			call $send
+		)
+		(func $init)
+	)"#;
+
+    let wat_greedy_init = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "init" (func $init))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $init
+            i32.const 4
+            call $doWork
+		)
+	)"#;
+
+    let wat_trap_in_handle = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			unreachable
+		)
+		(func $init)
+	)"#;
+
+    let wat_trap_in_init = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle)
+		(func $init
+            unreachable
+        )
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_ok = parse_wat(wat_ok);
+        let code_greedy_init = parse_wat(wat_greedy_init);
+        let code_trap_in_init = parse_wat(wat_trap_in_init);
+        let code_trap_in_handle = parse_wat(wat_trap_in_handle);
+
+        System::reset_events();
+
+        // init ok
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_ok.clone(),
+            b"0001".to_vec(),
+            vec![],
+            10_000u64,
+            0_u128
+        ));
+        // init out-of-gas
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_greedy_init.clone(),
+            b"0002".to_vec(),
+            vec![],
+            10_000u64,
+            0_u128
+        ));
+        // init trapped
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_trap_in_init.clone(),
+            b"0003".to_vec(),
+            vec![],
+            10_000u64,
+            0_u128
+        ));
+        // init ok
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_trap_in_handle.clone(),
+            b"0004".to_vec(),
+            vec![],
+            10_000u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+
+        let mut init_msg = vec![];
+        for message in messages {
+            match message {
+                IntermediateMessage::InitProgram {
+                    program_id,
+                    init_message_id,
+                    ..
+                } => {
+                    init_msg.push((init_message_id, program_id));
+                    System::assert_has_event(
+                        crate::Event::InitMessageEnqueued(crate::MessageInfo {
+                            message_id: init_message_id,
+                            program_id,
+                        })
+                        .into(),
+                    );
+                }
+                _ => (),
+            }
+        }
+        assert_eq!(init_msg.len(), 4);
+
+        run_to_block(2, None);
+
+        // Expecting programs 1 and 4 to have been inited successfully
+        System::assert_has_event(
+            crate::Event::InitSuccess(crate::MessageInfo {
+                message_id: init_msg[0].0,
+                program_id: init_msg[0].1,
+            })
+            .into(),
+        );
+        System::assert_has_event(
+            crate::Event::InitSuccess(crate::MessageInfo {
+                message_id: init_msg[3].0,
+                program_id: init_msg[3].1,
+            })
+            .into(),
+        );
+
+        // Expecting programs 2 and 3 to have failed to init
+        System::assert_has_event(
+            crate::Event::InitFailure(
+                crate::MessageInfo {
+                    message_id: init_msg[1].0,
+                    program_id: init_msg[1].1,
+                },
+                crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
+            )
+            .into(),
+        );
+        System::assert_has_event(
+            crate::Event::InitFailure(
+                crate::MessageInfo {
+                    message_id: init_msg[2].0,
+                    program_id: init_msg[2].1,
+                },
+                crate::Reason::Dispatch(vec![]),
+            )
+            .into(),
+        );
+
+        System::reset_events();
+
+        // Sending messages to failed-to-init programs shouldn't be allowed
+        assert_noop!(
+            Pallet::<Test>::send_message(
+                Origin::signed(1).into(),
+                init_msg[1].1,
+                vec![],
+                10_000_u64,
+                0_u128
+            ),
+            Error::<Test>::ProgramIsNotInitialized
+        );
+        assert_noop!(
+            Pallet::<Test>::send_message(
+                Origin::signed(1).into(),
+                init_msg[2].1,
+                vec![],
+                10_000_u64,
+                0_u128
+            ),
+            Error::<Test>::ProgramIsNotInitialized
+        );
+
+        // Messages to fully-initialized programs are accepted
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            init_msg[0].1,
+            vec![],
+            10_000_000_u64,
+            0_u128
+        ));
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            init_msg[3].1,
+            vec![],
+            10_000_u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+
+        let mut dispatch_msg = vec![];
+        for message in messages {
+            match message {
+                IntermediateMessage::DispatchMessage { id, .. } => {
+                    dispatch_msg.push(id);
+                    System::assert_has_event(crate::Event::DispatchMessageEnqueued(id).into());
+                }
+                _ => (),
+            }
+        }
+        assert_eq!(dispatch_msg.len(), 2);
+
+        run_to_block(3, None);
+
+        // First program completed successfully
+        System::assert_has_event(
+            crate::Event::MessageDispatched(DispatchOutcome {
+                message_id: dispatch_msg[0],
+                outcome: ExecutionResult::Success,
+            })
+            .into(),
+        );
+        // Fourth program failed to handle message
+        System::assert_has_event(
+            crate::Event::MessageDispatched(DispatchOutcome {
+                message_id: dispatch_msg[1],
+                outcome: ExecutionResult::Failure(vec![]),
+            })
+            .into(),
+        );
     })
 }
