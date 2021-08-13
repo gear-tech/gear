@@ -295,7 +295,7 @@ fn send_message_expected_failure() {
 fn messages_processing_works() {
     let wat = r#"
     (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
         (export "init" (func $init))
@@ -305,6 +305,7 @@ fn messages_processing_works() {
             i32.const 32
             i64.const 1000000000
             i32.const 1024
+            i32.const 40000
             call $send
         )
         (func $init)
@@ -382,7 +383,7 @@ fn messages_processing_works() {
 fn dequeue_limit_works() {
     let wat = r#"
     (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
         (export "init" (func $init))
@@ -392,6 +393,7 @@ fn dequeue_limit_works() {
             i32.const 32
             i64.const 1000000000
             i32.const 1024
+            i32.const 40000
             call $send
         )
         (func $init)
@@ -475,7 +477,7 @@ fn dequeue_limit_works() {
 fn spent_gas_to_reward_block_author_works() {
     let wat = r#"
     (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
         (export "init" (func $init))
@@ -485,6 +487,7 @@ fn spent_gas_to_reward_block_author_works() {
             i32.const 32
             i64.const 1000000000
             i32.const 1024
+            i32.const 40000
             call $send
         )
         (func $init
@@ -526,7 +529,7 @@ fn spent_gas_to_reward_block_author_works() {
 fn unused_gas_released_back_works() {
     let wat = r#"
     (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
         (export "init" (func $init))
@@ -536,6 +539,7 @@ fn unused_gas_released_back_works() {
             i32.const 32
             i64.const 1000000000
             i32.const 1024
+            i32.const 40000
             call $send
         )
         (func $init)
@@ -564,13 +568,13 @@ fn unused_gas_released_back_works() {
             Origin::signed(1).into(),
             program_id,
             Vec::new(),
-            10_000_u64,
+            20_000_u64,
             0_u128,
         ));
         // send_message reserves balance on the sender's account
         assert_eq!(
             Balances::free_balance(1),
-            external_origin_initial_balance.saturating_sub(10_000)
+            external_origin_initial_balance.saturating_sub(20_000)
         );
 
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
@@ -578,7 +582,7 @@ fn unused_gas_released_back_works() {
         // Unused gas should be converted back to currency and released to the external origin
         assert_eq!(
             Balances::free_balance(1),
-            external_origin_initial_balance.saturating_sub(9_000)
+            external_origin_initial_balance.saturating_sub(10_000)
         );
     })
 }
@@ -603,7 +607,7 @@ fn block_gas_limit_works() {
     // A module with $handle function being worth 6000 gas
     let wat1 = r#"
 	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
@@ -613,6 +617,7 @@ fn block_gas_limit_works() {
 			i32.const 32
 			i64.const 1000000000
 			i32.const 1024
+			i32.const 40000
 			call $send
 		)
 		(func $init)
@@ -747,7 +752,7 @@ fn block_gas_limit_works() {
         // | 3 |        |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 91_000);
+        assert_eq!(Gear::gas_allowance(), 90_000);
 
         // Run to the next block to reset the gas limit
         run_to_block(5, Some(100_000));
@@ -759,7 +764,7 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 91_000);
+        assert_eq!(Gear::gas_allowance(), 90_000);
 
         run_to_block(6, Some(100_000));
 
@@ -777,7 +782,7 @@ fn block_gas_limit_works() {
 fn mailbox_works() {
     let wat = r#"
     (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "gr_source" (func $gr_source (param i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
@@ -791,6 +796,7 @@ fn mailbox_works() {
             i32.const 32
             i64.const 1000000
             i32.const 1024
+            i32.const 40000
             call $send
         )
         (func $handle_reply)
@@ -1065,7 +1071,7 @@ fn program_lifecycle_works() {
 fn events_logging_works() {
     let wat_ok = r#"
 	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32)))
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
 		(export "init" (func $init))
@@ -1075,6 +1081,7 @@ fn events_logging_works() {
 			i32.const 32
 			i64.const 1000000
 			i32.const 1024
+            i32.const 40000
 			call $send
 		)
 		(func $init)

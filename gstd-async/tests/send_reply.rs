@@ -32,6 +32,7 @@ mod sys {
         data_len: u32,
         _gas_limit: u64,
         _value_ptr: *const u8,
+        _message_id_ptr: *mut u8,
     ) {
         MESSAGE.resize(data_len as _, 0);
         ptr::copy(data_ptr, MESSAGE.as_mut_ptr(), data_len as _);

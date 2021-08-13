@@ -296,6 +296,11 @@ impl OutgoingMessage {
     pub fn gas_limit(&self) -> u64 {
         self.gas_limit
     }
+
+    /// Return message id generated for this packet.
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
 }
 
 /// Reply message.
@@ -613,17 +618,21 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Send message to another program in this context.
-    pub fn send(&self, msg: OutgoingPacket) -> Result<(), Error> {
+    pub fn send(&self, msg: OutgoingPacket) -> Result<MessageId, Error> {
         if self.state.borrow().outgoing.len() >= self.outgoing_limit {
             return Err(Error::LimitExceeded);
         }
 
-        self.state.borrow_mut().outgoing.push((
-            self.id_generator.borrow_mut().produce_outgoing(msg),
-            FormationStatus::Formed,
-        ));
+        let outgoing = self.id_generator.borrow_mut().produce_outgoing(msg);
 
-        Ok(())
+        let message_id = outgoing.id();
+
+        self.state
+            .borrow_mut()
+            .outgoing
+            .push((outgoing, FormationStatus::Formed));
+
+        Ok(message_id)
     }
 
     /// Initialize a new message with `NotFormed` formation status and return its handle.
@@ -691,7 +700,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Mark message as fully formed and ready for sending in this context by handle.
-    pub fn send_commit(&mut self, handle: usize) -> Result<(), Error> {
+    pub fn send_commit(&mut self, handle: usize) -> Result<MessageId, Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -700,9 +709,9 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
         match &mut state.outgoing[handle] {
             (_, FormationStatus::Formed) => Err(Error::LateAccess),
-            (_, status) => {
+            (outgoing, status) => {
                 *status = FormationStatus::Formed;
-                Ok(())
+                Ok(outgoing.id())
             }
         }
     }

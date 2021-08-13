@@ -591,14 +591,6 @@ impl RunningContext {
         self.config.alloc_cost
     }
 
-    pub fn init_cost(&self) -> u64 {
-        self.config.init_cost
-    }
-
-    pub fn load_page_cost(&self) -> u64 {
-        self.config.load_page_cost
-    }
-
     fn push_message(&mut self, msg: Message) {
         self.message_buf.push(msg)
     }
@@ -686,7 +678,7 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str> {
+    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
         if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
             return Err("Gas limit exceeded while trying to send message");
         }
@@ -722,7 +714,7 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str> {
+    fn send_commit(&mut self, handle: usize) -> Result<MessageId, &'static str> {
         {
             let gas_limit = match self
                 .messages
@@ -730,8 +722,8 @@ impl EnvExt for Ext {
                 .map_err(|_e| "Message commit error")
             {
                 Ok(gas) => gas,
-                anything_else => {
-                    return self.return_with_tracing(anything_else.map(|_never| ()));
+                Err(_e) => {
+                    return self.return_with_tracing(Err("No message to commit"));
                 }
             };
 
@@ -1109,7 +1101,7 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "gr_read"  (func $read (param i32 i32 i32)))
-            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32)))
+            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))
             (import "env" "gr_size"  (func $size (result i32)))
             (import "env" "memory" (memory 1))
             (data (i32.const 0) "ok")
@@ -1134,6 +1126,7 @@ mod tests {
               i32.and
               i64.const 0
               i32.const 32768
+              i32.const 40000
               call $send
             )
             (func $init
@@ -1147,6 +1140,7 @@ mod tests {
                 i32.const 2
                 i64.const 10000000
                 i32.const 0
+                i32.const 40000
                 call $send
               )
           )"#;
@@ -1206,7 +1200,7 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "gr_read"  (func $read (param i32 i32 i32)))
-            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32)))
+            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))
             (import "env" "gr_size"  (func $size (result i32)))
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "free"  (func $free (param i32)))
@@ -1234,6 +1228,7 @@ mod tests {
               i32.and
               i64.const 1000000000
               i32.const 32768
+              i32.const 40000
               call $send
               i32.const 256
               call $free
@@ -1248,7 +1243,7 @@ mod tests {
                 (get_local $id)
                 (i32.const 1)
               )
-              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 10000000000) (i32.const 32768))
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 10000000000) (i32.const 32768) (i32.const 40000))
             )
           )"#;
 
@@ -1436,7 +1431,7 @@ mod tests {
         // Charge 100_000 of gas.
         let wat = r#"
         (module
-            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32)))
+            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))
             (export "handle" (func $handle))
             (import "env" "gr_gas_available" (func $gas_available (result i64)))
             (import "env" "memory" (memory 1))
@@ -1452,7 +1447,7 @@ mod tests {
                     (get_local $gas_av)
                     (call $gas_available)
                 )
-                (call $send (i32.const 12) (i32.const 18) (i32.const 8) (i64.const 1000) (i32.const 32768))
+                (call $send (i32.const 12) (i32.const 18) (i32.const 8) (i64.const 1000) (i32.const 32768) (i32.const 40000))
             )
             (func $init)
         )"#;
@@ -1529,7 +1524,6 @@ mod tests {
 
         let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
-        let gas_limit = 1000_000;
         let caller_id = 1001.into();
 
         let init_result = runner
