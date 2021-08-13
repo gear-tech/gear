@@ -56,7 +56,7 @@ mod wasm {
     struct NodeState {
         status: u32,
         sub_nodes: BTreeSet<u64>,
-        querying_state: BTreeSet<MessageId, QueryingState>,
+        querying_state: BTreeMap<MessageId, QueryingState>,
     }
 
     static mut STATE: Option<NodeState> = None;

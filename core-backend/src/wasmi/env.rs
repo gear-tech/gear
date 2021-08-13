@@ -144,7 +144,7 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
             Some(FuncIndex::SendCommit) => {
-                funcs::send_commit(self.ext.clone())(args.nth(0), args.nth(1))
+                funcs::send_commit(self.ext.clone())(args.nth(0), args.nth(0))
                     .map(|_| None)
                     .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
@@ -222,8 +222,9 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 ValueType::I32,
                 ValueType::I32,
                 ValueType::I64,
+                ValueType::I32,
                 ValueType::I32 => None),
-            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32 => None),
+            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32, ValueType::I32 => None),
             "gr_send_init" => func_instance!(SendInit, ValueType::I32,
                 ValueType::I32,
                 ValueType::I32,
