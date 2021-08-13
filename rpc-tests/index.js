@@ -140,7 +140,7 @@ async function checkMemory(api, exp, programs) {
     console.log(at)
     const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
     const at_page = Math.floor(at / 65536);
-    at = at - (at_page * 65536);
+    at -= at_page * 65536;
     let pages = gearProgram.persistent_pages;
 
     for (let [page_number, buf] of pages) {
