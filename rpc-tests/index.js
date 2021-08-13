@@ -128,22 +128,31 @@ async function checkMessages(api, exp, programs) {
   return errors;
 }
 
-async function checkMemory(api, exp) {
+async function checkMemory(api, exp, programs) {
   const errors = [];
 
   for (const mem of exp.memory) {
-    if (mem.kind === 'shared') {
-      const gearMemoryOpt = await api.rpc.state.getStorage('g::memory');
-      const gearMemory = gearMemoryOpt.unwrap().toU8a();
-      const at = parseInt(mem.at, 16) - (256 * 65536);
-      const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
-      for (let index = at; index < at + bytes.length; index++) {
-        if (gearMemory[index] !== bytes[index - at]) {
-          errors.push("Memory doesn't match");
-          break;
+
+    const gearProgramOpt = await api.rpc.state.getStorage(`0x${Buffer.from('g::prog::').toString('hex')}${programs[mem.program_id].slice(2)}`);
+    const gearProgram = api.createType('Program', gearProgramOpt.unwrap());
+
+    let at = parseInt(mem.at, 16);
+    const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
+    const atPage = Math.floor(at / 65536);
+    at -= atPage * 65536;
+    let pages = gearProgram.persistent_pages;
+
+    for (let [pageNumber, buf] of pages) {
+      if (pageNumber == atPage) {
+        for (let index = at; index < at + bytes.length; index++) {
+          if (buf[index] !== bytes[index - at]) {
+            errors.push("Memory doesn't match");
+            break;
+          }
         }
       }
     }
+
   }
   return errors;
 }
@@ -245,7 +254,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
       }
 
       if ('memory' in exp) {
-        const res = await checkMemory(api, exp);
+        const res = await checkMemory(api, exp, programs);
         if (res.length === 0) {
           output.push('MEMORY: OK');
         } else {
@@ -374,6 +383,12 @@ async function main() {
   const api = await ApiPromise.create({
     provider,
     types: {
+      "Program": {
+        'static_pages': 'u32',
+        'persistent_pages': 'BTreeMap<u32, Vec<u8>>',
+        'code_hash': 'H256',
+        'nonce': 'u64',
+      },
       "Message": {
         "id": "H256",
         "source": "H256",
