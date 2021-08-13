@@ -694,6 +694,19 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7714a157da7991e23d90686b9524b9e12e0407a108647f52e9328f4b3d51ac7f"
+dependencies = [
+ "cargo-platform",
+ "semver 0.11.0",
+ "semver-parser 0.10.2",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cargo_metadata"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "081e3f0755c1f380c2d010481b6fa2e02973586d5f2b24eebb7a2a1d98b143d8"
@@ -2185,7 +2198,7 @@ dependencies = [
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
- "substrate-wasm-builder",
+ "substrate-wasm-builder 4.0.0 (git+https://github.com/paritytech/substrate.git)",
  "wabt",
 ]
 
@@ -4219,6 +4232,7 @@ dependencies = [
  "gear-core",
  "gear-node-rti",
  "hex-literal",
+ "log",
  "pallet-authorship",
  "pallet-balances",
  "parity-scale-codec",
@@ -7631,12 +7645,28 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder"
 version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93a3d51ad6abbc408b03ea962062bfcc959b438a318d7d4bedd181e1effd0610"
+dependencies = [
+ "ansi_term 0.12.1",
+ "atty",
+ "build-helper",
+ "cargo_metadata 0.12.3",
+ "tempfile",
+ "toml",
+ "walkdir",
+ "wasm-gc-api",
+]
+
+[[package]]
+name = "substrate-wasm-builder"
+version = "4.0.0"
 source = "git+https://github.com/paritytech/substrate.git#4652f9e00f0e3079b9ed40ff806829f17fd1ddcf"
 dependencies = [
  "ansi_term 0.12.1",
  "atty",
  "build-helper",
- "cargo_metadata",
+ "cargo_metadata 0.13.1",
  "sp-maybe-compressed-blob",
  "tempfile",
  "toml",
@@ -7730,6 +7760,29 @@ dependencies = [
  "numtoa",
  "redox_syscall 0.2.5",
  "redox_termios",
+]
+
+[[package]]
+name = "tests-btree"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tests-common",
+]
+
+[[package]]
+name = "tests-common"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

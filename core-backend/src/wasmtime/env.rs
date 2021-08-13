@@ -53,6 +53,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_to_u32("alloc", funcs::alloc);
         result.add_func_i32("free", funcs::free);
         result.add_func_i32("gas", funcs::gas);
+        result.add_func_to_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i64("gr_charge", funcs::charge);
         result.add_func_i32_i32("gr_debug", funcs::debug);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
@@ -60,14 +61,15 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_i32_i64_i32("gr_reply", funcs::reply);
         result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
-        result.add_func_i32_i32_i32_i64_i32("gr_send", funcs::send);
-        result.add_func_i32("gr_send_commit", funcs::send_commit);
+        result.add_func_i32_i32_i32_i64_i32_i32("gr_send", funcs::send);
+        result.add_func_i32_i32("gr_send_commit", funcs::send_commit);
         result.add_func_i32_i32_i32_i64_i32_to_i32("gr_send_init", funcs::send_init);
         result.add_func_i32_i32_i32("gr_send_push", funcs::send_push);
         result.add_func_to_i32("gr_size", funcs::size);
         result.add_func_i32("gr_source", funcs::source);
         result.add_func_i32("gr_value", funcs::value);
         result.add_func("gr_wait", funcs::wait);
+        result.add_func_i32("gr_wake", funcs::wake);
 
         result
     }
@@ -101,8 +103,8 @@ impl<E: Ext + 'static> Environment<E> {
                 .map(|_| ());
             if let Err(e) = &result {
                 if let Some(trap) = e.downcast_ref::<Trap>() {
-                    if trap.to_string().starts_with("wait") {
-                        // We don't propagate a trap from `gr_wait`
+                    if funcs::is_exit_trap(&trap.to_string()) {
+                        // We don't propagate a trap when exit
                         return Ok(());
                     }
                 }
@@ -236,13 +238,13 @@ impl<E: Ext + 'static> Environment<E> {
         );
     }
 
-    fn add_func_i32_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    fn add_func_i32_i32_i32_i64_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
-        F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str>,
+        F: 'static + Fn(i32, i32, i32, i64, i32, i32) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,
-            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
+            Func::wrap(&self.store, Self::wrap6(func(self.ext.clone()))),
         );
     }
 
@@ -284,6 +286,14 @@ impl<E: Ext + 'static> Environment<E> {
             .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
     }
 
+    fn add_func_to_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn() -> i64,
+    {
+        self.funcs
+            .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
+    }
+
     fn wrap0<R>(func: impl Fn() -> Result<R, &'static str>) -> impl Fn() -> Result<R, Trap> {
         move || func().map_err(Trap::new)
     }
@@ -314,6 +324,12 @@ impl<E: Ext + 'static> Environment<E> {
         func: impl Fn(T0, T1, T2, T3, T4) -> Result<R, &'static str>,
     ) -> impl Fn(T0, T1, T2, T3, T4) -> Result<R, Trap> {
         move |a, b, c, d, e| func(a, b, c, d, e).map_err(Trap::new)
+    }
+
+    fn wrap6<T0, T1, T2, T3, T4, T5, R>(
+        func: impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, Trap> {
+        move |a, b, c, d, e, f| func(a, b, c, d, e, f).map_err(Trap::new)
     }
 }
 

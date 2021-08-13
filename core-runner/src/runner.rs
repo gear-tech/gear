@@ -42,8 +42,14 @@ use gear_core_backend::Environment;
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Config {
-    /// Totl pages count.
+    /// Total memory pages count.
     pub max_pages: PageNumber,
+    /// Gas cost for memory page allocation.
+    pub alloc_cost: u64,
+    /// Gas cost for init memory page.
+    pub init_cost: u64,
+    /// Gas cost for loading memory page from program state.
+    pub load_page_cost: u64,
 }
 
 const EXIT_CODE_PANIC: i32 = 1;
@@ -52,6 +58,9 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             max_pages: MAX_PAGES.into(),
+            alloc_cost: ALLOC_COST.into(),
+            init_cost: INIT_COST.into(),
+            load_page_cost: LOAD_PAGE_COST.into(),
         }
     }
 }
@@ -90,7 +99,7 @@ impl RunNextResult {
         }
     }
 
-    /// Add request all the gas to be reserved for the destination
+    /// Request all the gas to be reserved for the destination
     pub(crate) fn refund(gas_request: GasRequest) -> Self {
         RunNextResult {
             handled: 1,
@@ -197,7 +206,7 @@ pub struct ExtMessage {
 /// Program is initializaed from some user identity. The identity of the program itself must be known.
 /// The initialization message id also must be known in advance (all message chain about program initialization
 /// will start from the deterministic message known in advance).
-pub struct ProgramInitialization {
+pub struct InitializeProgramInfo {
     /// Identity of the program creator.
     ///
     /// Either user who sends an external transaction or another program.
@@ -355,7 +364,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             let mut context = self.create_context(allocations);
             let next_message_id = next_message.id();
 
-            let run_result = run(
+            let mut run_result = run(
                 &mut self.env,
                 &mut context,
                 &instrumeted_code,
@@ -384,6 +393,18 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                     value: 0,
                     reply: Some((next_message_id, EXIT_CODE_PANIC)),
                 });
+            }
+
+            if let Some(waiting_msg) = run_result.waiting.take() {
+                self.wait_list.insert(waiting_msg.id, waiting_msg);
+            }
+
+            if let Some((gas, waker_id)) = run_result.awakening {
+                if let Some(mut msg) = self.wait_list.remove(waker_id) {
+                    // Increase gas available to the message
+                    msg.gas_limit += gas;
+                    context.message_buf.push(msg);
+                }
             }
 
             let result = RunNextResult::from_single(
@@ -419,9 +440,24 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         }
     }
 
-    /// Max pages configuratio of this runner.
+    /// Max pages configuration of this runner.
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
+    }
+
+    /// Gas memory page allocation cost configuration of this runner.
+    pub fn alloc_cost(&self) -> u64 {
+        self.config.alloc_cost
+    }
+
+    /// Gas initial memory page cost of this runner.
+    pub fn init_cost(&self) -> u64 {
+        self.config.init_cost
+    }
+
+    /// Gas cost for loading memory page.
+    pub fn load_page_cost(&self) -> u64 {
+        self.config.load_page_cost
     }
 
     fn create_context(&self, allocations: BTreeSet<PageNumber>) -> RunningContext {
@@ -434,7 +470,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     /// initializationg message for it.
     pub fn init_program(
         &mut self,
-        initialization: ProgramInitialization,
+        initialization: InitializeProgramInfo,
     ) -> anyhow::Result<RunResult> {
         if let Some(mut program) = self.program_storage.get(initialization.new_program_id) {
             program.reset(initialization.code)?;
@@ -451,6 +487,12 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             .program_storage
             .get(initialization.new_program_id)
             .expect("Added above; cannot fail");
+
+        if program.static_pages() > self.max_pages().raw() {
+            return Err(anyhow::anyhow!(
+                "Error initialisation: memory limit exceeded"
+            ));
+        }
 
         let allocations: BTreeSet<PageNumber> = (0..program.static_pages())
             .map(|page| page.into())
@@ -504,7 +546,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum EntryPoint {
     Handle,
     HandleReply,
@@ -521,7 +563,10 @@ impl From<EntryPoint> for &'static str {
     }
 }
 
-static MAX_PAGES: u32 = 16384;
+static MAX_PAGES: u32 = 512;
+static INIT_COST: u32 = 5000;
+static ALLOC_COST: u32 = 10000;
+static LOAD_PAGE_COST: u32 = 3000;
 
 struct RunningContext {
     config: Config,
@@ -540,6 +585,10 @@ impl RunningContext {
 
     fn max_pages(&self) -> PageNumber {
         self.config.max_pages
+    }
+
+    pub fn alloc_cost(&self) -> u64 {
+        self.config.alloc_cost
     }
 
     fn push_message(&mut self, msg: Message) {
@@ -580,6 +629,10 @@ pub struct RunResult {
     pub messages: Vec<OutgoingMessage>,
     /// Reply that was received during the run.
     pub reply: Option<ReplyMessage>,
+    /// Message to be added to the wait list.
+    pub waiting: Option<Message>,
+    /// Message to be woken.
+    pub awakening: Option<(u64, MessageId)>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
@@ -595,6 +648,7 @@ struct Ext {
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
     gas_requested: u64,
+    alloc_cost: u64,
     last_error_returned: Option<&'static str>,
 }
 
@@ -615,6 +669,7 @@ impl Ext {
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
+        self.gas(pages.raw() * self.alloc_cost as u32)?;
         let result = self
             .memory_context
             .alloc(pages)
@@ -623,7 +678,7 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str> {
+    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
         if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
             return Err("Gas limit exceeded while trying to send message");
         }
@@ -659,7 +714,7 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str> {
+    fn send_commit(&mut self, handle: usize) -> Result<MessageId, &'static str> {
         {
             let gas_limit = match self
                 .messages
@@ -667,8 +722,8 @@ impl EnvExt for Ext {
                 .map_err(|_e| "Message commit error")
             {
                 Ok(gas) => gas,
-                anything_else => {
-                    return self.return_with_tracing(anything_else.map(|_never| ()));
+                Err(_e) => {
+                    return self.return_with_tracing(Err("No message to commit"));
                 }
             };
 
@@ -738,6 +793,10 @@ impl EnvExt for Ext {
         }
     }
 
+    fn gas_available(&mut self) -> u64 {
+        self.gas_counter.left()
+    }
+
     fn charge(&mut self, gas: u64) -> Result<(), &'static str> {
         if self.gas_counter.charge(gas) == ChargeResult::Enough {
             self.gas_requested += gas;
@@ -754,8 +813,17 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
             .messages
-            .queue_back()
-            .map_err(|_| "Unable to queue the message back");
+            .wait()
+            .map_err(|_| "Unable to add the message to the wait list");
+
+        self.return_with_tracing(result)
+    }
+
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
+        let result = self
+            .messages
+            .wake(waker_id)
+            .map_err(|_| "Unable to mark the message to be woken");
 
         self.return_with_tracing(result)
     }
@@ -770,11 +838,49 @@ fn run(
     message: &IncomingMessage,
     gas_limit: u64,
 ) -> RunResult {
-    let gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
+    let mut gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
         program_id: program.id(),
         nonce: program.message_nonce(),
+    };
+
+    // Charge gas for initial or loaded pages.
+    match entry_point {
+        EntryPoint::Init => {
+            if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
+                == gas::ChargeResult::NotEnough
+            {
+                let gas_left = gas_counter.left();
+                return RunResult {
+                    messages: vec![],
+                    reply: None,
+                    waiting: None,
+                    awakening: None,
+                    gas_left,
+                    gas_spent: 0,
+                    gas_requested: 0,
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
+                };
+            }
+        }
+        _ => {
+            if gas_counter.charge(context.config.load_page_cost * program.get_pages().len() as u64)
+                == gas::ChargeResult::NotEnough
+            {
+                let gas_left = gas_counter.left();
+                return RunResult {
+                    messages: vec![],
+                    reply: None,
+                    waiting: None,
+                    awakening: None,
+                    gas_left,
+                    gas_spent: 0,
+                    gas_requested: 0,
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
+                };
+            }
+        }
     };
 
     let memory = env.create_memory(program.static_pages());
@@ -790,6 +896,7 @@ fn run(
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
         gas_requested: 0,
+        alloc_cost: context.alloc_cost(),
         last_error_returned: None,
     };
 
@@ -824,7 +931,7 @@ fn run(
     let mut messages = vec![];
 
     program.set_message_nonce(ext.messages.nonce());
-    let (outgoing, reply, queue_back) = ext.messages.drain();
+    let (outgoing, reply, waiting, awakening) = ext.messages.drain();
 
     for outgoing_msg in outgoing {
         messages.push(outgoing_msg.clone());
@@ -843,17 +950,26 @@ fn run(
     let gas_requested = ext.gas_requested;
     let gas_spent = gas_limit - gas_left - gas_requested;
 
-    if let Some(mut queue_back_msg) = queue_back {
+    let waiting = waiting.map(|mut msg| {
         // Update gas limit according to gas already spent
-        queue_back_msg.set_gas_limit(gas_left);
+        msg.set_gas_limit(gas_left);
         // Keep user's balance reserved until message will be really processed
         gas_left = 0;
-        context.push_message(queue_back_msg.into_message(program.id()));
-    }
+        msg.into_message(program.id())
+    });
+
+    let awakening = awakening.map(|id| {
+        let gas_available = gas_left;
+        // Transfer current messages's gas to the woken message
+        gas_left = 0;
+        (gas_available, id)
+    });
 
     RunResult {
         messages,
         reply,
+        waiting,
+        awakening,
         gas_left,
         gas_spent,
         gas_requested,
@@ -864,10 +980,11 @@ fn run(
 #[cfg(test)]
 mod tests {
     extern crate wabt;
+
     use super::*;
     use env_logger::Env;
     use gear_core::storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
+        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList, MessageMap,
     };
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -914,7 +1031,7 @@ mod tests {
         let mut runner = new_test_runner();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -984,7 +1101,7 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "gr_read"  (func $read (param i32 i32 i32)))
-            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32)))
+            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))
             (import "env" "gr_size"  (func $size (result i32)))
             (import "env" "memory" (memory 1))
             (data (i32.const 0) "ok")
@@ -1009,6 +1126,7 @@ mod tests {
               i32.and
               i64.const 0
               i32.const 32768
+              i32.const 40000
               call $send
             )
             (func $init
@@ -1022,6 +1140,7 @@ mod tests {
                 i32.const 2
                 i64.const 10000000
                 i32.const 0
+                i32.const 40000
                 call $send
               )
           )"#;
@@ -1029,7 +1148,7 @@ mod tests {
         let mut runner = new_test_runner();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1081,7 +1200,7 @@ mod tests {
         let wat = r#"
         (module
             (import "env" "gr_read"  (func $read (param i32 i32 i32)))
-            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32)))
+            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))
             (import "env" "gr_size"  (func $size (result i32)))
             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
             (import "env" "free"  (func $free (param i32)))
@@ -1109,6 +1228,7 @@ mod tests {
               i32.and
               i64.const 1000000000
               i32.const 32768
+              i32.const 40000
               call $send
               i32.const 256
               call $free
@@ -1123,14 +1243,14 @@ mod tests {
                 (get_local $id)
                 (i32.const 1)
               )
-              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 10000000000) (i32.const 32768))
+              (call $send (i32.const 12) (i32.const 0) (i32.const 2) (i64.const 10000000000) (i32.const 32768) (i32.const 40000))
             )
           )"#;
 
         let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1199,7 +1319,7 @@ mod tests {
         let program_id = 1.into();
 
         runner
-            .init_program(ProgramInitialization {
+            .init_program(InitializeProgramInfo {
                 new_program_id: 1.into(),
                 source_id: 1001.into(),
                 code: parse_wat(wat),
@@ -1257,12 +1377,13 @@ mod tests {
         let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
 
         let source_id = 1001.into();
-        let dest = 1.into();
+        let dest_id = 1.into();
         let gas_limit = 1_000_000;
+        let msg_id: MessageId = 1000001.into();
 
         runner
-            .init_program(ProgramInitialization {
-                new_program_id: dest,
+            .init_program(InitializeProgramInfo {
+                new_program_id: dest_id,
                 source_id,
                 code: parse_wat(wat),
                 message: ExtMessage {
@@ -1280,7 +1401,7 @@ mod tests {
             source_id,
             destination_id: 1.into(),
             data: ExtMessage {
-                id: 1000001.into(),
+                id: msg_id,
                 payload: payload.to_vec(),
                 gas_limit: 1_000_000,
                 value: 0,
@@ -1289,14 +1410,157 @@ mod tests {
 
         let _result = runner.run_next(u64::MAX);
 
-        let InMemoryStorage { message_queue, .. } = runner.complete();
-        let messages: Vec<Message> = message_queue.into();
+        let InMemoryStorage {
+            message_queue: _,
+            program_storage: _,
+            wait_list,
+        } = runner.complete();
+        let mut wait_list: MessageMap = wait_list.into();
 
-        assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].source, source_id);
-        assert_eq!(messages[0].dest, dest);
-        assert_eq!(messages[0].payload(), payload);
-        log::warn!("New gas limit: {}", messages[0].gas_limit);
-        assert!(messages[0].gas_limit < gas_limit);
+        assert!(wait_list.contains_key(&msg_id));
+        let msg = wait_list.remove(&msg_id).unwrap();
+
+        assert_eq!(msg.source, source_id);
+        assert_eq!(msg.dest, dest_id);
+        assert_eq!(msg.payload(), payload);
+        assert!(msg.gas_limit < gas_limit);
+    }
+
+    #[test]
+    fn gas_available() {
+        // Charge 100_000 of gas.
+        let wat = r#"
+        (module
+            (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))
+            (export "handle" (func $handle))
+            (import "env" "gr_gas_available" (func $gas_available (result i64)))
+            (import "env" "memory" (memory 1))
+            (export "init" (func $init))
+            (func $handle
+                (local $id i32)
+                (local $gas_av i32)
+                (i32.store offset=12
+                    (get_local $id)
+                    (i32.const 1001)
+                )
+                (i64.store offset=18
+                    (get_local $gas_av)
+                    (call $gas_available)
+                )
+                (call $send (i32.const 12) (i32.const 18) (i32.const 8) (i64.const 1000) (i32.const 32768) (i32.const 40000))
+            )
+            (func $init)
+        )"#;
+
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+
+        let gas_limit = 1000_000;
+        let caller_id = 1001.into();
+
+        runner
+            .init_program(InitializeProgramInfo {
+                new_program_id: 1.into(),
+                source_id: 1001.into(),
+                code: parse_wat(wat),
+                message: ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            })
+            .expect("failed to init program");
+
+        runner.queue_message(MessageDispatch {
+            source_id: caller_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: 1_000_000,
+                value: 0,
+            },
+        });
+
+        let result = runner.run_next(u64::MAX);
+        assert_eq!(result.gas_spent.len(), 1);
+        assert_eq!(result.gas_left.len(), 1);
+
+        assert_eq!(result.gas_left[0].0, caller_id);
+        assert!(result.gas_left[0].1 < gas_limit);
+
+        let (gas_available, _, _) = runner
+            .message_queue
+            .dequeue()
+            .map(|m| (m.payload().to_vec(), m.source(), m.dest()))
+            .unwrap();
+
+        use core::convert::TryInto;
+
+        let gas_available = gas_available
+            .as_slice()
+            .try_into()
+            .expect("slice with incorrect length");
+
+        assert!(u64::from_le_bytes(gas_available) > result.gas_left[0].1);
+        assert!(u64::from_le_bytes(gas_available) < gas_limit);
+    }
+
+    #[test]
+    fn gas_allocations() {
+        let wat = r#"
+        (module
+            (export "handle" (func $handle))
+            (import "env" "memory" (memory 1))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (func $handle
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 1)))
+            )
+            (func $init
+            )
+        )"#;
+
+        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+
+        let caller_id = 1001.into();
+
+        let init_result = runner
+            .init_program(InitializeProgramInfo {
+                new_program_id: 1.into(),
+                source_id: caller_id,
+                code: parse_wat(wat),
+                message: ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            })
+            .expect("failed to init program");
+
+        runner.queue_message(MessageDispatch {
+            source_id: caller_id,
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: 1_000_000,
+                value: 0,
+            },
+        });
+
+        // Charge 1000 of gas for initial memory.
+        assert_eq!(init_result.gas_spent, runner.init_cost() * 1);
+
+        let result = runner.run_next(u64::MAX);
+
+        assert_eq!(
+            result.gas_spent[0].1,
+            runner.alloc_cost() * 1 + runner.load_page_cost() * 1 + 3000
+        );
+
+        runner.complete();
     }
 }

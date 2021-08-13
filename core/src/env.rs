@@ -50,7 +50,7 @@ pub trait Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
 
     /// Send message to another program.
-    fn send(&mut self, msg: OutgoingPacket) -> Result<(), &'static str>;
+    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str>;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self, msg: OutgoingPacket) -> Result<usize, &'static str>;
@@ -62,7 +62,7 @@ pub trait Ext {
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&mut self, handle: usize) -> Result<(), &'static str>;
+    fn send_commit(&mut self, handle: usize) -> Result<MessageId, &'static str>;
 
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
@@ -99,6 +99,9 @@ pub trait Ext {
     /// Report that some gas has been used.
     fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
+    /// Tell how much gas is left in running context.
+    fn gas_available(&mut self) -> u64;
+
     /// Transfer gas to program from the caller side.
     fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
 
@@ -107,6 +110,9 @@ pub trait Ext {
 
     /// Interrupt the program and reschedule execution.
     fn wait(&mut self) -> Result<(), &'static str>;
+
+    /// Wake the waiting message and move it to the processing queue.
+    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -172,8 +178,8 @@ mod tests {
         fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> {
             Err("")
         }
-        fn send(&mut self, _msg: OutgoingPacket) -> Result<(), &'static str> {
-            Ok(())
+        fn send(&mut self, _msg: OutgoingPacket) -> Result<MessageId, &'static str> {
+            Ok(MessageId::default())
         }
         fn send_init(&mut self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
             Ok(0)
@@ -184,8 +190,8 @@ mod tests {
         fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn send_commit(&mut self, _handle: usize) -> Result<(), &'static str> {
-            Ok(())
+        fn send_commit(&mut self, _handle: usize) -> Result<MessageId, &'static str> {
+            Ok(MessageId::default())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
             Ok(())
@@ -213,6 +219,9 @@ mod tests {
         fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
+        fn gas_available(&mut self) -> u64 {
+            1_000_000
+        }
         fn value(&self) -> u128 {
             0
         }
@@ -220,6 +229,9 @@ mod tests {
             Ok(())
         }
         fn wait(&mut self) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
             Ok(())
         }
     }

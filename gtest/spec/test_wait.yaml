@@ -11,7 +11,12 @@ fixtures:
       - destination: 1
         payload:
           kind: utf-8
-          value: PAYLOAD
+          value: FIRST
+
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: SECOND
 
     expected:
       - step: 1
@@ -19,8 +24,16 @@ fixtures:
           - destination: 1
             payload:
               kind: utf-8
-              value: PAYLOAD
+              value: SECOND
+
       - step: 2
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: FIRST
+
+      - step: 3
         log:
           - destination: 0
             payload:

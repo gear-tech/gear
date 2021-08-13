@@ -32,6 +32,10 @@ impl MessageId {
     pub fn as_slice(&self) -> &[u8] {
         &self.0[..]
     }
+
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        &mut self.0[..]
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]

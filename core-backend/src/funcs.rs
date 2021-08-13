@@ -19,21 +19,20 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 use gear_core::env::{Ext, LaterExt};
-use gear_core::message::{OutgoingPacket, ReplyPacket};
+use gear_core::message::{MessageId, OutgoingPacket, ReplyPacket};
 use gear_core::program::ProgramId;
+
+const EXIT_TRAP_STR: &str = "exit";
 
 pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'static str> {
     move |pages: i32| {
         let pages = pages as u32;
 
-        let ptr = ext
-            .with(|ext: &mut E| ext.alloc(pages.into()))?
-            .map(|v| {
-                let ptr = v.raw();
-                log::debug!("ALLOC: {} pages at {}", pages, ptr);
-                ptr
-            })
-            .unwrap_or_default();
+        let ptr = ext.with(|ext: &mut E| ext.alloc(pages.into()))?.map(|v| {
+            let ptr = v.raw();
+            log::debug!("ALLOC: {} pages at {}", pages, ptr);
+            ptr
+        })?;
 
         Ok(ptr)
     }
@@ -76,6 +75,10 @@ pub(crate) fn gas<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'stat
         ext.with(|ext: &mut E| ext.gas(val as _))?
             .map_err(|_| "Trapping: unable to report about gas used")
     }
+}
+
+pub(crate) fn gas_available<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i64 {
+    move || ext.with(|ext: &mut E| ext.gas_available()).unwrap_or(0) as i64
 }
 
 pub(crate) fn msg_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
@@ -140,31 +143,40 @@ pub(crate) fn reply_to<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &
 
 pub(crate) fn send<E: Ext>(
     ext: LaterExt<E>,
-) -> impl Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str> {
+) -> impl Fn(i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
     move |program_id_ptr: i32,
           payload_ptr: i32,
           payload_len: i32,
           gas_limit: i64,
-          value_ptr: i32| {
-        let result = ext.with(|ext: &mut E| {
+          value_ptr: i32,
+          message_id_ptr: i32| {
+        let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let dest: ProgramId = get_id(ext, program_id_ptr).into();
             let payload = get_vec(ext, payload_ptr, payload_len);
             let value = get_u128(ext, value_ptr);
-            ext.send(OutgoingPacket::new(
+            let message_id = ext.send(OutgoingPacket::new(
                 dest,
                 payload.into(),
                 gas_limit as _,
                 value,
-            ))
+            ))?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            Ok(())
         })?;
         result.map_err(|_| "Trapping: unable to send message")
     }
 }
 
-pub(crate) fn send_commit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
-    move |handle_ptr: i32| {
-        ext.with(|ext: &mut E| ext.send_commit(handle_ptr as _))?
-            .map_err(|_| "Trapping: unable to commit and send message")
+pub(crate) fn send_commit<E: Ext>(
+    ext: LaterExt<E>,
+) -> impl Fn(i32, i32) -> Result<(), &'static str> {
+    move |handle_ptr: i32, message_id_ptr: i32| {
+        ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let message_id = ext.send_commit(handle_ptr as _)?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            Ok(())
+        })?
+        .map_err(|_| "Trapping: unable to commit and send message")
     }
 }
 
@@ -226,11 +238,26 @@ pub(crate) fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static
     move || {
         let _ = ext.with(|ext: &mut E| ext.wait())?;
         // Intentionally return an error to break the execution
-        Err("wait")
+        Err(EXIT_TRAP_STR)
+    }
+}
+
+pub(crate) fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |waker_id_ptr| {
+        let _ = ext.with(|ext: &mut E| {
+            let waker_id: MessageId = get_id(ext, waker_id_ptr).into();
+            ext.wake(waker_id)
+        })?;
+        // Intentionally return an error to break the execution
+        Err(EXIT_TRAP_STR)
     }
 }
 
 // Helper functions
+pub(crate) fn is_exit_trap(trap: &str) -> bool {
+    trap.starts_with(EXIT_TRAP_STR)
+}
+
 fn get_id<E: Ext>(ext: &E, ptr: i32) -> [u8; 32] {
     let mut id = [0u8; 32];
     ext.get_mem(ptr as _, &mut id);

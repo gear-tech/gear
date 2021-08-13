@@ -24,6 +24,7 @@ pub struct MessageHandle(u32);
 
 mod sys {
     extern "C" {
+        pub fn gr_gas_available() -> u64;
         pub fn gr_charge(gas: u64);
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
@@ -36,8 +37,9 @@ mod sys {
             data_len: u32,
             gas_limit: u64,
             value_ptr: *const u8,
+            message_id_ptr: *mut u8,
         );
-        pub fn gr_send_commit(handle: u32);
+        pub fn gr_send_commit(handle: u32, message_id_ptr: *mut u8);
         pub fn gr_send_init(
             program: *const u8,
             data_ptr: *const u8,
@@ -50,6 +52,7 @@ mod sys {
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
         pub fn gr_wait();
+        pub fn gr_wake(waker_id_ptr: *const u8);
     }
 }
 
@@ -57,6 +60,10 @@ pub fn charge(gas: u64) {
     unsafe {
         sys::gr_charge(gas);
     }
+}
+
+pub fn gas_available() -> u64 {
+    unsafe { sys::gr_gas_available() }
 }
 
 pub fn id() -> MessageId {
@@ -96,12 +103,16 @@ pub fn reply_to() -> MessageId {
     message_id
 }
 
-pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) {
-    send_with_value(program, payload, gas_limit, 0u128);
+pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) -> MessageId {
+    send_with_value(program, payload, gas_limit, 0u128)
 }
 
-pub fn send_commit(handle: MessageHandle) {
-    unsafe { sys::gr_send_commit(handle.0) }
+pub fn send_commit(handle: MessageHandle) -> MessageId {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send_commit(handle.0, message_id.as_mut_slice().as_mut_ptr());
+        message_id
+    }
 }
 
 pub fn send_init(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageHandle {
@@ -120,15 +131,23 @@ pub fn send_push(handle: MessageHandle, payload: &[u8]) {
     unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _) }
 }
 
-pub fn send_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) {
+pub fn send_with_value(
+    program: ProgramId,
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
     unsafe {
+        let mut message_id = MessageId::default();
         sys::gr_send(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
             gas_limit,
             value.to_le_bytes().as_ptr(),
-        )
+            message_id.as_mut_slice().as_mut_ptr(),
+        );
+        message_id
     }
 }
 
@@ -149,5 +168,11 @@ pub fn value() -> u128 {
 pub fn wait() {
     unsafe {
         sys::gr_wait();
+    }
+}
+
+pub fn wake(waker_id: MessageId) {
+    unsafe {
+        sys::gr_wake(waker_id.as_slice().as_ptr());
     }
 }

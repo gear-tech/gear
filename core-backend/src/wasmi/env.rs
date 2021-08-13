@@ -49,6 +49,7 @@ enum FuncIndex {
     Debug,
     Free,
     Gas,
+    GasAvailable,
     MsgId,
     SendInit,
     SendPush,
@@ -61,6 +62,7 @@ enum FuncIndex {
     Source,
     Value,
     Wait,
+    Wake,
 }
 
 macro_rules! func_instance {
@@ -100,6 +102,10 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
 
+            Some(FuncIndex::GasAvailable) => Ok(Some(RuntimeValue::I64(funcs::gas_available(
+                self.ext.clone(),
+            )()))),
+
             Some(FuncIndex::MsgId) => funcs::msg_id(self.ext.clone())(args.nth(0))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
@@ -132,13 +138,16 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 args.nth(2),
                 args.nth(3),
                 args.nth(4),
+                args.nth(5),
             )
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-            Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(args.nth(0))
-                .map(|_| None)
-                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+            Some(FuncIndex::SendCommit) => {
+                funcs::send_commit(self.ext.clone())(args.nth(0), args.nth(0))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
+            }
 
             Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())(
                 args.nth(0),
@@ -169,7 +178,13 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             Some(FuncIndex::Wait) => {
                 funcs::wait(self.ext.clone())()
                     .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for `gr_wait` trap
+                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for "exit" trap
+            }
+
+            Some(FuncIndex::Wake) => {
+                funcs::wake(self.ext.clone())(args.nth(0))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for "exit" trap
             }
 
             _ => panic!("unknown function index"),
@@ -188,6 +203,7 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "alloc" => func_instance!(Alloc, ValueType::I32 => Some(ValueType::I32)),
             "free" => func_instance!(Free, ValueType::I32 => None),
             "gas" => func_instance!(Gas, ValueType::I32 => None),
+            "gr_gas_available" => func_instance!(GasAvailable, => Some(ValueType::I64)),
             "gr_charge" => func_instance!(Charge, ValueType::I64 => None),
             "gr_debug" => func_instance!(Debug, ValueType::I32, ValueType::I32 => None),
             "gr_msg_id" => func_instance!(MsgId, ValueType::I32 => None),
@@ -206,8 +222,9 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 ValueType::I32,
                 ValueType::I32,
                 ValueType::I64,
+                ValueType::I32,
                 ValueType::I32 => None),
-            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32 => None),
+            "gr_send_commit" => func_instance!(SendCommit, ValueType::I32, ValueType::I32 => None),
             "gr_send_init" => func_instance!(SendInit, ValueType::I32,
                 ValueType::I32,
                 ValueType::I32,
@@ -220,6 +237,7 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "gr_source" => func_instance!(Source, ValueType::I32 => None),
             "gr_value" => func_instance!(Value, ValueType::I32 => None),
             "gr_wait" => func_instance!(Wait, => None),
+            "gr_wake" => func_instance!(Wake, ValueType::I32 => None),
 
             _ => {
                 return Err(InterpreterError::Function(format!(
