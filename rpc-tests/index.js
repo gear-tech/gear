@@ -137,14 +137,13 @@ async function checkMemory(api, exp, programs) {
     const gearProgram = api.createType('Program', gearProgramOpt.unwrap());
 
     let at = parseInt(mem.at, 16);
-    console.log(at)
     const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
-    const at_page = Math.floor(at / 65536);
-    at -= at_page * 65536;
+    const atPage = Math.floor(at / 65536);
+    at -= atPage * 65536;
     let pages = gearProgram.persistent_pages;
 
-    for (let [page_number, buf] of pages) {
-      if (page_number == at_page) {
+    for (let [pageNumber, buf] of pages) {
+      if (pageNumber == atPage) {
         for (let index = at; index < at + bytes.length; index++) {
           if (buf[index] !== bytes[index - at]) {
             errors.push("Memory doesn't match");
