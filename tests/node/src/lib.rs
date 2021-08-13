@@ -32,7 +32,7 @@ pub enum Request {
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Reply {
     Yes,
-    No,
+    No(u32),
     NotNeeded,
     Success,
     Failure,
@@ -42,7 +42,7 @@ pub enum Reply {
 mod wasm {
     extern crate alloc;
 
-    use alloc::collections::BTreeSet;
+    use alloc::collections::{BTreeMap, BTreeSet};
     use codec::{Decode, Encode};
     use gstd::{ext, msg, prelude::*};
 
@@ -80,16 +80,22 @@ mod wasm {
 
     fn process(request: Request) -> Reply {
         match request {
-            Request::IsReady(Operation { from_status, to_status }) => {
-                if to_status == state().status {
+            Request::IsReady(Operation {
+                from_status,
+                to_status,
+            }) => {
+                let own_status = if to_status == state().status {
                     Reply::NotNeeded
                 } else if from_status == state().status {
                     Reply::Yes
                 } else {
-                    Reply::No
-                }
-            },
-            Request::Process(Operation {from_status, to_status }) => {
+                    Reply::No(state().status)
+                };
+            }
+            Request::Process(Operation {
+                from_status,
+                to_status,
+            }) => {
                 if to_status == state().status {
                     Reply::Success
                 } else if from_status == state().status {
@@ -98,7 +104,7 @@ mod wasm {
                 } else {
                     Reply::Failure
                 }
-            },
+            }
             Request::Add(sub_node) => {
                 state().sub_nodes.insert(sub_node);
                 Reply::Success;
@@ -115,6 +121,7 @@ mod wasm {
         STATE = Some(NodeState {
             status: init.status,
             sub_nodes: BTreeSet::default(),
+            querying_state: BTreeMap::default(),
         });
         msg::reply(b"CREATED", 0, 0);
     }
@@ -268,6 +275,5 @@ mod tests {
             },
         );
         assert_eq!(reply, Some(Reply::Success));
-
     }
 }
