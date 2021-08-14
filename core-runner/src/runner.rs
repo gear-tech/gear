@@ -1023,19 +1023,7 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner = RunnerBuilder::new()
-            .program(
-                1001,
-                1,
-                parse_wat(wat),
-                ExtMessage {
-                    id: 1000001.into(),
-                    payload: vec![],
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            )
-            .build();
+        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build().build();
 
         runner.queue_message(MessageDispatch {
             source_id: 1001.into(),
@@ -1139,17 +1127,14 @@ mod tests {
           )"#;
 
         let mut runner = RunnerBuilder::new()
-            .program(
-                1001,
-                1,
-                parse_wat(wat),
-                ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            )
+            .program(parse_wat(wat))
+            .message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
+            })
+            .build()
             .build();
 
         runner.run_next(u64::MAX);
@@ -1238,19 +1223,7 @@ mod tests {
             )
           )"#;
 
-        let mut runner = RunnerBuilder::new()
-            .program(
-                1001,
-                1,
-                parse_wat(wat),
-                ExtMessage {
-                    id: 1000001.into(),
-                    payload: vec![],
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            )
-            .build();
+        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build().build();
 
         runner.run_next(u64::MAX);
 
@@ -1306,17 +1279,14 @@ mod tests {
         let program_id = 1.into();
 
         let mut runner = RunnerBuilder::new()
-            .program(
-                1001,
-                1,
-                parse_wat(wat),
-                ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            )
+            .program(parse_wat(wat))
+            .message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
+            })
+            .build()
             .build();
 
         runner.queue_message(MessageDispatch {
@@ -1367,17 +1337,16 @@ mod tests {
         let msg_id: MessageId = 1000001.into();
 
         let mut runner = RunnerBuilder::new()
-            .program(
-                source_id,
-                dest_id,
-                parse_wat(wat),
-                ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            )
+            .program(parse_wat(wat))
+            .source(source_id)
+            .program_id(dest_id)
+            .message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
+            })
+            .build()
             .build();
 
         let payload = b"Test Wait";
@@ -1438,17 +1407,14 @@ mod tests {
         )"#;
 
         let mut runner = RunnerBuilder::new()
-            .program(
-                1001,
-                1,
-                parse_wat(wat),
-                ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            )
+            .program(parse_wat(wat))
+            .message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
+            })
+            .build()
             .build();
 
         let gas_limit = 1000_000;
