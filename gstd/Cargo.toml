@@ -7,6 +7,9 @@ license = "GPL-3.0"
 
 [dependencies]
 dlmalloc = { git = "https://github.com/nikvolf/dlmalloc-rs", features = ["global"] }
+scale-info = { version = "0.10.0", default-features = false, features = ["derive", "serde"] }
+serde = "1.0.127"
+serde_json = "1.0.66"
 
 [features]
 debug = []
