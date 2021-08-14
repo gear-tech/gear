@@ -984,9 +984,7 @@ mod tests {
     use super::*;
     use crate::builder::RunnerBuilder;
     use env_logger::Env;
-    use gear_core::storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList, MessageMap,
-    };
+    use gear_core::storage::{InMemoryStorage, MessageMap};
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -1140,20 +1138,19 @@ mod tests {
               )
           )"#;
 
-        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
-            RunnerBuilder::new()
-                .program(
-                    1001,
-                    1,
-                    parse_wat(wat),
-                    ExtMessage {
-                        id: 1000001.into(),
-                        payload: "init".as_bytes().to_vec(),
-                        gas_limit: u64::MAX,
-                        value: 0,
-                    },
-                )
-                .build();
+        let mut runner = RunnerBuilder::new()
+            .program(
+                1001,
+                1,
+                parse_wat(wat),
+                ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            )
+            .build();
 
         runner.run_next(u64::MAX);
 
@@ -1241,20 +1238,19 @@ mod tests {
             )
           )"#;
 
-        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
-            RunnerBuilder::new()
-                .program(
-                    1001,
-                    1,
-                    parse_wat(wat),
-                    ExtMessage {
-                        id: 1000001.into(),
-                        payload: vec![],
-                        gas_limit: u64::MAX,
-                        value: 0,
-                    },
-                )
-                .build();
+        let mut runner = RunnerBuilder::new()
+            .program(
+                1001,
+                1,
+                parse_wat(wat),
+                ExtMessage {
+                    id: 1000001.into(),
+                    payload: vec![],
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            )
+            .build();
 
         runner.run_next(u64::MAX);
 
@@ -1309,20 +1305,19 @@ mod tests {
         let caller_id = 0.into();
         let program_id = 1.into();
 
-        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
-            RunnerBuilder::new()
-                .program(
-                    1001,
-                    1,
-                    parse_wat(wat),
-                    ExtMessage {
-                        id: 1000001.into(),
-                        payload: "init".as_bytes().to_vec(),
-                        gas_limit: u64::MAX,
-                        value: 0,
-                    },
-                )
-                .build();
+        let mut runner = RunnerBuilder::new()
+            .program(
+                1001,
+                1,
+                parse_wat(wat),
+                ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            )
+            .build();
 
         runner.queue_message(MessageDispatch {
             source_id: caller_id,
@@ -1371,20 +1366,19 @@ mod tests {
         let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
-        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
-            RunnerBuilder::new()
-                .program(
-                    source_id,
-                    dest_id,
-                    parse_wat(wat),
-                    ExtMessage {
-                        id: 1000001.into(),
-                        payload: "init".as_bytes().to_vec(),
-                        gas_limit: u64::MAX,
-                        value: 0,
-                    },
-                )
-                .build();
+        let mut runner = RunnerBuilder::new()
+            .program(
+                source_id,
+                dest_id,
+                parse_wat(wat),
+                ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            )
+            .build();
 
         let payload = b"Test Wait";
 
@@ -1443,20 +1437,19 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
-            RunnerBuilder::new()
-                .program(
-                    1001,
-                    1,
-                    parse_wat(wat),
-                    ExtMessage {
-                        id: 1000001.into(),
-                        payload: "init".as_bytes().to_vec(),
-                        gas_limit: u64::MAX,
-                        value: 0,
-                    },
-                )
-                .build();
+        let mut runner = RunnerBuilder::new()
+            .program(
+                1001,
+                1,
+                parse_wat(wat),
+                ExtMessage {
+                    id: 1000001.into(),
+                    payload: "init".as_bytes().to_vec(),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            )
+            .build();
 
         let gas_limit = 1000_000;
         let caller_id = 1001.into();
