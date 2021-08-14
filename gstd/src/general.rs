@@ -16,6 +16,41 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::prelude::{BTreeMap, String, Vec};
+use serde::Deserialize;
+
+pub struct CustomType {
+    name: String,
+    fields: Vec<Field>,
+}
+
+impl CustomType {
+    pub fn new(name: String, fields: Vec<Field>) -> Self {
+        Self { name, fields }
+    }
+
+    pub fn to_map(&self) -> BTreeMap<String, BTreeMap<String, String>> {
+        let mut fields = BTreeMap::new();
+
+        for field in self.fields.clone() {
+            fields.insert(field.name, field.type_name);
+        }
+
+        let mut map = BTreeMap::new();
+
+        map.insert(self.name.clone(), fields);
+
+        map
+    }
+}
+
+#[derive(Clone, Deserialize)]
+pub struct Field {
+    name: String,
+    #[serde(rename(deserialize = "typeName"))]
+    type_name: String,
+}
+
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
 pub struct MessageId(pub [u8; 32]);
 

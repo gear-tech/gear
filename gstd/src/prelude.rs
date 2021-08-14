@@ -26,10 +26,18 @@ extern crate alloc;
 pub use alloc::{
     borrow::ToOwned,
     boxed::Box,
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
     format,
     str::FromStr,
     string::{String, ToString},
     vec,
     vec::Vec,
 };
+
+pub mod meta {
+    pub use crate::prelude::{vec, BTreeMap, Box, String, Vec};
+
+    pub use scale_info::{IntoPortable, PortableRegistry, Registry, TypeInfo};
+
+    pub use serde_json::{json, Value};
+}

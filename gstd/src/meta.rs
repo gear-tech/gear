@@ -26,6 +26,8 @@ macro_rules! meta {
         init_input: $type_init_in:ty,
         init_output: $type_init_out:ty
     ) => {
+        use gstd::prelude::meta::*;
+
         declare!(meta_title, $title);
         declare!(meta_input, $type_in);
         declare!(meta_output, $type_out);
@@ -40,6 +42,8 @@ macro_rules! meta {
         init_output: $type_init_out:ty,
         extra_types: $($extra:ty), +
     ) => {
+        use gstd::prelude::meta::*;
+
         declare!(meta_title, $title);
         declare!(meta_input, $type_in : $($extra), +);
         declare!(meta_output, $type_out: $($extra), +);
@@ -48,6 +52,7 @@ macro_rules! meta {
     };
 }
 
+#[macro_export]
 macro_rules! declare {
     ($func_name:ident, $text:literal) => {
         #[allow(improper_ctypes_definitions)]
@@ -88,6 +93,7 @@ macro_rules! declare {
     };
 }
 
+#[macro_export]
 macro_rules! inspect {
     ($btree:expr, $registry:expr, $type:ty) => {
         $btree.extend({
