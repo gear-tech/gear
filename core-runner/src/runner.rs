@@ -189,6 +189,74 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     env: Environment<Ext>,
 }
 
+/// Builder for [`Runner`].
+pub struct RunnerBuilder<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
+    config: Config,
+    programs: Vec<InitializeProgramInfo>,
+    storage: Storage<MQ, PS, WL>,
+}
+
+impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> RunnerBuilder<MQ, PS, WL> {
+    /// Default [`Runner`].
+    pub fn new() -> RunnerBuilder<MQ, PS, WL> {
+        RunnerBuilder {
+            config: Config::default(),
+            programs: vec![],
+            storage: Storage::default(),
+        }
+    }
+
+    /// Set [`Config`].
+    pub fn config(self, config: Config) -> RunnerBuilder<MQ, PS, WL> {
+        RunnerBuilder {
+            config: config,
+            programs: self.programs,
+            storage: self.storage,
+        }
+    }
+
+    /// Set [`Storage`].
+    pub fn storage(self, storage: Storage<MQ, PS, WL>) -> RunnerBuilder<MQ, PS, WL> {
+        RunnerBuilder {
+            config: self.config,
+            programs: self.programs,
+            storage: storage,
+        }
+    }
+
+    /// Set [`Program`] to be initialized on build.
+    pub fn program(
+        mut self,
+        source_id: u64,
+        new_program_id: u64,
+        code: Vec<u8>,
+        message: ExtMessage,
+    ) -> RunnerBuilder<MQ, PS, WL> {
+        self.programs.push(InitializeProgramInfo {
+            source_id: source_id.into(),
+            new_program_id: new_program_id.into(),
+            message,
+            code,
+        });
+        RunnerBuilder {
+            config: self.config,
+            programs: self.programs,
+            storage: self.storage,
+        }
+    }
+
+    /// Initialize all programs and return [`Runner`].
+    pub fn build(self) -> Runner<MQ, PS, WL> {
+        let mut runner = Runner::new(&self.config, self.storage);
+        for program in self.programs {
+            runner
+                .init_program(program)
+                .expect("failed to init program");
+        }
+        runner
+    }
+}
+
 /// Message payload with pre-generated identifier and economic data.
 pub struct ExtMessage {
     /// Id of the message.
@@ -1004,10 +1072,6 @@ mod tests {
             .init();
     }
 
-    fn new_test_runner() -> Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
-        Runner::new(&Config::default(), Default::default())
-    }
-
     #[test]
     fn reply_to_calls_works_and_traps() {
         let wat = r#"
@@ -1028,21 +1092,19 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner = new_test_runner();
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
+        let mut runner = RunnerBuilder::new()
+            .program(
+                1001,
+                1,
+                parse_wat(wat),
+                ExtMessage {
                     id: 1000001.into(),
                     payload: vec![],
                     gas_limit: u64::MAX,
                     value: 0,
                 },
-            })
-            .expect("failed to init program");
+            )
+            .build();
 
         runner.queue_message(MessageDispatch {
             source_id: 1001.into(),
@@ -1145,21 +1207,20 @@ mod tests {
               )
           )"#;
 
-        let mut runner = new_test_runner();
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
+            RunnerBuilder::new()
+                .program(
+                    1001,
+                    1,
+                    parse_wat(wat),
+                    ExtMessage {
+                        id: 1000001.into(),
+                        payload: "init".as_bytes().to_vec(),
+                        gas_limit: u64::MAX,
+                        value: 0,
+                    },
+                )
+                .build();
 
         runner.run_next(u64::MAX);
 
@@ -1247,21 +1308,20 @@ mod tests {
             )
           )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: vec![],
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
+            RunnerBuilder::new()
+                .program(
+                    1001,
+                    1,
+                    parse_wat(wat),
+                    ExtMessage {
+                        id: 1000001.into(),
+                        payload: vec![],
+                        gas_limit: u64::MAX,
+                        value: 0,
+                    },
+                )
+                .build();
 
         runner.run_next(u64::MAX);
 
@@ -1312,25 +1372,24 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
-
         let gas_limit = 1000_000;
         let caller_id = 0.into();
         let program_id = 1.into();
 
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
+            RunnerBuilder::new()
+                .program(
+                    1001,
+                    1,
+                    parse_wat(wat),
+                    ExtMessage {
+                        id: 1000001.into(),
+                        payload: "init".as_bytes().to_vec(),
+                        gas_limit: u64::MAX,
+                        value: 0,
+                    },
+                )
+                .build();
 
         runner.queue_message(MessageDispatch {
             source_id: caller_id,
@@ -1374,31 +1433,30 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
-
-        let source_id = 1001.into();
-        let dest_id = 1.into();
+        let source_id = 1001;
+        let dest_id = 1;
         let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: dest_id,
-                source_id,
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
+            RunnerBuilder::new()
+                .program(
+                    source_id,
+                    dest_id,
+                    parse_wat(wat),
+                    ExtMessage {
+                        id: 1000001.into(),
+                        payload: "init".as_bytes().to_vec(),
+                        gas_limit: u64::MAX,
+                        value: 0,
+                    },
+                )
+                .build();
 
         let payload = b"Test Wait";
 
         runner.queue_message(MessageDispatch {
-            source_id,
+            source_id: source_id.into(),
             destination_id: 1.into(),
             data: ExtMessage {
                 id: msg_id,
@@ -1420,8 +1478,8 @@ mod tests {
         assert!(wait_list.contains_key(&msg_id));
         let msg = wait_list.remove(&msg_id).unwrap();
 
-        assert_eq!(msg.source, source_id);
-        assert_eq!(msg.dest, dest_id);
+        assert_eq!(msg.source, source_id.into());
+        assert_eq!(msg.dest, dest_id.into());
         assert_eq!(msg.payload(), payload);
         assert!(msg.gas_limit < gas_limit);
     }
@@ -1452,24 +1510,23 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+        let mut runner: Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> =
+            RunnerBuilder::new()
+                .program(
+                    1001,
+                    1,
+                    parse_wat(wat),
+                    ExtMessage {
+                        id: 1000001.into(),
+                        payload: "init".as_bytes().to_vec(),
+                        gas_limit: u64::MAX,
+                        value: 0,
+                    },
+                )
+                .build();
 
         let gas_limit = 1000_000;
         let caller_id = 1001.into();
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
 
         runner.queue_message(MessageDispatch {
             source_id: caller_id,
