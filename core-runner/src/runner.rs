@@ -982,10 +982,9 @@ mod tests {
     extern crate wabt;
 
     use super::*;
+    use crate::builder::RunnerBuilder;
     use env_logger::Env;
-    use gear_core::storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList, MessageMap,
-    };
+    use gear_core::storage::{InMemoryStorage, MessageMap};
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -1002,10 +1001,6 @@ mod tests {
         env_logger::Builder::from_env(Env::default().default_filter_or("warn"))
             .is_test(true)
             .init();
-    }
-
-    fn new_test_runner() -> Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
-        Runner::new(&Config::default(), Default::default())
     }
 
     #[test]
@@ -1028,21 +1023,7 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner = new_test_runner();
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: vec![],
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build().build();
 
         runner.queue_message(MessageDispatch {
             source_id: 1001.into(),
@@ -1145,21 +1126,16 @@ mod tests {
               )
           )"#;
 
-        let mut runner = new_test_runner();
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
+        let mut runner = RunnerBuilder::new()
+            .program(parse_wat(wat))
+            .init_message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
             })
-            .expect("failed to init program");
+            .build()
+            .build();
 
         runner.run_next(u64::MAX);
 
@@ -1247,21 +1223,7 @@ mod tests {
             )
           )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: vec![],
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build().build();
 
         runner.run_next(u64::MAX);
 
@@ -1312,25 +1274,20 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
-
         let gas_limit = 1000_000;
         let caller_id = 0.into();
         let program_id = 1.into();
 
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
+        let mut runner = RunnerBuilder::new()
+            .program(parse_wat(wat))
+            .init_message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
             })
-            .expect("failed to init program");
+            .build()
+            .build();
 
         runner.queue_message(MessageDispatch {
             source_id: caller_id,
@@ -1374,31 +1331,28 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
-
-        let source_id = 1001.into();
-        let dest_id = 1.into();
+        let source_id = 1001;
+        let dest_id = 1;
         let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: dest_id,
-                source_id,
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit,
-                    value: 0,
-                },
+        let mut runner = RunnerBuilder::new()
+            .program(parse_wat(wat))
+            .source(source_id)
+            .id(dest_id)
+            .init_message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
             })
-            .expect("failed to init program");
+            .build()
+            .build();
 
         let payload = b"Test Wait";
 
         runner.queue_message(MessageDispatch {
-            source_id,
+            source_id: source_id.into(),
             destination_id: 1.into(),
             data: ExtMessage {
                 id: msg_id,
@@ -1420,8 +1374,8 @@ mod tests {
         assert!(wait_list.contains_key(&msg_id));
         let msg = wait_list.remove(&msg_id).unwrap();
 
-        assert_eq!(msg.source, source_id);
-        assert_eq!(msg.dest, dest_id);
+        assert_eq!(msg.source, source_id.into());
+        assert_eq!(msg.dest, dest_id.into());
         assert_eq!(msg.payload(), payload);
         assert!(msg.gas_limit < gas_limit);
     }
@@ -1452,24 +1406,19 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+        let mut runner = RunnerBuilder::new()
+            .program(parse_wat(wat))
+            .init_message(ExtMessage {
+                id: 1000001.into(),
+                payload: "init".as_bytes().to_vec(),
+                gas_limit: u64::MAX,
+                value: 0,
+            })
+            .build()
+            .build();
 
         let gas_limit = 1000_000;
         let caller_id = 1001.into();
-
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 1001.into(),
-                code: parse_wat(wat),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
 
         runner.queue_message(MessageDispatch {
             source_id: caller_id,
