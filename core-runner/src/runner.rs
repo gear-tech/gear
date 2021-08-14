@@ -189,74 +189,6 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     env: Environment<Ext>,
 }
 
-/// Builder for [`Runner`].
-pub struct RunnerBuilder<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
-    config: Config,
-    programs: Vec<InitializeProgramInfo>,
-    storage: Storage<MQ, PS, WL>,
-}
-
-impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> RunnerBuilder<MQ, PS, WL> {
-    /// Default [`Runner`].
-    pub fn new() -> RunnerBuilder<MQ, PS, WL> {
-        RunnerBuilder {
-            config: Config::default(),
-            programs: vec![],
-            storage: Storage::default(),
-        }
-    }
-
-    /// Set [`Config`].
-    pub fn config(self, config: Config) -> RunnerBuilder<MQ, PS, WL> {
-        RunnerBuilder {
-            config: config,
-            programs: self.programs,
-            storage: self.storage,
-        }
-    }
-
-    /// Set [`Storage`].
-    pub fn storage(self, storage: Storage<MQ, PS, WL>) -> RunnerBuilder<MQ, PS, WL> {
-        RunnerBuilder {
-            config: self.config,
-            programs: self.programs,
-            storage: storage,
-        }
-    }
-
-    /// Set [`Program`] to be initialized on build.
-    pub fn program(
-        mut self,
-        source_id: u64,
-        new_program_id: u64,
-        code: Vec<u8>,
-        message: ExtMessage,
-    ) -> RunnerBuilder<MQ, PS, WL> {
-        self.programs.push(InitializeProgramInfo {
-            source_id: source_id.into(),
-            new_program_id: new_program_id.into(),
-            message,
-            code,
-        });
-        RunnerBuilder {
-            config: self.config,
-            programs: self.programs,
-            storage: self.storage,
-        }
-    }
-
-    /// Initialize all programs and return [`Runner`].
-    pub fn build(self) -> Runner<MQ, PS, WL> {
-        let mut runner = Runner::new(&self.config, self.storage);
-        for program in self.programs {
-            runner
-                .init_program(program)
-                .expect("failed to init program");
-        }
-        runner
-    }
-}
-
 /// Message payload with pre-generated identifier and economic data.
 pub struct ExtMessage {
     /// Id of the message.
@@ -1050,6 +982,7 @@ mod tests {
     extern crate wabt;
 
     use super::*;
+    use crate::builder::RunnerBuilder;
     use env_logger::Env;
     use gear_core::storage::{
         InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList, MessageMap,
