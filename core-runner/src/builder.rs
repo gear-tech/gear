@@ -90,7 +90,7 @@ impl ProgramBuilder {
         self
     }
 
-    pub fn message(mut self, message: ExtMessage) -> ProgramBuilder {
+    pub fn init_message(mut self, message: ExtMessage) -> ProgramBuilder {
         self.message = message;
         self
     }

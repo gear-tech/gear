@@ -1128,7 +1128,7 @@ mod tests {
 
         let mut runner = RunnerBuilder::new()
             .program(parse_wat(wat))
-            .message(ExtMessage {
+            .init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),
                 gas_limit: u64::MAX,
@@ -1280,7 +1280,7 @@ mod tests {
 
         let mut runner = RunnerBuilder::new()
             .program(parse_wat(wat))
-            .message(ExtMessage {
+            .init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),
                 gas_limit: u64::MAX,
@@ -1340,7 +1340,7 @@ mod tests {
             .program(parse_wat(wat))
             .source(source_id)
             .program_id(dest_id)
-            .message(ExtMessage {
+            .init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),
                 gas_limit: u64::MAX,
@@ -1408,7 +1408,7 @@ mod tests {
 
         let mut runner = RunnerBuilder::new()
             .program(parse_wat(wat))
-            .message(ExtMessage {
+            .init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),
                 gas_limit: u64::MAX,
