@@ -1339,7 +1339,7 @@ mod tests {
         let mut runner = RunnerBuilder::new()
             .program(parse_wat(wat))
             .source(source_id)
-            .program_id(dest_id)
+            .id(dest_id)
             .init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),

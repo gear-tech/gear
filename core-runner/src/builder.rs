@@ -13,8 +13,8 @@ pub struct RunnerBuilder {
 
 impl RunnerBuilder {
     /// Default [`Runner`].
-    pub fn new() -> RunnerBuilder {
-        RunnerBuilder {
+    pub fn new() -> Self {
+        Self {
             config: Config::default(),
             programs: vec![],
             storage: InMemoryStorage::default(),
@@ -22,7 +22,7 @@ impl RunnerBuilder {
     }
 
     /// Set [`Config`].
-    pub fn config(mut self, config: Config) -> RunnerBuilder {
+    pub fn config(mut self, config: Config) -> Self {
         self.config = config;
         self
     }
@@ -53,14 +53,15 @@ pub struct ProgramBuilder {
 }
 
 impl ProgramBuilder {
-    pub fn new(runner_builder: RunnerBuilder, code: Vec<u8>) -> ProgramBuilder {
+    pub fn new(runner_builder: RunnerBuilder, code: Vec<u8>) -> Self {
+        let counter = runner_builder.programs.len() as u64;
         ProgramBuilder {
             runner_builder,
             code,
             source_id: 1001,
-            new_program_id: 1,
+            new_program_id: 1 + counter,
             message: ExtMessage {
-                id: 1000001.into(),
+                id: (1000000 + counter).into(),
                 payload: vec![],
                 gas_limit: u64::MAX,
                 value: 0,
@@ -80,17 +81,17 @@ impl ProgramBuilder {
         runner
     }
 
-    pub fn source(mut self, id: u64) -> ProgramBuilder {
+    pub fn source(mut self, id: u64) -> Self {
         self.source_id = id;
         self
     }
 
-    pub fn program_id(mut self, id: u64) -> ProgramBuilder {
+    pub fn id(mut self, id: u64) -> Self {
         self.new_program_id = id;
         self
     }
 
-    pub fn init_message(mut self, message: ExtMessage) -> ProgramBuilder {
+    pub fn init_message(mut self, message: ExtMessage) -> Self {
         self.message = message;
         self
     }
