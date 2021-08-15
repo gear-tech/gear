@@ -24,6 +24,7 @@
 #[macro_use]
 extern crate alloc;
 
+#[allow(dead_code)]
+mod builder;
 pub mod runner;
-
 pub use runner::*;
