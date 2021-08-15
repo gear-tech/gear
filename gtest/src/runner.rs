@@ -62,7 +62,8 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
         let program_storage = self.program_storage;
 
         let mut messages = Vec::new();
-        let mut message_queue = common::storage_queue::StorageQueue::get(b"g::msg::".as_ref());
+        let mut message_queue =
+            common::storage_queue::StorageQueue::get(common::STORAGE_MESSAGE_PREFIX);
         while let Some(message) = message_queue.dequeue() {
             messages.push(message);
         }

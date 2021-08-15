@@ -181,10 +181,8 @@ fn check_allocations(
     let mut errors = Vec::new();
 
     for exp in expected_allocations {
-        if let Some(program) = programs
-            .iter()
-            .find(|p| p.id() == ProgramId::from(exp.program_id))
-        {
+        let target_program_id = ProgramId::from(exp.program_id);
+        if let Some(program) = programs.iter().find(|p| p.id() == target_program_id) {
             let actual_pages = program
                 .get_pages()
                 .iter()
@@ -195,9 +193,9 @@ fn check_allocations(
                 })
                 .collect::<Vec<_>>();
 
-            match &exp.kind {
+            match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {
-                    if actual_pages.len() != *expected_page_count as usize {
+                    if actual_pages.len() != expected_page_count as usize {
                         errors.push(format!(
                             "Expectation error (Allocation page count does not match, expected: {}; actual: {}. Program id: {})",
                             expected_page_count,
@@ -206,31 +204,31 @@ fn check_allocations(
                         ));
                     }
                 }
-                AllocationExpectationKind::ExactPages(expected_pages) => {
+                AllocationExpectationKind::ExactPages(ref expected_pages) => {
                     let mut actual_pages = actual_pages
                         .iter()
                         .map(|(page, _buf)| page.raw())
                         .collect::<Vec<_>>();
-                    let mut expeceted_pages = expected_pages.clone();
+                    let mut expected_pages = expected_pages.clone();
 
                     actual_pages.sort();
-                    expeceted_pages.sort();
+                    expected_pages.sort();
 
-                    if actual_pages != expeceted_pages {
+                    if actual_pages != expected_pages {
                         errors.push(format!(
                             "Expectation error (Following allocation pages expected: {:?}; actual: {:?}. Program id: {})",
-                            expeceted_pages,
+                            expected_pages,
                             actual_pages,
                             exp.program_id,
                         ))
                     }
                 }
-                AllocationExpectationKind::ContainsPages(expected_pages) => {
-                    for expected_page in expected_pages {
+                AllocationExpectationKind::ContainsPages(ref expected_pages) => {
+                    for &expected_page in expected_pages {
                         if !actual_pages
                             .iter()
                             .map(|(page, _buf)| page.raw())
-                            .any(|actual_page| actual_page == *expected_page)
+                            .any(|actual_page| actual_page == expected_page)
                         {
                             errors.push(format!(
                                 "Expectation error (Allocation page {} expected, but not found. Program id: {})",

@@ -2136,9 +2136,11 @@ dependencies = [
 name = "gear-node-rti"
 version = "0.1.0"
 dependencies = [
+ "frame-system",
  "gear-common",
  "gear-core",
  "gear-core-runner",
+ "gear-runtime",
  "log",
  "parity-scale-codec",
  "sp-core",
@@ -2146,6 +2148,7 @@ dependencies = [
  "sp-io",
  "sp-runtime-interface",
  "sp-std",
+ "wabt",
 ]
 
 [[package]]
