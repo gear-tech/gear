@@ -57,6 +57,7 @@ node-test:
 
 .PHONY: ntest
 ntest:
+	@./scripts/build-wasm.sh
 	@cargo run --package gear-node --release -- runtests ./gtest/spec/*.yaml
 
 .PHONY: pre-commit
