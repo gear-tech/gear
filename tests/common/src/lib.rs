@@ -150,8 +150,6 @@ pub fn do_reqrep<Req: Encode, Rep: Decode>(
         }
     }
 
-    println!("mq: {:?}", message_queue.log());
-
     (
         Runner::new(
             &Config::default(),

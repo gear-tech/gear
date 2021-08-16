@@ -48,9 +48,11 @@ mod wasm {
 
     use super::{Initialization, Operation, Reply, Request};
 
+    #[derive(Clone)]
     enum TransitionState {
         Ready,
         NotReady,
+        Commited,
         Failed,
     }
 
@@ -82,7 +84,7 @@ mod wasm {
             }
         };
 
-        msg::reply(&reply.encode()[..], 1000000, 0)
+        msg::reply(&reply.encode()[..], msg::gas_available(), 0)
     }
 
     fn state() -> &'static mut NodeState {
@@ -90,17 +92,37 @@ mod wasm {
     }
 
     fn process(request: Request) -> Reply {
-        if let Some(ref mut transition) = state().transition {
+        if let Some(mut transition) = state().transition.take() {
             if transition.message_id == msg::id() {
                 // one of the answers has set failed state
                 if let TransitionState::Failed = transition.state {
                     return Reply::Failure;
                 }
 
-                // this means that we sent messages to all subnodes
+                // this means that we received replies from all subnodes
                 if transition.query_index == transition.query_list.len() {
-                    transition.state = TransitionState::Ready;
-                    return Reply::Success;
+                    match transition.state.clone() {
+                        TransitionState::NotReady => {
+                            transition.state = TransitionState::Ready;
+
+                            ext::debug("Returning final ready signal");
+
+                            // this is ready to further process with committing
+                            state().transition = Some(transition);
+                            return Reply::Success;
+                        }
+                        TransitionState::Ready => {
+                            // this means we successfully commited and we can
+                            // drop the transition returning success
+                            ext::debug("Returning final commit signal");
+
+                            return Reply::Success;
+                        }
+                        _ => {
+                            // this is some invalid state already
+                            return Reply::Failure;
+                        }
+                    }
                 }
 
                 // this means we need to send another sub-node query
@@ -109,10 +131,18 @@ mod wasm {
                     .get(transition.query_index)
                     .expect("Checked above that it has that number of elements; qed");
 
-                transition.last_sent_message_id =
-                    msg::send(*next_sub_node, &request.encode()[..], msg::gas_available() - 25000);
+                transition.last_sent_message_id = msg::send(
+                    *next_sub_node,
+                    &request.encode()[..],
+                    msg::gas_available() - 2_500_000,
+                );
+
+                state().transition = Some(transition);
 
                 msg::wait();
+            } else {
+                // this is just a new message that should be processed normally, without continuation.
+                state().transition = Some(transition);
             }
         }
 
@@ -133,42 +163,81 @@ mod wasm {
                         origin: msg::source(),
                         query_index: 0,
                         query_list: vec![],
-                        state: TransitionState::Ready,
+                        state: TransitionState::NotReady,
                         message_id: msg::id(),
                         last_sent_message_id: MessageId::default(),
                     };
 
+                    ext::debug("Transition started");
+
                     if state().sub_nodes.len() > 0 {
+                        ext::debug("Transition started is complex");
+
                         transition.query_list = state().sub_nodes.iter().cloned().collect();
                         let first_sub_node = *transition
                             .query_list
                             .get(0)
                             .expect("Checked above that sub_nodes is not empty; qed");
-                        transition.last_sent_message_id =
-                            msg::send(first_sub_node, &request.encode()[..], msg::gas_available() - 25000);
+                        transition.last_sent_message_id = msg::send(
+                            first_sub_node,
+                            &request.encode()[..],
+                            msg::gas_available() - 2_500_000,
+                        );
                         state().transition = Some(transition);
                         msg::wait();
                     } else {
+                        transition.state = TransitionState::Ready;
                         state().transition = Some(transition);
                         Reply::Success
                     }
                 }
             }
             Request::Commit => {
-                let (transition, reply) = match state().transition.take() {
-                    Some(transition) => {
-                        if transition.origin != msg::source() {
-                            (Some(transition), Reply::Failure)
-                        } else {
-                            (None, Reply::Success)
+                if state().sub_nodes.len() == 0 {
+                    let (transition, reply) = match state().transition.take() {
+                        Some(transition) => {
+                            if transition.origin != msg::source() {
+                                (Some(transition), Reply::Failure)
+                            } else {
+                                (None, Reply::Success)
+                            }
                         }
+                        None => (None, Reply::Failure),
+                    };
+
+                    state().transition = transition;
+
+                    reply
+                } else {
+                    if let Some(mut transition) = state().transition.take() {
+                        if let TransitionState::Ready = transition.state {
+                            let first_sub_node = *transition
+                                .query_list
+                                .get(0)
+                                .expect("Checked above that sub_nodes is not empty; qed");
+
+                            transition.query_index = 0;
+
+                            transition.message_id = msg::id();
+
+                            transition.last_sent_message_id = msg::send(
+                                first_sub_node,
+                                &request.encode()[..],
+                                msg::gas_available() - 2_500_000,
+                            );
+
+                            state().transition = Some(transition);
+
+                            msg::wait();
+                        } else {
+                            ext::debug("Returning failure because current state is not READY");
+                            Reply::Failure
+                        }
+                    } else {
+                        ext::debug("Returning failure because there is no transition in process");
+                        Reply::Failure
                     }
-                    None => (None, Reply::Failure),
-                };
-
-                state().transition = transition;
-
-                reply
+                }
             }
             Request::Add(sub_node) => {
                 state().sub_nodes.insert((sub_node as u64).into());
@@ -187,7 +256,8 @@ mod wasm {
             match Reply::decode(&mut &msg::load()[..]) {
                 Ok(reply) => {
                     transition.query_index += 1;
-                    if let Reply::Success = reply {} else {
+                    if let Reply::Success = reply {
+                    } else {
                         transition.state = TransitionState::Failed;
                     }
                     msg::wake(transition.message_id);
@@ -198,6 +268,8 @@ mod wasm {
                     msg::wake(transition.message_id);
                 }
             }
+        } else {
+            ext::debug("Got some reply that can not be processed");
         }
     }
 
@@ -237,7 +309,7 @@ mod tests {
     use gear_core::storage::{
         InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, Storage,
     };
-    use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
+    use gear_core_runner::{Config, Runner};
 
     #[test]
     fn binary_available() {
@@ -283,7 +355,7 @@ mod tests {
 
     #[test]
     fn one_node_can_change_status() {
-        env_logger::Builder::from_env(env_logger::Env::default()).init();
+        // env_logger::Builder::from_env(env_logger::Env::default()).init();
 
         let runner = new_test_runner();
 
@@ -339,7 +411,7 @@ mod tests {
         assert_eq!(reply, Some(Reply::Success));
         nonce += 1;
 
-        let (runner, reply) = common::do_reqrep(
+        let (_runner, reply) = common::do_reqrep(
             runner,
             MessageDispatchData {
                 source_id: 0.into(),
@@ -353,6 +425,129 @@ mod tests {
             },
         );
         assert_eq!(reply, Some(Reply::Success));
+    }
+
+    #[test]
+    fn multiple_nodes_can_prepare_to_change_status() {
+        env_logger::Builder::from_env(env_logger::Env::default()).init();
+
+        let runner = new_test_runner();
+
+        let program_id_1: ProgramId = 1.into();
+        let program_id_2: ProgramId = 2.into();
+        let program_id_3: ProgramId = 3.into();
+
+        let mut nonce = 1;
+
+        let runner = common::do_init(
+            runner,
+            InitProgramData {
+                new_program_id: program_id_1,
+                source_id: 0.into(),
+                code: wasm_code().to_vec(),
+                message: MessageData {
+                    id: nonce.into(),
+                    payload: Initialization { status: 5 },
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
         nonce += 1;
+
+        let runner = common::do_init(
+            runner,
+            InitProgramData {
+                new_program_id: program_id_2,
+                source_id: 0.into(),
+                code: wasm_code().to_vec(),
+                message: MessageData {
+                    id: nonce.into(),
+                    payload: Initialization { status: 5 },
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        nonce += 1;
+
+        let runner = common::do_init(
+            runner,
+            InitProgramData {
+                new_program_id: program_id_3,
+                source_id: 0.into(),
+                code: wasm_code().to_vec(),
+                message: MessageData {
+                    id: nonce.into(),
+                    payload: Initialization { status: 9 },
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        nonce += 1;
+
+        let (runner, reply) = common::do_reqrep(
+            runner,
+            MessageDispatchData {
+                source_id: 0.into(),
+                destination_id: program_id_1,
+                data: MessageData {
+                    id: nonce.into(),
+                    payload: Request::Add(2),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        assert_eq!(reply, Some(Reply::Success));
+        nonce += 1;
+
+        let (runner, reply) = common::do_reqrep(
+            runner,
+            MessageDispatchData {
+                source_id: 0.into(),
+                destination_id: program_id_1,
+                data: MessageData {
+                    id: nonce.into(),
+                    payload: Request::Add(3),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        assert_eq!(reply, Some(Reply::Success));
+        nonce += 1;
+
+        let (runner, reply) = common::do_reqrep(
+            runner,
+            MessageDispatchData {
+                source_id: 0.into(),
+                destination_id: program_id_1,
+                data: MessageData {
+                    id: nonce.into(),
+                    payload: Request::Begin(Operation { to_status: 7 }),
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        assert_eq!(reply, Some(Reply::Success));
+        nonce += 1;
+
+        let (_runner, reply) = common::do_reqrep(
+            runner,
+            MessageDispatchData {
+                source_id: 0.into(),
+                destination_id: program_id_1,
+                data: MessageData {
+                    id: nonce.into(),
+                    payload: Request::Commit,
+                    gas_limit: u64::MAX,
+                    value: 0,
+                },
+            },
+        );
+        assert_eq!(reply, Some(Reply::Success));
     }
 }
