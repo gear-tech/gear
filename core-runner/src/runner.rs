@@ -1513,4 +1513,48 @@ mod tests {
 
         runner.complete();
     }
+
+    #[test]
+    fn spending_with_extra_messages() {
+        // Call `gr_wait` function
+        let wat = r#"
+            (module
+                (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))
+                (import "env" "memory" (memory 1))
+                (export "handle" (func $handle))
+                (export "init" (func $init))
+                (func $handle
+                    (call $send (i32.const 12) (i32.const 18) (i32.const 8) (i64.const 1000000000) (i32.const 32768) (i32.const 40000))
+                )
+                (func $init)
+            )"#;
+
+        let mut runner = RunnerBuilder::new()
+            .program(parse_wat(wat))
+            .source(1001)
+            .id(1)
+            .init_message(ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: u64::MAX,
+                value: 0,
+            })
+            .build()
+            .build();
+
+        runner.queue_message(MessageDispatch {
+            source_id: 1001.into(),
+            destination_id: 1.into(),
+            data: ExtMessage {
+                id: 1000001.into(),
+                payload: vec![],
+                gas_limit: 2_000_000_000,
+                value: 0,
+            },
+        });
+
+        let run_result = runner.run_next(u64::MAX);
+
+        assert_eq!(run_result.gas_spent[0].1, 10_000);
+    }
 }
