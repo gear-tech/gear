@@ -145,10 +145,10 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
 
             Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(
                 args.nth(0),
-                args.nth(0),
-                args.nth(0),
-                args.nth(0),
-                args.nth(0),
+                args.nth(1),
+                args.nth(2),
+                args.nth(3),
+                args.nth(4),
             )
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
