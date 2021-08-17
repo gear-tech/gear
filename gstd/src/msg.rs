@@ -17,155 +17,87 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::prelude::Vec;
-use crate::MessageHandle;
 use crate::{MessageId, ProgramId};
+use codec::{Decode, Encode, Output};
 
-mod sys {
-    extern "C" {
-        pub fn gr_gas_available() -> u64;
-        pub fn gr_msg_id(val: *mut u8);
-        pub fn gr_read(at: u32, len: u32, dest: *mut u8);
-        pub fn gr_reply(data_ptr: *const u8, data_len: u32, gas_limit: u64, value_ptr: *const u8);
-        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32);
-        pub fn gr_reply_to(dest: *mut u8);
-        pub fn gr_send(
-            program: *const u8,
-            data_ptr: *const u8,
-            data_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u8,
-            message_id_ptr: *mut u8,
-        );
-        pub fn gr_send_commit(
-            handle: u32,
-            message_id_ptr: *mut u8,
-            program: *const u8,
+pub use gcore::msg::{gas_available, id, reply_to, source, value, wait, wake};
 
-            gas_limit: u64,
-            value_ptr: *const u8,
-        );
-        pub fn gr_send_init() -> u32;
-        pub fn gr_send_push(handle: u32, data_ptr: *const u8, data_len: u32);
-        pub fn gr_size() -> u32;
-        pub fn gr_source(program: *mut u8);
-        pub fn gr_value(val: *mut u8);
-        pub fn gr_wait() -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MessageHandle(gcore::MessageHandle);
+
+impl MessageHandle {
+    pub fn init() -> Self {
+        send_init()
+    }
+
+    pub fn push<E: Encode>(&self, payload: E) {
+        gcore::msg::send_push(&self.0, &payload.encode())
+    }
+
+    pub fn commit(self, program: ProgramId, gas_limit: u64, value: u128) -> MessageId {
+        gcore::msg::send_commit(self.0, program, gas_limit, value)
     }
 }
 
-pub fn gas_available() -> u64 {
-    unsafe { sys::gr_gas_available() }
-}
-
-pub fn id() -> MessageId {
-    let mut msg_id = MessageId::default();
-    unsafe { sys::gr_msg_id(msg_id.0.as_mut_ptr()) }
-    msg_id
-}
-
-pub fn load() -> Vec<u8> {
-    unsafe {
-        let message_size = sys::gr_size() as usize;
-        let mut data = Vec::with_capacity(message_size);
-        data.set_len(message_size);
-        sys::gr_read(0, message_size as _, data.as_mut_ptr() as _);
-        data
+impl Output for MessageHandle {
+    fn write(&mut self, bytes: &[u8]) {
+        gcore::msg::send_push(&self.0, bytes)
     }
 }
 
-pub fn reply(payload: &[u8], gas_limit: u64, value: u128) {
-    unsafe {
-        sys::gr_reply(
-            payload.as_ptr(),
-            payload.len() as _,
-            gas_limit,
-            value.to_le_bytes().as_ptr(),
-        )
-    }
+pub fn load<D: Decode>() -> Result<D, codec::Error> {
+    D::decode(&mut gcore::msg::load().as_ref())
 }
 
-pub fn reply_push(payload: &[u8]) {
-    unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _) }
+pub fn load_bytes() -> Vec<u8> {
+    gcore::msg::load()
 }
 
-pub fn reply_to() -> MessageId {
-    let mut message_id = MessageId::default();
-    unsafe { sys::gr_reply_to(message_id.0.as_mut_ptr()) }
-    message_id
+pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) {
+    let bytes = payload.encode();
+    gcore::msg::reply(&bytes, gas_limit, value)
 }
 
-pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) -> MessageId {
+pub fn reply_bytes(payload: &[u8], gas_limit: u64, value: u128) {
+    gcore::msg::reply(payload, gas_limit, value)
+}
+
+pub fn reply_push<E: Encode>(payload: E) {
+    let bytes = payload.encode();
+    gcore::msg::reply_push(&bytes)
+}
+
+pub fn reply_push_bytes(payload: &[u8]) {
+    gcore::msg::reply_push(payload)
+}
+
+pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64) -> MessageId {
     send_with_value(program, payload, gas_limit, 0u128)
 }
 
-pub fn send_commit(
-    handle: MessageHandle,
-    program: ProgramId,
-    gas_limit: u64,
-    value: u128,
-) -> MessageId {
-    unsafe {
-        let mut message_id = MessageId::default();
-        sys::gr_send_commit(
-            handle.0,
-            message_id.as_mut_slice().as_mut_ptr(),
-            program.as_slice().as_ptr(),
-            gas_limit,
-            value.to_le_bytes().as_ptr(),
-        );
-        message_id
-    }
+pub fn send_bytes(program: ProgramId, payload: &[u8], gas_limit: u64) -> MessageId {
+    gcore::msg::send(program, payload, gas_limit)
 }
 
 pub fn send_init() -> MessageHandle {
-    unsafe { MessageHandle(sys::gr_send_init()) }
+    MessageHandle(gcore::msg::send_init())
 }
 
-pub fn send_push(handle: MessageHandle, payload: &[u8]) {
-    unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _) }
+pub fn send_with_value<E: Encode>(
+    program: ProgramId,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
+    let bytes = payload.encode();
+    gcore::msg::send_with_value(program, &bytes, gas_limit, value)
 }
 
-pub fn send_with_value(
+pub fn send_bytes_with_value(
     program: ProgramId,
     payload: &[u8],
     gas_limit: u64,
     value: u128,
 ) -> MessageId {
-    unsafe {
-        let mut message_id = MessageId::default();
-        sys::gr_send(
-            program.as_slice().as_ptr(),
-            payload.as_ptr(),
-            payload.len() as _,
-            gas_limit,
-            value.to_le_bytes().as_ptr(),
-            message_id.as_mut_slice().as_mut_ptr(),
-        );
-        message_id
-    }
-}
-
-pub fn source() -> ProgramId {
-    let mut program_id = ProgramId::default();
-    unsafe { sys::gr_source(program_id.as_mut_slice().as_mut_ptr()) }
-    program_id
-}
-
-pub fn value() -> u128 {
-    let mut value_data = [0u8; 16];
-    unsafe {
-        sys::gr_value(value_data.as_mut_ptr());
-    }
-    u128::from_le_bytes(value_data)
-}
-
-pub fn wait() -> ! {
-    unsafe { sys::gr_wait() }
-}
-
-pub fn wake(waker_id: MessageId) {
-    unsafe {
-        sys::gr_wake(waker_id.as_slice().as_ptr());
-    }
+    gcore::msg::send_with_value(program, payload, gas_limit, value)
 }

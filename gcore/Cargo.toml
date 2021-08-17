@@ -1,0 +1,16 @@
+[package]
+name = "gcore"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+dlmalloc = { git = "https://github.com/nikvolf/dlmalloc-rs", features = ["global"] }
+
+[features]
+debug = []
+
+[profile.release]
+lto = true
+opt-level = 's'

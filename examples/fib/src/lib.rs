@@ -1,7 +1,6 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use core::convert::TryInto;
 use gstd::{ext, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
@@ -17,12 +16,12 @@ fn make_fib(n: usize) -> Vec<i32> {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
+    let new_msg: i32 = msg::load().expect("Should be i32");
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
     msg::send(
         msg::source(),
-        &make_fib(new_msg as usize)[new_msg as usize - 1].to_ne_bytes(),
+        make_fib(new_msg as usize)[new_msg as usize - 1],
         10_000_000,
     );
 
@@ -38,10 +37,3 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {}
-
-#[panic_handler]
-fn panic(_info: &panic::PanicInfo) -> ! {
-    unsafe {
-        core::arch::wasm32::unreachable();
-    }
-}

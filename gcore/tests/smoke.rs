@@ -18,11 +18,11 @@
 
 #![no_std]
 
-use gstd::prelude::*;
-use gstd::{msg, ProgramId};
+use gcore::prelude::*;
+use gcore::{msg, ProgramId};
 
 #[cfg(feature = "debug")]
-use gstd::ext;
+use gcore::ext;
 
 static mut PROGRAM: ProgramId = ProgramId([0; 32]);
 static mut MESSAGE: Vec<u8> = Vec::new();
@@ -84,7 +84,7 @@ mod sys {
 
     #[no_mangle]
     unsafe extern "C" fn gr_value(val: *mut u8) {
-        let src = VALUE.to_ne_bytes().as_ptr();
+        let src = VALUE.to_le_bytes().as_ptr();
         ptr::copy(src, val, mem::size_of::<u128>());
     }
 }

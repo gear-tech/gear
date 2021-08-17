@@ -2,7 +2,6 @@
 #![feature(default_alloc_error_handler)]
 use gstd::{ext, msg, prelude::*, ProgramId};
 
-use codec::{Decode as _, Encode as _};
 use demo_chat::shared::{MemberMessage, RoomMessage};
 
 #[derive(Debug)]
@@ -32,15 +31,9 @@ static mut STATE: State = State {
     members: vec![],
 };
 
-pub fn send_member(id: ProgramId, msg: MemberMessage) {
-    let mut encoded = vec![];
-    msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, 10_000_000);
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    room(RoomMessage::decode(&mut &msg::load()[..]).expect("Failed to decode incoming message"));
+    room(msg::load().expect("Failed to decode incoming message"));
 }
 
 unsafe fn room(room_msg: RoomMessage) {
@@ -57,10 +50,10 @@ unsafe fn room(room_msg: RoomMessage) {
         }
         Yell { text } => {
             ext::debug(&format!("Yell ptr -> {:p}", text.as_ptr()));
-            for (id, _) in STATE.members.iter() {
-                if *id != msg::source() {
-                    send_member(
-                        *id,
+            for &(id, _) in STATE.members.iter() {
+                if id != msg::source() {
+                    msg::send(
+                        id,
                         MemberMessage::Room(format!(
                             "{}: {}",
                             STATE
@@ -69,7 +62,8 @@ unsafe fn room(room_msg: RoomMessage) {
                                 .1,
                             text
                         )),
-                    )
+                        10_000_000,
+                    );
                 }
             }
         }
@@ -79,7 +73,7 @@ unsafe fn room(room_msg: RoomMessage) {
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let s: &'static str = Box::leak(
-        String::from_utf8(msg::load())
+        String::from_utf8(msg::load_bytes())
             .expect("Invalid message: should be utf-8")
             .into_boxed_str(),
     );

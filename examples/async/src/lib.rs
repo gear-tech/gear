@@ -2,7 +2,7 @@
 #![feature(default_alloc_error_handler)]
 
 use core::num::ParseIntError;
-use gstd::{msg, prelude::*, ProgramId};
+use gcore::{msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
 static mut DEST_0: ProgramId = ProgramId([0u8; 32]);
@@ -58,7 +58,7 @@ async fn handle_async() {
 }
 
 #[panic_handler]
-fn panic(_info: &panic::PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe {
         core::arch::wasm32::unreachable();
     }

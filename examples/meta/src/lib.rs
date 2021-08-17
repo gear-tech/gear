@@ -20,8 +20,7 @@ struct MessageOut {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let message_in =
-        MessageIn::decode(&mut &msg::load()[..]).expect("Failed to decode incoming message");
+    let message_in: MessageIn = msg::load().expect("Failed to decode incoming message");
     let old_value = CURRENT_VALUE;
     CURRENT_VALUE += message_in.value;
     ext::debug(&format!(
@@ -30,11 +29,10 @@ pub unsafe extern "C" fn handle() {
     ));
 
     msg::reply(
-        &MessageOut {
+        MessageOut {
             old_value,
             new_value: CURRENT_VALUE,
-        }
-        .encode(),
+        },
         1000000,
         0,
     )
@@ -42,16 +40,14 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let message_in =
-        MessageIn::decode(&mut &msg::load()[..]).expect("Failed to decode incoming message");
+    let message_in: MessageIn = msg::load().expect("Failed to decode incoming message");
     CURRENT_VALUE = message_in.value;
 
     msg::reply(
-        &MessageOut {
+        MessageOut {
             old_value: 0,
             new_value: CURRENT_VALUE,
-        }
-        .encode(),
+        },
         1000000,
         0,
     )

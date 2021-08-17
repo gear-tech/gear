@@ -1,6 +1,9 @@
 [profile.release]
 panic = "unwind"
 
+[profile.release.package.gcore]
+opt-level = "s"
+
 [profile.release.package.gstd]
 opt-level = "s"
 

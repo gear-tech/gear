@@ -19,10 +19,13 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
+mod bail;
 pub mod msg;
+pub mod prelude;
 
-pub use gcore::bail;
+mod general;
+pub use general::*;
+
+mod utils;
 #[cfg(feature = "debug")]
-pub use gcore::ext;
-pub use gcore::prelude;
-pub use gcore::{MessageId, ProgramId};
+pub use utils::ext;

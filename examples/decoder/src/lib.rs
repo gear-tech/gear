@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gstd::{msg, prelude::*};
+use gcore::{msg, prelude::*};
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn handle() {
         let leaf = leaves.pop().expect("An error occured during calculating");
 
         msg::send_push(
-            handle,
+            &handle,
             format!("[{}, {}];", leaf + 1, vertex + 1).as_bytes(),
         );
 
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn handle() {
     }
 
     msg::send_push(
-        handle,
+        &handle,
         format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1).as_bytes(),
     );
 
