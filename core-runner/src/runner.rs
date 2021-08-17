@@ -680,7 +680,8 @@ impl EnvExt for Ext {
 
     fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
         if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
-            return Err("Gas limit exceeded while trying to send message");
+            return self
+                .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
         }
         let result = self.messages.send(msg).map_err(|_e| "Message send error");
 

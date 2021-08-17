@@ -7789,6 +7789,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tests-node"
+version = "0.1.0"
+dependencies = [
+ "env_logger 0.8.4",
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tests-common",
+]
+
+[[package]]
 name = "textwrap"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

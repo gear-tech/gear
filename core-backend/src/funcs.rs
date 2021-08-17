@@ -110,7 +110,7 @@ pub(crate) fn reply<E: Ext>(
             let value = get_u128(ext, value_ptr);
             ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
         })?;
-        result.map_err(|_| "Trapping: unable to send message")
+        result.map_err(|_| "Trapping: unable to send reply message")
     }
 }
 
