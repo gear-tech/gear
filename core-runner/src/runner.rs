@@ -688,11 +688,8 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn send_init(&mut self, msg: OutgoingPacket) -> Result<usize, &'static str> {
-        let result = self
-            .messages
-            .send_init(msg)
-            .map_err(|_e| "Message init error");
+    fn send_init(&mut self) -> Result<usize, &'static str> {
+        let result = self.messages.send_init().map_err(|_e| "Message init error");
 
         self.return_with_tracing(result)
     }
@@ -715,7 +712,11 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn send_commit(&mut self, handle: usize) -> Result<MessageId, &'static str> {
+    fn send_commit(
+        &mut self,
+        handle: usize,
+        msg: OutgoingPacket,
+    ) -> Result<MessageId, &'static str> {
         {
             let gas_limit = match self
                 .messages
@@ -736,7 +737,7 @@ impl EnvExt for Ext {
 
         let result = self
             .messages
-            .send_commit(handle)
+            .send_commit(handle, msg)
             .map_err(|_e| "Message commit error");
 
         self.return_with_tracing(result)

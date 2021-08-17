@@ -522,15 +522,6 @@ impl ReplyPacket {
     }
 }
 
-/// Message formation status.
-#[derive(Debug, PartialEq)]
-pub enum FormationStatus {
-    /// Message is fully formed and ready to be sent.
-    Formed,
-    /// Message is not fully formed yet.
-    NotFormed,
-}
-
 /// Generator of message id.
 pub trait MessageIdGenerator {
     /// Generate next id.
@@ -575,7 +566,7 @@ pub trait MessageIdGenerator {
 #[derive(Debug, Default)]
 pub struct MessageState {
     /// Collection of outgoing messages generated.
-    pub outgoing: Vec<(OutgoingMessage, FormationStatus)>,
+    pub outgoing: Vec<(Option<Payload>, Option<OutgoingMessage>)>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
     /// Message to be added to wait list.
@@ -630,7 +621,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         self.state
             .borrow_mut()
             .outgoing
-            .push((outgoing, FormationStatus::Formed));
+            .push((None, Some(outgoing)));
 
         Ok(message_id)
     }
@@ -638,7 +629,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Initialize a new message with `NotFormed` formation status and return its handle.
     ///
     /// Messages created this way should be commited with `commit(handle)` to be sent.
-    pub fn send_init(&self, msg: OutgoingPacket) -> Result<usize, Error> {
+    pub fn send_init(&self) -> Result<usize, Error> {
         let mut state = self.state.borrow_mut();
 
         let outgoing_count = state.outgoing.len();
@@ -647,10 +638,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             return Err(Error::LimitExceeded);
         }
 
-        state.outgoing.push((
-            self.id_generator.borrow_mut().produce_outgoing(msg),
-            FormationStatus::NotFormed,
-        ));
+        state.outgoing.push((Some(vec![].into()), None));
 
         Ok(outgoing_count)
     }
@@ -663,8 +651,8 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             return Err(Error::OutOfBounds);
         }
 
-        if let (msg, FormationStatus::NotFormed) = &mut state.outgoing[handle] {
-            msg.payload.0.extend_from_slice(buffer);
+        if let (Some(payload), _) = &mut state.outgoing[handle] {
+            payload.0.extend_from_slice(buffer);
             return Ok(());
         }
 
@@ -700,7 +688,11 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Mark message as fully formed and ready for sending in this context by handle.
-    pub fn send_commit(&mut self, handle: usize) -> Result<MessageId, Error> {
+    pub fn send_commit(
+        &mut self,
+        handle: usize,
+        packet: OutgoingPacket,
+    ) -> Result<MessageId, Error> {
         let mut state = self.state.borrow_mut();
 
         if handle >= state.outgoing.len() {
@@ -708,10 +700,20 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         }
 
         match &mut state.outgoing[handle] {
-            (_, FormationStatus::Formed) => Err(Error::LateAccess),
-            (outgoing, status) => {
-                *status = FormationStatus::Formed;
-                Ok(outgoing.id())
+            (None, _) => Err(Error::LateAccess),
+            (payload, msg) => {
+                let mut outgoing = self.id_generator.borrow_mut().produce_outgoing(packet);
+
+                outgoing.payload.0.clear();
+                outgoing
+                    .payload
+                    .0
+                    .extend_from_slice(&payload.as_ref().unwrap().0);
+
+                *msg = Some(outgoing);
+                *payload = None;
+
+                Ok(msg.as_ref().unwrap().id())
             }
         }
     }
@@ -734,7 +736,11 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             return Err(Error::OutOfBounds);
         }
 
-        Ok(state.outgoing[handle].0.gas_limit())
+        if let (None, Some(msg)) = &state.outgoing[handle] {
+            Ok(msg.gas_limit())
+        } else {
+            Err(Error::OutOfBounds)
+        }
     }
 
     /// Drop this context.
@@ -757,13 +763,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             state
                 .outgoing
                 .drain(..)
-                .filter_map(|v| {
-                    if v.1 == FormationStatus::Formed {
-                        Some(v.0)
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(|v| if v.0 == None { v.1 } else { None })
                 .collect(),
             state.reply,
             state.waiting,
@@ -876,80 +876,76 @@ mod tests {
 
         // Checking that generated outgoing message mathes passed outgoing packet
         assert_eq!(
-            context.state.borrow_mut().outgoing[0].0.dest,
+            context.state.borrow_mut().outgoing[0]
+                .1
+                .as_ref()
+                .unwrap()
+                .dest,
             outgoing_packet.dest
         );
         // And it is fully formed
-        assert_eq!(
-            context.state.borrow_mut().outgoing[0].1,
-            FormationStatus::Formed
-        );
+        assert_eq!(context.state.borrow_mut().outgoing[0].0, None);
 
-        // Creating an outgoing packet to send by parts
-        let outgoing_packet = OutgoingPacket::new(
-            ProgramId::from(OUTGOING_MESSAGE_DEST + 1),
-            vec![1, 1].into(),
-            0,
-            0,
-        );
-        // Creating an expected handle for a future initiated message
+        // Creating an expected handle for a future initialized message
         let expected_handle = 1;
 
         // Initializing message and compare its handle with expected one
         assert_eq!(
-            context
-                .send_init(outgoing_packet.clone())
-                .expect("Error initializing new message"),
+            context.send_init().expect("Error initializing new message"),
             expected_handle
         );
 
-        // Checking that initialized outgoing message mathes passed outgoing packet
-        assert_eq!(
-            context.state.borrow_mut().outgoing[expected_handle].0.dest,
-            outgoing_packet.dest
-        );
-        // And it is not fully formed
-        assert_eq!(
-            context.state.borrow_mut().outgoing[expected_handle].1,
-            FormationStatus::NotFormed
-        );
+        // And checking that it is not formed
+        assert!(context.state.borrow_mut().outgoing[expected_handle]
+            .0
+            .is_some());
 
         // Checking that we are able to push payload for the
         // message that we have not commited yet
         assert!(context.send_push(expected_handle, &[5, 7]).is_ok());
         assert!(context.send_push(expected_handle, &[9]).is_ok());
 
+        // Creating an outgoing packet to commit sending by parts
+        let commit_packet = OutgoingPacket::new(
+            ProgramId::from(OUTGOING_MESSAGE_DEST + 1),
+            vec![].into(),
+            0,
+            0,
+        );
+
         // Checking if commit is successful
-        assert!(context.send_commit(expected_handle).is_ok());
+        assert!(context.send_commit(expected_handle, commit_packet).is_ok());
 
         // Checking that we are **NOT** able to push payload for the message or
         // commit it if we already commited it or directly pushed before
         assert!(context.send_push(0, &[5, 7]).is_err());
         assert!(context.send_push(expected_handle, &[5, 7]).is_err());
-        assert!(context.send_commit(0).is_err());
-        assert!(context.send_commit(expected_handle).is_err());
+        assert!(context
+            .send_commit(0, OutgoingPacket::new(0.into(), vec![].into(), 0, 0))
+            .is_err());
+        assert!(context
+            .send_commit(
+                expected_handle,
+                OutgoingPacket::new(0.into(), vec![].into(), 0, 0)
+            )
+            .is_err());
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
         assert!(context.send_push(15, &[0]).is_err());
-        assert!(context.send_commit(15).is_err());
+        assert!(context
+            .send_commit(15, OutgoingPacket::new(0.into(), vec![].into(), 0, 0))
+            .is_err());
 
-        // Creating an outgoing packet to init and do not commit later
+        // Creating a handle to init and do not commit later
         // to show that the message will not be sent
-        let outgoing_packet = OutgoingPacket::new(
-            ProgramId::from(OUTGOING_MESSAGE_DEST + 2),
-            vec![2, 2].into(),
-            0,
-            0,
-        );
         let expected_handle = 2;
 
         assert_eq!(
-            context
-                .send_init(outgoing_packet)
-                .expect("Error initializing new message"),
+            context.send_init().expect("Error initializing new message"),
             expected_handle
         );
+        assert!(context.send_push(expected_handle, &[2, 2]).is_ok());
 
         // Checking that reply message not lost and matches our initial
         assert!(context.state.borrow().reply.is_some());
@@ -966,7 +962,7 @@ mod tests {
         let expected_result = context.drain();
         assert_eq!(expected_result.0.len(), 2);
         assert_eq!(expected_result.0[0].payload.0, vec![0, 0]);
-        assert_eq!(expected_result.0[1].payload.0, vec![1, 1, 5, 7, 9]);
+        assert_eq!(expected_result.0[1].payload.0, vec![5, 7, 9]);
 
         // Checking that we successfully pushed extra payload into reply
         assert!(expected_result.1.is_some());

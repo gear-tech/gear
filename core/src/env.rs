@@ -53,7 +53,7 @@ pub trait Ext {
     fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str>;
 
     /// Initialize a new incomplete message for another program and return its handle.
-    fn send_init(&mut self, msg: OutgoingPacket) -> Result<usize, &'static str>;
+    fn send_init(&mut self) -> Result<usize, &'static str>;
 
     /// Push an extra buffer into message payload by handle.
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
@@ -62,7 +62,11 @@ pub trait Ext {
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
-    fn send_commit(&mut self, handle: usize) -> Result<MessageId, &'static str>;
+    fn send_commit(
+        &mut self,
+        handle: usize,
+        msg: OutgoingPacket,
+    ) -> Result<MessageId, &'static str>;
 
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
@@ -181,7 +185,7 @@ mod tests {
         fn send(&mut self, _msg: OutgoingPacket) -> Result<MessageId, &'static str> {
             Ok(MessageId::default())
         }
-        fn send_init(&mut self, _msg: OutgoingPacket) -> Result<usize, &'static str> {
+        fn send_init(&mut self) -> Result<usize, &'static str> {
             Ok(0)
         }
         fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
@@ -190,7 +194,11 @@ mod tests {
         fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
-        fn send_commit(&mut self, _handle: usize) -> Result<MessageId, &'static str> {
+        fn send_commit(
+            &mut self,
+            _handle: usize,
+            _msg: OutgoingPacket,
+        ) -> Result<MessageId, &'static str> {
             Ok(MessageId::default())
         }
         fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
