@@ -46,6 +46,10 @@ impl ProgramStorage for ExtProgramStorage {
         None
     }
 
+    fn exists(&self, id: ProgramId) -> bool {
+        gear_common::native::program_exists(id)
+    }
+
     fn remove(&mut self, _id: ProgramId) -> Option<Program> {
         unimplemented!()
     }
