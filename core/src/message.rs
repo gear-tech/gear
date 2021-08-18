@@ -728,21 +728,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         self.id_generator.borrow().current()
     }
 
-    /// Return gas_limit of the message by handle.
-    pub fn get_gas_limit(&self, handle: usize) -> Result<u64, Error> {
-        let state = self.state.borrow();
-
-        if handle >= state.outgoing.len() {
-            return Err(Error::OutOfBounds);
-        }
-
-        if let (None, Some(msg)) = &state.outgoing[handle] {
-            Ok(msg.gas_limit())
-        } else {
-            Err(Error::OutOfBounds)
-        }
-    }
-
     /// Drop this context.
     ///
     /// Do it to return all outgoing messages and optional reply generated using this context.
