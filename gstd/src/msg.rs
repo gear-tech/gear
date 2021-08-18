@@ -17,10 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::prelude::Vec;
+use crate::MessageHandle;
 use crate::{MessageId, ProgramId};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MessageHandle(u32);
 
 mod sys {
     extern "C" {
