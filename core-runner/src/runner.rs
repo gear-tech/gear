@@ -65,8 +65,6 @@ impl Default for Config {
     }
 }
 
-type GasRequest = (ProgramId, ProgramId, u64);
-
 /// Result of one or more message handling.
 #[derive(Debug, Default, Clone)]
 pub struct RunNextResult {
@@ -78,8 +76,6 @@ pub struct RunNextResult {
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
     pub gas_spent: Vec<(ProgramId, u64)>,
-    /// Gas transfer requests.
-    pub gas_requests: Vec<GasRequest>,
 }
 
 impl RunNextResult {
@@ -99,33 +95,13 @@ impl RunNextResult {
         }
     }
 
-    /// Request all the gas to be reserved for the destination
-    pub(crate) fn refund(gas_request: GasRequest) -> Self {
-        RunNextResult {
-            handled: 1,
-            gas_requests: vec![gas_request],
-            ..Default::default()
-        }
-    }
-
     /// Accrue one run of the message hadling.
-    pub fn accrue(
-        &mut self,
-        message_id: MessageId,
-        caller_id: ProgramId,
-        program_id: ProgramId,
-        result: RunResult,
-    ) {
+    pub fn accrue(&mut self, message_id: MessageId, caller_id: ProgramId, result: RunResult) {
         self.handled += 1;
         self.outcomes.insert(message_id, result.outcome);
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
-        if result.gas_requested > 0 {
-            // Report that program requested gas transfer
-            self.gas_requests
-                .push((caller_id, program_id, result.gas_requested));
-        }
     }
 
     /// Empty run result.
@@ -134,14 +110,9 @@ impl RunNextResult {
     }
 
     /// From one single run.
-    pub fn from_single(
-        message_id: MessageId,
-        caller_id: ProgramId,
-        program_id: ProgramId,
-        run_result: RunResult,
-    ) -> Self {
+    pub fn from_single(message_id: MessageId, caller_id: ProgramId, run_result: RunResult) -> Self {
         let mut result = Self::empty();
-        result.accrue(message_id, caller_id, program_id, run_result);
+        result.accrue(message_id, caller_id, run_result);
         result
     }
 
@@ -327,12 +298,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             let mut program = match self.program_storage.get(next_message_dest) {
                 Some(program) => program,
                 None => {
-                    // Reserve the entire `gas_limit` so that it is transferred to the addressee eventually
-                    return RunNextResult::refund((
-                        next_message_source,
-                        next_message_dest,
-                        gas_limit,
-                    ));
+                    return RunNextResult::log();
                 }
             };
 
@@ -407,12 +373,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                 }
             }
 
-            let result = RunNextResult::from_single(
-                next_message_id,
-                next_message_source,
-                next_message_dest,
-                run_result,
-            );
+            let result =
+                RunNextResult::from_single(next_message_id, next_message_source, run_result);
 
             self.message_queue
                 .queue_many(context.message_buf.drain(..).collect());
@@ -637,8 +599,6 @@ pub struct RunResult {
     pub gas_left: u64,
     /// Gas that was spent.
     pub gas_spent: u64,
-    /// Gas requested to be transferred.
-    pub gas_requested: u64,
     /// Run outcome (trap/succes).
     pub outcome: ExecutionOutcome,
 }
@@ -647,7 +607,6 @@ struct Ext {
     memory_context: MemoryContext,
     messages: MessageContext<BlakeMessageIdGenerator>,
     gas_counter: Box<dyn GasCounter>,
-    gas_requested: u64,
     alloc_cost: u64,
     last_error_returned: Option<&'static str>,
 }
@@ -679,7 +638,7 @@ impl EnvExt for Ext {
     }
 
     fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
-        if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
+        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self
                 .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
         }
@@ -728,7 +687,7 @@ impl EnvExt for Ext {
                 }
             };
 
-            if self.gas_counter.charge(gas_limit) != ChargeResult::Enough {
+            if self.gas_counter.reduce(gas_limit) != ChargeResult::Enough {
                 return self
                     .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
             }
@@ -798,15 +757,6 @@ impl EnvExt for Ext {
         self.gas_counter.left()
     }
 
-    fn charge(&mut self, gas: u64) -> Result<(), &'static str> {
-        if self.gas_counter.charge(gas) == ChargeResult::Enough {
-            self.gas_requested += gas;
-            Ok(())
-        } else {
-            self.return_with_tracing(Err("Gas limit exceeded"))
-        }
-    }
-
     fn value(&self) -> u128 {
         self.messages.current().value()
     }
@@ -839,7 +789,7 @@ fn run(
     message: &IncomingMessage,
     gas_limit: u64,
 ) -> RunResult {
-    let mut gas_counter = Box::new(GasCounterLimited(gas_limit)) as Box<dyn GasCounter>;
+    let mut gas_counter = Box::new(GasCounterLimited::new(gas_limit)) as Box<dyn GasCounter>;
 
     let id_generator = BlakeMessageIdGenerator {
         program_id: program.id(),
@@ -860,7 +810,6 @@ fn run(
                     awakening: None,
                     gas_left,
                     gas_spent: 0,
-                    gas_requested: 0,
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
                 };
             }
@@ -877,7 +826,6 @@ fn run(
                     awakening: None,
                     gas_left,
                     gas_spent: 0,
-                    gas_requested: 0,
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
                 };
             }
@@ -896,7 +844,6 @@ fn run(
         ),
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
-        gas_requested: 0,
         alloc_cost: context.alloc_cost(),
         last_error_returned: None,
     };
@@ -947,9 +894,8 @@ fn run(
         ));
     }
 
+    let gas_burned = ext.gas_counter.burned();
     let mut gas_left = ext.gas_counter.left();
-    let gas_requested = ext.gas_requested;
-    let gas_spent = gas_limit - gas_left - gas_requested;
 
     let waiting = waiting.map(|mut msg| {
         // Update gas limit according to gas already spent
@@ -972,8 +918,7 @@ fn run(
         waiting,
         awakening,
         gas_left,
-        gas_spent,
-        gas_requested,
+        gas_spent: gas_burned,
         outcome,
     }
 }
@@ -1260,63 +1205,6 @@ mod tests {
     }
 
     #[test]
-    fn gas_transfer() {
-        // Charge 100_000 of gas.
-        let wat = r#"
-        (module
-            (import "env" "gr_charge" (func $charge (param i64)))
-            (import "env" "memory" (memory 1))
-            (export "handle" (func $handle))
-            (export "init" (func $init))
-            (func $handle
-                i64.const 100000
-                call $charge
-            )
-            (func $init)
-        )"#;
-
-        let gas_limit = 1000_000;
-        let caller_id = 0.into();
-        let program_id = 1.into();
-
-        let mut runner = RunnerBuilder::new()
-            .program(parse_wat(wat))
-            .init_message(ExtMessage {
-                id: 1000001.into(),
-                payload: "init".as_bytes().to_vec(),
-                gas_limit: u64::MAX,
-                value: 0,
-            })
-            .build()
-            .build();
-
-        runner.queue_message(MessageDispatch {
-            source_id: caller_id,
-            destination_id: 1.into(),
-            data: ExtMessage {
-                id: 1000002.into(),
-                payload: vec![0],
-                gas_limit,
-                value: 0,
-            },
-        });
-
-        let result = runner.run_next(u64::MAX);
-        assert_eq!(result.gas_spent.len(), 1);
-        assert_eq!(result.gas_left.len(), 1);
-        assert_eq!(result.gas_requests.len(), 1);
-
-        assert_eq!(result.gas_left[0].0, caller_id);
-        assert!(result.gas_left[0].1 < gas_limit - 100_000);
-        assert_eq!(result.gas_spent[0].0, caller_id);
-        assert!(result.gas_spent[0].1 > 0 && result.gas_spent[0].1 < 100_000);
-
-        assert_eq!(result.gas_requests[0].0, caller_id);
-        assert_eq!(result.gas_requests[0].1, program_id);
-        assert_eq!(result.gas_requests[0].2, 100_000);
-    }
-
-    #[test]
     fn wait() {
         // Call `gr_wait` function
         let wat = r#"
@@ -1516,7 +1404,6 @@ mod tests {
 
     #[test]
     fn spending_with_extra_messages() {
-        // Call `gr_wait` function
         let wat = r#"
             (module
                 (import "env" "gr_send"  (func $send (param i32 i32 i32 i64 i32 i32)))

@@ -25,7 +25,6 @@ pub struct MessageHandle(u32);
 mod sys {
     extern "C" {
         pub fn gr_gas_available() -> u64;
-        pub fn gr_charge(gas: u64);
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
         pub fn gr_reply(data_ptr: *const u8, data_len: u32, gas_limit: u64, value_ptr: *const u8);
@@ -53,12 +52,6 @@ mod sys {
         pub fn gr_value(val: *mut u8);
         pub fn gr_wait() -> !;
         pub fn gr_wake(waker_id_ptr: *const u8);
-    }
-}
-
-pub fn charge(gas: u64) {
-    unsafe {
-        sys::gr_charge(gas);
     }
 }
 
