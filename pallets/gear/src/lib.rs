@@ -23,6 +23,8 @@
 /// <https://substrate.dev/docs/en/knowledgebase/runtime/frame>
 pub use pallet::*;
 
+mod benchmarking;
+
 #[cfg(test)]
 mod mock;
 
@@ -41,10 +43,11 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use sp_core::H256;
+    use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + pallet_authorship::Config {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -183,8 +186,6 @@ pub mod pallet {
     impl<T: Config> Pallet<T>
     where
         T::AccountId: Origin,
-        T: pallet_authorship::Config,
-        <T::Currency as Currency<T::AccountId>>::Balance: Into<u128> + From<u128>,
     {
         fn gas_to_fee(gas: u64) -> BalanceOf<T> {
             IdentityFee::<BalanceOf<T>>::calc(&gas)
@@ -230,8 +231,6 @@ pub mod pallet {
     impl<T: Config> Pallet<T>
     where
         T::AccountId: Origin,
-        T: pallet_authorship::Config,
-        <T::Currency as Currency<T::AccountId>>::Balance: Into<u128> + From<u128>,
     {
         /// Creates a `Program` from wasm code and runs its init function.
         ///
@@ -320,7 +319,7 @@ pub mod pallet {
                 init_message_id,
                 payload: init_payload,
                 gas_limit,
-                value: value.into(),
+                value: value.unique_saturated_into(),
             });
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
@@ -395,7 +394,7 @@ pub mod pallet {
                 destination,
                 payload,
                 gas_limit,
-                value: value.into(),
+                value: value.unique_saturated_into(),
                 reply: None,
             });
 
@@ -458,7 +457,7 @@ pub mod pallet {
                 destination,
                 payload,
                 gas_limit,
-                value: value.into(),
+                value: value.unique_saturated_into(),
                 reply: Some(reply_to_id),
             });
 
@@ -537,7 +536,7 @@ pub mod pallet {
                                 // No code has run hense unreserving everything
                                 T::Currency::unreserve(
                                     &<T::AccountId as Origin>::from_origin(origin),
-                                    Self::gas_to_fee(gas_limit) + value.into(),
+                                    Self::gas_to_fee(gas_limit) + value.unique_saturated_into(),
                                 );
 
                                 // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
@@ -558,7 +557,7 @@ pub mod pallet {
                                 // In case of init, we can unreserve everything right away.
                                 T::Currency::unreserve(
                                     &<T::AccountId as Origin>::from_origin(origin),
-                                    Self::gas_to_fee(gas_limit) + value.into(),
+                                    Self::gas_to_fee(gas_limit) + value.unique_saturated_into(),
                                 );
 
                                 // Handle the stuff that should be taken care of regardless of the execution outcome
@@ -604,7 +603,7 @@ pub mod pallet {
                                     || T::Currency::transfer(
                                         &<T::AccountId as Origin>::from_origin(origin),
                                         &<T::AccountId as Origin>::from_origin(program_id),
-                                        value.into(),
+                                        value.unique_saturated_into(),
                                         ExistenceRequirement::AllowDeath,
                                     )
                                     .is_err()
@@ -776,8 +775,6 @@ pub mod pallet {
     impl<T: Config> frame_support::inherent::ProvideInherent for Pallet<T>
     where
         T::AccountId: Origin,
-        T: pallet_authorship::Config,
-        <T::Currency as Currency<T::AccountId>>::Balance: Into<u128> + From<u128>,
     {
         type Call = Call<T>;
         type Error = sp_inherents::MakeFatalError<()>;

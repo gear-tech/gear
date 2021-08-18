@@ -155,7 +155,7 @@ pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
     sp_io::storage::get(&code_key(code_hash).0)
 }
 
-fn set_code(code_hash: H256, code: &[u8]) {
+pub fn set_code(code_hash: H256, code: &[u8]) {
     sp_io::storage::set(&code_key(code_hash).0, code)
 }
 
