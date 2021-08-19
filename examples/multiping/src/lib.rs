@@ -17,7 +17,7 @@ pub unsafe extern "C" fn handle() {
         msg::send_push(handle, b"PONG1");
         msg::send_push(handle, b"PONG2");
         msg::send_push(handle, b"PONG3");
-        msg::send_commit(handle, msg::source(), 1844674407370955161, 0);
+        msg::send_commit(handle, msg::source(), 10_000_000, 0);
     }
 }
 

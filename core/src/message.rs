@@ -27,7 +27,7 @@ use crate::program::ProgramId;
 use codec::{Decode, Encode};
 
 /// Message payload.
-#[derive(Clone, Debug, Decode, Encode, derive_more::From, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Default, Encode, derive_more::From, PartialEq, Eq)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
@@ -497,6 +497,18 @@ impl OutgoingPacket {
     }
 }
 
+impl Default for OutgoingPacket {
+    /// Empty packet with log dest.
+    fn default() -> Self {
+        Self {
+            dest: ProgramId::system(),
+            payload: Payload::default(),
+            gas_limit: 0,
+            value: 0,
+        }
+    }
+}
+
 /// Reply message packet.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ReplyPacket {
@@ -638,7 +650,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             return Err(Error::LimitExceeded);
         }
 
-        state.outgoing.push((Some(vec![].into()), None));
+        state.outgoing.push((Some(Payload::default()), None));
 
         Ok(outgoing_count)
     }
@@ -893,7 +905,7 @@ mod tests {
         // Creating an outgoing packet to commit sending by parts
         let commit_packet = OutgoingPacket::new(
             ProgramId::from(OUTGOING_MESSAGE_DEST + 1),
-            vec![].into(),
+            Payload::default(),
             0,
             0,
         );
@@ -905,22 +917,15 @@ mod tests {
         // commit it if we already commited it or directly pushed before
         assert!(context.send_push(0, &[5, 7]).is_err());
         assert!(context.send_push(expected_handle, &[5, 7]).is_err());
+        assert!(context.send_commit(0, OutgoingPacket::default()).is_err());
         assert!(context
-            .send_commit(0, OutgoingPacket::new(0.into(), vec![].into(), 0, 0))
-            .is_err());
-        assert!(context
-            .send_commit(
-                expected_handle,
-                OutgoingPacket::new(0.into(), vec![].into(), 0, 0)
-            )
+            .send_commit(expected_handle, OutgoingPacket::default())
             .is_err());
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message
         assert!(context.send_push(15, &[0]).is_err());
-        assert!(context
-            .send_commit(15, OutgoingPacket::new(0.into(), vec![].into(), 0, 0))
-            .is_err());
+        assert!(context.send_commit(15, OutgoingPacket::default()).is_err());
 
         // Creating a handle to init and do not commit later
         // to show that the message will not be sent
