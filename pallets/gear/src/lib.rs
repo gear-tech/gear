@@ -586,17 +586,6 @@ pub mod pallet {
                                     }
                                 }
 
-                                for (source, dest, gas_transfer) in execution_report.gas_transfers {
-                                    let transfer_fee = Self::gas_to_fee(gas_transfer);
-
-                                    let _ = T::Currency::repatriate_reserved(
-                                        &<T::AccountId as Origin>::from_origin(source),
-                                        &<T::AccountId as Origin>::from_origin(dest),
-                                        transfer_fee,
-                                        BalanceStatus::Free,
-                                    );
-                                }
-
                                 for message in execution_report.log {
                                     Self::deposit_event(Event::Log(message));
                                 }
@@ -713,17 +702,6 @@ pub mod pallet {
 
                             // Decrease block gas allowance
                             GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
-                        }
-
-                        for (source, dest, gas_transfer) in execution_report.gas_transfers {
-                            let transfer_fee = Self::gas_to_fee(gas_transfer);
-
-                            let _ = T::Currency::repatriate_reserved(
-                                &<T::AccountId as Origin>::from_origin(source),
-                                &<T::AccountId as Origin>::from_origin(dest),
-                                transfer_fee,
-                                BalanceStatus::Free,
-                            );
                         }
 
                         for message in execution_report.log {

@@ -102,9 +102,6 @@ pub trait Ext {
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> u64;
 
-    /// Transfer gas to program from the caller side.
-    fn charge(&mut self, gas: u64) -> Result<(), &'static str>;
-
     /// Value associated with message.
     fn value(&self) -> u128;
 
@@ -224,9 +221,6 @@ mod tests {
         }
         fn value(&self) -> u128 {
             0
-        }
-        fn charge(&mut self, _gas: u64) -> Result<(), &'static str> {
-            Ok(())
         }
         fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())

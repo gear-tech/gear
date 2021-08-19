@@ -50,13 +50,6 @@ pub(crate) fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'sta
     }
 }
 
-pub(crate) fn charge<E: Ext>(ext: LaterExt<E>) -> impl Fn(i64) -> Result<(), &'static str> {
-    move |gas: i64| {
-        ext.with(|ext: &mut E| ext.charge(gas as u64))?
-            .map_err(|_| "Trapping: unable to charge gas for reserve")
-    }
-}
-
 pub(crate) fn debug<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), &'static str> {
     move |str_ptr: i32, str_len: i32| {
         let str_ptr = str_ptr as u32 as usize;
