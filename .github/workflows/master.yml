@@ -74,10 +74,6 @@ jobs:
       - name: Run testsuite
         run: ./target/release/gear-node runtests ./gtest/spec/*.yaml
 
-      - name: Run rpc-test
-        run: |
-          ./target/release/gear-node --dev -l 2 & sleep 5
-          node rpc-tests/index.js ./gtest/spec/*.yaml
 
       - name: Run metadata test
         run: |
