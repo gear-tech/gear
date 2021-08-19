@@ -54,39 +54,83 @@ pub struct GasCounterUnlimited;
 
 /// Gas counter with some predifined maximum gas.
 #[derive(Debug)]
-pub struct GasCounterLimited(pub u64);
+pub struct GasCounterLimited {
+    left: u64,
+    burned: u64,
+}
 
 /// Gas counter.
 pub trait GasCounter {
     /// Charge some gas.
-    fn charge(&mut self, val: u64) -> ChargeResult;
+    fn charge(&mut self, amount: u64) -> ChargeResult;
     /// Report how much gas is left.
     fn left(&self) -> u64;
+    /// Reduce gas.
+    ///
+    /// This means that gas was not spent, but rather transfered
+    /// to another actor.
+    fn reduce(&mut self, amount: u64) -> ChargeResult;
+
+    /// Report how much gas is burned.
+    fn burned(&self) -> u64;
 }
 
 impl GasCounter for GasCounterUnlimited {
-    fn charge(&mut self, _val: u64) -> ChargeResult {
+    fn charge(&mut self, _amount: u64) -> ChargeResult {
+        ChargeResult::Enough
+    }
+
+    fn reduce(&mut self, _amount: u64) -> ChargeResult {
         ChargeResult::Enough
     }
 
     fn left(&self) -> u64 {
         u64::MAX
     }
+
+    fn burned(&self) -> u64 {
+        0
+    }
 }
 
 impl GasCounter for GasCounterLimited {
-    fn charge(&mut self, val: u64) -> ChargeResult {
-        if self.0 < val {
+    fn charge(&mut self, amount: u64) -> ChargeResult {
+        if self.left < amount {
             return ChargeResult::NotEnough;
         }
 
-        self.0 -= val;
+        self.left -= amount;
+        self.burned += amount;
+
+        ChargeResult::Enough
+    }
+
+    fn reduce(&mut self, amount: u64) -> ChargeResult {
+        if self.left < amount {
+            return ChargeResult::NotEnough;
+        }
+
+        self.left -= amount;
 
         ChargeResult::Enough
     }
 
     fn left(&self) -> u64 {
-        self.0
+        self.left
+    }
+
+    fn burned(&self) -> u64 {
+        self.burned
+    }
+}
+
+impl GasCounterLimited {
+    /// New limited gas counter with initial gas to spend.
+    pub fn new(initial_amount: u64) -> Self {
+        Self {
+            left: initial_amount,
+            burned: 0,
+        }
     }
 }
 
@@ -158,7 +202,7 @@ mod tests {
     /// on calling `charge(...)` when the remaining gas exceeds the required value,
     /// otherwise returns NotEnough
     fn limited_gas_counter_charging() {
-        let mut counter = GasCounterLimited(200);
+        let mut counter = GasCounterLimited::new(200);
 
         let result = counter.charge(100);
 

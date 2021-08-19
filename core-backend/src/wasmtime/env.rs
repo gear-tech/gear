@@ -54,7 +54,6 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32("free", funcs::free);
         result.add_func_i32("gas", funcs::gas);
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
-        result.add_func_i64("gr_charge", funcs::charge);
         result.add_func_i32_i32("gr_debug", funcs::debug);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
@@ -258,16 +257,6 @@ impl<E: Ext + 'static> Environment<E> {
     fn add_func_i32_to_u32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
         F: 'static + Fn(i32) -> Result<u32, &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap1(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i64) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,

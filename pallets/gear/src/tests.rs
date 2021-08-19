@@ -218,6 +218,7 @@ fn send_message_works() {
         assert_eq!(msg_id, id);
 
         // Sending message to a non-program address works as a simple value transfer
+        // Gas limit is not transfered and returned back to sender (since operation is no-op).
         assert_eq!(Balances::free_balance(1), 99990000);
         assert_eq!(Balances::free_balance(2), 1);
         assert_ok!(Pallet::<Test>::send_message(
@@ -233,7 +234,10 @@ fn send_message_works() {
         assert_eq!(Balances::free_balance(2), 20_001);
         // The `gas_limit` part will be released to the recepient in the next block
         run_to_block(2, Some(100_000));
-        assert_eq!(Balances::free_balance(2), 30_001);
+        assert_eq!(Balances::free_balance(2), 20_001);
+
+        // original sender gets back whatever gas_limit he used to send a message.
+        assert_eq!(Balances::free_balance(1), 99_970_000);
     })
 }
 
