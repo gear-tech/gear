@@ -45,6 +45,7 @@ impl GearTestCmd {
                         message_queue: rti::ext::ExtMessageQueue::default(),
                         program_storage: rti::ext::ExtProgramStorage,
                         wait_list: Default::default(),
+                        log: Default::default(),
                     }
                 })
             })

@@ -32,7 +32,7 @@ use gear_core::{
         OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
-    storage::{MessageQueue, ProgramStorage, Storage, WaitList},
+    storage::{Log, MessageQueue, ProgramStorage, Storage, WaitList},
 };
 use gear_core_backend::Environment;
 
@@ -156,6 +156,7 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
     pub(crate) wait_list: WL,
+    pub(crate) log: Log,
     pub(crate) config: Config,
     env: Environment<Ext>,
 }
@@ -259,12 +260,14 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             message_queue,
             program_storage,
             wait_list,
+            log,
         } = storage;
 
         Self {
             program_storage,
             message_queue,
             wait_list,
+            log,
             config: config.clone(),
             env,
         }
@@ -342,15 +345,27 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             let nonce = program.fetch_inc_message_nonce();
             let trap_message_id = self.next_message_id(program_id, nonce);
 
-            self.message_queue.queue(Message {
-                id: trap_message_id,
-                source: program_id,
-                dest: next_message_source,
-                payload: vec![].into(),
-                gas_limit: run_result.gas_left,
-                value: 0,
-                reply: Some((next_message_id, EXIT_CODE_PANIC)),
-            });
+            if self.program_storage.exists(next_message_source) {
+                self.message_queue.queue(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                });
+            } else {
+                self.log.put(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                });
+            }
         }
 
         if let Some(waiting_msg) = run_result.waiting.take() {
@@ -372,8 +387,14 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             run_result,
         );
 
-        self.message_queue
-            .queue_many(context.message_buf.drain(..).collect());
+        for message in context.message_buf.drain(..) {
+            if self.program_storage.exists(message.dest()) {
+                self.message_queue.queue(message);
+            } else {
+                self.log.put(message);
+            }
+        }
+
         self.program_storage.set(program);
 
         result
@@ -387,6 +408,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             program_storage,
             message_queue,
             wait_list,
+            log,
             ..
         } = self;
 
@@ -394,6 +416,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             message_queue,
             program_storage,
             wait_list,
+            log,
         }
     }
 

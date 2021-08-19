@@ -109,18 +109,12 @@ pub trait MessageQueue: Default {
 #[derive(Default, Debug)]
 pub struct InMemoryMessageQueue {
     inner: VecDeque<Message>,
-    log: Vec<Message>, // messages sent to /0
 }
 
 impl InMemoryMessageQueue {
     /// Create an empty in-memory message queue.
     pub fn new() -> Self {
         Default::default()
-    }
-
-    /// Messages log (messages sent with no destination).
-    pub fn log(&self) -> &[Message] {
-        &self.log[..]
     }
 }
 
@@ -130,11 +124,6 @@ impl MessageQueue for InMemoryMessageQueue {
     }
 
     fn queue(&mut self, message: Message) {
-        if message.dest() == 0.into() {
-            self.log.push(message);
-            return;
-        }
-
         self.inner.push_back(message)
     }
 }
@@ -143,7 +132,6 @@ impl From<Vec<Message>> for InMemoryMessageQueue {
     fn from(messages: Vec<Message>) -> Self {
         Self {
             inner: VecDeque::from(messages),
-            log: Vec::new(),
         }
     }
 }
@@ -201,6 +189,24 @@ impl From<InMemoryWaitList> for MessageMap {
     }
 }
 
+/// Log.
+#[derive(Default, Debug)]
+pub struct Log {
+    inner: Vec<Message>,
+}
+
+impl Log {
+    /// Put message to log.
+    pub fn put(&mut self, message: Message) {
+        self.inner.push(message)
+    }
+
+    /// Get all messages in log.
+    pub fn get(&self) -> &[Message] {
+        &self.inner
+    }
+}
+
 /// Storage.
 #[derive(Default)]
 pub struct Storage<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
@@ -210,6 +216,8 @@ pub struct Storage<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub program_storage: PS,
     /// Wait list.
     pub wait_list: WL,
+    /// Log.
+    pub log: Log,
 }
 
 impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Storage<MQ, PS, WL> {
@@ -219,11 +227,17 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Storage<MQ, PS, WL> {
     }
 
     /// Create a storage from messages queue, programs storage and wait list.
-    pub fn from_components(message_queue: MQ, program_storage: PS, wait_list: WL) -> Self {
+    pub fn from_components(
+        message_queue: MQ,
+        program_storage: PS,
+        wait_list: WL,
+        log: Log,
+    ) -> Self {
         Self {
             message_queue,
             program_storage,
             wait_list,
+            log,
         }
     }
 }

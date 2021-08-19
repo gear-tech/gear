@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::storage::Storage;
+use gear_core::storage::{Log, Storage};
 use gear_core_runner::runner::{Config, Runner};
 
 use crate::ext::*;
@@ -30,6 +30,7 @@ pub fn new() -> ExtRunner {
             message_queue: ExtMessageQueue::default(),
             program_storage: ExtProgramStorage,
             wait_list: ExtWaitList::default(),
+            log: Log::default(),
         },
     )
 }

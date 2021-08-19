@@ -48,7 +48,7 @@ pub trait CollectState {
 impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
     fn collect(self) -> FinalState {
         FinalState {
-            log: self.message_queue.log().to_vec(),
+            log: self.log.get().to_vec(),
             messages: self.message_queue.into(),
             program_storage: self.program_storage.into(),
             wait_list: self.wait_list.into(),
@@ -58,7 +58,7 @@ impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMe
 
 impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
     fn collect(self) -> FinalState {
-        let log = self.message_queue.log;
+        let log = self.log.get();
 
         let mut messages = Vec::new();
 
@@ -69,7 +69,7 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
         }
 
         FinalState {
-            log,
+            log: log.to_vec(),
             messages,
             // TODO: iterate program storage to list programs here
             program_storage: Vec::new(),
