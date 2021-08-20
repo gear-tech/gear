@@ -20,7 +20,6 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 
 mod bail;
-mod meta;
 pub mod msg;
 pub mod prelude;
 

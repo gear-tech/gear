@@ -48,7 +48,7 @@ macro_rules! bail {
         $res.expect($fmtd);
     };
     ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
-        $res.expect(&crate::prelude::format!($fmt, $($args)+));
+        $res.expect(&gstd::prelude::format!($fmt, $($args)+));
     };
 }
 
@@ -58,19 +58,19 @@ macro_rules! bail {
     ($res:expr, $msg:literal) => {
         match $res {
             Ok(v) => v,
-            Err(_) => crate::prelude::panic!($msg),
+            Err(_) => gstd::prelude::panic!($msg),
         }
     };
     ($res:expr, $expl:literal, $fmtd:literal) => {
         match $res {
             Ok(v) => v,
-            Err(_) => crate::prelude::panic!($expl),
+            Err(_) => gstd::prelude::panic!($expl),
         }
     };
     ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
         match $res {
             Ok(v) => v,
-            Err(_) => crate::prelude::panic!($expl),
+            Err(_) => gstd::prelude::panic!($expl),
         }
     };
 }
