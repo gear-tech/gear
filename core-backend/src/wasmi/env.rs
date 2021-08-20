@@ -86,10 +86,6 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                 .map(|v| Some(RuntimeValue::I32(v as i32)))
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-            Some(FuncIndex::Charge) => funcs::charge(self.ext.clone())(args.nth(0))
-                .map(|_| None)
-                .map_err(|_| Trap::new(TrapKind::InvalidConversionToInt)),
-
             Some(FuncIndex::Debug) => funcs::debug(self.ext.clone())(args.nth(0), args.nth(1))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
@@ -143,13 +139,7 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-            Some(FuncIndex::SendCommit) => {
-                funcs::send_commit(self.ext.clone())(args.nth(0), args.nth(0))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
-
-            Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())(
+            Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(
                 args.nth(0),
                 args.nth(1),
                 args.nth(2),
@@ -158,6 +148,10 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             )
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())()
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
             Some(FuncIndex::SendPush) => {
                 funcs::send_push(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
@@ -204,7 +198,6 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "free" => func_instance!(Free, ValueType::I32 => None),
             "gas" => func_instance!(Gas, ValueType::I32 => None),
             "gr_gas_available" => func_instance!(GasAvailable, => Some(ValueType::I64)),
-            "gr_charge" => func_instance!(Charge, ValueType::I64 => None),
             "gr_debug" => func_instance!(Debug, ValueType::I32, ValueType::I32 => None),
             "gr_msg_id" => func_instance!(MsgId, ValueType::I32 => None),
             "gr_read" => {

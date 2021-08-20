@@ -59,11 +59,11 @@ impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMe
 impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
     fn collect(self) -> FinalState {
         let log = self.message_queue.log;
+        let program_storage = self.program_storage;
 
         let mut messages = Vec::new();
-
         let mut message_queue =
-            common::storage_queue::StorageQueue::get("g::msg::".as_bytes().to_vec());
+            common::storage_queue::StorageQueue::get(common::STORAGE_MESSAGE_PREFIX);
         while let Some(message) = message_queue.dequeue() {
             messages.push(message);
         }
@@ -71,8 +71,7 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
         FinalState {
             log,
             messages,
-            // TODO: iterate program storage to list programs here
-            program_storage: Vec::new(),
+            program_storage: program_storage.iter().collect(),
             wait_list: self.wait_list.into(),
         }
     }
@@ -85,18 +84,18 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
 ) -> anyhow::Result<Runner<MQ, PS, WL>> {
     let mut runner = Runner::new(&Config::default(), storage);
     let mut nonce = 0;
+    let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
-            let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
             init_message = match init_msg {
                 PayloadVariant::Utf8(s) => {
                     // Insert ProgramId
-                    if let Some(caps) = re.captures(s) {
+                    if let Some(caps) = program_id_regex.captures(s) {
                         let id = caps["id"].parse::<u64>().unwrap();
                         let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
-                        (s.clone().into_bytes()).to_vec()
+                        s.into_bytes()
                     } else {
                         init_msg.clone().into_raw()
                     }
@@ -121,11 +120,10 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
-        let re = Regex::new(r"\{(?P<id>[0-9]*)\}").unwrap();
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => {
                 // Insert ProgramId
-                if let Some(caps) = re.captures(s) {
+                if let Some(caps) = program_id_regex.captures(s) {
                     let id = caps["id"].parse::<u64>().unwrap();
                     let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
                     (s.clone().into_bytes()).to_vec()

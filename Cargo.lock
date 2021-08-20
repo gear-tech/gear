@@ -2136,9 +2136,11 @@ dependencies = [
 name = "gear-node-rti"
 version = "0.1.0"
 dependencies = [
+ "frame-system",
  "gear-common",
  "gear-core",
  "gear-core-runner",
+ "gear-runtime",
  "log",
  "parity-scale-codec",
  "sp-core",
@@ -2146,6 +2148,7 @@ dependencies = [
  "sp-io",
  "sp-runtime-interface",
  "sp-std",
+ "wabt",
 ]
 
 [[package]]
@@ -7811,6 +7814,19 @@ dependencies = [
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "tests-node"
+version = "0.1.0"
+dependencies = [
+ "env_logger 0.8.4",
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder 4.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tests-common",
 ]
 
 [[package]]
