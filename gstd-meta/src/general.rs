@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::Deserialize;
 use crate::{BTreeMap, String, Vec};
-use serde::Deserialize;
 
 pub struct CustomType {
     name: String,
@@ -43,8 +43,7 @@ impl CustomType {
         map
     }
 }
-
-#[derive(Clone, Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Field {
     name: String,
     #[serde(rename(deserialize = "typeName"))]

@@ -27,6 +27,7 @@ mod meta;
 pub mod utils;
 
 pub use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
+pub use codec::{Decode, Encode};
 pub use gear_decorators::*;
 pub use general::*;
 pub use scale_info::{IntoPortable, PortableRegistry, Registry, TypeInfo};

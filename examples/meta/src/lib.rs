@@ -1,21 +1,31 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use codec::{Decode, Encode};
-use gstd::{ext, msg, prelude::*};
+// TODO: Deal with `panic_handler`s conflict of `serde` and `no_std` contracts
+
+use gstd::{ext, msg};
+use gstd_meta::*;
 
 static mut CURRENT_VALUE: u64 = 0;
 
-#[derive(Debug, Encode, Decode)]
+#[gear_data]
 struct MessageIn {
     value: u64,
     annotation: String,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[gear_data]
 struct MessageOut {
     old_value: u64,
     new_value: u64,
+}
+
+meta! {
+    title: "Example program with metadata",
+    input: MessageIn,
+    output: MessageOut,
+    init_input: MessageIn,
+    init_output: MessageOut
 }
 
 #[no_mangle]
@@ -55,36 +65,4 @@ pub unsafe extern "C" fn init() {
         1000000,
         0,
     )
-}
-
-fn return_slice<T>(slice: &[T]) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([
-        slice.as_ptr() as isize as _,
-        slice.len() as isize as _,
-    ]))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_output() -> *mut [i32; 2] {
-    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_title() -> *mut [i32; 2] {
-    return_slice(br#"Example program with metadata"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_init_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_init_output() -> *mut [i32; 2] {
-    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
 }

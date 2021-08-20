@@ -2383,6 +2383,7 @@ name = "gstd-meta"
 version = "0.1.0"
 dependencies = [
  "gear_decorators",
+ "parity-scale-codec",
  "scale-info",
  "serde",
  "serde_json",

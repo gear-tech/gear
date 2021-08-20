@@ -22,11 +22,11 @@ extern crate alloc;
 extern crate proc_macro;
 
 use alloc::string::{String, ToString};
-use proc_macro::*;
+use proc_macro::TokenStream;
 
 #[proc_macro_attribute]
 pub fn gear_data(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let derive_string = String::from("#[derive(Deserialize, Serialize, TypeInfo)]");
+    let derive_string = String::from("#[derive(Debug, Decode, Encode, TypeInfo)]");
     let item_string = item.to_string();
 
     let mut token = String::with_capacity(derive_string.len() + item_string.len());
