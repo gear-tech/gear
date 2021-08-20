@@ -36,11 +36,11 @@ impl GearTestCmd {
         new_test_ext()
             .execute_with(|| {
                 gear_test::check::check_main(self.input.to_vec(), true, false, false, || {
-                    sp_io::storage::clear_prefix(b"g::code");
-                    sp_io::storage::clear_prefix(b"g::alloc");
-                    sp_io::storage::clear_prefix(b"g::msg");
-                    sp_io::storage::clear_prefix(b"g::prog");
-                    sp_io::storage::clear_prefix(b"g::wait");
+                    sp_io::storage::clear_prefix(gear_common::STORAGE_CODE_PREFIX);
+                    sp_io::storage::clear_prefix(gear_common::STORAGE_ALLOCATION_PREFIX);
+                    sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX);
+                    sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX);
+                    sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX);
                     gear_core::storage::Storage {
                         message_queue: rti::ext::ExtMessageQueue::default(),
                         program_storage: rti::ext::ExtProgramStorage,

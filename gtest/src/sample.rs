@@ -53,7 +53,7 @@ pub struct Program {
 pub struct Expectation {
     pub step: Option<u64>,
     pub messages: Option<Vec<Message>>,
-    pub allocations: Option<Vec<AllocationStorage>>,
+    pub allocations: Option<Vec<Allocations>>,
     pub memory: Option<Vec<BytesAt>>,
     pub log: Option<Vec<Message>>,
     #[serde(rename = "allowError")]
@@ -123,9 +123,26 @@ pub struct BytesAt {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct AllocationStorage {
-    pub page_num: u32,
+pub struct Allocations {
     pub program_id: u64,
+    pub filter: Option<AllocationFilter>,
+    #[serde(flatten)]
+    pub kind: AllocationExpectationKind,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllocationExpectationKind {
+    PageCount(u64),
+    ExactPages(Vec<u32>),
+    ContainsPages(Vec<u32>),
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllocationFilter {
+    Static,
+    Dynamic,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

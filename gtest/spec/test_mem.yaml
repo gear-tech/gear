@@ -17,7 +17,7 @@ fixtures:
           value: empty here
     expected:
       - allocations:
-          - page_num: 17
-            program_id: 1
-          - page_num: 18
-            program_id: 1
+        - program_id: 1
+          filter: dynamic
+          # TODO: should be 1 with correct memory deallocation on panic
+          page_count: 2

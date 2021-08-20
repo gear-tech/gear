@@ -34,8 +34,8 @@ fixtures:
               value: "101"
             destination: 1
         allocations:
-          - page_num: 17
-            program_id: 1
+          - program_id: 1
+            contains_pages: [17]
       - step: 2
         messages:
           - payload:
@@ -48,5 +48,5 @@ fixtures:
               value: "Discharged: 202"
             destination: 0
         allocations:
-          - page_num: 17
-            program_id: 1
+          - program_id: 1
+            contains_pages: [17]
