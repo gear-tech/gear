@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MessageHandle(pub(crate) u32);
+
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct MessageId(pub [u8; 32]);
 

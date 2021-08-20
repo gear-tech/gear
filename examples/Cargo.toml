@@ -10,6 +10,7 @@ members = [
     "mem",
     "meta",
     "minimal",
+    "multiping",
     "panicker",
     "ping",
     "sum",

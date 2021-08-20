@@ -139,13 +139,7 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-            Some(FuncIndex::SendCommit) => {
-                funcs::send_commit(self.ext.clone())(args.nth(0), args.nth(0))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
-
-            Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())(
+            Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(
                 args.nth(0),
                 args.nth(1),
                 args.nth(2),
@@ -154,6 +148,10 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             )
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::SendInit) => funcs::send_init(self.ext.clone())()
+                .map(|_| None)
+                .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
             Some(FuncIndex::SendPush) => {
                 funcs::send_push(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))

@@ -53,7 +53,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_to_u32("alloc", funcs::alloc);
         result.add_func_i32("free", funcs::free);
         result.add_func_i32("gas", funcs::gas);
-        result.add_func_to_i64("gr_gas_available", funcs::gas_available);
+        result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
@@ -61,10 +61,10 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
         result.add_func_i32_i32_i32_i64_i32_i32("gr_send", funcs::send);
-        result.add_func_i32_i32("gr_send_commit", funcs::send_commit);
-        result.add_func_i32_i32_i32_i64_i32_to_i32("gr_send_init", funcs::send_init);
+        result.add_func_i32_i32_i32_i64_i32("gr_send_commit", funcs::send_commit);
+        result.add_func_to_i32("gr_send_init", funcs::send_init);
         result.add_func_i32_i32_i32("gr_send_push", funcs::send_push);
-        result.add_func_to_i32("gr_size", funcs::size);
+        result.add_func_into_i32("gr_size", funcs::size);
         result.add_func_i32("gr_source", funcs::source);
         result.add_func_i32("gr_value", funcs::value);
         result.add_func("gr_wait", funcs::wait);
@@ -224,12 +224,9 @@ impl<E: Ext + 'static> Environment<E> {
         );
     }
 
-    fn add_func_i32_i32_i32_i64_i32_to_i32<F>(
-        &mut self,
-        key: &'static str,
-        func: fn(LaterExt<E>) -> F,
-    ) where
-        F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<i32, &'static str>,
+    fn add_func_i32_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,
@@ -267,7 +264,7 @@ impl<E: Ext + 'static> Environment<E> {
         );
     }
 
-    fn add_func_to_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    fn add_func_into_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
         F: 'static + Fn() -> i32,
     {
@@ -275,7 +272,17 @@ impl<E: Ext + 'static> Environment<E> {
             .insert(key, Func::wrap(&self.store, func(self.ext.clone())));
     }
 
-    fn add_func_to_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    fn add_func_to_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn() -> Result<i32, &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap0(func(self.ext.clone()))),
+        );
+    }
+
+    fn add_func_into_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
         F: 'static + Fn() -> i64,
     {
