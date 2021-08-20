@@ -8,7 +8,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
 
     let code: Vec<usize> = new_msg
-        .split(";")
+        .split_whitespace()
         .map(|v| {
             v.parse::<usize>()
                 .expect("Not a number was sent in sequence")
@@ -30,7 +30,7 @@ pub unsafe extern "C" fn handle() {
         }
     }
 
-    let handle = msg::send_init(msg::source(), b"Edges:", 0, 0);
+    let handle = msg::send_init();
 
     for vertex in &code {
         leaves.sort();
@@ -54,7 +54,7 @@ pub unsafe extern "C" fn handle() {
         format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1).as_bytes(),
     );
 
-    msg::send_commit(handle);
+    msg::send_commit(handle, msg::source(), 10_000_000, 0);
 }
 
 #[no_mangle]
