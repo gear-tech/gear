@@ -20,32 +20,28 @@
 
 use gstd_meta::*;
 
-#[allow(dead_code)]
-#[derive(TypeInfo)]
+#[gear_data]
 struct Carrot {
-    fresh: bool,
-    size: u8,
+    _fresh: bool,
+    _size: u8,
 }
 
-#[allow(dead_code)]
-#[derive(TypeInfo)]
+#[gear_data]
 struct Bread {
-    roasted: bool,
-    width: u8,
+    _roasted: bool,
+    _width: u8,
 }
 
-#[allow(dead_code)]
-#[derive(TypeInfo)]
+#[gear_data]
 struct Sandwich {
-    bread: Bread,
-    price: Option<u64>,
+    _bread: Bread,
+    _price: Option<u64>,
 }
 
-#[allow(dead_code)]
-#[derive(TypeInfo)]
+#[gear_data]
 struct Salad {
-    vegetables: Vec<Carrot>,
-    finished: Result<u64, u8>,
+    _vegetables: Vec<Carrot>,
+    _finished: Result<u64, u8>,
 }
 
 meta! {

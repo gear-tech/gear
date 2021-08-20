@@ -12,6 +12,7 @@ members = [
     "gstd",
     "gstd-async",
     "gstd-meta",
+    "gstd-meta/codegen",
     "gtest",
     "node",
     "node-rti",

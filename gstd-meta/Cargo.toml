@@ -6,6 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
+gear_decorators = { path = "codegen" }
 scale-info = { version = "0.10.0", default-features = false, features = ["derive", "serde"] }
 serde = { version = "1.0.127", default-features = false, features = ["alloc"] }
 serde_json = { version = "1.0.66", default-features = false, features = ["alloc"] }

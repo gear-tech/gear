@@ -20,11 +20,10 @@
 
 use gstd_meta::*;
 
-#[allow(dead_code)]
-#[derive(TypeInfo)]
+#[gear_data]
 struct Abc {
-    a: u8,
-    b: u16,
+    _a: u8,
+    _b: u16,
 }
 
 #[test]
@@ -35,5 +34,5 @@ fn check() {
     inspect!(btree, registry, Abc);
 
     let string = serde_json::to_string(&serde_json::to_value(btree).unwrap()).unwrap();
-    assert_eq!(string, r#"{"Abc":{"a":"u8","b":"u16"}}"#);
+    assert_eq!(string, r#"{"Abc":{"_a":"u8","_b":"u16"}}"#);
 }

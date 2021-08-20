@@ -19,16 +19,24 @@
 #![no_std]
 
 extern crate alloc;
+extern crate proc_macro;
 
-mod declare;
-mod general;
-mod inspect;
-mod meta;
-pub mod utils;
+use alloc::string::{String, ToString};
+use proc_macro::*;
 
-pub use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
-pub use gear_decorators::*;
-pub use general::*;
-pub use scale_info::{IntoPortable, PortableRegistry, Registry, TypeInfo};
-pub use serde::{Deserialize, Serialize};
-pub use serde_json::{json, Value};
+#[proc_macro_attribute]
+pub fn gear_data(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let derive_string = String::from("#[derive(Deserialize, Serialize, TypeInfo)]");
+    let item_string = item.to_string();
+
+    let mut token = String::with_capacity(derive_string.len() + item_string.len());
+
+    token.push_str(&derive_string);
+    token.push_str(&item_string);
+
+    if let Ok(token) = token.parse() {
+        return token;
+    }
+
+    core::panic!("An error occured while deriving")
+}
