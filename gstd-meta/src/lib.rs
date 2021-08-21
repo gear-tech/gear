@@ -26,10 +26,12 @@ mod inspect;
 mod meta;
 pub mod utils;
 
+pub extern crate serde;
+pub use serde::*;
+
 pub use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 pub use codec::{Decode, Encode};
 pub use gear_decorators::*;
 pub use general::*;
 pub use scale_info::{IntoPortable, PortableRegistry, Registry, TypeInfo};
-pub use serde::{Deserialize, Serialize};
 pub use serde_json::{json, Value};

@@ -3,18 +3,20 @@
 
 // TODO: Deal with `panic_handler`s conflict of `serde` and `no_std` contracts
 
-use gstd::{ext, msg};
+use gstd::{ext, msg, prelude::*};
 use gstd_meta::*;
 
 static mut CURRENT_VALUE: u64 = 0;
 
-#[gear_data]
+// ERR: can't find crate for `serde`
+#[derive(Serialize)]
 struct MessageIn {
     value: u64,
     annotation: String,
 }
 
-#[gear_data]
+// ERR: can't find crate for `serde`, 'scale-info'
+//#[gear_data]
 struct MessageOut {
     old_value: u64,
     new_value: u64,
