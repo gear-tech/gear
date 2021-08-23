@@ -1,5 +1,11 @@
 [profile.release]
-panic = 'unwind'
+panic = "unwind"
+
+[profile.release.package.gstd]
+opt-level = "s"
+
+[profile.release.package.gear-test]
+opt-level = "s"
 
 [workspace]
 default-members = ["node"]
