@@ -16,7 +16,7 @@ pub unsafe extern "C" fn handle() {
         })
         .collect();
 
-    let nodes = &code.len() + 2;
+    let nodes = code.len() + 2;
 
     let mut degrees = vec![1; nodes];
     for vertex in &code {
