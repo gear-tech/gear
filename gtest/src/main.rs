@@ -20,9 +20,9 @@ mod check;
 mod runner;
 mod sample;
 
-use gear_core::storage::InMemoryStorage;
-
 use clap::{AppSettings, Clap};
+use gear_core::storage::InMemoryStorage;
+use std::io::Write;
 
 #[derive(Clap)]
 #[clap(setting = AppSettings::ColoredHelp)]
@@ -47,8 +47,9 @@ pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
     match opts.verbose {
         0 => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
-            "gtest=warn,gear_core=warn,gear_core_backend=warn,gear_core_runner=warn",
+            "gtest=warn,gear_core=warn,gear_core_backend=warn,gear_core_runner=warn,gwasm_debug=debug",
         ))
+        .format(|buf, record| writeln!(buf, "{}", record.args()))
         .init(),
         1 => env_logger::Builder::from_env(
             env_logger::Env::default().default_filter_or("gtest=info"),

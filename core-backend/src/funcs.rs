@@ -58,7 +58,7 @@ pub(crate) fn debug<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(),
             let mut data = vec![0u8; str_len];
             ext.get_mem(str_ptr, &mut data);
             let debug_str = unsafe { String::from_utf8_unchecked(data) };
-            log::debug!("DEBUG: {}", debug_str);
+            log::debug!(target: "gwasm_debug", "DEBUG: {}", debug_str);
         })
     }
 }

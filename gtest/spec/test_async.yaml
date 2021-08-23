@@ -5,9 +5,15 @@ programs:
     path: examples/target/wasm32-unknown-unknown/release/demo_async.wasm
     init_message:
       kind: utf-8
-      value: "{2}"
+      value: "{2},{3},{4}"
 
   - id: 2
+    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+  - id: 3
+    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+  - id: 4
     path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
 
 fixtures:
@@ -15,18 +21,12 @@ fixtures:
 
     messages:
       - destination: 1
-        payload:
+        payload: &start
           kind: utf-8
           value: START
 
     expected:
       - step: 1
-        log:
-          - destination: 0
-            payload:
-              kind: utf-8
-              value: LOG
-
         messages:
           - destination: 2
             payload: &ping
@@ -42,10 +42,42 @@ fixtures:
 
       - step: 3
         messages:
-          - destination: 2
-            payload: *ping
+          - destination: 1
+            payload: *start
 
       - step: 4
         messages:
+          - destination: 3
+            payload: *ping
+
+      - step: 5
+        messages:
           - destination: 1
             payload: *pong
+
+      - step: 6
+        messages:
+          - destination: 1
+            payload: *start
+
+      - step: 7
+        messages:
+          - destination: 4
+            payload: *ping
+
+      - step: 8
+        messages:
+          - destination: 1
+            payload: *pong
+
+      - step: 9
+        messages:
+          - destination: 1
+            payload: *start
+
+      - step: 10
+        log:
+          - destination: 0
+            payload:
+              kind: utf-8
+              value: SUCCESS

@@ -92,13 +92,12 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
             init_message = match init_msg {
                 PayloadVariant::Utf8(s) => {
                     // Insert ProgramId
-                    if let Some(caps) = program_id_regex.captures(s) {
+                    let mut s = s.clone();
+                    while let Some(caps) = program_id_regex.captures(&s) {
                         let id = caps["id"].parse::<u64>().unwrap();
-                        let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
-                        s.into_bytes()
-                    } else {
-                        init_msg.clone().into_raw()
+                        s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
                     }
+                    s.into_bytes()
                 }
                 _ => init_msg.clone().into_raw(),
             }
