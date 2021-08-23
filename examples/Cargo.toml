@@ -5,7 +5,7 @@ members = [
     "chat/bot",
     "chat/room",
     "collector",
-    "condensator",
+    "capacitor",
     "decoder",
     "fib",
     "mem",
