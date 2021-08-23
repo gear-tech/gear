@@ -5,7 +5,11 @@ use core::num::ParseIntError;
 use gstd::{msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
-static mut PING_PROGRAM_ID: ProgramId = ProgramId([0u8; 32]);
+static mut DEST_0: ProgramId = ProgramId([0u8; 32]);
+static mut DEST_1: ProgramId = ProgramId([0u8; 32]);
+static mut DEST_2: ProgramId = ProgramId([0u8; 32]);
+
+const GAS_COST: u64 = 5_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -17,17 +21,21 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
-    gstd_async::block_on(handle_async());
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
-    let send_to = ProgramId::from_slice(
-        &decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+    let dests: Vec<&str> = input.split(",").collect();
+    if dests.len() != 3 {
+        panic!("Invalid input, should be three IDs separated by comma");
+    }
+    DEST_0 = ProgramId::from_slice(
+        &decode_hex(dests[0]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
     );
-    PING_PROGRAM_ID = send_to;
+    DEST_1 = ProgramId::from_slice(
+        &decode_hex(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+    );
+    DEST_2 = ProgramId::from_slice(
+        &decode_hex(dests[2]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
+    );
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
@@ -38,12 +46,14 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 }
 
 async fn handle_async() {
-    msg::send(0.into(), b"LOG", 0);
-    let dest = unsafe { PING_PROGRAM_ID };
-    let another_reply = msg_async::send_and_wait_for_reply(dest, b"PING", 50_000_000, 0).await;
-    let another_reply = String::from_utf8(another_reply).expect("Invalid reply: should be utf-8");
-    if another_reply == "PONG" {
-        msg::reply(b"PING", 2_000_000, 0);
+    let reply1 = msg_async::send_and_wait_for_reply(unsafe { DEST_0 }, b"PING", GAS_COST, 0).await;
+    let reply2 = msg_async::send_and_wait_for_reply(unsafe { DEST_1 }, b"PING", GAS_COST, 0).await;
+    let reply3 = msg_async::send_and_wait_for_reply(unsafe { DEST_2 }, b"PING", GAS_COST, 0).await;
+
+    if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
+        msg::reply(b"SUCCESS", msg::gas_available() - GAS_COST, 0);
+    } else {
+        msg::reply(b"FAIL", msg::gas_available() - GAS_COST, 0);
     }
 }
 
