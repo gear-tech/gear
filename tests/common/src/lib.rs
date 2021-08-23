@@ -47,14 +47,14 @@ pub fn do_requests_in_order<Req: Encode, Rep: Decode>(
 
     while runner.run_next(u64::MAX).handled != 0 {}
 
-    let Storage { message_queue, .. } = runner.complete();
+    let Storage { log, .. } = runner.complete();
 
     assert_eq!(
-        message_queue.log().first().map(|m| m.payload().to_vec()),
+        log.get().first().map(|m| m.payload().to_vec()),
         Some(b"CREATED".to_vec())
     );
 
-    for message in message_queue.log().iter() {
+    for message in log.get().iter() {
         for (_, search_message_id, ref mut reply) in data.iter_mut() {
             if message
                 .reply

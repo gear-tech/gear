@@ -118,7 +118,13 @@ pub trait GearExecutor {
 
         let result = runner.run_next(max_gas_limit);
 
-        let Storage { message_queue, .. } = runner.complete();
+        let Storage {
+            mut message_queue,
+            log,
+            ..
+        } = runner.complete();
+
+        message_queue.log = log.get().to_vec();
 
         Ok(ExecutionReport::collect(message_queue, result))
     }
@@ -159,7 +165,13 @@ pub trait GearExecutor {
             run_result,
         );
 
-        let Storage { message_queue, .. } = runner.complete();
+        let Storage {
+            mut message_queue,
+            log,
+            ..
+        } = runner.complete();
+
+        message_queue.log = log.get().to_vec();
 
         Ok(ExecutionReport::collect(message_queue, result))
     }

@@ -333,57 +333,11 @@ mod tests {
     fn message_queue_interaction() {
         use crate::message::Payload;
 
-        let wat = r#"
-            (module
-                (import "env" "gr_reply_to"  (func $gr_reply_to (param i32)))
-                (import "env" "memory" (memory 2))
-                (export "handle" (func $handle))
-                (export "handle_reply" (func $handle))
-                (export "init" (func $init))
-                (func $handle
-                    i32.const 65536
-                    call $gr_reply_to
-                )
-                (func $handle_reply
-                    i32.const 65536
-                    call $gr_reply_to
-                )
-                (func $init)
-            )"#;
-
-        let binary: Vec<u8> = parse_wat(wat);
-
-        // Initialization of some ProgramIds
-        let id1 = ProgramId::from(1);
-
-        let id2 = ProgramId::from(2);
-
-        // Initialization of InMemoryProgramStorage with our custom vec<Program>
-        let program_storage: InMemoryProgramStorage = vec![
-            Program::new(id1, binary.clone(), Default::default()).expect("err create program"),
-            Program::new(id2, binary.clone(), Default::default()).expect("err create program"),
-        ]
-        .into();
-
         // Initialization of empty InMemoryMessageQueue
         let mut message_queue = InMemoryMessageQueue::new();
 
         // Сhecking that the storage totally empty
         assert!(message_queue.dequeue().is_none());
-        assert!(message_queue.log().is_empty());
-
-        // Addition of new system message
-        message_queue.queue(Message::new_system(
-            0.into(),
-            ProgramId::system(),
-            Payload::from(vec![0]),
-            128,
-            256,
-        ));
-
-        // Сhecking that the system message gets in logs
-        assert!(!message_queue.log().is_empty());
-        assert_eq!(message_queue.log()[0].value(), 256u128);
 
         // Addition of multiple messages
         message_queue.queue_many(vec![
@@ -416,5 +370,21 @@ mod tests {
 
         assert_eq!(remaining_messages.len(), 1);
         assert_eq!(remaining_messages[0].dest(), ProgramId::from(2));
+    }
+
+    #[test]
+    /// Test that log works correctly.
+    fn log_interaction() {
+        // Initialization of InMemoryStorage.
+        let mut storage: InMemoryStorage = InMemoryStorage::default();
+
+        // Сhecking that log is empty.
+        assert!(storage.log.get().is_empty());
+
+        let message = Message::new_system(0.into(), ProgramId::from(1), vec![1].into(), 128, 512);
+
+        storage.log.put(message.clone());
+
+        assert_eq!(storage.log.get(), [message])
     }
 }

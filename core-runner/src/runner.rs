@@ -345,27 +345,15 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             let nonce = program.fetch_inc_message_nonce();
             let trap_message_id = self.next_message_id(program_id, nonce);
 
-            if self.program_storage.exists(next_message_source) {
-                self.message_queue.queue(Message {
-                    id: trap_message_id,
-                    source: program_id,
-                    dest: next_message_source,
-                    payload: vec![].into(),
-                    gas_limit: run_result.gas_left,
-                    value: 0,
-                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
-                });
-            } else {
-                self.log.put(Message {
-                    id: trap_message_id,
-                    source: program_id,
-                    dest: next_message_source,
-                    payload: vec![].into(),
-                    gas_limit: run_result.gas_left,
-                    value: 0,
-                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
-                });
-            }
+            self.message_queue.queue(Message {
+                id: trap_message_id,
+                source: program_id,
+                dest: next_message_source,
+                payload: vec![].into(),
+                gas_limit: run_result.gas_left,
+                value: 0,
+                reply: Some((next_message_id, EXIT_CODE_PANIC)),
+            });
         }
 
         if let Some(waiting_msg) = run_result.waiting.take() {
@@ -499,8 +487,14 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             initialization.message.gas_limit,
         );
 
-        self.message_queue
-            .queue_many(context.message_buf.drain(..).collect());
+        for message in context.message_buf.drain(..) {
+            if self.program_storage.exists(message.dest()) {
+                self.message_queue.queue(message);
+            } else {
+                self.log.put(message);
+            }
+        }
+
         self.program_storage.set(program);
 
         Ok(res)
@@ -1162,6 +1156,7 @@ mod tests {
             message_queue: _,
             program_storage: _,
             wait_list,
+            log: _,
         } = runner.complete();
         let mut wait_list: MessageMap = wait_list.into();
 
@@ -1233,8 +1228,9 @@ mod tests {
         assert!(result.gas_left[0].1 < gas_limit);
 
         let (gas_available, _, _) = runner
-            .message_queue
-            .dequeue()
+            .log
+            .get()
+            .first()
             .map(|m| (m.payload().to_vec(), m.source(), m.dest()))
             .unwrap();
 

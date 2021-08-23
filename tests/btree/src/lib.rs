@@ -138,10 +138,10 @@ mod tests {
             })
             .expect("failed to init program");
 
-        let Storage { message_queue, .. } = runner.complete();
+        let Storage { log, .. } = runner.complete();
 
         assert_eq!(
-            message_queue.log().last().map(|m| m.payload().to_vec()),
+            log.get().last().map(|m| m.payload().to_vec()),
             Some(b"CREATED".to_vec())
         );
     }
