@@ -48,6 +48,10 @@ impl ProgramStorage for ExtProgramStorage {
         None
     }
 
+    fn exists(&self, id: ProgramId) -> bool {
+        gear_common::native::program_exists(id)
+    }
+
     fn remove(&mut self, _id: ProgramId) -> Option<Program> {
         unimplemented!()
     }
@@ -87,14 +91,7 @@ impl MessageQueue for ExtMessageQueue {
     }
 
     fn queue(&mut self, message: Message) {
-        // We queue message only when there is a destination.
-        if gear_common::native::program_exists(message.dest) {
-            gear_common::native::queue_message(message);
-            return;
-        }
-
-        // If no destination, message is considered to be a log record.
-        self.log.push(message);
+        gear_common::native::queue_message(message);
     }
 }
 
@@ -150,6 +147,7 @@ mod tests {
             message_queue: Default::default(),
             program_storage: ExtProgramStorage,
             wait_list: Default::default(),
+            log: Default::default(),
         }
     }
 

@@ -20,24 +20,24 @@
 
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
-use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 
-use gear_core::storage::WaitList;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{self, ChargeResult, GasCounter, GasCounterLimited},
+    gas::{self, GasCounter, GasCounterLimited},
     memory::{Memory, MemoryContext, PageNumber},
     message::{
         ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
-        OutgoingMessage, OutgoingPacket, ReplyMessage, ReplyPacket,
+        OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
-    storage::{MessageQueue, ProgramStorage, Storage},
+    storage::{Log, MessageQueue, ProgramStorage, Storage, WaitList},
 };
-
 use gear_core_backend::Environment;
+
+use crate::ext::Ext;
+use crate::util::BlakeMessageIdGenerator;
 
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
@@ -127,27 +127,6 @@ impl RunNextResult {
     }
 }
 
-/// Blake2 Message Id Generator
-pub struct BlakeMessageIdGenerator {
-    program_id: ProgramId,
-    nonce: u64,
-}
-
-impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
-    fn next(&mut self) -> MessageId {
-        let mut data = self.program_id.as_slice().to_vec();
-        data.extend(&self.nonce.to_le_bytes());
-
-        self.nonce += 1;
-
-        MessageId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
-    }
-
-    fn current(&self) -> u64 {
-        self.nonce
-    }
-}
-
 /// Runner instance.
 ///
 /// This instance allows to handle multiple messages using underlying allocation, message and program
@@ -156,6 +135,7 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
     pub(crate) wait_list: WL,
+    pub(crate) log: Log,
     pub(crate) config: Config,
     env: Environment<Ext>,
 }
@@ -259,12 +239,14 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             message_queue,
             program_storage,
             wait_list,
+            log,
         } = storage;
 
         Self {
             program_storage,
             message_queue,
             wait_list,
+            log,
             config: config.clone(),
             env,
         }
@@ -282,74 +264,67 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             }
         };
 
-        if next_message.dest() == 0.into() {
-            match String::from_utf8(next_message.payload().to_vec()) {
-                Ok(s) => log::debug!("UTF-8 msg to /0: {}", s),
-                Err(_) => {
-                    log::debug!("msg to /0: {:?}", next_message.payload())
-                }
+        let gas_limit = next_message.gas_limit();
+        let next_message_source = next_message.source();
+        let next_message_dest = next_message.dest();
+
+        let mut program = match self.program_storage.get(next_message_dest) {
+            Some(program) => program,
+            None => {
+                self.log.put(next_message);
+                return RunNextResult::log();
             }
-            RunNextResult::log()
-        } else {
-            let gas_limit = next_message.gas_limit();
-            let next_message_source = next_message.source();
-            let next_message_dest = next_message.dest();
+        };
 
-            let mut program = match self.program_storage.get(next_message_dest) {
-                Some(program) => program,
-                None => {
-                    return RunNextResult::log();
-                }
-            };
-
-            if gas_limit > max_gas_limit {
-                // Re-queue the message to be processed in one of the following blocks
-                log::info!(
-                    "Message gas limit of {} exceeds the remaining block gas allowance of {}",
-                    gas_limit,
-                    max_gas_limit
-                );
-                self.message_queue.queue(next_message);
-                return RunNextResult::empty();
-            }
-
-            let instrumeted_code = match gas::instrument(program.code()) {
-                Ok(code) => code,
-                Err(err) => {
-                    log::debug!("Instrumentation error: {:?}", err);
-                    return RunNextResult::trap();
-                }
-            };
-
-            let allocations: BTreeSet<PageNumber> = program
-                .get_pages()
-                .iter()
-                .map(|(page_num, _)| *page_num)
-                .collect();
-
-            let mut context = self.create_context(allocations);
-            let next_message_id = next_message.id();
-
-            let mut run_result = run(
-                &mut self.env,
-                &mut context,
-                &instrumeted_code,
-                &mut program,
-                if next_message.reply().is_some() {
-                    EntryPoint::HandleReply
-                } else {
-                    EntryPoint::Handle
-                },
-                &next_message.into(),
+        if gas_limit > max_gas_limit {
+            // Re-queue the message to be processed in one of the following blocks
+            log::info!(
+                "Message gas limit of {} exceeds the remaining block gas allowance of {}",
                 gas_limit,
+                max_gas_limit
             );
+            self.message_queue.queue(next_message);
+            return RunNextResult::empty();
+        }
 
-            if run_result.outcome.was_trap() {
-                // In case of trap, we generate trap reply message
-                let program_id = program.id();
-                let nonce = program.fetch_inc_message_nonce();
-                let trap_message_id = self.next_message_id(program_id, nonce);
+        let instrumeted_code = match gas::instrument(program.code()) {
+            Ok(code) => code,
+            Err(err) => {
+                log::debug!("Instrumentation error: {:?}", err);
+                return RunNextResult::trap();
+            }
+        };
 
+        let allocations: BTreeSet<PageNumber> = program
+            .get_pages()
+            .iter()
+            .map(|(page_num, _)| *page_num)
+            .collect();
+
+        let mut context = self.create_context(allocations);
+        let next_message_id = next_message.id();
+
+        let mut run_result = run(
+            &mut self.env,
+            &mut context,
+            &instrumeted_code,
+            &mut program,
+            if next_message.reply().is_some() {
+                EntryPoint::HandleReply
+            } else {
+                EntryPoint::Handle
+            },
+            &next_message.into(),
+            gas_limit,
+        );
+
+        if run_result.outcome.was_trap() {
+            // In case of trap, we generate trap reply message
+            let program_id = program.id();
+            let nonce = program.fetch_inc_message_nonce();
+            let trap_message_id = self.next_message_id(program_id, nonce);
+
+            if self.program_storage.exists(next_message_source) {
                 self.message_queue.queue(Message {
                     id: trap_message_id,
                     source: program_id,
@@ -359,29 +334,44 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                     value: 0,
                     reply: Some((next_message_id, EXIT_CODE_PANIC)),
                 });
+            } else {
+                self.log.put(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                })
             }
-
-            if let Some(waiting_msg) = run_result.waiting.take() {
-                self.wait_list.insert(waiting_msg.id, waiting_msg);
-            }
-
-            if let Some((gas, waker_id)) = run_result.awakening {
-                if let Some(mut msg) = self.wait_list.remove(waker_id) {
-                    // Increase gas available to the message
-                    msg.gas_limit += gas;
-                    context.message_buf.push(msg);
-                }
-            }
-
-            let result =
-                RunNextResult::from_single(next_message_id, next_message_source, run_result);
-
-            self.message_queue
-                .queue_many(context.message_buf.drain(..).collect());
-            self.program_storage.set(program);
-
-            result
         }
+
+        if let Some(waiting_msg) = run_result.waiting.take() {
+            self.wait_list.insert(waiting_msg.id, waiting_msg);
+        }
+
+        if let Some((gas, waker_id)) = run_result.awakening {
+            if let Some(mut msg) = self.wait_list.remove(waker_id) {
+                // Increase gas available to the message
+                msg.gas_limit += gas;
+                context.message_buf.push(msg);
+            }
+        }
+
+        let result = RunNextResult::from_single(next_message_id, next_message_source, run_result);
+
+        for message in context.message_buf.drain(..) {
+            if self.program_storage.exists(message.dest()) {
+                self.message_queue.queue(message);
+            } else {
+                self.log.put(message);
+            }
+        }
+
+        self.program_storage.set(program);
+
+        result
     }
 
     /// Drop this runner.
@@ -392,6 +382,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             program_storage,
             message_queue,
             wait_list,
+            log,
             ..
         } = self;
 
@@ -399,6 +390,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             message_queue,
             program_storage,
             wait_list,
+            log,
         }
     }
 
@@ -481,8 +473,14 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             initialization.message.gas_limit,
         );
 
-        self.message_queue
-            .queue_many(context.message_buf.drain(..).collect());
+        for message in context.message_buf.drain(..) {
+            if self.program_storage.exists(message.dest()) {
+                self.message_queue.queue(message);
+            } else {
+                self.log.put(message);
+            }
+        }
+
         self.program_storage.set(program);
 
         Ok(res)
@@ -601,175 +599,6 @@ pub struct RunResult {
     pub gas_spent: u64,
     /// Run outcome (trap/succes).
     pub outcome: ExecutionOutcome,
-}
-
-struct Ext {
-    memory_context: MemoryContext,
-    messages: MessageContext<BlakeMessageIdGenerator>,
-    gas_counter: Box<dyn GasCounter>,
-    alloc_cost: u64,
-    last_error_returned: Option<&'static str>,
-}
-
-impl Ext {
-    fn return_with_tracing<T>(
-        &mut self,
-        result: Result<T, &'static str>,
-    ) -> Result<T, &'static str> {
-        match result {
-            Ok(result) => Ok(result),
-            Err(error_string) => {
-                self.last_error_returned = Some(error_string);
-                Err(error_string)
-            }
-        }
-    }
-}
-
-impl EnvExt for Ext {
-    fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        self.gas(pages.raw() * self.alloc_cost as u32)?;
-
-        let result = self
-            .memory_context
-            .alloc(pages)
-            .map_err(|_e| "Allocation error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
-        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
-            return self
-                .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
-        }
-
-        let result = self.messages.send(msg).map_err(|_e| "Message send error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn send_init(&mut self) -> Result<usize, &'static str> {
-        let result = self.messages.send_init().map_err(|_e| "Message init error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
-        let result = self
-            .messages
-            .send_push(handle, buffer)
-            .map_err(|_e| "Payload push error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
-        let result = self
-            .messages
-            .reply_push(buffer)
-            .map_err(|_e| "Reply payload push error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn send_commit(
-        &mut self,
-        handle: usize,
-        msg: OutgoingPacket,
-    ) -> Result<MessageId, &'static str> {
-        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
-            return self
-                .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
-        };
-
-        let result = self
-            .messages
-            .send_commit(handle, msg)
-            .map_err(|_e| "Message commit error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str> {
-        let result = self.messages.reply(msg).map_err(|_e| "Reply error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
-        self.messages.current().reply()
-    }
-
-    fn source(&mut self) -> ProgramId {
-        self.messages.current().source()
-    }
-
-    fn message_id(&mut self) -> MessageId {
-        self.messages.current().id()
-    }
-
-    fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
-        let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
-
-        self.return_with_tracing(result)
-    }
-
-    fn debug(&mut self, data: &str) -> Result<(), &'static str> {
-        log::debug!("DEBUG: {}", data);
-
-        Ok(())
-    }
-
-    fn set_mem(&mut self, ptr: usize, val: &[u8]) {
-        self.memory_context
-            .memory()
-            .write(ptr, val)
-            // TODO: remove and propagate error, issue #97
-            .expect("Memory out of bounds.");
-    }
-
-    fn get_mem(&self, ptr: usize, buffer: &mut [u8]) {
-        self.memory_context.memory().read(ptr, buffer);
-    }
-
-    fn msg(&mut self) -> &[u8] {
-        self.messages.current().payload()
-    }
-
-    fn gas(&mut self, val: u32) -> Result<(), &'static str> {
-        if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
-            Ok(())
-        } else {
-            self.return_with_tracing(Err("Gas limit exceeded"))
-        }
-    }
-
-    fn gas_available(&mut self) -> u64 {
-        self.gas_counter.left()
-    }
-
-    fn value(&self) -> u128 {
-        self.messages.current().value()
-    }
-
-    fn wait(&mut self) -> Result<(), &'static str> {
-        let result = self
-            .messages
-            .wait()
-            .map_err(|_| "Unable to add the message to the wait list");
-
-        self.return_with_tracing(result)
-    }
-
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
-        let result = self
-            .messages
-            .wake(waker_id)
-            .map_err(|_| "Unable to mark the message to be woken");
-
-        self.return_with_tracing(result)
-    }
 }
 
 fn run(
@@ -1249,6 +1078,7 @@ mod tests {
             message_queue: _,
             program_storage: _,
             wait_list,
+            log: _,
         } = runner.complete();
         let mut wait_list: MessageMap = wait_list.into();
 
@@ -1320,8 +1150,9 @@ mod tests {
         assert!(result.gas_left[0].1 < gas_limit);
 
         let (gas_available, _, _) = runner
-            .message_queue
-            .dequeue()
+            .log
+            .get()
+            .first()
             .map(|m| (m.payload().to_vec(), m.source(), m.dest()))
             .unwrap();
 

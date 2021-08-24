@@ -35,6 +35,9 @@ pub trait ProgramStorage: Default {
     /// Store program in the storage.
     fn set(&mut self, program: Program) -> Option<Program>;
 
+    /// Check if program exists.
+    fn exists(&self, id: ProgramId) -> bool;
+
     /// Remove the program from the storage.
     fn remove(&mut self, id: ProgramId) -> Option<Program>;
 }
@@ -59,6 +62,10 @@ impl ProgramStorage for InMemoryProgramStorage {
 
     fn set(&mut self, program: Program) -> Option<Program> {
         self.inner.insert(program.id(), program)
+    }
+
+    fn exists(&self, id: ProgramId) -> bool {
+        self.inner.contains_key(&id)
     }
 
     fn remove(&mut self, id: ProgramId) -> Option<Program> {
@@ -102,18 +109,12 @@ pub trait MessageQueue: Default {
 #[derive(Default, Debug)]
 pub struct InMemoryMessageQueue {
     inner: VecDeque<Message>,
-    log: Vec<Message>, // messages sent to /0
 }
 
 impl InMemoryMessageQueue {
     /// Create an empty in-memory message queue.
     pub fn new() -> Self {
         Default::default()
-    }
-
-    /// Messages log (messages sent with no destination).
-    pub fn log(&self) -> &[Message] {
-        &self.log[..]
     }
 }
 
@@ -123,11 +124,6 @@ impl MessageQueue for InMemoryMessageQueue {
     }
 
     fn queue(&mut self, message: Message) {
-        if message.dest() == 0.into() {
-            self.log.push(message);
-            return;
-        }
-
         self.inner.push_back(message)
     }
 }
@@ -136,7 +132,6 @@ impl From<Vec<Message>> for InMemoryMessageQueue {
     fn from(messages: Vec<Message>) -> Self {
         Self {
             inner: VecDeque::from(messages),
-            log: Vec::new(),
         }
     }
 }
@@ -194,6 +189,24 @@ impl From<InMemoryWaitList> for MessageMap {
     }
 }
 
+/// Log.
+#[derive(Default, Debug)]
+pub struct Log {
+    inner: Vec<Message>,
+}
+
+impl Log {
+    /// Put message to log.
+    pub fn put(&mut self, message: Message) {
+        self.inner.push(message)
+    }
+
+    /// Get all messages in log.
+    pub fn get(&self) -> &[Message] {
+        &self.inner
+    }
+}
+
 /// Storage.
 #[derive(Default)]
 pub struct Storage<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
@@ -203,6 +216,8 @@ pub struct Storage<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub program_storage: PS,
     /// Wait list.
     pub wait_list: WL,
+    /// Log.
+    pub log: Log,
 }
 
 impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Storage<MQ, PS, WL> {
@@ -212,11 +227,17 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Storage<MQ, PS, WL> {
     }
 
     /// Create a storage from messages queue, programs storage and wait list.
-    pub fn from_components(message_queue: MQ, program_storage: PS, wait_list: WL) -> Self {
+    pub fn from_components(
+        message_queue: MQ,
+        program_storage: PS,
+        wait_list: WL,
+        log: Log,
+    ) -> Self {
         Self {
             message_queue,
             program_storage,
             wait_list,
+            log,
         }
     }
 }
@@ -317,20 +338,6 @@ mod tests {
 
         // Сhecking that the storage totally empty
         assert!(message_queue.dequeue().is_none());
-        assert!(message_queue.log().is_empty());
-
-        // Addition of new system message
-        message_queue.queue(Message::new_system(
-            0.into(),
-            ProgramId::system(),
-            Payload::from(vec![0]),
-            128,
-            256,
-        ));
-
-        // Сhecking that the system message gets in logs
-        assert!(!message_queue.log().is_empty());
-        assert_eq!(message_queue.log()[0].value(), 256u128);
 
         // Addition of multiple messages
         message_queue.queue_many(vec![
@@ -363,5 +370,21 @@ mod tests {
 
         assert_eq!(remaining_messages.len(), 1);
         assert_eq!(remaining_messages[0].dest(), ProgramId::from(2));
+    }
+
+    #[test]
+    /// Test that log works correctly.
+    fn log_interaction() {
+        // Initialization of InMemoryStorage.
+        let mut storage: InMemoryStorage = InMemoryStorage::default();
+
+        // Сhecking that log is empty.
+        assert!(storage.log.get().is_empty());
+
+        let message = Message::new_system(0.into(), ProgramId::from(1), vec![1].into(), 128, 512);
+
+        storage.log.put(message.clone());
+
+        assert_eq!(storage.log.get(), [message])
     }
 }
