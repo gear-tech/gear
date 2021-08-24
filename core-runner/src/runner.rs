@@ -324,15 +324,27 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             let nonce = program.fetch_inc_message_nonce();
             let trap_message_id = self.next_message_id(program_id, nonce);
 
-            self.message_queue.queue(Message {
-                id: trap_message_id,
-                source: program_id,
-                dest: next_message_source,
-                payload: vec![].into(),
-                gas_limit: run_result.gas_left,
-                value: 0,
-                reply: Some((next_message_id, EXIT_CODE_PANIC)),
-            });
+            if self.program_storage.exists(next_message_source) {
+                self.message_queue.queue(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                });
+            } else {
+                self.log.put(Message {
+                    id: trap_message_id,
+                    source: program_id,
+                    dest: next_message_source,
+                    payload: vec![].into(),
+                    gas_limit: run_result.gas_left,
+                    value: 0,
+                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
+                })
+            }
         }
 
         if let Some(waiting_msg) = run_result.waiting.take() {

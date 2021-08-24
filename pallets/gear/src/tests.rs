@@ -350,10 +350,10 @@ fn messages_processing_works() {
         let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
 
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-        System::assert_last_event(crate::Event::MessagesDequeued(3).into());
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
 
         // `InitProgram` doesn't increase the counter, but the reply message does; hence 1.
-        assert_eq!(Gear::messages_processed(), 2);
+        assert_eq!(Gear::messages_processed(), 1);
 
         // First message is sent to a non-existing program - and should get into log.
         // Second message still gets processed thereby adding 1 to the total processed messages counter.
@@ -378,8 +378,8 @@ fn messages_processing_works() {
             },
         ]);
         crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
-        System::assert_last_event(crate::Event::MessagesDequeued(3).into());
-        assert_eq!(Gear::messages_processed(), 5); // Counter not reset, 1 added
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+        assert_eq!(Gear::messages_processed(), 3); // Counter not reset, 1 added
     })
 }
 
@@ -705,7 +705,7 @@ fn block_gas_limit_works() {
 
         // Run to block #2 where the queue processing takes place
         run_to_block(2, Some(100_000));
-        System::assert_last_event(crate::Event::MessagesDequeued(6).into());
+        System::assert_last_event(crate::Event::MessagesDequeued(4).into());
 
         // Run to the next block to reset the gas limit
         run_to_block(3, Some(100_000));
@@ -767,7 +767,7 @@ fn block_gas_limit_works() {
         // | 3 |        | 2 |
         // | 2 |  ===>  |   |
         //
-        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
         assert_eq!(Gear::gas_allowance(), 90_000);
 
         run_to_block(6, Some(100_000));
@@ -777,7 +777,7 @@ fn block_gas_limit_works() {
         // | 2 |        |   |
         // |   |  ===>  |   |
         //
-        System::assert_last_event(crate::Event::MessagesDequeued(3).into());
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
         assert_eq!(Gear::gas_allowance(), 11_000);
     });
 }
