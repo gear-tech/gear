@@ -10,7 +10,3 @@ dlmalloc = { git = "https://github.com/nikvolf/dlmalloc-rs", features = ["global
 
 [features]
 debug = []
-
-[profile.release]
-lto = true
-opt-level = 's'
