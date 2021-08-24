@@ -84,7 +84,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, msg::gas_available(), 0)
+        msg::reply(reply, msg::gas_available(), 0);
     }
 
     fn state() -> &'static mut NodeState {

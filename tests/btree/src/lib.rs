@@ -49,7 +49,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, 1000000, 0)
+        msg::reply(reply, 1_000_000, 0);
     }
 
     fn state() -> &'static mut BTreeMap<u32, u32> {
@@ -177,6 +177,6 @@ mod tests {
                 Reply::None,
                 Reply::List(vec![]),
             ],
-        )
+        );
     }
 }

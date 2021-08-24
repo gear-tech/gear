@@ -1,3 +1,3 @@
-# gstd
+# gcore
 
-Standard library for Gear smart contracts.
+Core library for Gear smart contracts.
