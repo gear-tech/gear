@@ -21,7 +21,7 @@ Gear is a new Polkadot/Kusama parachain and most advanced L2 smart-contract engi
 
 Gear provides the easiest and most cost-effective way to run WebAssembly programs (smart-contracts) compiled from many popular languages, such as C/C++, Rust and more.
 
-Gear ensures very minimal, intuitive, and sufficient API for running both newly written and existing programs on other networks without the need to rewrite them.
+Gear ensures very minimal, intuitive, and sufficient API for running both newly written and existing programs on multiple networks without the need to rewrite them.
 
 ## Getting Started
 

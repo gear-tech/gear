@@ -19,7 +19,7 @@ pub unsafe extern "C" fn handle() {
     CHARGE += to_add;
 
     ext::debug(&format!(
-        "Charge condensator with {}, new charge {}",
+        "Charge capacitor with {}, new charge {}",
         to_add, CHARGE,
     ));
 
@@ -45,7 +45,7 @@ pub unsafe extern "C" fn init() {
     LIMIT = limit;
 
     ext::debug(&format!(
-        "Init condensator with limit capacity {}, {}",
+        "Init capacitor with limit capacity {}, {}",
         LIMIT, initstr,
     ));
 }

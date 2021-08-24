@@ -14,7 +14,6 @@ pub struct Ext {
     pub memory_context: MemoryContext,
     pub messages: MessageContext<BlakeMessageIdGenerator>,
     pub gas_counter: Box<dyn GasCounter>,
-    pub gas_requested: u64,
     pub alloc_cost: u64,
     pub last_error_returned: Option<&'static str>,
 }
@@ -37,6 +36,7 @@ impl Ext {
 impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
         self.gas(pages.raw() * self.alloc_cost as u32)?;
+
         let result = self
             .memory_context
             .alloc(pages)
@@ -46,19 +46,18 @@ impl EnvExt for Ext {
     }
 
     fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
-        if self.gas_counter.charge(msg.gas_limit()) != ChargeResult::Enough {
-            return Err("Gas limit exceeded while trying to send message");
+        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
+            return self
+                .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
         }
+
         let result = self.messages.send(msg).map_err(|_e| "Message send error");
 
         self.return_with_tracing(result)
     }
 
-    fn send_init(&mut self, msg: OutgoingPacket) -> Result<usize, &'static str> {
-        let result = self
-            .messages
-            .send_init(msg)
-            .map_err(|_e| "Message init error");
+    fn send_init(&mut self) -> Result<usize, &'static str> {
+        let result = self.messages.send_init().map_err(|_e| "Message init error");
 
         self.return_with_tracing(result)
     }
@@ -81,28 +80,19 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn send_commit(&mut self, handle: usize) -> Result<MessageId, &'static str> {
-        {
-            let gas_limit = match self
-                .messages
-                .get_gas_limit(handle)
-                .map_err(|_e| "Message commit error")
-            {
-                Ok(gas) => gas,
-                Err(_e) => {
-                    return self.return_with_tracing(Err("No message to commit"));
-                }
-            };
-
-            if self.gas_counter.charge(gas_limit) != ChargeResult::Enough {
-                return self
-                    .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
-            }
-        }
+    fn send_commit(
+        &mut self,
+        handle: usize,
+        msg: OutgoingPacket,
+    ) -> Result<MessageId, &'static str> {
+        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
+            return self
+                .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
+        };
 
         let result = self
             .messages
-            .send_commit(handle)
+            .send_commit(handle, msg)
             .map_err(|_e| "Message commit error");
 
         self.return_with_tracing(result)
@@ -128,11 +118,13 @@ impl EnvExt for Ext {
 
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
         let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
+
         self.return_with_tracing(result)
     }
 
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
         log::debug!("DEBUG: {}", data);
+
         Ok(())
     }
 
@@ -162,15 +154,6 @@ impl EnvExt for Ext {
 
     fn gas_available(&mut self) -> u64 {
         self.gas_counter.left()
-    }
-
-    fn charge(&mut self, gas: u64) -> Result<(), &'static str> {
-        if self.gas_counter.charge(gas) == ChargeResult::Enough {
-            self.gas_requested += gas;
-            Ok(())
-        } else {
-            self.return_with_tracing(Err("Gas limit exceeded"))
-        }
     }
 
     fn value(&self) -> u128 {

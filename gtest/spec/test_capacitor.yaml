@@ -1,14 +1,14 @@
-title: basic condensator check
+title: Basic capacitor check
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_condensator.wasm
+    path: examples/target/wasm32-unknown-unknown/release/demo_capacitor.wasm
     init_message:
       kind: utf-8
       value: "200"
 
 fixtures:
-  - title: test charging/discharging
+  - title: Test charging/discharging
     messages:
       - payload:
           kind: utf-8
@@ -34,8 +34,8 @@ fixtures:
               value: "101"
             destination: 1
         allocations:
-          - page_num: 17
-            program_id: 1
+          - program_id: 1
+            contains_pages: [17]
       - step: 2
         messages:
           - payload:
@@ -48,5 +48,5 @@ fixtures:
               value: "Discharged: 202"
             destination: 0
         allocations:
-          - page_num: 17
-            program_id: 1
+          - program_id: 1
+            contains_pages: [17]

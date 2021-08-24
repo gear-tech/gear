@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MessageHandle(pub(crate) u32);
+
+#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct MessageId(pub [u8; 32]);
 
 impl MessageId {
@@ -38,7 +41,7 @@ impl MessageId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct ProgramId(pub [u8; 32]);
 
 impl From<u64> for ProgramId {

@@ -17,14 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use core::ptr;
-use gstd::msg;
-use gstd_async::msg as msg_async;
 
 static mut MESSAGE: Vec<u8> = Vec::new();
 static mut MESSAGE_ID: u64 = 0;
 
 mod sys {
     use super::*;
+    #[no_mangle]
+    unsafe extern "C" fn gr_msg_id(_val: *mut u8) {}
+
     #[no_mangle]
     unsafe extern "C" fn gr_send(
         _program: *const u8,
@@ -65,36 +66,10 @@ mod sys {
         ptr::write_bytes(dest, 0, 32);
         ptr::copy(&MESSAGE_ID, dest as _, 1);
     }
-}
 
-async fn handle_async() {
-    let reply = msg_async::send_and_wait_for_reply(1.into(), b"HELLO", u64::MAX, 0).await;
-
-    if reply == b"WORLD" {
-        msg::reply(b"BYE", u64::MAX, 0);
-    }
+    #[no_mangle]
+    unsafe extern "C" fn gr_wait() {}
 }
 
 #[test]
-fn async_send() {
-    gstd_async::block_on(handle_async());
-    unsafe {
-        assert_eq!(MESSAGE, b"HELLO");
-    }
-
-    // No changes between blocks
-    gstd_async::block_on(handle_async());
-    unsafe {
-        assert_eq!(MESSAGE, b"HELLO");
-    }
-
-    // Simulate the reply received
-    unsafe {
-        MESSAGE_ID = 1000;
-        MESSAGE = b"WORLD".to_vec();
-    }
-    gstd_async::block_on(handle_async());
-    unsafe {
-        assert_eq!(MESSAGE, b"BYE");
-    }
-}
+fn async_send() {}

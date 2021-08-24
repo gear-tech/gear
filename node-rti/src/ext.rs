@@ -18,11 +18,13 @@
 
 use std::collections::BTreeSet;
 
+use gear_common::STORAGE_PROGRAM_PREFIX;
 use gear_core::{
     message::{Message, MessageId},
     program::{Program, ProgramId},
     storage::{MessageMap, MessageQueue, ProgramStorage, WaitList},
 };
+
 #[derive(Default)]
 pub struct ExtProgramStorage;
 
@@ -52,6 +54,34 @@ impl ProgramStorage for ExtProgramStorage {
 
     fn remove(&mut self, _id: ProgramId) -> Option<Program> {
         unimplemented!()
+    }
+}
+
+impl ExtProgramStorage {
+    pub fn iter(&self) -> ExtProgramStorageIter {
+        ExtProgramStorageIter {
+            key: Some(STORAGE_PROGRAM_PREFIX.to_vec()),
+        }
+    }
+}
+
+pub struct ExtProgramStorageIter {
+    key: Option<Vec<u8>>,
+}
+
+impl Iterator for ExtProgramStorageIter {
+    type Item = Program;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.key = self.key.as_ref().and_then(|key| {
+            sp_io::storage::next_key(key).filter(|key| key.starts_with(STORAGE_PROGRAM_PREFIX))
+        });
+
+        self.key.as_ref().and_then(|key| {
+            gear_common::native::get_program(ProgramId::from_slice(
+                &key[STORAGE_PROGRAM_PREFIX.len()..],
+            ))
+        })
     }
 }
 
@@ -86,5 +116,77 @@ impl From<ExtWaitList> for MessageMap {
             }
         });
         map
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use gear_common::{
+        STORAGE_ALLOCATION_PREFIX, STORAGE_CODE_PREFIX, STORAGE_MESSAGE_PREFIX,
+        STORAGE_WAITLIST_PREFIX,
+    };
+    use gear_core::message::Payload;
+
+    fn new_test_ext() -> sp_io::TestExternalities {
+        frame_system::GenesisConfig::default()
+            .build_storage::<gear_runtime::Runtime>()
+            .unwrap()
+            .into()
+    }
+
+    fn new_test_storage(
+    ) -> gear_core::storage::Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
+        sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX);
+        sp_io::storage::clear_prefix(STORAGE_ALLOCATION_PREFIX);
+        sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX);
+        sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX);
+        sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX);
+        gear_core::storage::Storage {
+            message_queue: Default::default(),
+            program_storage: ExtProgramStorage,
+            wait_list: Default::default(),
+            log: Default::default(),
+        }
+    }
+
+    fn parse_wat(source: &str) -> Vec<u8> {
+        wabt::Wat2Wasm::new()
+            .validate(false)
+            .convert(source)
+            .expect("failed to parse module")
+            .as_ref()
+            .to_vec()
+    }
+
+    #[test]
+    fn program_storage_iterator() {
+        new_test_ext().execute_with(|| {
+            let mut storage = new_test_storage();
+
+            let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+            )"#;
+            let code = parse_wat(wat);
+
+            for id in 1..=10 {
+                let program =
+                    Program::new(ProgramId::from(id), code.clone(), Default::default()).unwrap();
+                storage.program_storage.set(program);
+            }
+
+            // Since `sp_io::storage::next_key` iterates in lexicographic order, message is inserted into wait list
+            // with prefix `g::wait::` to make sure iterator exhausts correctly.
+            let msg_id = MessageId::from(1);
+            storage.wait_list.insert(
+                msg_id,
+                Message::new_system(msg_id, ProgramId::from(1), Payload::from(vec![]), 0, 0),
+            );
+
+            let programs_count = storage.program_storage.iter().count();
+            assert_eq!(programs_count, 10)
+        })
     }
 }

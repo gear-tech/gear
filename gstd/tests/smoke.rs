@@ -105,18 +105,6 @@ fn messages() {
     assert_eq!(msg_load, b"HELLO");
 }
 
-#[test]
-fn transfer_gas() {
-    msg::charge(1000);
-    unsafe {
-        assert_eq!(GAS, 1000);
-    }
-    msg::charge(2000);
-    unsafe {
-        assert_eq!(GAS, 3000);
-    }
-}
-
 #[cfg(feature = "debug")]
 #[test]
 fn debug() {

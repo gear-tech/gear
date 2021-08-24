@@ -29,6 +29,15 @@ use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
 
+pub const STORAGE_PROGRAM_PREFIX: &'static [u8] = b"g::prog::";
+pub const STORAGE_MESSAGE_PREFIX: &'static [u8] = b"g::msg::";
+pub const STORAGE_MESSAGE_NONCE_KEY: &'static [u8] = b"g::msg::nonce";
+pub const STORAGE_MESSAGE_USER_NONCE_KEY: &'static [u8] = b"g::msg::user_nonce";
+pub const STORAGE_CODE_PREFIX: &'static [u8] = b"g::code::";
+pub const STORAGE_CODE_REFS_PREFIX: &'static [u8] = b"g::code::refs";
+pub const STORAGE_WAITLIST_PREFIX: &'static [u8] = b"g::wait::";
+pub const STORAGE_ALLOCATION_PREFIX: &'static [u8] = b"g::alloc::";
+
 pub type ExitCode = i32;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
@@ -114,30 +123,30 @@ pub enum IntermediateMessage {
 
 fn program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
-    key.extend(b"g::prog::");
+    key.extend(STORAGE_PROGRAM_PREFIX);
     id.encode_to(&mut key);
     key
 }
 
 fn code_key(code_hash: H256) -> (Vec<u8>, Vec<u8>) {
     let (mut key, mut ref_counter) = (Vec::new(), Vec::new());
-    key.extend(b"g::code::");
+    key.extend(STORAGE_CODE_PREFIX);
     code_hash.encode_to(&mut key);
+    ref_counter.extend(STORAGE_CODE_REFS_PREFIX);
     code_hash.encode_to(&mut ref_counter);
-    ref_counter.extend(b"g::code::refs");
     (key, ref_counter)
 }
 
 fn page_key(page: u32) -> Vec<u8> {
     let mut key = Vec::new();
-    key.extend(b"g::alloc::");
+    key.extend(STORAGE_ALLOCATION_PREFIX);
     page.encode_to(&mut key);
     key
 }
 
 fn wait_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
-    key.extend(b"g::wait::");
+    key.extend(STORAGE_WAITLIST_PREFIX);
     id.encode_to(&mut key);
     key
 }
@@ -205,12 +214,12 @@ pub fn program_exists(id: H256) -> bool {
 }
 
 pub fn dequeue_message() -> Option<Message> {
-    let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
+    let mut message_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     message_queue.dequeue()
 }
 
 pub fn queue_message(message: Message) {
-    let mut message_queue = StorageQueue::get(b"g::msg::".as_ref());
+    let mut message_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     let id = message.id.clone();
     message_queue.queue(message, id);
 }
@@ -229,13 +238,13 @@ pub fn dealloc(page: u32) {
 }
 
 pub fn nonce_fetch_inc() -> u128 {
-    let original_nonce = sp_io::storage::get(b"g::msg::nonce")
+    let original_nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
         .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
         .unwrap_or(0u128);
 
     let new_nonce = original_nonce.wrapping_add(1);
 
-    sp_io::storage::set(b"g::msg::nonce", &new_nonce.encode());
+    sp_io::storage::set(STORAGE_MESSAGE_NONCE_KEY, &new_nonce.encode());
 
     original_nonce
 }
@@ -250,7 +259,7 @@ pub fn next_message_id(payload: &Vec<u8>) -> H256 {
 }
 
 pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
-    let mut key_id = b"g::msg::user_nonce".to_vec();
+    let mut key_id = STORAGE_MESSAGE_USER_NONCE_KEY.to_vec();
     key_id.extend(&caller_id[..]);
 
     let original_nonce = sp_io::storage::get(&key_id)
