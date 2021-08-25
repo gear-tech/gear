@@ -5,7 +5,7 @@ set -e
 ROOT_DIR="$(cd "$(dirname "$0")"/../examples && pwd)"
 
 # Get newline-separated list of all workspace members in `$1/Cargo.toml`
-function get_members() {
+get_members() {
   tr -d "\n" < "$1/Cargo.toml" |
     sed -n -e 's/.*members[[:space:]]*=[[:space:]]*\[\([^]]*\)\].*/\1/p' |
     sed -n -e 's/,/\n/gp' |
