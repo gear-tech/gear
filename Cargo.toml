@@ -28,6 +28,7 @@ members = [
     "tests/btree",
     "tests/common",
     "tests/node",
+    "tests/distributor",
     "utils/gear-test-cli",
     "utils/wasm-proc",
 ]

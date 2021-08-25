@@ -7760,6 +7760,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tests-distributor"
+version = "0.1.0"
+dependencies = [
+ "env_logger 0.8.4",
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "gstd-async",
+ "parity-scale-codec",
+ "substrate-wasm-builder",
+ "tests-common",
+]
+
+[[package]]
 name = "tests-node"
 version = "0.1.0"
 dependencies = [
