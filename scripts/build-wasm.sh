@@ -1,6 +1,22 @@
 #!/usr/bin/env sh
 
 set -e
-cd "$(dirname "$0")/../examples"
 
-cargo +nightly build --workspace --release
+ROOT_DIR="$(cd "$(dirname "$0")"/../examples && pwd)"
+
+# Get newline-separated list of all workspace members in `$1/Cargo.toml`
+get_members() {
+  tr -d "\n" < "$1/Cargo.toml" |
+    sed -n -e 's/.*members[[:space:]]*=[[:space:]]*\[\([^]]*\)\].*/\1/p' |
+    sed -n -e 's/,/\n/gp' |
+    sed -n -e 's/[[:space:]]*"\(.*\)"/\1/p'
+}
+
+# For each entry in Cargo.toml workspace members:
+for entry in $(get_members $ROOT_DIR); do
+  # Quotes around `$entry` are not used intentionally to support globs in entry syntax, e.g. "member/*"
+  for member in "$ROOT_DIR"/$entry; do
+    cd "$member"
+    cargo +nightly build --release
+  done
+done

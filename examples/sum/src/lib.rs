@@ -59,3 +59,10 @@ pub unsafe extern "C" fn init() {
     );
     STATE.set_send_to(send_to);
 }
+
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
+}
