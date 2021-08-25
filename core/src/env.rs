@@ -145,19 +145,11 @@ impl<E: Ext> LaterExt<E> {
 
     /// Call fn with inner ext
     pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
-        let mut brw = self.inner.borrow_mut();
-        let mut ext = brw
-            .take()
-            .ok_or("with should be called only when inner is set")?;
-        let res = f(&mut ext);
-
-        *brw = Some(ext);
-
-        Ok(res)
+        self.with_fallible(|e| Ok(f(e)))
     }
 
     /// Call fn with inner ext
-    pub fn with_fallable<R>(
+    pub fn with_fallible<R>(
         &self,
         f: impl FnOnce(&mut E) -> Result<R, &'static str>,
     ) -> Result<R, &'static str> {
