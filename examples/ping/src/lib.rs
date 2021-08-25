@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gstd::{ext, msg, prelude::*};
+use gcore::{ext, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn handle_reply() {
 pub unsafe extern "C" fn init() {}
 
 #[panic_handler]
-fn panic(_info: &panic::PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe {
         core::arch::wasm32::unreachable();
     }

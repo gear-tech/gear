@@ -21,7 +21,7 @@ use alloc::vec::Vec;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use gstd::{msg, MessageId, ProgramId};
+use gcore::{msg, MessageId, ProgramId};
 
 static mut WAITING_MESSAGES: Option<BTreeMap<MessageId, MessageId>> = None;
 static mut FUTURES: Option<BTreeMap<MessageId, MessageFutures>> = None;

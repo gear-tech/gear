@@ -3,7 +3,6 @@
 use core::num::ParseIntError;
 use gstd::{ext, msg, prelude::*, ProgramId};
 
-use codec::{Decode as _, Encode as _};
 use core::convert::TryInto;
 use demo_chat::shared::{MemberMessage, RoomMessage};
 
@@ -32,7 +31,7 @@ static mut STATE: State = State { name: "" };
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    bot(MemberMessage::decode(&mut &msg::load()[..]).expect("Failed to decode incoming message"));
+    bot(msg::load().expect("Failed to decode incoming message"));
 }
 
 fn bot(message: MemberMessage) {
@@ -59,15 +58,9 @@ fn bot(message: MemberMessage) {
     }
 }
 
-pub fn send_room(id: ProgramId, msg: RoomMessage) {
-    let mut encoded = vec![];
-    msg.encode_to(&mut encoded);
-    msg::send(id, &encoded, 10_000_000);
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     let split = input.split(' ').collect::<Vec<_>>();
     match split.len() {
@@ -78,11 +71,12 @@ pub unsafe extern "C" fn init() {
             let room_id = ProgramId::from_slice(
                 &decode_hex(room_id).expect("INITIALIZATION FAILED: INVALID ROOM ID"),
             );
-            send_room(
+            msg::send(
                 room_id,
                 RoomMessage::Join {
                     under_name: name.to_string(),
                 },
+                10_000_000,
             );
         }
         _ => {

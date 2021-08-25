@@ -6,7 +6,9 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-dlmalloc = { git = "https://github.com/nikvolf/dlmalloc-rs", features = ["global"] }
+gcore = { path = "../gcore" }
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 
 [features]
-debug = []
+debug = ["gcore/debug"]
+std = ["codec/std"]

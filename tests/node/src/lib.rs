@@ -76,7 +76,7 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
-        let reply = match Request::decode(&mut &msg::load()[..]) {
+        let reply = match msg::load() {
             Ok(request) => process(request),
             Err(e) => {
                 ext::debug(&format!("Error processing request: {:?}", e));
@@ -84,7 +84,7 @@ mod wasm {
             }
         };
 
-        msg::reply(&reply.encode()[..], msg::gas_available(), 0)
+        msg::reply(reply, msg::gas_available(), 0);
     }
 
     fn state() -> &'static mut NodeState {
@@ -131,11 +131,8 @@ mod wasm {
                     .get(transition.query_index)
                     .expect("Checked above that it has that number of elements; qed");
 
-                transition.last_sent_message_id = msg::send(
-                    *next_sub_node,
-                    &request.encode()[..],
-                    msg::gas_available() - 2_500_000,
-                );
+                transition.last_sent_message_id =
+                    msg::send(*next_sub_node, request, msg::gas_available() - 2_500_000);
 
                 state().transition = Some(transition);
 
@@ -178,13 +175,10 @@ mod wasm {
                             .query_list
                             .get(0)
                             .expect("Checked above that sub_nodes is not empty; qed");
-                        transition.last_sent_message_id = msg::send(
-                            first_sub_node,
-                            &request.encode()[..],
-                            msg::gas_available() - 2_500_000,
-                        );
+                        transition.last_sent_message_id =
+                            msg::send(first_sub_node, request, msg::gas_available() - 2_500_000);
                         state().transition = Some(transition);
-                        msg::wait();
+                        msg::wait()
                     } else {
                         transition.state = TransitionState::Ready;
                         state().transition = Some(transition);
@@ -222,13 +216,13 @@ mod wasm {
 
                             transition.last_sent_message_id = msg::send(
                                 first_sub_node,
-                                &request.encode()[..],
+                                request,
                                 msg::gas_available() - 2_500_000,
                             );
 
                             state().transition = Some(transition);
 
-                            msg::wait();
+                            msg::wait()
                         } else {
                             ext::debug("Returning failure because current state is not READY");
                             Reply::Failure
@@ -253,7 +247,7 @@ mod wasm {
                 return;
             }
 
-            match Reply::decode(&mut &msg::load()[..]) {
+            match msg::load() {
                 Ok(reply) => {
                     transition.query_index += 1;
                     if let Reply::Success = reply {
@@ -275,7 +269,7 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn init() {
-        let init = Initialization::decode(&mut &msg::load()[..]).expect("Failed to decode init");
+        let init: Initialization = msg::load().expect("Failed to decode init");
         STATE = Some(NodeState {
             status: init.status,
             sub_nodes: BTreeSet::default(),
@@ -285,7 +279,7 @@ mod wasm {
     }
 
     #[panic_handler]
-    fn panic(_info: &panic::PanicInfo) -> ! {
+    fn panic(_info: &core::panic::PanicInfo) -> ! {
         unsafe {
             core::arch::wasm32::unreachable();
         }

@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use core::{convert::TryInto, num::ParseIntError};
+use core::num::ParseIntError;
 use gstd::{ext, msg, prelude::*, ProgramId};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
@@ -32,15 +32,11 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg = i32::from_le_bytes(msg::load().try_into().expect("Should be i32"));
+    let new_msg: i32 = msg::load().expect("Should be i32");
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
     if msg::gas_available() > 4_000_000_000 {
-        msg::send(
-            STATE.send_to(),
-            &(new_msg + new_msg).to_ne_bytes(),
-            4_000_000_000,
-        );
+        msg::send(STATE.send_to(), new_msg + new_msg, 4_000_000_000);
 
         ext::debug(&format!(
             "{:?} total message(s) stored: ",
@@ -57,16 +53,9 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     let send_to = ProgramId::from_slice(
         &decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
     );
     STATE.set_send_to(send_to);
-}
-
-#[panic_handler]
-fn panic(_info: &panic::PanicInfo) -> ! {
-    unsafe {
-        core::arch::wasm32::unreachable();
-    }
 }

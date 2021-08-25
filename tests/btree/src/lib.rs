@@ -41,7 +41,7 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
-        let reply = match Request::decode(&mut &msg::load()[..]) {
+        let reply = match msg::load() {
             Ok(request) => process(request),
             Err(e) => {
                 ext::debug(&format!("Error processing request: {:?}", e));
@@ -49,7 +49,7 @@ mod wasm {
             }
         };
 
-        msg::reply(&reply.encode()[..], 1000000, 0)
+        msg::reply(reply, 1_000_000, 0);
     }
 
     fn state() -> &'static mut BTreeMap<u32, u32> {
@@ -177,6 +177,6 @@ mod tests {
                 Reply::None,
                 Reply::List(vec![]),
             ],
-        )
+        );
     }
 }

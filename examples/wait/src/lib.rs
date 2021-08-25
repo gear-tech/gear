@@ -1,7 +1,7 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gstd::{msg, prelude::*, MessageId};
+use gcore::{msg, MessageId};
 
 static mut STATE: u32 = 0;
 static mut MSG_ID: MessageId = MessageId([0; 32]);
@@ -24,7 +24,7 @@ pub unsafe extern "C" fn handle() {
 pub unsafe extern "C" fn init() {}
 
 #[panic_handler]
-fn panic(_info: &panic::PanicInfo) -> ! {
+fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe {
         core::arch::wasm32::unreachable();
     }

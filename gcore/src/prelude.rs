@@ -16,13 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
+#[global_allocator]
+pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
-pub mod msg;
+pub use core::{mem, panic, ptr};
 
-pub use gcore::bail;
-#[cfg(feature = "debug")]
-pub use gcore::ext;
-pub use gcore::prelude;
-pub use gcore::{MessageId, ProgramId};
+extern crate alloc;
+
+pub use alloc::{
+    borrow::ToOwned,
+    boxed::Box,
+    collections::VecDeque,
+    format,
+    str::FromStr,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};

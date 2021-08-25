@@ -41,7 +41,7 @@ where
     let waker = waker::empty();
     let mut cx = Context::from_waker(&waker);
 
-    let key_id = gstd::msg::id();
+    let key_id = gcore::msg::id();
     let futures = msg::futures(key_id);
     futures.reset_current();
 
@@ -57,7 +57,7 @@ where
 
 #[no_mangle]
 unsafe extern "C" fn handle_reply() {
-    let sent_msg_id = gstd::msg::reply_to();
+    let sent_msg_id = gcore::msg::reply_to();
     let waiting_messages = msg::waiting_messages();
     // TODO: Handle a situation when receiving reply to the unknown message (e.g. to `msg::send`)
     // https://github.com/gear-tech/gear/issues/148
@@ -65,7 +65,7 @@ unsafe extern "C" fn handle_reply() {
         // Current message is a reply to the earlier sent message
         let source_msg_id = waiting_messages.remove(&sent_msg_id).unwrap();
         let futures = msg::futures(source_msg_id);
-        futures.current_future_mut().set_reply(gstd::msg::load());
-        gstd::msg::wake(source_msg_id);
+        futures.current_future_mut().set_reply(gcore::msg::load());
+        gcore::msg::wake(source_msg_id);
     }
 }
