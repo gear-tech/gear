@@ -38,7 +38,7 @@ fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let main_fn = syn::parse_macro_input!(item as syn::ItemFn);
     if main_fn.sig.ident != "main" || !main_fn.sig.inputs.is_empty() {
         return compile_error(&main_fn.sig.ident, "wrong main function name and arguments");

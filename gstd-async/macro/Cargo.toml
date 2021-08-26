@@ -1,5 +1,5 @@
 [package]
-name = "gmacro"
+name = "gstd-async-macro"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"

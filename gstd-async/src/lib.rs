@@ -25,7 +25,7 @@ use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 
-pub use gmacro::async_main as main;
+pub use gstd_async_macro::main;
 
 pub mod msg;
 mod waker;

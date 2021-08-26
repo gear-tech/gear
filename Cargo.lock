@@ -2345,14 +2345,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gmacro"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "gstd"
 version = "0.1.0"
 dependencies = [
@@ -2365,7 +2357,15 @@ name = "gstd-async"
 version = "0.1.0"
 dependencies = [
  "gcore",
- "gmacro",
+ "gstd-async-macro",
+]
+
+[[package]]
+name = "gstd-async-macro"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

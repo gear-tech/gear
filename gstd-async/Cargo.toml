@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 gcore = { path = "../gcore" }
-gmacro = { path = "../gstd/gmacro" }
+gstd-async-macro = { path = "macro" }
