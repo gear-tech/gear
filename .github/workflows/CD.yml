@@ -6,8 +6,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-
-Deploy:
+jobs:
+  Deploy:
     needs: build
     runs-on: ubuntu-latest
     steps:
