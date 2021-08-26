@@ -47,7 +47,7 @@ pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
     match opts.verbose {
         0 => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
-            "gtest=warn,gear_core=warn,gear_core_backend=warn,gear_core_runner=warn,gwasm_debug=debug",
+            "gtest=warn,gear_core=warn,gear_core_backend=warn,gear_core_runner=warn,gwasm=debug",
         ))
         .format(|buf, record| writeln!(buf, "{}", record.args()))
         .init(),

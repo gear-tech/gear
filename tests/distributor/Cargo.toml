@@ -1,0 +1,26 @@
+[package]
+name = "tests-distributor"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+gstd-async = { path = "../../gstd-async" }
+gear-core-runner = { path = "../../core-runner", optional = true }
+gear-core = { path = "../../core", optional = true }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+common = { package = "tests-common", path = "../common", optional = true }
+
+[build-dependencies]
+substrate-wasm-builder = "4.0.0"
+
+[dev-dependencies]
+env_logger = "0.8"
+
+[lib]
+
+[features]
+std = ["gear-core-runner", "gear-core", "codec/std", "common"]
+default = ["std"]
