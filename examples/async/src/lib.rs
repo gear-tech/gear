@@ -12,15 +12,6 @@ static mut DEST_2: ProgramId = ProgramId([0u8; 32]);
 const GAS_COST: u64 = 5_000_000;
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
-    let message = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
-
-    if message == "START" {
-        gstd_async::block_on(handle_async());
-    }
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
     let dests: Vec<&str> = input.split(",").collect();
@@ -45,15 +36,22 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .collect()
 }
 
-async fn handle_async() {
-    let reply1 = msg_async::send_and_wait_for_reply(unsafe { DEST_0 }, b"PING", GAS_COST, 0).await;
-    let reply2 = msg_async::send_and_wait_for_reply(unsafe { DEST_1 }, b"PING", GAS_COST, 0).await;
-    let reply3 = msg_async::send_and_wait_for_reply(unsafe { DEST_2 }, b"PING", GAS_COST, 0).await;
+#[gstd_async::main]
+async fn main() {
+    let message = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    if message == "START" {
+        let reply1 =
+            msg_async::send_and_wait_for_reply(unsafe { DEST_0 }, b"PING", GAS_COST, 0).await;
+        let reply2 =
+            msg_async::send_and_wait_for_reply(unsafe { DEST_1 }, b"PING", GAS_COST, 0).await;
+        let reply3 =
+            msg_async::send_and_wait_for_reply(unsafe { DEST_2 }, b"PING", GAS_COST, 0).await;
 
-    if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
-        msg::reply(b"SUCCESS", msg::gas_available() - GAS_COST, 0);
-    } else {
-        msg::reply(b"FAIL", msg::gas_available() - GAS_COST, 0);
+        if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
+            msg::reply(b"SUCCESS", msg::gas_available() - GAS_COST, 0);
+        } else {
+            msg::reply(b"FAIL", msg::gas_available() - GAS_COST, 0);
+        }
     }
 }
 

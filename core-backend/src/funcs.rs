@@ -54,11 +54,13 @@ pub(crate) fn debug<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(),
     move |str_ptr: i32, str_len: i32| {
         let str_ptr = str_ptr as u32 as usize;
         let str_len = str_len as u32 as usize;
-        ext.with(|ext: &mut E| {
+        ext.with_fallible(|ext: &mut E| -> Result<(), &'static str> {
             let mut data = vec![0u8; str_len];
             ext.get_mem(str_ptr, &mut data);
-            let debug_str = unsafe { String::from_utf8_unchecked(data) };
-            log::debug!(target: "gwasm_debug", "DEBUG: {}", debug_str);
+            match String::from_utf8(data) {
+                Ok(s) => ext.debug(&s),
+                Err(_) => Err("Failed to parse debug string"),
+            }
         })
     }
 }

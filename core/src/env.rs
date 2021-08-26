@@ -145,6 +145,14 @@ impl<E: Ext> LaterExt<E> {
 
     /// Call fn with inner ext
     pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+        self.with_fallible(|e| Ok(f(e)))
+    }
+
+    /// Call fn with inner ext
+    pub fn with_fallible<R>(
+        &self,
+        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
+    ) -> Result<R, &'static str> {
         let mut brw = self.inner.borrow_mut();
         let mut ext = brw
             .take()
@@ -153,7 +161,7 @@ impl<E: Ext> LaterExt<E> {
 
         *brw = Some(ext);
 
-        Ok(res)
+        res
     }
 
     /// Unset inner ext

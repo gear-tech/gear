@@ -123,7 +123,7 @@ impl EnvExt for Ext {
     }
 
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
-        log::debug!("DEBUG: {}", data);
+        log::debug!(target: "gwasm", "DEBUG: {}", data);
 
         Ok(())
     }
