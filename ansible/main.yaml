@@ -1,0 +1,128 @@
+- name: "deploy to aws"
+  hosts: all
+  become: yes
+  remote_user: ec2-user
+
+  tasks:
+    - name: Copy compose
+      copy:
+        src: ../docker/docker-compose-cd.yaml
+        dest: /home/ec2-user/docker-compose-cd.yaml
+    - name: Update all packages
+      yum:
+        name: '*'
+        state: latest
+        update_only: yes
+
+    - name: Ensure a list of yum packages are installed
+      yum:
+        name: "{{ packages }}"
+        state: latest
+        update_cache: yes
+      vars:
+        packages:
+        - python-pip
+        - yum-utils
+        - device-mapper-persistent-data
+        - lvm2
+        - amazon-linux-extras
+        - nginx
+
+    - name: Add extras repository
+      shell: yum-config-manager --enable extras
+
+    - name: Enable Some packages from amazon-linux-extras packages
+      shell: "amazon-linux-extras enable python3.8 ansible2 docker"
+
+    - name: clean yum metadata cache
+      command: yum clean metadata
+      args:
+        warn: false
+
+    - name: Ensure a list of yum packages are installed
+      yum:
+        name: "{{ packages }}"
+        state: latest
+        update_cache: yes
+      vars:
+        packages:
+        - python3.8
+        - ansible
+        - docker
+
+    - name: Enable Docker CE service at startup
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Upgrade pip3
+      shell: "python3.8 -m pip install pip --upgrade"
+
+    - name: Ensure Python pip packages are installed
+      pip:
+        name: "{{ packages }}"
+        executable: /usr/local/bin/pip3.8
+      vars:
+        packages:
+        - boto
+        - boto3
+        - docker-compose
+
+    - name: Creates Nginx directory
+      file:
+        path: /home/ec2-user/nginx
+        state: directory
+
+    - name: Creates Conf.d directory
+      file:
+        path: /home/ec2-user/nginx/conf.d
+        state: directory
+
+    - name: Creates directory
+      file:
+        path: /etc/nginx/cert
+        state: directory
+
+    - name: Copy nginx.conf
+      copy:
+        src: ../ansible/ssl.conf
+        dest: /home/ec2-user/nginx/conf.d/ssl.conf
+
+    - name: Generates Private key
+      openssl_privatekey:
+        path: /etc/nginx/cert/private.key
+        size: 2048 
+      become: yes
+
+    - name: Generates CSR
+      openssl_csr:
+        path: /etc/nginx/cert/nginx.csr
+        privatekey_path: /etc/nginx/cert/private.key
+        common_name: "gear.node"
+
+      become: yes
+
+    - name: Generate a Self Signed OpenSSL certificate
+      community.crypto.x509_certificate:
+        path: /etc/nginx/cert/cert.crt
+        privatekey_path: /etc/nginx/cert/private.key
+        csr_path: /etc/nginx/cert/nginx.csr
+        provider: selfsigned
+
+    - name: The Diffie-Hellman parameter file is generated
+      shell: >
+        openssl dhparam -out /etc/nginx/cert/dhparam.pem 2048
+      become: yes
+
+    - name: Start and Enable nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
+        daemon-reload: yes
+
+    - name: Run docker-compose
+      shell: >
+       /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose-cd.yaml" up -d
+      become: yes

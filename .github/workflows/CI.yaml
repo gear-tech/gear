@@ -12,7 +12,6 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -31,10 +30,9 @@ jobs:
           cargo clippy --package gstd --all-features -- -D warnings
           cargo clippy --package gstd-async --all-features -- -D warnings
           echo cargo clippy --package pallet-gear --all-features -- -D warnings # TODO: Fix
-
   build:
+    needs: check
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -61,7 +59,6 @@ jobs:
         run: |
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
-
       - name: Run gear-test
         run: ./target/release/gtest ./gtest/spec/*.yaml
 
@@ -73,7 +70,6 @@ jobs:
 
       - name: Run testsuite
         run: ./target/release/gear-node runtests ./gtest/spec/*.yaml
-
 
       - name: Run metadata test
         run: |
