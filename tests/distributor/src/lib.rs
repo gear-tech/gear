@@ -30,7 +30,9 @@ mod wasm {
     extern crate alloc;
 
     use alloc::collections::BTreeSet;
+    use alloc::rc::Rc;
     use codec::{Decode, Encode};
+    use core::cell::RefCell;
     use core::future::Future;
     use gstd::{ext, msg, prelude::*, ProgramId};
 
@@ -41,10 +43,18 @@ mod wasm {
         handle: ProgramId,
     }
 
-    #[derive(Default)]
     struct ProgramState {
-        nodes: BTreeSet<Program>,
+        nodes: Rc<RefCell<BTreeSet<Program>>>,
         amount: u64,
+    }
+
+    impl Default for ProgramState {
+        fn default() -> Self {
+            Self {
+                nodes: Rc::new(RefCell::new(BTreeSet::default())),
+                amount: 0,
+            }
+        }
     }
 
     static mut STATE: Option<ProgramState> = None;
@@ -90,7 +100,7 @@ mod wasm {
             }
         }
 
-        fn nodes() -> &'static mut BTreeSet<Program> {
+        fn nodes() -> &'static Rc<RefCell<BTreeSet<Program>>> {
             unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").nodes }
         }
 
@@ -117,14 +127,14 @@ mod wasm {
 
         async fn handle_receive(amount: u64) -> Reply {
             ext::debug(&format!("Handling receive {}", amount));
-            let subnodes_count = Self::nodes().len() as u64;
+            let subnodes_count = Self::nodes().borrow().len() as u64;
             if subnodes_count > 0 {
                 let distributed_per_node = amount / subnodes_count;
                 let distributed_total = distributed_per_node * subnodes_count;
                 let mut left_over = amount - distributed_total;
 
                 if distributed_per_node > 0 {
-                    for program in Program::nodes().iter() {
+                    for program in Program::nodes().borrow().iter() {
                         if let Err(_) = program.do_send(distributed_per_node).await {
                             // reclaiming amount from nodes that fail!
                             left_over += distributed_per_node;
@@ -143,7 +153,7 @@ mod wasm {
         }
 
         async fn handle_join(program_id: u64) -> Reply {
-            Self::nodes().insert(Program::new(program_id));
+            Self::nodes().borrow_mut().insert(Program::new(program_id));
 
             Reply::Success
         }
@@ -152,7 +162,7 @@ mod wasm {
             let mut amount = *Program::amount();
             ext::debug(&format!("Own amount: {}", amount));
 
-            for program in Program::nodes().iter() {
+            for program in Program::nodes().borrow().iter() {
                 ext::debug("Querying next node");
                 amount += match program.do_report().await {
                     Ok(amount) => {
