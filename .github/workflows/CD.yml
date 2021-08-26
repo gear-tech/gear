@@ -6,9 +6,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-
-Deploy:
-    needs: build
+jobs:
+  Docker:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
@@ -30,6 +29,17 @@ Deploy:
           file: ../../docker/Dockerfile
           push: true
           tags: schernovgear/gear:nightly
+  Deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      - name: Install Info
+        run: |
+            ls -l .
+            ls -l ../..
+            pwd
 
       - name: Run playbook
         uses: dawidd6/action-ansible-playbook@v2
