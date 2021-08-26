@@ -58,8 +58,6 @@ parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
-    pub const SubmitWeightPerByte: u64 = 1_000_000;
-    pub const MessagePerByte: u64 = 100_000;
 }
 
 impl system::Config for Test {
@@ -95,8 +93,7 @@ parameter_types! {
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
-    type SubmitWeightPerByte = SubmitWeightPerByte;
-    type MessagePerByte = MessagePerByte;
+    type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
 }
 

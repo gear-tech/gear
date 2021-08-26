@@ -18,12 +18,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://substrate.dev/docs/en/knowledgebase/runtime/frame>
 pub use pallet::*;
+pub use weights::WeightInfo;
 
+#[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+pub mod weights;
 
 #[cfg(test)]
 mod mock;
@@ -33,6 +33,7 @@ mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
+    use super::*;
     use common::{self, IntermediateMessage, Message, Origin};
     use frame_support::inherent::{InherentData, InherentIdentifier};
     use frame_support::{
@@ -54,11 +55,8 @@ pub mod pallet {
         /// Gas and value transfer currency
         type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
-        #[pallet::constant]
-        type SubmitWeightPerByte: Get<u64>;
-
-        #[pallet::constant]
-        type MessagePerByte: Get<u64>;
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: WeightInfo;
 
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
@@ -274,10 +272,8 @@ pub mod pallet {
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
         ///
         #[pallet::weight(
-			T::DbWeight::get().writes(4) +
-			T::SubmitWeightPerByte::get()*(code.len() as u64) +
-			T::MessagePerByte::get()*(init_payload.len() as u64)
-		)]
+            T::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
+        )]
         pub fn submit_program(
             origin: OriginFor<T>,
             code: Vec<u8>,
@@ -348,11 +344,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
         ///
-        #[pallet::weight(
-			T::DbWeight::get().writes(4) +
-			*gas_limit +
-			T::MessagePerByte::get()*(payload.len() as u64)
-		)]
+        #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
             destination: H256,
@@ -416,11 +408,7 @@ pub mod pallet {
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
         ///
-        #[pallet::weight(
-			T::DbWeight::get().writes(4) +
-			*gas_limit +
-			T::MessagePerByte::get()*(payload.len() as u64)
-		)]
+        #[pallet::weight(T::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: H256,
