@@ -1326,3 +1326,63 @@ fn events_logging_works() {
         );
     })
 }
+
+#[test]
+fn send_reply_works() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        // Make sure we have a program in the program storage
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            parse_wat(
+                r#"(module
+                    (import "env" "memory" (memory 1))
+                    (export "handle" (func $handle))
+                    (func $handle)
+                )"#,
+            ),
+            Default::default(),
+        )
+        .unwrap();
+        common::native::set_program(program);
+
+        let original_message_id = H256::from_low_u64_be(2002);
+        Gear::insert_to_mailbox(
+            1.into_origin(),
+            common::Message {
+                id: original_message_id.clone(),
+                source: program_id.clone(),
+                dest: 1.into_origin(),
+                payload: vec![],
+                gas_limit: 10_000_000_u64,
+                value: 0_u128,
+                reply: None,
+            },
+        );
+
+        assert_ok!(Pallet::<Test>::send_reply(
+            Origin::signed(1).into(),
+            original_message_id,
+            b"payload".to_vec(),
+            10_000_u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        assert_eq!(messages.len(), 1);
+
+        let mut id = b"payload".to_vec().encode();
+        id.extend_from_slice(&0_u128.to_le_bytes());
+        let id: H256 = sp_io::hashing::blake2_256(&id).into();
+
+        let (msg_id, orig_id) = match &messages[0] {
+            IntermediateMessage::DispatchMessage { id, reply, .. } => (*id, reply.unwrap()),
+            _ => Default::default(),
+        };
+        assert_eq!(msg_id, id);
+        assert_eq!(orig_id, original_message_id);
+    })
+}

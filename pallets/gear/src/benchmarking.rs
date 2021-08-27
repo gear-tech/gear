@@ -36,8 +36,7 @@ use frame_support::traits::Currency;
 use frame_system::RawOrigin;
 
 const MAX_CODE_LEN: u32 = 128 * 1024;
-const MAX_PAYLOAD_LEN: u32 = 256 * 256;
-const MAX_SALT_LEN: u32 = 32;
+const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
 
 pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
@@ -151,35 +150,60 @@ benchmarks! {
     }
 
     submit_program {
-        let c in 0 .. MAX_CODE_LEN / 1024;	// code size in KB
-        let s in 0 .. MAX_SALT_LEN;
+        let c in 0 .. MAX_CODE_LEN;
+        let p in 0 .. MAX_PAYLOAD_LEN;
         let caller: T::AccountId = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = vec![0u8; (c * 1024) as usize];
-        let salt = vec![255u8; s as usize];
-        let payload = vec![];
-    }: _(RawOrigin::Signed(caller), code, salt, payload, 100_000_000_u64, 0_u32.into())
+        let code = vec![0u8; c as usize];
+        let salt = vec![255u8; 32];
+        let payload = vec![1_u8; p as usize];
+        // Using a non-zero `value` to count in the transfer, as well
+        let value = 10_000_u32;
+    }: _(RawOrigin::Signed(caller), code, salt, payload, 100_000_000_u64, value.into())
     verify {
         assert!(Gear::<T>::message_queue().is_some());
     }
 
     send_message {
-        let p in 0 .. MAX_PAYLOAD_LEN / 256;
+        let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
         let payload = vec![0_u8; p as usize];
-    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 0_u32.into())
+    }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
+    verify {
+        assert!(Gear::<T>::message_queue().is_some());
+    }
+
+    send_reply {
+        let p in 0 .. MAX_PAYLOAD_LEN;
+        let caller = account("caller", 0, 0);
+        T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
+        let original_message_id = account::<T::AccountId>("message", 0, 100).into_origin();
+        Gear::<T>::insert_to_mailbox(
+            caller.clone().into_origin(),
+            common::Message {
+                id: original_message_id.clone(),
+                source: program_id.clone(),
+                dest: caller.clone().into_origin(),
+                payload: vec![],
+                gas_limit: 10_000_000_u64,
+                value: 0_u128,
+                reply: None,
+            },
+        );
+        let payload = vec![0_u8; p as usize];
+    }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
         assert!(Gear::<T>::message_queue().is_some());
     }
 
     initial_allocation {
-        let q in 0 .. MAX_PAGES / 16;
+        let q in 0 .. MAX_PAGES;
         let caller: T::AccountId = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
-        let num_pages = 16_u32 * q;
-        let code = generate_wasm(num_pages).unwrap();
+        let code = generate_wasm(q).unwrap();
         MessageQueue::<T>::append(
             IntermediateMessage::InitProgram {
                 origin: caller.clone().into_origin(),
@@ -197,11 +221,10 @@ benchmarks! {
     }
 
     alloc_in_handle {
-        let q in 0 .. MAX_PAGES / 8;
+        let q in 0 .. MAX_PAGES;
         let caller: T::AccountId = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
-        let num_pages = 8 * q;
-        let code = generate_wasm2(num_pages as i32).unwrap();
+        let code = generate_wasm2(q as i32).unwrap();
         let program_id = account::<T::AccountId>("program", q, 0).into_origin();
         set_program(program_id, code, 1_u32, q as u64);
         MessageQueue::<T>::append(
