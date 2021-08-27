@@ -25,6 +25,7 @@ pub mod storage_queue;
 use codec::{Decode, Encode};
 use sp_core::{crypto::UncheckedFrom, H256};
 use sp_std::collections::btree_map::BTreeMap;
+use sp_std::collections::btree_set::BTreeSet;
 use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
@@ -54,7 +55,7 @@ pub struct Message {
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Program {
     pub static_pages: u32,
-    pub persistent_pages: BTreeMap<u32, Vec<u8>>,
+    pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub nonce: u64,
 }
@@ -195,9 +196,30 @@ pub fn get_program(id: H256) -> Option<Program> {
         .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
 }
 
-pub fn set_program(id: H256, program: Program) {
+pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> BTreeMap<u32, Vec<u8>> {
+    let mut persistent_pages = BTreeMap::new();
+    for page_num in pages {
+        let mut key = program_key(id);
+        key.extend(b"::pages::");
+        page_num.encode_to(&mut key);
+
+        persistent_pages.insert(
+            page_num,
+            sp_io::storage::get(&key).expect("values encoded correctly"),
+        );
+    }
+    persistent_pages
+}
+
+pub fn set_program(id: H256, program: Program, persistent_pages: BTreeMap<u32, Vec<u8>>) {
     if !program_exists(id) {
         add_code_ref(program.code_hash);
+    }
+    for (page_num, page_buf) in persistent_pages {
+        let mut page_id = program_key(id);
+        page_id.extend(b"::pages::");
+        page_num.encode_to(&mut page_id);
+        sp_io::storage::set(&page_id, &page_buf);
     }
     sp_io::storage::set(&program_key(id), &program.encode())
 }
@@ -322,7 +344,7 @@ mod tests {
             };
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
-            set_program(program_id, program.clone());
+            set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_program(program_id).unwrap(), program);
             assert_eq!(get_code(program.code_hash).unwrap(), code);
         });
@@ -346,6 +368,7 @@ mod tests {
                     code_hash,
                     nonce: 0,
                 },
+                Default::default(),
             );
             assert_eq!(get_code_refs(code_hash), 1u32);
 
@@ -357,6 +380,7 @@ mod tests {
                     code_hash,
                     nonce: 1,
                 },
+                Default::default(),
             );
             assert_eq!(get_code_refs(code_hash), 2u32);
 
