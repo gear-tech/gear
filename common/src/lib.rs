@@ -228,7 +228,7 @@ pub fn remove_program(id: H256) {
     if let Some(program) = get_program(id) {
         release_code(program.code_hash);
     }
-    sp_io::storage::clear(&program_key(id))
+    sp_io::storage::clear_prefix(&program_key(id))
 }
 
 pub fn program_exists(id: H256) -> bool {
