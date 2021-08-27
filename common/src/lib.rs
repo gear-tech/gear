@@ -24,8 +24,7 @@ pub mod storage_queue;
 
 use codec::{Decode, Encode};
 use sp_core::{crypto::UncheckedFrom, H256};
-use sp_std::collections::btree_map::BTreeMap;
-use sp_std::collections::btree_set::BTreeSet;
+use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
