@@ -74,9 +74,10 @@ pub fn dequeue_message() -> Option<CoreMessage> {
 }
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
-    crate::get_program(H256::from_slice(id.as_slice())).map(|prog| {
+    let id_h256 = H256::from_slice(id.as_slice());
+    crate::get_program(id_h256).map(|prog| {
         let persistent_pages =
-            crate::get_program_pages(H256::from_slice(id.as_slice()), prog.persistent_pages);
+            crate::get_program_pages(id_h256, prog.persistent_pages);
         if let Some(code) = crate::get_code(prog.code_hash) {
             let mut program = Program::new(id, code, persistent_pages).unwrap();
             program.set_message_nonce(prog.nonce);
