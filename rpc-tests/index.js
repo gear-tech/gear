@@ -267,7 +267,6 @@ async function processExpected(api, sudoPair, fixture, programs) {
           errors.push(`MEMORY ERR: ${res}`);
         }
       }
-    } else {
 
     }
     // TODO: FIX IF NO STEPS
