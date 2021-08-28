@@ -46,15 +46,20 @@ pub(crate) fn inspect(meta_type: MetaType) -> (String, BTreeMap<String, String>)
         v = v["def"]["composite"].take();
     }
 
+    if !v["fields"].is_array() {
+        panic!("Invalid data structure");
+    }
+
     for f in v["fields"].as_array().unwrap().iter() {
         map.insert(
-            f["name"].as_str().unwrap().into(),
+            f["name"].as_str().expect("Invalid data structure").into(),
             f["typeName"]
                 .as_str()
                 .unwrap()
                 .split("::")
                 .last()
                 .unwrap()
+                .replace(" ", "")
                 .into(),
         );
     }
@@ -78,4 +83,137 @@ pub(crate) fn to_map(
     }
 
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::TypeInfo;
+    use super::*;
+
+    #[test]
+    fn inspect_primitives() {
+        assert_eq!(
+            inspect(MetaType::new::<bool>()),
+            ("bool".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<char>()),
+            ("char".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<str>()),
+            ("String".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<String>()),
+            ("String".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<u8>()),
+            ("u8".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<u16>()),
+            ("u16".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<u32>()),
+            ("u32".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<u64>()),
+            ("u64".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<u128>()),
+            ("u128".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<i8>()),
+            ("i8".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<i16>()),
+            ("i16".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<i32>()),
+            ("i32".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<i64>()),
+            ("i64".into(), BTreeMap::new())
+        );
+        assert_eq!(
+            inspect(MetaType::new::<i128>()),
+            ("i128".into(), BTreeMap::new())
+        );
+    }
+
+    #[test]
+    fn inspect_struct() {
+        #[derive(TypeInfo)]
+        struct StructName {
+            _a: u8,
+            _b: String,
+            _c: (u32, i32),
+            _d: Vec<i64>,
+            _e: Option<bool>,
+            _f: Result<char, u128>,
+        }
+        let mut map = BTreeMap::<String, String>::new();
+        map.insert("_a".into(), "u8".into());
+        map.insert("_b".into(), "String".into());
+        map.insert("_c".into(), "(u32,i32)".into());
+        map.insert("_d".into(), "Vec<i64>".into());
+        map.insert("_e".into(), "Option<bool>".into());
+        map.insert("_f".into(), "Result<char,u128>".into());
+
+        assert_eq!(
+            inspect(MetaType::new::<StructName>()),
+            ("StructName".into(), map)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid data structure")]
+    fn inspect_solo_option() {
+        inspect(MetaType::new::<Option<u8>>());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid data structure")]
+    fn inspect_solo_result() {
+        inspect(MetaType::new::<Result<u8, u8>>());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid data structure")]
+    fn inspect_empty_struct() {
+        #[derive(TypeInfo)]
+        struct EmptyStruct;
+
+        inspect(MetaType::new::<EmptyStruct>());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid data structure")]
+    fn inspect_tuple_struct() {
+        #[derive(TypeInfo)]
+        struct TupleStruct(u8);
+
+        inspect(MetaType::new::<TupleStruct>());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid data structure")]
+    fn inspect_enum() {
+        #[derive(TypeInfo)]
+        enum Variant {
+            _A,
+            _B,
+        }
+
+        inspect(MetaType::new::<Variant>());
+    }
 }
