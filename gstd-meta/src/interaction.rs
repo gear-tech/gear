@@ -50,6 +50,7 @@ pub fn to_json(types: Vec<MetaType>) -> String {
         .to_string()
 }
 
+/// **The `types!` macro**
 #[macro_export]
 macro_rules! types {
     ($($t:ty), +) => ( gstd_meta::prelude::vec![$(gstd_meta::prelude::MetaType::new::<$t>()), +] );
