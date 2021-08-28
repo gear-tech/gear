@@ -21,6 +21,7 @@
 
 mod declare;
 mod internal;
+mod meta;
 
 pub mod interaction;
 pub mod prelude;
