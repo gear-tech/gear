@@ -4,12 +4,16 @@
 use gstd::{ext, msg, prelude::*};
 use gstd_meta::{meta, TypeInfo};
 
+static mut MESSAGE_LOG: Vec<String> = vec![];
+
+#[allow(unused)]
 #[derive(TypeInfo)]
 struct MessageIn {
     value: u64,
     annotation: String,
 }
 
+#[allow(unused)]
 #[derive(TypeInfo)]
 struct MessageOut {
     old_value: u64,
@@ -26,7 +30,7 @@ meta! {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg: String = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid: should be utf-8");
 
     if new_msg == "PING" {
         msg::reply(b"PONG", 10_000_000, 0);

@@ -5,7 +5,7 @@ programs:
     path: examples/target/wasm32-unknown-unknown/release/demo_meta.wasm
 
 fixtures:
-  - title: ping-pong
+  - title: meta check
 
     messages:
       - destination: 1
