@@ -1,86 +1,55 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use codec::{Decode, Encode};
 use gstd::{ext, msg, prelude::*};
+use gstd_meta::{meta, TypeInfo};
 
-static mut CURRENT_VALUE: u64 = 0;
-
-#[derive(Debug, Encode, Decode)]
+#[derive(TypeInfo)]
 struct MessageIn {
     value: u64,
     annotation: String,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(TypeInfo)]
 struct MessageOut {
     old_value: u64,
     new_value: u64,
 }
 
+meta! {
+    title: "Example program with metadata",
+    input: MessageIn,
+    output: MessageOut,
+    init_input: MessageIn,
+    init_output: MessageOut
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let message_in: MessageIn = msg::load().expect("Failed to decode incoming message");
-    let old_value = CURRENT_VALUE;
-    CURRENT_VALUE += message_in.value;
+    let new_msg: String = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+
+    if new_msg == "PING" {
+        msg::reply(b"PONG", 10_000_000, 0);
+    }
+
+    MESSAGE_LOG.push(new_msg);
+
     ext::debug(&format!(
-        "Increased with annotation: {}",
-        message_in.annotation
+        "{:?} total message(s) stored: ",
+        MESSAGE_LOG.len()
     ));
 
-    msg::reply(
-        MessageOut {
-            old_value,
-            new_value: CURRENT_VALUE,
-        },
-        1000000,
-        0,
-    )
+    for log in MESSAGE_LOG.iter() {
+        ext::debug(log);
+    }
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
-    let message_in: MessageIn = msg::load().expect("Failed to decode incoming message");
-    CURRENT_VALUE = message_in.value;
+pub unsafe extern "C" fn init() {}
 
-    msg::reply(
-        MessageOut {
-            old_value: 0,
-            new_value: CURRENT_VALUE,
-        },
-        1000000,
-        0,
-    )
-}
-
-fn return_slice<T>(slice: &[T]) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([
-        slice.as_ptr() as isize as _,
-        slice.len() as isize as _,
-    ]))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_output() -> *mut [i32; 2] {
-    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_title() -> *mut [i32; 2] {
-    return_slice(br#"Example program with metadata"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_init_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_init_output() -> *mut [i32; 2] {
-    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
+#[panic_handler]
+fn panic(_info: &panic::PanicInfo) -> ! {
+    unsafe {
+        core::arch::wasm32::unreachable();
+    }
 }
