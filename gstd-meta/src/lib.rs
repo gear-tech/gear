@@ -21,5 +21,6 @@
 
 mod internal;
 
+pub mod interaction;
 pub mod prelude;
 pub mod utils;
