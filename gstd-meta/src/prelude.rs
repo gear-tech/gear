@@ -18,7 +18,7 @@
 
 extern crate alloc;
 
-pub(crate) use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
+pub(crate) use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
 
 pub use alloc::{string::String, vec};
 pub use scale_info::MetaType;

@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
+use crate::prelude::Box;
 
-pub mod prelude;
-pub mod utils;
+pub fn to_slice<T>(slice: &[T]) -> *mut [i32; 2] {
+    Box::into_raw(Box::new([
+        slice.as_ptr() as _,
+        slice.len() as _,
+    ]))
+}
