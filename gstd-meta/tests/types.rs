@@ -18,8 +18,8 @@
 
 #![no_std]
 
-use gstd_meta::prelude::{vec, String};
-use gstd_meta::{types, MetaType, TypeInfo};
+use gstd_meta::prelude::{vec, MetaType, String};
+use gstd_meta::{types, TypeInfo};
 
 #[derive(TypeInfo)]
 struct StructName {
