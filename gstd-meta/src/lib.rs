@@ -24,3 +24,6 @@ mod internal;
 pub mod interaction;
 pub mod prelude;
 pub mod utils;
+
+pub use interaction::*;
+pub use scale_info::TypeInfo;
