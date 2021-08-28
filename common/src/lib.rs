@@ -30,13 +30,13 @@ use sp_std::prelude::*;
 use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &'static [u8] = b"g::prog::";
+pub const STORAGE_PROGRAM_PAGES_PREFIX: &'static [u8] = b"g::pages::";
 pub const STORAGE_MESSAGE_PREFIX: &'static [u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &'static [u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &'static [u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &'static [u8] = b"g::code::";
 pub const STORAGE_CODE_REFS_PREFIX: &'static [u8] = b"g::code::refs";
 pub const STORAGE_WAITLIST_PREFIX: &'static [u8] = b"g::wait::";
-pub const STORAGE_ALLOCATION_PREFIX: &'static [u8] = b"g::alloc::";
 
 pub type ExitCode = i32;
 
@@ -137,9 +137,11 @@ fn code_key(code_hash: H256) -> (Vec<u8>, Vec<u8>) {
     (key, ref_counter)
 }
 
-fn page_key(page: u32) -> Vec<u8> {
+fn page_key(id: H256, page: u32) -> Vec<u8> {
     let mut key = Vec::new();
-    key.extend(STORAGE_ALLOCATION_PREFIX);
+    key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
+    id.encode_to(&mut key);
+    key.extend(b"::");
     page.encode_to(&mut key);
     key
 }
@@ -198,9 +200,7 @@ pub fn get_program(id: H256) -> Option<Program> {
 pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> BTreeMap<u32, Vec<u8>> {
     let mut persistent_pages = BTreeMap::new();
     for page_num in pages {
-        let mut key = program_key(id);
-        key.extend(b"::pages::");
-        page_num.encode_to(&mut key);
+        let key = page_key(id, page_num);
 
         persistent_pages.insert(
             page_num,
@@ -215,10 +215,8 @@ pub fn set_program(id: H256, program: Program, persistent_pages: BTreeMap<u32, V
         add_code_ref(program.code_hash);
     }
     for (page_num, page_buf) in persistent_pages {
-        let mut page_id = program_key(id);
-        page_id.extend(b"::pages::");
-        page_num.encode_to(&mut page_id);
-        sp_io::storage::set(&page_id, &page_buf);
+        let key = page_key(id, page_num);
+        sp_io::storage::set(&key, &page_buf);
     }
     sp_io::storage::set(&program_key(id), &program.encode())
 }
@@ -227,6 +225,9 @@ pub fn remove_program(id: H256) {
     if let Some(program) = get_program(id) {
         release_code(program.code_hash);
     }
+    let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
+    pages_prefix.extend(&program_key(id));
+    sp_io::storage::clear_prefix(&pages_prefix);
     sp_io::storage::clear_prefix(&program_key(id))
 }
 
@@ -243,19 +244,6 @@ pub fn queue_message(message: Message) {
     let mut message_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     let id = message.id.clone();
     message_queue.queue(message, id);
-}
-
-pub fn alloc(page: u32, program: H256) {
-    sp_io::storage::set(&page_key(page), &program.encode())
-}
-
-pub fn page_info(page: u32) -> Option<H256> {
-    sp_io::storage::get(&page_key(page))
-        .map(|val| H256::decode(&mut &val[..]).expect("values encoded correctly"))
-}
-
-pub fn dealloc(page: u32) {
-    sp_io::storage::clear(&page_key(page))
 }
 
 pub fn nonce_fetch_inc() -> u128 {

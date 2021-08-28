@@ -119,18 +119,6 @@ pub fn program_exists(id: ProgramId) -> bool {
     crate::program_exists(H256::from_slice(id.as_slice()))
 }
 
-pub fn page_info(page: u32) -> Option<ProgramId> {
-    crate::page_info(page).map(|pid| ProgramId::from_slice(&pid[..]))
-}
-
-pub fn alloc(page: u32, pid: ProgramId) {
-    crate::alloc(page, H256::from_slice(pid.as_slice()));
-}
-
-pub fn dealloc(page: u32) {
-    crate::dealloc(page);
-}
-
 pub fn insert_waiting_message(id: MessageId, message: CoreMessage) {
     crate::insert_waiting_message(H256::from_slice(id.as_slice()), message.into());
 }
