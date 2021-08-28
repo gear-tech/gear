@@ -19,8 +19,5 @@
 use crate::prelude::Box;
 
 pub fn to_slice<T>(slice: &[T]) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([
-        slice.as_ptr() as _,
-        slice.len() as _,
-    ]))
+    Box::into_raw(Box::new([slice.as_ptr() as _, slice.len() as _]))
 }

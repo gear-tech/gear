@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::{String, ToString, Vec, BTreeMap};
-use scale_info::{Registry, MetaType, IntoPortable};
+use crate::prelude::{BTreeMap, String, ToString, Vec};
+use scale_info::{IntoPortable, MetaType, Registry};
 use serde_json::to_value;
 
 pub(crate) fn inspect(meta_type: MetaType) -> (String, BTreeMap<String, String>) {
@@ -66,7 +66,9 @@ pub(crate) fn inspect_many(types: Vec<MetaType>) -> Vec<(String, BTreeMap<String
     types.iter().map(|ty| inspect(*ty)).collect()
 }
 
-pub(crate) fn to_map(head: &(String, BTreeMap<String, String>)) -> BTreeMap<String, BTreeMap<String, String>> {
+pub(crate) fn to_map(
+    head: &(String, BTreeMap<String, String>),
+) -> BTreeMap<String, BTreeMap<String, String>> {
     let mut map = BTreeMap::new();
 
     if head.1.is_empty() {

@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::{vec, MetaType, String, ToString, Vec};
 use crate::internal::{inspect_many, to_map};
+use crate::prelude::{vec, MetaType, String, ToString, Vec};
 use serde_json::to_value;
 
 pub fn to_json(types: Vec<MetaType>) -> String {
@@ -33,9 +33,10 @@ pub fn to_json(types: Vec<MetaType>) -> String {
         if !head.1.is_empty() {
             for i in 1..data.len() {
                 if !add.contains(&data[i].0)
-                    && json
-                        .iter()
-                        .any(|h| h.values().any(|v| v.values().any(|k| *k == data[i].0)))
+                    && json.iter().any(|h| {
+                        h.values()
+                            .any(|v| v.values().any(|k| k.contains(&data[i].0)))
+                    })
                 {
                     json.push(to_map(&data[i]));
                     add.push(data[i].0.clone());
