@@ -19,5 +19,7 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
+mod internal;
+
 pub mod prelude;
 pub mod utils;
