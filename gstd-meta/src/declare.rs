@@ -16,15 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
-
-mod declare;
-mod internal;
-
-pub mod interaction;
-pub mod prelude;
-pub mod utils;
-
-pub use interaction::*;
-pub use scale_info::TypeInfo;
+/// **The `declare!` macro**
+#[macro_export]
+macro_rules! declare {
+    ($f:ident, $txt:literal) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
+            gstd_meta::utils::return_slice($txt.as_bytes())
+        }
+    };
+    ($f:ident, $($t:ty), +) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
+            gstd_meta::utils::return_slice(
+                gstd_meta::to_json(gstd_meta::types!($($t), +))
+                    .as_bytes()
+            )
+        }
+    };
+}
