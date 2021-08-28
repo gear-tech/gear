@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
+extern crate alloc;
 
-pub mod prelude;
+pub(crate) use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
+
+pub use alloc::{string::String, vec};
+pub use scale_info::MetaType;
