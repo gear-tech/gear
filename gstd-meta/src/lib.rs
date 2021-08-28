@@ -26,4 +26,4 @@ pub mod prelude;
 pub mod utils;
 
 pub use interaction::*;
-pub use scale_info::TypeInfo;
+pub use scale_info::{MetaType, TypeInfo};
