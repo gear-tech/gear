@@ -11,6 +11,8 @@ opt-level = "s"
 opt-level = "s"
 
 [workspace]
+resolver = "2"
+
 default-members = ["node"]
 
 members = [
