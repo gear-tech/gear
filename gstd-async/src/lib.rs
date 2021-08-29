@@ -67,7 +67,9 @@ unsafe extern "C" fn handle_reply() {
         // Current message is a reply to the earlier sent message
         let source_msg_id = waiting_messages.remove(&sent_msg_id).unwrap();
         let futures = msg::futures(source_msg_id);
-        futures.current_future_mut().set_reply(gcore::msg::load());
+        futures
+            .current_future_mut()
+            .set_reply(gstd::msg::load_bytes());
         gcore::msg::wake(source_msg_id);
     }
 }

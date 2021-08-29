@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::Vec;
 use crate::MessageHandle;
 use crate::{MessageId, ProgramId};
 
@@ -64,13 +63,14 @@ pub fn id() -> MessageId {
     msg_id
 }
 
-pub fn load() -> Vec<u8> {
+pub fn load(buffer: &mut [u8]) {
     unsafe {
         let message_size = sys::gr_size() as usize;
-        let mut data = Vec::with_capacity(message_size);
-        data.set_len(message_size);
-        sys::gr_read(0, message_size as _, data.as_mut_ptr() as _);
-        data
+        if message_size != buffer.len() {
+            panic!("Cannot load message - buffer length does not match");
+        }
+
+        sys::gr_read(0, message_size as _, buffer.as_mut_ptr() as _);
     }
 }
 
@@ -168,4 +168,8 @@ pub fn wake(waker_id: MessageId) {
     unsafe {
         sys::gr_wake(waker_id.as_slice().as_ptr());
     }
+}
+
+pub fn size() -> usize {
+    unsafe { sys::gr_size() as _ }
 }

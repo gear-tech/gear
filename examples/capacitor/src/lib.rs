@@ -1,7 +1,8 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gcore::{ext, msg, prelude::*};
+use gstd::prelude::*;
+use gcore::{msg, ext};
 
 // Begin of demo
 static mut CHARGE: u32 = 0;
@@ -12,7 +13,7 @@ static mut DISCHARGE_HISTORY: Vec<u32> = Vec::new();
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    let new_msg = String::from_utf8(gstd::msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     let to_add = u32::from_str(new_msg.as_ref()).expect("Invalid number");
 
@@ -39,7 +40,7 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let initstr = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    let initstr = String::from_utf8(gstd::msg::load_bytes()).expect("Invalid message: should be utf-8");
     let limit = u32::from_str(initstr.as_ref()).expect("Invalid number");
 
     LIMIT = limit;

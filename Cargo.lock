@@ -2006,6 +2006,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "galloc"
+version = "0.1.0"
+dependencies = [
+ "dlmalloc",
+]
+
+[[package]]
 name = "gcc"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2348,6 +2355,7 @@ dependencies = [
 name = "gstd"
 version = "0.1.0"
 dependencies = [
+ "galloc",
  "gcore",
  "parity-scale-codec",
 ]
@@ -2357,6 +2365,7 @@ name = "gstd-async"
 version = "0.1.0"
 dependencies = [
  "gcore",
+ "gstd",
  "gstd-async-macro",
 ]
 
