@@ -2084,6 +2084,7 @@ dependencies = [
  "gear-node-rti",
  "gear-runtime",
  "gear-test-cli",
+ "hex-literal",
  "jsonrpc-core",
  "pallet-gear-rpc",
  "pallet-transaction-payment-rpc",
