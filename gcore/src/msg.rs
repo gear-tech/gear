@@ -35,6 +35,13 @@ mod sys {
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
         );
+        pub fn gr_send_and_wait(
+            program: *const u8,
+            data_ptr: *const u8,
+            data_len: u32,
+            value_ptr: *const u8,
+            message_id_ptr: *mut u8,
+        ) -> !;
         pub fn gr_send_commit(
             handle: u32,
             message_id_ptr: *mut u8,
@@ -97,6 +104,23 @@ pub fn reply_to() -> MessageId {
 
 pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64) -> MessageId {
     send_with_value(program, payload, gas_limit, 0u128)
+}
+
+pub fn send_and_wait(
+    program: ProgramId,
+    payload: &[u8],
+    value: u128,
+    message_id: &mut MessageId,
+) -> ! {
+    unsafe {
+        sys::gr_send_and_wait(
+            program.as_slice().as_ptr(),
+            payload.as_ptr(),
+            payload.len() as _,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+        )
+    }
 }
 
 pub fn send_commit(

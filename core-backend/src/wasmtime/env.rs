@@ -61,6 +61,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
         result.add_func_i32_i32_i32_i64_i32_i32("gr_send", funcs::send);
+        result.add_func_i32_i32_i32_i32_i32("gr_send_and_wait", funcs::send_and_wait);
         result.add_func_i32_i32_i32_i64_i32("gr_send_commit", funcs::send_commit);
         result.add_func_to_i32("gr_send_init", funcs::send_init);
         result.add_func_i32_i32_i32("gr_send_push", funcs::send_push);
@@ -221,6 +222,16 @@ impl<E: Ext + 'static> Environment<E> {
         self.funcs.insert(
             key,
             Func::wrap(&self.store, Self::wrap3(func(self.ext.clone()))),
+        );
+    }
+
+    fn add_func_i32_i32_i32_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32, i32, i32, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
         );
     }
 

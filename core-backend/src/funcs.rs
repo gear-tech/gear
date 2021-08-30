@@ -162,6 +162,29 @@ pub(crate) fn send<E: Ext>(
     }
 }
 
+pub(crate) fn send_and_wait<E: Ext>(
+    ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |program_id_ptr: i32,
+          payload_ptr: i32,
+          payload_len: i32,
+          value_ptr: i32,
+          message_id_ptr: i32| {
+        let _ = ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let gas_limit = ext.gas_available();
+            let dest: ProgramId = get_id(ext, program_id_ptr).into();
+            let payload = get_vec(ext, payload_ptr, payload_len);
+            let value = get_u128(ext, value_ptr);
+            let message_id =
+                ext.send(OutgoingPacket::new(dest, payload.into(), gas_limit, value))?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            ext.wait()
+        })?;
+        // Intentionally return an error to break the execution
+        Err(EXIT_TRAP_STR)
+    }
+}
+
 pub(crate) fn send_commit<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str> {
