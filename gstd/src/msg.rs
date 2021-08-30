@@ -20,6 +20,7 @@ use crate::prelude::Vec;
 use crate::{MessageId, ProgramId};
 use codec::{Decode, Encode, Output};
 
+use galloc::prelude::*;
 pub use gcore::msg::{gas_available, id, reply_to, source, value, wait, wake};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,11 +47,13 @@ impl Output for MessageHandle {
 }
 
 pub fn load<D: Decode>() -> Result<D, codec::Error> {
-    D::decode(&mut gcore::msg::load().as_ref())
+    D::decode(&mut load_bytes().as_ref())
 }
 
 pub fn load_bytes() -> Vec<u8> {
-    gcore::msg::load()
+    let mut result = vec![0u8; gcore::msg::size()];
+    gcore::msg::load(&mut result[..]);
+    result
 }
 
 pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) {

@@ -1,11 +1,12 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gcore::{msg, prelude::*};
+use gcore::msg;
+use gstd::prelude::*;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    let new_msg = String::from_utf8(gstd::msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     if new_msg == "PING" {
         msg::reply(b"PO", 10_000_000, 0);

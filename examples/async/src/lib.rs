@@ -2,7 +2,7 @@
 #![feature(default_alloc_error_handler)]
 
 use core::num::ParseIntError;
-use gcore::{msg, prelude::*, ProgramId};
+use gstd::{msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
 static mut DEST_0: ProgramId = ProgramId([0u8; 32]);
@@ -13,7 +13,7 @@ const GAS_COST: u64 = 5_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     let dests: Vec<&str> = input.split(",").collect();
     if dests.len() != 3 {
         panic!("Invalid input, should be three IDs separated by comma");
@@ -38,7 +38,7 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 
 #[gstd_async::main]
 async fn main() {
-    let message = String::from_utf8(msg::load()).expect("Invalid message: should be utf-8");
+    let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     if message == "START" {
         let reply1 =
             msg_async::send_and_wait_for_reply(unsafe { DEST_0 }, b"PING", GAS_COST, 0).await;

@@ -18,20 +18,23 @@
 
 #![no_std]
 
-use gcore::prelude::*;
+use core::{mem, ptr};
 use gcore::{msg, ProgramId};
 
 #[cfg(feature = "debug")]
 use gcore::ext;
 
 static mut PROGRAM: ProgramId = ProgramId([0; 32]);
-static mut MESSAGE: Vec<u8> = Vec::new();
+static mut MESSAGE: &mut [u8] = &mut [0u8; 1024];
+static mut MESSAGE_LEN: usize = 0;
 static mut GAS_LIMIT: u64 = 0;
 static mut VALUE: u128 = 0;
 static mut GAS: u64 = 0;
 
 #[cfg(feature = "debug")]
-static mut DEBUG_MSG: Vec<u8> = Vec::new();
+static mut DEBUG_MSG: &mut [u8] = &mut [0u8; 1024];
+#[cfg(feature = "debug")]
+static mut DEBUG_MSG_LEN: usize = 0;
 
 mod sys {
     use super::*;
@@ -44,7 +47,7 @@ mod sys {
     #[cfg(feature = "debug")]
     #[no_mangle]
     unsafe extern "C" fn gr_debug(msg_ptr: *const u8, msg_len: u32) {
-        DEBUG_MSG.resize(msg_len as _, 0);
+        DEBUG_MSG_LEN = msg_len as _;
         ptr::copy(msg_ptr, DEBUG_MSG.as_mut_ptr(), msg_len as _);
     }
 
@@ -64,7 +67,7 @@ mod sys {
         _message_id_ptr: *mut u8,
     ) {
         ptr::copy(program, PROGRAM.0.as_mut_ptr(), 32);
-        MESSAGE.resize(data_len as _, 0);
+        MESSAGE_LEN = data_len as _;
         ptr::copy(data_ptr, MESSAGE.as_mut_ptr(), data_len as _);
         GAS_LIMIT = gas_limit;
         VALUE = *(value_ptr as *const u128);
@@ -100,9 +103,6 @@ fn messages() {
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ProgramId(id));
-
-    let msg_load = msg::load();
-    assert_eq!(msg_load, b"HELLO");
 }
 
 #[cfg(feature = "debug")]
@@ -111,6 +111,6 @@ fn debug() {
     ext::debug("DBG: test message");
 
     unsafe {
-        assert_eq!(DEBUG_MSG, "DBG: test message".as_bytes());
+        assert_eq!(&DEBUG_MSG[0..DEBUG_MSG_LEN], "DBG: test message".as_bytes());
     }
 }
