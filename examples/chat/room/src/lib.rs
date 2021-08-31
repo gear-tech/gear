@@ -1,5 +1,5 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
+
 use gstd::{ext, msg, prelude::*, ProgramId};
 
 use demo_chat::shared::{MemberMessage, RoomMessage};
@@ -41,10 +41,14 @@ unsafe fn room(room_msg: RoomMessage) {
 
     match room_msg {
         Join { under_name } => {
+            let under_name = String::from_utf8(
+                under_name
+            ).expect("Invalid utf-8");
+
             ext::debug(&format!(
                 "ROOM '{}': '{}' joined",
                 STATE.room_name(),
-                &under_name
+                under_name,
             ));
             STATE.add_member((msg::source(), under_name));
         }
@@ -60,8 +64,8 @@ unsafe fn room(room_msg: RoomMessage) {
                                 .get_member(msg::source())
                                 .unwrap_or(&(ProgramId::default(), STATE.room_name().to_string()))
                                 .1,
-                            text
-                        )),
+                            String::from_utf8(text.clone()).expect("Invalid utf-8"),
+                        ).into_bytes()),
                         10_000_000,
                     );
                 }

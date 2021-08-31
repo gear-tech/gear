@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
 
 use gstd::prelude::*;
 use gcore::{msg, ext};
@@ -49,11 +48,4 @@ pub unsafe extern "C" fn init() {
         "Init capacitor with limit capacity {}, {}",
         LIMIT, initstr,
     ));
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    unsafe {
-        core::arch::wasm32::unreachable();
-    }
 }
