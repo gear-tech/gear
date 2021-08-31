@@ -24,19 +24,19 @@ pub mod storage_queue;
 
 use codec::{Decode, Encode};
 use sp_core::{crypto::UncheckedFrom, H256};
-use sp_std::collections::btree_map::BTreeMap;
+use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &'static [u8] = b"g::prog::";
+pub const STORAGE_PROGRAM_PAGES_PREFIX: &'static [u8] = b"g::pages::";
 pub const STORAGE_MESSAGE_PREFIX: &'static [u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &'static [u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &'static [u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &'static [u8] = b"g::code::";
 pub const STORAGE_CODE_REFS_PREFIX: &'static [u8] = b"g::code::refs";
 pub const STORAGE_WAITLIST_PREFIX: &'static [u8] = b"g::wait::";
-pub const STORAGE_ALLOCATION_PREFIX: &'static [u8] = b"g::alloc::";
 
 pub type ExitCode = i32;
 
@@ -54,7 +54,7 @@ pub struct Message {
 #[derive(Clone, Debug, Decode, Encode, PartialEq)]
 pub struct Program {
     pub static_pages: u32,
-    pub persistent_pages: BTreeMap<u32, Vec<u8>>,
+    pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub nonce: u64,
 }
@@ -137,9 +137,11 @@ fn code_key(code_hash: H256) -> (Vec<u8>, Vec<u8>) {
     (key, ref_counter)
 }
 
-fn page_key(page: u32) -> Vec<u8> {
+fn page_key(id: H256, page: u32) -> Vec<u8> {
     let mut key = Vec::new();
-    key.extend(STORAGE_ALLOCATION_PREFIX);
+    key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
+    id.encode_to(&mut key);
+    key.extend(b"::");
     page.encode_to(&mut key);
     key
 }
@@ -195,9 +197,26 @@ pub fn get_program(id: H256) -> Option<Program> {
         .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
 }
 
-pub fn set_program(id: H256, program: Program) {
+pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> BTreeMap<u32, Vec<u8>> {
+    let mut persistent_pages = BTreeMap::new();
+    for page_num in pages {
+        let key = page_key(id, page_num);
+
+        persistent_pages.insert(
+            page_num,
+            sp_io::storage::get(&key).expect("values encoded correctly"),
+        );
+    }
+    persistent_pages
+}
+
+pub fn set_program(id: H256, program: Program, persistent_pages: BTreeMap<u32, Vec<u8>>) {
     if !program_exists(id) {
         add_code_ref(program.code_hash);
+    }
+    for (page_num, page_buf) in persistent_pages {
+        let key = page_key(id, page_num);
+        sp_io::storage::set(&key, &page_buf);
     }
     sp_io::storage::set(&program_key(id), &program.encode())
 }
@@ -206,7 +225,10 @@ pub fn remove_program(id: H256) {
     if let Some(program) = get_program(id) {
         release_code(program.code_hash);
     }
-    sp_io::storage::clear(&program_key(id))
+    let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
+    pages_prefix.extend(&program_key(id));
+    sp_io::storage::clear_prefix(&pages_prefix);
+    sp_io::storage::clear_prefix(&program_key(id))
 }
 
 pub fn program_exists(id: H256) -> bool {
@@ -222,19 +244,6 @@ pub fn queue_message(message: Message) {
     let mut message_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     let id = message.id.clone();
     message_queue.queue(message, id);
-}
-
-pub fn alloc(page: u32, program: H256) {
-    sp_io::storage::set(&page_key(page), &program.encode())
-}
-
-pub fn page_info(page: u32) -> Option<H256> {
-    sp_io::storage::get(&page_key(page))
-        .map(|val| H256::decode(&mut &val[..]).expect("values encoded correctly"))
-}
-
-pub fn dealloc(page: u32) {
-    sp_io::storage::clear(&page_key(page))
 }
 
 pub fn nonce_fetch_inc() -> u128 {
@@ -322,7 +331,7 @@ mod tests {
             };
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
-            set_program(program_id, program.clone());
+            set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_program(program_id).unwrap(), program);
             assert_eq!(get_code(program.code_hash).unwrap(), code);
         });
@@ -346,6 +355,7 @@ mod tests {
                     code_hash,
                     nonce: 0,
                 },
+                Default::default(),
             );
             assert_eq!(get_code_refs(code_hash), 1u32);
 
@@ -357,6 +367,7 @@ mod tests {
                     code_hash,
                     nonce: 1,
                 },
+                Default::default(),
             );
             assert_eq!(get_code_refs(code_hash), 2u32);
 

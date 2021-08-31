@@ -140,7 +140,13 @@ async function checkMemory(api, exp, programs) {
     const bytes = Uint8Array.from(Buffer.from(mem.bytes.slice(2), 'hex'));
     const atPage = Math.floor(at / 65536);
     at -= atPage * 65536;
-    let pages = gearProgram.persistent_pages;
+
+    let pages = [];
+
+    for (let page in gearProgram.persistent_pages.keys()) {
+      const buf = await api.rpc.state.getStorage(`0x${Buffer.from('g::prog::').toString('hex')}${programs[mem.program_id].slice(2)}::mem::${page.toHex()}`);
+      pages.push([page, buf]);
+    }
 
     for (let [pageNumber, buf] of pages) {
       if (pageNumber == atPage) {
@@ -261,6 +267,7 @@ async function processExpected(api, sudoPair, fixture, programs) {
           errors.push(`MEMORY ERR: ${res}`);
         }
       }
+
     }
     // TODO: FIX IF NO STEPS
   }
@@ -385,7 +392,7 @@ async function main() {
     types: {
       "Program": {
         'static_pages': 'u32',
-        'persistent_pages': 'BTreeMap<u32, Vec<u8>>',
+        'persistent_pages': 'BTreeSet<u32>',
         'code_hash': 'H256',
         'nonce': 'u64',
       },
