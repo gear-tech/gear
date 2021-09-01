@@ -1149,7 +1149,7 @@ mod tests {
         assert_eq!(result.gas_left[0].0, caller_id);
         assert!(result.gas_left[0].1 < gas_limit);
 
-        let (gas_available, _, _) = runner
+        let (gas_available, ..) = runner
             .log
             .get()
             .first()

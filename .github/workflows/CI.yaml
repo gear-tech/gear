@@ -16,8 +16,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      - name: Install nightly tools
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt, clippy
+          override: true
+
       - name: Check fmt
-        run: cargo fmt --all -- --check
+        run: |
+          cargo fmt --all -- --check
+          cargo fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path="" --check
 
       - name: Run clippy
         run: | # TODO: Expand clippy to be workspace-wide
