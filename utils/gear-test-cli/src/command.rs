@@ -37,7 +37,7 @@ impl GearTestCmd {
             .execute_with(|| {
                 gear_test::check::check_main(self.input.to_vec(), true, false, false, || {
                     sp_io::storage::clear_prefix(gear_common::STORAGE_CODE_PREFIX, None);
-                    sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX,None);
+                    sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX, None);
                     sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX, None);
                     sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX, None);
                     gear_core::storage::Storage {
