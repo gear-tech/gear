@@ -10,9 +10,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gstd = { path = "../../gstd", features = ["debug"] }
-<<<<<<< HEAD
 gstd-meta = { path = "../../gstd-meta" }
 scale-info = { version = "0.12.0", default-features = false, features = ["derive"] }
-=======
-codec = { package = "parity-scale-codec", version = "2", features = ["derive"] }
->>>>>>> master
