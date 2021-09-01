@@ -1,0 +1,31 @@
+name: Docs
+
+on:
+  push:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Build Docs
+        run: |
+          cargo doc -p gear-core -p gstd -p gstd-async --no-deps
+          echo "<html><head><meta http-equiv=\"refresh\" content=\"0; url=/gear_core/index.html\" /></head><body></body></html>" > ./target/doc/index.html
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/doc
+          cname: docs.gear.rs
+          force_orphan: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
