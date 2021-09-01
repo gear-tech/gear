@@ -16,19 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::{BTreeMap, String, ToString, Vec};
+use crate::{BTreeMap, String, ToString};
 use scale_info::{IntoPortable, MetaType, Registry};
-use serde_json::to_value;
 
 pub(crate) fn inspect(meta_type: MetaType) -> (String, BTreeMap<String, String>) {
     let type_info = meta_type.type_info();
 
     let name = type_info.path().ident();
-    let mut map = BTreeMap::<String, String>::new();
+    let mut map = BTreeMap::new();
 
     let mut reg = Registry::new();
     let ty = type_info.into_portable(&mut reg);
-    let mut v = to_value(ty).expect("Unable to convert MetaType into serde::Value");
+    let mut v = serde_json::to_value(ty).expect("Unable to convert MetaType into serde::Value");
 
     if name.is_none() {
         let mut name = v["def"]["primitive"].to_string().replace("\"", "");
@@ -59,16 +58,11 @@ pub(crate) fn inspect(meta_type: MetaType) -> (String, BTreeMap<String, String>)
                 .split("::")
                 .last()
                 .unwrap()
-                .replace(" ", "")
-                .into(),
+                .replace(" ", ""),
         );
     }
 
     (name.into(), map)
-}
-
-pub(crate) fn inspect_many(types: Vec<MetaType>) -> Vec<(String, BTreeMap<String, String>)> {
-    types.iter().map(|ty| inspect(*ty)).collect()
 }
 
 pub(crate) fn to_map(
@@ -76,19 +70,16 @@ pub(crate) fn to_map(
 ) -> BTreeMap<String, BTreeMap<String, String>> {
     let mut map = BTreeMap::new();
 
-    if head.1.is_empty() {
-        map.insert(head.0.clone(), BTreeMap::new());
-    } else {
-        map.insert(head.0.clone(), head.1.clone());
-    }
+    map.insert(head.0.clone(), head.1.clone());
 
     map
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::TypeInfo;
     use super::*;
+    use crate::Vec;
+    use scale_info::TypeInfo;
 
     #[test]
     fn inspect_primitives() {

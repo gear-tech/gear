@@ -18,13 +18,12 @@
 
 #![no_std]
 
-use gstd_meta::prelude::{vec, MetaType, String};
-use gstd_meta::{types, TypeInfo};
+use gstd_meta::*;
 
 #[derive(TypeInfo)]
-struct StructName {
-    _a: u8,
-    _b: String,
+pub struct StructName {
+    pub a: u8,
+    pub b: String,
 }
 
 #[test]

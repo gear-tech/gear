@@ -18,50 +18,44 @@
 
 #![no_std]
 
-// May be replaced with `use gstd_meta::*;`
-use gstd_meta::{to_json, types, TypeInfo};
+use gstd_meta::*;
 
 extern crate alloc;
 use alloc::{string::String, vec::Vec};
 
-#[allow(unused)]
 #[derive(TypeInfo)]
-struct SaltAmount {
-    value: u8,
+pub struct SaltAmount {
+    pub value: u8,
 }
 
-#[allow(unused)]
 #[derive(TypeInfo)]
-struct Meat {
-    name: String,
-    salt: Option<SaltAmount>,
+pub struct Meat {
+    pub name: String,
+    pub salt: Option<SaltAmount>,
 }
 
-#[allow(unused)]
 #[derive(TypeInfo)]
-struct Egg {
-    weight: u32,
-    ostrich: bool,
+pub struct Egg {
+    pub weight: u32,
+    pub ostrich: bool,
 }
 
-#[allow(unused)]
 #[derive(TypeInfo)]
-struct Sauce {
-    eggs: Vec<Egg>,
-    salty: Result<SaltAmount, SaltAmount>,
+pub struct Sauce {
+    pub eggs: Vec<Egg>,
+    pub salty: Result<SaltAmount, SaltAmount>,
 }
 
-#[allow(unused)]
 #[derive(TypeInfo)]
-struct Meal {
-    steak: Meat,
-    mayonnaise: Sauce,
+pub struct Meal {
+    pub steak: Meat,
+    pub mayonnaise: Sauce,
 }
 
 // Function for more visual testing
-fn check(types: Vec<gstd_meta::prelude::MetaType>, expectation: &'static str) {
+fn check(types: Vec<MetaType>, expectation: &'static str) {
     assert_eq!(
-        to_json(types),
+        gstd_meta::to_json(types),
         expectation.replace("\n", "").replace(" ", "")
     )
 }

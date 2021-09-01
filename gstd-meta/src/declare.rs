@@ -22,13 +22,13 @@ macro_rules! declare {
     ($f:ident, $txt:literal) => {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
-            gstd_meta::utils::to_slice($txt.as_bytes())
+            gstd_meta::to_slice($txt.as_bytes())
         }
     };
     ($f:ident, $($t:ty), +) => {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
-            gstd_meta::utils::to_slice(
+            gstd_meta::to_slice(
                 gstd_meta::to_json(gstd_meta::types!($($t), +))
                     .as_bytes()
             )

@@ -19,13 +19,20 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
+extern crate alloc;
+
+pub(crate) use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
+
+pub use alloc::{string::String, vec};
+pub use scale_info::{MetaType, TypeInfo};
+
 mod declare;
 mod internal;
 mod meta;
 
-pub mod interaction;
-pub mod prelude;
-pub mod utils;
-
+mod interaction;
 pub use interaction::*;
-pub use scale_info::TypeInfo;
+
+pub fn to_slice<T>(slice: &[T]) -> *mut [i32; 2] {
+    Box::into_raw(Box::new([slice.as_ptr() as _, slice.len() as _]))
+}

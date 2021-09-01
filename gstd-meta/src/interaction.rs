@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::internal::{inspect_many, to_map};
-use crate::prelude::{vec, MetaType, String, ToString, Vec};
-use serde_json::to_value;
+use crate::internal::*;
+use crate::{vec, BTreeMap, MetaType, String, ToString, Vec};
 
 pub fn to_json(types: Vec<MetaType>) -> String {
-    let data = inspect_many(types);
+    let data: Vec<(String, BTreeMap<String, String>)> = types.into_iter().map(inspect).collect();
 
     let mut json = vec![];
 
@@ -45,7 +44,7 @@ pub fn to_json(types: Vec<MetaType>) -> String {
         }
     }
 
-    to_value(json)
+    serde_json::to_value(json)
         .expect("Unable to convert Vec into serde::Value")
         .to_string()
 }
@@ -53,5 +52,5 @@ pub fn to_json(types: Vec<MetaType>) -> String {
 /// **The `types!` macro**
 #[macro_export]
 macro_rules! types {
-    ($($t:ty), +) => ( gstd_meta::prelude::vec![$(gstd_meta::prelude::MetaType::new::<$t>()), +] );
+    ($($t:ty), +) => { gstd_meta::vec![$(gstd_meta::MetaType::new::<$t>()), +] };
 }
