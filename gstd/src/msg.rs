@@ -19,6 +19,7 @@
 use crate::prelude::Vec;
 use crate::{MessageId, ProgramId};
 use codec::{Decode, Encode, Output};
+use serde::{Serialize, de::DeserializeOwned};
 
 use galloc::prelude::*;
 pub use gcore::msg::{gas_available, id, reply_to, source, value, wait, wake};
@@ -56,6 +57,10 @@ pub fn load_bytes() -> Vec<u8> {
     result
 }
 
+pub fn load_custom<D: DeserializeOwned>() -> Result<D, serde_json::Error> {
+    serde_json::from_slice(&load_bytes())
+}
+
 pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) {
     let bytes = payload.encode();
     gcore::msg::reply(&bytes, gas_limit, value);
@@ -80,6 +85,10 @@ pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64) -> Messag
 
 pub fn send_bytes(program: ProgramId, payload: &[u8], gas_limit: u64) -> MessageId {
     gcore::msg::send(program, payload, gas_limit)
+}
+
+pub fn send_custom<S: Serialize>(program: ProgramId, payload: S, gas_limit: u64) -> MessageId {
+    send_bytes(program, serde_json::to_string(&payload).expect("Unable to ").as_bytes(), gas_limit)
 }
 
 pub fn send_init() -> MessageHandle {
