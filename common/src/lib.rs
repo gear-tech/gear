@@ -227,8 +227,8 @@ pub fn remove_program(id: H256) {
     }
     let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
     pages_prefix.extend(&program_key(id));
-    sp_io::storage::clear_prefix(&pages_prefix);
-    sp_io::storage::clear_prefix(&program_key(id))
+    sp_io::storage::clear_prefix(&pages_prefix, None);
+    sp_io::storage::clear_prefix(&program_key(id), None);
 }
 
 pub fn program_exists(id: H256) -> bool {
