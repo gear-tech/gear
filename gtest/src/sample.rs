@@ -70,6 +70,8 @@ pub struct Fixture {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "value")]
 pub enum PayloadVariant {
+    #[serde(rename = "custom")]
+    Custom(Value),
     #[serde(rename = "utf-8")]
     Utf8(String),
     #[serde(rename = "i32")]
@@ -93,6 +95,7 @@ impl Default for PayloadVariant {
 impl PayloadVariant {
     pub fn into_raw(self) -> Vec<u8> {
         match self {
+            Self::Custom(v) => serde_json::to_string(&v).expect("Got invalid serde Value").into_bytes(),
             Self::Utf8(v) => v.into_bytes(),
             Self::Int32(v) => v.to_le_bytes().to_vec(),
             Self::Int64(v) => v.to_le_bytes().to_vec(),
