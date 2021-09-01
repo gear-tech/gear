@@ -1,7 +1,8 @@
 #![no_std]
 #![feature(default_alloc_error_handler)]
 
-use gcore::{msg, prelude::*};
+use gcore::msg;
+use gstd::prelude::*;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {

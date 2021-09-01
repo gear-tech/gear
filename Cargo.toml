@@ -20,6 +20,8 @@ members = [
     "core",
     "core-backend",
     "core-runner",
+    "galloc",
+    "gcore",
     "gstd",
     "gstd-async",
     "gstd-meta",

@@ -11,9 +11,9 @@ repository = "https://github.com/gear-tech/gear"
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = [
     "derive",
 ] }
-sp-api = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-core = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-std = { version = '3.0', git = "https://github.com/paritytech/substrate.git", default-features = false }
+sp-api = { version = '4.0.0-dev', git = "https://github.com/paritytech/substrate.git", default-features = false }
+sp-core = { version = '4.0.0-dev', git = "https://github.com/paritytech/substrate.git", default-features = false }
+sp-std = { version = '4.0.0-dev', git = "https://github.com/paritytech/substrate.git", default-features = false }
 pallet-gear = { version = "2.0.0", default-features = false, path = "../../../gear" }
 
 [dev-dependencies]

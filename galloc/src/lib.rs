@@ -16,20 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![no_std]
+#![cfg_attr(feature = "strict", deny(warnings))]
+
 #[global_allocator]
 pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 
-pub use core::{mem, panic, ptr};
-
-extern crate alloc;
-
-pub use alloc::{
-    borrow::ToOwned,
-    boxed::Box,
-    collections::VecDeque,
-    format,
-    str::FromStr,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+pub mod prelude;

@@ -173,7 +173,7 @@ parameter_types! {
 
 impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
-    type BaseCallFilter = ();
+    type BaseCallFilter = frame_support::traits::Everything;
     /// Block & extrinsics weights: base values and limits.
     type BlockWeights = BlockWeights;
     /// The maximum length of a block (in bytes).
@@ -222,8 +222,11 @@ impl frame_system::Config for Runtime {
     type OnSetCode = ();
 }
 
+impl pallet_randomness_collective_flip::Config for Runtime {}
+
 impl pallet_aura::Config for Runtime {
     type AuthorityId = AuraId;
+    type DisabledValidators = ();
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -284,6 +287,8 @@ parameter_types! {
 
 impl pallet_balances::Config for Runtime {
     type MaxLocks = MaxLocks;
+    type MaxReserves = ();
+    type ReserveIdentifier = [u8; 8];
     /// The type for recording an account's balance.
     type Balance = Balance;
     /// The ubiquitous event type.
@@ -335,7 +340,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Call, Storage},
+        RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
         Aura: pallet_aura::{Pallet, Config<T>},
         Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
@@ -344,7 +349,7 @@ construct_runtime!(
         Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
         Utility: pallet_utility::{Pallet, Call, Storage, Event},
         Authorship: pallet_authorship::{Pallet, Storage},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>, Inherent},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
     }
 );
 
@@ -427,8 +432,9 @@ impl_runtime_apis! {
         fn validate_transaction(
             source: TransactionSource,
             tx: <Block as BlockT>::Extrinsic,
+            block_hash: <Block as BlockT>::Hash,
         ) -> TransactionValidity {
-            Executive::validate_transaction(source, tx)
+            Executive::validate_transaction(source, tx, block_hash)
         }
     }
 
@@ -463,6 +469,10 @@ impl_runtime_apis! {
     impl fg_primitives::GrandpaApi<Block> for Runtime {
         fn grandpa_authorities() -> GrandpaAuthorityList {
             Grandpa::grandpa_authorities()
+        }
+
+        fn current_set_id() -> fg_primitives::SetId {
+            Grandpa::current_set_id()
         }
 
         fn submit_report_equivocation_unsigned_extrinsic(

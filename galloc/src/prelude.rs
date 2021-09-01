@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
+extern crate alloc;
 
-extern crate galloc;
-
-pub mod bail;
-pub mod msg;
-pub mod prelude;
-
-#[cfg(feature = "debug")]
-pub use gcore::ext;
-pub use gcore::{MessageId, ProgramId};
+pub use alloc::{
+    borrow::ToOwned,
+    boxed::Box,
+    collections::VecDeque,
+    format,
+    str::FromStr,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};

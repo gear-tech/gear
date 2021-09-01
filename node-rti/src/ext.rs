@@ -123,10 +123,7 @@ impl From<ExtWaitList> for MessageMap {
 mod tests {
     use super::*;
 
-    use gear_common::{
-        STORAGE_ALLOCATION_PREFIX, STORAGE_CODE_PREFIX, STORAGE_MESSAGE_PREFIX,
-        STORAGE_WAITLIST_PREFIX,
-    };
+    use gear_common::{STORAGE_CODE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_WAITLIST_PREFIX};
     use gear_core::message::Payload;
 
     fn new_test_ext() -> sp_io::TestExternalities {
@@ -138,11 +135,10 @@ mod tests {
 
     fn new_test_storage(
     ) -> gear_core::storage::Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
-        sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX);
-        sp_io::storage::clear_prefix(STORAGE_ALLOCATION_PREFIX);
-        sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX);
-        sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX);
-        sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX);
+        sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
+        sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
+        sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
+        sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
         gear_core::storage::Storage {
             message_queue: Default::default(),
             program_storage: ExtProgramStorage,
