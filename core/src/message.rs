@@ -893,9 +893,11 @@ mod tests {
         );
 
         // And checking that it is not formed
-        assert!(context.state.borrow_mut().outgoing[expected_handle]
-            .0
-            .is_some());
+        assert!(
+            context.state.borrow_mut().outgoing[expected_handle]
+                .0
+                .is_some()
+        );
 
         // Checking that we are able to push payload for the
         // message that we have not commited yet
@@ -918,9 +920,11 @@ mod tests {
         assert!(context.send_push(0, &[5, 7]).is_err());
         assert!(context.send_push(expected_handle, &[5, 7]).is_err());
         assert!(context.send_commit(0, OutgoingPacket::default()).is_err());
-        assert!(context
-            .send_commit(expected_handle, OutgoingPacket::default())
-            .is_err());
+        assert!(
+            context
+                .send_commit(expected_handle, OutgoingPacket::default())
+                .is_err()
+        );
 
         // Checking that we also get an error when trying
         // to commit or send a non-existent message

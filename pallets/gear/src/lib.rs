@@ -270,7 +270,6 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
-        ///
         #[pallet::weight(
             T::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
         )]
@@ -343,7 +342,6 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-        ///
         #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
@@ -407,7 +405,6 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been created.
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-        ///
         #[pallet::weight(T::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
@@ -463,7 +460,6 @@ pub mod pallet {
         /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
-        ///
         #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
         pub fn process_queue(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
             ensure_none(origin)?;
