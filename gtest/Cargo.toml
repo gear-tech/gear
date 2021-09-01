@@ -15,10 +15,11 @@ gear-core-runner = { path = "../core-runner" }
 common = { package = "gear-common", path = "../common" }
 regex = "1.4.5"
 serde_yaml = "0.8.17"
+serde_json = "1.0.66"
 termion = "1.5.6"
 gear-node-rti = { path = "../node-rti" }
 hex = "0.4.2"
-serde = { version = "*", features = ["derive"] }
+serde = { version = "1.0.130", features = ["derive"] }
 log = "0.4.14"
 
 [[bin]]
