@@ -10,11 +10,8 @@ gcore = { path = "../gcore" }
 galloc = { path = "../galloc" }
 codec = { package = "parity-scale-codec", version = "2", default-features = false }
 serde = { version = "1.0.130", default-features = false, features = ["derive"] }
-serde_json = { version = "1.0.66", default-features = false }
+serde_json = { git = "https://github.com/breathx/json", default-features = false, features = ["alloc"] }
 
 [features]
-default = ["alloc"]
-
-alloc = ["serde_json/alloc"]
 debug = ["gcore/debug"]
 std = ["codec/std", "serde_json/std"]
