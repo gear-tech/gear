@@ -5,18 +5,16 @@ use gstd_meta::{meta, TypeInfo};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
-#[allow(unused)]
 #[derive(TypeInfo)]
-struct MessageIn {
-    value: u64,
-    annotation: Vec<u8>,
+pub struct MessageIn {
+    pub value: u64,
+    pub annotation: Vec<u8>,
 }
 
-#[allow(unused)]
 #[derive(TypeInfo)]
-struct MessageOut {
-    old_value: u64,
-    new_value: u64,
+pub struct MessageOut {
+    pub old_value: u64,
+    pub new_value: u64,
 }
 
 meta! {
@@ -49,8 +47,3 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {}
-
-#[panic_handler]
-fn panic(_info: &panic::PanicInfo) -> ! {
-    core::arch::wasm32::unreachable();
-}
