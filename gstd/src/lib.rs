@@ -19,6 +19,7 @@
 #![no_std]
 #![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(feature = "strict", deny(warnings))]
+#![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
 
 extern crate galloc;
 

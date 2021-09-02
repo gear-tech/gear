@@ -8,7 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 gcore = { path = "../gcore" }
 galloc = { path = "../galloc" }
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "2", default-features = false }
 
 [features]
 debug = ["gcore/debug"]
