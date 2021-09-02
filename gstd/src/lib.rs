@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![no_std]
+#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
 
@@ -29,3 +30,40 @@ pub mod prelude;
 #[cfg(feature = "debug")]
 pub use gcore::ext;
 pub use gcore::{MessageId, ProgramId};
+
+#[cfg(target_arch = "wasm32")]
+#[alloc_error_handler]
+pub fn oom(_: core::alloc::Layout) -> ! {
+    unsafe {
+        #[cfg(feature = "debug")]
+        {
+            ext::debug("Runtime memory exhausted. Aborting");
+        }
+        core::arch::wasm32::unreachable()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[panic_handler]
+fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+    unsafe {
+        #[cfg(feature = "debug")]
+        {
+            use galloc::prelude::*;
+
+            let location_info = if let Some(location) = panic_info.location() {
+                format!(", at: {}, {}", location.file(), location.line())
+            } else {
+                String::new()
+            };
+
+            if let Some(payload_str) = panic_info.payload().downcast_ref::<&str>() {
+                ext::debug(&format!(
+                    "panic, payload: {:?}{}",
+                    payload_str, location_info
+                ));
+            }
+        }
+        core::arch::wasm32::unreachable();
+    }
+}
