@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
@@ -210,21 +209,6 @@ mod wasm {
     pub unsafe extern "C" fn init() {
         STATE = Some(ProgramState::default());
         ext::debug("Program initialized");
-    }
-
-    #[panic_handler]
-    fn panic(_info: &panic::PanicInfo) -> ! {
-        unsafe {
-            core::arch::wasm32::unreachable();
-        }
-    }
-
-    #[alloc_error_handler]
-    pub fn oom(_: core::alloc::Layout) -> ! {
-        unsafe {
-            ext::debug("Runtime memory exhausted. Aborting");
-            core::arch::wasm32::unreachable();
-        }
     }
 }
 

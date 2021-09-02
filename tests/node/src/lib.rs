@@ -295,21 +295,6 @@ mod wasm {
         });
         msg::reply(b"CREATED", 0, 0);
     }
-
-    #[panic_handler]
-    fn panic(_info: &core::panic::PanicInfo) -> ! {
-        unsafe {
-            core::arch::wasm32::unreachable();
-        }
-    }
-
-    #[alloc_error_handler]
-    pub fn oom(_: core::alloc::Layout) -> ! {
-        unsafe {
-            ext::debug("Runtime memory exhausted. Aborting");
-            core::arch::wasm32::unreachable();
-        }
-    }
 }
 
 #[cfg(test)]

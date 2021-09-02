@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
 
 use codec::{Decode, Encode};
 use gstd::{ext, msg, prelude::*};
@@ -9,7 +8,7 @@ static mut CURRENT_VALUE: u64 = 0;
 #[derive(Debug, Encode, Decode)]
 struct MessageIn {
     value: u64,
-    annotation: String,
+    annotation: Vec<u8>,
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -25,7 +24,7 @@ pub unsafe extern "C" fn handle() {
     CURRENT_VALUE += message_in.value;
     ext::debug(&format!(
         "Increased with annotation: {}",
-        message_in.annotation
+        String::from_utf8(message_in.annotation).expect("Invalid utf-8"),
     ));
 
     msg::reply(
@@ -62,7 +61,7 @@ fn return_slice<T>(slice: &[T]) -> *mut [i32; 2] {
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
+    return_slice(br#"{ "value": "u64", "annotation": "Vec<u8>" }"#)
 }
 
 #[no_mangle]
@@ -77,7 +76,7 @@ pub unsafe extern "C" fn meta_title() -> *mut [i32; 2] {
 
 #[no_mangle]
 pub unsafe extern "C" fn meta_init_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "String" }"#)
+    return_slice(br#"{ "value": "u64", "annotation": "Vec<u8>" }"#)
 }
 
 #[no_mangle]
