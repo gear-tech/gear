@@ -113,12 +113,14 @@ impl PayloadVariant {
         let bytes = self.to_bytes();
         match self {
             Self::Custom(_) => {
-                let self_value: Value = serde_json::from_slice(&bytes).expect("Unable to get BTreeMap from runner's bytes");
-                let incoming_value: Value = serde_json::from_slice(&bytes).expect("Unable to get BTreeMap from incoming bytes");
+                let self_value: Value = serde_json::from_slice(&bytes)
+                    .expect("Unable to get BTreeMap from runner's bytes");
+                let incoming_value: Value = serde_json::from_slice(&bytes)
+                    .expect("Unable to get BTreeMap from incoming bytes");
 
                 self_value == incoming_value
-            },
-            _ => &bytes[..] == val
+            }
+            _ => &bytes[..] == val,
         }
     }
 }
