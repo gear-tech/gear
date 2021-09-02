@@ -28,7 +28,6 @@ use scale_info::{IntoPortable, Registry};
 pub use scale_info::{MetaType, TypeInfo};
 
 mod declare;
-mod meta;
 
 fn inspect(meta_type: MetaType) -> (String, BTreeMap<String, String>) {
     let type_info = meta_type.type_info();
@@ -74,6 +73,38 @@ fn inspect(meta_type: MetaType) -> (String, BTreeMap<String, String>) {
     }
 
     (name.into(), map)
+}
+
+/// **The `meta!` macro**
+#[macro_export]
+macro_rules! meta {
+    (
+        title: $t:literal,
+        input: $ti:ty,
+        output: $to:ty,
+        init_input: $ii:ty,
+        init_output: $io:ty
+    ) => {
+        gstd_meta::declare!(meta_title, $t);
+        gstd_meta::declare!(meta_input, $ti);
+        gstd_meta::declare!(meta_output, $to);
+        gstd_meta::declare!(meta_init_input, $ii);
+        gstd_meta::declare!(meta_init_output, $io);
+    };
+    (
+        title: $t:literal,
+        input: $ti:ty,
+        output: $to:ty,
+        init_input: $ii:ty,
+        init_output: $io:ty,
+        extra: $($x:ty), +
+    ) => {
+        gstd_meta::declare!(meta_title, $t);
+        gstd_meta::declare!(meta_input, $ti, $($x), +);
+        gstd_meta::declare!(meta_output, $to, $($x), +);
+        gstd_meta::declare!(meta_init_input, $ii, $($x), +);
+        gstd_meta::declare!(meta_init_output, $io, $($x), +);
+    };
 }
 
 pub fn to_json(types: Vec<MetaType>) -> String {
