@@ -60,8 +60,7 @@ fn panic(panic_info: &core::panic::PanicInfo) -> ! {
             if let Some(payload_str) = panic_info.payload().downcast_ref::<&str>() {
                 ext::debug(&format!(
                     "panic, payload: {:?}{}",
-                    payload_str,
-                    location_info
+                    payload_str, location_info
                 ));
             }
         }

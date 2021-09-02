@@ -41,9 +41,7 @@ unsafe fn room(room_msg: RoomMessage) {
 
     match room_msg {
         Join { under_name } => {
-            let under_name = String::from_utf8(
-                under_name
-            ).expect("Invalid utf-8");
+            let under_name = String::from_utf8(under_name).expect("Invalid utf-8");
 
             ext::debug(&format!(
                 "ROOM '{}': '{}' joined",
@@ -58,14 +56,20 @@ unsafe fn room(room_msg: RoomMessage) {
                 if id != msg::source() {
                     msg::send(
                         id,
-                        MemberMessage::Room(format!(
-                            "{}: {}",
-                            STATE
-                                .get_member(msg::source())
-                                .unwrap_or(&(ProgramId::default(), STATE.room_name().to_string()))
-                                .1,
-                            String::from_utf8(text.clone()).expect("Invalid utf-8"),
-                        ).into_bytes()),
+                        MemberMessage::Room(
+                            format!(
+                                "{}: {}",
+                                STATE
+                                    .get_member(msg::source())
+                                    .unwrap_or(&(
+                                        ProgramId::default(),
+                                        STATE.room_name().to_string()
+                                    ))
+                                    .1,
+                                String::from_utf8(text.clone()).expect("Invalid utf-8"),
+                            )
+                            .into_bytes(),
+                        ),
                         10_000_000,
                     );
                 }
