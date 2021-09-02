@@ -4,8 +4,8 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "*** Run fmt"
-cargo fmt --all
-cd examples && cargo fmt --all && cd ..
+cargo +nightly fmt --all
+cargo +nightly fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path=""
 
 echo "*** Run clippy"
 # TODO: Spread clippy to `--workspace`
