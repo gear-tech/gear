@@ -15,6 +15,7 @@ members = [
     "minimal",
     "multiping",
     "panicker",
+    "payload",
     "ping",
     "sum",
     "vec",

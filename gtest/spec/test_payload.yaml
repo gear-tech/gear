@@ -1,0 +1,38 @@
+title: Custom payload
+
+programs:
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/demo_payload.wasm
+    init_message:
+      kind: custom
+      value:
+        count: 10
+
+fixtures:
+  - title: custom payload
+
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            annotation: ping
+            value: 5
+
+    expected:
+      - step: 1
+        log:
+          - destination: 0
+            payload:
+              kind: custom
+              value:
+                old_count: 10
+                is_odd: true
+                double_count: 20
+          - destination: 0
+            payload:
+              kind: custom
+              value:
+                answer: pong
+                incoming_value: 5
+                output: [1, 2, 4, 8, 16]

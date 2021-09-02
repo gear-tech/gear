@@ -676,7 +676,7 @@ dependencies = [
  "semver 0.11.0",
  "semver-parser 0.10.2",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2053,7 +2053,7 @@ version = "2.0.0"
 dependencies = [
  "pallet-gear",
  "parity-scale-codec",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-api",
  "sp-core",
  "sp-std",
@@ -2117,7 +2117,7 @@ dependencies = [
  "log",
  "regex",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (git+https://github.com/breathx/json)",
  "serde_yaml",
  "termion",
 ]
@@ -2256,7 +2256,7 @@ dependencies = [
  "gcore",
  "parity-scale-codec",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (git+https://github.com/breathx/json)",
 ]
 
 [[package]]
@@ -2287,7 +2287,7 @@ dependencies = [
  "pest_derive",
  "quick-error 2.0.0",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2704,7 +2704,7 @@ dependencies = [
  "jsonrpc-pubsub",
  "log",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.7.2",
 ]
 
@@ -2720,7 +2720,7 @@ dependencies = [
  "log",
  "serde",
  "serde_derive",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5473,7 +5473,7 @@ dependencies = [
  "sc-network",
  "sc-telemetry",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-core",
  "sp-runtime",
 ]
@@ -5512,7 +5512,7 @@ dependencies = [
  "sc-telemetry",
  "sc-tracing",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-blockchain",
  "sp-core",
  "sp-keyring",
@@ -5760,7 +5760,7 @@ dependencies = [
  "sc-network",
  "sc-network-gossip",
  "sc-telemetry",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-api",
  "sp-application-crypto",
  "sp-arithmetic",
@@ -5800,7 +5800,7 @@ dependencies = [
  "derive_more",
  "hex",
  "parking_lot 0.11.1",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-application-crypto",
  "sp-core",
  "sp-keystore",
@@ -5859,7 +5859,7 @@ dependencies = [
  "sc-consensus",
  "sc-peerset",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec",
  "sp-arithmetic",
  "sp-blockchain",
@@ -5926,7 +5926,7 @@ dependencies = [
  "futures 0.3.17",
  "libp2p",
  "log",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-utils",
  "wasm-timer",
 ]
@@ -5958,7 +5958,7 @@ dependencies = [
  "sc-rpc-api",
  "sc-tracing",
  "sc-transaction-pool-api",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-api",
  "sp-blockchain",
  "sp-core",
@@ -5987,7 +5987,7 @@ dependencies = [
  "sc-chain-spec",
  "sc-transaction-pool-api",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-core",
  "sp-rpc",
  "sp-runtime",
@@ -6008,7 +6008,7 @@ dependencies = [
  "jsonrpc-pubsub",
  "jsonrpc-ws-server",
  "log",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "substrate-prometheus-endpoint",
 ]
 
@@ -6049,7 +6049,7 @@ dependencies = [
  "sc-transaction-pool",
  "sc-transaction-pool-api",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp-api",
  "sp-application-crypto",
  "sp-block-builder",
@@ -6103,7 +6103,7 @@ dependencies = [
  "pin-project 1.0.5",
  "rand 0.7.3",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
  "wasm-timer",
 ]
@@ -6366,6 +6366,16 @@ name = "serde_json"
 version = "1.0.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7f9e390c27c3c0ce8bc5d725f6e4d30a29d26659494aa4b17535f7522c5c950"
+dependencies = [
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.67"
+source = "git+https://github.com/breathx/json#54766d61fde5d37029e305be9992580ba825a1c3"
 dependencies = [
  "itoa",
  "ryu",
@@ -6974,7 +6984,7 @@ version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git#852bab073407b65b5e3e461baaa0541c4e0bc3d6"
 dependencies = [
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -7080,7 +7090,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "slog",
  "sp-std",
  "tracing",
@@ -7720,7 +7730,7 @@ dependencies = [
  "matchers",
  "regex",
  "serde",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "sharded-slab",
  "smallvec",
  "thread_local",
@@ -7997,7 +8007,7 @@ checksum = "00bef93d5e6c81a293bccf107cf43aa47239382f455ba14869d36695d8963b9c"
 dependencies = [
  "serde",
  "serde_derive",
- "serde_json",
+ "serde_json 1.0.67 (registry+https://github.com/rust-lang/crates.io-index)",
  "wabt-sys",
 ]
 
