@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
 
 use core::num::ParseIntError;
 use gstd::{msg, prelude::*, ProgramId};
@@ -53,9 +52,4 @@ async fn main() {
             msg::reply(b"FAIL", msg::gas_available() - GAS_COST, 0);
         }
     }
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    core::arch::wasm32::unreachable();
 }

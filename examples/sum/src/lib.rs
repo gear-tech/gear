@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
 
 use core::num::ParseIntError;
 use gstd::{ext, msg, prelude::*, ProgramId};
@@ -58,9 +57,4 @@ pub unsafe extern "C" fn init() {
         &decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
     );
     STATE.set_send_to(send_to);
-}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    core::arch::wasm32::unreachable();
 }

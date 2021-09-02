@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
 
 use gstd::{ext, msg, prelude::*};
 
@@ -30,8 +29,3 @@ pub unsafe extern "C" fn handle() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {}
-
-#[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    core::arch::wasm32::unreachable();
-}

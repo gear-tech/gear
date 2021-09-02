@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
 
 use gstd::{ext, msg, prelude::*};
 use gstd_meta::{meta, TypeInfo};
@@ -10,7 +9,7 @@ static mut MESSAGE_LOG: Vec<String> = vec![];
 #[derive(TypeInfo)]
 struct MessageIn {
     value: u64,
-    annotation: String,
+    annotation: Vec<u8>,
 }
 
 #[allow(unused)]

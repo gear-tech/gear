@@ -18,6 +18,7 @@
 
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
+#![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
 
 extern crate alloc;
 
