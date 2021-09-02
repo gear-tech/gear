@@ -111,7 +111,15 @@ impl PayloadVariant {
 
     pub fn equals(&self, val: &[u8]) -> bool {
         let bytes = self.to_bytes();
-        &bytes[..] == val
+        match self {
+            Self::Custom(_) => {
+                let self_value: Value = serde_json::from_slice(&bytes).expect("Unable to get BTreeMap from runner's bytes");
+                let incoming_value: Value = serde_json::from_slice(&bytes).expect("Unable to get BTreeMap from incoming bytes");
+
+                self_value == incoming_value
+            },
+            _ => &bytes[..] == val
+        }
     }
 }
 
