@@ -16,7 +16,7 @@ fn main() {
         "room" => match args[2].as_str() {
             "join" => {
                 let out = RoomMessage::Join {
-                    under_name: args[3].to_string(),
+                    under_name: args[3].to_string().into_bytes(),
                 }
                 .encode();
                 let mut s = String::from("0x");
@@ -27,7 +27,7 @@ fn main() {
             }
             "yell" => {
                 let out = RoomMessage::Yell {
-                    text: args[3].to_string(),
+                    text: args[3].to_string().into_bytes(),
                 }
                 .encode();
                 let mut s = String::from("0x");
@@ -40,7 +40,7 @@ fn main() {
         },
         "member" => match args[2].as_str() {
             "private" => {
-                let out = MemberMessage::Private(args[3].to_string()).encode();
+                let out = MemberMessage::Private(args[3].to_string().into_bytes()).encode();
                 let mut s = String::from("0x");
                 for byte in out {
                     write!(s, "{:02x}", byte).expect("failed to write");
@@ -48,7 +48,7 @@ fn main() {
                 println!("{:?}", s);
             }
             "room" => {
-                let out = MemberMessage::Room(args[3].to_string()).encode();
+                let out = MemberMessage::Room(args[3].to_string().into_bytes()).encode();
                 let mut s = String::from("0x");
                 for byte in out {
                     write!(s, "{:02x}", byte).expect("failed to write");

@@ -1,5 +1,5 @@
 #![no_std]
-#![feature(default_alloc_error_handler)]
+
 use core::num::ParseIntError;
 use gstd::{ext, msg, prelude::*, ProgramId};
 
@@ -43,7 +43,7 @@ fn bot(message: MemberMessage) {
                     "BOT '{}': received private message from #{}: '{}'",
                     STATE.name(),
                     u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
-                    text
+                    String::from_utf8(text).expect("invalid utf-8"),
                 ));
             }
             Room(text) => {
@@ -51,7 +51,7 @@ fn bot(message: MemberMessage) {
                     "BOT '{}': received room message from #{}: '{}'",
                     STATE.name(),
                     u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
-                    text
+                    String::from_utf8(text).expect("invalid utf-8"),
                 ));
             }
         }
@@ -74,7 +74,7 @@ pub unsafe extern "C" fn init() {
             msg::send(
                 room_id,
                 RoomMessage::Join {
-                    under_name: name.to_string(),
+                    under_name: name.to_string().into_bytes(),
                 },
                 10_000_000,
             );
