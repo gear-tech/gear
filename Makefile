@@ -77,6 +77,7 @@ rpc-test:
 .PHONY: test
 test:
 	@cargo test --workspace
+	@cargo test -p gear-core-backend --no-default-features --features wasmi_backend
 
 .PHONY: test-release
 test-release:

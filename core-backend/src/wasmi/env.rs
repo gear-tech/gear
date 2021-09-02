@@ -140,7 +140,7 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
-            Some(FuncIndex::SendAndWait) => funcs::send(self.ext.clone())(
+            Some(FuncIndex::SendAndWait) => funcs::send_and_wait(self.ext.clone())(
                 args.nth(0),
                 args.nth(1),
                 args.nth(2),

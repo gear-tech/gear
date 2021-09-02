@@ -265,6 +265,7 @@ pub(crate) fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'sta
 }
 
 // Helper functions
+#[cfg(feature = "wasmtime_backend")]
 pub(crate) fn is_exit_trap(trap: &str) -> bool {
     trap.starts_with(EXIT_TRAP_STR)
 }
