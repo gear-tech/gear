@@ -9,7 +9,7 @@ RUN cargo build -p gear-node --$PROFILE
 
 # ===== SECOND STAGE ======
 
-FROM buster-20210902-slim
+FROM debian:buster-20210902-slim
 LABEL description="This is the 2nd stage: a very small image where we copy the Gear binary."
 ARG PROFILE=release
 COPY --from=builder /gear/target/$PROFILE/gear-node /usr/local/bin
