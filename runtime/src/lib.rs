@@ -349,7 +349,7 @@ construct_runtime!(
         Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
         Utility: pallet_utility::{Pallet, Call, Storage, Event},
         Authorship: pallet_authorship::{Pallet, Storage},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>, Inherent},
     }
 );
 
