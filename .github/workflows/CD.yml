@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [master,change-cd]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
@@ -30,6 +30,7 @@ jobs:
           push: true
           tags: schernovgear/gear:nightly
   Deploy:
+    needs: Docker
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
