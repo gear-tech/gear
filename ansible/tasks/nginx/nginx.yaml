@@ -7,7 +7,7 @@
 
 - name: Copy nginx.conf
   copy:
-    src: proxy.conf
+    src: ssl.conf
     dest: /etc/nginx/conf.d/ssl.conf
 
 - name: Generates Private key
