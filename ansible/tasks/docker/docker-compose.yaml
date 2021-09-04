@@ -9,7 +9,7 @@ services:
     image: schernovgear/gear:nightly
     volumes:
       - "gear-data:/data"
-    command: gear-node --dev --unsafe-ws-external --rpc-external  --prometheus-external --base-path /data
+    command: gear-node --dev --unsafe-ws-external --rpc-external  --prometheus-external --base-path /data --rpc-cors *
 
 volumes:
   gear-data:
