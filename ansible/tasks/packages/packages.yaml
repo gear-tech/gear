@@ -9,7 +9,7 @@
 
 - name: Install Node JS repo
   shell: >
-   curl -sL https://rpm.nodesource.com/setup_14.x | sudo -E bash - 
+    curl -sL https://rpm.nodesource.com/setup_14.x | sudo -E bash - 
 
 - name: Ensure a list of yum packages are installed
   yum:
@@ -18,11 +18,11 @@
     update_cache: yes
   vars:
     packages:
-    - python-pip
-    - yum-utils
-    - device-mapper-persistent-data
-    - lvm2
-    - amazon-linux-extras
+      - python-pip
+      - yum-utils
+      - device-mapper-persistent-data
+      - lvm2
+      - amazon-linux-extras
 
 - name: Add extras repository
   shell: yum-config-manager --enable extras
@@ -42,9 +42,9 @@
     update_cache: yes
   vars:
     packages:
-    - python3.8
-    - docker
-    - nginx
+      - python3.8
+      - docker
+      - nginx
 
 - name: Upgrade pip3
   shell: "python3.8 -m pip install pip --upgrade"
@@ -55,14 +55,13 @@
     executable: /usr/local/bin/pip3.8
   vars:
     packages:
-    - boto
-    - boto3
-    - docker-compose
-    - docker
+      - boto
+      - boto3
+      - docker-compose
+      - docker
 
 - name: Enable Docker CE service at startup
   service:
     name: docker
     state: started
     enabled: yes
-

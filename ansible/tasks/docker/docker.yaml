@@ -7,12 +7,12 @@
 
 - name: Stop docker-compose
   shell: >
-   /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
   become: yes
 
 - name: Pull docker images
   shell: >
-   /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
   become: yes
 
 - name: Remove old docker images
@@ -21,6 +21,5 @@
 
 - name: Run docker-compose
   shell: >
-   /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" up -d
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" up -d
   become: yes
- 
