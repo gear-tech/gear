@@ -40,6 +40,7 @@ fn main() {
     let mut binary_module = module.clone();
     let binary_file_name = PathBuf::from(input).with_extension("opt.wasm");
     utils::optimize(&mut binary_module, vec!["handle", "init"]).expect("Optimizer failed");
+
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
         .expect("Serialization failed");
 
@@ -51,14 +52,16 @@ fn main() {
     utils::optimize(
         &mut metadata_module,
         vec![
-            "meta_input",
-            "meta_output",
             "meta_init_input",
             "meta_init_output",
+            "meta_input",
+            "meta_output",
             "meta_title",
+            "meta_types",
         ],
     )
     .expect("Metadata optimizer failed");
+
     parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
         .expect("Serialization failed");
 
