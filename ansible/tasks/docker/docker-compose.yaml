@@ -1,6 +1,7 @@
 version: '3'
 services:
   gear:
+    user: root
     ports:
       - "30333:30333"
       - "9933:9933"
@@ -8,8 +9,9 @@ services:
       - "9165:9165"
     image: schernovgear/gear:nightly
     volumes:
-      - "gear-data:/data"
-    command: gear-node --dev --unsafe-ws-external --rpc-external  --prometheus-external --base-path /data --rpc-cors *
-
+      - "/home/ec2-user/gear-data/:/gear/"
+    command:  gear-node --base-path /gear/ --chain /gear/staging.json  --unsafe-ws-external --unsafe-rpc-external  --prometheus-external --validator
+    environment:
+      - DATA_FOLDER=/data
 volumes:
   gear-data:

@@ -20,9 +20,7 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
 	mkdir /data && \
 	chown -R gear:gear /data && \
 	ln -s /data /gear/.local/share/gear && \
-	rm -rf /usr/bin /usr/sbin
 
 USER gear
-VOLUME ["/data"]
 
 CMD ["/usr/local/bin/gear-node"]
