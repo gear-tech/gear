@@ -17,3 +17,4 @@ cargo clippy --package gstd-async -- -D warnings
 
 echo "*** Run tests"
 cargo test --workspace
+./scripts/meta-test.sh
