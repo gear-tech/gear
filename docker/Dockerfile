@@ -19,7 +19,7 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /gear gear && \
 	mkdir -p /gear/.local/share && \
 	mkdir /data && \
 	chown -R gear:gear /data && \
-	ln -s /data /gear/.local/share/gear && 
+	ln -s /data /gear/.local/share/gear
 
 USER root
 
