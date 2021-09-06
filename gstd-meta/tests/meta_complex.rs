@@ -21,7 +21,11 @@
 use gstd_meta::*;
 
 extern crate alloc;
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec::Vec,
+};
 
 #[derive(TypeInfo)]
 pub struct SaltAmount {
@@ -29,7 +33,7 @@ pub struct SaltAmount {
 }
 
 #[derive(TypeInfo)]
-pub struct Meat {
+pub struct FreshMeat {
     pub name: String,
     pub salt: Option<SaltAmount>,
 }
@@ -48,120 +52,63 @@ pub struct Sauce {
 
 #[derive(TypeInfo)]
 pub struct Meal {
-    pub steak: Meat,
+    pub steak: FreshMeat,
     pub mayonnaise: Sauce,
 }
 
 // Function for more visual testing
-fn compare_len(raw: *mut [i32; 2], expected: &'static str) {
+fn compare_len<T: ToString>(raw: *mut [i32; 2], expected: T) {
     assert_eq!(
         unsafe { Box::from_raw(raw) }[1] as usize,
-        expected.replace("\n", "").replace(" ", "").len()
+        expected.to_string().len()
     )
-}
-
-// Function for more visual testing
-fn compare_title_len(raw: *mut [i32; 2], expected: &'static str) {
-    assert_eq!(unsafe { Box::from_raw(raw) }[1] as usize, expected.len())
 }
 
 meta! {
     title: "Test title level complex",
     input: Meal,
-    output: Meat,
+    output: FreshMeat,
     init_input: Egg,
     init_output: Sauce,
-    extra: Meat, Sauce, Egg, SaltAmount
+    extra: SaltAmount
 }
 
 #[test]
 fn find_meta_with_extra_types() {
-    compare_title_len(unsafe { meta_title() }, r#"Test title level complex"#);
+    compare_len(unsafe { meta_title() }, "Test title level complex");
+
+    compare_len(unsafe { meta_input() }, "Meal");
+
+    compare_len(unsafe { meta_output() }, "FreshMeat");
+
+    compare_len(unsafe { meta_init_input() }, "Egg");
+
+    compare_len(unsafe { meta_init_output() }, "Sauce");
 
     compare_len(
-        unsafe { meta_input() },
-        r#"[
-            {
-              "Meal": {
-                "mayonnaise": "Sauce",
-                "steak": "Meat"
-              }
-            },
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            },
-            {
-              "Sauce": {
-                "eggs": "Vec<Egg>",
-                "salty": "Result<SaltAmount,SaltAmount>"
-              }
-            },
-            {
-              "Egg": {
-                "ostrich": "bool",
-                "weight": "u32"
-              }
-            },
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
-    );
-
-    compare_len(
-        unsafe { meta_output() },
-        r#"[
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            },
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
-    );
-
-    compare_len(
-        unsafe { meta_init_input() },
-        r#"[
-            {
-              "Egg": {
-                "ostrich": "bool",
-                "weight": "u32"
-              }
-            }
-        ]"#,
-    );
-
-    compare_len(
-        unsafe { meta_init_output() },
-        r#"[
-            {
-              "Sauce": {
-                "eggs": "Vec<Egg>",
-                "salty": "Result<SaltAmount,SaltAmount>"
-              }
-            },
-            {
-              "Egg": {
-                "ostrich": "bool",
-                "weight": "u32"
-              }
-            },
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
+        unsafe { meta_types() },
+        r#"{
+          "Meal": {
+            "mayonnaise": "Sauce",
+            "steak": "FreshMeat"
+          },
+          "FreshMeat": {
+            "name": "String",
+            "salt": "Option<SaltAmount>"
+          },
+          "Sauce": {
+            "eggs": "Vec<Egg>",
+            "salty": "Result<SaltAmount,SaltAmount>"
+          },
+          "Egg": {
+            "ostrich": "bool",
+            "weight": "u32"
+          },
+          "SaltAmount": {
+            "value": "u8"
+          }
+        }"#
+        .replace("\n", "")
+        .replace(" ", ""),
     );
 }

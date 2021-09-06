@@ -29,7 +29,7 @@ pub struct SaltAmount {
 }
 
 #[derive(TypeInfo)]
-pub struct Meat {
+pub struct FreshMeat {
     pub name: String,
     pub salt: Option<SaltAmount>,
 }
@@ -48,7 +48,7 @@ pub struct Sauce {
 
 #[derive(TypeInfo)]
 pub struct Meal {
-    pub steak: Meat,
+    pub steak: FreshMeat,
     pub mayonnaise: Sauce,
 }
 
@@ -63,116 +63,10 @@ fn check(types: Vec<MetaType>, expectation: &'static str) {
 #[test]
 fn primitives_json() {
     check(
-        types!(bool),
-        r#"[
-            {
-                "bool": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(char),
-        r#"[
-            {
-                "char": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(str),
-        r#"[
-            {
-                "String": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(String),
-        r#"[
-            {
-                "String": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(u8),
-        r#"[
-            {
-                "u8": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(u16),
-        r#"[
-            {
-                "u16": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(u32),
-        r#"[
-            {
-                "u32": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(u64),
-        r#"[
-            {
-                "u64": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(u128),
-        r#"[
-            {
-                "u128": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(i8),
-        r#"[
-            {
-                "i8": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(i16),
-        r#"[
-            {
-                "i16": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(i32),
-        r#"[
-            {
-                "i32": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(i64),
-        r#"[
-            {
-                "i64": {}
-            }
-        ]"#,
-    );
-    check(
-        types!(i128),
-        r#"[
-            {
-                "i128": {}
-            }
-        ]"#,
+        types!(
+            bool, char, str, String, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
+        ),
+        "{}",
     );
 }
 
@@ -180,193 +74,105 @@ fn primitives_json() {
 fn simple_json() {
     check(
         types!(SaltAmount),
-        r#"[
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
+        r#"{
+          "SaltAmount": {
+            "value": "u8"
+          }
+        }"#,
     );
+
     check(
-        types!(Meat),
-        r#"[
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            }
-        ]"#,
+        types!(FreshMeat),
+        r#"{
+          "FreshMeat": {
+            "name": "String",
+            "salt": "Option<SaltAmount>"
+          }
+        }"#,
     );
+
     check(
         types!(Egg),
-        r#"[
-            {
-              "Egg": {
-                "ostrich": "bool",
-                "weight": "u32"
-              }
-            }
-        ]"#,
+        r#"{
+          "Egg": {
+            "ostrich": "bool",
+            "weight": "u32"
+          }
+        }"#,
     );
+
     check(
         types!(Sauce),
-        r#"[
-            {
-              "Sauce": {
-                "eggs": "Vec<Egg>",
-                "salty": "Result<SaltAmount,SaltAmount>"
-              }
-            }
-        ]"#,
+        r#"{
+          "Sauce": {
+            "eggs": "Vec<Egg>",
+            "salty": "Result<SaltAmount,SaltAmount>"
+          }
+        }"#,
     );
+
     check(
         types!(Meal),
-        r#"[
-            {
-              "Meal": {
-                "mayonnaise": "Sauce",
-                "steak": "Meat"
-              }
-            }
-        ]"#,
+        r#"{
+          "Meal": {
+            "mayonnaise": "Sauce",
+            "steak": "FreshMeat"
+          }
+        }"#,
     );
 }
 
 #[test]
 fn complex_json() {
-    // If first type from `types!` contains type
-    // which comes after him in macro invocation,
-    // the type would be added into json...
     check(
-        types!(Meat, SaltAmount),
-        r#"[
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            },
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
+        types!(FreshMeat, SaltAmount),
+        r#"{
+          "FreshMeat": {
+            "name": "String",
+            "salt": "Option<SaltAmount>"
+          },
+          "SaltAmount": {
+            "value": "u8"
+          }
+        }"#,
     );
-    // ..if not, it wouldn't
-    check(
-        types!(Meat, Sauce),
-        r#"[
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            }
-        ]"#,
-    );
+
     // There is also check on repeating
     check(
-        types!(Meat, SaltAmount, SaltAmount, SaltAmount),
-        r#"[
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            },
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
-    );
-
-    // Try to specify the types in such an order that the main element is always the first,
-    // if type A includes type B, then type A will be to the left of type B
-    check(
-        types!(Meat, SaltAmount, Meal, Sauce, Egg),
-        r#"[
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            },
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
+        types!(FreshMeat, SaltAmount, SaltAmount, SaltAmount),
+        r#"{
+          "FreshMeat": {
+            "name": "String",
+            "salt": "Option<SaltAmount>"
+          },
+          "SaltAmount": {
+            "value": "u8"
+          }
+        }"#,
     );
 
     check(
-        types!(Meal, Meat, Sauce, Egg, SaltAmount),
-        r#"[
-            {
-              "Meal": {
-                "mayonnaise": "Sauce",
-                "steak": "Meat"
-              }
-            },
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            },
-            {
-              "Sauce": {
-                "eggs": "Vec<Egg>",
-                "salty": "Result<SaltAmount,SaltAmount>"
-              }
-            },
-            {
-              "Egg": {
-                "ostrich": "bool",
-                "weight": "u32"
-              }
-            },
-            {
-              "SaltAmount": {
-                "value": "u8"
-              }
-            }
-        ]"#,
-    );
-
-    // ...or function result would be incorrect
-    check(
-        types!(Meal, SaltAmount, Meat, Sauce, Egg),
-        r#"[
-            {
-              "Meal": {
-                "mayonnaise": "Sauce",
-                "steak": "Meat"
-              }
-            },
-            {
-              "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-              }
-            },
-            {
-              "Sauce": {
-                "eggs": "Vec<Egg>",
-                "salty": "Result<SaltAmount,SaltAmount>"
-              }
-            },
-            {
-              "Egg": {
-                "ostrich": "bool",
-                "weight": "u32"
-              }
-            }
-        ]"#,
+        types!(Meal, FreshMeat, Sauce, Egg, SaltAmount),
+        r#"{
+          "Egg": {
+            "ostrich": "bool",
+            "weight": "u32"
+          },
+          "FreshMeat": {
+            "name": "String",
+            "salt": "Option<SaltAmount>"
+          },
+          "Meal": {
+            "mayonnaise": "Sauce",
+            "steak": "FreshMeat"
+          },
+          "SaltAmount": {
+            "value": "u8"
+          },
+          "Sauce": {
+            "eggs": "Vec<Egg>",
+            "salty": "Result<SaltAmount,SaltAmount>"
+          }
+        }"#,
     );
 }

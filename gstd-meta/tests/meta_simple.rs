@@ -21,17 +21,14 @@
 use gstd_meta::*;
 
 extern crate alloc;
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+};
 
 #[derive(TypeInfo)]
 pub struct SaltAmount {
     pub value: u8,
-}
-
-#[derive(TypeInfo)]
-pub struct Meat {
-    pub name: String,
-    pub salt: Option<SaltAmount>,
 }
 
 #[derive(TypeInfo)]
@@ -40,87 +37,46 @@ pub struct Egg {
     pub ostrich: bool,
 }
 
-#[derive(TypeInfo)]
-pub struct Sauce {
-    pub eggs: Vec<Egg>,
-    pub salty: Result<SaltAmount, SaltAmount>,
-}
-
-#[derive(TypeInfo)]
-pub struct Meal {
-    pub steak: Meat,
-    pub mayonnaise: Sauce,
-}
-
 // Function for more visual testing
-fn compare_len(raw: *mut [i32; 2], expected: &'static str) {
+fn compare_len<T: ToString>(raw: *mut [i32; 2], expected: T) {
     assert_eq!(
         unsafe { Box::from_raw(raw) }[1] as usize,
-        expected.replace("\n", "").replace(" ", "").len()
+        expected.to_string().len()
     )
-}
-
-// Function for more visual testing
-fn compare_title_len(raw: *mut [i32; 2], expected: &'static str) {
-    assert_eq!(unsafe { Box::from_raw(raw) }[1] as usize, expected.len())
 }
 
 meta! {
     title: "Test title level simple",
     input: SaltAmount,
-    output: Meat,
+    output: String,
     init_input: Egg,
-    init_output: Sauce
+    init_output: u8
 }
 
 #[test]
 fn find_meta_without_extra_types() {
-    compare_title_len(unsafe { meta_title() }, r#"Test title level simple"#);
+    compare_len(unsafe { meta_title() }, "Test title level simple");
+
+    compare_len(unsafe { meta_input() }, "SaltAmount");
+
+    compare_len(unsafe { meta_output() }, "String");
+
+    compare_len(unsafe { meta_init_input() }, "Egg");
+
+    compare_len(unsafe { meta_init_output() }, "u8");
 
     compare_len(
-        unsafe { meta_input() },
-        r#"[
-            {
-                "SaltAmount": {
-                "value": "u8"
-                }
+        unsafe { meta_types() },
+        r#"{
+            "Egg": {
+              "ostrich": "bool",
+              "weight": "u32"
+            },
+            "SaltAmount": {
+              "value": "u8"
             }
-        ]"#,
-    );
-
-    compare_len(
-        unsafe { meta_output() },
-        r#"[
-            {
-                "Meat": {
-                "name": "String",
-                "salt": "Option<SaltAmount>"
-                }
-            }
-        ]"#,
-    );
-
-    compare_len(
-        unsafe { meta_init_input() },
-        r#"[
-            {
-                "Egg": {
-                "ostrich": "bool",
-                "weight": "u32"
-                }
-            }
-        ]"#,
-    );
-
-    compare_len(
-        unsafe { meta_init_output() },
-        r#"[
-            {
-                "Sauce": {
-                "eggs": "Vec<Egg>",
-                "salty": "Result<SaltAmount,SaltAmount>"
-                }
-            }
-        ]"#,
+          }"#
+        .replace("\n", "")
+        .replace(" ", ""),
     );
 }

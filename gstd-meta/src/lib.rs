@@ -21,9 +21,9 @@
 
 extern crate alloc;
 
-pub(crate) use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
+pub(crate) use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 
-pub use alloc::{string::String, vec};
+pub use alloc::{boxed::Box, string::String, vec};
 use scale_info::{IntoPortable, Registry};
 pub use scale_info::{MetaType, TypeInfo};
 
@@ -85,11 +85,9 @@ macro_rules! meta {
         init_input: $ii:ty,
         init_output: $io:ty
     ) => {
-        gstd_meta::declare!(meta_title, $t);
-        gstd_meta::declare!(meta_input, $ti);
-        gstd_meta::declare!(meta_output, $to);
-        gstd_meta::declare!(meta_init_input, $ii);
-        gstd_meta::declare!(meta_init_output, $io);
+        gstd_meta::meta!(
+            title: $t, input: $ti, output: $to, init_input: $ii, init_output: $io, extra:
+        );
     };
     (
         title: $t:literal,
@@ -97,56 +95,35 @@ macro_rules! meta {
         output: $to:ty,
         init_input: $ii:ty,
         init_output: $io:ty,
-        extra: $($x:ty), +
+        extra: $($x:ty), *
     ) => {
+        gstd_meta::declare!(meta_input, stringify!($ti));
+        gstd_meta::declare!(meta_output, stringify!($to));
+        gstd_meta::declare!(meta_init_input, stringify!($ii));
+        gstd_meta::declare!(meta_init_output, stringify!($io));
         gstd_meta::declare!(meta_title, $t);
-        gstd_meta::declare!(meta_input, $ti, $($x), +);
-        gstd_meta::declare!(meta_output, $to, $($x), +);
-        gstd_meta::declare!(meta_init_input, $ii, $($x), +);
-        gstd_meta::declare!(meta_init_output, $io, $($x), +);
+        gstd_meta::declare!(meta_types, $ti, $to, $ii, $io, ($($x), *));
     };
 }
 
 pub fn to_json(types: Vec<MetaType>) -> String {
-    let data: Vec<(String, BTreeMap<String, String>)> = types.into_iter().map(inspect).collect();
+    let data: Vec<(String, BTreeMap<String, String>)> = types
+        .into_iter()
+        .map(inspect)
+        .filter(|v| !v.1.is_empty())
+        .collect();
 
-    let mut json = vec![];
+    let mut btree = BTreeMap::new();
 
-    let mut add = vec![];
-
-    if !data.is_empty() {
-        let head = &data[0];
-        json.push(to_map(head));
-        if !head.1.is_empty() {
-            for i in 1..data.len() {
-                if !add.contains(&data[i].0)
-                    && json.iter().any(|h| {
-                        h.values()
-                            .any(|v| v.values().any(|k| k.contains(&data[i].0)))
-                    })
-                {
-                    json.push(to_map(&data[i]));
-                    add.push(data[i].0.clone());
-                }
-            }
+    for note in data {
+        if !btree.contains_key(&note.0) {
+            btree.insert(note.0.clone(), note.1);
         }
     }
 
-    serde_json::to_value(json)
+    serde_json::to_value(btree)
         .expect("Unable to convert Vec into serde::Value")
         .to_string()
-}
-
-fn to_map(head: &(String, BTreeMap<String, String>)) -> BTreeMap<String, BTreeMap<String, String>> {
-    let mut map = BTreeMap::new();
-
-    map.insert(head.0.clone(), head.1.clone());
-
-    map
-}
-
-pub fn to_slice<T>(slice: &[T]) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([slice.as_ptr() as _, slice.len() as _]))
 }
 
 /// **The `types!` macro**

@@ -19,19 +19,25 @@
 /// **The `declare!` macro**
 #[macro_export]
 macro_rules! declare {
-    ($f:ident, $txt:literal) => {
+    ($f:ident, $txt:expr) => {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
-            gstd_meta::to_slice($txt.as_bytes())
+            use gstd_meta::Box;
+
+            let bytes = $txt.as_bytes();
+
+            Box::into_raw(Box::new([bytes.as_ptr() as _, bytes.len() as _]))
         }
     };
+
     ($f:ident, $($t:ty), +) => {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
-            gstd_meta::to_slice(
-                gstd_meta::to_json(gstd_meta::types!($($t), +))
-                    .as_bytes()
-            )
+            use gstd_meta::Box;
+
+            let bytes = &gstd_meta::to_json(gstd_meta::types!($($t), +)).into_bytes();
+
+            Box::into_raw(Box::new([bytes.as_ptr() as _, bytes.len() as _]))
         }
     };
 }
