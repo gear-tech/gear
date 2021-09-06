@@ -756,6 +756,7 @@ pub mod pallet {
         }
     }
 
+    #[pallet::inherent]
     impl<T: Config> frame_support::inherent::ProvideInherent for Pallet<T>
     where
         T::AccountId: Origin,
