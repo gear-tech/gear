@@ -145,10 +145,6 @@ pub mod pallet {
     pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
 
     #[pallet::storage]
-    #[pallet::getter(fn dequeue_limit)]
-    pub type DequeueLimit<T> = StorageValue<_, u32>;
-
-    #[pallet::storage]
     #[pallet::getter(fn messages_processed)]
     pub type MessagesProcessed<T> = StorageValue<_, u32, ValueQuery>;
 
@@ -468,13 +464,6 @@ pub mod pallet {
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
             let messages_processed = <MessagesProcessed<T>>::get();
 
-            if <DequeueLimit<T>>::get()
-                .map(|limit| limit <= messages_processed)
-                .unwrap_or(false)
-            {
-                return Ok(().into());
-            }
-
             let mut total_handled = 0u32;
 
             for message in messages {
@@ -658,11 +647,6 @@ pub mod pallet {
                                 messages_processed.saturating_add(execution_report.handled)
                         });
                         let messages_processed = <MessagesProcessed<T>>::get();
-                        if let Some(limit) = <DequeueLimit<T>>::get() {
-                            if messages_processed >= limit {
-                                break;
-                            }
-                        }
 
                         for (destination, gas_left) in execution_report.gas_refunds {
                             let refund = Self::gas_to_fee(gas_left);
