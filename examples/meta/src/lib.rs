@@ -1,49 +1,62 @@
 #![no_std]
 
-use gstd::{ext, msg, prelude::*};
+use gstd::prelude::*;
 use gstd_meta::{meta, TypeInfo};
 
-static mut MESSAGE_LOG: Vec<String> = vec![];
+// Metatypes for input and output
+#[derive(TypeInfo)]
+pub struct MessageInitIn {
+    pub currency: String,
+    pub amount: u8,
+}
+
+#[derive(TypeInfo)]
+pub struct MessageInitOut {
+    pub rate: Result<u8, u8>,
+    pub sum: u8,
+}
 
 #[derive(TypeInfo)]
 pub struct MessageIn {
-    pub value: u64,
-    pub annotation: Vec<u8>,
+    pub id: Id,
 }
 
 #[derive(TypeInfo)]
 pub struct MessageOut {
-    pub old_value: u64,
-    pub new_value: u64,
+    pub res: Vec<Result<Wallet, String>>,
+}
+
+// Additional to primary types
+#[derive(TypeInfo)]
+pub struct Id {
+    pub decimal: u64,
+    pub hex: Vec<u8>,
+}
+
+#[derive(TypeInfo)]
+pub struct Person {
+    pub surname: String,
+    pub name: String,
+    pub patronymic: Option<String>,
+}
+
+#[derive(TypeInfo)]
+pub struct Wallet {
+    pub id: Id,
+    pub person: Person,
 }
 
 meta! {
     title: "Example program with metadata",
     input: MessageIn,
     output: MessageOut,
-    init_input: MessageIn,
-    init_output: MessageOut
+    init_input: MessageInitIn,
+    init_output: MessageInitOut,
+    extra: Wallet, Id, Person
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
-    let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid: should be utf-8");
-
-    if new_msg == "PING" {
-        msg::reply(b"PONG", 10_000_000, 0);
-    }
-
-    MESSAGE_LOG.push(new_msg);
-
-    ext::debug(&format!(
-        "{:?} total message(s) stored: ",
-        MESSAGE_LOG.len()
-    ));
-
-    for log in MESSAGE_LOG.iter() {
-        ext::debug(log);
-    }
-}
+pub unsafe extern "C" fn handle() {}
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {}

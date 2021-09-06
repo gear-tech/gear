@@ -16,7 +16,3 @@ fixtures:
     expected:
       - step: 1
         log:
-          - destination: 0
-            payload:
-              kind: utf-8
-              value: PONG
