@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [master]
+    branches: [master, change-cd]
 
 env:
   CARGO_TERM_COLOR: always
