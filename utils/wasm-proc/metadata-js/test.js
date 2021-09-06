@@ -1,9 +1,10 @@
 // We use the assert standard library to make assertions
 const assert = require('assert');
 const fs = require("fs");
+const path = require("path");
 const wasmMetadata = require(".");
 
-let wasmBytes = fs.readFileSync("../../../target/wasm32-unknown-unknown/release/demo_meta.meta.wasm");
+let wasmBytes = fs.readFileSync(path.join(__dirname, "../../../examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm"));
 wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
 
     assert.deepStrictEqual(

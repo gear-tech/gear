@@ -10,7 +10,8 @@ exports.getWasmMetadata = async (wasmBytes) => {
             STACKTOP: 0,
             STACK_MAX: memory.buffer.byteLength,
             alloc: (pages) => { return memory.grow(pages) },
-            free: (_pages) => { }
+            free: (_pages) => { },
+            gr_debug: (msg) => { console.log(msg) },
         }
     };
     let metadata = {
