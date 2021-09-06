@@ -86,7 +86,7 @@ macro_rules! meta {
         init_output: $io:ty
     ) => {
         gstd_meta::meta!(
-            title: $t, input: $ti, output: $to, init_input: $ii, init_output: $io, extra:
+            title: $t, input: $ti, output: $to, init_input: $ii, init_output: $io, extra: u8
         );
     };
     (
@@ -95,14 +95,14 @@ macro_rules! meta {
         output: $to:ty,
         init_input: $ii:ty,
         init_output: $io:ty,
-        extra: $($x:ty), *
+        extra: $($x:ty), +
     ) => {
         gstd_meta::declare!(meta_input, stringify!($ti));
         gstd_meta::declare!(meta_output, stringify!($to));
         gstd_meta::declare!(meta_init_input, stringify!($ii));
         gstd_meta::declare!(meta_init_output, stringify!($io));
         gstd_meta::declare!(meta_title, $t);
-        gstd_meta::declare!(meta_types, $ti, $to, $ii, $io, ($($x), *));
+        gstd_meta::declare!(meta_types, $ti, $to, $ii, $io, $($x), +);
     };
 }
 

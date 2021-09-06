@@ -23,14 +23,14 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
                     "amount": "u8"
                 },
                 "MessageInitOut": {
-                    "exchange_rate": "Result<u8, u8>",
+                    "exchange_rate": "Result<u8,u8>",
                     "sum": "u8"
                 },
                 "MessageIn": {
                     "id": "Id"
                 },
                 "MessageOut": {
-                    "res": "Vec<Result<Wallet, String>>"
+                    "res": "Vec<Result<Wallet,String>>"
                 },
                 "Id": {
                     "decimal": "u64",

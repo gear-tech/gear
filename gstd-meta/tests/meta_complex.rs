@@ -66,18 +66,18 @@ fn compare_len<T: ToString>(raw: *mut [i32; 2], expected: T) {
 
 meta! {
     title: "Test title level complex",
-    input: Meal,
+    input: String,
     output: FreshMeat,
     init_input: Egg,
     init_output: Sauce,
-    extra: SaltAmount
+    extra: SaltAmount, Meal
 }
 
 #[test]
 fn find_meta_with_extra_types() {
     compare_len(unsafe { meta_title() }, "Test title level complex");
 
-    compare_len(unsafe { meta_input() }, "Meal");
+    compare_len(unsafe { meta_input() }, "String");
 
     compare_len(unsafe { meta_output() }, "FreshMeat");
 
@@ -98,7 +98,7 @@ fn find_meta_with_extra_types() {
           },
           "Sauce": {
             "eggs": "Vec<Egg>",
-            "salty": "Result<SaltAmount,SaltAmount>"
+            "salty": "Result<SaltAmount, SaltAmount>"
           },
           "Egg": {
             "ostrich": "bool",

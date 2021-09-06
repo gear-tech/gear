@@ -12,7 +12,7 @@ pub struct MessageInitIn {
 
 #[derive(TypeInfo)]
 pub struct MessageInitOut {
-    pub rate: Result<u8, u8>,
+    pub exchange_rate: Result<u8, u8>,
     pub sum: u8,
 }
 
@@ -52,7 +52,7 @@ meta! {
     output: MessageOut,
     init_input: MessageInitIn,
     init_output: MessageInitOut,
-    extra: Wallet, Id, Person
+    extra: Id, Person, Wallet
 }
 
 #[no_mangle]
