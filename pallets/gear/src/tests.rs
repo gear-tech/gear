@@ -21,7 +21,6 @@ use crate::mock::*;
 use codec::Encode;
 use common::{self, IntermediateMessage, Origin as _};
 use frame_support::{assert_noop, assert_ok};
-use frame_system::RawOrigin;
 use gear_core::program::{Program, ProgramId};
 use hex_literal::hex;
 use sp_core::H256;
@@ -347,9 +346,7 @@ fn messages_processing_works() {
             2
         );
 
-        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
-
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
         System::assert_last_event(crate::Event::MessagesDequeued(2).into());
 
         // `InitProgram` doesn't increase the counter, but the reply message does; hence 1.
@@ -377,7 +374,7 @@ fn messages_processing_works() {
                 reply: None,
             },
         ]);
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
         System::assert_last_event(crate::Event::MessagesDequeued(2).into());
         assert_eq!(Gear::messages_processed(), 3); // Counter not reset, 1 added
     })
@@ -447,8 +444,7 @@ fn dequeue_limit_works() {
             3
         );
 
-        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
 
         // Expect only one message to have been processed
         assert_eq!(Gear::messages_processed(), 1);
@@ -470,7 +466,7 @@ fn dequeue_limit_works() {
                 .len(),
             1
         );
-        crate::Pallet::<Test>::process_queue(none_origin).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
 
         // This time we are already above the dequeue limit, hence no messages end up being processed
         assert_eq!(Gear::messages_processed(), 1);
@@ -515,9 +511,8 @@ fn spent_gas_to_reward_block_author_works() {
         }]);
 
         let block_author_initial_balance = Balances::free_balance(BLOCK_AUTHOR);
-        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
 
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
 
         // The block author should be paid the amount of Currency equal to
@@ -554,8 +549,6 @@ fn unused_gas_released_back_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
-        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
-
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
@@ -565,7 +558,7 @@ fn unused_gas_released_back_works() {
             gas_limit: 5000_u64,
             value: 0_u128,
         }]);
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
 
         let external_origin_initial_balance = Balances::free_balance(1);
         assert_ok!(Pallet::<Test>::send_message(
@@ -581,7 +574,7 @@ fn unused_gas_released_back_works() {
             external_origin_initial_balance.saturating_sub(20_000)
         );
 
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
 
         // Unused gas should be converted back to currency and released to the external origin
         assert_eq!(
@@ -603,7 +596,7 @@ pub fn init_test_program(origin: H256, program_id: H256, wat: &str) {
         gas_limit: 10_000_000_u64,
         value: 0_u128,
     }]);
-    crate::Pallet::<Test>::process_queue(RawOrigin::None.into()).expect("Failed to process queue");
+    crate::Pallet::<Test>::process_queue();
 }
 
 #[test]
@@ -811,8 +804,6 @@ fn mailbox_works() {
     new_test_ext().execute_with(|| {
         let program_id = H256::from_low_u64_be(1001);
 
-        let none_origin: <Test as frame_system::Config>::Origin = RawOrigin::None.into();
-
         init_test_program(1.into_origin(), program_id, wat);
 
         assert_ok!(Pallet::<Test>::send_message(
@@ -822,7 +813,7 @@ fn mailbox_works() {
             2_000_000_u64,
             0_u128,
         ));
-        crate::Pallet::<Test>::process_queue(none_origin.clone()).expect("Failed to process queue");
+        crate::Pallet::<Test>::process_queue();
 
         let mailbox_message = crate::Pallet::<Test>::remove_from_mailbox(
             1.into_origin(),
