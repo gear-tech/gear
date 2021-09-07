@@ -56,8 +56,8 @@ jobs:
             bootnode
             nodes
             [bootnode]
-            ${{secrets.GEAR_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
+            ${{secrets.GEAR_NODE}} 
             [nodes]
-            ${{secrets.GEAR_NODE_2}}
-            ${{secrets.GEAR_NODE_3}}
-            ${{secrets.GEAR_NODE_4}}
+            ${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
+            ${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
+            ${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
