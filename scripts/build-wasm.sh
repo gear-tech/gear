@@ -8,8 +8,8 @@ ROOT_DIR="$(cd "$(dirname "$0")"/../examples && pwd)"
 get_members() {
   tr -d "\n" < "$1/Cargo.toml" |
     sed -n -e 's/.*members[[:space:]]*=[[:space:]]*\[\([^]]*\)\].*/\1/p' |
-    sed -n -e 's/,/\n/gp' |
-    sed -n -e 's/[[:space:]]*"\(.*\)"/\1/p'
+    sed -n -e 's/,/ /gp' |
+    sed -n -e 's/"\([^"]*\)"/\1/gp'
 }
 
 # For each entry in Cargo.toml workspace members:
