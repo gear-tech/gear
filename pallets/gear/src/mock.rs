@@ -17,10 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use frame_support::traits::{FindAuthor, OnFinalize, OnInitialize};
+use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
-use frame_system::RawOrigin;
 use sp_core::H256;
 use sp_runtime::testing::Header;
 use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
@@ -134,15 +133,14 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     ext
 }
 
-pub fn run_to_block(n: u64, gas_allowance: Option<u64>) {
+pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
     while System::block_number() < n {
         System::on_finalize(System::block_number());
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
-        if let Some(gas_allowance) = gas_allowance {
-            pallet_gear::GasAllowance::<Test>::mutate(|v| *v = gas_allowance);
-        }
-        Gear::process_queue(RawOrigin::None.into()).expect("Failed to process queue");
+        let remaining_weight =
+            remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+        Gear::on_idle(System::block_number(), remaining_weight);
     }
 }

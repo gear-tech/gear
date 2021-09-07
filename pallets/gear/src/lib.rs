@@ -35,7 +35,6 @@ mod tests;
 pub mod pallet {
     use super::*;
     use common::{self, IntermediateMessage, Message, Origin};
-    use frame_support::inherent::{InherentData, InherentIdentifier};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
         pallet_prelude::*,
@@ -165,7 +164,10 @@ pub mod pallet {
     pub type ProgramsLimbo<T: Config> = StorageMap<_, Identity, H256, H256>;
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Initialization
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Reset block gas allowance
@@ -175,6 +177,23 @@ pub mod pallet {
 
         /// Finalization
         fn on_finalize(_bn: BlockNumberFor<T>) {}
+
+        /// Queue processing occurs after all normal extrinsics in the block
+        ///
+        /// There should always remain enough weight for this hook to be invoked
+        fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
+            log::debug!(
+                "{} of weight remains in block {:?} after normal extrinsics have been processed",
+                remaining_weight,
+                bn,
+            );
+            // Adjust the block gas allowance based on actual remaining weight
+            GasAllowance::<T>::put(remaining_weight);
+            let mut weight = T::DbWeight::get().writes(1);
+            weight = weight + Pallet::<T>::process_queue();
+
+            weight
+        }
     }
 
     impl<T: Config> Pallet<T>
@@ -214,252 +233,22 @@ pub mod pallet {
             rti::gear_executor::gas_spent(destination, payload, 0).ok()
         }
 
+        /// Returns true if a program resulted in an error during initialization
+        /// but hasn't been explicitly removed from storage by its creator
         pub fn is_uninitialized(program_id: H256) -> bool {
             ProgramsLimbo::<T>::get(program_id)
                 .map(|_| true)
                 .unwrap_or(false)
         }
-    }
 
-    #[pallet::call]
-    impl<T: Config> Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        /// Creates a `Program` from wasm code and runs its init function.
-        ///
-        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
-        /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
-        ///
-        /// The origin must be Signed and the sender must have sufficient funds to pay
-        /// for `gas` and `value` (in case the latter is being transferred).
-        ///
-        /// Successful outcome assumes a programs has been created and initialized so that
-        /// messages sent to this `ProgramId` will be enqueued for processing.
-        ///
-        /// Erroneous outcomes can be of two kinds:
-        /// - program creation failed, that is there is no program in storage corresponding
-        ///   to this `ProgramId`;
-        /// - program was created but the initalization code resulted in a trap.
-        ///
-        /// Either of this cases indicates a program is in an undefined state:
-        /// it either doesn't exist or is faulty (uninitialized).
-        ///
-        /// However, messages sent to such an address might still linger in the queue because
-        /// the program id can deterministically be derived on the caller's side upfront.
-        ///
-        /// In order to mitigate the risk of users' funds being sent to an address,
-        /// where a valid program should have resided, while it's not,
-        /// such "failed-to-initialize" programs are not silently deleted from the
-        /// program storage but rather marked as "ghost" programs.
-        /// Ghost program can be removed by their original author via an explicit call.
-        /// The funds stored by a ghost program will be release to the author once the program
-        /// has been removed.
-        ///
-        /// Parameters:
-        /// - `code`: wasm code of a program as a byte vector.
-        /// - `salt`: randomness term (a seed) to allow programs with identical code
-        ///   to be created independently.
-        /// - `init_payload`: encoded parameters of the wasm module `init` function.
-        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
-        /// - `value`: balance to be transferred to the program once it's been created.
-        ///
-        /// Emits the following events:
-        /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
-        #[pallet::weight(
-            T::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
-        )]
-        pub fn submit_program(
-            origin: OriginFor<T>,
-            code: Vec<u8>,
-            salt: Vec<u8>,
-            init_payload: Vec<u8>,
-            gas_limit: u64,
-            value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            let mut data = Vec::new();
-            code.encode_to(&mut data);
-            salt.encode_to(&mut data);
-
-            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
-
-            // Make sure there is no program with such id in program storage
-            if common::program_exists(id) {
-                return Err(Error::<T>::ProgramAlreadyExists.into());
-            }
-
-            // Check that provided `gas_limit` value does not exceed the block gas limit
-            if gas_limit > T::BlockGasLimit::get() {
-                return Err(Error::<T>::GasLimitTooHigh.into());
-            }
-
-            let reserve_fee = Self::gas_to_fee(gas_limit);
-
-            // First we reserve enough funds on the account to pay for 'gas_limit'
-            // and to transfer declared value.
-            T::Currency::reserve(&who, reserve_fee + value)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            let init_message_id = common::next_message_id(&init_payload);
-            <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
-                origin: who.into_origin(),
-                code,
-                program_id: id,
-                init_message_id,
-                payload: init_payload,
-                gas_limit,
-                value: value.unique_saturated_into(),
-            });
-
-            Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
-                message_id: init_message_id,
-                program_id: id,
-            }));
-
-            Ok(().into())
-        }
-
-        /// Sends a message to a program or to another account.
-        ///
-        /// The origin must be Signed and the sender must have sufficient funds to pay
-        /// for `gas` and `value` (in case the latter is being transferred).
-        ///
-        /// To avoid an undefined behavior a check is made that the destination address
-        /// is not a program in uninitialized state. If the opposite holds true,
-        /// the messsage is not enqueued for processing.
-        ///
-        /// Parameters:
-        /// - `destination`: the message destination.
-        /// - `payload`: in case of a program destination, parameters of the `handle` function.
-        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
-        /// - `value`: balance to be transferred to the program once it's been created.
-        ///
-        /// Emits the following events:
-        /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-        #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
-        pub fn send_message(
-            origin: OriginFor<T>,
-            destination: H256,
-            payload: Vec<u8>,
-            gas_limit: u64,
-            value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            // Check that the message is not intended for an uninitialized program
-            if Self::is_uninitialized(destination) {
-                return Err(Error::<T>::ProgramIsNotInitialized.into());
-            }
-
-            // Check that provided `gas_limit` value does not exceed the block gas limit
-            if gas_limit > T::BlockGasLimit::get() {
-                return Err(Error::<T>::GasLimitTooHigh.into());
-            }
-
-            let gas_limit_reserve = Self::gas_to_fee(gas_limit);
-
-            // First we reserve enough funds on the account to pay for 'gas_limit'
-            T::Currency::reserve(&who, gas_limit_reserve)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            // Since messages a guaranteed to be dispatched, we transfer value immediately
-            T::Currency::transfer(
-                &who,
-                &<T::AccountId as Origin>::from_origin(destination),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
-
-            // Only after reservation the message is actually put in the queue.
-            let message_id = common::next_message_id(&payload);
-            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
-                id: message_id,
-                origin: who.into_origin(),
-                destination,
-                payload,
-                gas_limit,
-                value: value.unique_saturated_into(),
-                reply: None,
-            });
-
-            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
-
-            Ok(().into())
-        }
-
-        /// Sends a reply message.
-        ///
-        /// The origin must be Signed and the sender must have sufficient funds to pay
-        /// for `gas` and `value` (in case the latter is being transferred).
-        ///
-        /// Parameters:
-        /// - `reply_to_id`: the original message id.
-        /// - `payload`: data expected by the original sender.
-        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
-        /// - `value`: balance to be transferred to the program once it's been created.
-        ///
-        /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
-        #[pallet::weight(T::WeightInfo::send_reply(payload.len() as u32))]
-        pub fn send_reply(
-            origin: OriginFor<T>,
-            reply_to_id: H256,
-            payload: Vec<u8>,
-            gas_limit: u64,
-            value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            let original_message =
-                Self::remove_from_mailbox(who.clone().into_origin(), reply_to_id)
-                    .ok_or(Error::<T>::NoMessageInMailbox)?;
-
-            let destination = original_message.source;
-
-            let gas_limit_reserve = Self::gas_to_fee(gas_limit);
-
-            // First we reserve enough funds on the account to pay for 'gas_limit'
-            T::Currency::reserve(&who, gas_limit_reserve)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
-            // Since messages a guaranteed to be dispatched, we transfer value immediately
-            T::Currency::transfer(
-                &who,
-                &<T::AccountId as Origin>::from_origin(destination),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
-            // Only after reservation the message is actually put in the queue.
-            let message_id = common::next_message_id(&payload);
-            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
-                id: message_id,
-                origin: who.into_origin(),
-                destination,
-                payload,
-                gas_limit,
-                value: value.unique_saturated_into(),
-                reply: Some(reply_to_id),
-            });
-
-            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
-
-            Ok(().into())
-        }
-
-        /// Inherent extrinsic that processes the message queue.
-        ///
-        /// The origin must be None.
+        /// Message Queue processing.
         ///
         /// Can emit the following events:
         /// - `InitSuccess(MessageInfo)` when initialization message is processed successfully;
         /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
-        #[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-        pub fn process_queue(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
-            ensure_none(origin)?;
-
+        pub fn process_queue() -> Weight {
             // At the beginning of a new block, we process all queued messages
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
             let messages_processed = <MessagesProcessed<T>>::get();
@@ -696,6 +485,234 @@ pub mod pallet {
 
             Self::deposit_event(Event::MessagesDequeued(total_handled));
 
+            weight = weight.saturating_sub(Self::gas_allowance());
+            weight
+        }
+    }
+
+    #[pallet::call]
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        /// Creates a `Program` from wasm code and runs its init function.
+        ///
+        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
+        /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
+        ///
+        /// The origin must be Signed and the sender must have sufficient funds to pay
+        /// for `gas` and `value` (in case the latter is being transferred).
+        ///
+        /// Successful outcome assumes a programs has been created and initialized so that
+        /// messages sent to this `ProgramId` will be enqueued for processing.
+        ///
+        /// Erroneous outcomes can be of two kinds:
+        /// - program creation failed, that is there is no program in storage corresponding
+        ///   to this `ProgramId`;
+        /// - program was created but the initalization code resulted in a trap.
+        ///
+        /// Either of this cases indicates a program is in an undefined state:
+        /// it either doesn't exist or is faulty (uninitialized).
+        ///
+        /// However, messages sent to such an address might still linger in the queue because
+        /// the program id can deterministically be derived on the caller's side upfront.
+        ///
+        /// In order to mitigate the risk of users' funds being sent to an address,
+        /// where a valid program should have resided, while it's not,
+        /// such "failed-to-initialize" programs are not silently deleted from the
+        /// program storage but rather marked as "ghost" programs.
+        /// Ghost program can be removed by their original author via an explicit call.
+        /// The funds stored by a ghost program will be release to the author once the program
+        /// has been removed.
+        ///
+        /// Parameters:
+        /// - `code`: wasm code of a program as a byte vector.
+        /// - `salt`: randomness term (a seed) to allow programs with identical code
+        ///   to be created independently.
+        /// - `init_payload`: encoded parameters of the wasm module `init` function.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// Emits the following events:
+        /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
+        #[pallet::weight(
+            T::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
+        )]
+        pub fn submit_program(
+            origin: OriginFor<T>,
+            code: Vec<u8>,
+            salt: Vec<u8>,
+            init_payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let mut data = Vec::new();
+            code.encode_to(&mut data);
+            salt.encode_to(&mut data);
+
+            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+
+            // Make sure there is no program with such id in program storage
+            if common::program_exists(id) {
+                return Err(Error::<T>::ProgramAlreadyExists.into());
+            }
+
+            // Check that provided `gas_limit` value does not exceed the block gas limit
+            if gas_limit > T::BlockGasLimit::get() {
+                return Err(Error::<T>::GasLimitTooHigh.into());
+            }
+
+            let reserve_fee = Self::gas_to_fee(gas_limit);
+
+            // First we reserve enough funds on the account to pay for 'gas_limit'
+            // and to transfer declared value.
+            T::Currency::reserve(&who, reserve_fee + value)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            let init_message_id = common::next_message_id(&init_payload);
+            <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
+                origin: who.into_origin(),
+                code,
+                program_id: id,
+                init_message_id,
+                payload: init_payload,
+                gas_limit,
+                value: value.unique_saturated_into(),
+            });
+
+            Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
+                message_id: init_message_id,
+                program_id: id,
+            }));
+
+            Ok(().into())
+        }
+
+        /// Sends a message to a program or to another account.
+        ///
+        /// The origin must be Signed and the sender must have sufficient funds to pay
+        /// for `gas` and `value` (in case the latter is being transferred).
+        ///
+        /// To avoid an undefined behavior a check is made that the destination address
+        /// is not a program in uninitialized state. If the opposite holds true,
+        /// the messsage is not enqueued for processing.
+        ///
+        /// Parameters:
+        /// - `destination`: the message destination.
+        /// - `payload`: in case of a program destination, parameters of the `handle` function.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// Emits the following events:
+        /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+        #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
+        pub fn send_message(
+            origin: OriginFor<T>,
+            destination: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            // Check that the message is not intended for an uninitialized program
+            if Self::is_uninitialized(destination) {
+                return Err(Error::<T>::ProgramIsNotInitialized.into());
+            }
+
+            // Check that provided `gas_limit` value does not exceed the block gas limit
+            if gas_limit > T::BlockGasLimit::get() {
+                return Err(Error::<T>::GasLimitTooHigh.into());
+            }
+
+            let gas_limit_reserve = Self::gas_to_fee(gas_limit);
+
+            // First we reserve enough funds on the account to pay for 'gas_limit'
+            T::Currency::reserve(&who, gas_limit_reserve)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            // Since messages a guaranteed to be dispatched, we transfer value immediately
+            T::Currency::transfer(
+                &who,
+                &<T::AccountId as Origin>::from_origin(destination),
+                value,
+                ExistenceRequirement::AllowDeath,
+            )?;
+
+            // Only after reservation the message is actually put in the queue.
+            let message_id = common::next_message_id(&payload);
+            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
+                id: message_id,
+                origin: who.into_origin(),
+                destination,
+                payload,
+                gas_limit,
+                value: value.unique_saturated_into(),
+                reply: None,
+            });
+
+            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
+
+            Ok(().into())
+        }
+
+        /// Sends a reply message.
+        ///
+        /// The origin must be Signed and the sender must have sufficient funds to pay
+        /// for `gas` and `value` (in case the latter is being transferred).
+        ///
+        /// Parameters:
+        /// - `reply_to_id`: the original message id.
+        /// - `payload`: data expected by the original sender.
+        /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
+        /// - `value`: balance to be transferred to the program once it's been created.
+        ///
+        /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+        #[pallet::weight(T::WeightInfo::send_reply(payload.len() as u32))]
+        pub fn send_reply(
+            origin: OriginFor<T>,
+            reply_to_id: H256,
+            payload: Vec<u8>,
+            gas_limit: u64,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let original_message =
+                Self::remove_from_mailbox(who.clone().into_origin(), reply_to_id)
+                    .ok_or(Error::<T>::NoMessageInMailbox)?;
+
+            let destination = original_message.source;
+
+            let gas_limit_reserve = Self::gas_to_fee(gas_limit);
+
+            // First we reserve enough funds on the account to pay for 'gas_limit'
+            T::Currency::reserve(&who, gas_limit_reserve)
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            // Since messages a guaranteed to be dispatched, we transfer value immediately
+            T::Currency::transfer(
+                &who,
+                &<T::AccountId as Origin>::from_origin(destination),
+                value,
+                ExistenceRequirement::AllowDeath,
+            )?;
+            // Only after reservation the message is actually put in the queue.
+            let message_id = common::next_message_id(&payload);
+            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
+                id: message_id,
+                origin: who.into_origin(),
+                destination,
+                payload,
+                gas_limit,
+                value: value.unique_saturated_into(),
+                reply: Some(reply_to_id),
+            });
+
+            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
+
             Ok(().into())
         }
 
@@ -737,24 +754,6 @@ pub mod pallet {
             }
 
             Ok(().into())
-        }
-    }
-
-    #[pallet::inherent]
-    impl<T: Config> frame_support::inherent::ProvideInherent for Pallet<T>
-    where
-        T::AccountId: Origin,
-    {
-        type Call = Call<T>;
-        type Error = sp_inherents::MakeFatalError<()>;
-        const INHERENT_IDENTIFIER: InherentIdentifier = *b"gprocess";
-
-        fn create_inherent(_data: &InherentData) -> Option<Self::Call> {
-            Some(Call::process_queue())
-        }
-
-        fn is_inherent(call: &Self::Call) -> bool {
-            matches!(call, Call::process_queue())
         }
     }
 }
