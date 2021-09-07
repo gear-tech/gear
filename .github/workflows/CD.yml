@@ -54,3 +54,6 @@ jobs:
           inventory: |
             [all]
             ${{secrets.GEAR_NODE}}
+            ${{secrets.GEAR_NODE_2}}
+            ${{secrets.GEAR_NODE_3}}
+            ${{secrets.GEAR_NODE_4}}
