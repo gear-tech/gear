@@ -14,7 +14,7 @@ gear-core = { path = "../core" }
 gear-core-runner = { path = "../core-runner" }
 common = { package = "gear-common", path = "../common" }
 regex = "1.4.5"
-serde_yaml = "0.8.17"
+serde_yaml = "0.8.20"
 termion = "1.5.6"
 gear-node-rti = { path = "../node-rti" }
 hex = "0.4.2"
