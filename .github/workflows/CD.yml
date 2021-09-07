@@ -52,8 +52,12 @@ jobs:
           key: ${{secrets.SSH_PRIVATE_KEY}}
           # Optional, literal inventory file contents
           inventory: |
-            [all]
-            ${{secrets.GEAR_NODE}}
+            [gearNodes:children]
+            bootnode
+            nodes
+            [bootnode]
+            ${{secrets.GEAR_NODE}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
+            [nodes]
             ${{secrets.GEAR_NODE_2}}
             ${{secrets.GEAR_NODE_3}}
             ${{secrets.GEAR_NODE_4}}

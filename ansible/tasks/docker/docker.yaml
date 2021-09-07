@@ -1,8 +1,11 @@
 ---
 #Install/update backend docker-compose
+- name: my command
+  command: echo stuff
+
 - name: Copy docker-compose
-  copy:
-    src: docker-compose.yaml
+  template:
+    src: docker-compose.yaml.j2
     dest: /home/ec2-user/docker-compose.yaml
 
 - name: Stop docker-compose
