@@ -253,6 +253,7 @@ pub mod pallet {
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
             let messages_processed = <MessagesProcessed<T>>::get();
 
+            let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
 
             for message in messages {
