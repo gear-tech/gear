@@ -25,7 +25,7 @@ use std::path::PathBuf;
 
 /// Calls chain optimizer
 fn optimize(path: &str, mut binary_module: Module) {
-    println!("*** Processing chain optimization: {}", path);
+    println!("\n*** Processing chain optimization: {}", path);
 
     let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
@@ -42,7 +42,7 @@ fn optimize(path: &str, mut binary_module: Module) {
 
 /// Calls metadata optimizer
 fn optimize_meta(path: &str, mut metadata_module: Module) {
-    println!("*** Processing metadata optimization: {}", path);
+    println!("\n*** Processing metadata optimization: {}", path);
 
     let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
 
