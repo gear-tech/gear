@@ -17,38 +17,36 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{App, Arg};
-use pwasm_utils::{self as utils, parity_wasm};
+use pwasm_utils::{
+    self as utils,
+    parity_wasm::{self, elements::Module},
+};
 use std::path::PathBuf;
 
-fn main() {
-    let matches = App::new("wasm-proc")
-        .arg(
-            Arg::with_name("input")
-                .index(1)
-                .required(true)
-                .help("Input WASM file"),
-        )
-        .get_matches();
+/// Calls chaining optimizer
+fn optimize(path: &str, mut binary_module: Module) {
+    println!("*** Processing chain optimization: {}", path);
 
-    let input = matches
-        .value_of("input")
-        .expect("Input paramter is required by clap above; qed");
+    let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
-    let module = parity_wasm::deserialize_file(&input).expect("Failed to load wasm file");
+    if let Err(_) = utils::optimize(&mut binary_module, vec!["handle", "init"]) {
+        println!("Optimizer failed");
+    }
 
-    // Invoke optimizer for the chain
-    let mut binary_module = module.clone();
-    let binary_file_name = PathBuf::from(input).with_extension("opt.wasm");
-    utils::optimize(&mut binary_module, vec!["handle", "init"]).expect("Optimizer failed");
-    parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
-        .expect("Serialization failed");
+    if let Err(e) = parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module) {
+        println!("Serialization failed: {}", e);
+    }
 
     println!("Optimized wasm: {}", binary_file_name.to_string_lossy());
+}
 
-    // Invoke optimizer for the metadata
-    let mut metadata_module = module.clone();
-    let metadata_file_name = PathBuf::from(input).with_extension("meta.wasm");
-    utils::optimize(
+/// Calls metadata optimizer
+fn meta(path: &str, mut metadata_module: Module) {
+    println!("*** Processing metadata optimization: {}", path);
+
+    let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
+
+    if let Err(_) = utils::optimize(
         &mut metadata_module,
         vec![
             "meta_input",
@@ -57,10 +55,39 @@ fn main() {
             "meta_init_output",
             "meta_title",
         ],
-    )
-    .expect("Metadata optimizer failed");
-    parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
-        .expect("Serialization failed");
+    ) {
+        println!("Optimizer failed");
+    }
+
+    if let Err(e) = parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module) {
+        println!("Serialization failed: {}", e);
+    }
 
     println!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
+}
+
+fn main() {
+    let matches = App::new("wasm-proc")
+        .arg(
+            Arg::with_name("input")
+                .index(1)
+                .required(true)
+                .multiple(true)
+                .help("Input WASM file"),
+        )
+        .get_matches();
+
+    let input: Vec<&str> = matches
+        .values_of("input")
+        .expect("Input paramter is required by clap above; qed")
+        .collect();
+
+    for inp in input {
+        if let Ok(module) = parity_wasm::deserialize_file(inp) {
+            optimize(inp, module.clone());
+            meta(inp, module.clone());
+        } else {
+            println!("Failed to load wasm file: {}", inp);
+        }
+    }
 }
