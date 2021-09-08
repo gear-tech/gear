@@ -23,7 +23,7 @@ use pwasm_utils::{
 };
 use std::path::PathBuf;
 
-/// Calls chaining optimizer
+/// Calls chain optimizer
 fn optimize(path: &str, mut binary_module: Module) {
     println!("*** Processing chain optimization: {}", path);
 
@@ -41,7 +41,7 @@ fn optimize(path: &str, mut binary_module: Module) {
 }
 
 /// Calls metadata optimizer
-fn meta(path: &str, mut metadata_module: Module) {
+fn optimize_meta(path: &str, mut metadata_module: Module) {
     println!("*** Processing metadata optimization: {}", path);
 
     let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
@@ -67,27 +67,49 @@ fn meta(path: &str, mut metadata_module: Module) {
 }
 
 fn main() {
-    let matches = App::new("wasm-proc")
-        .arg(
-            Arg::with_name("input")
-                .index(1)
-                .required(true)
-                .multiple(true)
-                .help("Input WASM file"),
-        )
-        .get_matches();
+    let meta = Arg::with_name("meta")
+        .short("m")
+        .long("meta")
+        .takes_value(false)
+        .help("Provides a metadata .meta.wasm file");
 
-    let input: Vec<&str> = matches
-        .values_of("input")
-        .expect("Input paramter is required by clap above; qed")
+    let opt = Arg::with_name("optimize")
+        .short("o")
+        .long("optimize")
+        .takes_value(false)
+        .help("Provides an optimized .opt.wasm file");
+
+    let path = Arg::with_name("path")
+        .short("p")
+        .long("path")
+        .required(true)
+        .index(1)
+        .takes_value(true)
+        .multiple(true)
+        .help("Specifies path to .wasm file(-s)");
+
+    let app = App::new("wasm-proc").args(&[meta, opt, path]);
+
+    let matches = app.get_matches();
+
+    let wasm_files: Vec<&str> = matches
+        .values_of("path")
+        .expect("Path to wasm files is required")
         .collect();
 
-    for inp in input {
-        if let Ok(module) = parity_wasm::deserialize_file(inp) {
-            optimize(inp, module.clone());
-            meta(inp, module.clone());
+    let o = matches.is_present("optimize");
+    let m = matches.is_present("meta");
+
+    for file in wasm_files {
+        if let Ok(module) = parity_wasm::deserialize_file(file) {
+            if o || !(o || m) {
+                optimize(file, module.clone());
+            }
+            if m || !(o || m) {
+                optimize_meta(file, module.clone());
+            }
         } else {
-            println!("Failed to load wasm file: {}", inp);
+            println!("Failed to load wasm file: {}", file);
         }
     }
 }
