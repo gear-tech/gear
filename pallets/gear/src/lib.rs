@@ -251,7 +251,7 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             // At the beginning of a new block, we process all queued messages
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
-            let messages_processed = <MessagesProcessed<T>>::get();
+            let _messages_processed = <MessagesProcessed<T>>::get();
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
@@ -436,7 +436,7 @@ pub mod pallet {
                             *messages_processed =
                                 messages_processed.saturating_add(execution_report.handled)
                         });
-                        let messages_processed = <MessagesProcessed<T>>::get();
+                        let _messages_processed = <MessagesProcessed<T>>::get();
 
                         for (destination, gas_left) in execution_report.gas_refunds {
                             let refund = Self::gas_to_fee(gas_left);
