@@ -7,10 +7,6 @@
     update_only: yes
     lock_timeout: 180
 
-- name: Install Node JS repo
-  shell: >
-    curl -sL https://rpm.nodesource.com/setup_14.x | sudo -E bash - 
-
 - name: Ensure a list of yum packages are installed
   yum:
     name: "{{ packages }}"

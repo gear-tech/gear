@@ -20,7 +20,7 @@
   openssl_csr:
     path: /etc/nginx/cert/nginx.csr
     privatekey_path: /etc/nginx/cert/private.key
-    common_name: "gear.node"
+    common_name: "{{ansible_host}}"
   become: yes
 
 - name: Generate a Self Signed OpenSSL certificate
