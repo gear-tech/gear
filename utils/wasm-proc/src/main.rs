@@ -49,11 +49,12 @@ fn optimize_meta(path: &str, mut metadata_module: Module) {
     if let Err(_) = utils::optimize(
         &mut metadata_module,
         vec![
-            "meta_input",
-            "meta_output",
             "meta_init_input",
             "meta_init_output",
+            "meta_input",
+            "meta_output",
             "meta_title",
+            "meta_types",
         ],
     ) {
         println!("Optimizer failed");

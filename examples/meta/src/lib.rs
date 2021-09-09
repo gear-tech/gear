@@ -1,85 +1,62 @@
 #![no_std]
 
-use codec::{Decode, Encode};
-use gstd::{ext, msg, prelude::*};
+use gstd::prelude::*;
+use gstd_meta::{meta, TypeInfo};
 
-static mut CURRENT_VALUE: u64 = 0;
-
-#[derive(Debug, Encode, Decode)]
-struct MessageIn {
-    value: u64,
-    annotation: Vec<u8>,
+// Metatypes for input and output
+#[derive(TypeInfo)]
+pub struct MessageInitIn {
+    pub currency: String,
+    pub amount: u8,
 }
 
-#[derive(Debug, Encode, Decode)]
-struct MessageOut {
-    old_value: u64,
-    new_value: u64,
+#[derive(TypeInfo)]
+pub struct MessageInitOut {
+    pub exchange_rate: Result<u8, u8>,
+    pub sum: u8,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn handle() {
-    let message_in: MessageIn = msg::load().expect("Failed to decode incoming message");
-    let old_value = CURRENT_VALUE;
-    CURRENT_VALUE += message_in.value;
-    ext::debug(&format!(
-        "Increased with annotation: {}",
-        String::from_utf8(message_in.annotation).expect("Invalid utf-8"),
-    ));
-
-    msg::reply(
-        MessageOut {
-            old_value,
-            new_value: CURRENT_VALUE,
-        },
-        1000000,
-        0,
-    )
+#[derive(TypeInfo)]
+pub struct MessageIn {
+    pub id: Id,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn init() {
-    let message_in: MessageIn = msg::load().expect("Failed to decode incoming message");
-    CURRENT_VALUE = message_in.value;
-
-    msg::reply(
-        MessageOut {
-            old_value: 0,
-            new_value: CURRENT_VALUE,
-        },
-        1000000,
-        0,
-    )
+#[derive(TypeInfo)]
+pub struct MessageOut {
+    pub res: Vec<Result<Wallet, String>>,
 }
 
-fn return_slice<T>(slice: &[T]) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([
-        slice.as_ptr() as isize as _,
-        slice.len() as isize as _,
-    ]))
+// Additional to primary types
+#[derive(TypeInfo)]
+pub struct Id {
+    pub decimal: u64,
+    pub hex: Vec<u8>,
+}
+
+#[derive(TypeInfo)]
+pub struct Person {
+    pub surname: String,
+    pub name: String,
+    pub patronymic: Option<String>,
+}
+
+#[derive(TypeInfo)]
+pub struct Wallet {
+    pub id: Id,
+    pub person: Person,
+}
+
+meta! {
+    title: "Example program with metadata",
+    input: MessageIn,
+    output: MessageOut,
+    init_input: MessageInitIn,
+    init_output: MessageInitOut,
+    extra: Id, Person, Wallet
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn meta_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "Vec<u8>" }"#)
-}
+pub unsafe extern "C" fn handle() {}
 
 #[no_mangle]
-pub unsafe extern "C" fn meta_output() -> *mut [i32; 2] {
-    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_title() -> *mut [i32; 2] {
-    return_slice(br#"Example program with metadata"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_init_input() -> *mut [i32; 2] {
-    return_slice(br#"{ "value": "u64", "annotation": "Vec<u8>" }"#)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn meta_init_output() -> *mut [i32; 2] {
-    return_slice(br#"{ "old_value": "u64", "new_value": "u64" }"#)
-}
+pub unsafe extern "C" fn init() {}

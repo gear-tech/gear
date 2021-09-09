@@ -1,0 +1,49 @@
+---
+#Install Nginx with self-signed certs
+- name: Creates Nginx cert directory
+  file:
+    path: /etc/nginx/cert
+    state: directory
+
+- name: Copy nginx.conf
+  copy:
+    src: ssl.conf
+    dest: /etc/nginx/conf.d/ssl.conf
+
+- name: Generates Private key
+  openssl_privatekey:
+    path: /etc/nginx/cert/private.key
+    size: 2048 
+  become: yes
+
+- name: Generates CSR
+  openssl_csr:
+    path: /etc/nginx/cert/nginx.csr
+    privatekey_path: /etc/nginx/cert/private.key
+    common_name: "{{ansible_host}}"
+  become: yes
+
+- name: Generate a Self Signed OpenSSL certificate
+  community.crypto.x509_certificate:
+    path: /etc/nginx/cert/cert.crt
+    privatekey_path: /etc/nginx/cert/private.key
+    csr_path: /etc/nginx/cert/nginx.csr
+    provider: selfsigned
+
+- name: Check that the Diffie-Hellman parameter file exists
+  stat:
+    path: /etc/nginx/cert/dhparam.pem
+  register: stat_result
+
+- name: The Diffie-Hellman parameter file is generated
+  shell: >
+    openssl dhparam -out /etc/nginx/cert/dhparam.pem 2048
+  become: yes
+  when: not stat_result.stat.exists
+
+- name: Restart nginx service
+  systemd:
+    name: nginx
+    state: restarted
+    enabled: yes
+    daemon-reload: yes
