@@ -3,10 +3,10 @@
   "id": "staging_testnet",
   "chainType": "Live",
   "bootNodes": [
-    "/ipv4/52.9.232.93/tcp/30333/p2p/12D3KooWHvSKfBzLJsAih3YfxrBVPxUTzJHuhVbHEVkapgY4JqXW",
-    "/ipv4/54.176.35.86/tcp/30333/p2p/12D3KooWCfm5T1uRq3rCNzqjsq3eFwu8fjHkUo1XBZmZvo611BwA",
-    "/ipv4/54.193.53.86/tcp/30333/p2p/12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ",
-    "/ipv4/50.18.14.209/tcp/30333/p2p/12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ"
+    "/ip4/52.9.232.93/tcp/30333/p2p/12D3KooWHvSKfBzLJsAih3YfxrBVPxUTzJHuhVbHEVkapgY4JqXW",
+    "/ip4/54.176.35.86/tcp/30333/p2p/12D3KooWCfm5T1uRq3rCNzqjsq3eFwu8fjHkUo1XBZmZvo611BwA",
+    "/ip4/54.193.53.86/tcp/30333/p2p/12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ",
+    "/ip4/50.18.14.209/tcp/30333/p2p/12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ"
   ],
   "telemetryEndpoints": null,
   "protocolId": null,
