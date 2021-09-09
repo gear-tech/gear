@@ -1,0 +1,18 @@
+title: Meta ping (simple check)
+
+programs:
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/demo_meta.wasm
+
+fixtures:
+  - title: meta check
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: PING
+
+    expected:
+      - step: 1
+        log:

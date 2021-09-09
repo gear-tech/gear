@@ -1,5 +1,6 @@
 exports.getWasmMetadata = async (wasmBytes) => {
     const memory = new WebAssembly.Memory({ initial: 256, maximum: 512 });
+
     const importObj = {
         env: {
             abortStackOverflow: () => { throw new Error('overflow'); },
@@ -10,33 +11,33 @@ exports.getWasmMetadata = async (wasmBytes) => {
             STACKTOP: 0,
             STACK_MAX: memory.buffer.byteLength,
             alloc: (pages) => { return memory.grow(pages) },
-            free: (_pages) => { }
+            free: (_pages) => { },
+            gr_debug: (msg) => { console.log(msg) },
         }
     };
+
     let metadata = {
         init_input: "",
         init_output: "",
         input: "",
         output: "",
         title: "",
+        types: ""
     }
 
     let module = await WebAssembly.instantiate(wasmBytes, importObj);
 
-    metadata.init_input = JSON.parse(readMeta(memory, module.instance.exports.meta_init_input()));
-    metadata.init_output = JSON.parse(readMeta(memory, module.instance.exports.meta_init_output()));
-    metadata.input = JSON.parse(readMeta(memory, module.instance.exports.meta_input()));
-    metadata.output = JSON.parse(readMeta(memory, module.instance.exports.meta_output()));
+    metadata.init_input = readMeta(memory, module.instance.exports.meta_init_input());
+    metadata.init_output = readMeta(memory, module.instance.exports.meta_init_output());
+    metadata.input = readMeta(memory, module.instance.exports.meta_input());
+    metadata.output = readMeta(memory, module.instance.exports.meta_output());
     metadata.title = readMeta(memory, module.instance.exports.meta_title());
-
+    metadata.types = JSON.parse(readMeta(memory, module.instance.exports.meta_types()));
 
     return metadata;
-
-
 }
 
 function readMeta(memory, ptr) {
-
     let length = memory.buffer.slice(ptr + 4, ptr + 8);
     length = new Uint32Array(length)[0];
 
