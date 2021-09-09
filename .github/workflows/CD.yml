@@ -31,6 +31,7 @@ jobs:
           tags: schernovgear/gear:nightly
   Deploy:
     runs-on: ubuntu-latest
+    needs: Docker
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -51,5 +52,12 @@ jobs:
           key: ${{secrets.SSH_PRIVATE_KEY}}
           # Optional, literal inventory file contents
           inventory: |
-            [all]
-            ${{secrets.GEAR_NODE}}
+            [gearNodes:children]
+            bootnode
+            nodes
+            [bootnode]
+            ${{secrets.GEAR_NODE}} 
+            [nodes]
+            ${{secrets.GEAR_NODE_2}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
+            ${{secrets.GEAR_NODE_3}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
+            ${{secrets.GEAR_NODE_4}} bootnode=${{secrets.GEAR_NODE}} bootnodeId=${{secrets.BOOTNODEID}}
