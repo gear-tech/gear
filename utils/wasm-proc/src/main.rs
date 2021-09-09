@@ -26,7 +26,7 @@ use std::path::PathBuf;
 
 /// Calls chain optimizer
 fn optimize(path: &str, mut binary_module: Module) {
-    debug!("\n*** Processing chain optimization: {}", path);
+    debug!("*** Processing chain optimization: {}", path);
 
     let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
@@ -43,7 +43,7 @@ fn optimize(path: &str, mut binary_module: Module) {
 
 /// Calls metadata optimizer
 fn optimize_meta(path: &str, mut metadata_module: Module) {
-    debug!("\n*** Processing metadata optimization: {}", path);
+    debug!("*** Processing metadata optimization: {}", path);
 
     let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
 
@@ -69,18 +69,6 @@ fn optimize_meta(path: &str, mut metadata_module: Module) {
 }
 
 fn main() {
-    let meta = Arg::new("meta")
-        .short('m')
-        .long("meta")
-        .takes_value(false)
-        .about("Provides a metadata .meta.wasm file");
-
-    let opt = Arg::new("optimize")
-        .short('o')
-        .long("optimize")
-        .takes_value(false)
-        .about("Provides an optimized .opt.wasm file");
-
     let path = Arg::new("path")
         .short('p')
         .long("path")
@@ -90,13 +78,23 @@ fn main() {
         .multiple_values(true)
         .about("Specifies path to .wasm file(-s)");
 
+    let skip_meta = Arg::new("skip-meta")
+        .long("skip-meta")
+        .takes_value(false)
+        .about("Skips metadata optimization");
+
+    let skip_opt = Arg::new("skip-opt")
+        .long("skip-opt")
+        .takes_value(false)
+        .about("Skips chain optimization");
+
     let verbose = Arg::new("verbose")
         .short('v')
         .long("verbose")
         .takes_value(false)
-        .about("Set environment variable RUST_LOG=debug");
+        .about("Provides debug logging info");
 
-    let app = App::new("wasm-proc").args(&[meta, opt, path, verbose]);
+    let app = App::new("wasm-proc").args(&[path, skip_meta, skip_opt, verbose]);
 
     let matches = app.get_matches();
 
@@ -111,15 +109,19 @@ fn main() {
         .expect("Path to wasm files is required")
         .collect();
 
-    let o = matches.is_present("optimize");
-    let m = matches.is_present("meta");
+    let skip_meta = matches.is_present("skip-meta");
+    let skip_opt = matches.is_present("skip-opt");
+
+    if skip_meta && skip_opt {
+        panic!("Invalid input");
+    }
 
     for file in wasm_files {
         if let Ok(module) = parity_wasm::deserialize_file(file) {
-            if o || !(o || m) {
+            if !skip_opt {
                 optimize(file, module.clone());
             }
-            if m || !(o || m) {
+            if !skip_meta {
                 optimize_meta(file, module.clone());
             }
         } else {
