@@ -349,9 +349,6 @@ fn messages_processing_works() {
         crate::Pallet::<Test>::process_queue();
         System::assert_last_event(crate::Event::MessagesDequeued(2).into());
 
-        // `InitProgram` doesn't increase the counter, but the reply message does; hence 1.
-        assert_eq!(Gear::messages_processed(), 1);
-
         // First message is sent to a non-existing program - and should get into log.
         // Second message still gets processed thereby adding 1 to the total processed messages counter.
         MessageQueue::<Test>::put(vec![
@@ -376,7 +373,6 @@ fn messages_processing_works() {
         ]);
         crate::Pallet::<Test>::process_queue();
         System::assert_last_event(crate::Event::MessagesDequeued(2).into());
-        assert_eq!(Gear::messages_processed(), 3); // Counter not reset, 1 added
     })
 }
 

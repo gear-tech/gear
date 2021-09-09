@@ -143,10 +143,6 @@ pub mod pallet {
     #[pallet::getter(fn message_queue)]
     pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
 
-    #[pallet::storage]
-    #[pallet::getter(fn messages_processed)]
-    pub type MessagesProcessed<T> = StorageValue<_, u32, ValueQuery>;
-
     #[pallet::type_value]
     pub fn DefaultForGasLimit<T: Config>() -> u64 {
         T::BlockGasLimit::get()
@@ -251,7 +247,6 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             // At the beginning of a new block, we process all queued messages
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
-            let _messages_processed = <MessagesProcessed<T>>::get();
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
@@ -431,12 +426,6 @@ pub mod pallet {
                         }
 
                         total_handled += execution_report.handled;
-
-                        <MessagesProcessed<T>>::mutate(|messages_processed| {
-                            *messages_processed =
-                                messages_processed.saturating_add(execution_report.handled)
-                        });
-                        let _messages_processed = <MessagesProcessed<T>>::get();
 
                         for (destination, gas_left) in execution_report.gas_refunds {
                             let refund = Self::gas_to_fee(gas_left);
