@@ -68,26 +68,26 @@ fn optimize_meta(path: &str, mut metadata_module: Module) {
 }
 
 fn main() {
-    let meta = Arg::with_name("meta")
-        .short("m")
+    let meta = Arg::new("meta")
+        .short('m')
         .long("meta")
         .takes_value(false)
-        .help("Provides a metadata .meta.wasm file");
+        .about("Provides a metadata .meta.wasm file");
 
-    let opt = Arg::with_name("optimize")
-        .short("o")
+    let opt = Arg::new("optimize")
+        .short('o')
         .long("optimize")
         .takes_value(false)
-        .help("Provides an optimized .opt.wasm file");
+        .about("Provides an optimized .opt.wasm file");
 
-    let path = Arg::with_name("path")
-        .short("p")
+    let path = Arg::new("path")
+        .short('p')
         .long("path")
         .required(true)
         .index(1)
         .takes_value(true)
-        .multiple(true)
-        .help("Specifies path to .wasm file(-s)");
+        .multiple_values(true)
+        .about("Specifies path to .wasm file(-s)");
 
     let app = App::new("wasm-proc").args(&[meta, opt, path]);
 
