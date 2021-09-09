@@ -5,6 +5,11 @@
     src: docker-compose.yaml.j2
     dest: /home/ec2-user/docker-compose.yaml
 
+- name: Stop docker-compose
+  shell: >
+    /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
+  become: yes
+
 - name: Pull docker images
   shell: >
     /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" pull
