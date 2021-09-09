@@ -6,8 +6,8 @@
 
 #Do tasks
   tasks:
-#    - name: Install and enable required packages
-  #    include: tasks/packages/packages.yaml
+    - name: Install and enable required packages
+      include: tasks/packages/packages.yaml
 
     - name: Install/Update gear node
       include: tasks/docker/docker.yaml
