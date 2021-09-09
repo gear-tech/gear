@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [master,docker-rust-update]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
