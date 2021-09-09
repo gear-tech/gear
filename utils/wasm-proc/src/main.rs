@@ -24,30 +24,53 @@ use pwasm_utils::{
 };
 use std::path::PathBuf;
 
+#[derive(Debug)]
+enum Error {
+    OptimizerFailed,
+    SerializationFailed(parity_wasm::elements::Error),
+    UndefinedPaths,
+    InvalidSkip,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OptimizerFailed => write!(f, "Optimizer failed"),
+            Self::SerializationFailed(e) => write!(f, "Serialization failed {}", e),
+            Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
+            Self::InvalidSkip => write!(f, "Multiple skipping functional"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
 /// Calls chain optimizer
-fn optimize(path: &str, mut binary_module: Module) {
+fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::error::Error>> {
     debug!("*** Processing chain optimization: {}", path);
 
     let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
-    if let Err(_) = utils::optimize(&mut binary_module, vec!["handle", "init"]) {
-        debug!("Optimizer failed");
-    }
+    utils::optimize(&mut binary_module, vec!["handle", "init"])
+        .map_err(|_| Error::OptimizerFailed)?;
 
-    if let Err(e) = parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module) {
-        debug!("Serialization failed: {}", e);
-    }
+    parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
+        .map_err(|e| Error::SerializationFailed(e))?;
 
     debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
+    Ok(())
 }
 
 /// Calls metadata optimizer
-fn optimize_meta(path: &str, mut metadata_module: Module) {
+fn optimize_meta(
+    path: &str,
+    mut metadata_module: Module,
+) -> Result<(), Box<dyn std::error::Error>> {
     debug!("*** Processing metadata optimization: {}", path);
 
     let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
 
-    if let Err(_) = utils::optimize(
+    utils::optimize(
         &mut metadata_module,
         vec![
             "meta_init_input",
@@ -57,18 +80,17 @@ fn optimize_meta(path: &str, mut metadata_module: Module) {
             "meta_title",
             "meta_types",
         ],
-    ) {
-        debug!("Optimizer failed");
-    }
+    )
+    .map_err(|_| Error::OptimizerFailed)?;
 
-    if let Err(e) = parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module) {
-        debug!("Serialization failed: {}", e);
-    }
+    parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
+        .map_err(|e| Error::SerializationFailed(e))?;
 
     debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = Arg::new("path")
         .short('p')
         .long("path")
@@ -106,26 +128,25 @@ fn main() {
 
     let wasm_files: Vec<&str> = matches
         .values_of("path")
-        .expect("Path to wasm files is required")
+        .ok_or(Error::UndefinedPaths)?
         .collect();
 
     let skip_meta = matches.is_present("skip-meta");
     let skip_opt = matches.is_present("skip-opt");
 
     if skip_meta && skip_opt {
-        panic!("Invalid input");
+        return Err(Box::new(Error::InvalidSkip));
     }
 
     for file in wasm_files {
-        if let Ok(module) = parity_wasm::deserialize_file(file) {
-            if !skip_opt {
-                optimize(file, module.clone());
-            }
-            if !skip_meta {
-                optimize_meta(file, module.clone());
-            }
-        } else {
-            debug!("Failed to load wasm file: {}", file);
+        let module = parity_wasm::deserialize_file(file)?;
+        if !skip_opt {
+            optimize(file, module.clone())?;
+        }
+        if !skip_meta {
+            optimize_meta(file, module.clone())?;
         }
     }
+
+    Ok(())
 }
