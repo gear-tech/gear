@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.41"
+anyhow = "1.0.43"
 blake2-rfc = "*"
 codec = { package = "parity-scale-codec", version = "2.2.0", features = ["derive"] }
 gear-core = { path = "../core" }

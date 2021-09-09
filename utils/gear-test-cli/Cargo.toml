@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.40"
+anyhow = "1.0.43"
 codec = { version = "2.0.0", package = "parity-scale-codec" }
 regex = "1.4"
 structopt = "0.3.8"
