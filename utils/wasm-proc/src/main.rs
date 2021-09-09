@@ -17,38 +17,59 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{App, Arg};
-use pwasm_utils::{self as utils, parity_wasm};
+use log::debug;
+use pwasm_utils::{
+    self as utils,
+    parity_wasm::{self, elements::Module},
+};
 use std::path::PathBuf;
 
-fn main() {
-    let matches = App::new("wasm-proc")
-        .arg(
-            Arg::new("input")
-                .index(1)
-                .required(true)
-                .about("Input WASM file"),
-        )
-        .get_matches();
+#[derive(Debug)]
+enum Error {
+    OptimizerFailed,
+    SerializationFailed(parity_wasm::elements::Error),
+    UndefinedPaths,
+    InvalidSkip,
+}
 
-    let input = matches
-        .value_of("input")
-        .expect("Input paramter is required by clap above; qed");
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OptimizerFailed => write!(f, "Optimizer failed"),
+            Self::SerializationFailed(e) => write!(f, "Serialization failed {}", e),
+            Self::UndefinedPaths => write!(f, "Paths to .wasm files are undefined"),
+            Self::InvalidSkip => write!(f, "Multiple skipping functional"),
+        }
+    }
+}
 
-    let module = parity_wasm::deserialize_file(&input).expect("Failed to load wasm file");
+impl std::error::Error for Error {}
 
-    // Invoke optimizer for the chain
-    let mut binary_module = module.clone();
-    let binary_file_name = PathBuf::from(input).with_extension("opt.wasm");
-    utils::optimize(&mut binary_module, vec!["handle", "init"]).expect("Optimizer failed");
+/// Calls chain optimizer
+fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::error::Error>> {
+    debug!("*** Processing chain optimization: {}", path);
+
+    let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
+
+    utils::optimize(&mut binary_module, vec!["handle", "init"])
+        .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
-        .expect("Serialization failed");
+        .map_err(|e| Error::SerializationFailed(e))?;
 
-    println!("Optimized wasm: {}", binary_file_name.to_string_lossy());
+    debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
+    Ok(())
+}
 
-    // Invoke optimizer for the metadata
-    let mut metadata_module = module.clone();
-    let metadata_file_name = PathBuf::from(input).with_extension("meta.wasm");
+/// Calls metadata optimizer
+fn optimize_meta(
+    path: &str,
+    mut metadata_module: Module,
+) -> Result<(), Box<dyn std::error::Error>> {
+    debug!("*** Processing metadata optimization: {}", path);
+
+    let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
+
     utils::optimize(
         &mut metadata_module,
         vec![
@@ -60,10 +81,72 @@ fn main() {
             "meta_types",
         ],
     )
-    .expect("Metadata optimizer failed");
+    .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
-        .expect("Serialization failed");
+        .map_err(|e| Error::SerializationFailed(e))?;
 
-    println!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
+    debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let path = Arg::new("path")
+        .short('p')
+        .long("path")
+        .required(true)
+        .index(1)
+        .takes_value(true)
+        .multiple_values(true)
+        .about("Specifies path to .wasm file(-s)");
+
+    let skip_meta = Arg::new("skip-meta")
+        .long("skip-meta")
+        .takes_value(false)
+        .about("Skips metadata optimization");
+
+    let skip_opt = Arg::new("skip-opt")
+        .long("skip-opt")
+        .takes_value(false)
+        .about("Skips chain optimization");
+
+    let verbose = Arg::new("verbose")
+        .short('v')
+        .long("verbose")
+        .takes_value(false)
+        .about("Provides debug logging info");
+
+    let app = App::new("wasm-proc").args(&[path, skip_meta, skip_opt, verbose]);
+
+    let matches = app.get_matches();
+
+    if matches.is_present("verbose") {
+        env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("debug")).init();
+    } else {
+        env_logger::Builder::from_default_env();
+    }
+
+    let wasm_files: Vec<&str> = matches
+        .values_of("path")
+        .ok_or(Error::UndefinedPaths)?
+        .collect();
+
+    let skip_meta = matches.is_present("skip-meta");
+    let skip_opt = matches.is_present("skip-opt");
+
+    if skip_meta && skip_opt {
+        return Err(Box::new(Error::InvalidSkip));
+    }
+
+    for file in wasm_files {
+        let module = parity_wasm::deserialize_file(file)?;
+        if !skip_opt {
+            optimize(file, module.clone())?;
+        }
+        if !skip_meta {
+            optimize_meta(file, module.clone())?;
+        }
+    }
+
+    Ok(())
 }
