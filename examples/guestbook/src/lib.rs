@@ -1,21 +1,21 @@
 #![no_std]
 
 use codec::{Decode, Encode};
-use gstd::{ext, msg, String, prelude::*};
+use gstd::{msg, prelude::*};
 
-#[derive(Debug, codec::Encode, codec::Decode)]
+#[derive(Debug, Encode, Decode)]
 pub enum Action {
-    AddMessage(Message),
+    AddMessage(MessageIn),
     ViewMessages,
 }
 
-#[derive(Debug, codec::Encode, codec::Decode)]
-pub struct Message {
-    autor: String,
-    msg: String,
+#[derive(Debug, Encode, Decode)]
+pub struct MessageIn {
+    author: Vec<u8>,
+    msg: Vec<u8>,
 }
 
-static mut MESSAGES: Vec<Message> = Vec::new();
+static mut MESSAGES: Vec<MessageIn> = Vec::new();
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -24,8 +24,7 @@ pub unsafe extern "C" fn handle() {
     match action {
         Action::AddMessage(message) => {
             MESSAGES.push(message);
-            msg::reply(b"Message added!", 0, 0);
-        },
+        }
         Action::ViewMessages => {
             msg::reply(&MESSAGES, 0, 0);
         }
