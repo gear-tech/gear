@@ -23,10 +23,10 @@ use std::path::PathBuf;
 fn main() {
     let matches = App::new("wasm-proc")
         .arg(
-            Arg::with_name("input")
+            Arg::new("input")
                 .index(1)
                 .required(true)
-                .help("Input WASM file"),
+                .about("Input WASM file"),
         )
         .get_matches();
 
