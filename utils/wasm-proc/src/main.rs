@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use clap::{App, Arg};
+use log::debug;
 use pwasm_utils::{
     self as utils,
     parity_wasm::{self, elements::Module},
@@ -25,24 +26,24 @@ use std::path::PathBuf;
 
 /// Calls chain optimizer
 fn optimize(path: &str, mut binary_module: Module) {
-    println!("\n*** Processing chain optimization: {}", path);
+    debug!("\n*** Processing chain optimization: {}", path);
 
     let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
     if let Err(_) = utils::optimize(&mut binary_module, vec!["handle", "init"]) {
-        println!("Optimizer failed");
+        debug!("Optimizer failed");
     }
 
     if let Err(e) = parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module) {
-        println!("Serialization failed: {}", e);
+        debug!("Serialization failed: {}", e);
     }
 
-    println!("Optimized wasm: {}", binary_file_name.to_string_lossy());
+    debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
 }
 
 /// Calls metadata optimizer
 fn optimize_meta(path: &str, mut metadata_module: Module) {
-    println!("\n*** Processing metadata optimization: {}", path);
+    debug!("\n*** Processing metadata optimization: {}", path);
 
     let metadata_file_name = PathBuf::from(path).with_extension("meta.wasm");
 
@@ -57,14 +58,14 @@ fn optimize_meta(path: &str, mut metadata_module: Module) {
             "meta_types",
         ],
     ) {
-        println!("Optimizer failed");
+        debug!("Optimizer failed");
     }
 
     if let Err(e) = parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module) {
-        println!("Serialization failed: {}", e);
+        debug!("Serialization failed: {}", e);
     }
 
-    println!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
+    debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
 }
 
 fn main() {
@@ -89,9 +90,21 @@ fn main() {
         .multiple_values(true)
         .about("Specifies path to .wasm file(-s)");
 
-    let app = App::new("wasm-proc").args(&[meta, opt, path]);
+    let verbose = Arg::new("verbose")
+        .short('v')
+        .long("verbose")
+        .takes_value(false)
+        .about("Set environment variable RUST_LOG=debug");
+
+    let app = App::new("wasm-proc").args(&[meta, opt, path, verbose]);
 
     let matches = app.get_matches();
+
+    if matches.is_present("verbose") {
+        env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("debug")).init();
+    } else {
+        env_logger::Builder::from_default_env();
+    }
 
     let wasm_files: Vec<&str> = matches
         .values_of("path")
@@ -110,7 +123,7 @@ fn main() {
                 optimize_meta(file, module.clone());
             }
         } else {
-            println!("Failed to load wasm file: {}", file);
+            debug!("Failed to load wasm file: {}", file);
         }
     }
 }
