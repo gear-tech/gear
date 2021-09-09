@@ -6,6 +6,7 @@ WORKDIR /gear
 
 COPY . /gear
 RUN apt-get update && apt-get install -y libsecp256k1-dev openssl
+RUN rustup update
 RUN cargo build -p gear-node --$PROFILE
 
 # ===== SECOND STAGE ======
