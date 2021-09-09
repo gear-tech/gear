@@ -1,0 +1,37 @@
+title: guestbook test
+
+programs:
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/guestbook.wasm
+    init_message:
+      kind: utf-8
+      value: test
+
+fixtures:
+  - title: guestbook
+    messages:
+      - destination: 1
+        payload:
+          kind: bytes
+          value: "0x000c426f621848656c6c6f31"
+
+      - destination: 1
+        payload:
+          kind: bytes
+          value: "0x001450657465721848656c6c6f32"
+
+      - destination: 1
+        payload:
+          kind: bytes
+          value: "0x00104f6c61661848656c6c6f33"
+
+      - destination: 1
+        payload:
+          kind: bytes
+          value: "0x01"          
+    expected:
+      - log:
+          - payload:
+              kind: bytes
+              value: "0x0c0c426f621848656c6c6f311450657465721848656c6c6f32104f6c61661848656c6c6f33"
+            destination: 0
