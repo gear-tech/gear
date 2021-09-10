@@ -9,7 +9,7 @@ license = "GPL-3.0"
 anyhow = "1"
 clap = "3.0.0-beta.4"
 derive_more = "0.99"
-env_logger = "0.8"
+env_logger = "0.9"
 gear-core = { path = "../core" }
 gear-core-runner = { path = "../core-runner" }
 common = { package = "gear-common", path = "../common" }
