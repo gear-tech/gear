@@ -1,11 +1,10 @@
 #![no_std]
 
+use codec::{Decode, Encode};
 use gstd::{msg, prelude::*};
 use gstd_meta::{meta, TypeInfo};
-use codec::{Decode, Encode};
 
-
-#[derive(TypeInfo, Decode, Encode)]
+#[derive(TypeInfo, Decode)]
 pub enum Action {
     AddMessage(MessageIn),
     ViewMessages,
@@ -21,7 +20,7 @@ meta! {
     title: "Guestbook",
     input: Action,
     output: Vec<MessageIn>,
-    init_input: i32, 
+    init_input: i32,
     init_output: i32,
     extra: MessageIn
 }
