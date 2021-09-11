@@ -12,7 +12,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dev-dependencies]
 wabt = "0.10.0"
-env_logger = "0.8.2"
+env_logger = "0.9.0"
 sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git" }
 
 [dependencies]
