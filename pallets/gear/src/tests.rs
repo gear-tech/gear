@@ -88,6 +88,7 @@ fn submit_program_works() {
             crate::Event::InitMessageEnqueued(crate::MessageInfo {
                 message_id,
                 program_id,
+                origin: 1.into_origin(),
             })
             .into(),
         );
@@ -802,6 +803,7 @@ fn init_message_logging_works() {
             crate::Event::InitMessageEnqueued(crate::MessageInfo {
                 message_id,
                 program_id,
+                origin: 1.into_origin(),
             })
             .into(),
         );
@@ -813,6 +815,7 @@ fn init_message_logging_works() {
             crate::Event::InitSuccess(crate::MessageInfo {
                 message_id,
                 program_id,
+                origin: 1.into_origin(),
             })
             .into(),
         );
@@ -843,6 +846,7 @@ fn init_message_logging_works() {
             crate::Event::InitMessageEnqueued(crate::MessageInfo {
                 message_id,
                 program_id,
+                origin: 1.into_origin(),
             })
             .into(),
         );
@@ -855,6 +859,7 @@ fn init_message_logging_works() {
                 crate::MessageInfo {
                     message_id,
                     program_id,
+                    origin: 1.into_origin(),
                 },
                 crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
             )
@@ -1096,6 +1101,7 @@ fn events_logging_works() {
                         crate::Event::InitMessageEnqueued(crate::MessageInfo {
                             message_id: init_message_id,
                             program_id,
+                            origin: 1.into_origin(),
                         })
                         .into(),
                     );
@@ -1112,6 +1118,7 @@ fn events_logging_works() {
             crate::Event::InitSuccess(crate::MessageInfo {
                 message_id: init_msg[0].0,
                 program_id: init_msg[0].1,
+                origin: 1.into_origin(),
             })
             .into(),
         );
@@ -1119,6 +1126,7 @@ fn events_logging_works() {
             crate::Event::InitSuccess(crate::MessageInfo {
                 message_id: init_msg[3].0,
                 program_id: init_msg[3].1,
+                origin: 1.into_origin(),
             })
             .into(),
         );
@@ -1129,6 +1137,7 @@ fn events_logging_works() {
                 crate::MessageInfo {
                     message_id: init_msg[1].0,
                     program_id: init_msg[1].1,
+                    origin: 1.into_origin(),
                 },
                 crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
             )
@@ -1139,6 +1148,7 @@ fn events_logging_works() {
                 crate::MessageInfo {
                     message_id: init_msg[2].0,
                     program_id: init_msg[2].1,
+                    origin: 1.into_origin(),
                 },
                 crate::Reason::Dispatch(vec![]),
             )
