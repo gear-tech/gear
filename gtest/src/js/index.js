@@ -1,0 +1,39 @@
+const fs = require("fs");
+const { CreateType, getWasmMetadata } = require("gear-js-lib");
+const yargs = require("yargs");
+
+const argv = yargs
+    .option('path', {
+        alias: 'p',
+        default: "../../../examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+        description: 'Specifies the path to .meta.wasm binary',
+    })
+    .option('type', {
+        alias: 't',
+        description: 'Finding type bytes',
+    })
+    .option('json', {
+        alias: 'j',
+        default: "{}",
+        description: 'Json with data for parse',
+    })
+    .help()
+    .alias('help', 'h')
+    .argv;
+
+let wasmBytes = fs.readFileSync(argv.path);
+let json = JSON.parse(argv.json);
+let findingType = argv.type;
+
+getWasmMetadata(wasmBytes).then( meta => {
+    let type = meta[findingType];
+    let encoded = CreateType.encode(type, json, meta);
+    process.stdout.write(encoded);
+});
+
+
+// test.payloads.forEach((payload) => {
+//     const encoded = CreateType.encode(meta[payload.name], payload.value, meta);
+//     const decoded: object = CreateType.decode(meta[payload.name], encoded, meta).toJSON();
+//     console.log(`${JSON.stringify(decoded)}: ${assert(payload.value, decoded)}`);
+//   });

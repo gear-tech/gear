@@ -1,0 +1,6 @@
+{
+    "dependencies": {
+      "gear-js-lib": "git+https://github.com/gear-tech/gear-js-lib.git",
+      "yargs": "17.1.1"
+    }
+}

@@ -17,5 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub mod check;
+pub mod js;
 pub mod runner;
 pub mod sample;
