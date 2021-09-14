@@ -43,9 +43,9 @@ pub fn gear_path() -> String {
         .expect("Unable to call pwd command");
 
     let path = String::from_utf8(pwd.stdout).expect("Unable to parse pwd output bytes");
-    let path_parts: Vec<&str> = path.split("/").collect();
+    let path_parts: Vec<String> = path.split("/").map(|v| v.replace("\n", "")).collect();
 
-    if let Some(index) = path_parts.iter().position(|&r| r == "gear") {
+    if let Some(index) = path_parts.iter().position(|r| r == "gear") {
         path_parts[..index + 1].join("/")
     } else {
         panic!("Gear root directory not found")
@@ -57,13 +57,20 @@ pub fn get_bytes(path: &str, meta_type: MetaType, json: String) -> Vec<u8> {
     wasm_path.push_str("/");
     wasm_path.push_str(path);
 
+    let mut script_path = gear_path();
+    script_path.push_str("/gtest/src/js/index.js");
+
     let output = Command::new("node")
-        .arg("./src/js/index.js")
+        .arg(script_path)
         .args(&["-p", &wasm_path, "-t", &meta_type.to_string(), "-j", &json])
         .output()
         .expect("Unable to call node.js process");
 
-    output.stdout
+    if output.stdout.is_empty() {
+        output.stderr
+    } else {
+        output.stdout
+    }
 }
 
 #[cfg(test)]
@@ -73,32 +80,38 @@ mod tests {
     use serde_json::Value;
 
     #[derive(Decode, Debug, PartialEq)]
-    pub struct MessageInitOut {
-        pub exchange_rate: Result<u8, u8>,
-        pub sum: u8,
+    pub struct Id {
+        pub decimal: u64,
+        pub hex: Vec<u8>,
     }
 
+    #[derive(Decode, Debug, PartialEq)]
+    pub struct MessageIn {
+        pub id: Id,
+    }
+    
     #[test]
     fn check() {
         let yaml = r#"
-        exchange_rate:
-            Ok: 4
-        sum: 15
+        id:
+          decimal: 12345
+          hex: [1, 2, 3, 4, 5]
         "#;
         let value = serde_yaml::from_str::<Value>(yaml).expect("Unable to create serde Value");
-        
         let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
         let wasm = "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm";
 
-        let bytes = get_bytes(wasm, MetaType::InitOutput, json);
+        let bytes = get_bytes(wasm, MetaType::Input, json.into());
 
-        let msg = MessageInitOut::decode(&mut bytes.as_ref()).unwrap();
+        let msg = MessageIn::decode(&mut bytes.as_ref()).unwrap();
 
         assert_eq!(
             msg,
-            MessageInitOut {
-                exchange_rate: Ok(4),
-                sum: 15
+            MessageIn {
+                id: Id {
+                    decimal: 12345,
+                    hex: vec![1, 2, 3, 4, 5]
+                }   
             }
         );
     }
