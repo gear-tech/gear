@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use log::debug;
 use std::process::Command;
 
+#[allow(dead_code)]
 pub enum MetaType {
     InitInput,
     InitOutput,
@@ -57,8 +59,12 @@ pub fn get_bytes(path: &str, meta_type: MetaType, json: String) -> Vec<u8> {
     wasm_path.push_str("/");
     wasm_path.push_str(path);
 
+    if !wasm_path.ends_with(".meta.wasm") {
+        wasm_path = wasm_path.replace(".wasm", ".meta.wasm");
+    }
+
     let mut script_path = gear_path();
-    script_path.push_str("/gtest/src/js/index.js");
+    script_path.push_str("/gtest/src/js/encode.js");
 
     let output = Command::new("node")
         .arg(script_path)
@@ -66,11 +72,46 @@ pub fn get_bytes(path: &str, meta_type: MetaType, json: String) -> Vec<u8> {
         .output()
         .expect("Unable to call node.js process");
 
-    if output.stdout.is_empty() {
-        output.stderr
-    } else {
-        output.stdout
+    debug!(
+        "js get_bytes stdout:{}",
+        String::from_utf8(output.stdout.clone()).unwrap()
+    );
+    debug!(
+        "js get_bytes stderr:{}",
+        String::from_utf8(output.stderr).unwrap()
+    );
+
+    output.stdout
+}
+
+pub fn get_json(path: &str, meta_type: MetaType, hex: String) -> String {
+    let mut wasm_path = gear_path();
+    wasm_path.push_str("/");
+    wasm_path.push_str(path);
+
+    if !wasm_path.ends_with(".meta.wasm") {
+        wasm_path = wasm_path.replace(".wasm", ".meta.wasm");
     }
+
+    let mut script_path = gear_path();
+    script_path.push_str("/gtest/src/js/decode.js");
+
+    let output = Command::new("node")
+        .arg(script_path)
+        .args(&["-p", &wasm_path, "-t", &meta_type.to_string(), "-b", &hex])
+        .output()
+        .expect("Unable to call node.js process");
+
+    debug!(
+        "js get_json stdout:{}",
+        String::from_utf8(output.stdout.clone()).unwrap()
+    );
+    debug!(
+        "js get_json stderr:{}",
+        String::from_utf8(output.stderr).unwrap()
+    );
+
+    String::from_utf8(output.stdout).expect("Cannot parse u8 seq to string")
 }
 
 #[cfg(test)]
@@ -89,7 +130,7 @@ mod tests {
     pub struct MessageIn {
         pub id: Id,
     }
-    
+
     #[test]
     fn check() {
         let yaml = r#"
@@ -111,7 +152,7 @@ mod tests {
                 id: Id {
                     decimal: 12345,
                     hex: vec![1, 2, 3, 4, 5]
-                }   
+                }
             }
         );
     }
