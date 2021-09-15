@@ -68,7 +68,6 @@ jobs:
         run: | 
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
-          ./target/release/wasm-proc -p ./examples/target/wasm32-unknown-unknown/release/demo_meta.wasm --skip-opt -v
           ./target/release/wasm-proc -p ./target/wasm32-unknown-unknown/release/*.wasm -v
 
       - name: Run tests
@@ -84,4 +83,4 @@ jobs:
         run: ./target/release/gear-node runtests ./gtest/spec/*.yaml
 
       - name: Run metadata test
-        run: node ./utils/wasm-proc/metadata-js test
+        run: node ./utils/wasm-proc/metadata-js/test.js

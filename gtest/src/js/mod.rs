@@ -18,6 +18,7 @@
 
 use log::debug;
 use std::process::Command;
+use std::path::Path;
 
 #[allow(dead_code)]
 pub enum MetaType {
@@ -47,7 +48,7 @@ pub fn gear_path() -> String {
     let path = String::from_utf8(pwd.stdout).expect("Unable to parse pwd output bytes");
     let path_parts: Vec<String> = path.split("/").map(|v| v.replace("\n", "")).collect();
 
-    if let Some(index) = path_parts.iter().position(|r| r == "gear") {
+    if let Some(index) = path_parts.iter().rposition(|r| r == "gear") {
         path_parts[..index + 1].join("/")
     } else {
         panic!("Gear root directory not found")
@@ -61,6 +62,10 @@ pub fn get_bytes(path: &str, meta_type: MetaType, json: String) -> Vec<u8> {
 
     if !wasm_path.ends_with(".meta.wasm") {
         wasm_path = wasm_path.replace(".wasm", ".meta.wasm");
+    }
+
+    if !Path::new(&wasm_path).exists() {
+        panic!("Could not find file {}", wasm_path);
     }
 
     let mut script_path = gear_path();
@@ -91,6 +96,10 @@ pub fn get_json(path: &str, meta_type: MetaType, hex: String) -> String {
 
     if !wasm_path.ends_with(".meta.wasm") {
         wasm_path = wasm_path.replace(".wasm", ".meta.wasm");
+    }
+
+    if !Path::new(&wasm_path).exists() {
+        panic!("Could not find file {}", wasm_path);
     }
 
     let mut script_path = gear_path();
@@ -140,7 +149,15 @@ mod tests {
         "#;
         let value = serde_yaml::from_str::<Value>(yaml).expect("Unable to create serde Value");
         let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
-        let wasm = "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm";
+
+        let mut wasm_path = gear_path();
+        wasm_path.push_str("/examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm");
+
+        let wasm = if Path::new(&wasm_path).exists() {
+            "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm"
+        } else {
+            "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm"
+        };
 
         let bytes = get_bytes(wasm, MetaType::Input, json.into());
 
