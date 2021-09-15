@@ -51,14 +51,12 @@ impl From<MessageIn> for MessageOut {
             for wallet in WALLETS.iter() {
                 if wallet.id.decimal == other.id.decimal {
                     return Self {
-                        res: Some(wallet.clone())
-                    }
+                        res: Some(wallet.clone()),
+                    };
                 };
-            };
-            
-            Self {
-                res: None
             }
+
+            Self { res: None }
         }
     }
 }
