@@ -151,12 +151,12 @@ mod tests {
         let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
 
         let mut wasm_path = gear_path();
-        wasm_path.push_str("/examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm");
+        wasm_path.push_str("/examples/target/wasm32-unknown-unknown/release/demo_meta.wasm");
 
         let wasm = if Path::new(&wasm_path).exists() {
-            "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm"
+            "examples/target/wasm32-unknown-unknown/release/demo_meta.wasm"
         } else {
-            "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm"
+            "target/wasm32-unknown-unknown/release/demo_meta.wasm"
         };
 
         let bytes = get_bytes(wasm, MetaType::Input, json.into());

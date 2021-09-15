@@ -20,3 +20,8 @@ for entry in $(get_members $ROOT_DIR); do
     cargo +nightly build --release
   done
 done
+
+rm -f $ROOT_DIR/target/wasm32-unknown-unknown/release/*.opt.wasm
+rm -f $ROOT_DIR/target/wasm32-unknown-unknown/release/*.meta.wasm
+
+$ROOT_DIR/../target/release/wasm-proc -p $ROOT_DIR/target/wasm32-unknown-unknown/release/*.wasm
