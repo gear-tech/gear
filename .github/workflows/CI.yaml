@@ -68,7 +68,7 @@ jobs:
         run: |
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
-          ./target/release/wasm-proc -p ./target/release/*.wasm
+          ./target/release/wasm-proc -p ./target/wasm32-unknown-unknown/release/*.wasm
 
       - name: Run tests
         run: cargo test --workspace --release

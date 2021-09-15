@@ -5,7 +5,6 @@ const yargs = require("yargs");
 const argv = yargs
     .option('path', {
         alias: 'p',
-        default: "../../../examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
         description: 'Specifies the path to .meta.wasm binary',
     })
     .option('type', {
