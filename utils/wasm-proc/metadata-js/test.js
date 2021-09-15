@@ -30,7 +30,7 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
                     "id": "Id"
                 },
                 "MessageOut": {
-                    "res": "Vec<Result<Wallet,Vec<u8>>>"
+                    "res": "Option<Wallet>"
                 },
                 "Id": {
                     "decimal": "u64",
@@ -42,8 +42,7 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
                 },
                 "Person": {
                     "surname": "Vec<u8>",
-                    "name": "Vec<u8>",
-                    "patronymic": "Option<Vec<u8>>"
+                    "name": "Vec<u8>"
                 }
             }
         }
