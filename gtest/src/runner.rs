@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::js::{self, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use gear_core::{
     message::Message,
@@ -99,6 +100,20 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                     }
                     s.into_bytes()
                 }
+                PayloadVariant::Custom(v) => {
+                    let metatype = MetaType::InitInput;
+                    let json = serde_json::to_string(&v).expect("Cannot convert to string");
+                    let wasm = test
+                        .programs
+                        .iter()
+                        .filter(|p| u64::from(p.id) == u64::from(program.id))
+                        .last()
+                        .expect("Program not found")
+                        .path
+                        .clone();
+
+                    js::get_bytes(&wasm, metatype, json)
+                }
                 _ => init_msg.clone().into_raw(),
             }
         }
@@ -134,6 +149,20 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                         .clone()
                         .into_raw()
                 }
+            }
+            Some(PayloadVariant::Custom(v)) => {
+                let metatype = MetaType::Input;
+                let json = serde_json::to_string(&v).expect("Cannot convert to string");
+                let wasm = test
+                    .programs
+                    .iter()
+                    .filter(|p| u64::from(p.id) == message.destination)
+                    .last()
+                    .expect("Program not found")
+                    .path
+                    .clone();
+
+                js::get_bytes(&wasm, metatype, json)
             }
             _ => message
                 .payload
