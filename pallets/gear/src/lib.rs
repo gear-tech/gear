@@ -137,6 +137,7 @@ pub mod pallet {
     pub struct MessageInfo {
         pub message_id: H256,
         pub program_id: H256,
+        pub origin: H256,
     }
 
     #[pallet::storage]
@@ -307,6 +308,7 @@ pub mod pallet {
                                     MessageInfo {
                                         message_id: init_message_id,
                                         program_id,
+                                        origin,
                                     },
                                     Reason::Error,
                                 ));
@@ -380,6 +382,7 @@ pub mod pallet {
                                         MessageInfo {
                                             message_id: init_message_id,
                                             program_id,
+                                            origin,
                                         },
                                         if is_err {
                                             reason
@@ -391,6 +394,7 @@ pub mod pallet {
                                     Self::deposit_event(Event::InitSuccess(MessageInfo {
                                         message_id: init_message_id,
                                         program_id,
+                                        origin,
                                     }));
                                 }
                             }
@@ -562,8 +566,9 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let init_message_id = common::next_message_id(&init_payload);
+            let origin = who.into_origin();
             <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
-                origin: who.into_origin(),
+                origin,
                 code,
                 program_id: id,
                 init_message_id,
@@ -575,6 +580,7 @@ pub mod pallet {
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id: init_message_id,
                 program_id: id,
+                origin,
             }));
 
             Ok(().into())
