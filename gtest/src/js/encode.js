@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { CreateType, getWasmMetadata } = require("gear-js-lib");
+const { CreateType, getWasmMetadata } = require("@gear-js/api");
 const yargs = require("yargs");
 
 const argv = yargs
