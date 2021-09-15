@@ -5,6 +5,11 @@
     src: docker-compose.yaml.j2
     dest: /home/ec2-user/docker-compose.yaml
 
+#- name: remove db
+#  shell: >
+#    docker exec -it ec2-user_gear_1 gear-node purge-chain --base-path /gear --chain staging -y
+#  become: yes
+
 - name: Stop docker-compose
   shell: >
     /usr/local/bin/docker-compose -f "/home/ec2-user/docker-compose.yaml" down
