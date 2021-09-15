@@ -6,11 +6,11 @@
 
 #Do tasks
   tasks:
- #   - name: Install and enable required packages
-  #    include: tasks/packages/packages.yaml
+     - name: Install and enable required packages
+      include: tasks/packages/packages.yaml
 
     - name: Install/Update gear node
       include: tasks/docker/docker.yaml
 
- #   - name: Install nginx with self-signed certs
-  #    include: tasks/nginx/nginx.yaml
+    - name: Install nginx with self-signed certs
+      include: tasks/nginx/nginx.yaml
