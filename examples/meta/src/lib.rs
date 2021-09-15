@@ -19,16 +19,16 @@ pub struct MessageInitOut {
 
 impl From<MessageInitIn> for MessageInitOut {
     fn from(other: MessageInitIn) -> Self {
-        let rate: Result<u8, u8> = match String::from_utf8(other.currency)
+        let rate = match String::from_utf8(other.currency)
             .expect("Unable to parse str")
             .as_ref()
         {
-            "USD" => Ok(75),
-            "EUR" => Ok(90),
+            "USD" => Ok(2),
+            "EUR" => Ok(3),
             _ => Err(1),
         };
 
-        MessageInitOut {
+        Self {
             exchange_rate: rate,
             sum: rate.unwrap_or(0) * other.amount,
         }
@@ -42,25 +42,22 @@ pub struct MessageIn {
 
 #[derive(TypeInfo, Encode)]
 pub struct MessageOut {
-    pub res: Vec<Result<Wallet, Vec<u8>>>,
+    pub res: Option<Wallet>,
 }
 
 impl From<MessageIn> for MessageOut {
     fn from(other: MessageIn) -> Self {
         unsafe {
-            let wallet: Vec<Wallet> = WALLETS
-                .clone()
-                .into_iter()
-                .filter(|v| v.id.decimal == other.id.decimal)
-                .collect();
-            if wallet.is_empty() {
-                MessageOut {
-                    res: vec![Err("404 not_found".as_bytes().into())],
-                }
-            } else {
-                MessageOut {
-                    res: vec![Ok(wallet[0].clone())],
-                }
+            for wallet in WALLETS.iter() {
+                if wallet.id.decimal == other.id.decimal {
+                    return Self {
+                        res: Some(wallet.clone())
+                    }
+                };
+            };
+            
+            Self {
+                res: None
             }
         }
     }
@@ -77,7 +74,6 @@ pub struct Id {
 pub struct Person {
     pub surname: Vec<u8>,
     pub name: Vec<u8>,
-    pub patronymic: Option<Vec<u8>>,
 }
 
 #[derive(TypeInfo, Encode, Clone)]
@@ -110,23 +106,21 @@ pub unsafe extern "C" fn init() {
     WALLETS.push(Wallet {
         id: Id {
             decimal: 1,
-            hex: [1].into(),
+            hex: vec![1u8],
         },
         person: Person {
-            surname: "SomeName".to_string().into_bytes(),
-            name: "SomeSurname".to_string().into_bytes(),
-            patronymic: None,
+            surname: "SomeName".into(),
+            name: "SomeSurname".into(),
         },
     });
     WALLETS.push(Wallet {
         id: Id {
             decimal: 2,
-            hex: [2].into(),
+            hex: vec![2u8],
         },
         person: Person {
-            surname: "OtherName".to_string().into_bytes(),
-            name: "OtherSurname".to_string().into_bytes(),
-            patronymic: Some("OtherPatronymic".to_string().into_bytes()),
+            surname: "OtherName".into(),
+            name: "OtherSurname".into(),
         },
     });
 
