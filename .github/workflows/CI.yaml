@@ -68,9 +68,7 @@ jobs:
         run: | 
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
-        # Build .meta.wasm for `gtest/js` unit test
           ./target/release/wasm-proc -p ./examples/target/wasm32-unknown-unknown/release/demo_meta.wasm --skip-opt -v
-        # Build all .meta.wasm's
           ./target/release/wasm-proc -p ./target/wasm32-unknown-unknown/release/*.wasm -v
 
       - name: Run tests
