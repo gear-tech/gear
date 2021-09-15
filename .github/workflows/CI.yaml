@@ -23,12 +23,6 @@ jobs:
           components: rustfmt, clippy
           override: true
 
-      - name: Install nodejs
-        uses: actions/setup-node@v2
-        with:
-          node-version: "16"
-        run: cd gtest/src/js && npm install
-
       - name: Check fmt
         run: |
           cargo fmt --all -- --check
@@ -57,6 +51,12 @@ jobs:
         with:
           toolchain: nightly
           target: wasm32-unknown-unknown
+
+      - name: Install nodejs
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+        run: cd gtest/src/js && npm install
 
       - name: Artifact cache
         uses: Swatinem/rust-cache@v1
