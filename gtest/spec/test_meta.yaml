@@ -3,6 +3,11 @@ title: Meta ping (simple check)
 programs:
   - id: 1
     path: examples/target/wasm32-unknown-unknown/release/demo_meta.wasm
+    init_message:
+      kind: custom
+      value:
+        amount: 12
+        currency: USD
 
 fixtures:
   - title: meta check
@@ -10,9 +15,30 @@ fixtures:
     messages:
       - destination: 1
         payload:
-          kind: utf-8
-          value: PING
+          kind: custom
+          value:
+            id:
+              decimal: 1
+              hex: [1]
 
     expected:
       - step: 1
         log:
+          - destination: 0
+            payload:
+              kind: custom
+              value:
+                exchange_rate:
+                  Ok: 2
+                sum: 24
+          - destination: 0
+            payload:
+              kind: custom
+              value:
+                res:
+                    id:
+                      decimal: 1
+                      hex: [1]
+                    person:
+                      name: SomeName
+                      surname: SomeSurname
