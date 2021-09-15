@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use log::debug;
-use std::process::Command;
 use std::path::Path;
+use std::process::Command;
 
 #[allow(dead_code)]
 pub enum MetaType {
