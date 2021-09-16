@@ -40,7 +40,7 @@ serde = "1.0.101"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-hex-literal = "0.3.1"
+hex-literal = "0.3.3"
 
 [features]
 default = ['std']
