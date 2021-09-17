@@ -20,6 +20,9 @@ members = [
     "sum",
     "vec",
     "wait",
+    "workshop",
+    "workshop/contract-example",
+    "workshop/contract-example-reply",
 ]
 
 [profile.release]
