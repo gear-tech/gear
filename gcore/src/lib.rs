@@ -19,8 +19,8 @@
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
 
-pub mod msg;
 pub mod exec;
+pub mod msg;
 
 mod general;
 pub use general::*;

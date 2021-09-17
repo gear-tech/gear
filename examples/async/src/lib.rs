@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{msg, exec, prelude::*, ProgramId};
+use gstd::{exec, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
 static mut DEST_0: ProgramId = ProgramId([0u8; 32]);

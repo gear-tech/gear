@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{ext, msg, exec, prelude::*, ProgramId};
+use gstd::{exec, ext, msg, prelude::*, ProgramId};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 

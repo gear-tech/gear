@@ -1,6 +1,6 @@
 #![no_std]
 
-use gcore::{msg, exec, MessageId};
+use gcore::{exec, msg, MessageId};
 
 // for panic/oom handlers
 extern crate gstd;
