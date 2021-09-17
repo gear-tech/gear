@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{msg, prelude::*, ProgramId};
+use gstd::{msg, exec, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
 static mut DEST_0: ProgramId = ProgramId([0u8; 32]);
@@ -47,9 +47,9 @@ async fn main() {
             msg_async::send_and_wait_for_reply(unsafe { DEST_2 }, b"PING", GAS_COST, 0).await;
 
         if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
-            msg::reply(b"SUCCESS", msg::gas_available() - GAS_COST, 0);
+            msg::reply(b"SUCCESS", exec::gas_available() - GAS_COST, 0);
         } else {
-            msg::reply(b"FAIL", msg::gas_available() - GAS_COST, 0);
+            msg::reply(b"FAIL", exec::gas_available() - GAS_COST, 0);
         }
     }
 }

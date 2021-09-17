@@ -21,7 +21,6 @@ use crate::{MessageId, ProgramId};
 
 mod sys {
     extern "C" {
-        pub fn gr_gas_available() -> u64;
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
         pub fn gr_reply(data_ptr: *const u8, data_len: u32, gas_limit: u64, value_ptr: *const u8);
@@ -48,13 +47,7 @@ mod sys {
         pub fn gr_size() -> u32;
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
-        pub fn gr_wait() -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8);
     }
-}
-
-pub fn gas_available() -> u64 {
-    unsafe { sys::gr_gas_available() }
 }
 
 pub fn id() -> MessageId {
@@ -158,16 +151,6 @@ pub fn value() -> u128 {
         sys::gr_value(value_data.as_mut_ptr());
     }
     u128::from_le_bytes(value_data)
-}
-
-pub fn wait() -> ! {
-    unsafe { sys::gr_wait() }
-}
-
-pub fn wake(waker_id: MessageId) {
-    unsafe {
-        sys::gr_wake(waker_id.as_slice().as_ptr());
-    }
 }
 
 pub fn size() -> usize {

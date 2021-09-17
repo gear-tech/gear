@@ -16,19 +16,4 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
-
-pub mod msg;
-pub mod exec;
-
-mod general;
-pub use general::*;
-
-mod utils;
-#[cfg(feature = "debug")]
-pub use utils::ext;
-
-pub mod prelude {
-    pub use core::prelude::*;
-}
+pub use gcore::exec::{gas_available, wait, wake};

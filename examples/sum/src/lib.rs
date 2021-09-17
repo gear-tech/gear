@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{ext, msg, prelude::*, ProgramId};
+use gstd::{ext, msg, exec, prelude::*, ProgramId};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
-    if msg::gas_available() > 4_000_000_000 {
+    if exec::gas_available() > 4_000_000_000 {
         msg::send(STATE.send_to(), new_msg + new_msg, 4_000_000_000);
 
         ext::debug(&format!(

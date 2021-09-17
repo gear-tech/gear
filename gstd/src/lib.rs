@@ -24,6 +24,7 @@
 extern crate galloc;
 
 pub mod bail;
+pub mod exec;
 pub mod msg;
 pub mod prelude;
 

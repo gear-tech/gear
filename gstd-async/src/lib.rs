@@ -71,6 +71,6 @@ unsafe extern "C" fn handle_reply() {
         futures
             .current_future_mut()
             .set_reply(gstd::msg::load_bytes());
-        gcore::msg::wake(source_msg_id);
+        gcore::exec::wake(source_msg_id);
     }
 }
