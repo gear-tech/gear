@@ -22,7 +22,6 @@ use codec::{Decode, Encode, Output};
 
 use galloc::prelude::*;
 pub use gcore::msg::{id, reply_to, source, value};
-//pub use gcore::exec::{gas_available, wait, wake};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);
