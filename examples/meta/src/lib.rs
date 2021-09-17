@@ -48,15 +48,9 @@ pub struct MessageOut {
 impl From<MessageIn> for MessageOut {
     fn from(other: MessageIn) -> Self {
         unsafe {
-            for wallet in WALLETS.iter() {
-                if wallet.id.decimal == other.id.decimal {
-                    return Self {
-                        res: Some(wallet.clone()),
-                    };
-                };
-            }
+            let res = WALLETS.iter().find(|w| w.id.decimal == other.id.decimal).map(Clone::clone);
 
-            Self { res: None }
+            Self { res }
         }
     }
 }
@@ -94,7 +88,7 @@ static mut WALLETS: Vec<Wallet> = Vec::new();
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
     let message_in: MessageIn = msg::load().unwrap();
-    let message_out = MessageOut::from(message_in);
+    let message_out: MessageOut = message_in.into();
 
     msg::reply(message_out, 0, 0);
 }
@@ -123,7 +117,7 @@ pub unsafe extern "C" fn init() {
     });
 
     let message_init_in: MessageInitIn = msg::load().unwrap();
-    let message_init_out = MessageInitOut::from(message_init_in);
+    let message_init_out: MessageInitOut = message_init_in.into();
 
     msg::send(0.into(), message_init_out, 0);
 }
