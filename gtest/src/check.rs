@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::js::{self, MetaType};
+use crate::js::{MetaData, MetaType};
 use crate::runner::{self, CollectState};
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
@@ -138,6 +138,7 @@ fn check_messages(
                 } else {
                     MetaType::Output
                 };
+
                 if exp
                     .payload
                     .as_mut()
@@ -147,22 +148,29 @@ fn check_messages(
                                 .iter()
                                 .find(|v| ProgramId::from(v.1) == msg.source())
                                 .map(|v| {
-                                    let json = String::from_utf8(payload.to_bytes()).unwrap();
-                                    let bytes = js::get_bytes(&v.0, meta_type.clone(), json);
+                                    let path: String = v.0.replace(".wasm", ".meta.wasm");
 
-                                    *payload = PayloadVariant::Utf8(js::get_json(
-                                        &v.0,
-                                        meta_type.clone(),
-                                        hex::encode(bytes),
-                                    ));
+                                    let json = MetaData::Json(
+                                        String::from_utf8(payload.to_bytes()).unwrap(),
+                                    );
 
-                                    msg.payload = js::get_json(
-                                        &v.0,
-                                        meta_type,
-                                        hex::encode(msg.payload.clone()),
-                                    )
-                                    .into_bytes()
-                                    .into();
+                                    let bytes = json
+                                        .convert(&path, meta_type.clone())
+                                        .expect("Unable to get bytes");
+
+                                    *payload = PayloadVariant::Utf8(
+                                        bytes
+                                            .convert(&path, meta_type.clone())
+                                            .expect("Unable to get json")
+                                            .into_json(),
+                                    );
+
+                                    msg.payload =
+                                        MetaData::CodecBytes(msg.payload.clone().into_raw())
+                                            .convert(&path, meta_type)
+                                            .expect("Unable to get bytes")
+                                            .into_bytes()
+                                            .into();
                                 });
 
                             !payload.equals(msg.payload.as_ref())

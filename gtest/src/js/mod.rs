@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use log::debug;
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 
 #[derive(Clone)]
@@ -40,87 +39,105 @@ impl ToString for MetaType {
     }
 }
 
-pub fn gear_path() -> String {
-    let pwd = Command::new("pwd")
-        .output()
-        .expect("Unable to call pwd command");
-
-    let path = String::from_utf8(pwd.stdout).expect("Unable to parse pwd output bytes");
-    let path_parts: Vec<String> = path.split("/").map(|v| v.replace("\n", "")).collect();
-
-    if let Some(index) = path_parts.iter().rposition(|r| r == "gear") {
-        path_parts[..index + 1].join("/")
-    } else {
-        panic!("Gear root directory not found")
-    }
-}
-
-pub fn get_bytes(path: &str, meta_type: MetaType, json: String) -> Vec<u8> {
-    let mut wasm_path = gear_path();
-    wasm_path.push_str("/");
-    wasm_path.push_str(path);
-
-    if !wasm_path.ends_with(".meta.wasm") {
-        wasm_path = wasm_path.replace(".wasm", ".meta.wasm");
-    }
-
-    if !Path::new(&wasm_path).exists() {
-        panic!("Could not find file {}", wasm_path);
-    }
-
-    let mut script_path = gear_path();
-    script_path.push_str("/gtest/src/js/encode.js");
-
+pub fn call_node(script_path: PathBuf, args: Vec<&str>) -> Vec<u8> {
+    let script_path = script_path
+        .to_str()
+        .expect("Unable to convert PathBuf to str");
     let output = Command::new("node")
         .arg(script_path)
-        .args(&["-p", &wasm_path, "-t", &meta_type.to_string(), "-j", &json])
+        .args(&args)
         .output()
         .expect("Unable to call node.js process");
 
-    debug!(
-        "js get_bytes stdout:{}",
+    log::debug!(
+        "js stdout:{}",
         String::from_utf8(output.stdout.clone()).unwrap()
     );
-    debug!(
-        "js get_bytes stderr:{}",
-        String::from_utf8(output.stderr).unwrap()
-    );
+    log::debug!("js stderr:{}", String::from_utf8(output.stderr).unwrap());
 
     output.stdout
 }
 
-pub fn get_json(path: &str, meta_type: MetaType, hex: String) -> String {
-    let mut wasm_path = gear_path();
-    wasm_path.push_str("/");
-    wasm_path.push_str(path);
+#[derive(Clone)]
+pub enum MetaData {
+    CodecBytes(Vec<u8>),
+    Json(String),
+}
 
-    if !wasm_path.ends_with(".meta.wasm") {
-        wasm_path = wasm_path.replace(".wasm", ".meta.wasm");
+impl MetaData {
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Self::CodecBytes(b) => b,
+            Self::Json(j) => j.into_bytes(),
+        }
     }
 
-    if !Path::new(&wasm_path).exists() {
-        panic!("Could not find file {}", wasm_path);
+    pub fn into_json(self) -> String {
+        match self {
+            Self::CodecBytes(b) => String::from_utf8(b).expect("Unable to convert to string"),
+            Self::Json(j) => j,
+        }
     }
 
-    let mut script_path = gear_path();
-    script_path.push_str("/gtest/src/js/decode.js");
+    pub fn convert(self, meta_wasm: &str, meta_type: MetaType) -> Result<Self, String> {
+        let mut gear_path = std::env::current_dir().expect("Unable to get current dir");
+        while !gear_path.ends_with("gear") {
+            if !gear_path.pop() {
+                return Err("Gear root directory not found".into());
+            }
+        }
 
-    let output = Command::new("node")
-        .arg(script_path)
-        .args(&["-p", &wasm_path, "-t", &meta_type.to_string(), "-b", &hex])
-        .output()
-        .expect("Unable to call node.js process");
+        let mut path = gear_path.clone();
+        path.push(PathBuf::from(meta_wasm));
 
-    debug!(
-        "js get_json stdout:{}",
-        String::from_utf8(output.stdout.clone()).unwrap()
-    );
-    debug!(
-        "js get_json stderr:{}",
-        String::from_utf8(output.stderr).unwrap()
-    );
+        if !path.exists() {
+            return Err(format!(
+                "Path {} do not exist",
+                path.to_str().expect("Unable to convert PathBuf to str")
+            ));
+        }
 
-    String::from_utf8(output.stdout).expect("Cannot parse u8 seq to string")
+        let path = path.to_str().expect("Unable to convert PathBuf to str");
+
+        if !path.ends_with(".meta.wasm") {
+            return Err("Path to wasm should lead to .meta.wasm extension file".into());
+        }
+
+        let mut script_path = gear_path;
+
+        match self {
+            Self::CodecBytes(bytes) => {
+                script_path.push(PathBuf::from("gtest/src/js/decode.js"));
+                let bytes = call_node(
+                    script_path,
+                    vec![
+                        "-p",
+                        &path,
+                        "-t",
+                        &meta_type.to_string(),
+                        "-b",
+                        &hex::encode(bytes),
+                    ],
+                );
+
+                if let Ok(json) = String::from_utf8(bytes) {
+                    Ok(Self::Json(json))
+                } else {
+                    Err("Unable to convert codec bytes to JSON string".into())
+                }
+            }
+
+            Self::Json(json) => {
+                script_path.push(PathBuf::from("gtest/src/js/encode.js"));
+                let bytes = call_node(
+                    script_path,
+                    vec!["-p", &path, "-t", &meta_type.to_string(), "-j", &json],
+                );
+
+                Ok(Self::CodecBytes(bytes))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -150,27 +167,29 @@ mod tests {
         let value = serde_yaml::from_str::<Value>(yaml).expect("Unable to create serde Value");
         let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
 
-        let mut wasm_path = gear_path();
-        wasm_path.push_str("/examples/target/wasm32-unknown-unknown/release/demo_meta.wasm");
+        let json = MetaData::Json(json);
 
-        let wasm = if Path::new(&wasm_path).exists() {
-            "examples/target/wasm32-unknown-unknown/release/demo_meta.wasm"
-        } else {
-            "target/wasm32-unknown-unknown/release/demo_meta.wasm"
+        let bytes = json.clone().convert(
+            "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+            MetaType::Input,
+        );
+        let bytes = bytes.unwrap_or(
+            json.convert(
+                "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+                MetaType::Input,
+            )
+            .expect("Could not find file "),
+        );
+
+        let msg = MessageIn::decode(&mut bytes.into_bytes().as_ref())
+            .expect("Unable to decode CodecBytes");
+        let expectation = MessageIn {
+            id: Id {
+                decimal: 12345,
+                hex: vec![1, 2, 3, 4, 5],
+            },
         };
 
-        let bytes = get_bytes(wasm, MetaType::Input, json.into());
-
-        let msg = MessageIn::decode(&mut bytes.as_ref()).unwrap();
-
-        assert_eq!(
-            msg,
-            MessageIn {
-                id: Id {
-                    decimal: 12345,
-                    hex: vec![1, 2, 3, 4, 5]
-                }
-            }
-        );
+        assert_eq!(msg, expectation);
     }
 }

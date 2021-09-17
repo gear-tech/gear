@@ -14,7 +14,6 @@ fixtures:
 
     messages:
       - destination: 1
-        init: true
         payload:
           kind: custom
           value:
@@ -33,6 +32,7 @@ fixtures:
       - step: 2
         log:
           - destination: 0
+            init: true
             payload:
               kind: custom
               value:
