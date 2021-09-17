@@ -155,19 +155,19 @@ fn check_messages(
                                     );
 
                                     let bytes = json
-                                        .convert(&path, meta_type.clone())
+                                        .convert(&path, &meta_type)
                                         .expect("Unable to get bytes");
 
                                     *payload = PayloadVariant::Utf8(
                                         bytes
-                                            .convert(&path, meta_type.clone())
+                                            .convert(&path, &meta_type)
                                             .expect("Unable to get json")
                                             .into_json(),
                                     );
 
                                     msg.payload =
                                         MetaData::CodecBytes(msg.payload.clone().into_raw())
-                                            .convert(&path, meta_type)
+                                            .convert(&path, &meta_type)
                                             .expect("Unable to get bytes")
                                             .into_bytes()
                                             .into();

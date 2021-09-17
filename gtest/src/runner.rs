@@ -117,7 +117,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                         .clone()
                         .replace(".wasm", ".meta.wasm");
 
-                    json.convert(&wasm, meta_type)
+                    json.convert(&wasm, &meta_type)
                         .expect("Unable to get bytes")
                         .into_bytes()
                 }
@@ -173,7 +173,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                     .clone()
                     .replace(".wasm", ".meta.wasm");
 
-                json.convert(&wasm, meta_type)
+                json.convert(&wasm, &meta_type)
                     .expect("Unable to get bytes")
                     .into_bytes()
             }

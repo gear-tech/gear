@@ -19,7 +19,6 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Clone)]
 pub enum MetaType {
     InitInput,
     InitOutput,
@@ -79,7 +78,7 @@ impl MetaData {
         }
     }
 
-    pub fn convert(self, meta_wasm: &str, meta_type: MetaType) -> Result<Self, String> {
+    pub fn convert(self, meta_wasm: &str, meta_type: &MetaType) -> Result<Self, String> {
         let mut gear_path = std::env::current_dir().expect("Unable to get current dir");
         while !gear_path.ends_with("gear") {
             if !gear_path.pop() {
@@ -171,12 +170,12 @@ mod tests {
 
         let bytes = json.clone().convert(
             "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
-            MetaType::Input,
+            &MetaType::Input,
         );
         let bytes = bytes.unwrap_or(
             json.convert(
                 "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
-                MetaType::Input,
+                &MetaType::Input,
             )
             .expect("Could not find file "),
         );
