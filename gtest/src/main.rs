@@ -55,11 +55,12 @@ pub fn main() -> anyhow::Result<()> {
             env_logger::Env::default().default_filter_or("gtest=info"),
         )
         .init(),
-        2 => env_logger::Builder::from_env(
-            env_logger::Env::default()
-                .default_filter_or("gtest=info,gear_core=debug,gear_core_backend=debug"),
-        )
-        .init(),
+        2 => {
+            env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
+                "gtest=info,gear_core=debug,gear_core_backend=debug,gwasm=debug",
+            ))
+            .init()
+        }
 
         _ => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
             .init(),

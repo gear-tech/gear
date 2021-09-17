@@ -147,6 +147,7 @@ pub enum AllocationFilter {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Message {
+    pub source: Option<u64>,
     pub destination: u64,
     pub payload: Option<PayloadVariant>,
     pub gas_limit: Option<u64>,

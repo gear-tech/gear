@@ -119,6 +119,10 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
 
     let fixture = &test.fixtures[fixture_no];
     for message in fixture.messages.iter() {
+        let source_id = match message.source {
+            Some(source) => source,
+            _ => 0,
+        };
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => {
                 // Insert ProgramId
@@ -142,7 +146,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 .unwrap_or_default(),
         };
         runner.queue_message(MessageDispatch {
-            source_id: 0.into(),
+            source_id: source_id.into(),
             destination_id: message.destination.into(),
             data: ExtMessage {
                 id: nonce.into(),
