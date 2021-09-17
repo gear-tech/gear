@@ -48,7 +48,10 @@ pub struct MessageOut {
 impl From<MessageIn> for MessageOut {
     fn from(other: MessageIn) -> Self {
         unsafe {
-            let res = WALLETS.iter().find(|w| w.id.decimal == other.id.decimal).map(Clone::clone);
+            let res = WALLETS
+                .iter()
+                .find(|w| w.id.decimal == other.id.decimal)
+                .map(Clone::clone);
 
             Self { res }
         }

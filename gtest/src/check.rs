@@ -133,40 +133,38 @@ fn check_messages(
             .zip(messages.iter_mut())
             .enumerate()
             .for_each(|(position, (exp, msg))| {
-                let init = exp.init.unwrap_or(false);
+                let meta_type = if exp.init.unwrap_or(false) {
+                    MetaType::InitOutput
+                } else {
+                    MetaType::Output
+                };
                 if exp
                     .payload
                     .as_mut()
                     .map(|payload| match payload {
                         PayloadVariant::Custom(_) => {
-                            for v in progs_n_paths.clone() {
-                                if ProgramId::from(v.1) == msg.source() {
+                            progs_n_paths
+                                .iter()
+                                .find(|v| ProgramId::from(v.1) == msg.source())
+                                .map(|v| {
                                     let json = String::from_utf8(payload.to_bytes()).unwrap();
+                                    let bytes = js::get_bytes(&v.0, meta_type.clone(), json);
 
-                                    let bytes = if init {
-                                        js::get_bytes(&v.0, MetaType::InitOutput, json)
-                                    } else {
-                                        js::get_bytes(&v.0, MetaType::Output, json)
-                                    };
+                                    *payload = PayloadVariant::Utf8(js::get_json(
+                                        &v.0,
+                                        meta_type.clone(),
+                                        hex::encode(bytes),
+                                    ));
 
-                                    let hex = hex::encode(bytes);
-
-                                    *payload = PayloadVariant::Utf8(if init {
-                                        js::get_json(&v.0, MetaType::InitOutput, hex)
-                                    } else {
-                                        js::get_json(&v.0, MetaType::Output, hex)
-                                    });
-
-                                    let hex = hex::encode(msg.payload.clone());
-                                    msg.payload = if init {
-                                        js::get_json(&v.0, MetaType::InitOutput, hex)
-                                    } else {
-                                        js::get_json(&v.0, MetaType::Output, hex)
-                                    }
+                                    msg.payload = js::get_json(
+                                        &v.0,
+                                        meta_type,
+                                        hex::encode(msg.payload.clone()),
+                                    )
                                     .into_bytes()
                                     .into();
-                                }
-                            }
+                                });
+
                             !payload.equals(msg.payload.as_ref())
                         }
                         _ => !payload.equals(msg.payload.as_ref()),

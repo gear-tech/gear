@@ -20,7 +20,7 @@ use log::debug;
 use std::path::Path;
 use std::process::Command;
 
-#[allow(dead_code)]
+#[derive(Clone)]
 pub enum MetaType {
     InitInput,
     InitOutput,
