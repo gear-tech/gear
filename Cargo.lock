@@ -2286,7 +2286,7 @@ dependencies = [
 name = "gstd-meta"
 version = "0.1.0"
 dependencies = [
- "scale-info 0.12.0",
+ "scale-info 1.0.0",
  "serde_json",
 ]
 
@@ -6215,19 +6215,19 @@ dependencies = [
  "cfg-if 1.0.0",
  "derive_more",
  "parity-scale-codec",
- "scale-info-derive",
+ "scale-info-derive 0.7.0",
 ]
 
 [[package]]
 name = "scale-info"
-version = "0.12.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cf40f28c3eca6a9abe66aa368d7475f6c92a626fb5737d131c82c0170b24f36"
+checksum = "5c55b744399c25532d63a0d2789b109df8d46fc93752d46b0782991a931a782f"
 dependencies = [
  "cfg-if 1.0.0",
  "derive_more",
  "parity-scale-codec",
- "scale-info-derive",
+ "scale-info-derive 1.0.0",
  "serde",
 ]
 
@@ -6236,6 +6236,18 @@ name = "scale-info-derive"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b648fa291891a4c80187a25532f6a7d96b82c70353e30b868b14632b8fe043d6"
+dependencies = [
+ "proc-macro-crate 1.0.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "scale-info-derive"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baeb2780690380592f86205aa4ee49815feb2acad8c2f59e6dd207148c3f1fcd"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
