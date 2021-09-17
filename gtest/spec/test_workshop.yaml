@@ -1,0 +1,56 @@
+title: basic
+
+programs:
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/workshop.wasm
+    init_message:
+      kind: utf-8
+      # register ids
+      value: "0500000000000000000000000000000000000000000000000000000000000000,0600000000000000000000000000000000000000000000000000000000000000"
+  - id: 2 # contract ProgramId(2)
+    path: examples/target/wasm32-unknown-unknown/release/contract_example.wasm
+    init_message:
+      kind: utf-8
+      # member id ProgramId(5)
+      value: "0500000000000000000000000000000000000000000000000000000000000000"
+  - id: 3
+    path: examples/target/wasm32-unknown-unknown/release/contract_example_reply.wasm
+    init_message:
+      kind: utf-8
+      # member id ProgramId(6)
+      value: "0600000000000000000000000000000000000000000000000000000000000000"
+  - id: 5 # emulate member ProgramId(5)
+    path: examples/target/wasm32-unknown-unknown/release/demo_minimal.wasm
+    init_message:
+      kind: utf-8
+      value: ""
+  - id: 6 # emulate member ProgramId(6)
+    path: examples/target/wasm32-unknown-unknown/release/demo_minimal.wasm
+    init_message:
+      kind: utf-8
+      value: ""
+
+fixtures:
+  - title: workshop
+    messages:
+      - payload:
+          kind: utf-8
+          value: "{2}"
+        destination: 1
+        source: 5 # member id ProgramId(5)
+      - payload:
+          kind: utf-8
+          value: "{3}"
+        destination: 1
+        source: 6 # member id ProgramId(6)
+    expected:
+      - step: 6
+        messages:
+          - destination: 5
+            payload:
+              kind: utf-8
+              value: "success"
+          - destination: 6
+            payload:
+              kind: utf-8
+              value: "success"
