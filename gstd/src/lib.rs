@@ -24,12 +24,11 @@
 extern crate galloc;
 
 pub mod bail;
-pub mod exec;
 pub mod msg;
 pub mod prelude;
 
 #[cfg(feature = "debug")]
-pub use gcore::ext;
+pub use gcore::{exec, ext};
 pub use gcore::{MessageId, ProgramId};
 
 #[cfg(target_arch = "wasm32")]

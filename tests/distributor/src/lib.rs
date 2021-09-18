@@ -51,7 +51,7 @@ mod wasm {
     use codec::{Decode, Encode};
     use core::cell::RefCell;
     use core::future::Future;
-    use gstd::{ext, msg, prelude::*, ProgramId};
+    use gstd::{exec, ext, msg, prelude::*, ProgramId};
 
     use super::{Reply, Request};
 
@@ -94,7 +94,7 @@ mod wasm {
                 let reply_bytes = gstd_async::msg::send_and_wait_for_reply(
                     program_handle,
                     &encoded_request[..],
-                    msg::gas_available() - 25_000_000,
+                    exec::gas_available() - 25_000_000,
                     0,
                 )
                 .await;
@@ -139,7 +139,7 @@ mod wasm {
             };
 
             ext::debug("Handle request finished");
-            msg::reply(reply, msg::gas_available() - 25_000_000, 0);
+            msg::reply(reply, exec::gas_available() - 25_000_000, 0);
         }
 
         async fn handle_receive(amount: u64) -> Reply {
