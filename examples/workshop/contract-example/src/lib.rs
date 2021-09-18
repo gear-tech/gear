@@ -1,13 +1,6 @@
 #![no_std]
-#![feature(const_btree_new)]
 
-extern crate alloc;
-
-// for panic/oom handlers
-extern crate gstd;
-
-use core::num::ParseIntError;
-use gstd::{ext, msg, prelude::*, ProgramId};
+use gstd::{msg, prelude::*, ProgramId};
 use gstd_meta::meta;
 
 meta! {
@@ -58,8 +51,10 @@ pub unsafe extern "C" fn handle_reply() {
 pub unsafe extern "C" fn init() {
     let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     // set owner from payload or fallback to msg::source()
-    let id = match decode_hex(&msg) {
-        Ok(bytes) => ProgramId::from_slice(&bytes),
+    let mut bytes = [0u8; 32];
+
+    let id = match hex::decode_to_slice(&msg, &mut bytes) {
+        Ok(()) => ProgramId::from_slice(&bytes),
         Err(_) => msg::source(),
     };
 
@@ -67,11 +62,4 @@ pub unsafe extern "C" fn init() {
     STATE.set_owner_id(Some(id));
 
     msg::reply(b"INIT", 1000, 0);
-}
-
-fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
-    (0..s.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
-        .collect()
 }

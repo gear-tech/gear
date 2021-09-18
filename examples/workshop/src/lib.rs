@@ -61,18 +61,16 @@ pub unsafe extern "C" fn handle() {
     }
 
     // If contract send some id back
-    if let Some((member, contract)) = STATE.members().get_key_value(&id) {
-        if let Some(contract) = contract {
-            // Check answer from contract with member that submitted this contract id
-            if contract == &msg::source() && member == &id {
-                ext::debug(&format!(
-                    "SUCCESS:\nmember: {:?}\ncontract: {:?}",
-                    id,
-                    msg::source()
-                ));
-                STATE.members().remove(&id);
-                msg::send_with_value(id, b"success", 0, TOKEN_AMOUNT);
-            }
+    if let Some((member, Some(contract))) = STATE.members().get_key_value(&id) {
+        // Check answer from contract with member that submitted this contract id
+        if contract == &msg::source() && member == &id {
+            ext::debug(&format!(
+                "SUCCESS:\nmember: {:?}\ncontract: {:?}",
+                id,
+                msg::source()
+            ));
+            STATE.members().remove(&id);
+            msg::send_with_value(id, b"success", 0, TOKEN_AMOUNT);
         }
     }
 }
@@ -87,17 +85,15 @@ pub unsafe extern "C" fn handle_reply() {
     ext::debug(&format!("msg = {}", msg));
     ext::debug(&format!("src = {:?}", msg::source()));
 
-    if let Some((member, contract)) = STATE.members().get_key_value(&id) {
-        if let Some(contract) = contract {
-            if contract == &msg::source() && member == &id {
-                ext::debug(&format!(
-                    "SUCCESS:\nmember: {:?}\ncontract: {:?}",
-                    id,
-                    msg::source()
-                ));
-                msg::send_with_value(*member, b"success", 0, TOKEN_AMOUNT);
-                STATE.members().remove(member);
-            }
+    if let Some((member, Some(contract))) = STATE.members().get_key_value(&id) {
+        if contract == &msg::source() && member == &id {
+            ext::debug(&format!(
+                "SUCCESS:\nmember: {:?}\ncontract: {:?}",
+                id,
+                msg::source()
+            ));
+            msg::send_with_value(*member, b"success", 0, TOKEN_AMOUNT);
+            STATE.members().remove(member);
         }
     }
 }
