@@ -11,7 +11,7 @@ services:
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
  #   command: gear-node purge-chain --base-path /gear/ --chain /gear/staging.json -y
-    command: gear-node --base-path /gear/ --chain gear/staging.json --unsafe-ws-external --unsafe-rpc-external --prometheus-external --offchain-worker=Never --rpc-methods Unsafe --validator --rpc-cors all{% if bootnodeId is defined %} --bootnodes /ip4/{{ bootnode }}/tcp/30333/p2p/{{ bootnodeId }} {% endif %}
+    command: gear-node --base-path /gear/ --chain gear/staging.json --prometheus-external --offchain-worker=Never {% if rpc is not defined %} --validator {% endif %} {% if rpc is defined %} --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all {% endif %} {% if bootnodeId is defined %} --bootnodes /ip4/{{ bootnode }}/tcp/30333/p2p/{{ bootnodeId }} {% endif %}
 
 volumes:
   gear-data:
