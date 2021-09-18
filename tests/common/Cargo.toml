@@ -10,10 +10,3 @@ gstd = { path = "../../gstd", features = ["debug"] }
 gear-core-runner = { path = "../../core-runner" }
 gear-core = { path = "../../core" }
 codec = { package = "parity-scale-codec", version = "2", default-features = false }
-
-[build-dependencies]
-substrate-wasm-builder = "4.0.0"
-
-[lib]
-
-[features]

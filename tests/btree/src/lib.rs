@@ -120,7 +120,7 @@ mod tests {
     }
 
     fn wasm_code() -> &'static [u8] {
-        native::WASM_BINARY.expect("wasm binary exists")
+        native::WASM_BINARY_BLOATY.expect("wasm binary exists")
     }
 
     #[test]
