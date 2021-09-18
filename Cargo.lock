@@ -7487,7 +7487,6 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
- "substrate-wasm-builder 4.0.0",
 ]
 
 [[package]]
@@ -7500,7 +7499,7 @@ dependencies = [
  "gstd",
  "gstd-async",
  "parity-scale-codec",
- "substrate-wasm-builder 4.0.0",
+ "substrate-wasm-builder 5.0.0-dev",
  "tests-common",
 ]
 
@@ -7513,7 +7512,7 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
- "substrate-wasm-builder 4.0.0",
+ "substrate-wasm-builder 5.0.0-dev",
  "tests-common",
 ]
 
