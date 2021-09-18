@@ -19,7 +19,7 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
             title: 'Example program with metadata',
             types: {
                 "MessageInitIn": {
-                    "currency": "String",
+                    "currency": "Vec<u8>",
                     "amount": "u8"
                 },
                 "MessageInitOut": {
@@ -30,7 +30,7 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
                     "id": "Id"
                 },
                 "MessageOut": {
-                    "res": "Vec<Result<Wallet,String>>"
+                    "res": "Option<Wallet>"
                 },
                 "Id": {
                     "decimal": "u64",
@@ -41,9 +41,8 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
                     "person": "Person"
                 },
                 "Person": {
-                    "surname": "String",
-                    "name": "String",
-                    "patronymic": "Option<String>"
+                    "surname": "Vec<u8>",
+                    "name": "Vec<u8>"
                 }
             }
         }

@@ -2124,8 +2124,10 @@ dependencies = [
  "gear-node-rti",
  "hex",
  "log",
+ "parity-scale-codec",
  "regex",
  "serde",
+ "serde_json",
  "serde_yaml",
  "termion",
 ]

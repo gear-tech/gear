@@ -95,7 +95,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .short('p')
         .long("path")
         .required(true)
-        .index(1)
         .takes_value(true)
         .multiple_values(true)
         .about("Specifies path to .wasm file(-s)");
