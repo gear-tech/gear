@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = "1.0.43"
+anyhow = "1.0.44"
 cfg-if = "1.0.0"
 codec = { package = "parity-scale-codec", version = "2.2.0", features = ["derive"] }
 derive_more = "0.99.16"
