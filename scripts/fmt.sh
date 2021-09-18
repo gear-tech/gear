@@ -1,8 +1,5 @@
 #!/usr/bin/env sh
 
-set -e
-cd "$(dirname "$0")/.."
-
 echo "*** Run fmt"
 cargo fmt --all
 cargo fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path=""
