@@ -37,8 +37,8 @@ init:
 
 .PHONY: fmt
 fmt:
-	@cargo +nightly fmt --all
-	@cargo +nightly fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path=""
+	@cargo fmt --all
+	@cargo fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path=""
 
 .PHONY: node
 node:
