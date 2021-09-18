@@ -24,6 +24,7 @@ use frame_support::{assert_noop, assert_ok};
 use gear_core::program::{Program, ProgramId};
 use hex_literal::hex;
 use sp_core::H256;
+use sp_std::collections::btree_map::BTreeMap;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -1297,5 +1298,176 @@ fn send_reply_works() {
         };
         assert_eq!(msg_id, id);
         assert_eq!(orig_id, original_message_id);
+    })
+}
+
+#[test]
+fn debug_mode_works() {
+    let wat_1 = r#"
+        (module
+            (import "env" "memory" (memory 16))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init)
+            (func $handle)
+        )"#;
+
+    let wat_2 = r#"
+        (module
+            (import "env" "memory" (memory 16))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $handle
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 4)))
+            )
+            (func $init
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_1 = parse_wat(wat_1);
+        let code_2 = parse_wat(wat_2);
+
+        System::reset_events();
+
+        // enable debug-mode
+        DebugMode::<Test>::put(true);
+
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_1.clone(),
+            b"0001".to_vec(),
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_2.clone(),
+            b"0002".to_vec(),
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        assert_eq!(messages.len(), 2);
+
+        let mut programs = vec![];
+        for message in messages {
+            match message {
+                IntermediateMessage::InitProgram { program_id, .. } => {
+                    programs.push(program_id);
+                }
+                _ => (),
+            }
+        }
+
+        run_to_block(2, None);
+
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            programs[0],
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            programs[1],
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+
+        let mut dispatch_msg = vec![];
+        for message in messages {
+            match message {
+                IntermediateMessage::DispatchMessage { id, .. } => {
+                    dispatch_msg.push(id);
+                    System::assert_has_event(crate::Event::DispatchMessageEnqueued(id).into());
+                }
+                _ => (),
+            }
+        }
+        assert_eq!(dispatch_msg.len(), 2);
+
+        run_to_block(3, None);
+
+        // The second of the two sent messages should have still been in the queue
+        // after the first one had been processed and the queue dumped
+        System::assert_has_event(
+            crate::Event::MessageQueueDump(vec![common::Message {
+                id: dispatch_msg[1],
+                source: 1.into_origin(),
+                dest: programs[1],
+                payload: vec![],
+                gas_limit: 1_000_000_u64,
+                value: 0_u128,
+                reply: None,
+            }])
+            .into(),
+        );
+
+        // After both messages had been processed an empty message queue
+        // should have appeared in the log
+        System::assert_has_event(crate::Event::MessageQueueDump(vec![]).into());
+
+        // The log should have many occurrences of the programs storage contents dump
+        // After init messages processing
+        let mut empty_pages_16 = BTreeMap::new();
+        for i in 0u32..16 {
+            empty_pages_16.insert(i, vec![0; 65536]);
+        }
+        System::assert_has_event(
+            crate::Event::ProgramStorageDump(vec![
+                crate::Program {
+                    id: programs[0],
+                    static_pages: 16,
+                    persistent_pages: empty_pages_16.clone(),
+                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                    nonce: 0u64,
+                },
+                crate::Program {
+                    id: programs[1],
+                    static_pages: 16,
+                    persistent_pages: empty_pages_16.clone(),
+                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                    nonce: 0u64,
+                },
+            ])
+            .into(),
+        );
+        // After message queue processing
+        let mut empty_pages_20 = BTreeMap::new();
+        for i in 0u32..20 {
+            empty_pages_20.insert(i, vec![0; 65536]);
+        }
+        System::assert_has_event(
+            crate::Event::ProgramStorageDump(vec![
+                crate::Program {
+                    id: programs[0],
+                    static_pages: 16,
+                    persistent_pages: empty_pages_16.clone(),
+                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                    nonce: 0u64,
+                },
+                crate::Program {
+                    id: programs[1],
+                    static_pages: 16,
+                    persistent_pages: empty_pages_20.clone(),
+                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                    nonce: 0u64,
+                },
+            ])
+            .into(),
+        );
     })
 }
