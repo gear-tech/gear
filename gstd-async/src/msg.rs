@@ -105,7 +105,7 @@ pub fn send_and_wait_for_reply(
         // New message
         let sent_msg_id = msg::send_with_value(program, payload, gas_limit, value);
         waiting_messages().insert(sent_msg_id, key_id);
-        msg::wait();
+        gcore::exec::wait();
     }
 
     fut.clone()

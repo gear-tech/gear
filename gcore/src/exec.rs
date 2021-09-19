@@ -16,19 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
+use crate::MessageId;
 
-pub mod exec;
-pub mod msg;
+mod sys {
+    extern "C" {
+        pub fn gr_gas_available() -> u64;
+        pub fn gr_wait() -> !;
+        pub fn gr_wake(waker_id_ptr: *const u8);
+    }
+}
 
-mod general;
-pub use general::*;
+pub fn gas_available() -> u64 {
+    unsafe { sys::gr_gas_available() }
+}
 
-mod utils;
-#[cfg(feature = "debug")]
-pub use utils::ext;
+pub fn wait() -> ! {
+    unsafe { sys::gr_wait() }
+}
 
-pub mod prelude {
-    pub use core::prelude::*;
+pub fn wake(waker_id: MessageId) {
+    unsafe {
+        sys::gr_wake(waker_id.as_slice().as_ptr());
+    }
 }

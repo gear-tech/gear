@@ -62,7 +62,7 @@ mod wasm {
 
     use alloc::collections::{BTreeMap, BTreeSet};
     use codec::{Decode, Encode};
-    use gstd::{ext, msg, prelude::*, MessageId, ProgramId};
+    use gstd::{exec, ext, msg, prelude::*, MessageId, ProgramId};
 
     use super::{Initialization, Operation, Reply, Request};
 
@@ -102,7 +102,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, msg::gas_available(), 0);
+        msg::reply(reply, exec::gas_available(), 0);
     }
 
     fn state() -> &'static mut NodeState {
@@ -150,11 +150,11 @@ mod wasm {
                     .expect("Checked above that it has that number of elements; qed");
 
                 transition.last_sent_message_id =
-                    msg::send(*next_sub_node, request, msg::gas_available() - 2_500_000);
+                    msg::send(*next_sub_node, request, exec::gas_available() - 2_500_000);
 
                 state().transition = Some(transition);
 
-                msg::wait();
+                exec::wait();
             } else {
                 // this is just a new message that should be processed normally, without continuation.
                 state().transition = Some(transition);
@@ -194,9 +194,9 @@ mod wasm {
                             .get(0)
                             .expect("Checked above that sub_nodes is not empty; qed");
                         transition.last_sent_message_id =
-                            msg::send(first_sub_node, request, msg::gas_available() - 2_500_000);
+                            msg::send(first_sub_node, request, exec::gas_available() - 2_500_000);
                         state().transition = Some(transition);
-                        msg::wait()
+                        exec::wait()
                     } else {
                         transition.state = TransitionState::Ready;
                         state().transition = Some(transition);
@@ -235,12 +235,12 @@ mod wasm {
                             transition.last_sent_message_id = msg::send(
                                 first_sub_node,
                                 request,
-                                msg::gas_available() - 2_500_000,
+                                exec::gas_available() - 2_500_000,
                             );
 
                             state().transition = Some(transition);
 
-                            msg::wait()
+                            exec::wait()
                         } else {
                             ext::debug("Returning failure because current state is not READY");
                             Reply::Failure
@@ -272,12 +272,12 @@ mod wasm {
                     } else {
                         transition.state = TransitionState::Failed;
                     }
-                    msg::wake(transition.message_id);
+                    exec::wake(transition.message_id);
                 }
                 Err(e) => {
                     transition.state = TransitionState::Failed;
                     ext::debug(&format!("Error processing reply: {:?}", e));
-                    msg::wake(transition.message_id);
+                    exec::wake(transition.message_id);
                 }
             }
         } else {

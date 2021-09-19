@@ -1,6 +1,6 @@
 #![no_std]
 
-use gcore::{msg, MessageId};
+use gcore::{exec, msg, MessageId};
 
 // for panic/oom handlers
 extern crate gstd;
@@ -13,11 +13,11 @@ pub unsafe extern "C" fn handle() {
     if STATE == 0 {
         STATE = 1;
         MSG_ID = msg::id();
-        msg::wait();
+        exec::wait();
     }
     if STATE == 1 {
         STATE = 2;
-        msg::wake(MSG_ID);
+        exec::wake(MSG_ID);
     }
     msg::send(msg::source(), b"WAITED", 1_000_000);
 }
