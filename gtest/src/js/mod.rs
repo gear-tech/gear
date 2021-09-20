@@ -171,16 +171,12 @@ mod tests {
         let bytes = json.clone().convert(
             "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
             &MetaType::Input,
-        );
-        let bytes = bytes.unwrap_or(
-            json.convert(
-                "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
-                &MetaType::Input,
-            )
-            .expect("Could not find file "),
-        );
+        ).or(json.convert(
+            "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+            &MetaType::Input,
+        ));
 
-        let msg = MessageIn::decode(&mut bytes.into_bytes().as_ref())
+        let msg = MessageIn::decode(&mut bytes.expect("Could not find file ").into_bytes().as_ref())
             .expect("Unable to decode CodecBytes");
         let expectation = MessageIn {
             id: Id {
