@@ -24,6 +24,7 @@
 extern crate galloc;
 
 pub mod bail;
+#[cfg(feature = "meta")]
 pub mod meta;
 pub mod msg;
 pub mod prelude;
