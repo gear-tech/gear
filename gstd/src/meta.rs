@@ -49,13 +49,13 @@ macro_rules! declare {
 
 #[macro_export]
 macro_rules! metadata {
-    (input: $title:literal, $init_input:expr, $init_output:expr, $input:expr, $output:expr, $($t:ty), +) => {
+    ($title:literal, $init_input:expr, $init_output:expr, $input:expr, $output:expr, $($t:ty), +) => {
         gstd::declare!(meta_title -> $title);
         gstd::declare!(meta_init_input -> $init_input);
         gstd::declare!(meta_init_output -> $init_output);
         gstd::declare!(meta_input -> $input);
         gstd::declare!(meta_output -> $output);
-        gstd::declare!(registry -> crate::meta::to_hex_registry(crate::types!($($t), +)));
+        gstd::declare!(registry -> gstd::meta::to_hex_registry(gstd::types!($($t), +)));
     };
     // 1 all
     (title: $t:literal, init: input: $ii:ty, output: $io:ty, handle: input: $i:ty, output: $o:ty) => {
