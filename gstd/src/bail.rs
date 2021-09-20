@@ -77,7 +77,6 @@ macro_rules! bail {
 
 #[cfg(test)]
 mod tests {
-
     struct SomeType(usize);
 
     #[derive(Debug)]
