@@ -16,7 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod check;
-pub mod js;
-pub mod runner;
-pub mod sample;
+use crate::MessageId;
+
+mod sys {
+    extern "C" {
+        pub fn gr_gas_available() -> u64;
+        pub fn gr_wait() -> !;
+        pub fn gr_wake(waker_id_ptr: *const u8);
+    }
+}
+
+pub fn gas_available() -> u64 {
+    unsafe { sys::gr_gas_available() }
+}
+
+pub fn wait() -> ! {
+    unsafe { sys::gr_wait() }
+}
+
+pub fn wake(waker_id: MessageId) {
+    unsafe {
+        sys::gr_wake(waker_id.as_slice().as_ptr());
+    }
+}

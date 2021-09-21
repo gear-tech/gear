@@ -63,9 +63,7 @@ fn check(types: Vec<MetaType>, expectation: &'static str) {
 #[test]
 fn primitives_json() {
     check(
-        types!(
-            bool, char, str, String, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128
-        ),
+        types!(bool, char, str, String, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128),
         "{}",
     );
 }

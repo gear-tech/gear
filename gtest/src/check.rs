@@ -16,8 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::js::{MetaData, MetaType};
 use crate::runner::{self, CollectState};
-use crate::sample::{self, AllocationExpectationKind, AllocationFilter, Test};
+use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
 use derive_more::Display;
 use gear_core::{
@@ -121,6 +122,7 @@ fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl 
 }
 
 fn check_messages(
+    progs_n_paths: Vec<(String, u64)>,
     messages: &[Message],
     expected_messages: &[sample::Message],
 ) -> Result<(), Vec<MessagesError>> {
@@ -131,15 +133,58 @@ fn check_messages(
             messages.len(),
         ))
     } else {
+        let mut expected_messages: Vec<sample::Message> = expected_messages.into();
+        let mut messages: Vec<Message> = messages.into();
+
         expected_messages
-            .iter()
-            .zip(messages.iter())
+            .iter_mut()
+            .zip(messages.iter_mut())
             .enumerate()
             .for_each(|(position, (exp, msg))| {
+                let meta_type = if exp.init.unwrap_or(false) {
+                    MetaType::InitOutput
+                } else {
+                    MetaType::Output
+                };
+
                 if exp
                     .payload
-                    .as_ref()
-                    .map(|payload| !payload.equals(msg.payload.as_ref()))
+                    .as_mut()
+                    .map(|payload| match payload {
+                        PayloadVariant::Custom(_) => {
+                            progs_n_paths
+                                .iter()
+                                .find(|v| ProgramId::from(v.1) == msg.source())
+                                .map(|v| {
+                                    let path: String = v.0.replace(".wasm", ".meta.wasm");
+
+                                    let json = MetaData::Json(
+                                        String::from_utf8(payload.to_bytes()).unwrap(),
+                                    );
+
+                                    let bytes = json
+                                        .convert(&path, &meta_type)
+                                        .expect("Unable to get bytes");
+
+                                    *payload = PayloadVariant::Utf8(
+                                        bytes
+                                            .convert(&path, &meta_type)
+                                            .expect("Unable to get json")
+                                            .into_json(),
+                                    );
+
+                                    msg.payload =
+                                        MetaData::CodecBytes(msg.payload.clone().into_raw())
+                                            .convert(&path, &meta_type)
+                                            .expect("Unable to get bytes")
+                                            .into_bytes()
+                                            .into();
+                                });
+
+                            !payload.equals(msg.payload.as_ref())
+                        }
+                        _ => !payload.equals(msg.payload.as_ref()),
+                    })
                     .unwrap_or(false)
                 {
                     errors.push(MessagesError::payload(
@@ -332,6 +377,10 @@ where
     println!("Total fixtures: {}", total_fixtures);
 
     for test in tests {
+        let mut progs_n_paths = Vec::new();
+        for program in test.programs.iter() {
+            progs_n_paths.push((program.path.clone(), program.id));
+        }
         for fixture_no in 0..test.fixtures.len() {
             for exp in &test.fixtures[fixture_no].expected {
                 let output = match runner::init_fixture(storage_factory(), &test, fixture_no) {
@@ -341,9 +390,11 @@ where
                         let mut errors = Vec::new();
                         if !skip_messages {
                             if let Some(messages) = &exp.messages {
-                                if let Err(msg_errors) =
-                                    check_messages(&final_state.messages, messages)
-                                {
+                                if let Err(msg_errors) = check_messages(
+                                    progs_n_paths.clone(),
+                                    &final_state.messages,
+                                    messages,
+                                ) {
                                     errors.extend(
                                         msg_errors
                                             .into_iter()
@@ -359,7 +410,9 @@ where
                                 }
                             }
 
-                            if let Err(log_errors) = check_messages(&final_state.log, log) {
+                            if let Err(log_errors) =
+                                check_messages(progs_n_paths.clone(), &final_state.log, log)
+                            {
                                 errors.extend(
                                     log_errors
                                         .into_iter()

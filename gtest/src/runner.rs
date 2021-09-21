@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use gear_core::{
     message::Message,
@@ -99,6 +100,27 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                     }
                     s.into_bytes()
                 }
+                PayloadVariant::Custom(v) => {
+                    let meta_type = MetaType::InitInput;
+
+                    let json = MetaData::Json(
+                        serde_json::to_string(&v).expect("Cannot convert to string"),
+                    );
+
+                    let wasm = test
+                        .programs
+                        .iter()
+                        .filter(|p| u64::from(p.id) == u64::from(program.id))
+                        .last()
+                        .expect("Program not found")
+                        .path
+                        .clone()
+                        .replace(".wasm", ".meta.wasm");
+
+                    json.convert(&wasm, &meta_type)
+                        .expect("Unable to get bytes")
+                        .into_bytes()
+                }
                 _ => init_msg.clone().into_raw(),
             }
         }
@@ -135,6 +157,26 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                         .clone()
                         .into_raw()
                 }
+            }
+            Some(PayloadVariant::Custom(v)) => {
+                let meta_type = MetaType::Input;
+
+                let json =
+                    MetaData::Json(serde_json::to_string(&v).expect("Cannot convert to string"));
+
+                let wasm = test
+                    .programs
+                    .iter()
+                    .filter(|p| u64::from(p.id) == message.destination)
+                    .last()
+                    .expect("Program not found")
+                    .path
+                    .clone()
+                    .replace(".wasm", ".meta.wasm");
+
+                json.convert(&wasm, &meta_type)
+                    .expect("Unable to get bytes")
+                    .into_bytes()
             }
             _ => message
                 .payload

@@ -133,8 +133,8 @@ mod tests {
             .into()
     }
 
-    fn new_test_storage()
-    -> gear_core::storage::Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
+    fn new_test_storage(
+    ) -> gear_core::storage::Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
         sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
         sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
         sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);

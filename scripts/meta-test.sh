@@ -9,7 +9,8 @@ cargo +nightly build --release
 
 echo "*** Run wasm-proc"
 cd "../../utils/wasm-proc"
-cargo run --release "../../examples/target/wasm32-unknown-unknown/release/demo_meta.wasm"
+cargo build --release
+../../target/release/wasm-proc --path ../../examples/target/wasm32-unknown-unknown/release/demo_meta.wasm
 
 echo "*** Run js test"
 cd "metadata-js"

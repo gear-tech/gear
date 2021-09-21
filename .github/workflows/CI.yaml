@@ -16,13 +16,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Install nightly tools
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          components: rustfmt, clippy
-          override: true
-
       - name: Check fmt
         run: |
           cargo fmt --all -- --check
@@ -39,6 +32,7 @@ jobs:
           cargo clippy --package gstd --all-features -- -D warnings
           cargo clippy --package gstd-async --all-features -- -D warnings
           echo cargo clippy --package pallet-gear --all-features -- -D warnings # TODO: Fix
+
   build:
     needs: check
     runs-on: ubuntu-latest
@@ -52,11 +46,22 @@ jobs:
           toolchain: nightly
           target: wasm32-unknown-unknown
 
+      - name: Install nodejs
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+      - run: cd gtest/src/js && npm install
+
       - name: Artifact cache
         uses: Swatinem/rust-cache@v1
 
       - name: Build
         run: cargo build --workspace --release
+
+      - name: Build examples (WASM)
+        run: | 
+          ./scripts/build-wasm.sh
+          cp -r ./examples/target/wasm32-unknown-unknown ./target/
 
       - name: Run tests
         run: cargo test --workspace --release
@@ -64,23 +69,11 @@ jobs:
       - name: Test wasmi backend
         run: cargo test -p gear-core-backend --release --no-default-features --features wasmi_backend
 
-      - name: Build examples (WASM)
-        run: |
-          ./scripts/build-wasm.sh
-          cp -r ./examples/target/wasm32-unknown-unknown ./target/
       - name: Run gear-test
         run: ./target/release/gtest ./gtest/spec/*.yaml
-
-      - name: Install nodejs
-        uses: actions/setup-node@v2
-        with:
-          node-version: "16"
-      - run: cd rpc-tests && npm install
 
       - name: Run testsuite
         run: ./target/release/gear-node runtests ./gtest/spec/*.yaml
 
       - name: Run metadata test
-        run: |
-          ./target/release/wasm-proc ./target/wasm32-unknown-unknown/release/demo_meta.wasm
-          node ./utils/wasm-proc/metadata-js test
+        run: node ./utils/wasm-proc/metadata-js/test.js
