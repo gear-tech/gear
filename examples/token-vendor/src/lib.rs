@@ -78,7 +78,8 @@ async fn main() {
     if state.borrow().exists(&msg::source()) {
         drop(state);
         let reply =
-            msg_async::send_and_wait_for_reply(id, b"verify", msg::gas_available() / 2, 0).await;
+            msg_async::send_and_wait_for_reply(id, b"verify", gstd::exec::gas_available() / 2, 0)
+                .await;
 
         let reply = String::from_utf8(reply).expect("Invalid message: should be utf-8");
 

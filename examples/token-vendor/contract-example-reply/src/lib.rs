@@ -37,7 +37,7 @@ pub unsafe extern "C" fn handle() {
     } else {
         hex::encode_to_slice(msg::source().as_slice(), &mut hex_id);
     }
-    msg::reply(hex_id, msg::gas_available() / 2, 0);
+    msg::reply(hex_id, gstd::exec::gas_available() / 2, 0);
 }
 
 #[no_mangle]
