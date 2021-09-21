@@ -14,7 +14,7 @@ hashbrown = "0.11.2"
 log = "0.4.14"
 libc = "0.2.102"
 parity-wasm = "0.42.2"
-pwasm-utils = "0.18.1"
+pwasm-utils = "0.18.2"
 
 [dev-dependencies]
 wabt = "0.10.0"
