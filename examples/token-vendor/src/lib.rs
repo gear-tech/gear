@@ -45,6 +45,11 @@ fn parse_config(json: &str) -> Config {
                             }
                         };
                     }
+                    "code" => {
+                        if let JsonValue::String(code) = value {
+                            config.code = code.iter().collect();
+                        };
+                    }
                     _ => (),
                 }
             }
@@ -59,39 +64,29 @@ struct State {
     owner_id: Option<ProgramId>,
     members: BTreeSet<ProgramId>,
     reward: u128,
+    code: String,
 }
 
 #[derive(Debug, Default)]
 struct Config {
     reward: u128,
     members: Vec<String>,
+    code: String,
 }
 
 impl State {
-    fn new(owner_id: Option<ProgramId>, members: BTreeSet<ProgramId>, reward: u128) -> Self {
+    fn new(
+        owner_id: Option<ProgramId>,
+        members: BTreeSet<ProgramId>,
+        reward: u128,
+        code: String,
+    ) -> Self {
         Self {
             owner_id,
             members,
             reward,
+            code,
         }
-    }
-    fn set_owner_id(&mut self, owner_id: Option<ProgramId>) {
-        self.owner_id = owner_id;
-    }
-    fn owner_id(&self) -> Option<ProgramId> {
-        self.owner_id
-    }
-    fn set_reward(&mut self, reward: u128) {
-        self.reward = reward;
-    }
-    fn members(&self) -> &BTreeSet<ProgramId> {
-        &self.members
-    }
-    fn insert_member(&mut self, id: ProgramId) {
-        self.members.insert(id);
-    }
-    fn remove_member(&mut self, id: &ProgramId) {
-        self.members.remove(id);
     }
 }
 
@@ -99,6 +94,7 @@ static STATE: spin::Mutex<RefCell<State>> = spin::Mutex::new(RefCell::new(State 
     owner_id: None,
     members: BTreeSet::new(),
     reward: 10,
+    code: String::new(),
 }));
 
 #[gstd_async::main]
@@ -108,10 +104,10 @@ async fn main() {
         ProgramId::from_slice(&decode_hex(&msg).expect("DECODE HEX FAILED: INVALID PROGRAM ID"));
 
     let state = STATE.lock();
-    ext::debug(&format!("members: {:?}", state.borrow().members()));
+    ext::debug(&format!("members: {:?}", state.borrow().members));
 
     // If msg::source is registered in workshop then we send a message to id from payload
-    if state.borrow().members().contains(&msg::source()) {
+    if state.borrow().members.contains(&msg::source()) {
         drop(state);
         let reply =
             msg_async::send_and_wait_for_reply(id, b"verify", gstd::exec::gas_available() / 2, 0)
@@ -130,7 +126,7 @@ async fn main() {
             ));
             let state = STATE.lock();
 
-            state.borrow_mut().remove_member(&member_id);
+            state.borrow_mut().members.remove(&member_id);
             msg::send_with_value(member_id, b"success", 0, state.borrow().reward);
         }
     }
@@ -140,21 +136,23 @@ async fn main() {
 pub unsafe extern "C" fn init() {
     let owner_id = msg::source();
 
-    let mut state = State::new(Some(owner_id), BTreeSet::new(), 0);
+    let mut state = State::new(Some(owner_id), BTreeSet::new(), 0, String::from(""));
 
-    // "{id},{id},{id}" etc.
+    // json config str
     let config_str =
         String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     let config = parse_config(&config_str);
 
     for member in config.members {
-        state.insert_member(ProgramId::from_slice(
+        state.members.insert(ProgramId::from_slice(
             &decode_hex(&member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
         ));
     }
 
-    state.set_reward(config.reward);
+    state.code = config.code;
+
+    state.reward = config.reward;
 
     STATE.lock().replace(state);
 

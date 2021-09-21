@@ -9,10 +9,11 @@ programs:
       value: >
         {
           "members": [
-            "0600000000000000000000000000000000000000000000000000000000000000",
-            "0700000000000000000000000000000000000000000000000000000000000000"
+            "{6}",
+            "{7}"
           ],
-          "reward": 10
+          "reward": 10,
+          "code": "TEST"
         }
   - id: 2
     path: examples/target/wasm32-unknown-unknown/release/contract_example_reply.wasm
