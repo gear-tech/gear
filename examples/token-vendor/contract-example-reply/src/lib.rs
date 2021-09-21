@@ -12,7 +12,6 @@ meta! {
     init_output: Vec<u8>
 }
 
-#[derive(Debug)]
 struct State {
     owner_id: Option<ProgramId>,
 }
@@ -21,7 +20,7 @@ impl State {
     fn set_owner_id(&mut self, owner_id: Option<ProgramId>) {
         self.owner_id = owner_id;
     }
-    fn owner_id(&mut self) -> Option<ProgramId> {
+    fn owner_id(&self) -> Option<ProgramId> {
         self.owner_id
     }
 }

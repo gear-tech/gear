@@ -6,13 +6,13 @@ extern crate alloc;
 // for panic/oom handlers
 extern crate gstd;
 
-use alloc::{collections::BTreeSet, sync::Arc};
+use alloc::collections::BTreeSet;
 use core::cell::RefCell;
 use core::num::ParseIntError;
 use gstd::{ext, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 use gstd_meta::meta;
-use spin;
+use lite_json::JsonValue;
 
 meta! {
     title: "GEAR Token Vendor",
@@ -24,11 +24,47 @@ meta! {
     init_output: Vec<u8>
 }
 
+fn parse_config(json: &str) -> Config {
+    let mut config = Config::default();
+    let json = lite_json::json_parser::parse_json(json).expect("Invalid JSON");
+    match json {
+        lite_json::JsonValue::Object(obj) => {
+            for (name, value) in obj {
+                match name.iter().collect::<String>().as_str() {
+                    "reward" => {
+                        if let JsonValue::Number(num) = value {
+                            config.reward = num.integer as u128;
+                        };
+                    }
+                    "members" => {
+                        if let JsonValue::Array(members) = value {
+                            for member in members {
+                                if let JsonValue::String(member) = member {
+                                    config.members.push(member.iter().collect());
+                                }
+                            }
+                        };
+                    }
+                    _ => (),
+                }
+            }
+        }
+        _ => (),
+    }
+    config
+}
+
 #[derive(Debug, Clone)]
 struct State {
     owner_id: Option<ProgramId>,
     members: BTreeSet<ProgramId>,
     reward: u128,
+}
+
+#[derive(Debug, Default)]
+struct Config {
+    reward: u128,
+    members: Vec<String>,
 }
 
 impl State {
@@ -42,20 +78,20 @@ impl State {
     fn set_owner_id(&mut self, owner_id: Option<ProgramId>) {
         self.owner_id = owner_id;
     }
-    fn owner_id(&mut self) -> Option<ProgramId> {
+    fn owner_id(&self) -> Option<ProgramId> {
         self.owner_id
+    }
+    fn set_reward(&mut self, reward: u128) {
+        self.reward = reward;
     }
     fn members(&self) -> &BTreeSet<ProgramId> {
         &self.members
     }
-    fn insert_member(&mut self, id: &ProgramId) {
-        self.members.remove(id);
+    fn insert_member(&mut self, id: ProgramId) {
+        self.members.insert(id);
     }
     fn remove_member(&mut self, id: &ProgramId) {
         self.members.remove(id);
-    }
-    fn exists(&self, id: &ProgramId) -> bool {
-        self.members.get(id).is_some()
     }
 }
 
@@ -75,7 +111,7 @@ async fn main() {
     ext::debug(&format!("members: {:?}", state.borrow().members()));
 
     // If msg::source is registered in workshop then we send a message to id from payload
-    if state.borrow().exists(&msg::source()) {
+    if state.borrow().members().contains(&msg::source()) {
         drop(state);
         let reply =
             msg_async::send_and_wait_for_reply(id, b"verify", gstd::exec::gas_available() / 2, 0)
@@ -104,23 +140,23 @@ async fn main() {
 pub unsafe extern "C" fn init() {
     let owner_id = msg::source();
 
+    let mut state = State::new(Some(owner_id), BTreeSet::new(), 0);
+
     // "{id},{id},{id}" etc.
-    let members_str =
+    let config_str =
         String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
-    let members = members_str
-        .split(',')
-        .map(|member| {
-            let member_id = ProgramId::from_slice(
-                &decode_hex(member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-            );
-            member_id
-        })
-        .collect();
+    let config = parse_config(&config_str);
 
-    STATE
-        .lock()
-        .replace(State::new(Some(owner_id), members, 10));
+    for member in config.members {
+        state.insert_member(ProgramId::from_slice(
+            &decode_hex(&member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+        ));
+    }
+
+    state.set_reward(config.reward);
+
+    STATE.lock().replace(state);
 
     msg::reply(b"INIT", 0, 0);
 }
