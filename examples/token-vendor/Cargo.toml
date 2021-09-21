@@ -1,5 +1,5 @@
 [package]
-name = "workshop"
+name = "token-vendor"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
@@ -9,5 +9,7 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
+spin = "0.9"
 gstd = { path = "../../gstd", features = ["debug"] }
+gstd-async = { path = "../../gstd-async" }
 gstd-meta = { path = "../../gstd-meta" }

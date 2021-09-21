@@ -1,56 +1,58 @@
-title: Workshop
+title: token-vendor
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/workshop.wasm
+    path: examples/target/wasm32-unknown-unknown/release/token_vendor.wasm
     init_message:
       kind: utf-8
       # register ids
-      value: "0500000000000000000000000000000000000000000000000000000000000000,0600000000000000000000000000000000000000000000000000000000000000"
-  - id: 2 # contract ProgramId(2)
-    path: examples/target/wasm32-unknown-unknown/release/contract_example.wasm
-    init_message:
-      kind: utf-8
-      # member id ProgramId(5)
-      value: "0500000000000000000000000000000000000000000000000000000000000000"
-  - id: 3
+      value: "0600000000000000000000000000000000000000000000000000000000000000,0700000000000000000000000000000000000000000000000000000000000000"
+  - id: 2
     path: examples/target/wasm32-unknown-unknown/release/contract_example_reply.wasm
     init_message:
       kind: utf-8
       # member id ProgramId(6)
       value: "0600000000000000000000000000000000000000000000000000000000000000"
-  - id: 5 # emulate member ProgramId(5)
+  - id: 3
+    path: examples/target/wasm32-unknown-unknown/release/contract_example_reply.wasm
+    init_message:
+      kind: utf-8
+      # member id ProgramId(7)
+      value: "0700000000000000000000000000000000000000000000000000000000000000"
+  - id: 6 # emulate member ProgramId(6)
     path: examples/target/wasm32-unknown-unknown/release/demo_minimal.wasm
     init_message:
       kind: utf-8
       value: ""
-  - id: 6 # emulate member ProgramId(6)
+  - id: 7 # emulate member ProgramId(7)
     path: examples/target/wasm32-unknown-unknown/release/demo_minimal.wasm
     init_message:
       kind: utf-8
       value: ""
 
 fixtures:
-  - title: workshop
+  - title: token-vendor
     messages:
       - payload:
           kind: utf-8
           value: "{2}"
         destination: 1
-        source: 5 # member id ProgramId(5)
+        source: 6 # member id ProgramId(6)
       - payload:
           kind: utf-8
           value: "{3}"
         destination: 1
-        source: 6 # member id ProgramId(6)
+        source: 7 # member id ProgramId(6)
     expected:
-      - step: 6
+      - step: 8
         messages:
-          - destination: 5
-            payload:
-              kind: utf-8
-              value: "success"
           - destination: 6
             payload:
               kind: utf-8
               value: "success"
+            value: 10
+          - destination: 7
+            payload:
+              kind: utf-8
+              value: "success"
+            value: 10

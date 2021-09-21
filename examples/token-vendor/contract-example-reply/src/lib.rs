@@ -30,21 +30,14 @@ static mut STATE: State = State { owner_id: None };
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    if let Some(id) = STATE.owner_id() {
-        let mut hex_id = [0u8; 64];
-        hex::encode_to_slice(id.as_slice(), &mut hex_id);
-        msg::send(msg::source(), hex_id, msg::gas_available() / 2);
-    }
-}
+    let mut hex_id = [0u8; 64];
 
-#[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
-    // Send result to the owner of contract
-    msg::send(
-        STATE.owner_id().expect("owner id is set"),
-        msg::load_bytes().as_slice(),
-        0,
-    );
+    if let Some(id) = STATE.owner_id() {
+        hex::encode_to_slice(id.as_slice(), &mut hex_id);
+    } else {
+        hex::encode_to_slice(msg::source().as_slice(), &mut hex_id);
+    }
+    msg::reply(hex_id, msg::gas_available() / 2, 0);
 }
 
 #[no_mangle]
@@ -61,5 +54,5 @@ pub unsafe extern "C" fn init() {
     // Set owner id from init payload
     STATE.set_owner_id(Some(id));
 
-    msg::reply(b"INIT", 1000, 0);
+    msg::reply(b"INIT", 0, 0);
 }
