@@ -54,6 +54,7 @@ pub enum MessageContentMismatch {
     Destination(ContentMismatch<ProgramId>),
     Payload(ContentMismatch<DisplayedPayload>),
     GasLimit(ContentMismatch<u64>),
+    Value(ContentMismatch<u128>),
     ExitCode(ContentMismatch<i32>),
 }
 
@@ -93,6 +94,13 @@ impl MessagesError {
         Self::AtPosition {
             at,
             mismatch: MessageContentMismatch::GasLimit(ContentMismatch { expected, actual }),
+        }
+    }
+
+    fn value(at: usize, expected: u128, actual: u128) -> Self {
+        Self::AtPosition {
+            at,
+            mismatch: MessageContentMismatch::Value(ContentMismatch { expected, actual }),
         }
     }
 
@@ -155,6 +163,10 @@ fn check_messages(
 
                 match_or_else(exp.gas_limit, msg.gas_limit, |expected, actual| {
                     errors.push(MessagesError::gas_limit(position, expected, actual))
+                });
+
+                match_or_else(exp.value, msg.value, |expected, actual| {
+                    errors.push(MessagesError::value(position, expected, actual))
                 });
 
                 match_or_else(
