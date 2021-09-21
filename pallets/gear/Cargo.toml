@@ -13,9 +13,8 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2", default-features = false, features = [
-	"derive",
-] }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 
@@ -56,6 +55,7 @@ std = [
 	"sp-core/std",
 	"sp-runtime/std",
 	"sp-inherents/std",
+	"scale-info/std",
 	"pallet-balances/std",
 	"pallet-authorship/std",
 ]

@@ -677,19 +677,6 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7714a157da7991e23d90686b9524b9e12e0407a108647f52e9328f4b3d51ac7f"
-dependencies = [
- "cargo-platform",
- "semver 0.11.0",
- "semver-parser 0.10.2",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "cargo_metadata"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "081e3f0755c1f380c2d010481b6fa2e02973586d5f2b24eebb7a2a1d98b143d8"
@@ -1943,6 +1930,8 @@ version = "0.1.0"
 dependencies = [
  "gear-core",
  "parity-scale-codec",
+ "primitive-types",
+ "scale-info 0.10.0",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -1962,6 +1951,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "pwasm-utils",
+ "scale-info 0.10.0",
  "wabt",
 ]
 
@@ -2048,6 +2038,7 @@ dependencies = [
  "gear-runtime",
  "log",
  "parity-scale-codec",
+ "scale-info 0.10.0",
  "sp-core",
  "sp-externalities",
  "sp-io",
@@ -2062,6 +2053,7 @@ version = "2.0.0"
 dependencies = [
  "pallet-gear",
  "parity-scale-codec",
+ "scale-info 0.10.0",
  "serde_json",
  "sp-api",
  "sp-core",
@@ -2106,7 +2098,7 @@ dependencies = [
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
- "substrate-wasm-builder 4.0.0",
+ "substrate-wasm-builder",
  "wabt",
 ]
 
@@ -4150,6 +4142,7 @@ dependencies = [
  "pallet-balances",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
+ "scale-info 1.0.0",
  "serde",
  "sp-core",
  "sp-inherents",
@@ -4168,6 +4161,7 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "parity-scale-codec",
+ "scale-info 0.10.0",
  "serde",
  "sp-api",
  "sp-blockchain",
@@ -4716,6 +4710,7 @@ dependencies = [
  "fixed-hash",
  "impl-codec",
  "impl-serde",
+ "scale-info 0.10.0",
  "uint",
 ]
 
@@ -7364,28 +7359,12 @@ dependencies = [
 
 [[package]]
 name = "substrate-wasm-builder"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93a3d51ad6abbc408b03ea962062bfcc959b438a318d7d4bedd181e1effd0610"
-dependencies = [
- "ansi_term 0.12.1",
- "atty",
- "build-helper",
- "cargo_metadata 0.12.3",
- "tempfile",
- "toml",
- "walkdir",
- "wasm-gc-api",
-]
-
-[[package]]
-name = "substrate-wasm-builder"
 version = "5.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?rev=ccf9bee#ccf9bee6f75c44bf1ce4b926d5a3c0e1b1b55501"
 dependencies = [
  "ansi_term 0.12.1",
  "build-helper",
- "cargo_metadata 0.13.1",
+ "cargo_metadata",
  "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?rev=ccf9bee)",
  "tempfile",
  "toml",
@@ -7483,7 +7462,7 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
- "substrate-wasm-builder 5.0.0-dev",
+ "substrate-wasm-builder",
  "tests-common",
 ]
 
@@ -7507,7 +7486,7 @@ dependencies = [
  "gstd",
  "gstd-async",
  "parity-scale-codec",
- "substrate-wasm-builder 5.0.0-dev",
+ "substrate-wasm-builder",
  "tests-common",
 ]
 
@@ -7520,7 +7499,7 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
- "substrate-wasm-builder 5.0.0-dev",
+ "substrate-wasm-builder",
  "tests-common",
 ]
 

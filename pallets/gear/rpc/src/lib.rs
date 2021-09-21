@@ -19,6 +19,7 @@
 //! RPC interface for the gear module.
 
 use codec::Codec;
+use scale_info::TypeInfo;
 pub use gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
@@ -80,7 +81,7 @@ where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block, ProgramId>,
-    ProgramId: Codec,
+    ProgramId: Codec + TypeInfo,
 {
     fn get_gas_spent(
         &self,

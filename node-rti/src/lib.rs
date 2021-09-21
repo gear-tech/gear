@@ -25,6 +25,7 @@ pub mod ext;
 pub mod runner;
 
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_runtime_interface::runtime_interface;
 
@@ -37,13 +38,13 @@ use gear_core_runner::{
 #[cfg(not(feature = "std"))]
 use sp_std::prelude::Vec;
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, TypeInfo)]
 pub enum Error {
     Trap,
     Runner,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, TypeInfo)]
 pub struct ExecutionReport {
     pub handled: u32,
     pub log: Vec<gear_common::Message>,

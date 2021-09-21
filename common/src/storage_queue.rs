@@ -16,19 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_std::borrow::Cow;
-
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
+use sp_std::borrow::Cow;
 use sp_core::H256;
 use sp_std::prelude::*;
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
 struct Node<T: Encode + Decode> {
     value: T,
     next: Option<H256>,
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
 pub struct StorageQueue {
     prefix: Cow<'static, [u8]>,
     head: Option<H256>,

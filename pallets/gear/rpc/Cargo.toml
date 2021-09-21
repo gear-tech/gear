@@ -8,9 +8,8 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2", default-features = false, features = [
-    "derive",
-] }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+scale-info = { version = "0.10.0", default-features = false, features = ["derive"] }
 jsonrpc-core = "18.0.0"
 jsonrpc-core-client = "18.0.0"
 jsonrpc-derive = "18.0.0"
@@ -35,5 +34,6 @@ std = [
     "sp-api/std",
     "sp-core/std",
     "sp-runtime/std",
+    "scale-info/std",
     "gear-rpc-runtime-api/std",
 ]
