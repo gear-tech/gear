@@ -23,11 +23,11 @@ Gear provides the easiest and most cost-effective way to run WebAssembly program
 
 Gear ensures very minimal, intuitive, and sufficient API for running both newly written and existing programs on multiple networks without the need to rewrite them.
 
-Please refer to the [technical paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf) for some insights about how Gear works internally.
+Refer to the [technical paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf) for some insights about how Gear works internally.
 
 ## Getting Started
 
-1. For acquiantance with Gear, download and run Gear node connected to the testnet.
+1. To start familiarity with Gear, download and run Gear node connected to the testnet.
 
 2. Deploy and test smart contracts, check how it is going. A comprehensive amount of smart contract examples is available for your convenience and faster onboarding.
 
