@@ -21,12 +21,11 @@
 #![allow(clippy::unnecessary_mut_passed)]
 
 use codec::Codec;
-use scale_info::TypeInfo;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
     pub trait GearApi<ProgramId>
-    where ProgramId: Codec + TypeInfo {
+    where ProgramId: Codec {
         fn get_gas_spent(program_id: ProgramId, payload: Vec<u8>) -> Option<u64>;
     }
 }

@@ -42,7 +42,8 @@ pub mod pallet {
         weights::{IdentityFee, WeightToFeePolynomial},
     };
     use frame_system::pallet_prelude::*;
-    use sp_core::H256;
+    use primitive_types::H256;
+    use scale_info::TypeInfo;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 

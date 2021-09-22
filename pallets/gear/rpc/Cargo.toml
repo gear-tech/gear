@@ -30,10 +30,10 @@ gear-rpc-runtime-api = { version = "2.0.0", path = "./runtime-api", default-feat
 [features]
 default = ["std"]
 std = [
+    "scale-info/std",
     "serde",
     "sp-api/std",
     "sp-core/std",
     "sp-runtime/std",
-    "scale-info/std",
     "gear-rpc-runtime-api/std",
 ]

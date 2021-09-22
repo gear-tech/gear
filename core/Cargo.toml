@@ -9,7 +9,6 @@ license = "GPL-3.0"
 anyhow = "1.0.44"
 cfg-if = "1.0.0"
 codec = { package = "parity-scale-codec", version = "2.2.0", default-features = false, features = ["derive"] }
-scale-info = { version = "0.10.0", default-features = false, features = ["derive"] }
 derive_more = "0.99.16"
 hashbrown = "0.11.2"
 log = "0.4.14"
