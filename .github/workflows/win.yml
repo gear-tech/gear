@@ -1,0 +1,38 @@
+name: Win
+
+on: workflow_dispatch
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup nightly Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: Setup Rust for Win
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          target: x86_64-pc-windows-msvc
+
+      - name: Workaround with libclang.dll
+        run: Remove-Item -LiteralPath "C:\msys64\" -Force -Recurse
+
+      - name: Install LLVM
+        run: choco install llvm -y
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: -p gear-node --release --target x86_64-pc-windows-msvc
