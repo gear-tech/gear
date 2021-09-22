@@ -23,45 +23,42 @@ Gear provides the easiest and most cost-effective way to run WebAssembly program
 
 Gear ensures very minimal, intuitive, and sufficient API for running both newly written and existing programs on multiple networks without the need to rewrite them.
 
-## Getting Started
-
 Please refer to the [technical paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf) for some insights about how Gear works internally.
 
-**TODO**: *Describe the easiest way to start with. Pay attention to smart contract examples.*
+## Getting Started
 
-## Running Node
+1. For acquiantance with Gear, download and run Gear node connected to the testnet.
 
-**TODO**: *Prepare ready-to-install packages to make first steps simpler.*
+2. Deploy and test smart contracts, check how it is going. A comprehensive amount of smart contract examples is available for your convenience and faster onboarding.
 
-### Prerequisites
+## Run Gear Node
 
-1. Install Rust using [rustup](https://rustup.rs/):
+1. Download nightly build of Gear node:
 
-    ```bash
-    curl https://sh.rustup.rs -sSf | sh
-    ```
+    - **Windows x64**: [gear-windows-x64-nightly.zip](https://builds.gear.rs/gear-windows-x64-nightly.zip)
+    - **macOS M1**: [gear-macos-m1-nightly.tar.gz](https://builds.gear.rs/gear-macos-m1-nightly.tar.gz)
+    - **macOS Intel x64**: [gear-macos-x64-nightly.tar.gz](https://builds.gear.rs/gear-macos-x64-nightly.tar.gz)
+    - **Linux x64**: [gear-linux-x64-nightly.tar.xz](https://builds.gear.rs/gear-linux-x64-nightly.tar.xz)
 
-2. Add toolchains:
-
-    ```bash
-    make init
-    ```
-
-### Build Gear Node and Run
-
-1. Build:
+2. Run Gear node without special arguments to get a node connected to the testnet:
 
     ```bash
-    make node
+    gear-node
     ```
-
-2. Run:
+    
+3. Get more info about usage details, flags, avilable options and subcommands:
 
     ```bash
-    make node-run
+    gear-node --help
     ```
 
-Refer to the [Gear Node](https://github.com/gear-tech/gear/tree/master/node) docs for details.
+Gear node can run in a single Dev Net mode or you can create a Multi-Node local testnet or make your own build of Gear node.
+
+Refer to the [Gear Node README](https://github.com/gear-tech/gear/tree/master/node) for details and some examples.
+
+## Run you first smart contract
+
+TBD...
 
 ## Gear Components
 
