@@ -51,6 +51,7 @@ std = [
 	"codec/std",
 	"log/std",
 	"common/std",
+	"runner/std",
 	"frame-support/std",
 	"frame-system/std",
 	"sp-io/std",
