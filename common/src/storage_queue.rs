@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::borrow::Cow;
-use sp_core::H256;
+use primitive_types::H256;
 use sp_std::prelude::*;
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
