@@ -55,7 +55,7 @@ macro_rules! metadata {
         gstd::declare!(meta_init_output -> $init_output);
         gstd::declare!(meta_input -> $input);
         gstd::declare!(meta_output -> $output);
-        gstd::declare!(registry -> gstd::meta::to_hex_registry(gstd::types!($($t), +)));
+        gstd::declare!(meta_registry -> gstd::meta::to_hex_registry(gstd::types!($($t), +)));
     };
     // 1 all
     (title: $t:literal, init: input: $ii:ty, output: $io:ty, handle: input: $i:ty, output: $o:ty) => {
