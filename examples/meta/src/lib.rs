@@ -105,8 +105,8 @@ pub unsafe extern "C" fn init() {
             hex: vec![1u8],
         },
         person: Person {
-            surname: "SomeName".into(),
-            name: "SomeSurname".into(),
+            surname: "SomeSurname".into(),
+            name: "SomeName".into(),
         },
     });
     WALLETS.push(Wallet {
