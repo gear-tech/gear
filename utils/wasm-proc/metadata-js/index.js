@@ -21,8 +21,8 @@ exports.getWasmMetadata = async (wasmBytes) => {
         init_output: "",
         input: "",
         output: "",
-        title: "",
-        types: ""
+        registry: "",
+        title: ""
     }
 
     let module = await WebAssembly.instantiate(wasmBytes, importObj);
@@ -31,8 +31,8 @@ exports.getWasmMetadata = async (wasmBytes) => {
     metadata.init_output = readMeta(memory, module.instance.exports.meta_init_output());
     metadata.input = readMeta(memory, module.instance.exports.meta_input());
     metadata.output = readMeta(memory, module.instance.exports.meta_output());
+    metadata.registry = readMeta(memory, module.instance.exports.meta_registry());
     metadata.title = readMeta(memory, module.instance.exports.meta_title());
-    metadata.types = JSON.parse(readMeta(memory, module.instance.exports.meta_types()));
 
     return metadata;
 }
