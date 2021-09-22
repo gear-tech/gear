@@ -16,16 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility module.
-use anyhow::Result;
+//! Runner for gear-core.
 
-use alloc::string::String;
-use core::fmt::Write;
+#![no_std]
+#![warn(missing_docs)]
 
-pub fn encode_hex(bytes: &[u8]) -> Result<String> {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(&mut s, "{:02x}", b).map_err(|err| anyhow::format_err!("encode_hex err: {}", err))?
-    }
-    Ok(s)
-}
+#[macro_use]
+extern crate alloc;
+
+mod backend;
+#[allow(dead_code)]
+mod builder;
+mod ext;
+pub mod runner;
+mod util;
+pub use runner::*;

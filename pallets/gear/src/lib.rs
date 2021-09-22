@@ -69,7 +69,6 @@ pub mod pallet {
     pub struct Pallet<T>(_);
 
     #[pallet::event]
-    #[pallet::metadata(T::AccountId = "AccountId")]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Log event from the specific program.
@@ -114,26 +113,26 @@ pub mod pallet {
         ProgramIsNotInitialized,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, scale_info::TypeInfo)]
     pub enum Reason {
         Error,
         ValueTransfer,
         Dispatch(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, scale_info::TypeInfo)]
     pub enum ExecutionResult {
         Success,
         Failure(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, scale_info::TypeInfo)]
     pub struct DispatchOutcome {
         pub message_id: H256,
         pub outcome: ExecutionResult,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, scale_info::TypeInfo)]
     pub struct MessageInfo {
         pub message_id: H256,
         pub program_id: H256,
@@ -178,6 +177,7 @@ pub mod pallet {
         /// Queue processing occurs after all normal extrinsics in the block
         ///
         /// There should always remain enough weight for this hook to be invoked
+        #[cfg(feature = "std")]
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
                 "{} of weight remains in block {:?} after normal extrinsics have been processed",
@@ -226,8 +226,9 @@ pub mod pallet {
             .flatten()
         }
 
+        // #[cfg(feature = "std")]
         pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
-            rti::gear_executor::gas_spent(destination, payload, 0).ok()
+            runner::gas_spent(destination, payload, 0).ok()
         }
 
         /// Returns true if a program resulted in an error during initialization
@@ -245,6 +246,7 @@ pub mod pallet {
         /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
+        // #[cfg(feature = "std")]
         pub fn process_queue() -> Weight {
             // At the beginning of a new block, we process all queued messages
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
@@ -276,7 +278,7 @@ pub mod pallet {
                             );
                             continue;
                         }
-                        match rti::gear_executor::init_program(
+                        match runner::init_program(
                             origin,
                             program_id,
                             code.to_vec(),
@@ -423,7 +425,7 @@ pub mod pallet {
             }
 
             loop {
-                match rti::gear_executor::process(GasAllowance::<T>::get()) {
+                match runner::process(GasAllowance::<T>::get()) {
                     Ok(execution_report) => {
                         if execution_report.handled == 0 {
                             break;

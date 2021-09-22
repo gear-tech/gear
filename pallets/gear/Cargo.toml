@@ -16,24 +16,27 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = [
 	"derive",
 ] }
+scale-info = { version = "1.0", default-features = false, features = [
+	"derive",
+] }
 log = { version = "0.4.14", default-features = false }
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-rti = { package = "gear-node-rti", path = "../../node-rti", default-features = false }
+runner = { package = "gear-node-runner", path = "../../node-runner", default-features = false }
 
 # Substrate deps
-frame-support = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-frame-system = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false, optional = true }
-sp-core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-std = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-io = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git" }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git" }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false, optional = true }
+sp-core = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+sp-runtime = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/ukint-vs/substrate.git" }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/ukint-vs/substrate.git" }
 
 [dev-dependencies]
 serde = "1.0.101"
@@ -50,7 +53,6 @@ std = [
 	"common/std",
 	"frame-support/std",
 	"frame-system/std",
-	"rti/std",
 	"sp-io/std",
 	"sp-std/std",
 	"sp-core/std",

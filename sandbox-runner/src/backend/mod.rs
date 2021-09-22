@@ -16,16 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility module.
-use anyhow::Result;
+//! Provide wasmi support.
 
-use alloc::string::String;
-use core::fmt::Write;
+#![no_std]
 
-pub fn encode_hex(bytes: &[u8]) -> Result<String> {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(&mut s, "{:02x}", b).map_err(|err| anyhow::format_err!("encode_hex err: {}", err))?
-    }
-    Ok(s)
-}
+pub mod env;
+mod funcs;
+pub mod memory;
+
+pub use crate::backend::env::Environment;

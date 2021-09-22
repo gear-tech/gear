@@ -16,7 +16,8 @@ colored = "2.0.0"
 common = { package = "gear-common", path = "../common" }
 regex = "1.4.5"
 serde_yaml = "0.8.21"
-gear-node-rti = { path = "../node-rti" }
+gear-node-runner = { path = "../node-runner" }
+gear-sandbox-runner = { path = "../sandbox-runner" }
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"

@@ -6,5 +6,8 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-scale-info = { version = "1.0.0", default-features = false, features = ["derive", "serde"] }
-serde_json = { version = "1.0.68", default-features = false, features = ["alloc"] }
+scale-info = { version = "1.0.0", default-features = false, features = [
+    "derive",
+    "serde",
+] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }

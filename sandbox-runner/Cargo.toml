@@ -1,0 +1,41 @@
+[package]
+name = "gear-sandbox-runner"
+version = "0.1.0"
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+anyhow = { version = "1.0.41", default-features = false }
+blake2-rfc = { version = "*", default-features = false }
+codec = { package = "parity-scale-codec", version = "2", features = [
+    "derive",
+], default-features = false }
+gear-core = { path = "../core" }
+# gear-core-backend = { path = "../core-backend", features = [
+#     "sandbox_backend",
+# ], default-features = false }
+
+log = { version = "0.4.14", default-features = false }
+sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false, features = [
+    "std",
+] }
+# sp-core = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+# sp-io = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+# sp-std = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+
+[dev-dependencies]
+env_logger = "0.8.4"
+wabt = "0.10.0"
+
+# [features]
+# default = ["std"]
+# std = [
+#     "blake2-rfc/std",
+#     "codec/std",
+#     "log",
+#     "sp-sandbox/std",
+#     # "sp-core/std",
+#     # "sp-std/std",
+#     # "sp-externalities/std",
+#     # "sp-runtime-interface/std",
+# ]

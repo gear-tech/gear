@@ -16,16 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility module.
-use anyhow::Result;
+use gear_core::storage::{Log, Storage};
+use gear_sandbox_runner::runner::{Config, Runner};
 
-use alloc::string::String;
-use core::fmt::Write;
+use crate::ext::*;
 
-pub fn encode_hex(bytes: &[u8]) -> Result<String> {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(&mut s, "{:02x}", b).map_err(|err| anyhow::format_err!("encode_hex err: {}", err))?
-    }
-    Ok(s)
+pub type ExtRunner = Runner<ExtMessageQueue, ExtProgramStorage, ExtWaitList>;
+
+pub fn new() -> ExtRunner {
+    Runner::new(
+        &Config::default(),
+        Storage {
+            message_queue: ExtMessageQueue::default(),
+            program_storage: ExtProgramStorage,
+            wait_list: ExtWaitList::default(),
+            log: Log::default(),
+        },
+    )
 }

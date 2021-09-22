@@ -16,16 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Utility module.
-use anyhow::Result;
+use gear_core::message::MessageId;
+use gear_core::program::ProgramId;
 
-use alloc::string::String;
-use core::fmt::Write;
+/// Blake2 Message Id Generator
+pub struct BlakeMessageIdGenerator {
+    pub program_id: ProgramId,
+    pub nonce: u64,
+}
 
-pub fn encode_hex(bytes: &[u8]) -> Result<String> {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(&mut s, "{:02x}", b).map_err(|err| anyhow::format_err!("encode_hex err: {}", err))?
+impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
+    fn next(&mut self) -> MessageId {
+        let mut data = self.program_id.as_slice().to_vec();
+        data.extend(&self.nonce.to_le_bytes());
+
+        self.nonce += 1;
+
+        MessageId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
     }
-    Ok(s)
+
+    fn current(&self) -> u64 {
+        self.nonce
+    }
 }

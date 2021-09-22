@@ -40,7 +40,7 @@ pub const STORAGE_WAITLIST_PREFIX: &'static [u8] = b"g::wait::";
 
 pub type ExitCode = i32;
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, scale_info::TypeInfo)]
 pub struct Message {
     pub id: H256,
     pub source: H256,
@@ -99,7 +99,7 @@ impl Origin for H256 {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, scale_info::TypeInfo)]
 pub enum IntermediateMessage {
     InitProgram {
         origin: H256,

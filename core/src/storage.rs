@@ -20,7 +20,7 @@
 
 use alloc::collections::{BTreeMap, VecDeque};
 use alloc::vec::Vec;
-use hashbrown::HashMap;
+// use hashbrown::HashMap;
 
 use crate::{
     message::{Message, MessageId},
@@ -45,7 +45,7 @@ pub trait ProgramStorage: Default {
 /// In-memory program storage (for tests).
 #[derive(Default)]
 pub struct InMemoryProgramStorage {
-    inner: HashMap<ProgramId, Program>,
+    inner: BTreeMap<ProgramId, Program>,
 }
 
 impl InMemoryProgramStorage {
