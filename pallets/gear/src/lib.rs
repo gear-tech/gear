@@ -113,26 +113,26 @@ pub mod pallet {
         ProgramIsNotInitialized,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub enum Reason {
         Error,
         ValueTransfer,
         Dispatch(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub enum ExecutionResult {
         Success,
         Failure(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub struct DispatchOutcome {
         pub message_id: H256,
         pub outcome: ExecutionResult,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub struct MessageInfo {
         pub message_id: H256,
         pub program_id: H256,
