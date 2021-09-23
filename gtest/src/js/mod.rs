@@ -174,10 +174,12 @@ mod tests {
                 "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
                 &MetaType::Input,
             )
-            .or(json.convert(
-                "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
-                &MetaType::Input,
-            ));
+            .or_else(|_| {
+                json.convert(
+                    "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+                    &MetaType::Input,
+                )
+            });
 
         let msg =
             MessageIn::decode(&mut bytes.expect("Could not find file ").into_bytes().as_ref())
