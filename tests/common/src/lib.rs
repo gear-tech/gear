@@ -202,7 +202,7 @@ impl RunnerContext {
         }
     }
 
-    pub fn init_program<P>(&mut self, init_data: P) -> &Self
+    pub fn init_program<P>(&mut self, init_data: P)
     where
         P: Into<InitProgram>,
     {
@@ -211,8 +211,21 @@ impl RunnerContext {
         self.runner()
             .init_program(info)
             .expect("Failed to init program");
+    }
 
-        self
+    pub fn init_program_with_reply<P, D>(&mut self, init_data: P) -> D
+    where
+        P: Into<InitProgram>,
+        D: Decode,
+    {
+        let info = init_data.into().to_init_program_info(self);
+        let message_id = info.message.id;
+
+        self.runner()
+            .init_program(info)
+            .expect("Failed to init program");
+
+        reply_or_panic(self.get_response_to(message_id))
     }
 
     pub fn try_request<Msg, D>(&mut self, message: Msg) -> Option<Result<D, Error>>
