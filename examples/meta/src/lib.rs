@@ -77,7 +77,7 @@ pub struct Wallet {
     pub person: Person,
 }
 
-gstd::metadata!{
+gstd::metadata! {
     title: "Example program with metadata",
     init:
         input: MessageInitIn,

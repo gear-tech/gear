@@ -16,12 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use scale_info::{Registry, PortableRegistry, MetaType};
 use crate::prelude::{Box, String, Vec};
 use codec::Encode;
+use scale_info::{MetaType, PortableRegistry, Registry};
 
 pub fn to_wasm_ptr<T: AsRef<[u8]>>(bytes: T) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([bytes.as_ref().as_ptr() as _, bytes.as_ref().len() as _]))
+    Box::into_raw(Box::new([
+        bytes.as_ref().as_ptr() as _,
+        bytes.as_ref().len() as _,
+    ]))
 }
 
 pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
@@ -44,7 +47,7 @@ macro_rules! declare {
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
             gstd::meta::to_wasm_ptr($txt)
         }
-    }
+    };
 }
 
 #[macro_export]

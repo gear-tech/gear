@@ -23,8 +23,8 @@ pub mod native;
 pub mod storage_queue;
 
 use codec::{Decode, Encode};
-use scale_info::TypeInfo;
 use primitive_types::H256;
+use scale_info::TypeInfo;
 use sp_core::crypto::UncheckedFrom;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;

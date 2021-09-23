@@ -168,16 +168,20 @@ mod tests {
 
         let json = MetaData::Json(json);
 
-        let bytes = json.clone().convert(
-            "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
-            &MetaType::Input,
-        ).or(json.convert(
-            "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
-            &MetaType::Input,
-        ));
+        let bytes = json
+            .clone()
+            .convert(
+                "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+                &MetaType::Input,
+            )
+            .or(json.convert(
+                "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+                &MetaType::Input,
+            ));
 
-        let msg = MessageIn::decode(&mut bytes.expect("Could not find file ").into_bytes().as_ref())
-            .expect("Unable to decode CodecBytes");
+        let msg =
+            MessageIn::decode(&mut bytes.expect("Could not find file ").into_bytes().as_ref())
+                .expect("Unable to decode CodecBytes");
         let expectation = MessageIn {
             id: Id {
                 decimal: 12345,

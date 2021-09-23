@@ -25,9 +25,9 @@ pub mod ext;
 pub mod runner;
 
 use codec::{Decode, Encode};
+use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_runtime_interface::runtime_interface;
-use primitive_types::H256;
 
 #[cfg(feature = "std")]
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};

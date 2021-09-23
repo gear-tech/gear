@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode};
+use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_std::borrow::Cow;
-use primitive_types::H256;
 use sp_std::prelude::*;
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
