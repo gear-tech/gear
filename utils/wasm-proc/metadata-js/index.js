@@ -31,7 +31,7 @@ exports.getWasmMetadata = async (wasmBytes) => {
     metadata.init_output = readMeta(memory, module.instance.exports.meta_init_output());
     metadata.input = readMeta(memory, module.instance.exports.meta_input());
     metadata.output = readMeta(memory, module.instance.exports.meta_output());
-    metadata.registry = readMeta(memory, module.instance.exports.meta_registry());
+    metadata.registry = `0x${readMeta(memory, module.instance.exports.meta_registry())}`;
     metadata.title = readMeta(memory, module.instance.exports.meta_title());
 
     return metadata;

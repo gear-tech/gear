@@ -3,16 +3,15 @@ const assert = require('assert');
 const fs = require("fs");
 const path = require("path");
 const wasmMetadata = require(".");
-const api = require('@polkadot/types');
+const { TypeRegistry } = require('@polkadot/types')
 
 let wasmBytes = fs.readFileSync(
     path.join(__dirname, "../../../examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm")
 );
 
 wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
-    let regSource = "0x" + metadata.registry;
-    const reg = new api.TypeRegistry();
-    metadata.registry = JSON.stringify(reg.createType('PortableRegistry', regSource).toHuman());
+    const reg = new TypeRegistry();
+    metadata.registry = JSON.stringify(reg.createType('PortableRegistry', metadata.registry).toHuman());
 
     assert.deepStrictEqual(
         metadata,
