@@ -51,6 +51,7 @@ jobs:
         with:
           node-version: "16"
       - run: cd gtest/src/js && npm install
+      - run: cd utils/wasm-proc/metadata-js && npm install
 
       - name: Artifact cache
         uses: Swatinem/rust-cache@v1
