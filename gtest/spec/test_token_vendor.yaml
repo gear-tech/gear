@@ -53,7 +53,7 @@ fixtures:
           kind: utf-8
           value: "{3}"
         destination: 1
-        source: 7 # member id ProgramId(6)
+        source: 7 # member id ProgramId(7)
       - payload:
           kind: utf-8
           value: >

@@ -85,14 +85,6 @@ struct State {
     admins: BTreeSet<ProgramId>,
 }
 
-#[derive(Debug, Default)]
-struct Config {
-    reward: u128,
-    members: Vec<String>,
-    code: String,
-    admins: Vec<String>,
-}
-
 impl State {
     fn new(
         owner_id: Option<ProgramId>,
@@ -111,6 +103,14 @@ impl State {
     }
 }
 
+#[derive(Debug, Default)]
+struct Config {
+    reward: u128,
+    members: Vec<String>,
+    code: String,
+    admins: Vec<String>,
+}
+
 static mut STATE: RefCell<State> = RefCell::new(State {
     owner_id: None,
     members: BTreeSet::new(),
@@ -124,33 +124,32 @@ async fn main() {
     let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     ext::debug(&format!("msg: {:?}", msg));
-    let state = unsafe { STATE.borrow() };
+    let state = unsafe { STATE.borrow().clone() };
 
     // Load json config
     if state.admins.contains(&msg::source()) {
         let config = parse_config(&msg);
-        let mut new_state = State::new(
-            state.owner_id,
-            BTreeSet::new(),
-            config.reward,
-            config.code,
-            BTreeSet::from([state.owner_id.unwrap()]),
-        );
-
-        for member in config.members {
-            new_state.members.insert(ProgramId::from_slice(
-                &decode_hex(&member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-            ));
-        }
-
-        for admin in config.admins {
-            new_state.admins.insert(ProgramId::from_slice(
-                &decode_hex(&admin).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-            ));
-        }
-        drop(state);
         unsafe {
-            STATE.replace(new_state);
+            STATE.replace_with(|mut state| {
+                state.reward = config.reward;
+                state.code = config.code;
+                state.members.clear();
+                state.admins = [state.owner_id.unwrap()].into();
+
+                for member in config.members {
+                    state.members.insert(ProgramId::from_slice(
+                        &decode_hex(&member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+                    ));
+                }
+
+                for admin in config.admins {
+                    state.admins.insert(ProgramId::from_slice(
+                        &decode_hex(&admin).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+                    ));
+                }
+
+                state.clone()
+            });
         }
         ext::debug("CONFIG UPDATED");
         msg::reply(b"CONFIG UPDATED", gstd::exec::gas_available(), 0);
@@ -160,7 +159,6 @@ async fn main() {
             &decode_hex(&msg).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
         );
 
-        drop(state);
         let reply =
             msg_async::send_and_wait_for_reply(id, b"verify", gstd::exec::gas_available() / 2, 0)
                 .await;
@@ -170,6 +168,7 @@ async fn main() {
         let member_id = ProgramId::from_slice(
             &decode_hex(&reply).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
         );
+
         if msg::source() == member_id {
             ext::debug(&format!(
                 "SUCCESS:\nmember: {:?}\ncontract: {:?}",
@@ -178,8 +177,7 @@ async fn main() {
             ));
 
             unsafe { STATE.borrow_mut().members.remove(&member_id) };
-
-            msg::send_with_value(member_id, b"success", 0, unsafe { STATE.borrow().reward });
+            msg::send_with_value(member_id, b"success", 0, state.reward);
         }
     }
 }
