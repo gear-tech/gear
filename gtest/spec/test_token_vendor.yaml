@@ -13,7 +13,10 @@ programs:
             "{7}"
           ],
           "reward": 10,
-          "code": "TEST"
+          "code": "TEST",
+          "admins": [
+            "0100000000000000000000000000000000000000000000000000000000000000"
+          ]
         }
   - id: 2
     path: examples/target/wasm32-unknown-unknown/release/contract_example_reply.wasm
@@ -51,16 +54,32 @@ fixtures:
           value: "{3}"
         destination: 1
         source: 7 # member id ProgramId(6)
+      - payload:
+          kind: utf-8
+          value: >
+            {
+              "members": [
+                "0600000000000000000000000000000000000000000000000000000000000000",
+                "0700000000000000000000000000000000000000000000000000000000000000"
+              ],
+              "reward": 1,
+              "code": "UPDATE",
+              "admins": [
+                "0100000000000000000000000000000000000000000000000000000000000000"
+              ]
+            }
+        destination: 1
+        source: 1
     expected:
-      - step: 8
+      - step: 10
         messages:
           - destination: 6
             payload:
               kind: utf-8
               value: "success"
-            value: 10
+            value: 1
           - destination: 7
             payload:
               kind: utf-8
               value: "success"
-            value: 10
+            value: 1

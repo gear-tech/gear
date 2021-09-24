@@ -19,42 +19,59 @@ meta! {
     // Any hex ProgramId
     input: Vec<u8>,
     output: Vec<u8>,
-    // Hex Program Ids coma separated
+    // json config
     init_input: Vec<u8>,
     init_output: Vec<u8>
 }
 
+// {
+//     "members": [
+//       "0600000000000000000000000000000000000000000000000000000000000000",
+//       "0700000000000000000000000000000000000000000000000000000000000000"
+//     ],
+//     "reward": 1,
+//     "code": "UPDATE",
+//     "admins": [
+//       "0100000000000000000000000000000000000000000000000000000000000000"
+//     ]
+// }
 fn parse_config(json: &str) -> Config {
     let mut config = Config::default();
     let json = lite_json::json_parser::parse_json(json).expect("Invalid JSON");
-    match json {
-        lite_json::JsonValue::Object(obj) => {
-            for (name, value) in obj {
-                match name.iter().collect::<String>().as_str() {
-                    "reward" => {
-                        if let JsonValue::Number(num) = value {
-                            config.reward = num.integer as u128;
-                        };
-                    }
-                    "members" => {
-                        if let JsonValue::Array(members) = value {
-                            for member in members {
-                                if let JsonValue::String(member) = member {
-                                    config.members.push(member.iter().collect());
-                                }
-                            }
-                        };
-                    }
-                    "code" => {
-                        if let JsonValue::String(code) = value {
-                            config.code = code.iter().collect();
-                        };
-                    }
-                    _ => (),
+    if let lite_json::JsonValue::Object(obj) = json {
+        for (name, value) in obj {
+            match name.iter().collect::<String>().as_str() {
+                "reward" => {
+                    if let JsonValue::Number(num) = value {
+                        config.reward = num.integer as u128;
+                    };
                 }
+                "members" => {
+                    if let JsonValue::Array(members) = value {
+                        for member in members {
+                            if let JsonValue::String(member) = member {
+                                config.members.push(member.iter().collect());
+                            }
+                        }
+                    };
+                }
+                "code" => {
+                    if let JsonValue::String(code) = value {
+                        config.code = code.iter().collect();
+                    };
+                }
+                "admins" => {
+                    if let JsonValue::Array(admins) = value {
+                        for admin in admins {
+                            if let JsonValue::String(admin) = admin {
+                                config.admins.push(admin.iter().collect());
+                            }
+                        }
+                    };
+                }
+                _ => (),
             }
         }
-        _ => (),
     }
     config
 }
@@ -65,6 +82,7 @@ struct State {
     members: BTreeSet<ProgramId>,
     reward: u128,
     code: String,
+    admins: BTreeSet<ProgramId>,
 }
 
 #[derive(Debug, Default)]
@@ -72,6 +90,7 @@ struct Config {
     reward: u128,
     members: Vec<String>,
     code: String,
+    admins: Vec<String>,
 }
 
 impl State {
@@ -80,34 +99,67 @@ impl State {
         members: BTreeSet<ProgramId>,
         reward: u128,
         code: String,
+        admins: BTreeSet<ProgramId>,
     ) -> Self {
         Self {
             owner_id,
             members,
             reward,
             code,
+            admins,
         }
     }
 }
 
-static STATE: spin::Mutex<RefCell<State>> = spin::Mutex::new(RefCell::new(State {
+static mut STATE: RefCell<State> = RefCell::new(State {
     owner_id: None,
     members: BTreeSet::new(),
     reward: 10,
     code: String::new(),
-}));
+    admins: BTreeSet::new(),
+});
 
 #[gstd_async::main]
 async fn main() {
     let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    let id =
-        ProgramId::from_slice(&decode_hex(&msg).expect("DECODE HEX FAILED: INVALID PROGRAM ID"));
 
-    let state = STATE.lock();
-    ext::debug(&format!("members: {:?}", state.borrow().members));
+    ext::debug(&format!("msg: {:?}", msg));
+    let state = unsafe { STATE.borrow() };
 
-    // If msg::source is registered in workshop then we send a message to id from payload
-    if state.borrow().members.contains(&msg::source()) {
+    // Load json config
+    if state.admins.contains(&msg::source()) {
+        let config = parse_config(&msg);
+        let mut new_state = State::new(
+            state.owner_id,
+            BTreeSet::new(),
+            config.reward,
+            config.code,
+            BTreeSet::from([state.owner_id.unwrap()]),
+        );
+
+        for member in config.members {
+            new_state.members.insert(ProgramId::from_slice(
+                &decode_hex(&member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+            ));
+        }
+
+        for admin in config.admins {
+            new_state.admins.insert(ProgramId::from_slice(
+                &decode_hex(&admin).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+            ));
+        }
+        drop(state);
+        unsafe {
+            STATE.replace(new_state);
+        }
+        ext::debug("CONFIG UPDATED");
+        msg::reply(b"CONFIG UPDATED", gstd::exec::gas_available(), 0);
+    } else if state.members.contains(&msg::source()) {
+        // If msg::source is registered in workshop then we send a message to id from payload
+        let id = ProgramId::from_slice(
+            &decode_hex(&msg).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+        );
+
         drop(state);
         let reply =
             msg_async::send_and_wait_for_reply(id, b"verify", gstd::exec::gas_available() / 2, 0)
@@ -124,10 +176,10 @@ async fn main() {
                 id,
                 msg::source()
             ));
-            let state = STATE.lock();
 
-            state.borrow_mut().members.remove(&member_id);
-            msg::send_with_value(member_id, b"success", 0, state.borrow().reward);
+            unsafe { STATE.borrow_mut().members.remove(&member_id) };
+
+            msg::send_with_value(member_id, b"success", 0, unsafe { STATE.borrow().reward });
         }
     }
 }
@@ -136,7 +188,13 @@ async fn main() {
 pub unsafe extern "C" fn init() {
     let owner_id = msg::source();
 
-    let mut state = State::new(Some(owner_id), BTreeSet::new(), 0, String::from(""));
+    let mut state = State::new(
+        Some(owner_id),
+        BTreeSet::new(),
+        0,
+        String::from(""),
+        BTreeSet::from([owner_id]),
+    );
 
     // json config str
     let config_str =
@@ -150,11 +208,17 @@ pub unsafe extern "C" fn init() {
         ));
     }
 
+    for admin in config.admins {
+        state.admins.insert(ProgramId::from_slice(
+            &decode_hex(&admin).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+        ));
+    }
+
     state.code = config.code;
 
     state.reward = config.reward;
 
-    STATE.lock().replace(state);
+    STATE.replace(state);
 
     msg::reply(b"INIT", 0, 0);
 }
