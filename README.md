@@ -58,6 +58,12 @@ Refer to the [Gear Node README](https://github.com/gear-tech/gear/tree/master/no
 
 ## Run you first smart contract
 
+Prepare your program
+1. Choose an example program from [examples](https://github.com/gear-tech/gear/tree/master/examples) or use your own program
+2. Follow the [instruction](https://github.com/gear-tech/gear/blob/master/examples/README.md) to build the Rust to WebAssembly program
+    
+### Upload program from UI
+    
 1. Go to [https://idea.gear-tech.io](https://idea.gear-tech.io)
 
 2. Sign in to Gear via Telegram of Github account
@@ -65,11 +71,7 @@ Refer to the [Gear Node README](https://github.com/gear-tech/gear/tree/master/no
 3. Connect to your node:
     1. TBD
 
-4. Prepare your program to upload:
-    1. Choose an example program from [examples](https://github.com/gear-tech/gear/tree/master/examples) or use your own program. 
-    2. Follow the [instruction](https://github.com/gear-tech/gear/blob/master/examples/README.md) to build the Rust to WebAssembly program
-
-5. Click Upload program and choose compiled .wasm file to upload
+4. Click Upload program and choose compiled .wasm file to upload
     1. Set enough Gas limit - 1 000 000
     2. Intial parameters, Initial value - keep default
     3. Metadata - switch radiobutton to Manual input, set:
@@ -79,6 +81,12 @@ Refer to the [Gear Node README](https://github.com/gear-tech/gear/tree/master/no
 
 6. Try sending message to program, check reply:
     1. TBD... 
+
+### Upload program locally from cmd
+    
+Upload program locally on your node: 
+
+TBD...
 
 ## Gear Components
 
