@@ -74,9 +74,8 @@ Prepare your program
 4. Click **Upload program** and choose compiled .wasm file to upload
     1. Set enough Gas limit - 1 000 000
     2. Intial parameters, Initial value - keep default
-    3. Metadata - switch radiobutton to Manual input, set:
-        1. Incoming type: string
-        2. Expected type: string
+    3. Upload file with Metadata, if applicable
+        1. the file can be found after program compilation from available examples
     4. Click **Upload program**, wait for the program initialization
 
 6. Try sending message to program, check reply:
