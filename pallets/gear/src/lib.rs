@@ -814,7 +814,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `ProgramRemoved(id)` when succesful.
-        #[pallet::weight(T::DbWeight::get().writes(1))]
+        #[pallet::weight(T::WeightInfo::remove_stale_program())]
         pub fn remove_stale_program(
             origin: OriginFor<T>,
             program_id: H256,

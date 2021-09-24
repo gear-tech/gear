@@ -18,8 +18,6 @@
 
 //! Gear pallet benchmarking
 
-#![cfg(feature = "runtime-benchmarks")]
-
 use super::*;
 use codec::Encode;
 use common::{IntermediateMessage, Origin};
@@ -84,7 +82,8 @@ fn generate_wasm(num_pages: u32) -> Result<Vec<u8>, &'static str> {
 //     (export "handle" (func $handle))
 //     (func $init)
 //     (func $handle
-//       (call $alloc (i32.const $num_pages))
+//         (local $result i32)
+//         (local.set $result (call $alloc (i32.const $num_pages)))
 //     )
 // )
 fn generate_wasm2(num_pages: i32) -> Result<Vec<u8>, &'static str> {
@@ -137,10 +136,11 @@ fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
         program_id,
         common::Program {
             static_pages,
-            persistent_pages: Default::default(),
+            persistent_pages: (0..static_pages).collect(),
             code_hash,
             nonce,
         },
+        (0..static_pages).map(|i| (i, vec![0u8; 65536])).collect(),
     );
 }
 
@@ -199,6 +199,18 @@ benchmarks! {
         assert!(Gear::<T>::message_queue().is_some());
     }
 
+    remove_stale_program {
+        let caller: T::AccountId = account("caller", 0, 0);
+        T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
+        let code = generate_wasm2(16_i32).unwrap();
+        let program_id = account::<T::AccountId>("program", 16, 0).into_origin();
+        set_program(program_id, code, 1_u32, 0_u64);
+        ProgramsLimbo::<T>::insert(program_id, caller.clone().into_origin());
+    }: _(RawOrigin::Signed(caller), program_id)
+    verify {
+        assert!(!ProgramsLimbo::<T>::contains_key(program_id));
+    }
+
     initial_allocation {
         let q in 0 .. MAX_PAGES;
         let caller: T::AccountId = account("caller", 0, 0);
@@ -215,7 +227,9 @@ benchmarks! {
                 value: 0,
             }
         );
-    }: process_queue(RawOrigin::None)
+    }: {
+        crate::Pallet::<T>::process_queue()
+    }
     verify {
         assert!(Gear::<T>::message_queue().is_none());
     }
@@ -238,7 +252,9 @@ benchmarks! {
                 reply: None,
             }
         );
-    }: process_queue(RawOrigin::None)
+    }: {
+        crate::Pallet::<T>::process_queue()
+    }
     verify {
         assert!(Gear::<T>::message_queue().is_none());
     }
