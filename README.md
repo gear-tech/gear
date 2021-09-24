@@ -66,18 +66,18 @@ Prepare your program
     
 1. Go to [https://idea.gear-tech.io](https://idea.gear-tech.io)
 
-2. Sign in to Gear via Telegram of Github account
+2. Sign in to Gear via Telegram or Github account
 
 3. Connect to your node:
     1. TBD
 
-4. Click Upload program and choose compiled .wasm file to upload
+4. Click **Upload program** and choose compiled .wasm file to upload
     1. Set enough Gas limit - 1 000 000
     2. Intial parameters, Initial value - keep default
     3. Metadata - switch radiobutton to Manual input, set:
         1. Incoming type: string
         2. Expected type: string
-    4. Click Upload program, wait for the program initialization
+    4. Click **Upload program**, wait for the program initialization
 
 6. Try sending message to program, check reply:
     1. TBD... 
