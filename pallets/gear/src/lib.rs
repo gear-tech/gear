@@ -42,7 +42,8 @@ pub mod pallet {
         weights::{IdentityFee, WeightToFeePolynomial},
     };
     use frame_system::pallet_prelude::*;
-    use sp_core::H256;
+    use primitive_types::H256;
+    use scale_info::TypeInfo;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
@@ -69,7 +70,6 @@ pub mod pallet {
     pub struct Pallet<T>(_);
 
     #[pallet::event]
-    #[pallet::metadata(T::AccountId = "AccountId")]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Log event from the specific program.
@@ -114,26 +114,26 @@ pub mod pallet {
         ProgramIsNotInitialized,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub enum Reason {
         Error,
         ValueTransfer,
         Dispatch(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub enum ExecutionResult {
         Success,
         Failure(Vec<u8>),
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub struct DispatchOutcome {
         pub message_id: H256,
         pub outcome: ExecutionResult,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub struct MessageInfo {
         pub message_id: H256,
         pub program_id: H256,
@@ -187,7 +187,7 @@ pub mod pallet {
             // Adjust the block gas allowance based on actual remaining weight
             GasAllowance::<T>::put(remaining_weight);
             let mut weight = T::DbWeight::get().writes(1);
-            weight = weight + Pallet::<T>::process_queue();
+            weight = weight + Self::process_queue();
 
             weight
         }
@@ -732,8 +732,10 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            if let Some(author) = ProgramsLimbo::<T>::take(program_id) {
+            if let Some(author) = ProgramsLimbo::<T>::get(program_id) {
                 if who.clone().into_origin() == author {
+                    ProgramsLimbo::<T>::remove(program_id);
+
                     let account_id = &<T::AccountId as Origin>::from_origin(program_id);
 
                     // Remove program from program storage

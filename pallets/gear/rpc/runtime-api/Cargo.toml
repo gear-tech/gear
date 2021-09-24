@@ -8,9 +8,8 @@ homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "2", default-features = false, features = [
-    "derive",
-] }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 sp-api = { version = '4.0.0-dev', git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-core = { version = '4.0.0-dev', git = "https://github.com/paritytech/substrate.git", default-features = false }
 sp-std = { version = '4.0.0-dev', git = "https://github.com/paritytech/substrate.git", default-features = false }
@@ -21,4 +20,4 @@ serde_json = "1.0"
 
 [features]
 default = ["std"]
-std = ["sp-api/std", "sp-core/std"]
+std = ["codec/std", "scale-info/std", "sp-api/std", "sp-core/std"]

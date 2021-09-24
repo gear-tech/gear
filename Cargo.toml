@@ -24,7 +24,6 @@ members = [
     "gcore",
     "gstd",
     "gstd-async",
-    "gstd-meta",
     "gtest",
     "node",
     "node-rti",
