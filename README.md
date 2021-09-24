@@ -35,17 +35,17 @@ Refer to the [technical paper](https://github.com/gear-tech/gear-technical/blob/
 
 1. Download nightly build of Gear node:
 
-    - **Windows x64**: [gear-windows-x64-nightly.zip](https://builds.gear.rs/gear-windows-x64-nightly.zip)
-    - **macOS M1**: [gear-macos-m1-nightly.tar.gz](https://builds.gear.rs/gear-macos-m1-nightly.tar.gz)
-    - **macOS Intel x64**: [gear-macos-x64-nightly.tar.gz](https://builds.gear.rs/gear-macos-x64-nightly.tar.gz)
-    - **Linux x64**: [gear-linux-x64-nightly.tar.xz](https://builds.gear.rs/gear-linux-x64-nightly.tar.xz)
+    - **Windows x64**: [gear-nightly-windows-x86_64.zip](https://builds.gear.rs/gear-nightly-windows-x86_64.zip)
+    - **macOS M1**: [gear-nightly-macos-m1.tar.gz](https://builds.gear.rs/gear-nightly-macos-m1.tar.gz)
+    - **macOS Intel x64**: [gear-nightly-macos-x86_64.tar.gz](https://builds.gear.rs/gear-nightly-macos-x86_64.tar.gz)
+    - **Linux x64**: [gear-nightly-linux-x86_64.tar.xz](https://builds.gear.rs/gear-nightly-linux-x86_64.tar.xz)
 
 2. Run Gear node without special arguments to get a node connected to the testnet:
 
     ```bash
     gear-node
     ```
-    
+
 3. Get more info about usage details, flags, avilable options and subcommands:
 
     ```bash
