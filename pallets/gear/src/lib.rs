@@ -187,7 +187,7 @@ pub mod pallet {
             // Adjust the block gas allowance based on actual remaining weight
             GasAllowance::<T>::put(remaining_weight);
             let mut weight = T::DbWeight::get().writes(1);
-            weight = weight + Pallet::<T>::process_queue();
+            weight = weight + Self::process_queue();
 
             weight
         }
@@ -732,8 +732,10 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            if let Some(author) = ProgramsLimbo::<T>::take(program_id) {
+            if let Some(author) = ProgramsLimbo::<T>::get(program_id) {
                 if who.clone().into_origin() == author {
+                    ProgramsLimbo::<T>::remove(program_id);
+
                     let account_id = &<T::AccountId as Origin>::from_origin(program_id);
 
                     // Remove program from program storage

@@ -960,11 +960,20 @@ fn program_lifecycle_works() {
             1.into_origin()
         );
         // Program author is allowed to remove the program and reclaim funds
+        // An attempt to remove a program on behalf of another account will fail
+        assert_ok!(Pallet::<Test>::remove_stale_program(
+            Origin::signed(2).into(), // Not the author
+            program_id,
+        ));
+        // Program is still in the storage
+        assert!(common::get_program(program_id).is_some());
+        assert!(ProgramsLimbo::<Test>::get(program_id).is_some());
+
         assert_ok!(Pallet::<Test>::remove_stale_program(
             Origin::signed(1).into(),
             program_id,
         ));
-        run_to_block(4, None);
+        // This time the program has been removed
         assert!(common::get_program(program_id).is_none());
         assert!(ProgramsLimbo::<Test>::get(program_id).is_none());
     })
