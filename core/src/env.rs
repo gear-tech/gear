@@ -49,9 +49,6 @@ pub trait Ext {
     /// The resulting page number should point to `pages` consecutives memory pages.
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
 
-    /// Send message to another program.
-    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str>;
-
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
 
@@ -186,9 +183,6 @@ mod tests {
     impl Ext for ExtImplementedStruct {
         fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> {
             Err("")
-        }
-        fn send(&mut self, _msg: OutgoingPacket) -> Result<MessageId, &'static str> {
-            Ok(MessageId::default())
         }
         fn send_init(&mut self) -> Result<usize, &'static str> {
             Ok(0)
