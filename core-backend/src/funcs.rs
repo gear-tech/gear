@@ -136,32 +136,6 @@ pub(crate) fn reply_to<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &
     }
 }
 
-pub(crate) fn send<E: Ext>(
-    ext: LaterExt<E>,
-) -> impl Fn(i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
-    move |program_id_ptr: i32,
-          payload_ptr: i32,
-          payload_len: i32,
-          gas_limit: i64,
-          value_ptr: i32,
-          message_id_ptr: i32| {
-        let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr).into();
-            let payload = get_vec(ext, payload_ptr, payload_len);
-            let value = get_u128(ext, value_ptr);
-            let message_id = ext.send(OutgoingPacket::new(
-                dest,
-                payload.into(),
-                gas_limit as _,
-                value,
-            ))?;
-            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
-            Ok(())
-        })?;
-        result.map_err(|_| "Trapping: unable to send message")
-    }
-}
-
 pub(crate) fn send_commit<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str> {

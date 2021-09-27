@@ -57,7 +57,6 @@ enum FuncIndex {
     Read,
     Reply,
     ReplyTo,
-    Send,
     Size,
     Source,
     Value,
@@ -127,17 +126,6 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             Some(FuncIndex::ReplyTo) => funcs::reply_to(self.ext.clone())(args.nth(0))
                 .map(|_| None)
                 .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
-
-            Some(FuncIndex::Send) => funcs::send(self.ext.clone())(
-                args.nth(0),
-                args.nth(1),
-                args.nth(2),
-                args.nth(3),
-                args.nth(4),
-                args.nth(5),
-            )
-            .map(|_| None)
-            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
             Some(FuncIndex::SendCommit) => funcs::send_commit(self.ext.clone())(
                 args.nth(0),
@@ -211,12 +199,6 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 func_instance!(ReplyPush, ValueType::I32, ValueType::I32 => None)
             }
             "gr_reply_to" => func_instance!(ReplyTo, ValueType::I32 => None),
-            "gr_send" => func_instance!(Send, ValueType::I32,
-                ValueType::I32,
-                ValueType::I32,
-                ValueType::I64,
-                ValueType::I32,
-                ValueType::I32 => None),
             "gr_send_commit" => func_instance!(SendCommit, ValueType::I32, ValueType::I32 => None),
             "gr_send_init" => func_instance!(SendInit, ValueType::I32,
                 ValueType::I32,
