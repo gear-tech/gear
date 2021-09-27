@@ -76,7 +76,12 @@ pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64) -> Messag
     send_bytes(program, &payload.encode(), gas_limit)
 }
 
-pub fn send_with_value<E: Encode>(program: ProgramId, payload: E, gas_limit: u64, value: u128) -> MessageId {
+pub fn send_with_value<E: Encode>(
+    program: ProgramId,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
     send_bytes_with_value(program, &payload.encode(), gas_limit, value)
 }
 
@@ -84,7 +89,12 @@ pub fn send_bytes(program: ProgramId, payload: &[u8], gas_limit: u64) -> Message
     send_bytes_with_value(program, payload, gas_limit, 0u128)
 }
 
-pub fn send_bytes_with_value(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+pub fn send_bytes_with_value(
+    program: ProgramId,
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
     let handle = send_init();
     handle.push(payload);
     handle.commit(program, gas_limit, value)
