@@ -67,9 +67,11 @@ mod sys {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::msg;
+/// 
 /// pub unsafe extern "C" fn handle() {
-///     let current_message_id = msg::id()
+///     let current_message_id = msg::id();
 /// }
 pub fn id() -> MessageId {
     let mut msg_id = MessageId::default();
@@ -82,7 +84,9 @@ pub fn id() -> MessageId {
 /// Loads content of message into buffer with size of message size which can be obtained using sys call [size()](fn@size)
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::msg;
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///     let mut result = vec![0u8; msg::size()];
 ///     msg::load(&mut result[..]);
@@ -110,7 +114,9 @@ pub fn load(buffer: &mut [u8]) {
 /// Send transaction will be posted only once execution of processing will be finished, same as for standard message [send](fn@send)
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::{msg, exec};
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    msg::reply(b"PING", exec::gas_available(), 0);
@@ -140,7 +146,9 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
 /// Finalization of reply message is done via [reply_commit](fn@reply_commit) function similar to [send_commit](fn@send_commit)
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::msg;
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    msg::reply_push(b"Part 1");
@@ -158,7 +166,9 @@ pub fn reply_push(payload: &[u8]) {
 /// In order to obtain orginal message id on which reply has been posted program should call system function [reply_to](fn@reply_to)
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::msg;
+/// 
 /// pub unsafe extern "C" fn handle_reply() {
 ///    // ...
 ///    let orginal_message_id = msg::reply_to();
@@ -183,7 +193,9 @@ pub fn reply_to() -> MessageId {
 /// Send transaction will be posted only once execution of processing will be finished.
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::{msg, ProgramId};
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
 ///     let mut id: [u8; 32] = [0; 32];
@@ -223,11 +235,13 @@ pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> 
 /// Send transaction will be posted only once execution of processing will be finished.
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::{msg, exec};
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let msg_handle = msg::send_init();
-///    msg::send_push(msg_handle, b"PING");
+///    msg::send_push(&msg_handle, b"PING");
 ///    msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
 /// }
 /// ```
@@ -261,11 +275,13 @@ pub fn send_commit(
 /// send_init funciton initialize message build in parts and returns corresponding message handle.
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::{msg, exec};
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let msg_handle = msg::send_init();
-///    msg::send_push(msg_handle, b"PING");
+///    msg::send_push(&msg_handle, b"PING");
 ///    msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
 /// }
 /// ```
@@ -286,11 +302,13 @@ pub fn send_init() -> MessageHandle {
 /// Second argument is message payload part in bytes.
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::{msg, exec};
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let msg_handle = msg::send_init();
-///    msg::send_push(msg_handle, b"PING");
+///    msg::send_push(&msg_handle, b"PING");
 ///    msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
 /// }
 /// ```
@@ -308,7 +326,9 @@ pub fn send_push(handle: &MessageHandle, payload: &[u8]) {
 /// source() function is used to obtain *ProgramId* of account who send currently processing message (either program or user).
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::msg;
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let who_send_message = msg::source();
@@ -325,7 +345,9 @@ pub fn source() -> ProgramId {
 /// value() function is used to obtain value that has been sent along with a current message being processed.
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::msg;
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let amount_sent_with_message = msg::value();
@@ -344,7 +366,9 @@ pub fn value() -> u128 {
 /// size() function is used to obtain size of payload of current message being processed.
 /// # Examples
 ///
-/// ```ignore
+/// ```
+/// use gcore::msg;
+/// 
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let size_of_the_message = msg::size();

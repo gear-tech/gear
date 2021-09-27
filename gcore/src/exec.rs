@@ -37,18 +37,16 @@ mod sys {
 ///
 /// # Examples
 ///
-/// ```ignore
-///
+/// ```
+/// use gcore::{msg, exec};
+/// 
 /// // Perform work while gas_available is more then 1000
 /// pub unsafe extern "C" fn handle() {
-///     let reply = match msg::load() {
-///         Ok(request) => {
-///             while exec::gas_available() > 1000 {
-///               // do work
-///             }
-///         }
-///         Err(e) => {}
-///     };
+/// 
+///     while exec::gas_available() > 1000 {
+///         // do work
+///     }
+/// 
 /// }
 ///
 pub fn gas_available() -> u64 {
@@ -63,15 +61,14 @@ pub fn gas_available() -> u64 {
 ///
 /// # Examples
 ///
-/// ```ignore
+/// ```
 ///
-/// mut paused_id: MessageId;
+/// use gcore::exec;
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // do work
 ///     // ...
 ///     // pause processing
-///     paused_id = msg::id();
 ///     exec::wait();
 /// }
 ///
@@ -86,14 +83,14 @@ pub fn wait() -> ! {
 ///
 /// # Examples
 ///
-/// ```ignore
-///
-/// mut paused_id: MessageId;
+/// ```
+/// use gcore::{exec, MessageId};
+/// 
 ///
 /// // Perform work while gas_available is more then 1000
 /// pub unsafe extern "C" fn handle() {
 ///     // do work
-///     exec::wake(paused_id);
+///     exec::wake(MessageId::default());
 /// }
 ///
 pub fn wake(waker_id: MessageId) {
