@@ -12,7 +12,7 @@ codec = { package = "parity-scale-codec", version = "2.2.0", default-features = 
 derive_more = "0.99.16"
 hashbrown = "0.11.2"
 log = "0.4.14"
-libc = "0.2.102"
+libc = "0.2.103"
 parity-wasm = "0.42.2"
 pwasm-utils = "0.18.2"
 
