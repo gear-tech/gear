@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Sys calls related to smart contract execution.
+//!
+//! Provides api for low-level async implementation (probably gas should be other mod)
+
 use crate::MessageId;
 
 mod sys {
@@ -26,14 +30,72 @@ mod sys {
     }
 }
 
+/// Allows to fetch current value for the gas available for execution
+///
+/// Each execution of message processing consumes gas, both on instructions and memory allocations.
+/// gas_available() returns value of the gas available for spend during current execution.
+///
+/// # Examples
+///
+/// ```ignore
+///
+/// // Perform work while gas_available is more then 1000
+/// pub unsafe extern "C" fn handle() {
+///     let reply = match msg::load() {
+///         Ok(request) => {
+///             while exec::gas_available() > 1000 {
+///               // do work
+///             }
+///         }
+///         Err(e) => {}
+///     };
+/// }
+///
 pub fn gas_available() -> u64 {
     unsafe { sys::gr_gas_available() }
 }
 
+/// Pause current message handle execution   
+///
+/// If message handle execution needs to be paused, i.e. to await for some other execution to be finished before current execution can contunue ['wait'](fn@wait) method should be used.
+/// Wait finishes current message handle execution with a special result and put current message into *waiting queue* to be awaken using correponding ['wake'](fn@wake) function later.
+/// All gas that is not yet spent attributed to a message in *waiting queue*.
+///
+/// # Examples
+///
+/// ```ignore
+///
+/// mut paused_id: MessageId;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // do work
+///     // ...
+///     // pause processing
+///     paused_id = msg::id();
+///     exec::wait();
+/// }
+///
 pub fn wait() -> ! {
     unsafe { sys::gr_wait() }
 }
 
+/// Continue previously paused message handle execution
+///
+/// If message was paused using ['wait'](fn@wait) function then it is possible to continue its execution by calling ['wake'](fn@wake) function.
+/// Argument *MessageId* specifies particular message to be taken out of *waiting queue* and put into *processing queue*.
+///
+/// # Examples
+///
+/// ```ignore
+///
+/// mut paused_id: MessageId;
+///
+/// // Perform work while gas_available is more then 1000
+/// pub unsafe extern "C" fn handle() {
+///     // do work
+///     exec::wake(paused_id);
+/// }
+///
 pub fn wake(waker_id: MessageId) {
     unsafe {
         sys::gr_wake(waker_id.as_slice().as_ptr());

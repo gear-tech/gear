@@ -19,7 +19,7 @@ pub unsafe extern "C" fn handle() {
         STATE = 2;
         exec::wake(MSG_ID);
     }
-    msg::send(msg::source(), b"WAITED", 1_000_000);
+    msg::send(msg::source(), b"WAITED", 1_000_000, 0);
 }
 
 #[no_mangle]

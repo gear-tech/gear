@@ -16,9 +16,42 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Common types used in GEAR api for smart contracts.
+//!
+//! This module contains definition of common types that is used to work with GEAR api,
+//!
+
+/// Message handle
+///
+/// GEAR allows users and programs to interact with other users and programs via messages.
+/// There is a possibility to create and send messages in parts.
+/// See [msg::send_init], [msg::send_push], [msg::send_commit] functions related to building and sending messages in parts.
+/// In order to identify message that is being built in parts program must use MessageHandle obtained vie [msg::send_init].
+///  
+/// # Examples
+///
+/// ```ignore
+/// pub unsafe extern "C" fn handle() {
+///    // ...
+///    let msg_handle = msg::send_init();
+/// }
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MessageHandle(pub u32);
 
+/// Message identifier
+///
+/// GEAR allows users and programs to interact with other users and programs via messages.
+/// Each message has its own unique id. This id is represented via MessageId struct.
+/// Message identifier can be obtained for current message being processed using [msg::id] function. Also each send and reply
+///  
+/// # Examples
+///
+/// ```ignore
+/// pub unsafe extern "C" fn handle() {
+///     let current_message_id = msg::id();
+/// }
+/// ```
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct MessageId(pub [u8; 32]);
 
