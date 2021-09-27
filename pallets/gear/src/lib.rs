@@ -91,7 +91,7 @@ pub mod pallet {
         /// Debug mode has been turned on or off
         DebugMode(bool),
         /// A snapshot of the program storage ('debug mode' only)
-        ProgramStorageDump(Vec<Program>),
+        ProgramStorageDump(Vec<ProgramDetails>),
         /// A snapshot of the message queue ('debug mode' only)
         MessageQueueDump(Vec<Message>),
     }
@@ -147,8 +147,8 @@ pub mod pallet {
         pub origin: H256,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq)]
-    pub struct Program {
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    pub struct ProgramDetails {
         pub id: H256,
         pub static_pages: u32,
         pub persistent_pages: BTreeMap<u32, Vec<u8>>,
@@ -546,14 +546,14 @@ pub mod pallet {
         }
 
         fn dump_programs_storage() {
-            let programs: Vec<Program> = PrefixIterator::new(
+            let programs = PrefixIterator::<ProgramDetails>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 |key, mut value| {
                     assert_eq!(key.len(), 32);
                     let program_id = H256::from_slice(key);
                     let program = common::Program::decode(&mut value)?;
-                    Ok(Program {
+                    Ok(ProgramDetails {
                         id: program_id,
                         static_pages: program.static_pages,
                         persistent_pages: common::get_program_pages(

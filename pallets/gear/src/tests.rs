@@ -24,7 +24,6 @@ use frame_support::{assert_noop, assert_ok};
 use gear_core::program::{Program, ProgramId};
 use hex_literal::hex;
 use sp_core::H256;
-use sp_std::collections::btree_map::BTreeMap;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -1422,23 +1421,19 @@ fn debug_mode_works() {
 
         // The log should have many occurrences of the programs storage contents dump
         // After init messages processing
-        let mut empty_pages_16 = BTreeMap::new();
-        for i in 0u32..16 {
-            empty_pages_16.insert(i, vec![0; 65536]);
-        }
         System::assert_has_event(
             crate::Event::ProgramStorageDump(vec![
-                crate::Program {
+                crate::ProgramDetails {
                     id: programs[0],
                     static_pages: 16,
-                    persistent_pages: empty_pages_16.clone(),
+                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
                     code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                     nonce: 0u64,
                 },
-                crate::Program {
+                crate::ProgramDetails {
                     id: programs[1],
                     static_pages: 16,
-                    persistent_pages: empty_pages_16.clone(),
+                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
                     code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                     nonce: 0u64,
                 },
@@ -1446,23 +1441,19 @@ fn debug_mode_works() {
             .into(),
         );
         // After message queue processing
-        let mut empty_pages_20 = BTreeMap::new();
-        for i in 0u32..20 {
-            empty_pages_20.insert(i, vec![0; 65536]);
-        }
         System::assert_has_event(
             crate::Event::ProgramStorageDump(vec![
-                crate::Program {
+                crate::ProgramDetails {
                     id: programs[0],
                     static_pages: 16,
-                    persistent_pages: empty_pages_16.clone(),
+                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
                     code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                     nonce: 0u64,
                 },
-                crate::Program {
+                crate::ProgramDetails {
                     id: programs[1],
                     static_pages: 16,
-                    persistent_pages: empty_pages_20.clone(),
+                    persistent_pages: (0..20).map(|i| (i, vec![0; 65536])).collect(),
                     code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                     nonce: 0u64,
                 },
