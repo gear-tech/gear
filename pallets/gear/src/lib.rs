@@ -38,6 +38,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
         pallet_prelude::*,
+        storage::PrefixIterator,
         traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
         weights::{IdentityFee, WeightToFeePolynomial},
     };
@@ -87,6 +88,10 @@ pub mod pallet {
         /// Some number of messages processed.
         // TODO: will be replaced by more comprehensive stats
         MessagesDequeued(u32),
+        /// Debug mode has been turned on or off
+        DebugMode(bool),
+        /// A snapshot of the debug data: programs and message queue ('debug mode' only)
+        DebugDataSnapshot(DebugData),
     }
 
     // Gear pallet error.
@@ -140,6 +145,21 @@ pub mod pallet {
         pub origin: H256,
     }
 
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    pub struct ProgramDetails {
+        pub id: H256,
+        pub static_pages: u32,
+        pub persistent_pages: BTreeMap<u32, Vec<u8>>,
+        pub code_hash: H256,
+        pub nonce: u64,
+    }
+
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    pub struct DebugData {
+        pub message_queue: Vec<Message>,
+        pub programs: Vec<ProgramDetails>,
+    }
+
     #[pallet::storage]
     #[pallet::getter(fn message_queue)]
     pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
@@ -159,6 +179,15 @@ pub mod pallet {
 
     #[pallet::storage]
     pub type ProgramsLimbo<T: Config> = StorageMap<_, Identity, H256, H256>;
+
+    #[pallet::type_value]
+    pub fn DefaultForDebugMode() -> bool {
+        false
+    }
+
+    #[pallet::storage]
+    #[pallet::getter(fn debug_mode)]
+    pub type DebugMode<T> = StorageValue<_, bool, ValueQuery, DefaultForDebugMode>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -399,6 +428,9 @@ pub mod pallet {
                                 }
                             }
                         }
+                        if Self::debug_mode() {
+                            Self::do_snapshot();
+                        }
                     }
                     IntermediateMessage::DispatchMessage {
                         id,
@@ -475,12 +507,69 @@ pub mod pallet {
                         continue;
                     }
                 }
+
+                if Self::debug_mode() {
+                    Self::do_snapshot();
+                }
             }
 
             Self::deposit_event(Event::MessagesDequeued(total_handled));
 
             weight = weight.saturating_sub(Self::gas_allowance());
             weight
+        }
+
+        fn do_snapshot() {
+            #[derive(Decode)]
+            struct Node {
+                value: Message,
+                next: Option<H256>,
+            }
+
+            let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
+            let mut message_queue = vec![];
+
+            if let Some(head) = sp_io::storage::get(&mq_head_key) {
+                let mut next_id = H256::from_slice(&head[..]);
+                loop {
+                    let next_node_key =
+                        [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
+                    if let Some(bytes) = sp_io::storage::get(&next_node_key) {
+                        let current_node = Node::decode(&mut &bytes[..]).unwrap();
+                        message_queue.push(current_node.value);
+                        match current_node.next {
+                            Some(h) => next_id = h,
+                            None => break,
+                        }
+                    }
+                }
+            }
+
+            let programs = PrefixIterator::<ProgramDetails>::new(
+                common::STORAGE_PROGRAM_PREFIX.to_vec(),
+                common::STORAGE_PROGRAM_PREFIX.to_vec(),
+                |key, mut value| {
+                    assert_eq!(key.len(), 32);
+                    let program_id = H256::from_slice(key);
+                    let program = common::Program::decode(&mut value)?;
+                    Ok(ProgramDetails {
+                        id: program_id,
+                        static_pages: program.static_pages,
+                        persistent_pages: common::get_program_pages(
+                            program_id,
+                            program.persistent_pages,
+                        ),
+                        code_hash: program.code_hash,
+                        nonce: program.nonce,
+                    })
+                },
+            )
+            .collect();
+
+            Self::deposit_event(Event::DebugDataSnapshot(DebugData {
+                message_queue,
+                programs,
+            }));
         }
     }
 
@@ -752,6 +841,29 @@ pub mod pallet {
             }
 
             Ok(().into())
+        }
+
+        /// Turn the debug mode on and off.
+        ///
+        /// The origin must be the root.
+        ///
+        /// Parameters:
+        /// - `debug_mode_on`: if true, debug mode will be turned on, turned off otherwise.
+        ///
+        /// Emits the following events:
+        /// - `DebugMode(debug_mode_on).
+        #[pallet::weight(T::DbWeight::get().writes(1))]
+        pub fn enable_debug_mode(
+            origin: OriginFor<T>,
+            debug_mode_on: bool,
+        ) -> DispatchResultWithPostInfo {
+            ensure_root(origin)?;
+            DebugMode::<T>::put(debug_mode_on);
+
+            Self::deposit_event(Event::DebugMode(debug_mode_on));
+
+            // This extrinsic is not chargeable
+            Ok(Pays::No.into())
         }
     }
 }
