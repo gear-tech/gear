@@ -1368,6 +1368,47 @@ fn debug_mode_works() {
 
         run_to_block(2, None);
 
+        // DebugDataSnapshot should indicate empty message queue and the programs storage
+        // having both one entry
+        System::assert_has_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![crate::ProgramDetails {
+                    id: programs[0],
+                    static_pages: 16,
+                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                    nonce: 0u64,
+                }],
+            })
+            .into(),
+        );
+        // and two entries
+        System::assert_has_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: programs[0],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: programs[1],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
+            .into(),
+        );
+
+        System::reset_events();
+
         assert_ok!(Pallet::<Test>::send_message(
             Origin::signed(1).into(),
             programs[0],
@@ -1400,64 +1441,61 @@ fn debug_mode_works() {
 
         run_to_block(3, None);
 
-        // The second of the two sent messages should have still been in the queue
-        // after the first one had been processed and the queue dumped
+        // After the first message has been processed, the second one is still in the queue.
+        // Both programs already reside in storage, with original pages allocations
         System::assert_has_event(
-            crate::Event::MessageQueueDump(vec![common::Message {
-                id: dispatch_msg[1],
-                source: 1.into_origin(),
-                dest: programs[1],
-                payload: vec![],
-                gas_limit: 1_000_000_u64,
-                value: 0_u128,
-                reply: None,
-            }])
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![common::Message {
+                    id: dispatch_msg[1],
+                    source: 1.into_origin(),
+                    dest: programs[1],
+                    payload: vec![],
+                    gas_limit: 1_000_000_u64,
+                    value: 0_u128,
+                    reply: None,
+                }],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: programs[0],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: programs[1],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
             .into(),
         );
 
-        // After both messages had been processed an empty message queue
-        // should have appeared in the log
-        System::assert_has_event(crate::Event::MessageQueueDump(vec![]).into());
-
-        // The log should have many occurrences of the programs storage contents dump
-        // After init messages processing
+        // After both messages have been processed the message queue is empty.
+        // The second program has now more persistent pages
         System::assert_has_event(
-            crate::Event::ProgramStorageDump(vec![
-                crate::ProgramDetails {
-                    id: programs[0],
-                    static_pages: 16,
-                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-                    nonce: 0u64,
-                },
-                crate::ProgramDetails {
-                    id: programs[1],
-                    static_pages: 16,
-                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
-                    nonce: 0u64,
-                },
-            ])
-            .into(),
-        );
-        // After message queue processing
-        System::assert_has_event(
-            crate::Event::ProgramStorageDump(vec![
-                crate::ProgramDetails {
-                    id: programs[0],
-                    static_pages: 16,
-                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-                    nonce: 0u64,
-                },
-                crate::ProgramDetails {
-                    id: programs[1],
-                    static_pages: 16,
-                    persistent_pages: (0..20).map(|i| (i, vec![0; 65536])).collect(),
-                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
-                    nonce: 0u64,
-                },
-            ])
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: programs[0],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: programs[1],
+                        static_pages: 16,
+                        persistent_pages: (0..20).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
             .into(),
         );
     })

@@ -90,10 +90,8 @@ pub mod pallet {
         MessagesDequeued(u32),
         /// Debug mode has been turned on or off
         DebugMode(bool),
-        /// A snapshot of the program storage ('debug mode' only)
-        ProgramStorageDump(Vec<ProgramDetails>),
-        /// A snapshot of the message queue ('debug mode' only)
-        MessageQueueDump(Vec<Message>),
+        /// A snapshot of the debug data: programs and message queue ('debug mode' only)
+        DebugDataSnapshot(DebugData),
     }
 
     // Gear pallet error.
@@ -154,6 +152,12 @@ pub mod pallet {
         pub persistent_pages: BTreeMap<u32, Vec<u8>>,
         pub code_hash: H256,
         pub nonce: u64,
+    }
+
+    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    pub struct DebugData {
+        pub message_queue: Vec<Message>,
+        pub programs: Vec<ProgramDetails>,
     }
 
     #[pallet::storage]
@@ -425,8 +429,7 @@ pub mod pallet {
                             }
                         }
                         if Self::debug_mode() {
-                            Self::dump_message_queue();
-                            Self::dump_programs_storage();
+                            Self::do_snapshot();
                         }
                     }
                     IntermediateMessage::DispatchMessage {
@@ -506,8 +509,7 @@ pub mod pallet {
                 }
 
                 if Self::debug_mode() {
-                    Self::dump_message_queue();
-                    Self::dump_programs_storage();
+                    Self::do_snapshot();
                 }
             }
 
@@ -517,7 +519,7 @@ pub mod pallet {
             weight
         }
 
-        fn dump_message_queue() {
+        fn do_snapshot() {
             #[derive(Decode)]
             struct Node {
                 value: Message,
@@ -525,7 +527,7 @@ pub mod pallet {
             }
 
             let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
-            let mut messages = vec![];
+            let mut message_queue = vec![];
 
             if let Some(head) = sp_io::storage::get(&mq_head_key) {
                 let mut next_id = H256::from_slice(&head[..]);
@@ -534,7 +536,7 @@ pub mod pallet {
                         [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
                     if let Some(bytes) = sp_io::storage::get(&next_node_key) {
                         let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        messages.push(current_node.value);
+                        message_queue.push(current_node.value);
                         match current_node.next {
                             Some(h) => next_id = h,
                             None => break,
@@ -542,10 +544,7 @@ pub mod pallet {
                     }
                 }
             }
-            Self::deposit_event(Event::MessageQueueDump(messages));
-        }
 
-        fn dump_programs_storage() {
             let programs = PrefixIterator::<ProgramDetails>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
@@ -566,7 +565,11 @@ pub mod pallet {
                 },
             )
             .collect();
-            Self::deposit_event(Event::ProgramStorageDump(programs));
+
+            Self::deposit_event(Event::DebugDataSnapshot(DebugData {
+                message_queue,
+                programs,
+            }));
         }
     }
 
@@ -863,10 +866,4 @@ pub mod pallet {
             Ok(Pays::No.into())
         }
     }
-
-    // #[derive(Debug, Clone, Encode, Decode)]
-    // struct Node {
-    //     value: Message,
-    //     next: Option<H256>,
-    // }
 }
