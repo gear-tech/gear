@@ -33,6 +33,10 @@ jobs:
           cargo clippy --package gstd-async --all-features -- -D warnings
           echo cargo clippy --package pallet-gear --all-features -- -D warnings # TODO: Fix
 
+      - name: Check benchmarks compile
+        run: |
+          cargo check --release --features=runtime-benchmarks
+
   build:
     needs: check
     runs-on: ubuntu-latest
