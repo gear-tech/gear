@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Messaging api for GEAR smart contracts.
+//! Messaging api for GEAR programs.
 //!
 //! This module contains sys calls api for incoming message processing and synchroneouse message sending,
 //! Messages are main interface for communications between actors (users and programs).
@@ -344,10 +344,10 @@ pub fn value() -> u128 {
 /// size() function is used to obtain size of payload of current message being processed.
 /// # Examples
 ///
-/// ```
+/// ```ignore
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
-///    let amount_sent_with_message = msg::value();
+///    let size_of_the_message = msg::size();
 /// }
 /// ```
 pub fn size() -> usize {

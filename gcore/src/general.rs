@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Common types used in GEAR api for smart contracts.
+//! Common types used in GEAR programs.
 //!
 //! This module contains definition of common types that is used to work with GEAR api,
 //!
