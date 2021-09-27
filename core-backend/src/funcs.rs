@@ -98,12 +98,19 @@ pub(crate) fn read<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result
 
 pub(crate) fn reply<E: Ext>(
     ext: LaterExt<E>,
-) -> impl Fn(i32, i32, i64, i32) -> Result<(), &'static str> {
-    move |payload_ptr: i32, payload_len: i32, gas_limit: i64, value_ptr: i32| {
-        let result = ext.with(|ext: &mut E| {
+) -> impl Fn(i32, i32, i64, i32, i32) -> Result<(), &'static str> {
+    move |payload_ptr: i32,
+          payload_len: i32,
+          gas_limit: i64,
+          value_ptr: i32,
+          message_id_ptr: i32| {
+        let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let payload = get_vec(ext, payload_ptr, payload_len);
             let value = get_u128(ext, value_ptr);
-            ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
+            let message_id =
+                ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            Ok(())
         })?;
         result.map_err(|_| "Trapping: unable to send reply message")
     }

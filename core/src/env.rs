@@ -69,7 +69,7 @@ pub trait Ext {
     ) -> Result<MessageId, &'static str>;
 
     /// Produce reply to the current message.
-    fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
+    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str>;
 
     /// Read the message id, if current message is a reply.
     fn reply_to(&self) -> Option<(MessageId, ExitCode)>;
@@ -206,8 +206,8 @@ mod tests {
         ) -> Result<MessageId, &'static str> {
             Ok(MessageId::default())
         }
-        fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
-            Ok(())
+        fn reply(&mut self, _msg: ReplyPacket) -> Result<MessageId, &'static str> {
+            Ok(MessageId::default())
         }
         fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
             None

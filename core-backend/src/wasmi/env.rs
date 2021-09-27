@@ -112,11 +112,15 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
                     .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
             }
 
-            Some(FuncIndex::Reply) => {
-                funcs::reply(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2), args.nth(3))
-                    .map(|_| None)
-                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
-            }
+            Some(FuncIndex::Reply) => funcs::reply(self.ext.clone())(
+                args.nth(0),
+                args.nth(1),
+                args.nth(2),
+                args.nth(3),
+                args.nth(4),
+            )
+            .map(|_| None)
+            .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
 
             Some(FuncIndex::ReplyPush) => {
                 funcs::reply_push(self.ext.clone())(args.nth(0), args.nth(1))
@@ -206,6 +210,7 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "gr_reply" => func_instance!(Reply, ValueType::I32,
                 ValueType::I32,
                 ValueType::I64,
+                ValueType::I32,
                 ValueType::I32 => None),
             "gr_reply_push" => {
                 func_instance!(ReplyPush, ValueType::I32, ValueType::I32 => None)
