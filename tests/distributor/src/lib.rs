@@ -39,6 +39,7 @@ pub enum Request {
 pub enum Reply {
     Success,
     Failure,
+    StateFailure,
     Amount(u64),
 }
 
@@ -144,14 +145,21 @@ mod wasm {
 
         async fn handle_receive(amount: u64) -> Reply {
             ext::debug(&format!("Handling receive {}", amount));
-            let subnodes_count = Self::nodes().borrow().len() as u64;
+
+            let (subnodes_count, nodes) = match Program::nodes().try_borrow() {
+                Ok(nodes) => (nodes.len() as u64, nodes),
+                Err(_) => {
+                    return Reply::StateFailure;
+                }
+            };
+
             if subnodes_count > 0 {
                 let distributed_per_node = amount / subnodes_count;
                 let distributed_total = distributed_per_node * subnodes_count;
                 let mut left_over = amount - distributed_total;
 
                 if distributed_per_node > 0 {
-                    for program in Program::nodes().borrow().iter() {
+                    for program in nodes.iter() {
                         if let Err(_) = program.do_send(distributed_per_node).await {
                             // reclaiming amount from nodes that fail!
                             left_over += distributed_per_node;
@@ -170,7 +178,14 @@ mod wasm {
         }
 
         async fn handle_join(program_id: u64) -> Reply {
-            Self::nodes().borrow_mut().insert(Program::new(program_id));
+            let mut nodes = match Self::nodes().try_borrow_mut() {
+                Ok(nodes) => nodes,
+                Err(_) => {
+                    return Reply::StateFailure; // Probably receive in progress, so nodes cannot be altered!
+                }
+            };
+
+            nodes.insert(Program::new(program_id));
 
             Reply::Success
         }
@@ -179,7 +194,14 @@ mod wasm {
             let mut amount = *Program::amount();
             ext::debug(&format!("Own amount: {}", amount));
 
-            for program in Program::nodes().borrow().iter() {
+            let nodes = match Program::nodes().try_borrow() {
+                Ok(nodes) => nodes,
+                Err(_) => {
+                    return Reply::StateFailure;
+                }
+            };
+
+            for program in nodes.iter() {
                 ext::debug("Querying next node");
                 amount += match program.do_report().await {
                     Ok(amount) => {
@@ -250,15 +272,12 @@ mod tests {
         assert_eq!(reply, Reply::Amount(10));
     }
 
-    #[test]
-    fn composite_program() {
-        env_logger::Builder::from_env(env_logger::Env::default()).init();
-
+    fn multi_program_setup(
+        program_id_1: u64,
+        program_id_2: u64,
+        program_id_3: u64,
+    ) -> RunnerContext {
         let mut runner = RunnerContext::default();
-
-        let program_id_1 = 1;
-        let program_id_2 = 2;
-        let program_id_3 = 3;
 
         runner.init_program(InitProgram::from(wasm_code()).id(program_id_1));
         runner.init_program(InitProgram::from(wasm_code()).id(program_id_2));
@@ -272,6 +291,19 @@ mod tests {
             runner.request(MessageBuilder::from(Request::Join(3)).destination(program_id_1));
         assert_eq!(reply, Reply::Success);
 
+        runner
+    }
+
+    #[test]
+    fn composite_program() {
+        env_logger::Builder::from_env(env_logger::Env::default()).init();
+
+        let program_id_1 = 1;
+        let program_id_2 = 2;
+        let program_id_3 = 3;
+
+        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
+
         let reply: Reply =
             runner.request(MessageBuilder::from(Request::Receive(11)).destination(program_id_1));
         assert_eq!(reply, Reply::Success);
@@ -283,5 +315,24 @@ mod tests {
         let reply: Reply =
             runner.request(MessageBuilder::from(Request::Report).destination(program_id_1));
         assert_eq!(reply, Reply::Amount(11));
+    }
+
+    // This test show how RefCell will prevent to do conficting changes (prevent multi-aliasing of the program state)
+    #[test]
+    fn conflicting_nodes() {
+        let program_id_1 = 1;
+        let program_id_2 = 2;
+        let program_id_3 = 3;
+        let program_id_4 = 4;
+
+        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
+        runner.init_program(InitProgram::from(wasm_code()).id(program_id_4));
+
+        let results: Vec<Reply> = runner.request_batch(vec![
+            MessageBuilder::from(Request::Receive(11)).destination(program_id_1),
+            MessageBuilder::from(Request::Join(4)).destination(program_id_1),
+        ]);
+
+        assert_eq!(results, vec![Reply::Success, Reply::StateFailure])
     }
 }
