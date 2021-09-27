@@ -74,6 +74,31 @@ mod sys {
     }
 
     #[no_mangle]
+    unsafe extern "C" fn gr_send_commit(
+        _handle: u32,
+        _message_id_ptr: *mut u8,
+        program: *const u8,
+
+        gas_limit: u64,
+        value_ptr: *const u8,
+    ) {
+        ptr::copy(program, PROGRAM.0.as_mut_ptr(), 32);
+        GAS_LIMIT = gas_limit;
+        VALUE = *(value_ptr as *const u128);
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn gr_send_init() -> u32 {
+        0
+    }
+
+    #[no_mangle]
+    unsafe extern "C" fn gr_send_push(_handle: u32, data_ptr: *const u8, data_len: u32) {
+        MESSAGE_LEN = data_len as _;
+        ptr::copy(data_ptr, MESSAGE.as_mut_ptr(), data_len as _);
+    }
+
+    #[no_mangle]
     unsafe extern "C" fn gr_size() -> u32 {
         MESSAGE.len() as u32
     }
@@ -99,7 +124,9 @@ fn messages() {
         id[i] = i as u8;
     }
 
-    msg::send_with_value(ProgramId(id), b"HELLO", 1000, 12345678);
+    let handle = msg::send_init();
+    msg::send_push(&handle, b"HELLO");
+    msg::send_commit(handle, ProgramId(id), 1000, 12345678);
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ProgramId(id));
