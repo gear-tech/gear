@@ -318,7 +318,7 @@ pub mod pallet {
                         ) {
                             Err(_) => {
                                 // `init_program` in Runner can only return Err(_) in two cases:
-                                // - failure to write program to Program Stroage
+                                // - failure to write program to Program Storage
                                 // - failure to instrument the init code
                                 // In both cases the function returns before any gas could be spent.
                                 // Hence no need to adjust the remaining gas allowance.
