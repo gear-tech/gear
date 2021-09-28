@@ -16,6 +16,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
       - name: Check fmt
         run: |
           cargo fmt --all -- --check
@@ -34,17 +40,16 @@ jobs:
           echo cargo clippy --package pallet-gear --all-features -- -D warnings # TODO: Fix
 
       - name: Check benchmarks compile
-        run: |
-          cargo check --release --features=runtime-benchmarks
+        run: cargo check --release --features=runtime-benchmarks
 
   build:
-    needs: check
+    #needs: check # TODO: Uncomment if need to run steps consequently
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Install toolchains
+      - name: Install nightly toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
@@ -64,7 +69,7 @@ jobs:
         run: cargo build --workspace --release
 
       - name: Build examples (WASM)
-        run: | 
+        run: |
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
 
