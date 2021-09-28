@@ -18,7 +18,7 @@
 
 //! Sys calls related to program execution flow.
 //!
-//! Provides api for low-level async implementation (probably gas should be other mod)
+//! Provides api for low-level async implementation
 
 use crate::MessageId;
 
