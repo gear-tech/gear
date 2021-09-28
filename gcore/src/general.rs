@@ -25,8 +25,8 @@
 ///
 /// GEAR allows users and programs to interact with other users and programs via messages.
 /// There is a possibility to create and send messages in parts.
-/// See [msg::send_init], [msg::send_push], [msg::send_commit] functions related to building and sending messages in parts.
-/// In order to identify message that is being built in parts program must use MessageHandle obtained vie [msg::send_init].
+/// See [crate::msg::send_init], [crate::msg::send_push], [crate::msg::send_commit] functions related to building and sending messages in parts.
+/// In order to identify message that is being built in parts program must use MessageHandle obtained vie [crate::msg::send_init].
 ///  
 /// # Examples
 ///
@@ -45,7 +45,7 @@ pub struct MessageHandle(pub u32);
 ///
 /// GEAR allows users and programs to interact with other users and programs via messages.
 /// Each message has its own unique id. This id is represented via MessageId struct.
-/// Message identifier can be obtained for current message being processed using [msg::id] function. Also each send and reply
+/// Message identifier can be obtained for current message being processed using [crate::msg::id] function. Also each send and reply
 ///  
 /// # Examples
 ///
