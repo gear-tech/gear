@@ -28,7 +28,3 @@ pub use general::*;
 mod utils;
 #[cfg(feature = "debug")]
 pub use utils::ext;
-
-pub mod prelude {
-    pub use core::prelude::*;
-}
