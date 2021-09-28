@@ -31,6 +31,7 @@ pub unsafe extern "C" fn handle() {
             msg::source(),
             format!("Discharged: {}", CHARGE).as_bytes(),
             10_000_000,
+            0,
         );
         DISCHARGE_HISTORY.push(CHARGE);
         CHARGE = 0;
