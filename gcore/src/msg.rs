@@ -117,7 +117,7 @@ pub fn load(buffer: &mut [u8]) {
 ///
 /// First argument is the reply message payload in bytes. Second argument is
 /// `gas_limit` - maximum gas allowed to be utilized during the reply message
-/// processing. Last argument `value` is the value to be transferred from thr
+/// processing. Last argument `value` is the value to be transferred from the
 /// current program account to the reply message target account.
 /// Returns [`MessageId`] of the reply message. The send transaction will be
 /// posted only once processing is complete, as with the standard message
