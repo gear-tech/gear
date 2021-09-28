@@ -39,14 +39,14 @@ mod sys {
 ///
 /// ```
 /// use gcore::{msg, exec};
-/// 
+///
 /// // Perform work while gas_available is more then 1000
 /// pub unsafe extern "C" fn handle() {
-/// 
+///
 ///     while exec::gas_available() > 1000 {
 ///         // do work
 ///     }
-/// 
+///
 /// }
 ///
 pub fn gas_available() -> u64 {
@@ -85,7 +85,7 @@ pub fn wait() -> ! {
 ///
 /// ```
 /// use gcore::{exec, MessageId};
-/// 
+///
 ///
 /// // Perform work while gas_available is more then 1000
 /// pub unsafe extern "C" fn handle() {

@@ -51,7 +51,6 @@ mod sys {
             handle: u32,
             message_id_ptr: *mut u8,
             program: *const u8,
-
             gas_limit: u64,
             value_ptr: *const u8,
         );
@@ -69,7 +68,7 @@ mod sys {
 ///
 /// ```
 /// use gcore::msg;
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///     let current_message_id = msg::id();
 /// }
@@ -86,7 +85,7 @@ pub fn id() -> MessageId {
 ///
 /// ```
 /// use gcore::msg;
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///     let mut result = vec![0u8; msg::size()];
 ///     msg::load(&mut result[..]);
@@ -116,7 +115,7 @@ pub fn load(buffer: &mut [u8]) {
 ///
 /// ```
 /// use gcore::{msg, exec};
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    msg::reply(b"PING", exec::gas_available(), 0);
@@ -148,7 +147,7 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
 ///
 /// ```
 /// use gcore::msg;
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    msg::reply_push(b"Part 1");
@@ -168,7 +167,7 @@ pub fn reply_push(payload: &[u8]) {
 ///
 /// ```
 /// use gcore::msg;
-/// 
+///
 /// pub unsafe extern "C" fn handle_reply() {
 ///    // ...
 ///    let orginal_message_id = msg::reply_to();
@@ -195,7 +194,7 @@ pub fn reply_to() -> MessageId {
 ///
 /// ```
 /// use gcore::{msg, ProgramId};
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
 ///     let mut id: [u8; 32] = [0; 32];
@@ -237,7 +236,7 @@ pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> 
 ///
 /// ```
 /// use gcore::{msg, exec};
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let msg_handle = msg::send_init();
@@ -277,7 +276,7 @@ pub fn send_commit(
 ///
 /// ```
 /// use gcore::{msg, exec};
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let msg_handle = msg::send_init();
@@ -304,7 +303,7 @@ pub fn send_init() -> MessageHandle {
 ///
 /// ```
 /// use gcore::{msg, exec};
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let msg_handle = msg::send_init();
@@ -321,6 +320,23 @@ pub fn send_push(handle: &MessageHandle, payload: &[u8]) {
     unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _) }
 }
 
+/// Get size of payload of a message being processed
+///
+/// size() function is used to obtain size of payload of current message being processed.
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///    // ...
+///    let size_of_the_message = msg::size();
+/// }
+/// ```
+pub fn size() -> usize {
+    unsafe { sys::gr_size() as _ }
+}
+
 /// Get address of message source
 ///
 /// source() function is used to obtain *ProgramId* of account who send currently processing message (either program or user).
@@ -328,7 +344,7 @@ pub fn send_push(handle: &MessageHandle, payload: &[u8]) {
 ///
 /// ```
 /// use gcore::msg;
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let who_send_message = msg::source();
@@ -347,7 +363,7 @@ pub fn source() -> ProgramId {
 ///
 /// ```
 /// use gcore::msg;
-/// 
+///
 /// pub unsafe extern "C" fn handle() {
 ///    // ...
 ///    let amount_sent_with_message = msg::value();
@@ -359,21 +375,4 @@ pub fn value() -> u128 {
         sys::gr_value(value_data.as_mut_ptr());
     }
     u128::from_le_bytes(value_data)
-}
-
-/// Get size of payload of a message being processed
-///
-/// size() function is used to obtain size of payload of current message being processed.
-/// # Examples
-///
-/// ```
-/// use gcore::msg;
-/// 
-/// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let size_of_the_message = msg::size();
-/// }
-/// ```
-pub fn size() -> usize {
-    unsafe { sys::gr_size() as _ }
 }

@@ -31,8 +31,8 @@ impl MessageHandle {
         send_init()
     }
 
-    pub fn push<E: Encode>(&self, payload: E) {
-        gcore::msg::send_push(&self.0, &payload.encode());
+    pub fn push(&self, payload: &[u8]) {
+        gcore::msg::send_push(&self.0, payload);
     }
 
     pub fn commit(self, program: ProgramId, gas_limit: u64, value: u128) -> MessageId {
@@ -57,20 +57,14 @@ pub fn load_bytes() -> Vec<u8> {
 }
 
 pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
-    let bytes = payload.encode();
-    gcore::msg::reply(&bytes, gas_limit, value)
+    reply_bytes(&payload.encode(), gas_limit, value)
 }
 
-pub fn reply_bytes(payload: &[u8], gas_limit: u64, value: u128) {
-    gcore::msg::reply(payload, gas_limit, value);
+pub fn reply_bytes(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+    gcore::msg::reply(payload, gas_limit, value)
 }
 
-pub fn reply_push<E: Encode>(payload: E) {
-    let bytes = payload.encode();
-    gcore::msg::reply_push(&bytes);
-}
-
-pub fn reply_push_bytes(payload: &[u8]) {
+pub fn reply_push(payload: &[u8]) {
     gcore::msg::reply_push(payload);
 }
 
@@ -79,8 +73,7 @@ pub fn send_init() -> MessageHandle {
 }
 
 pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64, value: u128) -> MessageId {
-    let bytes = payload.encode();
-    gcore::msg::send(program, &bytes, gas_limit, value)
+    send_bytes(program, &payload.encode(), gas_limit, value)
 }
 
 pub fn send_bytes(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
