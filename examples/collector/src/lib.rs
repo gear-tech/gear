@@ -12,8 +12,7 @@ static mut COUNTER: usize = 0;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let new_msg =
-        String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     if new_msg == "log" {
         let collapsed = mem::replace(&mut MY_COLLECTION, BTreeMap::new())
             .into_iter()
