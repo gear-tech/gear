@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys calls related to smart contract execution.
+//! Sys calls related to program execution flow.
 //!
 //! Provides api for low-level async implementation (probably gas should be other mod)
 
