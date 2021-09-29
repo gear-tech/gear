@@ -23,7 +23,14 @@ mod sys {
     extern "C" {
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
-        pub fn gr_reply(data_ptr: *const u8, data_len: u32, gas_limit: u64, value_ptr: *const u8);
+        pub fn gr_reply(
+            data_ptr: *const u8,
+            data_len: u32,
+            gas_limit: u64,
+            value_ptr: *const u8,
+            message_id_ptr: *mut u8,
+        );
+        pub fn gr_reply_commit(message_id_ptr: *mut u8, gas_limit: u64, value_ptr: *const u8);
         pub fn gr_reply_push(data_ptr: *const u8, data_len: u32);
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
@@ -66,14 +73,29 @@ pub fn load(buffer: &mut [u8]) {
     }
 }
 
-pub fn reply(payload: &[u8], gas_limit: u64, value: u128) {
+pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     unsafe {
+        let mut message_id = MessageId::default();
         sys::gr_reply(
             payload.as_ptr(),
             payload.len() as _,
             gas_limit,
             value.to_le_bytes().as_ptr(),
-        )
+            message_id.as_mut_slice().as_mut_ptr(),
+        );
+        message_id
+    }
+}
+
+pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply_commit(
+            message_id.as_mut_slice().as_mut_ptr(),
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+        );
+        message_id
     }
 }
 
