@@ -673,7 +673,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Push an extra buffer into reply message.
-    pub fn reply_push(&self, buffer: &[u8]) -> Result<(), Error> {
+    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
         let mut state = self.state.borrow_mut();
 
         match &mut state.reply {
@@ -834,30 +834,37 @@ mod tests {
         // Сhecking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
         assert_eq!(context.nonce(), DEFAULT_NONCE);
-        assert!(context.state.borrow_mut().reply.is_none());
+        assert!(context.state.borrow_mut().reply.0.is_none());
+        assert!(context.state.borrow_mut().reply.1.is_none());
 
-        // Creating a reply packet to set the `ReplyMessage`
-        let reply_packet = ReplyPacket::new(0, vec![0, 0, 0].into(), 0, 0);
+        // Creating a reply packet
+        let reply_packet = ReplyPacket::new(0, vec![0, 0].into(), 0, 0);
 
-        // Checking that we are not able to push extra payload into
-        // reply message if we have not set it yet
-        assert!(context.reply_push(&[0]).is_err());
+        // Checking that we are able to initialize reply
+        assert!(context.reply_push(&[1, 2, 3]).is_ok());
 
         // Setting reply message and making sure the operation was successful
-        assert!(context.reply(reply_packet.clone()).is_ok());
+        assert!(context.reply_commit(reply_packet.clone()).is_ok());
 
         // After every successful generation of `Message`, `nonse` increases by one
         assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
 
         // Checking that the `ReplyMessage` mathes the passed one
         assert_eq!(
-            context.state.borrow_mut().reply.as_ref().unwrap().payload,
-            vec![0, 0, 0].into()
+            context.state.borrow_mut().reply.1.as_ref().unwrap().payload,
+            vec![1, 2, 3, 0, 0].into()
         );
 
-        // Checking that repeated call `reply(...)` returns error and does not
+        // Checking that repeated call `reply_push(...)` returns error and does not do anything
+        assert!(context.reply_push(&[1]).is_err());
+        assert_eq!(
+            context.state.borrow_mut().reply.1.as_ref().unwrap().payload,
+            vec![1, 2, 3, 0, 0].into()
+        );
+
+        // Checking that repeated call `reply_commit(...)` returns error and does not
         // increase nonse, because `ReplyMessage` is not generated
-        assert!(context.reply(reply_packet.clone()).is_err());
+        assert!(context.reply_commit(reply_packet.clone()).is_err());
         assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
 
         // Checking that at this point vector of outgoing messages is empty
@@ -918,26 +925,15 @@ mod tests {
         assert!(context.send_push(expected_handle, &[2, 2]).is_ok());
 
         // Checking that reply message not lost and matches our initial
-        assert!(context.state.borrow().reply.is_some());
+        assert!(context.state.borrow().reply.1.is_some());
         assert_eq!(
-            context.state.borrow().reply.as_ref().unwrap().payload.0,
-            vec![0, 0, 0]
+            context.state.borrow().reply.1.as_ref().unwrap().payload.0,
+            vec![1, 2, 3, 0, 0]
         );
-
-        // Checking that we are able to push extra payload into reply message
-        assert!(context.reply_push(&[1, 2]).is_ok());
-        assert!(context.reply_push(&[3, 4]).is_ok());
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
         let expected_result = context.drain();
         assert_eq!(expected_result.0.len(), 1);
         assert_eq!(expected_result.0[0].payload.0, vec![5, 7, 9]);
-
-        // Checking that we successfully pushed extra payload into reply
-        assert!(expected_result.1.is_some());
-        assert_eq!(
-            expected_result.1.unwrap().payload.0,
-            vec![0, 0, 0, 1, 2, 3, 4]
-        );
     }
 }
