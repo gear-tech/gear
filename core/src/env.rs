@@ -61,6 +61,9 @@ pub trait Ext {
     /// Push an extra buffer into message payload by handle.
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
 
+    /// Complete reply message and send it to source program.
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str>;
+
     /// Push an extra buffer into reply message.
     fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
 
@@ -72,7 +75,9 @@ pub trait Ext {
     ) -> Result<MessageId, &'static str>;
 
     /// Produce reply to the current message.
-    fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str>;
+    fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+        self.reply_commit(msg)
+    }
 
     /// Read the message id, if current message is a reply.
     fn reply_to(&self) -> Option<(MessageId, ExitCode)>;
@@ -196,6 +201,9 @@ mod tests {
         fn send_push(&mut self, _handle: usize, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
+        fn reply_commit(&mut self, _msg: ReplyPacket) -> Result<MessageId, &'static str> {
+            Ok(MessageId::default())
+        }
         fn reply_push(&mut self, _buffer: &[u8]) -> Result<(), &'static str> {
             Ok(())
         }
@@ -205,9 +213,6 @@ mod tests {
             _msg: OutgoingPacket,
         ) -> Result<MessageId, &'static str> {
             Ok(MessageId::default())
-        }
-        fn reply(&mut self, _msg: ReplyPacket) -> Result<(), &'static str> {
-            Ok(())
         }
         fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
             None

@@ -336,6 +336,11 @@ impl ReplyMessage {
             reply: Some((source_message, self.exit_code)),
         }
     }
+
+    /// Return message id generated for this packet.
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
 }
 
 /// Message.
@@ -580,7 +585,7 @@ pub struct MessageState {
     /// Collection of outgoing messages generated.
     pub outgoing: Vec<(Option<Payload>, Option<OutgoingMessage>)>,
     /// Reply generated.
-    pub reply: Option<ReplyMessage>,
+    pub reply: (Option<Payload>, Option<ReplyMessage>),
     /// Message to be added to wait list.
     pub waiting: Option<IncomingMessage>,
     /// Message to be waken.
@@ -607,17 +612,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             current: Rc::new(incoming_message),
             id_generator: Rc::new(id_generator.into()),
         }
-    }
-
-    /// Record reply to the current message.
-    pub fn reply(&self, msg: ReplyPacket) -> Result<(), Error> {
-        if self.state.borrow().reply.is_some() {
-            return Err(Error::DuplicateReply);
-        }
-
-        self.state.borrow_mut().reply = Some(self.id_generator.borrow_mut().produce_reply(msg));
-
-        Ok(())
     }
 
     /// Initialize a new message with `NotFormed` formation status and return its handle.
@@ -653,14 +647,45 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Err(Error::LateAccess)
     }
 
+    /// Record reply to the current message.
+    pub fn reply_commit(
+        &mut self,
+        packet: ReplyPacket,
+    ) -> Result<MessageId, Error> {
+        let mut state = self.state.borrow_mut();
+
+        match &mut state.reply {
+            (_, Some(_)) => Err(Error::LateAccess),
+            (payload, msg) => {
+                let mut reply = self.id_generator.borrow_mut().produce_reply(packet);
+
+                let packet_payload = reply.payload.0.clone();
+                reply.payload.0.clear();
+                reply
+                    .payload
+                    .0
+                    .extend_from_slice(&payload.as_ref().unwrap_or(&Payload::default()).0);
+                reply.payload.0.extend_from_slice(&packet_payload);
+
+                *msg = Some(reply);
+                *payload = None;
+
+                Ok(msg.as_ref().unwrap().id())
+            }
+        }
+    }
+
     /// Push an extra buffer into reply message.
     pub fn reply_push(&self, buffer: &[u8]) -> Result<(), Error> {
-        if let Some(reply) = &mut self.state.borrow_mut().reply {
-            reply.payload.0.extend_from_slice(buffer);
-            return Ok(());
+        let mut state = self.state.borrow_mut();
+
+        match &mut state.reply {
+            (_, Some(_)) => { return Err(Error::LateAccess) },
+            (Some(payload), _) => payload.0.extend_from_slice(buffer),
+            (None, _) => state.reply.0 = Some(buffer.to_vec().into()),
         }
 
-        Err(Error::NoReplyFound)
+        Ok(())
     }
 
     /// Add the current message to the wait list.
@@ -746,7 +771,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                 .drain(..)
                 .filter_map(|v| if v.0 == None { v.1 } else { None })
                 .collect(),
-            state.reply,
+            state.reply.1,
             state.waiting,
             state.awakening,
         )
