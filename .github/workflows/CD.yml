@@ -2,7 +2,7 @@ name: CD
 
 on:
   push:
-    branches: [master,deply-one-rpc]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always

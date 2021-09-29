@@ -8,9 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 anyhow = { version = "1.0.44", default-features = false }
 blake2-rfc = { version = "*", default-features = false }
-codec = { package = "parity-scale-codec", version = "2.2.0", features = [
-    "derive",
-], default-features = false }
+codec = { package = "parity-scale-codec", version = "2.2.0", features = ["derive"], default-features = false }
 gear-core = { path = "../core" }
 gear-core-backend = { path = "../core-backend", default-features = false, optional = true }
 log = { version = "0.4.14", default-features = false }

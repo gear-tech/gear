@@ -1944,6 +1944,7 @@ version = "0.1.0"
 dependencies = [
  "gear-core",
  "parity-scale-codec",
+ "primitive-types",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -2019,6 +2020,7 @@ dependencies = [
  "sc-telemetry",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "scale-info",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
@@ -2058,6 +2060,7 @@ version = "2.0.0"
 dependencies = [
  "pallet-gear",
  "parity-scale-codec",
+ "scale-info",
  "serde_json",
  "sp-api",
  "sp-core",
@@ -2089,6 +2092,7 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-utility",
  "parity-scale-codec",
+ "primitive-types",
  "scale-info",
  "serde",
  "sp-api",
@@ -2260,7 +2264,9 @@ version = "0.1.0"
 dependencies = [
  "galloc",
  "gcore",
+ "hex",
  "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -2278,14 +2284,6 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "syn",
-]
-
-[[package]]
-name = "gstd-meta"
-version = "0.1.0"
-dependencies = [
- "scale-info",
- "serde_json",
 ]
 
 [[package]]
@@ -4137,6 +4135,7 @@ dependencies = [
  "pallet-balances",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
+ "primitive-types",
  "scale-info",
  "serde",
  "sp-core",
@@ -4156,6 +4155,7 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-api",
  "sp-blockchain",
@@ -8065,9 +8065,9 @@ dependencies = [
 
 [[package]]
 name = "wasmi"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2ee05bba3d1d994652079893941a2ef9324d2b58a63c31b40678fb7eddd7a5a"
+checksum = "ca00c5147c319a8ec91ec1a0edbec31e566ce2c9cc93b3f9bb86a9efd0eb795d"
 dependencies = [
  "downcast-rs",
  "libc",

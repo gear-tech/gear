@@ -21,7 +21,7 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 
-use sp_core::H256;
+use primitive_types::H256;
 use sp_std::vec::Vec;
 
 impl From<CoreMessage> for crate::Message {

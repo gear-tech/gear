@@ -15,5 +15,8 @@
     "bugs": {
         "url": "https://github.com/gear-tech/gear/issues"
     },
-    "homepage": "https://github.com/gear-tech/gear#readme"
+    "homepage": "https://github.com/gear-tech/gear#readme",
+    "dependencies": {
+        "@polkadot/api": "^6.0.5"
+    }
 }

@@ -16,6 +16,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 name = "gear-node"
 
 [dependencies]
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 structopt = "0.3.23"
 hex-literal = "0.3.3"
 

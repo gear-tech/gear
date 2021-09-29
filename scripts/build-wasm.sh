@@ -24,4 +24,7 @@ done
 rm -f $ROOT_DIR/target/wasm32-unknown-unknown/release/*.opt.wasm
 rm -f $ROOT_DIR/target/wasm32-unknown-unknown/release/*.meta.wasm
 
+cd $ROOT_DIR/..
+cargo build -p wasm-proc --release
+
 $ROOT_DIR/../target/release/wasm-proc -p $ROOT_DIR/target/wasm32-unknown-unknown/release/*.wasm

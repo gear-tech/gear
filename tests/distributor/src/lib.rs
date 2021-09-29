@@ -39,6 +39,7 @@ pub enum Request {
 pub enum Reply {
     Success,
     Failure,
+    StateFailure,
     Amount(u64),
 }
 
@@ -144,14 +145,21 @@ mod wasm {
 
         async fn handle_receive(amount: u64) -> Reply {
             ext::debug(&format!("Handling receive {}", amount));
-            let subnodes_count = Self::nodes().borrow().len() as u64;
+
+            let (subnodes_count, nodes) = match Program::nodes().try_borrow() {
+                Ok(nodes) => (nodes.len() as u64, nodes),
+                Err(_) => {
+                    return Reply::StateFailure;
+                }
+            };
+
             if subnodes_count > 0 {
                 let distributed_per_node = amount / subnodes_count;
                 let distributed_total = distributed_per_node * subnodes_count;
                 let mut left_over = amount - distributed_total;
 
                 if distributed_per_node > 0 {
-                    for program in Program::nodes().borrow().iter() {
+                    for program in nodes.iter() {
                         if let Err(_) = program.do_send(distributed_per_node).await {
                             // reclaiming amount from nodes that fail!
                             left_over += distributed_per_node;
@@ -170,7 +178,14 @@ mod wasm {
         }
 
         async fn handle_join(program_id: u64) -> Reply {
-            Self::nodes().borrow_mut().insert(Program::new(program_id));
+            let mut nodes = match Self::nodes().try_borrow_mut() {
+                Ok(nodes) => nodes,
+                Err(_) => {
+                    return Reply::StateFailure; // Probably receive in progress, so nodes cannot be altered!
+                }
+            };
+
+            nodes.insert(Program::new(program_id));
 
             Reply::Success
         }
@@ -179,7 +194,14 @@ mod wasm {
             let mut amount = *Program::amount();
             ext::debug(&format!("Own amount: {}", amount));
 
-            for program in Program::nodes().borrow().iter() {
+            let nodes = match Program::nodes().try_borrow() {
+                Ok(nodes) => nodes,
+                Err(_) => {
+                    return Reply::StateFailure;
+                }
+            };
+
+            for program in nodes.iter() {
                 ext::debug("Querying next node");
                 amount += match program.do_report().await {
                     Ok(amount) => {
@@ -219,22 +241,10 @@ mod tests {
 
     use common::*;
 
-    use gear_core::{
-        program::ProgramId,
-        storage::{InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList},
-    };
-    use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
-
     #[test]
     fn binary_available() {
         assert!(native::WASM_BINARY.is_some());
         assert!(native::WASM_BINARY_BLOATY.is_some());
-    }
-
-    pub type LocalRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
-
-    fn new_test_runner() -> LocalRunner {
-        Runner::new(&Config::default(), Default::default())
     }
 
     fn wasm_code() -> &'static [u8] {
@@ -243,217 +253,86 @@ mod tests {
 
     #[test]
     fn program_can_be_initialized() {
-        let mut runner = new_test_runner();
+        let mut runner = RunnerContext::default();
 
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 0.into(),
-                code: wasm_code().to_vec(),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        runner.init_program(InitProgram::from(wasm_code()).message(b"init"));
 
-        let _ = runner.complete();
+        let _ = runner.storage();
     }
 
     #[test]
     fn single_program() {
-        let runner = new_test_runner();
+        let mut runner = RunnerContext::default();
+        runner.init_program(wasm_code());
 
-        let program_id_1: ProgramId = 1.into();
+        let reply: Reply = runner.request(Request::Receive(10));
+        assert_eq!(reply, Reply::Success);
 
-        let mut nonce = 1;
+        let reply: Reply = runner.request(Request::Report);
+        assert_eq!(reply, Reply::Amount(10));
+    }
 
-        let runner = common::do_init(
-            runner,
-            InitProgramData {
-                new_program_id: 1.into(),
-                source_id: 0.into(),
-                code: wasm_code().to_vec(),
-                message: MessageData {
-                    id: nonce.into(),
-                    payload: (),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        nonce += 1;
+    fn multi_program_setup(
+        program_id_1: u64,
+        program_id_2: u64,
+        program_id_3: u64,
+    ) -> RunnerContext {
+        let mut runner = RunnerContext::default();
 
-        let (runner, reply) = common::do_reqrep(
-            runner,
-            MessageDispatchData {
-                source_id: 0.into(),
-                destination_id: program_id_1,
-                data: MessageData {
-                    id: nonce.into(),
-                    payload: Request::Receive(10),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        assert_eq!(reply, Some(Reply::Success));
-        nonce += 1;
+        runner.init_program(InitProgram::from(wasm_code()).id(program_id_1));
+        runner.init_program(InitProgram::from(wasm_code()).id(program_id_2));
+        runner.init_program(InitProgram::from(wasm_code()).id(program_id_3));
 
-        let (_runner, reply) = common::do_reqrep(
-            runner,
-            MessageDispatchData {
-                source_id: 0.into(),
-                destination_id: program_id_1,
-                data: MessageData {
-                    id: nonce.into(),
-                    payload: Request::Report,
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        assert_eq!(reply, Some(Reply::Amount(10)));
+        let reply: Reply =
+            runner.request(MessageBuilder::from(Request::Join(2)).destination(program_id_1));
+        assert_eq!(reply, Reply::Success);
+
+        let reply: Reply =
+            runner.request(MessageBuilder::from(Request::Join(3)).destination(program_id_1));
+        assert_eq!(reply, Reply::Success);
+
+        runner
     }
 
     #[test]
     fn composite_program() {
         env_logger::Builder::from_env(env_logger::Env::default()).init();
 
-        let runner = new_test_runner();
+        let program_id_1 = 1;
+        let program_id_2 = 2;
+        let program_id_3 = 3;
 
-        let program_id_1: ProgramId = 1.into();
-        let program_id_2: ProgramId = 2.into();
-        let program_id_3: ProgramId = 3.into();
+        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
 
-        let mut nonce = 1;
+        let reply: Reply =
+            runner.request(MessageBuilder::from(Request::Receive(11)).destination(program_id_1));
+        assert_eq!(reply, Reply::Success);
 
-        let runner = common::do_init(
-            runner,
-            InitProgramData {
-                new_program_id: program_id_1,
-                source_id: 0.into(),
-                code: wasm_code().to_vec(),
-                message: MessageData {
-                    id: nonce.into(),
-                    payload: (),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        nonce += 1;
+        let reply: Reply =
+            runner.request(MessageBuilder::from(Request::Report).destination(program_id_2));
+        assert_eq!(reply, Reply::Amount(5));
 
-        let runner = common::do_init(
-            runner,
-            InitProgramData {
-                new_program_id: program_id_2,
-                source_id: 0.into(),
-                code: wasm_code().to_vec(),
-                message: MessageData {
-                    id: nonce.into(),
-                    payload: (),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        nonce += 1;
+        let reply: Reply =
+            runner.request(MessageBuilder::from(Request::Report).destination(program_id_1));
+        assert_eq!(reply, Reply::Amount(11));
+    }
 
-        let runner = common::do_init(
-            runner,
-            InitProgramData {
-                new_program_id: program_id_3,
-                source_id: 0.into(),
-                code: wasm_code().to_vec(),
-                message: MessageData {
-                    id: nonce.into(),
-                    payload: (),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        nonce += 1;
+    // This test show how RefCell will prevent to do conficting changes (prevent multi-aliasing of the program state)
+    #[test]
+    fn conflicting_nodes() {
+        let program_id_1 = 1;
+        let program_id_2 = 2;
+        let program_id_3 = 3;
+        let program_id_4 = 4;
 
-        let (runner, reply) = common::do_reqrep(
-            runner,
-            MessageDispatchData {
-                source_id: 0.into(),
-                destination_id: program_id_1,
-                data: MessageData {
-                    id: nonce.into(),
-                    payload: Request::Join(2),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        assert_eq!(reply, Some(Reply::Success));
-        nonce += 1;
+        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
+        runner.init_program(InitProgram::from(wasm_code()).id(program_id_4));
 
-        let (runner, reply) = common::do_reqrep(
-            runner,
-            MessageDispatchData {
-                source_id: 0.into(),
-                destination_id: program_id_1,
-                data: MessageData {
-                    id: nonce.into(),
-                    payload: Request::Join(3),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        assert_eq!(reply, Some(Reply::Success));
-        nonce += 1;
+        let results: Vec<Reply> = runner.request_batch(vec![
+            MessageBuilder::from(Request::Receive(11)).destination(program_id_1),
+            MessageBuilder::from(Request::Join(4)).destination(program_id_1),
+        ]);
 
-        let (runner, reply) = common::do_reqrep(
-            runner,
-            MessageDispatchData {
-                source_id: 0.into(),
-                destination_id: program_id_1,
-                data: MessageData {
-                    id: nonce.into(),
-                    payload: Request::Receive(11),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        assert_eq!(reply, Some(Reply::Success));
-        nonce += 1;
-
-        let (runner, reply) = common::do_reqrep(
-            runner,
-            MessageDispatchData {
-                source_id: 0.into(),
-                destination_id: program_id_2,
-                data: MessageData {
-                    id: nonce.into(),
-                    payload: Request::Report,
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        assert_eq!(reply, Some(Reply::Amount(5)));
-
-        let (_runner, reply) = common::do_reqrep(
-            runner,
-            MessageDispatchData {
-                source_id: 0.into(),
-                destination_id: program_id_1,
-                data: MessageData {
-                    id: nonce.into(),
-                    payload: Request::Report,
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            },
-        );
-        assert_eq!(reply, Some(Reply::Amount(11)));
+        assert_eq!(results, vec![Reply::Success, Reply::StateFailure])
     }
 }

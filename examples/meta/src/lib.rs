@@ -2,7 +2,7 @@
 
 use codec::{Decode, Encode};
 use gstd::{msg, prelude::*};
-use gstd_meta::{meta, TypeInfo};
+use scale_info::TypeInfo;
 
 // Metatypes for input and output
 #[derive(TypeInfo, Decode)]
@@ -77,13 +77,14 @@ pub struct Wallet {
     pub person: Person,
 }
 
-meta! {
+gstd::metadata! {
     title: "Example program with metadata",
-    input: MessageIn,
-    output: MessageOut,
-    init_input: MessageInitIn,
-    init_output: MessageInitOut,
-    extra: Id, Person, Wallet
+    init:
+        input: MessageInitIn,
+        output: MessageInitOut,
+    handle:
+        input: MessageIn,
+        output: MessageOut
 }
 
 static mut WALLETS: Vec<Wallet> = Vec::new();
@@ -104,8 +105,8 @@ pub unsafe extern "C" fn init() {
             hex: vec![1u8],
         },
         person: Person {
-            surname: "SomeName".into(),
-            name: "SomeSurname".into(),
+            surname: "SomeSurname".into(),
+            name: "SomeName".into(),
         },
     });
     WALLETS.push(Wallet {
@@ -122,5 +123,5 @@ pub unsafe extern "C" fn init() {
     let message_init_in: MessageInitIn = msg::load().unwrap();
     let message_init_out: MessageInitOut = message_init_in.into();
 
-    msg::send(0.into(), message_init_out, 0);
+    msg::send(0.into(), message_init_out, 0, 0);
 }

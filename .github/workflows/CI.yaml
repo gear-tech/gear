@@ -59,7 +59,7 @@ jobs:
         run: cargo build --workspace --release
 
       - name: Build examples (WASM)
-        run: | 
+        run: |
           ./scripts/build-wasm.sh
           cp -r ./examples/target/wasm32-unknown-unknown ./target/
 

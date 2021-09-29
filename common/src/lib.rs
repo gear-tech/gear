@@ -22,7 +22,9 @@ pub mod native;
 pub mod storage_queue;
 
 use codec::{Decode, Encode};
-use sp_core::{crypto::UncheckedFrom, H256};
+use primitive_types::H256;
+use scale_info::TypeInfo;
+use sp_core::crypto::UncheckedFrom;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;
 
@@ -39,7 +41,7 @@ pub const STORAGE_WAITLIST_PREFIX: &'static [u8] = b"g::wait::";
 
 pub type ExitCode = i32;
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq, scale_info::TypeInfo)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct Message {
     pub id: H256,
     pub source: H256,
@@ -50,7 +52,7 @@ pub struct Message {
     pub reply: Option<(H256, ExitCode)>,
 }
 
-#[derive(Clone, Debug, Decode, Encode, PartialEq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct Program {
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
@@ -98,7 +100,7 @@ impl Origin for H256 {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode, scale_info::TypeInfo)]
+#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
 pub enum IntermediateMessage {
     InitProgram {
         origin: H256,

@@ -9,7 +9,10 @@ license = "GPL-3.0"
 gcore = { path = "../gcore" }
 galloc = { path = "../galloc" }
 codec = { package = "parity-scale-codec", version = "2", default-features = false }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"], optional = true}
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"], optional = true}
 
 [features]
 debug = ["gcore/debug"]
-std = ["codec/std"]
+std = ["codec/std", "scale-info/std"]
+meta = ["hex", "scale-info"]

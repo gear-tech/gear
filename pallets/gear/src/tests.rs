@@ -960,11 +960,20 @@ fn program_lifecycle_works() {
             1.into_origin()
         );
         // Program author is allowed to remove the program and reclaim funds
+        // An attempt to remove a program on behalf of another account will fail
+        assert_ok!(Pallet::<Test>::remove_stale_program(
+            Origin::signed(2).into(), // Not the author
+            program_id,
+        ));
+        // Program is still in the storage
+        assert!(common::get_program(program_id).is_some());
+        assert!(ProgramsLimbo::<Test>::get(program_id).is_some());
+
         assert_ok!(Pallet::<Test>::remove_stale_program(
             Origin::signed(1).into(),
             program_id,
         ));
-        run_to_block(4, None);
+        // This time the program has been removed
         assert!(common::get_program(program_id).is_none());
         assert!(ProgramsLimbo::<Test>::get(program_id).is_none());
     })
@@ -1288,5 +1297,206 @@ fn send_reply_works() {
         };
         assert_eq!(msg_id, id);
         assert_eq!(orig_id, original_message_id);
+    })
+}
+
+#[test]
+fn debug_mode_works() {
+    let wat_1 = r#"
+        (module
+            (import "env" "memory" (memory 16))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init)
+            (func $handle)
+        )"#;
+
+    let wat_2 = r#"
+        (module
+            (import "env" "memory" (memory 16))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $handle
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 4)))
+            )
+            (func $init
+            )
+        )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_1 = parse_wat(wat_1);
+        let code_2 = parse_wat(wat_2);
+
+        System::reset_events();
+
+        // enable debug-mode
+        DebugMode::<Test>::put(true);
+
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_1.clone(),
+            b"0001".to_vec(),
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_2.clone(),
+            b"0002".to_vec(),
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        assert_eq!(messages.len(), 2);
+
+        let mut programs = vec![];
+        for message in messages {
+            match message {
+                IntermediateMessage::InitProgram { program_id, .. } => {
+                    programs.push(program_id);
+                }
+                _ => (),
+            }
+        }
+
+        run_to_block(2, None);
+
+        // DebugDataSnapshot should indicate empty message queue and the programs storage
+        // having both one entry
+        System::assert_has_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![crate::ProgramDetails {
+                    id: programs[0],
+                    static_pages: 16,
+                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                    nonce: 0u64,
+                }],
+            })
+            .into(),
+        );
+        // and two entries
+        System::assert_has_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: programs[0],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: programs[1],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
+            .into(),
+        );
+
+        System::reset_events();
+
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            programs[0],
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+        assert_ok!(Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            programs[1],
+            vec![],
+            1_000_000_u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+
+        let mut dispatch_msg = vec![];
+        for message in messages {
+            match message {
+                IntermediateMessage::DispatchMessage { id, .. } => {
+                    dispatch_msg.push(id);
+                    System::assert_has_event(crate::Event::DispatchMessageEnqueued(id).into());
+                }
+                _ => (),
+            }
+        }
+        assert_eq!(dispatch_msg.len(), 2);
+
+        run_to_block(3, None);
+
+        // After the first message has been processed, the second one is still in the queue.
+        // Both programs already reside in storage, with original pages allocations
+        System::assert_has_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![common::Message {
+                    id: dispatch_msg[1],
+                    source: 1.into_origin(),
+                    dest: programs[1],
+                    payload: vec![],
+                    gas_limit: 1_000_000_u64,
+                    value: 0_u128,
+                    reply: None,
+                }],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: programs[0],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: programs[1],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
+            .into(),
+        );
+
+        // After both messages have been processed the message queue is empty.
+        // The second program has now more persistent pages
+        System::assert_has_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: programs[0],
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: programs[1],
+                        static_pages: 16,
+                        persistent_pages: (0..20).map(|i| (i, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
+            .into(),
+        );
     })
 }
