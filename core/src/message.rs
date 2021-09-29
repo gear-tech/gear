@@ -336,6 +336,11 @@ impl ReplyMessage {
             reply: Some((source_message, self.exit_code)),
         }
     }
+
+    /// Return message id generated for this packet.
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
 }
 
 /// Message.
@@ -610,14 +615,18 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Record reply to the current message.
-    pub fn reply(&self, msg: ReplyPacket) -> Result<(), Error> {
+    pub fn reply(&self, msg: ReplyPacket) -> Result<MessageId, Error> {
         if self.state.borrow().reply.is_some() {
             return Err(Error::DuplicateReply);
         }
 
-        self.state.borrow_mut().reply = Some(self.id_generator.borrow_mut().produce_reply(msg));
+        let reply = self.id_generator.borrow_mut().produce_reply(msg);
 
-        Ok(())
+        let message_id = reply.id();
+
+        self.state.borrow_mut().reply = Some(reply);
+
+        Ok(message_id)
     }
 
     /// Initialize a new message with `NotFormed` formation status and return its handle.

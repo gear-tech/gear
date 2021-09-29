@@ -123,5 +123,5 @@ pub unsafe extern "C" fn init() {
     let message_init_in: MessageInitIn = msg::load().unwrap();
     let message_init_out: MessageInitOut = message_init_in.into();
 
-    msg::send(0.into(), message_init_out, 0);
+    msg::send(0.into(), message_init_out, 0, 0);
 }

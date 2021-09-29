@@ -21,23 +21,25 @@
 /// Unwraps `Result<T, E: Debug>`.
 /// In case of argument value Ok(T) returns T, else panics with custom message.
 ///
-/// The macro has three implementations and its behavior depends
-/// on the build type: is the `--features=debug` flag added.
+/// The macro has three implementations and its behavior depends on the build
+/// type: is the `--features=debug` flag added.
 ///
 /// - `bail!(res: Result<T, E: Debug>, msg: &str)`
 ///
-/// Panics with the same `msg` in both modes.
-/// Contains error message in debug mode.
+/// Panics with the same `msg` in both modes. Contains error message in debug
+/// mode.
 ///
-/// - `bail!(res: Result<T, E: Debug>, static_release: &str, static_debug: &str)`
+/// - `bail!(res: Result<T, E: Debug>, static_release: &str, static_debug:
+///   &str)`
 ///
-/// Panics with the same `static_release` in release mode
-/// and with `static debug` + error message in debug mode.
+/// Panics with the same `static_release` in release mode and with `static
+/// debug` + error message in debug mode.
 ///
-/// - `bail!(res: Result<T, E: Debug>, static_release: &str, formatter: &str, args)`
+/// - `bail!(res: Result<T, E: Debug>, static_release: &str, formatter: &str,
+///   args)`
 ///
-/// Panics with the same `static_release` in release mode
-/// and with `format!(formatter, args)` + error message in debug mode.
+/// Panics with the same `static_release` in release mode and with
+/// `format!(formatter, args)` + error message in debug mode.
 #[cfg(feature = "debug")]
 #[macro_export]
 macro_rules! bail {

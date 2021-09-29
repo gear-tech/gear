@@ -16,7 +16,7 @@ pub unsafe extern "C" fn handle() {
         &v[new_msg as usize - 1],
         v[new_msg as usize - 1]
     ));
-    msg::send(msg::source(), v.len() as i32, 10_000_000);
+    msg::send(msg::source(), v.len() as i32, 10_000_000, 0);
     ext::debug(&format!(
         "{:?} total message(s) stored: ",
         MESSAGE_LOG.len()
