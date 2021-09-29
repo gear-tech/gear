@@ -56,12 +56,16 @@ pub fn load_bytes() -> Vec<u8> {
     result
 }
 
-pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) {
-    reply_bytes(&payload.encode(), gas_limit, value);
+pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
+    reply_bytes(&payload.encode(), gas_limit, value)
 }
 
-pub fn reply_bytes(payload: &[u8], gas_limit: u64, value: u128) {
-    gcore::msg::reply(payload, gas_limit, value);
+pub fn reply_bytes(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+    gcore::msg::reply(payload, gas_limit, value)
+}
+
+pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
+    gcore::msg::reply_commit(gas_limit, value)
 }
 
 pub fn reply_push(payload: &[u8]) {
