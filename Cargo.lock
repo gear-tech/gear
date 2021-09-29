@@ -671,19 +671,6 @@ dependencies = [
 
 [[package]]
 name = "cargo_metadata"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7714a157da7991e23d90686b9524b9e12e0407a108647f52e9328f4b3d51ac7f"
-dependencies = [
- "cargo-platform",
- "semver 0.11.0",
- "semver-parser 0.10.2",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "cargo_metadata"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "081e3f0755c1f380c2d010481b6fa2e02973586d5f2b24eebb7a2a1d98b143d8"
@@ -1398,19 +1385,6 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
-dependencies = [
- "atty",
- "humantime 2.1.0",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
@@ -1997,10 +1971,10 @@ dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
  "gear-core",
- "libc",
  "log",
  "num-derive",
  "num-traits",
+ "sp-sandbox",
  "wasmi",
  "wasmtime",
 ]
@@ -2025,7 +1999,6 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
- "gear-node-runner",
  "gear-runtime",
  "gear-test-cli",
  "hex-literal",
@@ -2069,12 +2042,11 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-core-runner",
  "gear-runtime",
- "gear-sandbox-runner",
  "log",
  "parity-scale-codec",
  "sp-core",
- "sp-externalities",
  "sp-io",
  "sp-std",
  "wabt",
@@ -2131,21 +2103,7 @@ dependencies = [
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
- "substrate-wasm-builder 4.0.0",
- "wabt",
-]
-
-[[package]]
-name = "gear-sandbox-runner"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "blake2-rfc",
- "env_logger 0.8.4",
- "gear-core",
- "log",
- "parity-scale-codec",
- "sp-sandbox",
+ "substrate-wasm-builder",
  "wabt",
 ]
 
@@ -2162,7 +2120,6 @@ dependencies = [
  "gear-core",
  "gear-core-runner",
  "gear-node-runner",
- "gear-sandbox-runner",
  "hex",
  "log",
  "parity-scale-codec",
@@ -7288,28 +7245,12 @@ dependencies = [
 
 [[package]]
 name = "substrate-wasm-builder"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93a3d51ad6abbc408b03ea962062bfcc959b438a318d7d4bedd181e1effd0610"
-dependencies = [
- "ansi_term 0.12.1",
- "atty",
- "build-helper",
- "cargo_metadata 0.12.3",
- "tempfile",
- "toml",
- "walkdir",
- "wasm-gc-api",
-]
-
-[[package]]
-name = "substrate-wasm-builder"
 version = "5.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?rev=ccf9bee#ccf9bee6f75c44bf1ce4b926d5a3c0e1b1b55501"
 dependencies = [
  "ansi_term 0.12.1",
  "build-helper",
- "cargo_metadata 0.13.1",
+ "cargo_metadata",
  "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?rev=ccf9bee)",
  "tempfile",
  "toml",
@@ -7395,7 +7336,7 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
- "substrate-wasm-builder 5.0.0-dev",
+ "substrate-wasm-builder",
  "tests-common",
 ]
 
@@ -7419,7 +7360,7 @@ dependencies = [
  "gstd",
  "gstd-async",
  "parity-scale-codec",
- "substrate-wasm-builder 5.0.0-dev",
+ "substrate-wasm-builder",
  "tests-common",
 ]
 
@@ -7432,7 +7373,7 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
- "substrate-wasm-builder 5.0.0-dev",
+ "substrate-wasm-builder",
  "tests-common",
 ]
 

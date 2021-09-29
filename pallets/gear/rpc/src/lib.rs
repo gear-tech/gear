@@ -41,14 +41,14 @@ pub trait GearApi<BlockHash, ProgramId> {
 }
 
 /// A struct that implements the [`GearApi`].
-pub struct Gear<C, M> {
+pub struct Gear<C, P> {
     // If you have more generics, no need to Gear<C, M, N, P, ...>
     // just use a tuple like Gear<C, (M, N, P, ...)>
     client: Arc<C>,
-    _marker: std::marker::PhantomData<M>,
+    _marker: std::marker::PhantomData<P>,
 }
 
-impl<C, M> Gear<C, M> {
+impl<C, P> Gear<C, P> {
     /// Create new `Gear` instance with the given reference to the client.
     pub fn new(client: Arc<C>) -> Self {
         Self {
@@ -80,7 +80,7 @@ where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
     C::Api: GearRuntimeApi<Block, ProgramId>,
-    ProgramId: Codec,
+    ProgramId: Codec + Copy,
 {
     fn get_gas_spent(
         &self,

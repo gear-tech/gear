@@ -64,7 +64,6 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/ukin
 
 # Internal
 gear-runtime = { path = "../runtime" }
-gear-node-runner = { path = "../node-runner" }
 gear-test-cli = { path = "../utils/gear-test-cli" }
 
 [build-dependencies]

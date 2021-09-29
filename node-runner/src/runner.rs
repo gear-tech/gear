@@ -16,10 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::storage::{Log, Storage};
-use gear_sandbox_runner::runner::{Config, Runner};
-
 use crate::ext::*;
+use gear_core::storage::{Log, Storage};
+use gear_core_runner::runner::{Config, Runner};
 
 pub type ExtRunner = Runner<ExtMessageQueue, ExtProgramStorage, ExtWaitList>;
 

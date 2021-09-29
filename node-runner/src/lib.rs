@@ -16,20 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+extern crate alloc;
 pub mod ext;
 
 pub mod runner;
 
 use codec::{Decode, Encode};
 use sp_core::H256;
-// use sp_runtime_interface::runtime_interface;
 
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 
-use gear_sandbox_runner::{
+use gear_core_runner::{
     ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult,
 };
-use sp_std::prelude::Vec;
+use sp_std::prelude::*;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -81,8 +82,8 @@ impl ExecutionReport {
                         match exec_outcome {
                             ExecutionOutcome::Normal => Ok(()),
                             ExecutionOutcome::Trap(t) => match t {
-                                Some(s) => Err(String::from(s).encode()),
-                                _ => Err(vec![]),
+                                Some(s) => Err(alloc::string::String::from(s).encode()),
+                                _ => Err(Vec::new()),
                             },
                         },
                     )
@@ -158,7 +159,7 @@ pub fn gas_spent(program_id: H256, payload: Vec<u8>, value: u128) -> Result<u64,
     let mut runner = crate::runner::new();
 
     runner.queue_message(MessageDispatch {
-        source_id: ProgramId::from_slice(&H256::from_low_u64_be(1)[..]),
+        source_id: ProgramId::from(1),
         destination_id: ProgramId::from_slice(&program_id[..]),
         data: ExtMessage {
             id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),

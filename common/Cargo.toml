@@ -14,7 +14,7 @@ scale-info = { version = "1.0", default-features = false, features = [
 ] }
 
 # Internal deps
-gear-core = { path = "../core", optional = true }
+gear-core = { path = "../core" }
 
 # Substrate deps
 sp-core = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
@@ -24,11 +24,4 @@ sp-std = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.g
 
 [features]
 default = ["std"]
-std = [
-    "codec/std",
-    "gear-core",
-    "sp-core/std",
-    "sp-std/std",
-    "sp-io/std",
-    "sp-runtime/std",
-]
+std = ["codec/std", "sp-core/std", "sp-std/std", "sp-io/std", "sp-runtime/std"]

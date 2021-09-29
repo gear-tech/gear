@@ -22,6 +22,7 @@ use gear_core::{
 };
 
 use sp_core::H256;
+use sp_std::vec::Vec;
 
 impl From<CoreMessage> for crate::Message {
     fn from(message: CoreMessage) -> crate::Message {

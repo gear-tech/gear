@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 anyhow = "1.0.44"
-codec = { version = "2.0.0", package = "parity-scale-codec" }
+codec = { version = "2.0.0", package = "parity-scale-codec", default-features = false }
 regex = "1.4"
 structopt = "0.3.23"
 
@@ -15,11 +15,11 @@ structopt = "0.3.23"
 frame-system = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git" }
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/ukint-vs/substrate.git" }
 sc-service = { version = "0.10.0-dev", git = "https://github.com/ukint-vs/substrate.git" }
-sp-io = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git" }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
 
 # Internal deps
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime" }
-rti = { package = "gear-node-runner", path = "../../node-runner" }
+runner = { package = "gear-node-runner", path = "../../node-runner" }
 gear-test = { path = "../../gtest" }

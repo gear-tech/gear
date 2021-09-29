@@ -195,12 +195,12 @@ impl MemoryContext {
 
         while found < pages.raw() {
             if candidate + pages.raw() > self.max_pages.raw() {
-                // log::debug!(
-                //     "candidate: {}, pages: {}, max_pages: {}",
-                //     candidate,
-                //     pages.raw(),
-                //     self.max_pages.raw()
-                // );
+                log::debug!(
+                    "candidate: {}, pages: {}, max_pages: {}",
+                    candidate,
+                    pages.raw(),
+                    self.max_pages.raw()
+                );
                 return Err(Error::OutOfMemory);
             }
 

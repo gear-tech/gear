@@ -177,7 +177,6 @@ pub mod pallet {
         /// Queue processing occurs after all normal extrinsics in the block
         ///
         /// There should always remain enough weight for this hook to be invoked
-        #[cfg(feature = "std")]
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
                 "{} of weight remains in block {:?} after normal extrinsics have been processed",
@@ -226,7 +225,6 @@ pub mod pallet {
             .flatten()
         }
 
-        // #[cfg(feature = "std")]
         pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
             runner::gas_spent(destination, payload, 0).ok()
         }
@@ -246,7 +244,6 @@ pub mod pallet {
         /// - `InitFailure(MessageInfo, Reason)` when initialization message fails;
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
-        // #[cfg(feature = "std")]
         pub fn process_queue() -> Weight {
             // At the beginning of a new block, we process all queued messages
             let messages = <MessageQueue<T>>::take().unwrap_or_default();

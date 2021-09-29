@@ -521,7 +521,6 @@ impl_runtime_apis! {
     }
 
     // Here we implement our custom runtime API.
-    #[cfg(feature = "std")]
     impl gear_rpc_runtime_api::GearApi<Block, ProgramId> for Runtime {
         fn get_gas_spent(
             program_id: ProgramId,
