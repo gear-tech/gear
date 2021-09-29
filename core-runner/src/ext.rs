@@ -105,8 +105,11 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn reply(&mut self, msg: ReplyPacket) -> Result<(), &'static str> {
-        let result = self.messages.reply(msg).map_err(|_e| "Reply error");
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+        let result = self
+            .messages
+            .reply_commit(msg)
+            .map_err(|_e| "Reply commit error");
 
         self.return_with_tracing(result)
     }

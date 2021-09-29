@@ -648,10 +648,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Record reply to the current message.
-    pub fn reply_commit(
-        &mut self,
-        packet: ReplyPacket,
-    ) -> Result<MessageId, Error> {
+    pub fn reply_commit(&mut self, packet: ReplyPacket) -> Result<MessageId, Error> {
         let mut state = self.state.borrow_mut();
 
         match &mut state.reply {
@@ -680,7 +677,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         let mut state = self.state.borrow_mut();
 
         match &mut state.reply {
-            (_, Some(_)) => { return Err(Error::LateAccess) },
+            (_, Some(_)) => return Err(Error::LateAccess),
             (Some(payload), _) => payload.0.extend_from_slice(buffer),
             (None, _) => state.reply.0 = Some(buffer.to_vec().into()),
         }
