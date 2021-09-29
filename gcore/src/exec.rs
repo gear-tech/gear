@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Sys calls related to program execution flow.
+//! Sys calls related to the program execution flow.
 //!
-//! Provides api for low-level async implementation
+//! Provides API for low-level async implementation.
 
 use crate::MessageId;
 
@@ -26,74 +26,73 @@ mod sys {
     extern "C" {
         pub fn gr_gas_available() -> u64;
         pub fn gr_wait() -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8);
+        pub fn gr_wake(waker_id_ptr: *const u8) -> !;
     }
 }
 
-/// Allows to fetch current value for the gas available for execution
+/// Get the current value of the gas available for execution.
 ///
-/// Each execution of message processing consumes gas, both on instructions and memory allocations.
-/// gas_available() returns value of the gas available for spend during current execution.
+/// Each message processing consumes gas, both on instructions execution and
+/// memory allocations. This function returns a value of the gas available for
+/// spending during current execution.
 ///
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, exec};
+/// use gcore::{exec, msg};
 ///
-/// // Perform work while gas_available is more then 1000
+/// // Perform work while gas_available is more than 1000
 /// pub unsafe extern "C" fn handle() {
-///
 ///     while exec::gas_available() > 1000 {
-///         // do work
+///         // ...
 ///     }
-///
 /// }
-///
+/// ```
 pub fn gas_available() -> u64 {
     unsafe { sys::gr_gas_available() }
 }
 
-/// Pause current message handle execution   
+/// Pause the current message handling.
 ///
-/// If message handle execution needs to be paused, i.e. to await for some other execution to be finished before current execution can contunue ['wait'](fn@wait) method should be used.
-/// Wait finishes current message handle execution with a special result and put current message into *waiting queue* to be awaken using correponding ['wake'](fn@wake) function later.
-/// All gas that is not yet spent attributed to a message in *waiting queue*.
+/// If the message handling needs to be paused, i.e. to await for some other
+/// execution is finished before current execution can continue, this function
+/// should be used. `wait` finishes current message handle execution with a
+/// special result and puts the current message into the *waiting queue* to be
+/// awakened using the correspondent [`wake`] function later. All gas that
+/// hasn't yet been spent is attributed to the message in the *waiting queue*.
 ///
 /// # Examples
 ///
 /// ```
-///
 /// use gcore::exec;
 ///
 /// pub unsafe extern "C" fn handle() {
-///     // do work
 ///     // ...
-///     // pause processing
 ///     exec::wait();
 /// }
-///
+/// ```
 pub fn wait() -> ! {
     unsafe { sys::gr_wait() }
 }
 
-/// Continue previously paused message handle execution
+/// Resume previously paused message handling.
 ///
-/// If message was paused using ['wait'](fn@wait) function then it is possible to continue its execution by calling ['wake'](fn@wake) function.
-/// Argument *MessageId* specifies particular message to be taken out of *waiting queue* and put into *processing queue*.
+/// If message has been paused using the [`wait`] function, then it is possible
+/// to continue its execution by calling this function. `waker_id` specifies a
+/// particular message to be taken out of the *waiting queue* and put into the
+/// *processing queue*.
 ///
 /// # Examples
 ///
 /// ```
 /// use gcore::{exec, MessageId};
 ///
-///
-/// // Perform work while gas_available is more then 1000
 /// pub unsafe extern "C" fn handle() {
-///     // do work
+///     // ...
 ///     exec::wake(MessageId::default());
 /// }
-///
-pub fn wake(waker_id: MessageId) {
+/// ```
+pub fn wake(waker_id: MessageId) -> ! {
     unsafe {
         sys::gr_wake(waker_id.as_slice().as_ptr());
     }

@@ -18,35 +18,41 @@
 
 //! Common types used in GEAR programs.
 //!
-//! This module contains definition of common types that is used to work with GEAR api,
-//!
+//! This module contains definition of common types that is used to work with
+//! GEAR api,
 
-/// Message handle
+/// Message handle.
 ///
-/// GEAR allows users and programs to interact with other users and programs via messages.
-/// There is a possibility to create and send messages in parts.
-/// See [crate::msg::send_init], [crate::msg::send_push], [crate::msg::send_commit] functions related to building and sending messages in parts.
-/// In order to identify message that is being built in parts program must use MessageHandle obtained vie [crate::msg::send_init].
-///  
+/// GEAR allows users and programs to interact with other users and programs via
+/// messages. There is a possibility to create and send messages in parts.
+///
+/// See [`msg::send_init`](crate::msg::send_init),
+/// [`msg::send_push`](crate::msg::send_push), [`msg::send_commit`](crate::msg::send_commit) functions related to the building and sending messages in
+/// parts. In order to identify message that is being built from parts program
+/// must use `MessageHandle` obtained via
+/// [`msg::send_init`](crate::msg::send_init).
+///
 /// # Examples
 ///
 /// ```
 /// use gcore::msg;
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let msg_handle = msg::send_init();
+///     // ...
+///     let msg_handle = msg::send_init();
 /// }
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MessageHandle(pub u32);
 
-/// Message identifier
+/// Message identifier.
 ///
-/// GEAR allows users and programs to interact with other users and programs via messages.
-/// Each message has its own unique id. This id is represented via MessageId struct.
-/// Message identifier can be obtained for current message being processed using [crate::msg::id] function. Also each send and reply
-///  
+/// GEAR allows users and programs to interact with other users and programs via
+/// messages. Each message has its own unique id. This id is represented via
+/// `MessageId` struct. Message identifier can be obtained for the current
+/// message being processed using [`msg::id`](crate::msg::id) function. Also,
+/// each send and reply function returns a message identifier.
+///
 /// # Examples
 ///
 /// ```
@@ -78,6 +84,7 @@ impl MessageId {
     }
 }
 
+/// 256-bit program identifier.
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct ProgramId(pub [u8; 32]);
 

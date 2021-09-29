@@ -16,12 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Messaging api for GEAR programs.
+//! Messaging API for GEAR programs.
 //!
-//! This module contains sys calls api for incoming message processing and synchroneouse message sending,
-//! Messages are main interface for communications between actors (users and programs).
-//! Every GEAR program contains code for processing incoming message.
-//! While processing message program can send messages to other programs and users and reply to initial message as well.
+//! This module contains sys calls API for incoming message processing and
+//! synchronous message sending. Messages are the main interface for
+//! communications between actors (users and programs). Every GEAR program
+//! contains code for processing an incoming message. While processing the
+//! message program can send messages to other programs and users and reply to
+//! the initial message as well.
 
 use crate::MessageHandle;
 use crate::{MessageId, ProgramId};
@@ -62,7 +64,7 @@ mod sys {
     }
 }
 
-/// Sys call to obtain id of message being currently handled
+/// Obtain an identifier of the message currently being processed.
 ///
 /// # Examples
 ///
@@ -72,15 +74,18 @@ mod sys {
 /// pub unsafe extern "C" fn handle() {
 ///     let current_message_id = msg::id();
 /// }
+/// ```
 pub fn id() -> MessageId {
     let mut msg_id = MessageId::default();
     unsafe { sys::gr_msg_id(msg_id.0.as_mut_ptr()) }
     msg_id
 }
 
-/// Sys call to load content of message being currently handled  
+/// Get a payload of the message currently being processed.
 ///
-/// Loads content of message into buffer with size of message size which can be obtained using sys call [size()](fn@size)
+/// Loads content of the message into a buffer with a message size which can be
+/// obtained using [`size`] function.
+///
 /// # Examples
 ///
 /// ```
@@ -102,27 +107,36 @@ pub fn load(buffer: &mut [u8]) {
     }
 }
 
-/// Send new message as a reply to message currently being processed  
+/// Send a new message as a reply to the message currently being processed.
 ///
-/// Some programs can replies on their messages to other programs, i.e. check other program state and use it as a parameter for own business logic.
-/// GEAR reply funciton allows to send such replies, which are similar in terms of payload to a standard messages and differs only in the way that message processing will be
-/// handled by a separate programm function *handle_reply*. First argument is reply message payload in bytes.
-/// Second argument is gas_limit - maximum gas allowed to be utilized during reply message processing.
-/// Last argument value is value to be transferred from current program account to reply message target account.
-/// Returns [MessageId] of reply message.
-/// Send transaction will be posted only once execution of processing will be finished, same as for standard message [send](fn@send)
+/// Some programs can reply on their messages to other programs, i.e. check
+/// another program's state and use it as a parameter for its own business
+/// logic. This function allows sending such replies, which are similar to
+/// standard messages in terms of payload and differ only in the way the message
+/// processing is handled by a separate program function called *handle_reply*.
+///
+/// First argument is the reply message payload in bytes. Second argument is
+/// `gas_limit` - maximum gas allowed to be utilized during the reply message
+/// processing. Last argument `value` is the value to be transferred from thr
+/// current program account to the reply message target account.
+/// Returns [`MessageId`] of the reply message. The send transaction will be
+/// posted only once processing is complete, as with the standard message
+/// [`send`].
+///
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, exec};
+/// use gcore::{exec, msg};
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    msg::reply(b"PING", exec::gas_available(), 0);
+///     // ...
+///     msg::reply(b"PING", exec::gas_available(), 0);
 /// }
 /// ```
+///
 /// # See also
-/// [reply_push](fn@reply_push) funciton allows to form reply message in parts.
+///
+/// [`reply_push`] function allows to form a reply message in parts.
 pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
@@ -137,59 +151,71 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     }
 }
 
-/// Push payload part to the current reply message   
+/// Push a payload part to the current reply message.
 ///
-/// Some programs can replies on their messages to other programs, i.e. check other program state and use it as a parameter for own business logic.
-/// Basic implemetation is covered in [reply](fn@reply)
-/// GEAR [reply_push](fn@reply_push) funciton allows to fill reply payload in parts, while handling message.
-/// Finalization of reply message is done via [reply_commit](fn@reply_commit) function similar to [send_commit](fn@send_commit)
+/// Some programs can reply on their messages to other programs, i.e. check
+/// another program's state and use it as a parameter for its own business
+/// logic. Basic implemetation is covered in [`reply`] function.
+///
+/// This function allows filling the reply payload by parts during the message
+/// handling. Finalization of the reply message is done via `reply_commit`
+/// function similar to [`send_commit`].
+///
 /// # Examples
 ///
 /// ```
 /// use gcore::msg;
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    msg::reply_push(b"Part 1");
-///    // ...
-///    msg::reply_push(b"Part 2");
+///     // ...
+///     msg::reply_push(b"Part 1");
+///     // ...
+///     msg::reply_push(b"Part 2");
 /// }
 /// ```
 pub fn reply_push(payload: &[u8]) {
     unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _) }
 }
 
-/// Get id of initial message on which current handle_reply is called   
+/// Get an identifier of the initial message which the current handle_reply is
+/// called on.
 ///
-/// Processing reply to the message in GEAR program performed using handle_reply function.
-/// In order to obtain orginal message id on which reply has been posted program should call system function [reply_to](fn@reply_to)
+/// Processing the reply to the message in GEAR program is performed using
+/// `handle_reply` function. In order to obtain orginal message id on which
+/// reply has been posted program should call this function.
+
 /// # Examples
 ///
 /// ```
 /// use gcore::msg;
 ///
 /// pub unsafe extern "C" fn handle_reply() {
-///    // ...
-///    let orginal_message_id = msg::reply_to();
+///     // ...
+///     let orginal_message_id = msg::reply_to();
 /// }
 /// ```
+///
 /// # Panics
-/// Call to [reply_to](fn@reply_to) will panic if performed in context other then handle_reply()
+///
+/// Panics if called in a context other than `handle_reply()`.
 pub fn reply_to() -> MessageId {
     let mut message_id = MessageId::default();
     unsafe { sys::gr_reply_to(message_id.0.as_mut_ptr()) }
     message_id
 }
 
-/// Send new message to a program or user  
+/// Send a new message to the program or user.
 ///
 /// GEAR allows programs to communicate to each other and users via messages.
-/// Send funciton allows to send such messages.
+/// Send function allows to send such messages.
+///
 /// First argument is address of target account.
 /// Second argument is message payload in bytes.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during reply message processing.
-/// Last argument value is value to be transferred from current program account to message target account.
-/// Send transaction will be posted only once execution of processing will be finished.
+/// Third argument is gas_limit - maximum gas allowed to be utilized during
+/// reply message processing. Last argument value is value to be transferred
+/// from current program account to message target account. Send transaction
+/// will be posted only once execution of processing will be finished.
+
 /// # Examples
 ///
 /// ```
@@ -205,9 +231,11 @@ pub fn reply_to() -> MessageId {
 ///     msg::send(ProgramId(id), b"HELLO", 1000, 12345678);
 /// }
 /// ```
-/// # See also
-/// [send_init](fn@send_init),[send_push](fn@send_push),[send_commit](fn@send_commit) funcitons allows to form message to send in parts.
 ///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
+/// message to send in parts.
 pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
@@ -226,29 +254,33 @@ pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> 
 /// Finialize and send message formed in parts
 ///
 /// GEAR allows programs to work with messages in parts.
-/// send_commit funciton finilizes message build in parts and sends it.
-/// First argument is message handle [MessageHandle] which specifies particular message built in parts.
-/// Second argument is address of target account.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during reply message processing.
-/// Last argument value is value to be transferred from current program account to message target account.
-/// Send transaction will be posted only once execution of processing will be finished.
-/// # Examples
+/// This function finalizes the message built in parts and sends it.
+///
+/// First argument is the message handle [MessageHandle] which specifies a
+/// particular message built in parts. Second argument is the address of the
+/// target account. Third argument is gas_limit - maximum gas allowed to be
+/// utilized during reply message processing. Last argument value is value to be
+/// transferred from current program account to message target account. Send
+/// transaction will be posted only once execution of processing will be
+/// finished. # Examples
 ///
 /// ```
-/// use gcore::{msg, exec};
+/// use gcore::{exec, msg};
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let msg_handle = msg::send_init();
-///    msg::send_push(&msg_handle, b"PING");
-///    msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
 /// }
 /// ```
+///
 /// # See also
-/// [send](fn@send) allows to send message in one step
 ///
-/// [send_push](fn@send_push),[send_init](fn@send_init) funcitons allows to form message to send in parts.
+/// [`send`] allows to send message in one step.
 ///
+/// [`send_push`], [`send_init`] functions allows to form a message to send in
+/// parts.
 pub fn send_commit(
     handle: MessageHandle,
     program: ProgramId,
@@ -268,86 +300,95 @@ pub fn send_commit(
     }
 }
 
-/// Initialize message to send formed in parts
+/// Initialize a message to send formed in parts.
 ///
 /// GEAR allows programs to work with messages in parts.
-/// send_init funciton initialize message build in parts and returns corresponding message handle.
+/// This function initialize message built in parts and returns
+/// corresponding message handle.
+///
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, exec};
+/// use gcore::{exec, msg};
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let msg_handle = msg::send_init();
-///    msg::send_push(&msg_handle, b"PING");
-///    msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
 /// }
 /// ```
+///
 /// # See also
-/// [send](fn@send) allows to send message in one step
+/// [`send`] allows to send message in one step.
 ///
-/// [send_push](fn@send_push),[send_commit](fn@send_commit) funcitons allows to form message to send in parts.
-///
+/// [`send_push`], [`send_commit`] functions allows to form a message to send in
+/// parts.
 pub fn send_init() -> MessageHandle {
     unsafe { MessageHandle(sys::gr_send_init()) }
 }
 
-/// Push payload part of message to be sent in parts
+/// Push a payload part of the message to be sent in parts.
 ///
 /// GEAR allows programs to work with messages in parts.
-/// send_push function add payload part to message specified by message handle.
-/// First argument is message handle.
-/// Second argument is message payload part in bytes.
+/// This function add a `payload` part to the message specified by message
+/// `handle`.
+///
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, exec};
+/// use gcore::{exec, msg};
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let msg_handle = msg::send_init();
-///    msg::send_push(&msg_handle, b"PING");
-///    msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
 /// }
 /// ```
+///
 /// # See also
-/// [send](fn@send) allows to send message in one step
 ///
-/// [send_init](fn@send_init),[send_commit](fn@send_commit) funcitons allows to form and send message to send in parts.
+/// [`send`] allows to send a message in one step.
 ///
+/// [`send_init`], [`send_commit`] functions allows to form and send a message
+/// to send in parts.
 pub fn send_push(handle: &MessageHandle, payload: &[u8]) {
     unsafe { sys::gr_send_push(handle.0, payload.as_ptr(), payload.len() as _) }
 }
 
-/// Get size of payload of a message being processed
+/// Get the payload size of the message being processed.
 ///
-/// size() function is used to obtain size of payload of current message being processed.
+/// This function is used to obtain the payload size of the current message
+/// being processed.
+///
 /// # Examples
 ///
 /// ```
 /// use gcore::msg;
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let size_of_the_message = msg::size();
+///     // ...
+///     let payload_size = msg::size();
 /// }
 /// ```
 pub fn size() -> usize {
     unsafe { sys::gr_size() as _ }
 }
 
-/// Get address of message source
+/// Get the 256-bit address of the message source.
 ///
-/// source() function is used to obtain *ProgramId* of account who send currently processing message (either program or user).
+/// This function is used to obtain [`ProgramId`] of the account that sends the
+/// currently processing message (either program or user).
+///
 /// # Examples
 ///
 /// ```
 /// use gcore::msg;
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let who_send_message = msg::source();
+///     // ...
+///     let who_sends_message = msg::source();
 /// }
 /// ```
 pub fn source() -> ProgramId {
@@ -356,17 +397,19 @@ pub fn source() -> ProgramId {
     program_id
 }
 
-/// Get value associated with a message being processed
+/// Get the value associated with the message being processed.
 ///
-/// value() function is used to obtain value that has been sent along with a current message being processed.
+/// This function is used to obtain the value that has been sent along with a
+/// current message being processed.
+///
 /// # Examples
 ///
 /// ```
 /// use gcore::msg;
 ///
 /// pub unsafe extern "C" fn handle() {
-///    // ...
-///    let amount_sent_with_message = msg::value();
+///     // ...
+///     let amount_sent_with_message = msg::value();
 /// }
 /// ```
 pub fn value() -> u128 {
