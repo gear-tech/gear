@@ -13,11 +13,9 @@ log = { version = "0.4.14", default-features = false }
 num-derive = { version = "0.3.3", optional = true }
 num-traits = { version = "0.2.14", optional = true }
 wasmtime = { version = "0.27.0", default-features = false, optional = true }
-wasmi = { version = "0.9.1", default-features = false, optional = true }
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false, optional = true }
 
 [features]
 default = ["wasmtime_backend"]
 wasmtime_backend = ["log/std", "wasmtime", "wasmtime/parallel-compilation"]
-wasmi_backend = ["log/std", "num-derive", "num-traits", "wasmi", "wasmi/core"]
 sandbox_backend = ["sp-sandbox"]

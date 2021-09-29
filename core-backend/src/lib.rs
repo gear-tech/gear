@@ -28,9 +28,6 @@ cfg_if::cfg_if! {
     if #[cfg(feature = "wasmtime_backend")] {
         pub mod wasmtime;
         pub use crate::wasmtime::env::Environment;
-    } else if #[cfg(feature = "wasmi_backend")] {
-        pub mod wasmi;
-        pub use crate::wasmi::env::Environment;
     } else if #[cfg(feature = "sandbox_backend")] {
         pub mod sandbox;
         pub use crate::sandbox::env::Environment;

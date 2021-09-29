@@ -20,5 +20,4 @@ wabt = "0.10.0"
 [features]
 default = ["wasmtime"]
 wasmtime = ["gear-core-backend/wasmtime_backend", "log/std"]
-wasmi = ["gear-core-backend/wasmi_backend", "log/std"]
 sandbox = ["gear-core-backend/sandbox_backend"]

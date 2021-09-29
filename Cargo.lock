@@ -1976,7 +1976,6 @@ dependencies = [
  "num-derive",
  "num-traits",
  "sp-sandbox",
- "wasmi",
  "wasmtime",
 ]
 

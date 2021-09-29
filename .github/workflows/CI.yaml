@@ -76,9 +76,6 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --release
 
-      - name: Test wasmi backend
-        run: cargo test -p gear-core-backend --release --no-default-features --features wasmi_backend
-
       - name: Run gear-test
         run: ./target/release/gtest ./gtest/spec/*.yaml
 

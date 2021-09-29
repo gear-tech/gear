@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Wasmi extensions for memory and memory context.
+//! sp-sandbox extensions for memory and memory context.
 
 use alloc::boxed::Box;
 use core::any::Any;
 
 use gear_core::memory::{Error, Memory, PageNumber};
 
-/// Wrapper for wasmi::MemoryRef.
+/// Wrapper for sp_sandbox::Memory.
 pub struct MemoryWrap(sp_sandbox::Memory);
 
 impl MemoryWrap {
-    /// Wrap wasmi::MemoryRef for Memory trait.
+    /// Wrap sp_sandbox::Memory for Memory trait.
     pub fn new(mem: sp_sandbox::Memory) -> Self {
         MemoryWrap(mem)
     }
@@ -81,6 +81,7 @@ impl Clone for MemoryWrap {
     }
 }
 
+// can't be tested outside the node runtime
 #[cfg(test)]
 mod tests {
     use super::*;
