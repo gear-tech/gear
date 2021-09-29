@@ -1,0 +1,426 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Wasmtime environment for running a module.
+
+// use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
+use super::memory::MemoryWrap;
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::string::{String, ToString};
+use sp_sandbox::{EnvironmentDefinitionBuilder, HostError, Instance, ReturnValue, Value};
+
+use gear_core::env::{Ext, LaterExt};
+use gear_core::memory::{Memory, PageBuf, PageNumber};
+use gear_core::message::{MessageId, OutgoingPacket, ReplyPacket};
+use gear_core::program::ProgramId;
+
+use crate::funcs;
+
+struct Runtime<E: Ext + 'static> {
+    ext: LaterExt<E>,
+    trap_reason: Option<&'static str>,
+}
+
+/// Environment to run one module at a time providing Ext.
+pub struct Environment<E: Ext + 'static> {
+    ext: LaterExt<E>,
+}
+
+impl<E: Ext + 'static> Environment<E> {
+    /// New environment.
+    ///
+    /// To run actual function with provided external environment, `setup_and_run` should be used.
+    pub fn new() -> Self {
+        Self {
+            ext: LaterExt::new(),
+        }
+    }
+
+    /// Setup external environment and run closure.
+    ///
+    /// Setup external environment by providing `ext`, run nenwly initialized instance created from
+    /// provided `module`, do anything inside a `func` delegate.
+    ///
+    /// This will also set the beginning of the memory region to the `static_area` content _after_
+    /// creatig instance.
+    pub fn setup_and_run(
+        &mut self,
+        ext: E,
+        binary: &[u8],
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory: &dyn Memory,
+        entry_point: &str,
+    ) -> (anyhow::Result<()>, E) {
+        fn send<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let program_id_ptr: i32 = args[0].as_i32().unwrap();
+            let payload_ptr: i32 = args[1].as_i32().unwrap();
+            let payload_len: i32 = args[2].as_i32().unwrap();
+            let gas_limit: i64 = args[3].as_i64().unwrap();
+            let value_ptr: i32 = args[4].as_i32().unwrap();
+            let message_id_ptr: i32 = args[5].as_i32().unwrap();
+
+            let result = ctx
+                .ext
+                .with(|ext: &mut E| -> Result<(), &'static str> {
+                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    let value = funcs::get_u128(ext, value_ptr);
+                    let message_id = ext
+                        .send(OutgoingPacket::new(
+                            dest,
+                            payload.into(),
+                            gas_limit as _,
+                            value,
+                        ))
+                        .map_err(|_| HostError)
+                        .expect("MSG ID err");
+                    ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+                    Ok(())
+                })
+                .map_err(|_| HostError);
+            result.map_err(|_| HostError).map(|res| ReturnValue::Unit)
+        }
+
+        fn send_commit<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let handle_ptr: i32 = args[0].as_i32().unwrap();
+            let message_id_ptr: i32 = args[1].as_i32().unwrap();
+            let program_id_ptr: i32 = args[2].as_i32().unwrap();
+            let gas_limit: i64 = args[3].as_i64().unwrap();
+            let value_ptr: i32 = args[4].as_i32().unwrap();
+
+            ctx.ext
+                .with(|ext: &mut E| -> Result<(), &'static str> {
+                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+                    let value = funcs::get_u128(ext, value_ptr);
+                    let message_id = ext.send_commit(
+                        handle_ptr as _,
+                        OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
+                    )?;
+                    ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+                    Ok(())
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn send_init<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let result = ctx
+                .ext
+                .with(|ext: &mut E| ext.send_init())
+                .map_err(|_| HostError)
+                .unwrap();
+            result
+                .map(|handle| ReturnValue::Value(Value::I32(handle as _)))
+                .map_err(|_| HostError)
+        }
+
+        fn send_push<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let handle_ptr = args[0].as_i32().unwrap();
+            let payload_ptr = args[1].as_i32().unwrap();
+            let payload_len = args[2].as_i32().unwrap();
+            ctx.ext
+                .with(|ext: &mut E| {
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    ext.send_push(handle_ptr as _, &payload)
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn read<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let at = args[0].as_i32().unwrap();
+            let len = args[1].as_i32().unwrap();
+            let dest = args[2].as_i32().unwrap();
+            let at = at as u32 as usize;
+            let len = len as u32 as usize;
+            ctx.ext.with(|ext: &mut E| {
+                let msg = ext.msg().to_vec();
+                ext.set_mem(dest as _, &msg[at..(at + len)]);
+            });
+            Ok(ReturnValue::Unit)
+        }
+
+        fn size<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            ctx.ext
+                .with(|ext: &mut E| ext.msg().len() as _)
+                .map(|res| Ok(ReturnValue::Value(Value::I32(res))))
+                .unwrap_or(Ok(ReturnValue::Value(Value::I32(0))))
+        }
+
+        fn gas<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let val = args[0].as_i32().unwrap();
+            ctx.ext
+                .with(|ext: &mut E| ext.gas(val as _))
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn alloc<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let pages = args[0].as_i32().unwrap();
+            let pages = pages as u32;
+
+            let ptr = ctx
+                .ext
+                .with(|ext: &mut E| ext.alloc(pages.into()))
+                .unwrap()
+                .map(|v| {
+                    let ptr = v.raw();
+                    log::debug!("ALLOC: {} pages at {}", pages, ptr);
+                    ptr
+                })
+                .map(|res| ReturnValue::Value(Value::I32(res as i32)))
+                .map_err(|_| HostError);
+
+            ptr
+        }
+
+        fn free<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let pages = args[0].as_i32().unwrap();
+            let page = pages as u32;
+            if let Err(e) = ctx.ext.with(|ext: &mut E| ext.free(page.into())).unwrap() {
+                log::debug!("FREE ERROR: {:?}", e);
+            } else {
+                log::debug!("FREE: {}", page);
+            }
+            Ok(ReturnValue::Unit)
+        }
+
+        fn reply<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let payload_ptr = args[0].as_i32().unwrap();
+            let payload_len = args[1].as_i32().unwrap();
+            let gas_limit = args[2].as_i64().unwrap();
+            let value_ptr = args[3].as_i32().unwrap();
+            let result = ctx
+                .ext
+                .with(|ext: &mut E| {
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    let value = funcs::get_u128(ext, value_ptr);
+                    ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| HostError);
+            result
+        }
+
+        fn reply_to<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let dest = args[0].as_i32().unwrap();
+            let maybe_message_id = ctx
+                .ext
+                .with(|ext: &mut E| ext.reply_to())
+                .map_err(|_| HostError)
+                .unwrap();
+
+            match maybe_message_id {
+                Some((message_id, _)) => ctx
+                    .ext
+                    .with(|ext| {
+                        ext.set_mem(dest as isize as _, message_id.as_slice());
+                    })
+                    .map_err(|_| HostError),
+                None => return Err(HostError),
+            };
+
+            Ok(ReturnValue::Unit)
+        }
+
+        fn reply_push<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let payload_ptr = args[0].as_i32().unwrap();
+            let payload_len = args[1].as_i32().unwrap();
+            ctx.ext
+                .with(|ext: &mut E| {
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    ext.reply_push(&payload)
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn debug<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let str_ptr = args[0].as_i32().unwrap() as u32 as usize;
+            let str_len = args[1].as_i32().unwrap() as u32 as usize;
+            ctx.ext
+                .with_fallible(|ext: &mut E| -> Result<(), &'static str> {
+                    let mut data = vec![0u8; str_len];
+                    ext.get_mem(str_ptr, &mut data);
+                    match String::from_utf8(data) {
+                        Ok(s) => ext.debug(&s),
+                        Err(_) => Err("Failed to parse debug string"),
+                    }
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn gas_available<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let gas_available = ctx.ext.with(|ext: &mut E| ext.gas_available()).unwrap_or(0);
+            Ok(ReturnValue::Value(Value::I64(gas_available as i64)))
+        }
+
+        fn msg_id<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let msg_id_ptr = args[0].as_i32().unwrap();
+            ctx.ext
+                .with(|ext: &mut E| {
+                    let message_id = ext.message_id();
+                    ext.set_mem(msg_id_ptr as isize as _, message_id.as_slice());
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn source<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let source_ptr = args[0].as_i32().unwrap();
+            ctx.ext
+                .with(|ext: &mut E| {
+                    let source = ext.source();
+                    ext.set_mem(source_ptr as isize as _, source.as_slice());
+                })
+                .map(|res| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn value<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let value_ptr = args[0].as_i32().unwrap();
+            ctx.ext
+                .with(|ext: &mut E| funcs::set_u128(ext, value_ptr, ext.value()))
+                .map(|res| ReturnValue::Unit)
+                .map_err(|_| HostError)
+        }
+
+        fn wait<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let _ = ctx.ext.with(|ext: &mut E| ext.wait()).unwrap();
+            ctx.trap_reason = Some("exit");
+            Err(HostError)
+        }
+
+        fn wake<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+            let waker_id_ptr = args[0].as_i32().unwrap();
+            let _ = ctx
+                .ext
+                .with(|ext: &mut E| {
+                    let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
+                    ext.wake(waker_id)
+                })
+                .unwrap();
+            ctx.trap_reason = Some("exit");
+            Err(HostError)
+        }
+
+        self.ext.set(ext);
+
+        let mut later_ext = self.ext.clone();
+
+        let mem: &sp_sandbox::Memory = match memory.as_any().downcast_ref::<sp_sandbox::Memory>() {
+            Some(mem) => mem,
+            None => panic!("Memory is not sp_sandbox::Memory"),
+        };
+
+        let mut env_builder = EnvironmentDefinitionBuilder::new();
+        env_builder.add_memory("env", "memory", mem.clone());
+        env_builder.add_host_func("env", "alloc", alloc);
+        env_builder.add_host_func("env", "free", free);
+        env_builder.add_host_func("env", "gr_send", send);
+        env_builder.add_host_func("env", "gr_send_commit", send_commit);
+        env_builder.add_host_func("env", "gr_send_init", send_init);
+        env_builder.add_host_func("env", "gr_send_push", send_push);
+        env_builder.add_host_func("env", "gr_read", read);
+        env_builder.add_host_func("env", "gr_size", size);
+        env_builder.add_host_func("env", "gr_source", source);
+        env_builder.add_host_func("env", "gr_value", value);
+        env_builder.add_host_func("env", "gr_reply", reply);
+        env_builder.add_host_func("env", "gr_reply_to", reply_to);
+        env_builder.add_host_func("env", "gr_reply_push", reply_push);
+        env_builder.add_host_func("env", "gr_debug", debug);
+        env_builder.add_host_func("env", "gr_gas_available", gas_available);
+        env_builder.add_host_func("env", "gr_msg_id", msg_id);
+        env_builder.add_host_func("env", "gr_wait", wait);
+        env_builder.add_host_func("env", "gr_wake", wake);
+        env_builder.add_host_func("env", "gas", gas);
+
+        let mut runtime = Runtime {
+            ext: self.ext.clone(),
+            trap_reason: None,
+        };
+
+        let mut instance = Instance::new(binary, &env_builder, &mut runtime).unwrap();
+
+        let result = self.run_inner(instance, memory_pages, memory, move |mut instance| {
+            let result = instance.invoke(entry_point, &[], &mut runtime);
+            if let Err(e) = &result {
+                if let Some(trap) = runtime.trap_reason {
+                    if funcs::is_exit_trap(&trap.to_string()) {
+                        // We don't propagate a trap when exit
+                        return Ok(());
+                    }
+                }
+            }
+            result
+                .map(|_| ())
+                .map_err(|err| anyhow::format_err!("{:?}", &err))
+        });
+
+        let ext = self.ext.unset();
+
+        (result, ext)
+    }
+
+    /// Create memory inside this environment.
+    pub fn create_memory(&self, total_pages: u32) -> MemoryWrap {
+        MemoryWrap::new(sp_sandbox::Memory::new(total_pages, None).expect("Create env memory fail"))
+    }
+
+    fn run_inner(
+        &mut self,
+        instance: Instance<Runtime<E>>,
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory: &dyn Memory,
+        func: impl FnOnce(Instance<Runtime<E>>) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
+        // Set module memory.
+        memory
+            .set_pages(memory_pages)
+            .map_err(|e| anyhow::anyhow!("Can't set module memory: {:?}", e))?;
+
+        func(instance)
+    }
+}
+
+impl<E: Ext + 'static> Default for Environment<E> {
+    /// Creates a default environment.
+    fn default() -> Self {
+        Self::new()
+    }
+}
