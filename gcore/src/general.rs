@@ -27,9 +27,10 @@
 /// messages. There is a possibility to create and send messages in parts.
 ///
 /// See [`msg::send_init`](crate::msg::send_init),
-/// [`msg::send_push`](crate::msg::send_push), [`msg::send_commit`](crate::msg::send_commit) functions related to the building and sending messages in
-/// parts. In order to identify message that is being built from parts program
-/// must use `MessageHandle` obtained via
+/// [`msg::send_push`](crate::msg::send_push),
+/// [`msg::send_commit`](crate::msg::send_commit) functions related to the
+/// building and sending messages in parts. In order to identify message that is
+/// being built from parts program should use `MessageHandle` obtained via
 /// [`msg::send_init`](crate::msg::send_init).
 ///
 /// # Examples
@@ -48,8 +49,8 @@ pub struct MessageHandle(pub u32);
 /// Message identifier.
 ///
 /// GEAR allows users and programs to interact with other users and programs via
-/// messages. Each message has its own unique 256-bit id. This id is represented via
-/// `MessageId` struct. Message identifier can be obtained for the current
+/// messages. Each message has its own unique 256-bit id. This id is represented
+/// via `MessageId` struct. Message identifier can be obtained for the current
 /// message being processed using [`msg::id`](crate::msg::id) function. Also,
 /// each send and reply function returns a message identifier.
 ///
@@ -66,8 +67,9 @@ pub struct MessageHandle(pub u32);
 pub struct MessageId(pub [u8; 32]);
 
 impl MessageId {
-    /// Create new MessageId from u8 slice length of 32
-    /// Panics if supplied slice length is different from 32
+    /// Create a new `MessageId` from the 32-byte slice `s`.
+    ///
+    /// Panics if the supplied slice length is other than 32.
     pub fn from_slice(s: &[u8]) -> Self {
         if s.len() != 32 {
             panic!("The slice must contain 32 u8 to be casted to MessageId");
@@ -77,7 +79,7 @@ impl MessageId {
         id
     }
 
-    /// Get MessageId represented as a slice of u8
+    /// Get `MessageId` represented as a slice of `u8`.
     pub fn as_slice(&self) -> &[u8] {
         &self.0[..]
     }
@@ -90,10 +92,11 @@ impl MessageId {
 /// Program identifier.
 ///
 /// GEAR allows users and programs to interact with other users and programs via
-/// messages. Source and target program or user are represented by 256-bit identifier 'ProgramId' struct.
-/// Source 'ProgramId' for a message being processed can be obtained via
-/// using [`msg::source`](crate::msg::source) function. Also,
-/// each send function has target 'ProgramId' as one of arguments.
+/// messages. Source and target program or user are represented by 256-bit
+/// identifier `ProgramId` struct. The source `ProgramId` for a message being
+/// processed can be obtained using [`msg::source`](crate::msg::source)
+/// function. Also, each send function has a target `ProgramId` as one of the
+/// arguments.
 ///
 /// # Examples
 ///
@@ -116,8 +119,9 @@ impl From<u64> for ProgramId {
 }
 
 impl ProgramId {
-    /// Create new ProgramId from u8 slice length of 32
-    /// Panics if supplied slice length is different from 32
+    /// Create a new ProgramId from 32-byte slice `s`.
+    ///
+    /// Panics if the supplied slice length is other than 32.
     pub fn from_slice(s: &[u8]) -> Self {
         if s.len() != 32 {
             panic!("The slice must contain 32 u8 to be casted to ProgramId");
@@ -127,7 +131,7 @@ impl ProgramId {
         id
     }
 
-    /// Get ProgramId represented as a slice of u8
+    /// Get `ProgramId` represented as a slice of `u8`.
     pub fn as_slice(&self) -> &[u8] {
         &self.0[..]
     }
