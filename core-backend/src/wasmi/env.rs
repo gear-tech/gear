@@ -216,7 +216,8 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             }
             "gr_reply" => func_instance!(Reply, ValueType::I32,
                 ValueType::I32,
-                ValueType::I64,ValueType::I32,
+                ValueType::I64,
+                ValueType::I32,
                 ValueType::I32 => None),
             "gr_reply_commit" => {
                 func_instance!(ReplyCommit, ValueType::I32, ValueType::I64, ValueType::I32 => None)
