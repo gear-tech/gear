@@ -142,54 +142,108 @@ impl MetaData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use parity_scale_codec::Decode;
+    use parity_scale_codec::{Decode, Encode};
     use serde_json::Value;
 
-    #[derive(Decode, Debug, PartialEq)]
-    pub struct Id {
-        pub decimal: u64,
-        pub hex: Vec<u8>,
+    #[derive(Decode, Debug, PartialEq, Encode)]
+    pub enum Action {
+        AddMessage(MessageIn),
+        ViewMessages,
     }
 
-    #[derive(Decode, Debug, PartialEq)]
+    #[derive(Decode, Debug, PartialEq, Encode)]
     pub struct MessageIn {
-        pub id: Id,
+        author: Vec<u8>,
+        msg: Vec<u8>,
     }
 
     #[test]
-    fn check() {
+    fn check_enum() {
         let yaml = r#"
-        id:
-          decimal: 12345
-          hex: [1, 2, 3, 4, 5]
+        addMessage:
+          author: Author
+          msg: Some message, really huge text
         "#;
         let value = serde_yaml::from_str::<Value>(yaml).expect("Unable to create serde Value");
         let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
+
+        println!("{}", json);
 
         let json = MetaData::Json(json);
 
         let bytes = json
             .clone()
             .convert(
-                "examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+                "examples/target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
                 &MetaType::Input,
             )
             .or_else(|_| {
                 json.convert(
-                    "target/wasm32-unknown-unknown/release/demo_meta.meta.wasm",
+                    "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
                     &MetaType::Input,
                 )
             });
 
-        let msg =
-            MessageIn::decode(&mut bytes.expect("Could not find file ").into_bytes().as_ref())
-                .expect("Unable to decode CodecBytes");
-        let expectation = MessageIn {
-            id: Id {
-                decimal: 12345,
-                hex: vec![1, 2, 3, 4, 5],
+        let expectation = Action::AddMessage(MessageIn {
+            author: b"Author".to_vec(),
+            msg: b"Some message, really huge text".to_vec(),
+        });
+
+        let codec_bytes = bytes.clone().expect("Could not find file ").into_bytes();
+        assert_eq!(hex::encode(codec_bytes), hex::encode(expectation.encode()));
+
+        let msg = Action::decode(&mut bytes.expect("Could not find file ").into_bytes().as_ref())
+            .expect("Unable to decode CodecBytes");
+
+        assert_eq!(msg, expectation);
+    }
+
+    #[test]
+    fn check_vec() {
+        let yaml = r#"
+        - author: Dmitry
+          msg: Hello, world!
+        - author: Eugene
+          msg: Hello, Dmitry!
+        "#;
+        let value = serde_yaml::from_str::<Value>(yaml).expect("Unable to create serde Value");
+        let json = serde_json::to_string(&value).expect("Unable to create json from serde Value");
+
+        println!("{}", json);
+
+        let json = MetaData::Json(json);
+
+        let bytes = json
+            .clone()
+            .convert(
+                "examples/target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                &MetaType::Output,
+            )
+            .or_else(|_| {
+                json.convert(
+                    "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                    &MetaType::Output,
+                )
+            });
+
+        let expectation = vec![
+            MessageIn {
+                author: b"Dmitry".to_vec(),
+                msg: b"Hello, world!".to_vec(),
             },
-        };
+            MessageIn {
+                author: b"Eugene".to_vec(),
+                msg: b"Hello, Dmitry!".to_vec(),
+            },
+        ];
+
+        let codec_bytes = bytes.clone().expect("Could not find file ").into_bytes();
+        assert_eq!(hex::encode(codec_bytes), hex::encode(expectation.encode()));
+
+        let msg = Vec::<MessageIn>::decode(
+            &mut bytes.expect("Could not find file ").into_bytes().as_ref(),
+        )
+        .expect("Unable to decode CodecBytes");
 
         assert_eq!(msg, expectation);
     }
