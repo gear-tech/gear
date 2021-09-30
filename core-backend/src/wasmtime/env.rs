@@ -57,7 +57,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32_i32("gr_debug", funcs::debug);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
-        result.add_func_i32_i32_i64_i32("gr_reply", funcs::reply);
+        result.add_func_i32_i32_i64_i32_i32("gr_reply", funcs::reply);
         result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
         result.add_func_i32_i32_i32_i64_i32_i32("gr_send", funcs::send);
@@ -244,13 +244,13 @@ impl<E: Ext + 'static> Environment<E> {
         );
     }
 
-    fn add_func_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    fn add_func_i32_i32_i64_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
-        F: 'static + Fn(i32, i32, i64, i32) -> Result<(), &'static str>,
+        F: 'static + Fn(i32, i32, i64, i32, i32) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,
-            Func::wrap(&self.store, Self::wrap4(func(self.ext.clone()))),
+            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
         );
     }
 
@@ -308,12 +308,6 @@ impl<E: Ext + 'static> Environment<E> {
         func: impl Fn(T0, T1, T2) -> Result<R, &'static str>,
     ) -> impl Fn(T0, T1, T2) -> Result<R, Trap> {
         move |a, b, c| func(a, b, c).map_err(Trap::new)
-    }
-
-    fn wrap4<T0, T1, T2, T3, R>(
-        func: impl Fn(T0, T1, T2, T3) -> Result<R, &'static str>,
-    ) -> impl Fn(T0, T1, T2, T3) -> Result<R, Trap> {
-        move |a, b, c, d| func(a, b, c, d).map_err(Trap::new)
     }
 
     fn wrap5<T0, T1, T2, T3, T4, R>(

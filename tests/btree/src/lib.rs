@@ -102,21 +102,12 @@ mod wasm {
 mod tests {
     use super::native;
 
-    use gear_core::storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, Storage,
-    };
-    use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
+    use common::{InitProgram, RunnerContext};
 
     #[test]
     fn binary_available() {
         assert!(native::WASM_BINARY.is_some());
         assert!(native::WASM_BINARY_BLOATY.is_some());
-    }
-
-    pub type LocalRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
-
-    fn new_test_runner() -> LocalRunner {
-        Runner::new(&Config::default(), Default::default())
     }
 
     fn wasm_code() -> &'static [u8] {
@@ -125,52 +116,38 @@ mod tests {
 
     #[test]
     fn program_can_be_initialized() {
-        let mut runner = new_test_runner();
+        let mut runner = RunnerContext::default();
 
-        runner
-            .init_program(InitializeProgramInfo {
-                new_program_id: 1.into(),
-                source_id: 0.into(),
-                code: wasm_code().to_vec(),
-                message: ExtMessage {
-                    id: 1000001.into(),
-                    payload: "init".as_bytes().to_vec(),
-                    gas_limit: u64::MAX,
-                    value: 0,
-                },
-            })
-            .expect("failed to init program");
+        runner.init_program(InitProgram::from(wasm_code()).message(b"init"));
 
-        let Storage { log, .. } = runner.complete();
+        let storage = runner.storage();
 
         assert_eq!(
-            log.get().last().map(|m| m.payload().to_vec()),
+            storage.log.get().last().map(|m| m.payload().to_vec()),
             Some(b"CREATED".to_vec())
         );
     }
 
     #[test]
     fn simple() {
-        use super::{
-            Reply,
-            Request::{self, *},
-        };
+        use super::{Reply, Request};
+
+        let mut runner = RunnerContext::default();
+        runner.init_program(wasm_code());
+
+        let reply: Vec<Reply> = runner.request_batch(&[
+            Request::Insert(0, 1),
+            Request::Insert(0, 2),
+            Request::Insert(1, 3),
+            Request::Insert(2, 5),
+            Request::Remove(1),
+            Request::List,
+            Request::Clear,
+            Request::List,
+        ]);
         assert_eq!(
-            common::do_requests_in_order::<Request, Reply>(
-                new_test_runner(),
-                wasm_code().to_vec(),
-                vec![
-                    Insert(0, 1),
-                    Insert(0, 2),
-                    Insert(1, 3),
-                    Insert(2, 5),
-                    Remove(1),
-                    List,
-                    Clear,
-                    List,
-                ]
-            ),
-            vec![
+            reply,
+            &[
                 Reply::Value(None),
                 Reply::Value(Some(1)),
                 Reply::Value(None),

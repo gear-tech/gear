@@ -16,169 +16,381 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::{Decode, Encode};
-
+use codec::{Decode, Encode, Error as CodecError};
 use gear_core::storage::{
-    InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList, Storage,
+    InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
 };
 use gear_core::{message::MessageId, program::ProgramId};
 use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
+use std::collections::HashSet;
 
 pub type MemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
 
-pub fn do_requests_in_order<Req: Encode, Rep: Decode>(
-    mut runner: MemoryRunner,
-    code: Vec<u8>,
-    requests: Vec<Req>,
-) -> Vec<Rep> {
-    runner
-        .init_program(InitializeProgramInfo {
-            new_program_id: 1.into(),
-            source_id: 0.into(),
-            code,
-            message: ExtMessage {
-                id: 1000001.into(),
-                payload: "init".as_bytes().to_vec(),
-                gas_limit: u64::MAX,
-                value: 0,
-            },
-        })
-        .expect("failed to init program");
-
-    let mut nonce = 0;
-
-    let mut data: Vec<(u64, MessageId, Option<Rep>)> = Vec::new();
-
-    for request in requests {
-        let message_id: MessageId = (nonce + 1000002).into();
-        data.push((nonce, message_id, None));
-        runner.queue_message(MessageDispatch {
-            source_id: 0.into(),
-            destination_id: 1.into(),
-            data: ExtMessage {
-                id: message_id,
-                gas_limit: u64::MAX,
-                value: 0,
-                payload: request.encode(),
-            },
-        });
-        nonce += 1;
-    }
-
-    while runner.run_next(u64::MAX).handled != 0 {}
-
-    let Storage { log, .. } = runner.complete();
-
-    assert_eq!(
-        log.get().first().map(|m| m.payload().to_vec()),
-        Some(b"CREATED".to_vec())
-    );
-
-    for message in log.get().iter() {
-        for (_, search_message_id, ref mut reply) in data.iter_mut() {
-            if message
-                .reply
-                .map(|(msg_id, _)| msg_id == *search_message_id)
-                .unwrap_or(false)
-            {
-                *reply = Some(
-                    Rep::decode(&mut message.payload.as_ref()).expect("Failed to decode reply"),
-                );
-            }
-        }
-    }
-
-    data.into_iter()
-        .map(|(_, _, reply)| reply.expect("No reply for message"))
-        .collect()
-}
-
-pub struct MessageData<P: Encode> {
-    pub id: MessageId,
-    pub payload: P,
-    pub gas_limit: u64,
-    pub value: u128,
-}
-
-pub struct InitProgramData<P: Encode> {
-    pub new_program_id: ProgramId,
-    pub source_id: ProgramId,
+pub struct InitProgram {
+    pub program_id: Option<ProgramId>,
+    pub source_id: Option<ProgramId>,
     pub code: Vec<u8>,
-    pub message: MessageData<P>,
+    pub message: Option<MessageBuilder>,
 }
 
-pub fn do_init<P: Encode>(mut runner: MemoryRunner, init_data: InitProgramData<P>) -> MemoryRunner {
-    runner
-        .init_program(InitializeProgramInfo {
-            new_program_id: init_data.new_program_id,
-            source_id: init_data.source_id,
-            code: init_data.code,
-            message: ExtMessage {
-                id: init_data.message.id,
-                payload: init_data.message.payload.encode(),
-                gas_limit: init_data.message.gas_limit,
-                value: init_data.message.value,
-            },
-        })
-        .expect("failed to init program");
+impl InitProgram {
+    pub fn id<P: Into<ProgramId>>(mut self, id: P) -> Self {
+        self.program_id = Some(id.into());
+        self
+    }
 
-    runner
+    pub fn source_id<P: Into<ProgramId>>(mut self, id: P) -> Self {
+        self.source_id = Some(id.into());
+        self
+    }
+
+    pub fn message<M: Into<MessageBuilder>>(mut self, message: M) -> Self {
+        self.message = Some(message.into());
+        self
+    }
+
+    fn to_init_program_info(self, context: &mut RunnerContext) -> InitializeProgramInfo {
+        self.program_id
+            .map(|id| context.used_program_ids.insert(id));
+
+        let message = self
+            .message
+            .map(|msg| msg.into_ext(context))
+            .unwrap_or_else(|| MessageBuilder::from(()).into_ext(context));
+
+        InitializeProgramInfo {
+            new_program_id: self.program_id.unwrap_or_else(|| context.next_program_id()),
+            source_id: self.source_id.unwrap_or_else(|| ProgramId::system()),
+            code: self.code,
+            message,
+        }
+    }
 }
 
-pub struct MessageDispatchData<P: Encode> {
-    pub source_id: ProgramId,
-    pub destination_id: ProgramId,
-    pub data: MessageData<P>,
+impl<C: Into<Vec<u8>>> From<C> for InitProgram {
+    fn from(code: C) -> Self {
+        Self {
+            program_id: None,
+            source_id: None,
+            code: code.into(),
+            message: None,
+        }
+    }
 }
 
-pub fn do_reqrep<Req: Encode, Rep: Decode>(
-    mut runner: MemoryRunner,
-    message: MessageDispatchData<Req>,
-) -> (MemoryRunner, Option<Rep>) {
-    let message_id = message.data.id;
-    runner.queue_message(MessageDispatch {
-        source_id: message.source_id,
-        destination_id: message.destination_id,
-        data: ExtMessage {
-            id: message_id,
-            gas_limit: message.data.gas_limit,
-            value: message.data.value,
-            payload: message.data.payload.encode(),
-        },
-    });
+pub struct MessageBuilder {
+    pub id: Option<MessageId>,
+    pub payload: Vec<u8>,
+    pub gas_limit: Option<u64>,
+    pub value: Option<u128>,
+}
 
-    while runner.run_next(u64::MAX).handled > 0 {}
+impl MessageBuilder {
+    pub fn id<T: Into<MessageId>>(mut self, id: T) -> Self {
+        self.id = Some(id.into());
+        self
+    }
 
-    let Storage {
-        message_queue,
-        program_storage,
-        wait_list,
-        log,
-    } = runner.complete();
+    pub fn gas_limit(mut self, gas_limit: u64) -> Self {
+        self.gas_limit = Some(gas_limit);
+        self
+    }
 
-    let mut reply: Option<Rep> = None;
+    pub fn value(mut self, value: u128) -> Self {
+        self.value = Some(value);
+        self
+    }
 
-    for message in log.get().iter() {
-        if message
-            .reply
-            .map(|(msg_id, _)| msg_id == message_id)
-            .unwrap_or(false)
-        {
-            reply =
-                Some(Rep::decode(&mut message.payload.as_ref()).expect("Failed to decode reply"));
+    pub fn destination<P: Into<ProgramId>>(self, destination: P) -> MessageDispatchBuilder {
+        MessageDispatchBuilder {
+            source: None,
+            destination: Some(destination.into()),
+            message: self,
         }
     }
 
-    (
-        Runner::new(
-            &Config::default(),
-            InMemoryStorage {
-                program_storage,
-                message_queue,
-                wait_list,
-                log,
-            },
-        ),
-        reply,
-    )
+    fn into_ext(self, context: &mut RunnerContext) -> ExtMessage {
+        self.id.map(|id| context.used_message_ids.insert(id));
+        ExtMessage {
+            id: self.id.unwrap_or_else(|| context.next_message_id()),
+            payload: self.payload,
+            gas_limit: self.gas_limit.unwrap_or(u64::MAX),
+            value: self.value.unwrap_or(0),
+        }
+    }
+}
+
+impl<E: Encode> From<E> for MessageBuilder {
+    fn from(payload: E) -> Self {
+        Self {
+            id: None,
+            payload: payload.encode(),
+            gas_limit: None,
+            value: None,
+        }
+    }
+}
+
+pub struct MessageDispatchBuilder {
+    source: Option<ProgramId>,
+    destination: Option<ProgramId>,
+    pub message: MessageBuilder,
+}
+
+impl MessageDispatchBuilder {
+    pub fn source<P: Into<ProgramId>>(mut self, source: P) -> Self {
+        self.source = Some(source.into());
+        self
+    }
+
+    pub fn destination<P: Into<ProgramId>>(mut self, destination: P) -> Self {
+        self.destination = Some(destination.into());
+        self
+    }
+
+    fn into_message_dispatch(self, runner: &mut RunnerContext) -> MessageDispatch {
+        MessageDispatch {
+            source_id: self.source.unwrap_or(ProgramId::system()),
+            destination_id: self.destination.unwrap_or(1.into()),
+            data: self.message.into_ext(runner),
+        }
+    }
+}
+
+impl From<MessageBuilder> for MessageDispatchBuilder {
+    fn from(message: MessageBuilder) -> Self {
+        Self {
+            source: None,
+            destination: None,
+            message,
+        }
+    }
+}
+
+impl<E: Encode> From<E> for MessageDispatchBuilder {
+    fn from(payload: E) -> Self {
+        Self {
+            source: None,
+            destination: None,
+            message: payload.into(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Error {
+    Decode(CodecError),
+    Panic,
+}
+
+pub struct RunnerContext {
+    runner_state: RunnerState,
+    program_id: u64,
+    used_program_ids: HashSet<ProgramId>,
+    message_id: u64,
+    used_message_ids: HashSet<MessageId>,
+}
+
+impl RunnerContext {
+    pub fn new(runner: MemoryRunner) -> Self {
+        Self {
+            runner_state: RunnerState::Runner(runner),
+            program_id: 1,
+            used_program_ids: HashSet::new(),
+            message_id: 1,
+            used_message_ids: HashSet::new(),
+        }
+    }
+
+    pub fn init_program<P>(&mut self, init_data: P) -> &Self
+    where
+        P: Into<InitProgram>,
+    {
+        let info = init_data.into().to_init_program_info(self);
+
+        self.runner()
+            .init_program(info)
+            .expect("Failed to init program");
+
+        self
+    }
+
+    pub fn try_request<Msg, D>(&mut self, message: Msg) -> Option<Result<D, Error>>
+    where
+        Msg: Into<MessageDispatchBuilder>,
+        D: Decode,
+    {
+        let message_dispatch = message.into().into_message_dispatch(self);
+        let message_id = message_dispatch.data.id;
+
+        let runner = self.runner();
+
+        runner.queue_message(message_dispatch);
+
+        while runner.run_next(u64::MAX).handled > 0 {}
+
+        self.get_response_to(message_id)
+    }
+
+    pub fn request<Msg, D>(&mut self, message: Msg) -> D
+    where
+        Msg: Into<MessageDispatchBuilder>,
+        D: Decode,
+    {
+        reply_or_panic(self.try_request(message))
+    }
+
+    pub fn try_request_batch<M, I, D>(&mut self, requests: I) -> Vec<Option<Result<D, Error>>>
+    where
+        M: Into<MessageDispatchBuilder>,
+        I: IntoIterator<Item = M>,
+        D: Decode,
+    {
+        let mut message_ids: Vec<MessageId> = Vec::new();
+
+        for request in requests {
+            let request = request.into().into_message_dispatch(self);
+            let message_id = request.data.id;
+
+            message_ids.push(message_id);
+            self.runner().queue_message(request);
+        }
+
+        while self.runner().run_next(u64::MAX).handled != 0 {}
+
+        message_ids
+            .into_iter()
+            .map(|id| self.get_response_to(id))
+            .collect()
+    }
+
+    pub fn request_batch<M, I, D>(&mut self, requests: I) -> Vec<D>
+    where
+        M: Into<MessageDispatchBuilder>,
+        I: IntoIterator<Item = M>,
+        D: Decode,
+    {
+        self.try_request_batch(requests)
+            .into_iter()
+            .map(reply_or_panic)
+            .collect()
+    }
+
+    pub fn get_response_to<M, D>(&mut self, id: M) -> Option<Result<D, Error>>
+    where
+        M: Into<MessageId>,
+        D: Decode,
+    {
+        let id = id.into();
+        self.storage()
+            .log
+            .get()
+            .iter()
+            .find(|message| message.reply.map(|(to, _)| to == id).unwrap_or(false))
+            .map(|message| {
+                let (_, exit_code) = message
+                    .reply
+                    .expect("messages that are not replies get filtered above");
+
+                if exit_code != 0 {
+                    Err(Error::Panic)
+                } else {
+                    D::decode(&mut message.payload.as_ref()).map_err(Error::Decode)
+                }
+            })
+    }
+
+    pub fn storage(&mut self) -> &InMemoryStorage {
+        self.runner_state.to_storage()
+    }
+
+    fn runner(&mut self) -> &mut MemoryRunner {
+        self.runner_state.to_runner()
+    }
+
+    fn next_message_id(&mut self) -> MessageId {
+        while !self.used_message_ids.insert(self.message_id.into()) {
+            self.message_id += 1;
+        }
+        let message_id = self.message_id.into();
+        self.message_id += 1;
+        message_id
+    }
+
+    fn next_program_id(&mut self) -> ProgramId {
+        while !self.used_program_ids.insert(self.program_id.into()) {
+            self.program_id += 1;
+        }
+        let program_id = self.program_id.into();
+        self.program_id += 1;
+        program_id
+    }
+}
+
+fn reply_or_panic<D: Decode>(response: Option<Result<D, Error>>) -> D {
+    match response.expect("No reply for message") {
+        Ok(reply) => reply,
+        Err(Error::Decode(e)) => panic!("Failed to decode reply: {}", e),
+        Err(Error::Panic) => panic!("Request processing error"),
+    }
+}
+
+impl Default for RunnerContext {
+    fn default() -> Self {
+        Self {
+            runner_state: RunnerState::Uninitialzied,
+            program_id: 1,
+            used_program_ids: HashSet::new(),
+            message_id: 1,
+            used_message_ids: HashSet::new(),
+        }
+    }
+}
+
+enum RunnerState {
+    Runner(MemoryRunner),
+    Storage(InMemoryStorage, Config),
+    Uninitialzied,
+}
+
+impl RunnerState {
+    fn to_runner(&mut self) -> &mut MemoryRunner {
+        if let Self::Runner(runner) = self {
+            runner
+        } else {
+            *self = match std::mem::take(self) {
+                Self::Storage(storage, config) => Self::Runner(Runner::new(&config, storage)),
+                _ => Self::Runner(Runner::new(&Config::default(), InMemoryStorage::default())),
+            };
+
+            self.to_runner()
+        }
+    }
+
+    fn to_storage(&mut self) -> &InMemoryStorage {
+        if let Self::Storage(storage, _) = self {
+            storage
+        } else {
+            *self = if let Self::Runner(runner) = std::mem::take(self) {
+                let config = Config {
+                    max_pages: runner.max_pages(),
+                    alloc_cost: runner.alloc_cost(),
+                    init_cost: runner.init_cost(),
+                    load_page_cost: runner.load_page_cost(),
+                };
+                let storage = runner.complete();
+                Self::Storage(storage, config)
+            } else {
+                Self::Storage(InMemoryStorage::default(), Config::default())
+            };
+
+            self.to_storage()
+        }
+    }
+}
+
+impl Default for RunnerState {
+    fn default() -> Self {
+        Self::Uninitialzied
+    }
 }

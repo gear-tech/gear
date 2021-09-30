@@ -40,6 +40,10 @@ fmt:
 	@cargo fmt --all
 	@cargo fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path=""
 
+.PHONY: fmtdoc
+fmtdoc:
+	@cargo +nightly fmt -p gstd -p gcore -p gstd-async -- --config wrap_comments=true,format_code_in_doc_comments=true
+
 .PHONY: node
 node:
 	@cargo build --package gear-node

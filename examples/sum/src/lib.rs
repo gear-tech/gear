@@ -35,7 +35,7 @@ pub unsafe extern "C" fn handle() {
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
 
     if exec::gas_available() > 4_000_000_000 {
-        msg::send(STATE.send_to(), new_msg + new_msg, 4_000_000_000);
+        msg::send(STATE.send_to(), new_msg + new_msg, 4_000_000_000, 0);
 
         ext::debug(&format!(
             "{:?} total message(s) stored: ",

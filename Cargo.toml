@@ -24,7 +24,6 @@ members = [
     "gcore",
     "gstd",
     "gstd-async",
-    "gstd-meta",
     "gtest",
     "node",
     "node-rti",
@@ -32,8 +31,8 @@ members = [
     "runtime",
     "tests/btree",
     "tests/common",
-    "tests/node",
     "tests/distributor",
+    "tests/node",
     "utils/gear-test-cli",
     "utils/wasm-proc",
 ]

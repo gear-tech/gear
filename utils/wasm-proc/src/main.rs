@@ -77,8 +77,8 @@ fn optimize_meta(
             "meta_init_output",
             "meta_input",
             "meta_output",
+            "meta_registry",
             "meta_title",
-            "meta_types",
         ],
     )
     .map_err(|_| Error::OptimizerFailed)?;

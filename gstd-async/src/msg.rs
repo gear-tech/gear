@@ -103,7 +103,7 @@ pub fn send_and_wait_for_reply(
     let fut = futures(key_id).next_future();
     if fut.is_empty() {
         // New message
-        let sent_msg_id = msg::send_with_value(program, payload, gas_limit, value);
+        let sent_msg_id = msg::send(program, payload, gas_limit, value);
         waiting_messages().insert(sent_msg_id, key_id);
         gcore::exec::wait();
     }

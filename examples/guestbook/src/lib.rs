@@ -2,7 +2,7 @@
 
 use codec::{Decode, Encode};
 use gstd::{msg, prelude::*};
-use gstd_meta::{meta, TypeInfo};
+use scale_info::TypeInfo;
 
 #[derive(TypeInfo, Decode)]
 pub enum Action {
@@ -16,13 +16,11 @@ pub struct MessageIn {
     msg: Vec<u8>,
 }
 
-meta! {
+gstd::metadata! {
     title: "Guestbook",
-    input: Action,
-    output: Vec<MessageIn>,
-    init_input: i32,
-    init_output: i32,
-    extra: MessageIn
+    handle:
+        input: Action,
+        output: Vec<MessageIn>
 }
 
 static mut MESSAGES: Vec<MessageIn> = Vec::new();

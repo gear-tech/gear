@@ -99,7 +99,7 @@ fn messages() {
         id[i] = i as u8;
     }
 
-    msg::send_with_value(ProgramId(id), b"HELLO", 1000, 12345678);
+    msg::send(ProgramId(id), b"HELLO", 1000, 12345678);
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ProgramId(id));

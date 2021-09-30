@@ -20,6 +20,7 @@ use crate::js::{MetaData, MetaType};
 use crate::runner::{self, CollectState};
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
+use colored::Colorize;
 use derive_more::Display;
 use gear_core::{
     memory::PAGE_SIZE,
@@ -28,7 +29,6 @@ use gear_core::{
     storage,
 };
 use std::{fmt, fs};
-use termion::{color, style};
 
 #[derive(Debug, derive_more::From)]
 pub struct DisplayedPayload(Vec<u8>);
@@ -441,29 +441,20 @@ where
 
                         if !errors.is_empty() {
                             total_failed += 1;
-                            errors.insert(0, format!("{}", color::Fg(color::Red)));
-                            errors.insert(errors.len(), format!("{}", style::Reset));
-                            errors.join("\n")
+                            format!("{}", errors.join("\n")).bright_red()
                         } else {
-                            format!("{}Ok{}", color::Fg(color::Green), style::Reset)
+                            "Ok".bright_green()
                         }
                     }
                     Err(e) => {
                         total_failed += 1;
-                        format!(
-                            "{}Initialization error ({}){}",
-                            color::Fg(color::Red),
-                            e,
-                            style::Reset
-                        )
+                        format!("Initialization error ({})", e).bright_red()
                     }
                 };
 
                 println!(
-                    "Fixture {}{}{}(step: {}): {}",
-                    style::Bold,
-                    test.fixtures[fixture_no].title,
-                    style::Reset,
+                    "Fixture {} (step: {}): {}",
+                    test.fixtures[fixture_no].title.bold(),
                     if let Some(step) = exp.step {
                         format!("{}", step)
                     } else {

@@ -23,45 +23,69 @@ Gear provides the easiest and most cost-effective way to run WebAssembly program
 
 Gear ensures very minimal, intuitive, and sufficient API for running both newly written and existing programs on multiple networks without the need to rewrite them.
 
+Refer to the [technical paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf) for some insights about how Gear works internally.
+
 ## Getting Started
 
-Please refer to the [technical paper](https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf) for some insights about how Gear works internally.
+1. To start familiarity with Gear, download and run Gear node connected to the testnet.
 
-**TODO**: *Describe the easiest way to start with. Pay attention to smart contract examples.*
+2. Deploy and test smart contracts, check how it is going. A comprehensive amount of smart contract examples is available for your convenience and faster onboarding.
 
-## Running Node
+## Run Gear Node
 
-**TODO**: *Prepare ready-to-install packages to make first steps simpler.*
+1. Download nightly build of Gear node:
 
-### Prerequisites
+    - **Windows x64**: [gear-nightly-windows-x86_64.zip](https://builds.gear.rs/gear-nightly-windows-x86_64.zip)
+    - **macOS M1**: [gear-nightly-macos-m1.tar.gz](https://builds.gear.rs/gear-nightly-macos-m1.tar.gz)
+    - **macOS Intel x64**: [gear-nightly-macos-x86_64.tar.gz](https://builds.gear.rs/gear-nightly-macos-x86_64.tar.gz)
+    - **Linux x64**: [gear-nightly-linux-x86_64.tar.xz](https://builds.gear.rs/gear-nightly-linux-x86_64.tar.xz)
 
-1. Install Rust using [rustup](https://rustup.rs/):
-
-    ```bash
-    curl https://sh.rustup.rs -sSf | sh
-    ```
-
-2. Add toolchains:
+2. Run Gear node without special arguments to get a node connected to the testnet:
 
     ```bash
-    make init
+    gear-node
     ```
 
-### Build Gear Node and Run
-
-1. Build:
+3. Get more info about usage details, flags, avilable options and subcommands:
 
     ```bash
-    make node
+    gear-node --help
     ```
 
-2. Run:
+Gear node can run in a single Dev Net mode or you can create a Multi-Node local testnet or make your own build of Gear node.
 
-    ```bash
-    make node-run
-    ```
+Refer to the [Gear Node README](https://github.com/gear-tech/gear/tree/master/node) for details and some examples.
 
-Refer to the [Gear Node](https://github.com/gear-tech/gear/tree/master/node) docs for details.
+## Run you first smart contract
+
+Prepare your program
+1. Choose an example program from [examples](https://github.com/gear-tech/gear/tree/master/examples) or use your own program
+2. Follow the [instruction](https://github.com/gear-tech/gear/blob/master/examples/README.md) to build the Rust to WebAssembly program
+    
+### Upload program from UI
+    
+1. Go to [https://idea.gear-tech.io](https://idea.gear-tech.io)
+
+2. Sign in to Gear via Telegram or Github account
+
+3. Connect to your node:
+    1. TBD
+
+4. Click **Upload program** and choose compiled .wasm file to upload
+    1. Set enough Gas limit - 1 000 000
+    2. Intial parameters, Initial value - keep default
+    3. Upload file with Metadata, if applicable
+        1. the file can be found after program compilation from available examples
+    4. Click **Upload program**, wait for the program initialization
+
+6. Try sending message to program, check reply:
+    1. TBD... 
+
+### Upload program locally from cmd
+    
+Upload program locally on your node: 
+
+TBD...
 
 ## Gear Components
 

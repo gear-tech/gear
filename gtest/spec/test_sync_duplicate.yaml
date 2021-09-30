@@ -1,0 +1,27 @@
+title: Async-duplicates-sync
+
+programs:
+  - id: 1
+    path: examples/target/wasm32-unknown-unknown/release/demo_sync_duplicate.wasm
+
+  - id: 2
+    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+fixtures:
+  - title: async-duplicates-sync
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: async
+
+    expected:
+      - log:
+          - destination: 0
+            payload:
+              kind: i32
+              # This value is incorrect.
+              # And it shows that sync code in async
+              # programs duplicates
+              value: 2
