@@ -656,13 +656,10 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             (payload, msg) => {
                 let mut reply = self.id_generator.borrow_mut().produce_reply(packet);
 
-                let packet_payload = reply.payload.0.clone();
-                reply.payload.0.clear();
                 reply
                     .payload
                     .0
-                    .extend_from_slice(&payload.as_ref().unwrap_or(&Payload::default()).0);
-                reply.payload.0.extend_from_slice(&packet_payload);
+                    .splice(0..0, payload.take().unwrap_or_default().0);
 
                 *msg = Some(reply);
                 *payload = None;
@@ -720,13 +717,10 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             (payload, msg) => {
                 let mut outgoing = self.id_generator.borrow_mut().produce_outgoing(packet);
 
-                let packet_payload = outgoing.payload.0.clone();
-                outgoing.payload.0.clear();
                 outgoing
                     .payload
                     .0
-                    .extend_from_slice(&payload.as_ref().unwrap().0);
-                outgoing.payload.0.extend_from_slice(&packet_payload);
+                    .splice(0..0, payload.take().unwrap_or_default().0);
 
                 *msg = Some(outgoing);
                 *payload = None;
