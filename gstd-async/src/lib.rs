@@ -22,13 +22,13 @@
 
 extern crate alloc;
 
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
 use futures::FutureExt;
-use alloc::collections::BTreeMap;
 use gcore::MessageId;
-use alloc::boxed::Box;
 
 pub use gstd_async_macro::main;
 

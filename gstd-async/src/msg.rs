@@ -76,7 +76,7 @@ impl WakeSignals {
             Some(signal @ WakeSignal { payload: None, .. }) => {
                 self.signals.insert(message_reply_to, signal);
                 ReplyPoll::Pending
-            },
+            }
             Some(WakeSignal {
                 payload: Some(reply_payload),
                 ..
@@ -93,9 +93,7 @@ pub(crate) fn signals_static() -> &'static mut WakeSignals {
             SIGNALS = Some(WakeSignals::new());
         }
 
-        SIGNALS
-            .as_mut()
-            .expect("Created if none above; can't fail")
+        SIGNALS.as_mut().expect("Created if none above; can't fail")
     }
 }
 
