@@ -16,11 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
-use core::future::Future;
-use core::pin::Pin;
-use core::task::{Context, Poll};
+use alloc::{collections::BTreeMap, vec::Vec};
+use core::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 use gcore::{msg, MessageId, ProgramId};
 
 #[derive(Debug)]

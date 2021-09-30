@@ -22,11 +22,8 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
-use core::future::Future;
-use core::pin::Pin;
-use core::task::{Context, Poll};
+use alloc::{boxed::Box, collections::BTreeMap};
+use core::{future::Future, pin::Pin, task::Context};
 use futures::FutureExt;
 use gcore::MessageId;
 
@@ -66,7 +63,7 @@ where
 
     let pinned = Pin::new(&mut actual_future);
 
-    if let Poll::Ready(_) = pinned.poll(&mut cx) {
+    if pinned.poll(&mut cx).is_ready() {
         // Done!
     } else {
         main_futures_static().insert(gcore::msg::id(), actual_future);
