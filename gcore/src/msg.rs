@@ -152,6 +152,31 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     }
 }
 
+/// Finalizes current reply message.
+///
+/// Some programs can reply on their messages to other programs, i.e. check
+/// another program's state and use it as a parameter for its own business
+/// logic. Basic implemetation is covered in [`reply`] function.
+///
+/// This function allows send reply filled with payload parts sent via
+/// ['send_push'] during the message handling.
+/// 
+/// This function is similar to [`send_commit`].
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_push(b"Part 1");
+///     // ...
+///     msg::reply_push(b"Part 2");
+///     // ...
+///     msg::reply_commit(exec::gas_available(), 42);
+/// }
+/// ```
 pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
