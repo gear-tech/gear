@@ -8,7 +8,7 @@ use alloc::str;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
 use core::num::ParseIntError;
-use gstd::{ext, msg, prelude::*, ProgramId};
+use gstd::{exec, ext, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 use scale_info::TypeInfo;
 
@@ -120,13 +120,9 @@ async fn main() {
                     .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
                 );
 
-                let reply = msg_async::send_and_wait_for_reply(
-                    id,
-                    b"verify",
-                    gstd::exec::gas_available() / 2,
-                    0,
-                )
-                .await;
+                let reply =
+                    msg_async::send_and_wait_for_reply(id, b"verify", exec::gas_available() / 2, 0)
+                        .await;
 
                 let reply = String::from_utf8(reply).expect("Invalid message: should be utf-8");
 
