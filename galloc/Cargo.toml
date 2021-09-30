@@ -6,4 +6,4 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-dlmalloc = { git = "https://github.com/nikvolf/dlmalloc-rs", features = ["global"] }
+dlmalloc = { git = "https://github.com/grishasobol/dlmalloc-rs", features = ["global"], branch = "gsobol" }

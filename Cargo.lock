@@ -1276,6 +1276,15 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
+source = "git+https://github.com/grishasobol/dlmalloc-rs?branch=gsobol#cb45f383c7f224f2e4f6f5262a922061b0ac019e"
+dependencies = [
+ "libc",
+ "libc_print",
+]
+
+[[package]]
+name = "dlmalloc"
+version = "0.1.4"
 source = "git+https://github.com/nikvolf/dlmalloc-rs#74ecb8165d45f2a3d2ef7921c7371014911e9815"
 dependencies = [
  "libc",
@@ -1923,7 +1932,7 @@ dependencies = [
 name = "galloc"
 version = "0.1.0"
 dependencies = [
- "dlmalloc",
+ "dlmalloc 0.1.4 (git+https://github.com/grishasobol/dlmalloc-rs?branch=gsobol)",
 ]
 
 [[package]]
@@ -1936,7 +1945,7 @@ checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
 name = "gcore"
 version = "0.1.0"
 dependencies = [
- "dlmalloc",
+ "dlmalloc 0.1.4 (git+https://github.com/nikvolf/dlmalloc-rs)",
 ]
 
 [[package]]
@@ -2896,6 +2905,14 @@ name = "libc"
 version = "0.2.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b2f96d100e1cf1929e7719b7edb3b90ab5298072638fccd77be9ce942ecdfce"
+
+[[package]]
+name = "libc_print"
+version = "0.1.16"
+source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "libloading"
