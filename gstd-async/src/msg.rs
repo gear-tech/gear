@@ -23,26 +23,84 @@ use core::pin::Pin;
 use core::task::{Context, Poll};
 use gcore::{msg, MessageId, ProgramId};
 
-static mut WAITING_MESSAGES: Option<BTreeMap<MessageId, MessageId>> = None;
-static mut FUTURES: Option<BTreeMap<MessageId, MessageFutures>> = None;
-
-#[derive(Clone, Default)]
-pub struct MessageFuture {
-    reply: Option<Vec<u8>>,
+#[derive(Debug)]
+struct WakeSignal {
+    message_id: MessageId,
+    payload: Option<Vec<u8>>,
 }
 
-impl MessageFuture {
-    pub fn new() -> Self {
-        Self { reply: None }
+pub(crate) struct WakeSignals {
+    signals: BTreeMap<MessageId, WakeSignal>,
+}
+
+pub enum ReplyPoll {
+    None,
+    Pending,
+    Some(Vec<u8>),
+}
+
+impl WakeSignals {
+    pub(crate) fn new() -> Self {
+        WakeSignals {
+            signals: BTreeMap::new(),
+        }
     }
 
-    pub fn set_reply(&mut self, payload: Vec<u8>) {
-        self.reply = Some(payload);
+    pub(crate) fn register_signal(
+        &mut self,
+        waiting_reply_to: MessageId,
+        wake_this_message: MessageId,
+    ) {
+        self.signals.insert(
+            waiting_reply_to,
+            WakeSignal {
+                message_id: wake_this_message,
+                payload: None,
+            },
+        );
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.reply.is_none()
+    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>) {
+        let mut signal = self
+            .signals
+            .get_mut(&waiting_reply_to)
+            .expect("Somehow received reply for the message we never sent");
+
+        signal.payload = Some(payload);
+        gcore::exec::wake(signal.message_id);
     }
+
+    pub(crate) fn poll(&mut self, message_reply_to: MessageId) -> ReplyPoll {
+        match self.signals.remove(&message_reply_to) {
+            None => ReplyPoll::None,
+            Some(signal @ WakeSignal { payload: None, .. }) => {
+                self.signals.insert(message_reply_to, signal);
+                ReplyPoll::Pending
+            },
+            Some(WakeSignal {
+                payload: Some(reply_payload),
+                ..
+            }) => ReplyPoll::Some(reply_payload),
+        }
+    }
+}
+
+static mut SIGNALS: Option<WakeSignals> = None;
+
+pub(crate) fn signals_static() -> &'static mut WakeSignals {
+    unsafe {
+        if SIGNALS.as_ref().is_none() {
+            SIGNALS = Some(WakeSignals::new());
+        }
+
+        SIGNALS
+            .as_mut()
+            .expect("Created if none above; can't fail")
+    }
+}
+
+pub struct MessageFuture {
+    waiting_reply_to: MessageId,
 }
 
 impl Future for MessageFuture {
@@ -50,45 +108,11 @@ impl Future for MessageFuture {
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
-        if fut.reply.is_some() {
-            Poll::Ready(fut.reply.take().unwrap())
-        } else {
-            Poll::Pending
+        match signals_static().poll(fut.waiting_reply_to)        {
+            ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
+            ReplyPoll::Pending => Poll::Pending,
+            ReplyPoll::Some(actual_reply) => Poll::Ready(actual_reply),
         }
-    }
-}
-
-pub(crate) struct MessageFutures {
-    current: usize,
-    futures: Vec<MessageFuture>,
-}
-
-impl MessageFutures {
-    pub fn new() -> Self {
-        Self {
-            current: 0,
-            futures: Vec::new(),
-        }
-    }
-
-    pub fn reset_current(&mut self) {
-        self.current = 0;
-    }
-
-    pub fn clear(&mut self) {
-        self.futures.clear();
-    }
-
-    pub fn current_future_mut(&mut self) -> &mut MessageFuture {
-        while self.current >= self.futures.len() {
-            self.futures.push(MessageFuture::new());
-        }
-        self.futures.get_mut(self.current).unwrap()
-    }
-
-    pub fn next_future(&mut self) -> &MessageFuture {
-        self.current += 1;
-        self.current_future_mut()
     }
 }
 
@@ -99,35 +123,8 @@ pub fn send_and_wait_for_reply(
     gas_limit: u64,
     value: u128,
 ) -> MessageFuture {
-    let key_id = msg::id();
-    let fut = futures(key_id).next_future();
-    if fut.is_empty() {
-        // New message
-        let sent_msg_id = msg::send(program, payload, gas_limit, value);
-        waiting_messages().insert(sent_msg_id, key_id);
-        gcore::exec::wait();
-    }
+    let waiting_reply_to = msg::send(program, payload, gas_limit, value);
+    signals_static().register_signal(waiting_reply_to, msg::id());
 
-    fut.clone()
-}
-
-pub(crate) fn waiting_messages() -> &'static mut BTreeMap<MessageId, MessageId> {
-    unsafe {
-        if WAITING_MESSAGES.is_none() {
-            WAITING_MESSAGES = Some(BTreeMap::new());
-        }
-        WAITING_MESSAGES.as_mut().unwrap()
-    }
-}
-
-pub(crate) fn futures(id: MessageId) -> &'static mut MessageFutures {
-    unsafe {
-        if FUTURES.is_none() {
-            FUTURES = Some(BTreeMap::new());
-        }
-        let map = FUTURES
-            .as_mut()
-            .expect("Cannot be none as it is set above; qed");
-        map.entry(id).or_insert_with(MessageFutures::new)
-    }
+    MessageFuture { waiting_reply_to }
 }
