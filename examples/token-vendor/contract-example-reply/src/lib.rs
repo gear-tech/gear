@@ -1,17 +1,16 @@
 #![no_std]
 
 use gstd::{msg, prelude::*, ProgramId};
-use gstd_meta::meta;
 
-meta! {
+gstd::metadata! {
     title: "GEAR Workshop Contract Example",
-    input: Vec<u8>,
-    output: Vec<u8>,
-    // Owner id
-    init_input: Vec<u8>,
-    init_output: Vec<u8>
+    init:
+        input: Vec<u8>,
+        output: Vec<u8>,
+    handle:
+        input: Vec<u8>,
+        output: Vec<u8>
 }
-
 struct State {
     owner_id: Option<ProgramId>,
 }

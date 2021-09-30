@@ -7,73 +7,32 @@ extern crate alloc;
 extern crate gstd;
 
 use alloc::collections::BTreeSet;
+use alloc::str;
+use codec::{Decode, Encode};
 use core::cell::RefCell;
 use core::num::ParseIntError;
 use gstd::{ext, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
-use gstd_meta::meta;
-use lite_json::JsonValue;
+use scale_info::TypeInfo;
 
-meta! {
-    title: "GEAR Token Vendor",
-    // Any hex ProgramId
-    input: Vec<u8>,
-    output: Vec<u8>,
-    // json config
-    init_input: Vec<u8>,
-    init_output: Vec<u8>
-}
-
-// {
-//     "members": [
-//       "0600000000000000000000000000000000000000000000000000000000000000",
-//       "0700000000000000000000000000000000000000000000000000000000000000"
-//     ],
-//     "reward": 1,
-//     "code": "UPDATE",
-//     "admins": [
-//       "0100000000000000000000000000000000000000000000000000000000000000"
-//     ]
+// meta! {
+//     title: "GEAR Token Vendor",
+//     // Any hex ProgramId
+//     input: Vec<u8>,
+//     output: Vec<u8>,
+//     // json config
+//     init_input: Vec<u8>,
+//     init_output: Vec<u8>
 // }
-fn parse_config(json: &str) -> Config {
-    let mut config = Config::default();
-    let json = lite_json::json_parser::parse_json(json).expect("Invalid JSON");
-    if let lite_json::JsonValue::Object(obj) = json {
-        for (name, value) in obj {
-            match name.iter().collect::<String>().as_str() {
-                "reward" => {
-                    if let JsonValue::Number(num) = value {
-                        config.reward = num.integer as u128;
-                    };
-                }
-                "members" => {
-                    if let JsonValue::Array(members) = value {
-                        for member in members {
-                            if let JsonValue::String(member) = member {
-                                config.members.push(member.iter().collect());
-                            }
-                        }
-                    };
-                }
-                "code" => {
-                    if let JsonValue::String(code) = value {
-                        config.code = code.iter().collect();
-                    };
-                }
-                "admins" => {
-                    if let JsonValue::Array(admins) = value {
-                        for admin in admins {
-                            if let JsonValue::String(admin) = admin {
-                                config.admins.push(admin.iter().collect());
-                            }
-                        }
-                    };
-                }
-                _ => (),
-            }
-        }
-    }
-    config
+
+gstd::metadata! {
+    title: "GEAR Token Vendor",
+    init:
+        input: Config,
+        output: Vec<u8>,
+    handle:
+        input: Action,
+        output: Vec<u8>
 }
 
 #[derive(Debug, Clone)]
@@ -103,12 +62,18 @@ impl State {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, TypeInfo, Encode, Decode)]
+enum Action {
+    UpdateConfig(Config),
+    ProgramId(Vec<u8>),
+}
+
+#[derive(Debug, TypeInfo, Encode, Decode)]
 struct Config {
     reward: u128,
-    members: Vec<String>,
-    code: String,
-    admins: Vec<String>,
+    members: Vec<Vec<u8>>,
+    code: Vec<u8>,
+    admins: Vec<Vec<u8>>,
 }
 
 static mut STATE: RefCell<State> = RefCell::new(State {
@@ -121,63 +86,78 @@ static mut STATE: RefCell<State> = RefCell::new(State {
 
 #[gstd_async::main]
 async fn main() {
-    let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    let msg: Action = msg::load().expect("Invalid message: should be utf-8");
 
     ext::debug(&format!("msg: {:?}", msg));
     let state = unsafe { STATE.borrow().clone() };
 
-    // Load json config
-    if state.admins.contains(&msg::source()) {
-        let config = parse_config(&msg);
-        unsafe {
-            STATE.replace_with(|mut state| {
-                state.reward = config.reward;
-                state.code = config.code;
-                state.members.clear();
-                state.admins = [state.owner_id.unwrap()].into();
+    match msg {
+        Action::UpdateConfig(config) => {
+            if state.admins.contains(&msg::source()) {
+                unsafe {
+                    STATE.replace_with(|mut state| {
+                        state.reward = config.reward;
+                        state.code = String::from_utf8(config.code).unwrap();
+                        state.members.clear();
+                        state.admins = [state.owner_id.unwrap()].into();
 
-                for member in config.members {
-                    state.members.insert(ProgramId::from_slice(
-                        &decode_hex(&member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-                    ));
+                        for member in config.members {
+                            state.members.insert(ProgramId::from_slice(
+                                &decode_hex(str::from_utf8(&member).unwrap())
+                                    .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+                            ));
+                        }
+
+                        for admin in config.admins {
+                            state.admins.insert(ProgramId::from_slice(
+                                &decode_hex(str::from_utf8(&admin).unwrap())
+                                    .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+                            ));
+                        }
+
+                        state.clone()
+                    });
                 }
-
-                for admin in config.admins {
-                    state.admins.insert(ProgramId::from_slice(
-                        &decode_hex(&admin).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-                    ));
-                }
-
-                state.clone()
-            });
+                ext::debug("CONFIG UPDATED");
+                msg::reply(b"CONFIG UPDATED", gstd::exec::gas_available(), 0);
+            }
         }
-        ext::debug("CONFIG UPDATED");
-        msg::reply(b"CONFIG UPDATED", gstd::exec::gas_available(), 0);
-    } else if state.members.contains(&msg::source()) {
-        // If msg::source is registered in workshop then we send a message to id from payload
-        let id = ProgramId::from_slice(
-            &decode_hex(&msg).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-        );
+        Action::ProgramId(program_id) => {
+            if state.members.contains(&msg::source()) {
+                // If msg::source is registered in workshop then we send a message to id from payload
+                let id = ProgramId::from_slice(
+                    &decode_hex(
+                        str::from_utf8(&program_id)
+                            .expect("Invalid ProgramId: should be utf-8 hex string"),
+                    )
+                    .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+                );
 
-        let reply =
-            msg_async::send_and_wait_for_reply(id, b"verify", gstd::exec::gas_available() / 2, 0)
+                let reply = msg_async::send_and_wait_for_reply(
+                    id,
+                    b"verify",
+                    gstd::exec::gas_available() / 2,
+                    0,
+                )
                 .await;
 
-        let reply = String::from_utf8(reply).expect("Invalid message: should be utf-8");
+                let reply = String::from_utf8(reply).expect("Invalid message: should be utf-8");
 
-        let member_id = ProgramId::from_slice(
-            &decode_hex(&reply).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-        );
+                let member_id = ProgramId::from_slice(
+                    &decode_hex(&reply).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+                );
 
-        if msg::source() == member_id {
-            ext::debug(&format!(
-                "SUCCESS:\nmember: {:?}\ncontract: {:?}",
-                id,
-                msg::source()
-            ));
+                if msg::source() == member_id {
+                    ext::debug(&format!(
+                        "SUCCESS:\nmember: {:?}\ncontract: {:?}",
+                        id,
+                        msg::source()
+                    ));
 
-            unsafe { STATE.borrow_mut().members.remove(&member_id) };
-            msg::send_with_value(member_id, b"success", 0, state.reward);
+                    unsafe { STATE.borrow_mut().members.remove(&member_id) };
+                    msg::send(member_id, b"success", 0, state.reward);
+                }
+            }
         }
     }
 }
@@ -195,24 +175,34 @@ pub unsafe extern "C" fn init() {
     );
 
     // json config str
-    let config_str =
-        String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
+    // let config_str =
+    //     String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
-    let config = parse_config(&config_str);
+    // let config = parse_config(&config_str);
+    ext::debug("config load");
+    let config: Config = msg::load()
+        .map_err(|e| {
+            ext::debug(&e.to_string());
+            e
+        })
+        .unwrap();
 
+    ext::debug("config loaded");
     for member in config.members {
         state.members.insert(ProgramId::from_slice(
-            &decode_hex(&member).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+            &decode_hex(str::from_utf8(&member).unwrap())
+                .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
         ));
     }
 
     for admin in config.admins {
         state.admins.insert(ProgramId::from_slice(
-            &decode_hex(&admin).expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
+            &decode_hex(str::from_utf8(&admin).unwrap())
+                .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
         ));
     }
 
-    state.code = config.code;
+    state.code = String::from_utf8(config.code).unwrap();
 
     state.reward = config.reward;
 
