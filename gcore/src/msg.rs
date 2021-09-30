@@ -160,7 +160,7 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
 ///
 /// This function allows send reply filled with payload parts sent via
 /// ['send_push'] during the message handling.
-/// 
+///
 /// This function is similar to [`send_commit`].
 ///
 /// # Examples
