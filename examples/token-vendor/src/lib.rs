@@ -3,9 +3,6 @@
 
 extern crate alloc;
 
-// for panic/oom handlers
-extern crate gstd;
-
 use alloc::collections::BTreeSet;
 use alloc::str;
 use codec::{Decode, Encode};
@@ -14,16 +11,6 @@ use core::num::ParseIntError;
 use gstd::{ext, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 use scale_info::TypeInfo;
-
-// meta! {
-//     title: "GEAR Token Vendor",
-//     // Any hex ProgramId
-//     input: Vec<u8>,
-//     output: Vec<u8>,
-//     // json config
-//     init_input: Vec<u8>,
-//     init_output: Vec<u8>
-// }
 
 gstd::metadata! {
     title: "GEAR Token Vendor",
@@ -88,7 +75,7 @@ static mut STATE: RefCell<State> = RefCell::new(State {
 async fn main() {
     let msg: Action = msg::load().expect("Invalid message: should be utf-8");
 
-    ext::debug(&format!("msg: {:?}", msg));
+    // ext::debug(&format!("msg: {:?}", msg));
     let state = unsafe { STATE.borrow().clone() };
 
     match msg {
@@ -174,18 +161,7 @@ pub unsafe extern "C" fn init() {
         BTreeSet::from([owner_id]),
     );
 
-    // json config str
-    // let config_str =
-    //     String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-
-    // let config = parse_config(&config_str);
-    ext::debug("config load");
-    let config: Config = msg::load()
-        .map_err(|e| {
-            ext::debug(&e.to_string());
-            e
-        })
-        .unwrap();
+    let config: Config = msg::load().expect("INVALID INIT PAYLOAD");
 
     ext::debug("config loaded");
     for member in config.members {
@@ -207,6 +183,7 @@ pub unsafe extern "C" fn init() {
     state.reward = config.reward;
 
     STATE.replace(state);
+    ext::debug("state updated");
 
     msg::reply(b"INIT", 0, 0);
 }

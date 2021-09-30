@@ -3,25 +3,14 @@ title: token-vendor
 programs:
   - id: 1
     path: examples/target/wasm32-unknown-unknown/release/token_vendor.wasm
-    # init_message:
-    #   kind: utf-8
-    #   # register ids
-    #   value: >
-    #     {
-    #       "members": [
-    #         "{6}",
-    #         "{7}"
-    #       ],
-    #       "reward": 10,
-    #       "code": "TEST",
-    #       "admins": [
-    #         "0100000000000000000000000000000000000000000000000000000000000000"
-    #       ]
-    #     }
     init_message:
       kind: custom
       value:
-        members: ["{6}", "{7}"]
+        members:
+          [
+            "0600000000000000000000000000000000000000000000000000000000000000",
+            "0700000000000000000000000000000000000000000000000000000000000000",
+          ]
         reward: 10
         code: "TEST"
         admins:
@@ -52,36 +41,38 @@ programs:
 
 fixtures:
   - title: token-vendor
-    messages: []
-    #   - payload:
-    #       kind: utf-8
-    #       value: "{2}"
-    #     destination: 1
-    #     source: 6 # member id ProgramId(6)
-    #   - payload:
-    #       kind: utf-8
-    #       value: "{3}"
-    #     destination: 1
-    #     source: 7 # member id ProgramId(7)
-    #   - payload:
-    #       kind: custom
-    #       value:
-    #         config:
-    #           {
-    #             "members":
-    #               [
-    #                 "0600000000000000000000000000000000000000000000000000000000000000",
-    #                 "0700000000000000000000000000000000000000000000000000000000000000",
-    #               ],
-    #             "reward": 1,
-    #             "code": "UPDATE",
-    #             "admins":
-    #               [
-    #                 "0100000000000000000000000000000000000000000000000000000000000000",
-    #               ],
-    #           }
-    #     destination: 1
-    #     source: 1
+    messages:
+      - payload:
+          kind: custom
+          value:
+            programId: "0200000000000000000000000000000000000000000000000000000000000000"
+        destination: 1
+        source: 6 # member id ProgramId(6)
+      - payload:
+          kind: custom
+          value:
+            programId: "0300000000000000000000000000000000000000000000000000000000000000"
+        destination: 1
+        source: 7 # member id ProgramId(7)
+      - payload:
+          kind: custom
+          value:
+            updateConfig:
+              {
+                "members":
+                  [
+                    "0600000000000000000000000000000000000000000000000000000000000000",
+                    "0700000000000000000000000000000000000000000000000000000000000000",
+                  ],
+                "reward": 1,
+                "code": "UPDATE",
+                "admins":
+                  [
+                    "0100000000000000000000000000000000000000000000000000000000000000",
+                  ],
+              }
+        destination: 1
+        source: 1
     expected:
       - step: 10
         messages:
