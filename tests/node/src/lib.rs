@@ -149,8 +149,12 @@ mod wasm {
                     .get(transition.query_index)
                     .expect("Checked above that it has that number of elements; qed");
 
-                transition.last_sent_message_id =
-                    msg::send(*next_sub_node, request, exec::gas_available() - 2_500_000);
+                transition.last_sent_message_id = msg::send(
+                    *next_sub_node,
+                    request,
+                    exec::gas_available() - 2_500_000,
+                    0,
+                );
 
                 state().transition = Some(transition);
 
@@ -193,8 +197,12 @@ mod wasm {
                             .query_list
                             .get(0)
                             .expect("Checked above that sub_nodes is not empty; qed");
-                        transition.last_sent_message_id =
-                            msg::send(first_sub_node, request, exec::gas_available() - 2_500_000);
+                        transition.last_sent_message_id = msg::send(
+                            first_sub_node,
+                            request,
+                            exec::gas_available() - 2_500_000,
+                            0,
+                        );
                         state().transition = Some(transition);
                         exec::wait()
                     } else {
@@ -236,6 +244,7 @@ mod wasm {
                                 first_sub_node,
                                 request,
                                 exec::gas_available() - 2_500_000,
+                                0,
                             );
 
                             state().transition = Some(transition);

@@ -17,8 +17,8 @@ jobs:
 
       - name: Build Docs
         run: |
-          cargo doc -p gear-core -p gstd -p gstd-async --no-deps
-          echo "<html><head><meta http-equiv=\"refresh\" content=\"0; url=/gear_core/index.html\" /></head><body></body></html>" > ./target/doc/index.html
+          cargo doc -p gear-core -p galloc -p gcore -p gstd -p gstd-async --no-deps
+          echo "<html><head><meta http-equiv=\"refresh\" content=\"0; url=/galloc/index.html\" /></head><body></body></html>" > ./target/doc/index.html
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3

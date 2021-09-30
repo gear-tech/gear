@@ -62,8 +62,8 @@ where
 unsafe extern "C" fn handle_reply() {
     let sent_msg_id = gcore::msg::reply_to();
     let waiting_messages = msg::waiting_messages();
-    // TODO: Handle a situation when receiving reply to the unknown message (e.g. to `msg::send`)
-    // https://github.com/gear-tech/gear/issues/148
+    // TODO: Handle a situation when receiving reply to the unknown message (e.g. to
+    // `msg::send`) https://github.com/gear-tech/gear/issues/148
     if waiting_messages.contains_key(&sent_msg_id) {
         // Current message is a reply to the earlier sent message
         let source_msg_id = waiting_messages.remove(&sent_msg_id).unwrap();

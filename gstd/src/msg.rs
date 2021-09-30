@@ -72,32 +72,14 @@ pub fn reply_push(payload: &[u8]) {
     gcore::msg::reply_push(payload);
 }
 
-pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64) -> MessageId {
-    send_with_value(program, payload, gas_limit, 0u128)
-}
-
-pub fn send_bytes(program: ProgramId, payload: &[u8], gas_limit: u64) -> MessageId {
-    send_bytes_with_value(program, payload, gas_limit, 0u128)
-}
-
 pub fn send_init() -> MessageHandle {
     MessageHandle(gcore::msg::send_init())
 }
 
-pub fn send_with_value<E: Encode>(
-    program: ProgramId,
-    payload: E,
-    gas_limit: u64,
-    value: u128,
-) -> MessageId {
-    send_bytes_with_value(program, &payload.encode(), gas_limit, value)
+pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64, value: u128) -> MessageId {
+    send_bytes(program, &payload.encode(), gas_limit, value)
 }
 
-pub fn send_bytes_with_value(
-    program: ProgramId,
-    payload: &[u8],
-    gas_limit: u64,
-    value: u128,
-) -> MessageId {
+pub fn send_bytes(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     gcore::msg::send(program, payload, gas_limit, value)
 }
