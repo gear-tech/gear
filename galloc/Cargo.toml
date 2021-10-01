@@ -7,5 +7,5 @@ license = "GPL-3.0"
 
 [dependencies]
 # dlmalloc = { path = "/home/gregory/src/dlmalloc-rs", features = ["global", "gsobol_check"] }
-dlmalloc = { git = "https://github.com/grishasobol/dlmalloc-rs", features = ["global"], branch="gsobol_bug_localization" }
-# dlmalloc = { git = "https://github.com/grishasobol/dlmalloc-rs", features = ["global", "gsobol_check"], branch="gsobol_bug_localization" }
+# dlmalloc = { git = "https://github.com/grishasobol/dlmalloc-rs", features = ["global"], branch="gsobol_bug_localization" }
+dlmalloc = { git = "https://github.com/grishasobol/dlmalloc-rs", features = ["global", "gsobol_check"], branch="gsobol_bug_localization" }
