@@ -25,3 +25,25 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
         }
     )
 });
+
+// async
+wasmBytes = fs.readFileSync(
+    path.join(__dirname, "../../../examples/target/wasm32-unknown-unknown/release/demo_async.meta.wasm")
+);
+
+wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
+    const reg = new TypeRegistry();
+    metadata.registry = JSON.stringify(reg.createType('PortableRegistry', metadata.registry).toHuman());
+
+    assert.deepStrictEqual(
+        metadata,
+        {
+            init_input: "Vec<u8>",
+            init_output: "Vec<u8>",
+            input: "Vec<u8>",
+            output: "Vec<u8>",
+            registry: '{"types":[{"id":"0","type":{"path":[],"params":[],"def":{"Sequence":{"type":"1"}},"docs":[]}},{"id":"1","type":{"path":[],"params":[],"def":{"Primitive":"U8"},"docs":[]}}]}',
+            title: 'demo async'
+        }
+    )
+});
