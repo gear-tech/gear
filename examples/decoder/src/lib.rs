@@ -38,9 +38,7 @@ pub unsafe extern "C" fn handle() {
         leaves.reverse();
         let leaf = leaves.pop().expect("An error occured during calculating");
 
-        handle.push(
-            format!("[{}, {}];", leaf + 1, vertex + 1)
-        );
+        handle.push(format!("[{}, {}];", leaf + 1, vertex + 1));
 
         degrees[*vertex] -= 1;
 
@@ -49,9 +47,7 @@ pub unsafe extern "C" fn handle() {
         }
     }
 
-    handle.push(
-        format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1)
-    );
+    handle.push(format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1));
 
     handle.commit(msg::source(), 10_000_000, 0);
 }

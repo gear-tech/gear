@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 #![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
@@ -34,7 +34,6 @@ pub use gcore::{exec, ext};
 pub use gcore::{MessageId, ProgramId};
 
 #[cfg(target_arch = "wasm32")]
-#[cfg(not(any(feature = "std", not(feature = "panic_handlers"))))]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
     #[cfg(feature = "debug")]
@@ -45,7 +44,6 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[cfg(not(any(feature = "std", not(feature = "panic_handlers"))))]
 #[panic_handler]
 fn panic(panic_info: &core::panic::PanicInfo) -> ! {
     #[cfg(feature = "debug")]

@@ -76,6 +76,11 @@ pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64, value: u1
     send_bytes(program, &payload.encode(), gas_limit, value)
 }
 
-pub fn send_bytes<T: AsRef<[u8]>>(program: ProgramId, payload: T, gas_limit: u64, value: u128) -> MessageId {
+pub fn send_bytes<T: AsRef<[u8]>>(
+    program: ProgramId,
+    payload: T,
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
     gcore::msg::send(program, payload.as_ref(), gas_limit, value)
 }
