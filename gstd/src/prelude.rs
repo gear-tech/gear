@@ -23,7 +23,7 @@ pub use core::{mem, panic, ptr};
 pub use std::{mem, panic, ptr};
 
 #[cfg(not(feature = "std"))]
-pub extern crate alloc;
+extern crate alloc;
 
 #[cfg(not(feature = "std"))]
 pub use alloc::{
