@@ -11,6 +11,7 @@ echo "*** Run wasm-proc"
 cd "../../utils/wasm-proc"
 cargo build --release
 ../../target/release/wasm-proc --path ../../examples/target/wasm32-unknown-unknown/release/demo_meta.wasm
+../../target/release/wasm-proc --path ../../examples/target/wasm32-unknown-unknown/release/demo_async.wasm
 
 echo "*** Run js test"
 cd "metadata-js"
