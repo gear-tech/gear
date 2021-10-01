@@ -153,8 +153,8 @@ mod tests {
 
     #[derive(Decode, Debug, PartialEq, Encode)]
     pub struct MessageIn {
-        author: Vec<u8>,
-        msg: Vec<u8>,
+        author: String,
+        msg: String,
     }
 
     #[test]
@@ -185,8 +185,8 @@ mod tests {
             });
 
         let expectation = Action::AddMessage(MessageIn {
-            author: b"Author".to_vec(),
-            msg: b"Some message, really huge text".to_vec(),
+            author: "Author".into(),
+            msg: "Some message, really huge text".into(),
         });
 
         let codec_bytes = bytes.clone().expect("Could not find file ").into_bytes();
@@ -228,12 +228,12 @@ mod tests {
 
         let expectation = vec![
             MessageIn {
-                author: b"Dmitry".to_vec(),
-                msg: b"Hello, world!".to_vec(),
+                author: "Dmitry".into(),
+                msg: "Hello, world!".into(),
             },
             MessageIn {
-                author: b"Eugene".to_vec(),
-                msg: b"Hello, Dmitry!".to_vec(),
+                author: "Eugene".into(),
+                msg: "Hello, Dmitry!".into(),
             },
         ];
 
