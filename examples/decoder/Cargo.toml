@@ -9,5 +9,4 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-gcore = { path = "../../gcore", features = ["debug"] }
 gstd = { path = "../../gstd", features = ["debug"] }
