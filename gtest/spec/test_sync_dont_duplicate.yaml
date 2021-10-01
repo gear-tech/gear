@@ -21,7 +21,4 @@ fixtures:
           - destination: 0
             payload:
               kind: i32
-              # This value is incorrect.
-              # And it shows that sync code in async
-              # programs duplicates
-              value: 2
+              value: 1

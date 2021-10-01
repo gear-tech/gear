@@ -223,7 +223,7 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
         ext::debug("Handling sequence started");
-        gstd_async::block_on(Program::handle_request());
+        gstd_async::main_loop(Program::handle_request());
         ext::debug("Handling sequence terminated");
     }
 
