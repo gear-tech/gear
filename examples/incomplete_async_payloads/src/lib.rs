@@ -15,13 +15,15 @@ async fn main() {
             let handle = msg::send_init();
             handle.push(b"ERR PING");
             msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0).await;
-            // Got reply with error here
+            // Got panic here without message
+            msg::reply("I'll not be sent", GAS_LIMIT, 0);
         },
         "err reply" => {
             ext::debug("err reply processing");
             msg::reply_push(b"ERR PING");
             msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0).await;
-            // Got reply with error here
+            // Got panic here without message
+            msg::reply("I'll not be sent", GAS_LIMIT, 0);
         },
         "ok common" => {
             ext::debug("ok common processing");
