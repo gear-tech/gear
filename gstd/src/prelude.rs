@@ -16,14 +16,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(not(feature = "std"))]
 pub use core::{mem, panic, ptr};
 
-extern crate alloc;
+#[cfg(feature = "std")]
+pub use std::{mem, panic, ptr};
 
+#[cfg(not(feature = "std"))]
+pub extern crate alloc;
+
+#[cfg(not(feature = "std"))]
 pub use alloc::{
     borrow::ToOwned,
     boxed::Box,
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
+    format,
+    str::FromStr,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+
+#[cfg(feature = "std")]
+pub use std::{
+    borrow::ToOwned,
+    boxed::Box,
+    collections::{BTreeMap, VecDeque},
     format,
     str::FromStr,
     string::{String, ToString},
