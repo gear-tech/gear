@@ -93,7 +93,7 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         STATE = Some(BTreeMap::new());
-        msg::reply(b"CREATED", 0, 0);
+        msg::reply((), 0, 0);
     }
 }
 
@@ -101,6 +101,7 @@ mod wasm {
 #[cfg(feature = "std")]
 mod tests {
     use super::native;
+    use super::{Reply, Request};
 
     use common::{InitProgram, RunnerContext};
 
@@ -118,20 +119,13 @@ mod tests {
     fn program_can_be_initialized() {
         let mut runner = RunnerContext::default();
 
-        runner.init_program(InitProgram::from(wasm_code()).message(b"init"));
-
-        let storage = runner.storage();
-
-        assert_eq!(
-            storage.log.get().last().map(|m| m.payload().to_vec()),
-            Some(b"CREATED".to_vec())
-        );
+        // Assertions are performed when decoding reply
+        let _reply: () =
+            runner.init_program_with_reply(InitProgram::from(wasm_code()).message(b"init"));
     }
 
     #[test]
     fn simple() {
-        use super::{Reply, Request};
-
         let mut runner = RunnerContext::default();
         runner.init_program(wasm_code());
 

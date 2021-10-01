@@ -230,6 +230,7 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         STATE = Some(ProgramState::default());
+        msg::reply((), 0, 0);
         ext::debug("Program initialized");
     }
 }
@@ -255,9 +256,8 @@ mod tests {
     fn program_can_be_initialized() {
         let mut runner = RunnerContext::default();
 
-        runner.init_program(InitProgram::from(wasm_code()).message(b"init"));
-
-        let _ = runner.storage();
+        // Assertions are performed when decoding reply
+        let _reply: () = runner.init_program_with_reply(wasm_code());
     }
 
     #[test]
