@@ -2281,6 +2281,7 @@ dependencies = [
 name = "gstd-async"
 version = "0.1.0"
 dependencies = [
+ "futures 0.3.17",
  "gcore",
  "gstd",
  "gstd-async-macro",
@@ -7353,6 +7354,18 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "gstd-async",
+ "parity-scale-codec",
+ "substrate-wasm-builder",
+ "tests-common",
+]
+
+[[package]]
+name = "tests-gas-limit"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
  "tests-common",

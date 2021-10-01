@@ -692,6 +692,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+        #[frame_support::transactional]
         #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
@@ -755,6 +756,7 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been created.
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+        #[frame_support::transactional]
         #[pallet::weight(T::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
@@ -764,6 +766,11 @@ pub mod pallet {
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
+
+            // Ensure the `gas_limit` allows the extrinsic to fit into a block
+            if gas_limit > T::BlockGasLimit::get() {
+                return Err(Error::<T>::GasLimitTooHigh.into());
+            }
 
             let original_message =
                 Self::remove_from_mailbox(who.clone().into_origin(), reply_to_id)

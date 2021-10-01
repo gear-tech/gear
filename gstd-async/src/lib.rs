@@ -22,55 +22,57 @@
 
 extern crate alloc;
 
-use core::future::Future;
-use core::pin::Pin;
-use core::task::{Context, Poll};
+use alloc::{boxed::Box, collections::BTreeMap};
+use core::{future::Future, pin::Pin, task::Context};
+use futures::FutureExt;
+use gcore::MessageId;
 
 pub use gstd_async_macro::main;
 
 pub mod msg;
 mod waker;
 
-/// Block the execution until the future is complete.
-pub fn block_on<F, T>(future: F) -> Option<T>
+type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+
+static mut MAIN_FUTURES: Option<BTreeMap<MessageId, LocalBoxFuture<'static, ()>>> = None;
+
+fn main_futures_static() -> &'static mut BTreeMap<MessageId, LocalBoxFuture<'static, ()>> {
+    unsafe {
+        if MAIN_FUTURES.is_none() {
+            MAIN_FUTURES = Some(BTreeMap::new())
+        }
+
+        MAIN_FUTURES
+            .as_mut()
+            .expect("Set if none above; cannot fail")
+    }
+}
+
+/// Asynchronous message handling main loop.
+pub fn main_loop<F>(future: F)
 where
-    F: Future<Output = T>,
+    F: Future<Output = ()> + 'static,
 {
-    // Pin future
-    let mut future = future;
-    let future = unsafe { Pin::new_unchecked(&mut future) };
+    let mut actual_future = main_futures_static()
+        .remove(&gcore::msg::id())
+        .unwrap_or_else(|| future.boxed_local());
 
     // Create context based on an empty waker
     let waker = waker::empty();
     let mut cx = Context::from_waker(&waker);
 
-    let key_id = gcore::msg::id();
-    let futures = msg::futures(key_id);
-    futures.reset_current();
+    let pinned = Pin::new(&mut actual_future);
 
-    // Poll
-    if let Poll::Ready(v) = future.poll(&mut cx) {
-        // Reset the current message's state
-        futures.clear();
-        Some(v)
+    if pinned.poll(&mut cx).is_ready() {
+        // Done!
     } else {
-        None
+        main_futures_static().insert(gcore::msg::id(), actual_future);
+        gcore::exec::wait()
     }
 }
 
 #[no_mangle]
 unsafe extern "C" fn handle_reply() {
-    let sent_msg_id = gcore::msg::reply_to();
-    let waiting_messages = msg::waiting_messages();
-    // TODO: Handle a situation when receiving reply to the unknown message (e.g. to
-    // `msg::send`) https://github.com/gear-tech/gear/issues/148
-    if waiting_messages.contains_key(&sent_msg_id) {
-        // Current message is a reply to the earlier sent message
-        let source_msg_id = waiting_messages.remove(&sent_msg_id).unwrap();
-        let futures = msg::futures(source_msg_id);
-        futures
-            .current_future_mut()
-            .set_reply(gstd::msg::load_bytes());
-        gcore::exec::wake(source_msg_id);
-    }
+    let original_message_id = gcore::msg::reply_to();
+    crate::msg::signals_static().record_reply(original_message_id, gstd::msg::load_bytes());
 }

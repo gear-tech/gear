@@ -8,3 +8,4 @@ edition = "2018"
 gcore = { path = "../gcore" }
 gstd = { path = "../gstd" }
 gstd-async-macro = { path = "macro" }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }

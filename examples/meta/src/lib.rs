@@ -8,7 +8,7 @@ use scale_info::TypeInfo;
 #[derive(TypeInfo, Decode)]
 pub struct MessageInitIn {
     pub amount: u8,
-    pub currency: Vec<u8>,
+    pub currency: String,
 }
 
 #[derive(TypeInfo, Encode)]
@@ -19,10 +19,7 @@ pub struct MessageInitOut {
 
 impl From<MessageInitIn> for MessageInitOut {
     fn from(other: MessageInitIn) -> Self {
-        let rate = match String::from_utf8(other.currency)
-            .expect("Unable to parse str")
-            .as_ref()
-        {
+        let rate = match other.currency.as_ref() {
             "USD" => Ok(2),
             "EUR" => Ok(3),
             _ => Err(1),
@@ -67,8 +64,8 @@ pub struct Id {
 
 #[derive(TypeInfo, Encode, Clone)]
 pub struct Person {
-    pub surname: Vec<u8>,
-    pub name: Vec<u8>,
+    pub surname: String,
+    pub name: String,
 }
 
 #[derive(TypeInfo, Encode, Clone)]
