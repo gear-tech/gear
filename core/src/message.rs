@@ -123,6 +123,8 @@ pub enum Error {
     OutOfBounds,
     /// An attempt to push a payload into reply that was not set
     NoReplyFound,
+    /// An attempt to interrupt execution with `wait(..)` while some messages wasn't complited
+    UncommitedPayloads,
 }
 
 /// Incoming message.
@@ -683,10 +685,23 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
     /// Add the current message to the wait list.
     pub fn wait(&self) -> Result<(), Error> {
-        if self.state.borrow().waiting.is_some() {
+        let mut state = self.state.borrow_mut();
+
+        if let (Some(_), None) = state.reply {
+            return Err(Error::UncommitedPayloads);
+        }
+
+        for msg in state.outgoing.iter() {
+            if msg.1.is_none() {
+                return Err(Error::UncommitedPayloads);
+            }
+        }
+
+        if state.waiting.is_some() {
             return Err(Error::DuplicateWaiting);
         }
-        self.state.borrow_mut().waiting = Some(self.current().clone());
+
+        state.waiting = Some(self.current().clone());
         Ok(())
     }
 
