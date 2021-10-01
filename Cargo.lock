@@ -1276,6 +1276,7 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
+source = "git+https://github.com/grishasobol/dlmalloc-rs?branch=gsobol_bug_localization#30e410ad2ae9bd68098890738343d067c2753337"
 dependencies = [
  "libc",
  "libc_print",
@@ -1934,7 +1935,7 @@ dependencies = [
 name = "galloc"
 version = "0.1.0"
 dependencies = [
- "dlmalloc 0.1.4",
+ "dlmalloc 0.1.4 (git+https://github.com/grishasobol/dlmalloc-rs?branch=gsobol_bug_localization)",
 ]
 
 [[package]]
