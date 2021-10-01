@@ -662,7 +662,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                     .splice(0..0, payload.take().unwrap_or_default().0);
 
                 *msg = Some(reply);
-                *payload = None;
 
                 Ok(msg.as_ref().unwrap().id())
             }
@@ -723,7 +722,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                     .splice(0..0, payload.take().unwrap_or_default().0);
 
                 *msg = Some(outgoing);
-                *payload = None;
 
                 Ok(msg.as_ref().unwrap().id())
             }
