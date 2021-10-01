@@ -13,6 +13,9 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc"], optio
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"], optional = true}
 
 [features]
+default = ["panic_handlers"]
+
 debug = ["gcore/debug"]
-std = ["codec/std", "scale-info/std"]
 meta = ["hex", "scale-info"]
+panic_handlers = []
+std = ["codec/std", "scale-info/std"]
