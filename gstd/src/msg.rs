@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::Vec;
+use crate::prelude::{convert::AsRef, Vec};
 use crate::{MessageId, ProgramId};
 use codec::{Decode, Encode, Output};
 
@@ -31,8 +31,8 @@ impl MessageHandle {
         send_init()
     }
 
-    pub fn push(&self, payload: &[u8]) {
-        gcore::msg::send_push(&self.0, payload);
+    pub fn push<T: AsRef<[u8]>>(&self, payload: T) {
+        gcore::msg::send_push(&self.0, payload.as_ref());
     }
 
     pub fn commit(self, program: ProgramId, gas_limit: u64, value: u128) -> MessageId {
@@ -60,12 +60,12 @@ pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
     reply_bytes(&payload.encode(), gas_limit, value)
 }
 
-pub fn reply_bytes(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
-    gcore::msg::reply(payload, gas_limit, value)
+pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> MessageId {
+    gcore::msg::reply(payload.as_ref(), gas_limit, value)
 }
 
-pub fn reply_push(payload: &[u8]) {
-    gcore::msg::reply_push(payload);
+pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
+    gcore::msg::reply_push(payload.as_ref());
 }
 
 pub fn send_init() -> MessageHandle {
@@ -76,6 +76,6 @@ pub fn send<E: Encode>(program: ProgramId, payload: E, gas_limit: u64, value: u1
     send_bytes(program, &payload.encode(), gas_limit, value)
 }
 
-pub fn send_bytes(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
-    gcore::msg::send(program, payload, gas_limit, value)
+pub fn send_bytes<T: AsRef<[u8]>>(program: ProgramId, payload: T, gas_limit: u64, value: u128) -> MessageId {
+    gcore::msg::send(program, payload.as_ref(), gas_limit, value)
 }

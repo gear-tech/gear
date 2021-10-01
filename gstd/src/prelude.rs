@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #[cfg(not(feature = "std"))]
-pub use core::{mem, panic, ptr};
+pub use core::{convert, mem, panic, ptr};
 
 #[cfg(feature = "std")]
-pub use std::{mem, panic, ptr};
+pub use std::{convert, mem, panic, ptr};
 
 #[cfg(not(feature = "std"))]
 extern crate alloc;
