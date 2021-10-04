@@ -8,7 +8,7 @@ static mut DEST_0: ProgramId = ProgramId([0u8; 32]);
 static mut DEST_1: ProgramId = ProgramId([0u8; 32]);
 static mut DEST_2: ProgramId = ProgramId([0u8; 32]);
 
-const GAS_LIMIT: u64 = 50_000_000;
+const GAS_LIMIT: u64 = 5_000_000_000;
 
 gstd::metadata! {
     title: "demo async",
