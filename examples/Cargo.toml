@@ -15,6 +15,7 @@ members = [
     "meta",
     "minimal",
     "multiping",
+    "mutex",
     "panicker",
     "ping",
     "sum",
