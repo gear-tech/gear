@@ -50,7 +50,7 @@ macro_rules! bail {
         $res.expect($fmtd);
     };
     ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
-        $res.expect(&crate::prelude::format!($fmt, $($args)+));
+        $res.expect(&gstd::prelude::format!($fmt, $($args)+));
     };
 }
 
@@ -60,153 +60,19 @@ macro_rules! bail {
     ($res:expr, $msg:literal) => {
         match $res {
             Ok(v) => v,
-            Err(_) => crate::prelude::panic!($msg),
+            Err(_) => gstd::prelude::panic!($msg),
         }
     };
     ($res:expr, $expl:literal, $fmtd:literal) => {
         match $res {
             Ok(v) => v,
-            Err(_) => crate::prelude::panic!($expl),
+            Err(_) => gstd::prelude::panic!($expl),
         }
     };
     ($res:expr, $expl:literal, $fmt:literal, $($args:tt)+) => {
         match $res {
             Ok(v) => v,
-            Err(_) => crate::prelude::panic!($expl),
+            Err(_) => gstd::prelude::panic!($expl),
         }
     };
-}
-
-#[cfg(test)]
-mod tests {
-    struct SomeType(usize);
-
-    #[derive(Debug)]
-    struct SomeError;
-
-    #[test]
-    fn bail_ok() {
-        let res: Result<SomeType, SomeError> = Ok(SomeType(0));
-        let val = bail!(res, "Your static explanation for both features");
-        assert_eq!(val.0, 0);
-
-        let res: Result<SomeType, SomeError> = Ok(SomeType(1));
-        let val = bail!(
-            res,
-            "Your static release explanation",
-            "Your static debug explanation"
-        );
-        assert_eq!(val.0, 1);
-
-        let res: Result<SomeType, SomeError> = Ok(SomeType(2));
-        let val = bail!(
-            res,
-            "Your static release explanation",
-            "It was formatted -> {}",
-            0
-        );
-        assert_eq!(val.0, 2);
-
-        let res: Result<SomeType, SomeError> = Ok(SomeType(3));
-        let val = bail!(
-            res,
-            "Your static release explanation",
-            "They were formatted -> {} {}",
-            0,
-            "SECOND_ARG"
-        );
-        assert_eq!(val.0, 3);
-    }
-
-    #[test]
-    #[should_panic(expected = "Your static explanation for both features")]
-    fn bail_err_general_message() {
-        let res: Result<SomeType, SomeError> = Err(SomeError);
-
-        bail!(res, "Your static explanation for both features");
-    }
-
-    #[test]
-    #[cfg(not(feature = "debug"))]
-    #[should_panic(expected = "Your static release explanation")]
-    fn bail_err_no_format() {
-        let res: Result<SomeType, SomeError> = Err(SomeError);
-
-        bail!(
-            res,
-            "Your static release explanation",
-            "Your static debug explanation"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "debug")]
-    #[should_panic(expected = "Your static debug explanation")]
-    fn bail_err_no_format() {
-        let res: Result<SomeType, SomeError> = Err(SomeError);
-
-        bail!(
-            res,
-            "Your static release explanation",
-            "Your static debug explanation"
-        );
-    }
-
-    #[test]
-    #[cfg(not(feature = "debug"))]
-    #[should_panic(expected = "Your static release explanation")]
-    fn bail_err_single_arg_format() {
-        let res: Result<SomeType, SomeError> = Err(SomeError);
-
-        bail!(
-            res,
-            "Your static release explanation",
-            "It was formatted -> {}",
-            0
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "debug")]
-    #[should_panic(expected = "It was formatted -> 0: SomeError")]
-    fn bail_err_single_arg_format() {
-        let res: Result<SomeType, SomeError> = Err(SomeError);
-
-        bail!(
-            res,
-            "Your static release explanation",
-            "It was formatted -> {}",
-            0
-        );
-    }
-
-    #[test]
-    #[cfg(not(feature = "debug"))]
-    #[should_panic(expected = "Your static release explanation")]
-    fn bail_err_multiple_args_format() {
-        let res: Result<SomeType, SomeError> = Err(SomeError);
-
-        bail!(
-            res,
-            "Your static release explanation",
-            "They were formatted -> {} {}",
-            0,
-            "SECOND_ARG"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "debug")]
-    #[should_panic(expected = "They were formatted -> 0 SECOND_ARG: SomeError")]
-    fn bail_err_multiple_args_format() {
-        let res: Result<SomeType, SomeError> = Err(SomeError);
-
-        bail!(
-            res,
-            "Your static release explanation",
-            "They were formatted -> {} {}",
-            0,
-            "SECOND_ARG"
-        );
-    }
 }

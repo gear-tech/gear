@@ -220,7 +220,7 @@ fn send_message_works() {
         // Sending message to a non-program address works as a simple value transfer
         // Gas limit is not transfered and returned back to sender (since operation is no-op).
         assert_eq!(Balances::free_balance(1), 99990000);
-        assert_eq!(Balances::free_balance(2), 1);
+        assert_eq!(Balances::free_balance(2), 2);
         assert_ok!(Pallet::<Test>::send_message(
             Origin::signed(1).into(),
             2.into_origin(),
@@ -231,11 +231,12 @@ fn send_message_works() {
         // `value + gas_limit` have been deducted from the sender's balance
         assert_eq!(Balances::free_balance(1), 99_960_000);
         // However, only `value` has been transferred to the recepient yet
-        assert_eq!(Balances::free_balance(2), 20_001);
-        // The `gas_limit` part will be released to the recepient in the next block
-        run_to_block(2, Some(100_000));
-        assert_eq!(Balances::free_balance(2), 20_001);
+        assert_eq!(Balances::free_balance(2), 20_002);
 
+        // The `gas_limit` part will be released to the sender in the next block
+        run_to_block(2, Some(100_000));
+
+        assert_eq!(Balances::free_balance(2), 20_002);
         // original sender gets back whatever gas_limit he used to send a message.
         assert_eq!(Balances::free_balance(1), 99_970_000);
     })
@@ -246,6 +247,22 @@ fn send_message_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = H256::from_low_u64_be(1001);
+
+        // First, pretending the program panicked in init()
+        ProgramsLimbo::<Test>::insert(program_id, 2.into_origin());
+        assert_noop!(
+            Pallet::<Test>::send_message(
+                Origin::signed(2).into(),
+                program_id,
+                b"payload".to_vec(),
+                10_000_u64,
+                0_u128
+            ),
+            Error::<Test>::ProgramIsNotInitialized
+        );
+
+        // This time the programs has made it to the storage
+        ProgramsLimbo::<Test>::remove(program_id);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
             parse_wat(
@@ -269,13 +286,13 @@ fn send_message_expected_failure() {
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
-        // Sending message to a non-program address triggers balance tansfer
+        // Value tansfer is attempted if `value` field is greater than 0
         assert_noop!(
             Pallet::<Test>::send_message(
                 Origin::signed(2).into(),
                 H256::from_low_u64_be(1002),
                 b"payload".to_vec(),
-                0_u64,
+                1_u64, // Must be greater than 0 to have changed the state during reserve()
                 100_u128
             ),
             pallet_balances::Error::<Test>::InsufficientBalance
@@ -1297,6 +1314,87 @@ fn send_reply_works() {
         };
         assert_eq!(msg_id, id);
         assert_eq!(orig_id, original_message_id);
+    })
+}
+
+#[test]
+fn send_reply_expected_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            parse_wat(
+                r#"(module
+                    (import "env" "memory" (memory 1))
+                )"#,
+            ),
+            Default::default(),
+        )
+        .expect("Program failed to instantiate");
+        common::native::set_program(program);
+
+        let original_message_id = H256::from_low_u64_be(2002);
+
+        // Expecting error as long as the user doesn't have messages in mailbox
+        assert_noop!(
+            Pallet::<Test>::send_reply(
+                Origin::signed(2).into(),
+                original_message_id,
+                b"payload".to_vec(),
+                10_000_u64,
+                0_u128
+            ),
+            Error::<Test>::NoMessageInMailbox
+        );
+
+        Gear::insert_to_mailbox(
+            2.into_origin(),
+            common::Message {
+                id: original_message_id,
+                source: program_id.clone(),
+                dest: 2.into_origin(),
+                payload: vec![],
+                gas_limit: 10_000_000_u64,
+                value: 0_u128,
+                reply: None,
+            },
+        );
+
+        assert_noop!(
+            Pallet::<Test>::send_reply(
+                Origin::signed(2).into(),
+                original_message_id,
+                b"payload".to_vec(),
+                10_000_u64,
+                0_u128
+            ),
+            Error::<Test>::NotEnoughBalanceForReserve
+        );
+
+        // Value tansfer is attempted if `value` field is greater than 0
+        assert_noop!(
+            Pallet::<Test>::send_reply(
+                Origin::signed(2).into(),
+                original_message_id,
+                b"payload".to_vec(),
+                1_u64, // Must be greater than 0 to have changed the state during reserve()
+                100_u128
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        // Gas limit too high
+        assert_noop!(
+            Pallet::<Test>::send_reply(
+                Origin::signed(1).into(),
+                original_message_id,
+                b"payload".to_vec(),
+                100_000_001_u64,
+                0_u128
+            ),
+            Error::<Test>::GasLimitTooHigh
+        );
     })
 }
 

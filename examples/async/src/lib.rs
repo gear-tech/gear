@@ -10,6 +10,16 @@ static mut DEST_2: ProgramId = ProgramId([0u8; 32]);
 
 const GAS_COST: u64 = 5_000_000;
 
+gstd::metadata! {
+    title: "demo async",
+    init:
+        input: Vec<u8>,
+        output: Vec<u8>,
+    handle:
+        input: Vec<u8>,
+        output: Vec<u8>
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");

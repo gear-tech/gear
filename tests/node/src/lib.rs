@@ -302,7 +302,7 @@ mod wasm {
             sub_nodes: BTreeSet::default(),
             transition: None,
         });
-        msg::reply(b"CREATED", 0, 0);
+        msg::reply((), 0, 0);
     }
 }
 
@@ -325,13 +325,10 @@ mod tests {
     #[test]
     fn program_can_be_initialized() {
         let mut runner = RunnerContext::default();
-        runner.init_program(InitProgram::from(wasm_code()).message(Initialization { status: 5 }));
 
-        let storage = runner.storage();
-
-        assert_eq!(
-            storage.log.get().last().map(|m| m.payload().to_vec()),
-            Some(b"CREATED".to_vec())
+        // Assertions are performed when decoding reply
+        let _reply: () = runner.init_program_with_reply(
+            InitProgram::from(wasm_code()).message(Initialization { status: 5 }),
         );
     }
 

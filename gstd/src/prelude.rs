@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use core::{mem, panic, ptr};
+pub use core::{convert, mem, panic, ptr};
 
 extern crate alloc;
 
 pub use alloc::{
     borrow::ToOwned,
     boxed::Box,
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
     format,
     str::FromStr,
     string::{String, ToString},

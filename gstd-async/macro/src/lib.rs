@@ -54,7 +54,7 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let result = quote! {
         #[no_mangle]
         pub unsafe extern "C" fn handle() {
-            gstd_async::block_on(handle_async());
+            gstd_async::main_loop(handle_async());
         }
         async fn handle_async() #body
     };

@@ -21,7 +21,9 @@ use gear_core::storage::{
     InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
 };
 use gear_core::{message::MessageId, program::ProgramId};
-use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
+use gear_core_runner::{
+    Config, ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner,
+};
 use std::collections::HashSet;
 
 pub type MemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
@@ -178,6 +180,28 @@ impl<E: Encode> From<E> for MessageDispatchBuilder {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub enum RunResult {
+    Normal,
+    Trap(String),
+}
+
+impl From<ExecutionOutcome> for RunResult {
+    fn from(outcome: ExecutionOutcome) -> Self {
+        match outcome {
+            ExecutionOutcome::Normal => RunResult::Normal,
+            ExecutionOutcome::Trap(s) => RunResult::Trap(String::from(s.unwrap_or(""))),
+        }
+    }
+}
+
+pub struct RunReport<D> {
+    pub result: RunResult,
+    pub response: Option<Result<D, Error>>,
+    pub gas_left: u64,
+    pub gas_spent: u64,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     Decode(CodecError),
     Panic,
@@ -202,7 +226,11 @@ impl RunnerContext {
         }
     }
 
-    pub fn init_program<P>(&mut self, init_data: P) -> &Self
+    pub fn with_config(config: &Config) -> Self {
+        Self::new(Runner::new(config, Default::default()))
+    }
+
+    pub fn init_program<P>(&mut self, init_data: P)
     where
         P: Into<InitProgram>,
     {
@@ -211,8 +239,44 @@ impl RunnerContext {
         self.runner()
             .init_program(info)
             .expect("Failed to init program");
+    }
 
-        self
+    pub fn init_program_with_reply<P, D>(&mut self, init_data: P) -> D
+    where
+        P: Into<InitProgram>,
+        D: Decode,
+    {
+        let info = init_data.into().to_init_program_info(self);
+        let message_id = info.message.id;
+
+        self.runner()
+            .init_program(info)
+            .expect("Failed to init program");
+
+        reply_or_panic(self.get_response_to(message_id))
+    }
+
+    pub fn init_program_with_report<P, D>(&mut self, init_data: P) -> RunReport<D>
+    where
+        P: Into<InitProgram>,
+        D: Decode,
+    {
+        let info = init_data.into().to_init_program_info(self);
+        let message_id = info.message.id;
+
+        let result = self
+            .runner()
+            .init_program(info)
+            .expect("Failed to init program");
+
+        let response = self.get_response_to(message_id);
+
+        RunReport {
+            result: result.outcome.into(),
+            response,
+            gas_left: result.gas_left,
+            gas_spent: result.gas_spent,
+        }
     }
 
     pub fn try_request<Msg, D>(&mut self, message: Msg) -> Option<Result<D, Error>>
@@ -230,6 +294,53 @@ impl RunnerContext {
         while runner.run_next(u64::MAX).handled > 0 {}
 
         self.get_response_to(message_id)
+    }
+
+    pub fn request_report<Msg, D>(&mut self, message: Msg) -> RunReport<D>
+    where
+        Msg: Into<MessageDispatchBuilder>,
+        D: Decode,
+    {
+        let message_dispatch = message.into().into_message_dispatch(self);
+        let message_id = message_dispatch.data.id;
+        let program_id = message_dispatch.source_id;
+
+        let runner = self.runner();
+
+        runner.queue_message(message_dispatch);
+
+        let mut result = loop {
+            let result = runner.run_next(u64::MAX);
+            if result.handled > 0 {
+                break result;
+            }
+        };
+
+        let outcome = result
+            .outcomes
+            .remove(&message_id)
+            .expect("Unable to get message outcome");
+
+        let gas_left = result
+            .gas_left
+            .into_iter()
+            .find_map(|(id, left)| if id == program_id { Some(left) } else { None })
+            .expect("Unable to get remaining gas for program");
+
+        let gas_spent = result
+            .gas_spent
+            .into_iter()
+            .find_map(|(id, spent)| if id == program_id { Some(spent) } else { None })
+            .expect("Unable to get spent gas for program");
+
+        let response = self.get_response_to(message_id);
+
+        RunReport {
+            response,
+            result: outcome.into(),
+            gas_left,
+            gas_spent,
+        }
     }
 
     pub fn request<Msg, D>(&mut self, message: Msg) -> D

@@ -12,8 +12,8 @@ pub enum Action {
 
 #[derive(TypeInfo, Decode, Encode)]
 pub struct MessageIn {
-    author: Vec<u8>,
-    msg: Vec<u8>,
+    author: String,
+    msg: String,
 }
 
 gstd::metadata! {
