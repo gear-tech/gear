@@ -15,7 +15,7 @@ impl MutexWakes {
         unsafe {
             let mutable_option = &mut *self.0.get();
 
-            let mut vec_deque = mutable_option.take().unwrap_or_else(|| VecDeque::new());
+            let mut vec_deque = mutable_option.take().unwrap_or_else(VecDeque::new);
             vec_deque.push_back(message_id);
 
             *mutable_option = Some(vec_deque);
@@ -83,7 +83,7 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
         let lock = unsafe { &mut *self.mutex.locked.get() };
         if lock.is_none() {
             *lock = Some(gcore::msg::id());
-            Poll::Ready(MutexGuard { mutex: &self.mutex })
+            Poll::Ready(MutexGuard { mutex: self.mutex })
         } else {
             self.mutex.wakes.add_wake(gcore::msg::id());
             Poll::Pending
@@ -93,7 +93,7 @@ impl<'a, T> Future for MutexLockFuture<'a, T> {
 
 impl<T> Mutex<T> {
     pub fn lock(&self) -> MutexLockFuture<'_, T> {
-        MutexLockFuture { mutex: &self }
+        MutexLockFuture { mutex: self }
     }
 
     pub const fn new(t: T) -> Mutex<T> {
