@@ -152,7 +152,7 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     }
 }
 
-/// Finalizes current reply message.
+/// Finalize current reply message.
 ///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
@@ -177,6 +177,10 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
 ///     msg::reply_commit(exec::gas_available(), 42);
 /// }
 /// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
 pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();

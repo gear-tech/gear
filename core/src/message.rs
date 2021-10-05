@@ -123,7 +123,7 @@ pub enum Error {
     OutOfBounds,
     /// An attempt to push a payload into reply that was not set
     NoReplyFound,
-    /// An attempt to interrupt execution with `wait(..)` while some messages wasn't complited
+    /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
     UncommitedPayloads,
 }
 
