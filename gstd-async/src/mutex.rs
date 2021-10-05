@@ -1,9 +1,9 @@
-use alloc::{collections::VecDeque};
+use alloc::collections::VecDeque;
 use core::{
+    cell::UnsafeCell,
     future::Future,
     pin::Pin,
     task::{Context, Poll},
-    cell::UnsafeCell,
 };
 use gcore::MessageId;
 
@@ -43,7 +43,7 @@ pub struct Mutex<T> {
 }
 
 pub struct MutexGuard<'a, T> {
-    mutex: &'a Mutex<T>
+    mutex: &'a Mutex<T>,
 }
 
 impl<'a, T> Drop for MutexGuard<'a, T> {
@@ -70,7 +70,7 @@ impl<'a, T> AsMut<T> for MutexGuard<'a, T> {
 }
 
 // we are always single-threaded
-unsafe impl<T> Sync for Mutex<T> { }
+unsafe impl<T> Sync for Mutex<T> {}
 
 pub struct MutexLockFuture<'a, T> {
     mutex: &'a Mutex<T>,
