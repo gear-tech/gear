@@ -36,7 +36,7 @@ async fn main() {
         if reply == b"PONG" {
             msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);
         } else {
-            msg::reply(b"FAIL", exec::gas_available() - GAS_COST, 0);
+            msg::reply(b"FAIL", exec::gas_available() - GAS_LIMIT, 0);
         }
     }
 }
