@@ -34,7 +34,7 @@ async fn main() {
             msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0).await;
 
         if reply == b"PONG" {
-            msg::reply(b"SUCCESS", exec::gas_available() - GAS_COST, 0);
+            msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);
         } else {
             msg::reply(b"FAIL", exec::gas_available() - GAS_COST, 0);
         }
