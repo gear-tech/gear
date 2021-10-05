@@ -539,6 +539,11 @@ impl ReplyPacket {
             exit_code,
         }
     }
+
+    /// Gas limit of the reply message.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
 }
 
 /// Generator of message id.

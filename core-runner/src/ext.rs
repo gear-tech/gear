@@ -106,6 +106,10 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
+            return self.return_with_tracing(Err("Gas limit exceeded while trying to reply"));
+        };
+
         let result = self
             .messages
             .reply_commit(msg)
