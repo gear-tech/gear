@@ -51,7 +51,7 @@ fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::er
 
     let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
-    utils::optimize(&mut binary_module, vec!["handle", "init"])
+    utils::optimize(&mut binary_module, vec!["handle", "handle_reply", "init"])
         .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)

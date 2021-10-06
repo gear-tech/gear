@@ -39,6 +39,7 @@ mod sys {
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
         );
+        pub fn gr_reply_commit(message_id_ptr: *mut u8, gas_limit: u64, value_ptr: *const u8);
         pub fn gr_reply_push(data_ptr: *const u8, data_len: u32);
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
@@ -146,6 +147,47 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
             gas_limit,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
+        );
+        message_id
+    }
+}
+
+/// Finalize current reply message.
+///
+/// Some programs can reply on their messages to other programs, i.e. check
+/// another program's state and use it as a parameter for its own business
+/// logic. Basic implemetation is covered in [`reply`] function.
+///
+/// This function allows send reply filled with payload parts sent via
+/// ['send_push'] during the message handling.
+///
+/// This function is similar to [`send_commit`].
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_push(b"Part 1");
+///     // ...
+///     msg::reply_push(b"Part 2");
+///     // ...
+///     msg::reply_commit(exec::gas_available(), 42);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_reply_commit(
+            message_id.as_mut_slice().as_mut_ptr(),
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
         );
         message_id
     }

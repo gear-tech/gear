@@ -12,6 +12,7 @@ members = [
     "fib",
     "mem",
     "guestbook",
+    "incomplete_async_payloads",
     "meta",
     "minimal",
     "multiping",
