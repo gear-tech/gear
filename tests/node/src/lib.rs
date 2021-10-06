@@ -102,7 +102,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, exec::gas_available(), 0);
+        msg::reply(reply, exec::gas_available() - 2_500_000, 0);
     }
 
     fn state() -> &'static mut NodeState {
@@ -297,12 +297,14 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         let init: Initialization = msg::load().expect("Failed to decode init");
+
         STATE = Some(NodeState {
             status: init.status,
             sub_nodes: BTreeSet::default(),
             transition: None,
         });
-        msg::reply((), 0, 0);
+
+        msg::reply((), exec::gas_available() - 2_500_000, 0);
     }
 }
 
@@ -334,7 +336,7 @@ mod tests {
 
     #[test]
     fn one_node_can_change_status() {
-        // env_logger::Builder::from_env(env_logger::Env::default()).init();
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
         let mut runner = RunnerContext::default();
 
@@ -352,7 +354,7 @@ mod tests {
 
     #[test]
     fn multiple_nodes_can_prepare_to_change_status() {
-        env_logger::Builder::from_env(env_logger::Env::default()).init();
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
         let mut runner = RunnerContext::default();
 

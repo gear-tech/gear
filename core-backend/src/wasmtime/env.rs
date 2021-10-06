@@ -58,6 +58,7 @@ impl<E: Ext + 'static> Environment<E> {
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
         result.add_func_i32_i32_i64_i32_i32("gr_reply", funcs::reply);
+        result.add_func_i32_i64_i32("gr_reply_commit", funcs::reply_commit);
         result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
         result.add_func_i32_i32_i32_i64_i32_i32("gr_send", funcs::send);
@@ -224,9 +225,29 @@ impl<E: Ext + 'static> Environment<E> {
         );
     }
 
+    fn add_func_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i64, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap3(func(self.ext.clone()))),
+        );
+    }
+
     fn add_func_i32_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
         F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
+        );
+    }
+
+    fn add_func_i32_i32_i64_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32, i64, i32, i32) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,
@@ -241,16 +262,6 @@ impl<E: Ext + 'static> Environment<E> {
         self.funcs.insert(
             key,
             Func::wrap(&self.store, Self::wrap6(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i64_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32, i64, i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
         );
     }
 
