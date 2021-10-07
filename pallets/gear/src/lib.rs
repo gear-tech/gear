@@ -889,7 +889,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let mut message = Self::remove_from_mailbox(who.clone().into_origin(), message_id)
+            let message = Self::remove_from_mailbox(who.clone().into_origin(), message_id)
                 .ok_or(Error::<T>::NoMessageInMailbox)?;
 
             let amount = Self::gas_to_fee(message.gas_limit)
@@ -904,10 +904,6 @@ pub mod pallet {
                     ExistenceRequirement::AllowDeath,
                 )?;
             }
-
-            message.gas_limit = 0;
-            message.value = 0;
-            Self::insert_to_mailbox(message.dest, message);
 
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 
