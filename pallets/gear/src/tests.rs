@@ -20,6 +20,7 @@ use super::*;
 use crate::mock::*;
 use codec::Encode;
 use common::{self, IntermediateMessage, Origin as _};
+use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::program::{Program, ProgramId};
 use hex_literal::hex;
@@ -1308,7 +1309,7 @@ fn send_reply_works() {
             Origin::signed(1).into(),
             original_message_id,
             b"payload".to_vec(),
-            10_000_u64,
+            10_000_000_u64,
             0_u128
         ));
 
@@ -1378,7 +1379,7 @@ fn send_reply_expected_failure() {
                 Origin::signed(2).into(),
                 original_message_id,
                 b"payload".to_vec(),
-                10_000_u64,
+                10_000_003_u64,
                 0_u128
             ),
             Error::<Test>::NotEnoughBalanceForReserve
@@ -1390,8 +1391,8 @@ fn send_reply_expected_failure() {
                 Origin::signed(2).into(),
                 original_message_id,
                 b"payload".to_vec(),
-                1_u64, // Must be greater than 0 to have changed the state during reserve()
-                100_u128
+                10_000_001_u64, // Must be greater than incoming gas_limit to have changed the state during reserve()
+                100_u128,
             ),
             pallet_balances::Error::<Test>::InsufficientBalance
         );
@@ -1406,6 +1407,168 @@ fn send_reply_expected_failure() {
                 0_u128
             ),
             Error::<Test>::GasLimitTooHigh
+        );
+    })
+}
+
+#[test]
+fn send_reply_value_offset_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            parse_wat(
+                r#"(module
+                    (import "env" "memory" (memory 1))
+                )"#,
+            ),
+            Default::default(),
+        )
+        .expect("Program failed to instantiate");
+        common::native::set_program(program);
+
+        let original_message_id = H256::from_low_u64_be(2002);
+
+        Gear::insert_to_mailbox(
+            1.into_origin(),
+            common::Message {
+                id: original_message_id,
+                source: program_id.clone(),
+                dest: 1.into_origin(),
+                payload: vec![],
+                gas_limit: 10_000_000_u64,
+                value: 1_000_u128,
+                reply: None,
+            },
+        );
+
+        // Program doesn't have enough balance - error expected
+        assert_noop!(
+            Pallet::<Test>::send_reply(
+                Origin::signed(1).into(),
+                original_message_id,
+                b"payload".to_vec(),
+                10_000_000_u64,
+                0_u128
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        assert_ok!(
+            <<Test as crate::Config>::Currency as Currency<_>>::transfer(
+                &1,
+                &<<Test as frame_system::Config>::AccountId as common::Origin>::from_origin(
+                    program_id
+                ),
+                20_000_000,
+                ExistenceRequirement::AllowDeath,
+            )
+        );
+        assert_eq!(Balances::free_balance(1), 80_000_000);
+        assert_eq!(Balances::reserved_balance(1), 0);
+
+        assert_ok!(Pallet::<Test>::send_reply(
+            Origin::signed(1).into(),
+            original_message_id,
+            b"payload".to_vec(),
+            1_000_000_u64,
+            100_u128,
+        ));
+        assert_eq!(Balances::free_balance(1), 89_000_900);
+        assert_eq!(Balances::reserved_balance(1), 0);
+
+        Gear::remove_from_mailbox(1.into_origin(), original_message_id);
+        Gear::insert_to_mailbox(
+            1.into_origin(),
+            common::Message {
+                id: original_message_id,
+                source: program_id.clone(),
+                dest: 1.into_origin(),
+                payload: vec![],
+                gas_limit: 10_000_000_u64,
+                value: 1_000_u128,
+                reply: None,
+            },
+        );
+        assert_ok!(Pallet::<Test>::send_reply(
+            Origin::signed(1).into(),
+            original_message_id,
+            b"payload".to_vec(),
+            20_000_000_u64,
+            2_000_u128,
+        ));
+        assert_eq!(Balances::free_balance(1), 78_999_900);
+        assert_eq!(Balances::reserved_balance(1), 10_000_000);
+    })
+}
+
+#[test]
+fn claim_value_from_mailbox_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            parse_wat(
+                r#"(module
+                    (import "env" "memory" (memory 1))
+                )"#,
+            ),
+            Default::default(),
+        )
+        .expect("Program failed to instantiate");
+        common::native::set_program(program);
+
+        let original_message_id = H256::from_low_u64_be(2002);
+
+        Gear::insert_to_mailbox(
+            1.into_origin(),
+            common::Message {
+                id: original_message_id,
+                source: program_id.clone(),
+                dest: 1.into_origin(),
+                payload: vec![],
+                gas_limit: 10_000_000_u64,
+                value: 1_000_u128,
+                reply: None,
+            },
+        );
+
+        // Program doesn't have enough balance - error expected
+        assert_noop!(
+            Pallet::<Test>::send_reply(
+                Origin::signed(1).into(),
+                original_message_id,
+                b"payload".to_vec(),
+                10_000_000_u64,
+                0_u128
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        assert_ok!(
+            <<Test as crate::Config>::Currency as Currency<_>>::transfer(
+                &1,
+                &<<Test as frame_system::Config>::AccountId as common::Origin>::from_origin(
+                    program_id
+                ),
+                20_000_000,
+                ExistenceRequirement::AllowDeath,
+            )
+        );
+        assert_eq!(Balances::free_balance(1), 80_000_000);
+        assert_eq!(Balances::reserved_balance(1), 0);
+
+        assert_ok!(Pallet::<Test>::claim_value_from_mailbox(
+            Origin::signed(1).into(),
+            original_message_id,
+        ));
+        assert_eq!(Balances::free_balance(1), 90_001_000);
+        assert_eq!(Balances::reserved_balance(1), 0);
+
+        System::assert_last_event(
+            crate::Event::ClaimedValueFromMailbox(original_message_id).into(),
         );
     })
 }
