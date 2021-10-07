@@ -68,12 +68,30 @@ impl<E: Ext + 'static> Environment<E> {
         entry_point: &str,
     ) -> (anyhow::Result<()>, E) {
         fn send<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let program_id_ptr: i32 = args[0].as_i32().unwrap();
-            let payload_ptr: i32 = args[1].as_i32().unwrap();
-            let payload_len: i32 = args[2].as_i32().unwrap();
-            let gas_limit: i64 = args[3].as_i64().unwrap();
-            let value_ptr: i32 = args[4].as_i32().unwrap();
-            let message_id_ptr: i32 = args[5].as_i32().unwrap();
+            let program_id_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let payload_ptr: i32 = match args[1] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let payload_len: i32 = match args[2] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let gas_limit: i64 = match args[3] {
+                Value::I64(val) => val,
+                _ => return Err(HostError),
+            };
+            let value_ptr: i32 = match args[4] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let message_id_ptr: i32 = match args[5] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
 
             let result = ctx
                 .ext
@@ -94,18 +112,33 @@ impl<E: Ext + 'static> Environment<E> {
                     Ok(())
                 })
                 .map_err(|_| HostError);
-            result.map_err(|_| HostError).map(|res| ReturnValue::Unit)
+            result.map_err(|_| HostError).map(|_| ReturnValue::Unit)
         }
 
         fn send_commit<E: Ext>(
             ctx: &mut Runtime<E>,
             args: &[Value],
         ) -> Result<ReturnValue, HostError> {
-            let handle_ptr: i32 = args[0].as_i32().unwrap();
-            let message_id_ptr: i32 = args[1].as_i32().unwrap();
-            let program_id_ptr: i32 = args[2].as_i32().unwrap();
-            let gas_limit: i64 = args[3].as_i64().unwrap();
-            let value_ptr: i32 = args[4].as_i32().unwrap();
+            let handle_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let message_id_ptr: i32 = match args[1] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let program_id_ptr: i32 = match args[2] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let gas_limit: i64 = match args[3] {
+                Value::I64(val) => val,
+                _ => return Err(HostError),
+            };
+            let value_ptr: i32 = match args[4] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
 
             ctx.ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
@@ -124,7 +157,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         fn send_init<E: Ext>(
             ctx: &mut Runtime<E>,
-            args: &[Value],
+            _args: &[Value],
         ) -> Result<ReturnValue, HostError> {
             let result = ctx
                 .ext
@@ -140,9 +173,18 @@ impl<E: Ext + 'static> Environment<E> {
             ctx: &mut Runtime<E>,
             args: &[Value],
         ) -> Result<ReturnValue, HostError> {
-            let handle_ptr = args[0].as_i32().unwrap();
-            let payload_ptr = args[1].as_i32().unwrap();
-            let payload_len = args[2].as_i32().unwrap();
+            let handle_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let payload_ptr: i32 = match args[1] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let payload_len: i32 = match args[2] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             ctx.ext
                 .with(|ext: &mut E| {
                     let payload = funcs::get_vec(ext, payload_ptr, payload_len);
@@ -153,9 +195,18 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn read<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let at = args[0].as_i32().unwrap();
-            let len = args[1].as_i32().unwrap();
-            let dest = args[2].as_i32().unwrap();
+            let at: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let len: i32 = match args[1] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let dest: i32 = match args[2] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             let at = at as u32 as usize;
             let len = len as u32 as usize;
             ctx.ext.with(|ext: &mut E| {
@@ -165,7 +216,7 @@ impl<E: Ext + 'static> Environment<E> {
             Ok(ReturnValue::Unit)
         }
 
-        fn size<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+        fn size<E: Ext>(ctx: &mut Runtime<E>, _args: &[Value]) -> Result<ReturnValue, HostError> {
             ctx.ext
                 .with(|ext: &mut E| ext.msg().len() as _)
                 .map(|res| Ok(ReturnValue::Value(Value::I32(res))))
@@ -173,7 +224,10 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn gas<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let val = args[0].as_i32().unwrap();
+            let val: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             ctx.ext
                 .with(|ext: &mut E| ext.gas(val as _))
                 .map(|_| ReturnValue::Unit)
@@ -181,7 +235,10 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn alloc<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let pages = args[0].as_i32().unwrap();
+            let pages: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             let pages = pages as u32;
 
             let ptr = ctx
@@ -200,7 +257,10 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn free<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let pages = args[0].as_i32().unwrap();
+            let pages: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             let page = pages as u32;
             if let Err(e) = ctx.ext.with(|ext: &mut E| ext.free(page.into())).unwrap() {
                 log::debug!("FREE ERROR: {:?}", e);
@@ -211,10 +271,22 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn reply<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let payload_ptr = args[0].as_i32().unwrap();
-            let payload_len = args[1].as_i32().unwrap();
-            let gas_limit = args[2].as_i64().unwrap();
-            let value_ptr = args[3].as_i32().unwrap();
+            let payload_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let payload_len: i32 = match args[1] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let gas_limit: i64 = match args[2] {
+                Value::I64(val) => val,
+                _ => return Err(HostError),
+            };
+            let value_ptr: i32 = match args[3] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             let result = ctx
                 .ext
                 .with(|ext: &mut E| {
@@ -231,7 +303,10 @@ impl<E: Ext + 'static> Environment<E> {
             ctx: &mut Runtime<E>,
             args: &[Value],
         ) -> Result<ReturnValue, HostError> {
-            let dest = args[0].as_i32().unwrap();
+            let dest: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             let maybe_message_id = ctx
                 .ext
                 .with(|ext: &mut E| ext.reply_to())
@@ -255,8 +330,14 @@ impl<E: Ext + 'static> Environment<E> {
             ctx: &mut Runtime<E>,
             args: &[Value],
         ) -> Result<ReturnValue, HostError> {
-            let payload_ptr = args[0].as_i32().unwrap();
-            let payload_len = args[1].as_i32().unwrap();
+            let payload_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let payload_len: i32 = match args[1] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             ctx.ext
                 .with(|ext: &mut E| {
                     let payload = funcs::get_vec(ext, payload_ptr, payload_len);
@@ -267,8 +348,14 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn debug<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let str_ptr = args[0].as_i32().unwrap() as u32 as usize;
-            let str_len = args[1].as_i32().unwrap() as u32 as usize;
+            let str_ptr: usize = match args[0] {
+                Value::I32(val) => val as u32 as usize,
+                _ => return Err(HostError),
+            };
+            let str_len: usize = match args[1] {
+                Value::I32(val) => val as u32 as usize,
+                _ => return Err(HostError),
+            };
             ctx.ext
                 .with_fallible(|ext: &mut E| -> Result<(), &'static str> {
                     let mut data = vec![0u8; str_len];
@@ -284,14 +371,17 @@ impl<E: Ext + 'static> Environment<E> {
 
         fn gas_available<E: Ext>(
             ctx: &mut Runtime<E>,
-            args: &[Value],
+            _args: &[Value],
         ) -> Result<ReturnValue, HostError> {
             let gas_available = ctx.ext.with(|ext: &mut E| ext.gas_available()).unwrap_or(0);
             Ok(ReturnValue::Value(Value::I64(gas_available as i64)))
         }
 
         fn msg_id<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let msg_id_ptr = args[0].as_i32().unwrap();
+            let msg_id_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             ctx.ext
                 .with(|ext: &mut E| {
                     let message_id = ext.message_id();
@@ -302,32 +392,41 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn source<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let source_ptr = args[0].as_i32().unwrap();
+            let source_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             ctx.ext
                 .with(|ext: &mut E| {
                     let source = ext.source();
                     ext.set_mem(source_ptr as isize as _, source.as_slice());
                 })
-                .map(|res| ReturnValue::Unit)
+                .map(|_| ReturnValue::Unit)
                 .map_err(|_| HostError)
         }
 
         fn value<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let value_ptr = args[0].as_i32().unwrap();
+            let value_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             ctx.ext
                 .with(|ext: &mut E| funcs::set_u128(ext, value_ptr, ext.value()))
-                .map(|res| ReturnValue::Unit)
+                .map(|_| ReturnValue::Unit)
                 .map_err(|_| HostError)
         }
 
-        fn wait<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+        fn wait<E: Ext>(ctx: &mut Runtime<E>, _args: &[Value]) -> Result<ReturnValue, HostError> {
             let _ = ctx.ext.with(|ext: &mut E| ext.wait()).unwrap();
             ctx.trap_reason = Some("exit");
             Err(HostError)
         }
 
         fn wake<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
-            let waker_id_ptr = args[0].as_i32().unwrap();
+            let waker_id_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
             let _ = ctx
                 .ext
                 .with(|ext: &mut E| {
@@ -340,8 +439,6 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         self.ext.set(ext);
-
-        let mut later_ext = self.ext.clone();
 
         let mem: &sp_sandbox::Memory = match memory.as_any().downcast_ref::<sp_sandbox::Memory>() {
             Some(mem) => mem,
@@ -375,7 +472,7 @@ impl<E: Ext + 'static> Environment<E> {
             trap_reason: None,
         };
 
-        let mut instance = Instance::new(binary, &env_builder, &mut runtime).unwrap();
+        let instance = Instance::new(binary, &env_builder, &mut runtime).unwrap();
 
         let result = self.run_inner(instance, memory_pages, memory, move |mut instance| {
             let result = instance.invoke(entry_point, &[], &mut runtime);
