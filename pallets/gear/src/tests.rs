@@ -1227,9 +1227,21 @@ fn events_logging_works() {
         let mut dispatch_msg = vec![];
         for message in messages {
             match message {
-                IntermediateMessage::DispatchMessage { id, .. } => {
+                IntermediateMessage::DispatchMessage {
+                    id,
+                    destination,
+                    origin,
+                    ..
+                } => {
                     dispatch_msg.push(id);
-                    System::assert_has_event(crate::Event::DispatchMessageEnqueued(id).into());
+                    System::assert_has_event(
+                        crate::Event::DispatchMessageEnqueued(crate::MessageInfo {
+                            message_id: id,
+                            program_id: destination,
+                            origin,
+                        })
+                        .into(),
+                    );
                 }
                 _ => (),
             }
@@ -1528,9 +1540,21 @@ fn debug_mode_works() {
         let mut dispatch_msg = vec![];
         for message in messages {
             match message {
-                IntermediateMessage::DispatchMessage { id, .. } => {
+                IntermediateMessage::DispatchMessage {
+                    id,
+                    destination,
+                    origin,
+                    ..
+                } => {
                     dispatch_msg.push(id);
-                    System::assert_has_event(crate::Event::DispatchMessageEnqueued(id).into());
+                    System::assert_has_event(
+                        crate::Event::DispatchMessageEnqueued(crate::MessageInfo {
+                            message_id: id,
+                            program_id: destination,
+                            origin,
+                        })
+                        .into(),
+                    );
                 }
                 _ => (),
             }

@@ -82,7 +82,7 @@ pub mod pallet {
         /// Program initialized.
         InitSuccess(MessageInfo),
         /// Dispatch message with a specific ID enqueued for processing.
-        DispatchMessageEnqueued(H256),
+        DispatchMessageEnqueued(MessageInfo),
         /// Dispatched message has resulted in an outcome
         MessageDispatched(DispatchOutcome),
         /// Some number of messages processed.
@@ -691,7 +691,7 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been created.
         ///
         /// Emits the following events:
-        /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+        /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
         #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
@@ -731,7 +731,7 @@ pub mod pallet {
             let message_id = common::next_message_id(&payload);
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
                 id: message_id,
-                origin: who.into_origin(),
+                origin: who.clone().into_origin(),
                 destination,
                 payload,
                 gas_limit,
@@ -739,7 +739,11 @@ pub mod pallet {
                 reply: None,
             });
 
-            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
+            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                message_id,
+                origin: who.into_origin(),
+                program_id: destination,
+            }));
 
             Ok(().into())
         }
@@ -795,7 +799,7 @@ pub mod pallet {
             let message_id = common::next_message_id(&payload);
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
                 id: message_id,
-                origin: who.into_origin(),
+                origin: who.clone().into_origin(),
                 destination,
                 payload,
                 gas_limit,
@@ -803,7 +807,11 @@ pub mod pallet {
                 reply: Some(reply_to_id),
             });
 
-            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
+            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                message_id,
+                origin: who.into_origin(),
+                program_id: destination,
+            }));
 
             Ok(().into())
         }
