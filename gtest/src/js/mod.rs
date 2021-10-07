@@ -111,7 +111,7 @@ impl MetaData {
                     script_path,
                     vec![
                         "-p",
-                        &path,
+                        path,
                         "-t",
                         &meta_type.to_string(),
                         "-b",
@@ -130,7 +130,7 @@ impl MetaData {
                 script_path.push(PathBuf::from("gtest/src/js/encode.js"));
                 let bytes = call_node(
                     script_path,
-                    vec!["-p", &path, "-t", &meta_type.to_string(), "-j", &json],
+                    vec!["-p", path, "-t", &meta_type.to_string(), "-j", &json],
                 );
 
                 Ok(Self::CodecBytes(bytes))

@@ -55,7 +55,7 @@ fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::er
         .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
-        .map_err(|e| Error::SerializationFailed(e))?;
+        .map_err(Error::SerializationFailed)?;
 
     debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
     Ok(())
@@ -84,7 +84,7 @@ fn optimize_meta(
     .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
-        .map_err(|e| Error::SerializationFailed(e))?;
+        .map_err(Error::SerializationFailed)?;
 
     debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
     Ok(())

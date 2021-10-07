@@ -57,31 +57,31 @@ pub trait WeightInfo {
 pub struct GearWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
     fn submit_program(c: u32, p: u32) -> Weight {
-        (200_000_000 as Weight)
-            .saturating_add((5_000 as Weight).saturating_mul(c as Weight))
-            .saturating_add((5_000 as Weight).saturating_mul(p as Weight))
-            .saturating_add(T::DbWeight::get().reads(4 as Weight))
-            .saturating_add(T::DbWeight::get().writes(3 as Weight))
+        (200_000_000_u64)
+            .saturating_add((5_000_u64).saturating_mul(c as Weight))
+            .saturating_add((5_000_u64).saturating_mul(p as Weight))
+            .saturating_add(T::DbWeight::get().reads(4_u64))
+            .saturating_add(T::DbWeight::get().writes(3_u64))
     }
 
     fn send_message(p: u32) -> Weight {
-        (160_000_000 as Weight)
-            .saturating_add((6_000 as Weight).saturating_mul(p as Weight))
-            .saturating_add(T::DbWeight::get().reads(5 as Weight))
-            .saturating_add(T::DbWeight::get().writes(4 as Weight))
+        (160_000_000_u64)
+            .saturating_add((6_000_u64).saturating_mul(p as Weight))
+            .saturating_add(T::DbWeight::get().reads(5_u64))
+            .saturating_add(T::DbWeight::get().writes(4_u64))
     }
 
     fn send_reply(p: u32) -> Weight {
-        (170_000_000 as Weight)
-            .saturating_add((6_000 as Weight).saturating_mul(p as Weight))
-            .saturating_add(T::DbWeight::get().reads(5 as Weight))
-            .saturating_add(T::DbWeight::get().writes(5 as Weight))
+        (170_000_000_u64)
+            .saturating_add((6_000_u64).saturating_mul(p as Weight))
+            .saturating_add(T::DbWeight::get().reads(5_u64))
+            .saturating_add(T::DbWeight::get().writes(5_u64))
     }
 
     fn remove_stale_program() -> Weight {
-        (64_000_000 as Weight)
-            .saturating_add(T::DbWeight::get().reads(4 as Weight))
-            .saturating_add(T::DbWeight::get().writes(4 as Weight))
+        (64_000_000_u64)
+            .saturating_add(T::DbWeight::get().reads(4_u64))
+            .saturating_add(T::DbWeight::get().writes(4_u64))
     }
 }
 
@@ -90,25 +90,25 @@ const SUBMIT_WEIGHT_PER_BYTE: u64 = 1_000_000;
 const MESSAGE_PER_BYTE: u64 = 100_000;
 impl WeightInfo for () {
     fn submit_program(c: u32, p: u32) -> Weight {
-        (0 as Weight)
-            .saturating_add(RocksDbWeight::get().writes(4 as Weight))
+        (0_u64)
+            .saturating_add(RocksDbWeight::get().writes(4_u64))
             .saturating_add(SUBMIT_WEIGHT_PER_BYTE.saturating_mul(c as Weight))
             .saturating_add(MESSAGE_PER_BYTE.saturating_mul(p as Weight))
     }
 
     fn send_message(p: u32) -> Weight {
-        (0 as Weight)
-            .saturating_add(RocksDbWeight::get().writes(4 as Weight))
+        (0_u64)
+            .saturating_add(RocksDbWeight::get().writes(4_u64))
             .saturating_add(MESSAGE_PER_BYTE.saturating_mul(p as Weight))
     }
 
     fn send_reply(p: u32) -> Weight {
-        (0 as Weight)
-            .saturating_add(RocksDbWeight::get().writes(4 as Weight))
+        (0_u64)
+            .saturating_add(RocksDbWeight::get().writes(4_u64))
             .saturating_add(MESSAGE_PER_BYTE.saturating_mul(p as Weight))
     }
 
     fn remove_stale_program() -> Weight {
-        (0 as Weight).saturating_add(RocksDbWeight::get().writes(4 as Weight))
+        (0_u64).saturating_add(RocksDbWeight::get().writes(4_u64))
     }
 }

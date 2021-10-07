@@ -51,7 +51,7 @@ impl InitProgram {
         self
     }
 
-    fn to_init_program_info(self, context: &mut RunnerContext) -> InitializeProgramInfo {
+    fn into_init_program_info(self, context: &mut RunnerContext) -> InitializeProgramInfo {
         self.program_id
             .map(|id| context.used_program_ids.insert(id));
 
@@ -62,7 +62,7 @@ impl InitProgram {
 
         InitializeProgramInfo {
             new_program_id: self.program_id.unwrap_or_else(|| context.next_program_id()),
-            source_id: self.source_id.unwrap_or_else(|| ProgramId::system()),
+            source_id: self.source_id.unwrap_or_else(ProgramId::system),
             code: self.code,
             message,
         }
@@ -152,8 +152,8 @@ impl MessageDispatchBuilder {
 
     fn into_message_dispatch(self, runner: &mut RunnerContext) -> MessageDispatch {
         MessageDispatch {
-            source_id: self.source.unwrap_or(ProgramId::system()),
-            destination_id: self.destination.unwrap_or(1.into()),
+            source_id: self.source.unwrap_or_else(ProgramId::system),
+            destination_id: self.destination.unwrap_or_else(|| 1.into()),
             data: self.message.into_ext(runner),
         }
     }
@@ -234,7 +234,7 @@ impl RunnerContext {
     where
         P: Into<InitProgram>,
     {
-        let info = init_data.into().to_init_program_info(self);
+        let info = init_data.into().into_init_program_info(self);
 
         self.runner()
             .init_program(info)
@@ -246,7 +246,7 @@ impl RunnerContext {
         P: Into<InitProgram>,
         D: Decode,
     {
-        let info = init_data.into().to_init_program_info(self);
+        let info = init_data.into().into_init_program_info(self);
         let message_id = info.message.id;
 
         self.runner()
@@ -261,7 +261,7 @@ impl RunnerContext {
         P: Into<InitProgram>,
         D: Decode,
     {
-        let info = init_data.into().to_init_program_info(self);
+        let info = init_data.into().into_init_program_info(self);
         let message_id = info.message.id;
 
         let result = self
@@ -412,11 +412,11 @@ impl RunnerContext {
     }
 
     pub fn storage(&mut self) -> &InMemoryStorage {
-        self.runner_state.to_storage()
+        self.runner_state.as_storage()
     }
 
     fn runner(&mut self) -> &mut MemoryRunner {
-        self.runner_state.to_runner()
+        self.runner_state.as_runner()
     }
 
     fn next_message_id(&mut self) -> MessageId {
@@ -465,7 +465,7 @@ enum RunnerState {
 }
 
 impl RunnerState {
-    fn to_runner(&mut self) -> &mut MemoryRunner {
+    fn as_runner(&mut self) -> &mut MemoryRunner {
         if let Self::Runner(runner) = self {
             runner
         } else {
@@ -474,11 +474,11 @@ impl RunnerState {
                 _ => Self::Runner(Runner::new(&Config::default(), InMemoryStorage::default())),
             };
 
-            self.to_runner()
+            self.as_runner()
         }
     }
 
-    fn to_storage(&mut self) -> &InMemoryStorage {
+    fn as_storage(&mut self) -> &InMemoryStorage {
         if let Self::Storage(storage, _) = self {
             storage
         } else {
@@ -495,7 +495,7 @@ impl RunnerState {
                 Self::Storage(InMemoryStorage::default(), Config::default())
             };
 
-            self.to_storage()
+            self.as_storage()
         }
     }
 }

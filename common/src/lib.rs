@@ -31,14 +31,14 @@ use sp_std::prelude::*;
 
 use storage_queue::StorageQueue;
 
-pub const STORAGE_PROGRAM_PREFIX: &'static [u8] = b"g::prog::";
-pub const STORAGE_PROGRAM_PAGES_PREFIX: &'static [u8] = b"g::pages::";
-pub const STORAGE_MESSAGE_PREFIX: &'static [u8] = b"g::msg::";
-pub const STORAGE_MESSAGE_NONCE_KEY: &'static [u8] = b"g::msg::nonce";
-pub const STORAGE_MESSAGE_USER_NONCE_KEY: &'static [u8] = b"g::msg::user_nonce";
-pub const STORAGE_CODE_PREFIX: &'static [u8] = b"g::code::";
-pub const STORAGE_CODE_REFS_PREFIX: &'static [u8] = b"g::code::refs";
-pub const STORAGE_WAITLIST_PREFIX: &'static [u8] = b"g::wait::";
+pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
+pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
+pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
+pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
+pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
+pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
+pub const STORAGE_CODE_REFS_PREFIX: &[u8] = b"g::code::refs";
+pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
 pub type ExitCode = i32;
 
@@ -244,7 +244,7 @@ pub fn dequeue_message() -> Option<Message> {
 
 pub fn queue_message(message: Message) {
     let mut message_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = message.id.clone();
+    let id = message.id;
     message_queue.queue(message, id);
 }
 
@@ -261,7 +261,7 @@ pub fn nonce_fetch_inc() -> u128 {
 }
 
 // WARN: Never call that in threads
-pub fn next_message_id(payload: &Vec<u8>) -> H256 {
+pub fn next_message_id(payload: &[u8]) -> H256 {
     let nonce = nonce_fetch_inc();
     let mut message_id = payload.encode();
     message_id.extend_from_slice(&nonce.to_le_bytes());
