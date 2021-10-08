@@ -45,3 +45,35 @@ doc-fmt:
 .PHONY: check-fmt
 check-fmt:
 	@./scripts/format.sh all check
+
+.PHONY: all
+all:
+	@./scripts/build.sh all
+
+.PHONY: all-release
+all-release:
+	@./scripts/build.sh all release
+
+.PHONY: gear
+gear:
+	@./scripts/build.sh gear
+
+.PHONY: gear-release
+gear-release:
+	@./scripts/build.sh gear release
+
+.PHONY: examples
+examples:
+	@./scripts/build.sh examples
+
+.PHONY: node
+node:
+	@./scripts/build.sh node
+
+.PHONY: node-release
+node-release:
+	@./scripts/build.sh node release
+
+.PHONY: wasm-proc
+wasm-proc:
+	@./scripts/build.sh wasm-proc
