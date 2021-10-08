@@ -49,7 +49,12 @@ ntest() {
 }
 
 benchmark_test() {
-    cargo check --release --features=runtime-benchmarks
+    cargo check \
+        -p gear-node \
+        -p pallet-gear \
+        -p gear-runtime \
+        --features=runtime-benchmarks \
+        $BUILD_MODE
 }
 
 case "$1" in
@@ -58,9 +63,17 @@ case "$1" in
             $ROOT_DIR/scripts/build.sh examples
 
             gear_test
-            benchmark_test
             js_test
             gtest
+            ;;
+    full)
+            $ROOT_DIR/scripts/env.sh js
+            $ROOT_DIR/scripts/build.sh examples
+
+            gear_test
+            js_test
+            gtest
+            benchmark_test
             ntest
             ;;
     gear)

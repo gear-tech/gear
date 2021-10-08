@@ -106,6 +106,10 @@ test:
 test-release:
 	@./scripts/test.sh all release
 
+.PHONY: test-full
+test-full:
+	@./scripts/test.sh full release
+
 .PHONY: gear-test
 gear-test:
 	@./scripts/test.sh gear
