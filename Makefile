@@ -14,6 +14,10 @@ js-init:
 show:
 	@./scripts/env.sh show
 
+.PHONY: docker-run
+docker-run:
+	@./scripts/env.sh docker
+
 .PHONY: clippy
 clippy:
 	@./scripts/clippy.sh all

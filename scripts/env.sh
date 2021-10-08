@@ -36,6 +36,12 @@ show() {
 	npm -v
 }
 
+docker_run() {
+    bold && echo "*** Start Substrate node template ***\n" && normal
+    docker-compose down --remove-orphans
+    docker-compose run --rm --service-ports dev $@
+}
+
 case "$1" in
     init)
             bold && echo "*** Initializing WASM build environment\n" && normal
@@ -54,5 +60,8 @@ case "$1" in
     show)
             bold && echo "Your environment:\n" && normal
             show
+            ;;
+    docker)
+            docker_run
             ;;
 esac
