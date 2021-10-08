@@ -97,3 +97,51 @@ gear-check-release:
 .PHONY: examples-check
 examples-check:
 	@./scripts/build.sh examples check
+
+.PHONY: test
+test:
+	@./scripts/test.sh all
+
+.PHONY: test-release
+test-release:
+	@./scripts/test.sh all release
+
+.PHONY: gear-test
+gear-test:
+	@./scripts/test.sh gear
+
+.PHONY: gear-test-release
+gear-test-release:
+	@./scripts/test.sh gear release
+
+.PHONY: standalone-test
+standalone-test:
+	@./scripts/test.sh standalone
+
+.PHONY: standalone-test-release
+standalone-test-release:
+	@./scripts/test.sh standalone release
+
+.PHONY: js-test
+js-test:
+	@./scripts/test.sh js
+
+.PHONY: gtest
+gtest:
+	@./scripts/test.sh gtest
+
+.PHONY: gtest-v
+gtest-v:
+	@./scripts/test.sh gtest v
+
+.PHONY: gtest-vv
+gtest-vv:
+	@./scripts/test.sh gtest vv
+
+.PHONY: ntest
+gtest:
+	@./scripts/test.sh ntest
+
+.PHONY: bench
+gtest:
+	@./scripts/test.sh bench
