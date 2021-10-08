@@ -1,100 +1,27 @@
-.PHONY: all
-all:
-	@cargo build --workspace
-
-.PHONY: check
-check:
-	@cargo check --workspace
-
-.PHONY: clean
-clean:
-	@rm -rf target
-	@rm -rf examples/target
-
-.PHONY: core-test
-core-test:
-	@cargo test --package gear-core --package gear-core-backend --package gear-core-runner -- --nocapture
-
-.PHONY: examples
-examples:
-	@./scripts/build-wasm.sh
-
-.PHONY: gstd-async-test
-gstd-async-test:
-	@cargo test --package gstd-async -- --nocapture
-
-.PHONY: gstd-test
-gstd-test:
-	@cargo test --package gstd
-
-.PHONY: gtest
-gtest:
-	@./scripts/test.sh
-
 .PHONY: init
 init:
-	@./scripts/init.sh
+	@./scripts/env.sh init
 
-.PHONY: fmt
-fmt:
-	@cargo fmt --all
-	@cargo fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path=""
+.PHONY: wasm-init
+wasm-init:
+	@./scripts/env.sh wasm
 
-.PHONY: fmtdoc
-fmtdoc:
-	@cargo +nightly fmt -p gstd -p gcore -p gstd-async -- --config wrap_comments=true,format_code_in_doc_comments=true
+.PHONY: js-init
+js-init:
+	@./scripts/env.sh js
 
-.PHONY: node
-node:
-	@cargo build --package gear-node
+.PHONY: show
+show:
+	@./scripts/env.sh show
 
-.PHONY: node-release
-node-release:
-	@cargo build --package gear-node --release
+.PHONY: clippy
+clippy:
+	@./scripts/clippy.sh all
 
-.PHONY: node-run
-node-run:
-	@cargo run --package gear-node --release -- --dev --tmp
+.PHONY: gear-clippy
+gear-clippy:
+	@./scripts/clippy.sh gear
 
-.PHONY: node-test
-node-test:
-	@SKIP_WASM_BUILD=1 cargo test --package gear-node
-
-.PHONY: ntest
-ntest:
-	@./scripts/build-wasm.sh
-	@cargo run --package gear-node --release -- runtests ./gtest/spec/*.yaml
-
-.PHONY: pre-commit
-pre-commit:
-	@./scripts/pre-commit.sh
-
-.PHONY: release
-release:
-	@cargo build --workspace --release
-
-.PHONY: rpc-test
-rpc-test:
-	@./scripts/build-wasm.sh
-	@node rpc-tests/index.js ./gtest/spec/*.yaml
-
-.PHONY: test
-test:
-	@cargo test --workspace
-
-.PHONY: test-release
-test-release:
-	@cargo test --workspace --release
-
-.PHONY: toolchain
-toolchain:
-	@rustup show
-	@echo targets
-	@echo -------
-	@echo
-	@rustup target list --installed
-	@echo
-	@echo nightly targets
-	@echo ---------------
-	@echo
-	@rustup +nightly target list --installed
+.PHONY: examples-clippy
+examples-clippy:
+	@./scripts/clippy.sh examples
