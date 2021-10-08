@@ -2,10 +2,10 @@ title: Incomplete-async-payloads
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_incomplete_async_payloads.wasm
+    path: target/wasm32-unknown-unknown/release/demo_incomplete_async_payloads.wasm
 
   - id: 2
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
 
 fixtures:
   - title: incomplete-async-payloads
