@@ -20,6 +20,7 @@ examples_clippy() {
         -A clippy::missing_safety_doc \
 		-A clippy::stable_sort_primitive \
 		-D warnings
+    cd $ROOT_DIR
 }
 
 case "$1" in

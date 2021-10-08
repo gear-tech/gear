@@ -25,3 +25,23 @@ gear-clippy:
 .PHONY: examples-clippy
 examples-clippy:
 	@./scripts/clippy.sh examples
+
+.PHONY: fmt
+fmt:
+	@./scripts/format.sh all
+
+.PHONY: gear-fmt
+gear-fmt:
+	@./scripts/format.sh gear
+
+.PHONY: examples-fmt
+examples-fmt:
+	@./scripts/format.sh examples
+
+.PHONY: doc-fmt
+doc-fmt:
+	@./scripts/format.sh doc
+
+.PHONY: check-fmt
+check-fmt:
+	@./scripts/format.sh all check
