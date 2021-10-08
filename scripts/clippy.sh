@@ -11,7 +11,10 @@ fi
 
 gear_clippy() {
     cd $ROOT_DIR
-    cargo +nightly clippy --workspace $BUILD_MODE --all-features --no-deps -- -D warnings
+    cargo +nightly clippy --workspace $BUILD_MODE \
+        --all-features \
+        --no-deps \
+        -- -D warnings
 }
 
 examples_clippy() {

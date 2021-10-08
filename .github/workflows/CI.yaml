@@ -22,25 +22,14 @@ jobs:
           toolchain: nightly
           target: wasm32-unknown-unknown
 
-      - name: Check fmt
-        run: |
-          cargo fmt --all -- --check
-          cargo fmt --all --manifest-path examples/Cargo.toml -- --config=license_template_path="" --check
+      - name: Check code formatting
+        run: ./scripts/format.sh all check
 
-      - name: Run clippy
-        run: | # TODO: Expand clippy to be workspace-wide
-          cargo clippy --package gear-core --all-features -- -D warnings
-          cargo clippy --package gear-core-backend --all-features -- -D warnings
-          echo cargo clippy --package gear-core-runner --all-features -- -D warnings # TODO: Fix
-          echo cargo clippy --package gear-node --all-features -- -D warnings # TODO: Fix
-          echo cargo clippy --package gear-node-rti --all-features -- -D warnings # TODO: Fix
-          echo cargo clippy --package gear-runtime --all-features -- -D warnings # TODO: Fix
-          cargo clippy --package gstd --all-features -- -D warnings
-          cargo clippy --package gstd-async --all-features -- -D warnings
-          echo cargo clippy --package pallet-gear --all-features -- -D warnings # TODO: Fix
+      - name: Check clippy errors
+        run: ./scripts/clippy.sh all
 
       - name: Check benchmarks compile
-        run: cargo check --release --features=runtime-benchmarks
+        run: ./scripts/test.sh bench
 
   build:
     #needs: check # TODO: Uncomment if need to run steps consequently
@@ -59,31 +48,30 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: "16"
-      - run: cd gtest/src/js && npm install
-      - run: cd utils/wasm-proc/metadata-js && npm install
+      
+      - name: Install node.js dependecies
+        run: ./scripts/env.sh js
 
       - name: Artifact cache
         uses: Swatinem/rust-cache@v1
 
       - name: Build
-        run: cargo build --workspace --release
+        run: ./scripts/build.sh gear release
 
       - name: Build examples (WASM)
-        run: |
-          ./scripts/build-wasm.sh
-          cp -r ./examples/target/wasm32-unknown-unknown ./target/
+        run: ./scripts/build.sh examples
 
       - name: Run tests
-        run: cargo test --workspace --release
+        run: ./scripts/test.sh gear release
+
+      - name: Run metadata test
+        run: ./scripts/test.sh js
 
       - name: Test wasmi backend
         run: cargo test -p gear-core-backend --release --no-default-features --features wasmi_backend
 
       - name: Run gear-test
-        run: ./target/release/gtest ./gtest/spec/*.yaml
+        run: ./scripts/test.sh gtest v
 
       - name: Run testsuite
-        run: ./target/release/gear-node runtests ./gtest/spec/*.yaml
-
-      - name: Run metadata test
-        run: node ./utils/wasm-proc/metadata-js/test.js
+        run: ./scripts/test.sh ntest
