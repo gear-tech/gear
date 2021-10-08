@@ -162,3 +162,7 @@ node-run:
 clean:
 	@rm -rf target
 	@rm -rf examples/target
+
+.PHONY: pre-commit
+pre-commit:
+	@./scripts/pre-commit.sh
