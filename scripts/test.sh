@@ -2,8 +2,7 @@
 
 ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 
-TARGET_DIR="$ROOT_DIR/target/examples"
-WASM_SOURCE="$TARGET_DIR/wasm32-unknown-unknown/release"
+TARGET_DIR="$ROOT_DIR/target"
 
 BUILD_MODE=""
 VERBOSE=""
@@ -66,11 +65,10 @@ case "$1" in
             ;;
     gear)
             $ROOT_DIR/scripts/env.sh js
-            $ROOT_DIR/scripts/build.sh wasm-proc
             cd $ROOT_DIR/examples/guestbook
             CARGO_TARGET_DIR=$TARGET_DIR cargo +nightly build --release
             cd $ROOT_DIR
-            $ROOT_DIR/target/release/wasm-proc -p $WASM_SOURCE/guestbook.wasm
+            $ROOT_DIR/scripts/build.sh wasm-proc
 
             gear_test
             ;;
@@ -79,13 +77,12 @@ case "$1" in
             ;;
     js)
             $ROOT_DIR/scripts/env.sh js
-            $ROOT_DIR/scripts/build.sh wasm-proc
             cd $ROOT_DIR/examples/async
             CARGO_TARGET_DIR=$TARGET_DIR cargo +nightly build --release
             cd $ROOT_DIR/examples/meta
             CARGO_TARGET_DIR=$TARGET_DIR cargo +nightly build --release
             cd $ROOT_DIR
-            $ROOT_DIR/target/release/wasm-proc -p $WASM_SOURCE/demo_meta.wasm $WASM_SOURCE/demo_async.wasm
+            $ROOT_DIR/scripts/build.sh wasm-proc
 
             js_test
             ;;

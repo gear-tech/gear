@@ -216,12 +216,12 @@ mod tests {
         let bytes = json
             .clone()
             .convert(
-                "examples/target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
                 &MetaType::Output,
             )
             .or_else(|_| {
                 json.convert(
-                    "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                    "target/examples/wasm32-unknown-unknown/release/guestbook.meta.wasm",
                     &MetaType::Output,
                 )
             });

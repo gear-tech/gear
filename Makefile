@@ -139,9 +139,18 @@ gtest-vv:
 	@./scripts/test.sh gtest vv
 
 .PHONY: ntest
-gtest:
+ntest:
 	@./scripts/test.sh ntest
 
 .PHONY: bench
-gtest:
+bench:
 	@./scripts/test.sh bench
+
+.PHONY: node-run
+node-run:
+	@cargo run --package gear-node --release -- --dev --tmp
+
+.PHONY: clean
+clean:
+	@rm -rf target
+	@rm -rf examples/target

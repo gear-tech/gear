@@ -2,7 +2,7 @@
 
 ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 
-TARGET_DIR="$ROOT_DIR/target/examples"
+TARGET_DIR="$ROOT_DIR/target"
 
 BUILD_OR_CHECK="build"
 
