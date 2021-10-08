@@ -4,15 +4,22 @@ ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 
 TARGET_DIR="$ROOT_DIR/target/examples"
 
+BUILD_OR_CHECK="build"
+
 BUILD_MODE=""
 
-# Set build to release if needs
-if [ "$2" == "release" ] ; then
+# Set build or check to release if needs
+if [ "$2" == "release" ] || [ "$3" == "release" ] ; then
     BUILD_MODE="--release"
 fi
 
+# Set build or check
+if [ "$2" == "check" ] || [ "$3" == "check" ] ; then
+    BUILD_OR_CHECK="check"
+fi
+
 gear_build() {
-    cargo build --workspace $BUILD_MODE
+    cargo $BUILD_OR_CHECK --workspace $BUILD_MODE
 }
 
 # Get newline-separated list of all workspace members in `$1/Cargo.toml`
@@ -40,14 +47,14 @@ examples_build() {
         # Quotes around `$entry` are not used intentionally to support globs in entry syntax, e.g. "member/*"
         for member in "$ROOT_DIR"/examples/$entry; do
             cd "$member"
-            CARGO_TARGET_DIR=$TARGET_DIR cargo +nightly build --release
+            CARGO_TARGET_DIR=$TARGET_DIR cargo +nightly $BUILD_OR_CHECK --release
         done
     done
     cd $ROOT_DIR
 }
 
 node_build() {
-    cargo build -p node $BUILD_MODE
+    cargo $BUILD_OR_CHECK -p node $BUILD_MODE
 }
 
 case "$1" in

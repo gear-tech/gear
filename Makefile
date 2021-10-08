@@ -77,3 +77,23 @@ node-release:
 .PHONY: wasm-proc
 wasm-proc:
 	@./scripts/build.sh wasm-proc
+
+.PHONY: check
+check:
+	@./scripts/build.sh all check
+
+.PHONY: check-release
+check-release:
+	@./scripts/build.sh all check release
+
+.PHONY: gear-check
+gear-check:
+	@./scripts/build.sh gear check
+
+.PHONY: gear-check-release
+gear-check-release:
+	@./scripts/build.sh gear check release
+
+.PHONY: examples-check
+examples-check:
+	@./scripts/build.sh examples check
