@@ -11,7 +11,7 @@ clap = "3.0.0-beta.4"
 derive_more = "0.99"
 env_logger = "0.9"
 gear-core = { path = "../core" }
-gear-core-runner = { path = "../core-runner" }
+gear-core-runner = { path = "../core-runner", default-features = false }
 colored = "2.0.0"
 common = { package = "gear-common", path = "../common" }
 regex = "1.4.5"
@@ -28,3 +28,8 @@ name = "gtest"
 path = "src/main.rs"
 
 [lib]
+
+[features]
+default = ["wasmtime"]
+wasmtime = ["gear-core-runner/wasmtime"]
+sandbox = ["gear-core-runner/sandbox"]
