@@ -138,6 +138,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     for file in wasm_files {
+        if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
+            continue;
+        }
+
         let module = parity_wasm::deserialize_file(file)?;
         if !skip_opt {
             optimize(file, module.clone())?;
