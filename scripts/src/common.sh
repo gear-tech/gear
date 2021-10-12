@@ -20,6 +20,16 @@ get_members() {
     sed -n -e 's/"\([^"]*\)"/\1/gp'
 }
 
+show() {
+    rustup show
+
+    header "node.js\n-------\n"
+    node -v
+
+    header "\nnpm\n---\n"
+    npm -v
+}
+
 gear_usage() {
    cat << HEREDOC
 

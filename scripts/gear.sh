@@ -13,21 +13,6 @@ TARGET_DIR="$ROOT_DIR/target"
 . $SCRIPTS/init.sh
 . $SCRIPTS/test.sh
 
-show() {
-    rustup show
-
-    header "node.js\n-------\n"
-    node -v
-
-    header "\nnpm\n---\n"
-    npm -v
-}
-
-panic() {
-    echo "Unknown option: $1"
-    exit 1
-}
-
 COMMAND="$1"
 shift
 
