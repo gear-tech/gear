@@ -3,7 +3,7 @@
 test_usage() {
    cat << HEREDOC
 
-   Usage: ./gear.sh test [subcommand]
+   Usage: ./gear.sh test [subcommand] [RUST_FLAGS]
 
    Subcommands:
      -h, --help     show help message and exit
