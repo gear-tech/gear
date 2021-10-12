@@ -128,10 +128,11 @@ impl MetaData {
 
             Self::Json(json) => {
                 script_path.push(PathBuf::from("gtest/src/js/encode.js"));
-                let bytes = call_node(
+                let bytes = hex::decode(call_node(
                     script_path,
                     vec!["-p", &path, "-t", &meta_type.to_string(), "-j", &json],
-                );
+                ))
+                .expect("Unable to decode hex from js");
 
                 Ok(Self::CodecBytes(bytes))
             }
