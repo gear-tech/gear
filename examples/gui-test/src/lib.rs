@@ -1,21 +1,15 @@
 #![no_std]
 
-use gstd::{msg, ext, prelude::*};
-use scale_info::TypeInfo;
-use codec::{Encode, Decode};
+use codec::{Decode, Encode};
 use core::convert::TryInto;
+use gstd::{msg, prelude::*};
+use scale_info::TypeInfo;
 
 #[derive(Decode, TypeInfo)]
 enum Action<A, B, C> {
     AVariant(A),
     BVariant(B),
     CVariant(C),
-}
-
-type Map = BTreeMap<String, u8>;
-
-mod scope {
-    pub type B = (Option<u8>, u128, [u8; 3]);
 }
 
 #[derive(Decode, Encode, TypeInfo)]
@@ -29,20 +23,20 @@ struct CustomStruct<T: Decode + Encode + TypeInfo> {
     field: T,
 }
 
-
-gstd::metadata!{
+gstd::metadata! {
     title: "GUI test program",
     init:
-        input: Action<AStruct, Option<CustomStruct<u8>>, Map>,
+        input: Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>>,
         output: Result<u8, Option<String>>,
     handle:
-        input: (Map, Option<scope::B>),
-        output: CustomStruct<Option<scope::B>>
+        input: (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>),
+        output: CustomStruct<Option<(Option<u8>, u128, [u8; 3])>>
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let incoming: Action<AStruct, Option<CustomStruct<u8>>, Map> = msg::load().expect("Unable to decode payload");
+    let incoming: Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>> =
+        msg::load().expect("Unable to decode payload");
 
     let outgoing: Result<u8, Option<String>> = match incoming {
         Action::AVariant(a) => {
@@ -53,18 +47,18 @@ pub unsafe extern "C" fn init() {
             };
 
             Err(Some(status.to_string()))
-        },
+        }
         Action::BVariant(b) => {
             if let Some(inner) = b {
                 Ok(inner.field)
             } else {
                 Err(None)
             }
-        },
+        }
         Action::CVariant(c) => {
             let count = c.keys().count();
             Ok(count.try_into().expect("Too much keys"))
-        },
+        }
     };
 
     msg::send(0.into(), outgoing, 10_000_000, 555);
@@ -72,12 +66,11 @@ pub unsafe extern "C" fn init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let incoming: (Map, Option<scope::B>) = msg::load().expect("Unable to decode payload");
+    let incoming: (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>) =
+        msg::load().expect("Unable to decode payload");
 
     let outgoing = match incoming {
-        (_m, Some(b)) => CustomStruct {
-            field: Some(b),
-        },
+        (_m, Some(b)) => CustomStruct { field: Some(b) },
         (m, None) => {
             let count = m.keys().count();
 
@@ -86,12 +79,12 @@ pub unsafe extern "C" fn handle() {
             } else {
                 None
             };
-            
-            let b = (opt_count, 128u128, [0, 1, 2]);
 
-            CustomStruct{
-                field: Some(b),
-            }
+            let arr: [u8; 3] = [0, 1, 2];
+
+            let b = (opt_count, 128u128, arr);
+
+            CustomStruct { field: Some(b) }
         }
     };
 

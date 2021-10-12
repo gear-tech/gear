@@ -22,7 +22,7 @@ fixtures:
             - zerokey: 0
               lonelykey: 1
               couplekey: 2
-            - none:
+            -
 
     expected:
       - log:
@@ -38,7 +38,6 @@ fixtures:
               kind: custom
               value:
                 field:
-                  some: 
-                    - some: 3
-                    - 128
-                    - [0, 1, 2]
+                  - 3
+                  - 128
+                  - [0, 1, 2]
