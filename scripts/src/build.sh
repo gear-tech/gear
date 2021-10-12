@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+. $(dirname "$0")/src/common.sh
+
 build_usage() {
    cat << HEREDOC
 
@@ -15,14 +17,6 @@ build_usage() {
      node           build node
 
 HEREDOC
-}
-
-# Get newline-separated list of all workspace members in `$1/Cargo.toml`
-get_members() {
-  tr -d "\n" < "$1/Cargo.toml" |
-    sed -n -e 's/.*members[[:space:]]*=[[:space:]]*\[\([^]]*\)\].*/\1/p' |
-    sed -n -e 's/,/ /gp' |
-    sed -n -e 's/"\([^"]*\)"/\1/gp'
 }
 
 gear_build() {
