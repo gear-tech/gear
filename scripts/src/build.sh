@@ -26,11 +26,11 @@ get_members() {
 }
 
 gear_build() {
-    cargo build --workspace $@
+    cargo build --workspace "$@"
 }
 
 node_build() {
-    cargo build -p node $@
+    cargo build -p node "$@"
 }
 
 wasm_proc_build() {
@@ -39,7 +39,7 @@ wasm_proc_build() {
 
 # $1 = TARGET DIR
 examples_proc() {
-    $1/release/wasm-proc -p $1/wasm32-unknown-unknown/release/*.wasm
+    "$1"/release/wasm-proc -p $1/wasm32-unknown-unknown/release/*.wasm
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
@@ -47,7 +47,7 @@ examples_build() {
     for entry in $(get_members $1/examples); do
         for member in "$1"/examples/$entry; do
             cd "$member"
-            CARGO_TARGET_DIR=$2 cargo +nightly build --release
+            CARGO_TARGET_DIR="$2" cargo +nightly build --release
         done
     done
 }

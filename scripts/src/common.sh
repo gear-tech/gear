@@ -7,7 +7,7 @@ normal() {
 }
 
 header() {
-    bold && echo $1 && normal
+    bold && echo "$1" && normal
 }
 
 gear_usage() {

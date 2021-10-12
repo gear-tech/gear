@@ -24,8 +24,8 @@ wasm_init() {
 }
 
 js_init() {
-    npm --prefix $ROOT_DIR/utils/wasm-proc/metadata-js install
-    npm --prefix $ROOT_DIR/utils/wasm-proc/metadata-js update
-    npm --prefix $ROOT_DIR/gtest/src/js install
-    npm --prefix $ROOT_DIR/gtest/src/js update
+    npm --prefix "$ROOT_DIR"/utils/wasm-proc/metadata-js install
+    npm --prefix "$ROOT_DIR"/utils/wasm-proc/metadata-js update
+    npm --prefix "$ROOT_DIR"/gtest/src/js install
+    npm --prefix "$ROOT_DIR"/gtest/src/js update
 }

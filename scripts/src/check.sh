@@ -24,7 +24,7 @@ get_members() {
 }
 
 gear_check() {
-    cargo check --workspace $@
+    cargo check --workspace "$@"
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
@@ -32,13 +32,13 @@ examples_check() {
     for entry in $(get_members $1/examples); do
         for member in "$1"/examples/$entry; do
             cd "$member"
-            CARGO_TARGET_DIR=$2 cargo +nightly check --release
+            CARGO_TARGET_DIR="$2" cargo +nightly check --release
         done
     done
 }
 
 benchmark_check() {
-    cargo check --features=runtime-benchmarks $@ \
+    cargo check --features=runtime-benchmarks "$@" \
         -p gear-node \
         -p pallet-gear \
         -p gear-runtime

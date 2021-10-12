@@ -17,16 +17,14 @@ HEREDOC
 
 # $1 = Path to Cargo.toml file
 format() {
-    MANIFEST=$1
+    MANIFEST="$1"
     shift
 
-    cargo fmt --all --manifest-path=$MANIFEST -- \
-        --config=license_template_path="" $@
-    
-    echo $@
+    cargo fmt --all --manifest-path="$MANIFEST" -- \
+        --config=license_template_path="" "$@"
 }
 
 doc_format() {
-    cargo +nightly fmt -p gstd -p gcore -p gstd-async -- $@ \
+    cargo +nightly fmt -p gstd -p gcore -p gstd-async -- "$@" \
         --config wrap_comments=true,format_code_in_doc_comments=true
 }

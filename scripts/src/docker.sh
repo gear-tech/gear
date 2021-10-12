@@ -15,5 +15,5 @@ HEREDOC
 
 docker_run() {
     docker-compose down --remove-orphans
-    docker-compose run --rm --service-ports dev $@
+    docker-compose run --rm --service-ports dev "$@"
 }

@@ -17,22 +17,22 @@ HEREDOC
 }
 
 workspace_test() {
-    cargo test --workspace $@
+    cargo test --workspace "$@"
 }
 
 # $1 - ROOT DIR
 js_test() {
-    node $1/utils/wasm-proc/metadata-js/test.js
+    node "$1"/utils/wasm-proc/metadata-js/test.js
 }
 
 gtest() {
-    ROOT_DIR=$1
+    ROOT_DIR="$1"
     shift
 
-    cargo run --package gear-test --release -- $ROOT_DIR/gtest/spec/*.yaml $@
+    cargo run --package gear-test --release -- "$ROOT_DIR"/gtest/spec/*.yaml "$@"
 }
 
 # $1 - ROOT DIR
 ntest() {
-    cargo run --package gear-node --release -- runtests $1/gtest/spec/*.yaml
+    cargo run --package gear-node --release -- runtests "$1"/gtest/spec/*.yaml
 }

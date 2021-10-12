@@ -15,7 +15,7 @@ HEREDOC
 }
 
 gear_clippy() {
-    cargo +nightly clippy --workspace $@ \
+    cargo +nightly clippy --workspace "$@" \
         --all-features \
         --no-deps \
         -- -D warnings
