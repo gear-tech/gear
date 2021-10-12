@@ -24,22 +24,22 @@ jobs:
           target: wasm32-unknown-unknown
 
       - name: "Check formatting: Gear"
-        run: ./gear.sh format gear --check
+        run: ./scripts/gear.sh format gear --check
 
       - name: "Check formatting: Examples"
-        run: ./gear.sh format examples --check
+        run: ./scripts/gear.sh format examples --check
 
       - name: "Check formatting: Doc"
-        run: ./gear.sh format doc --check
+        run: ./scripts/gear.sh format doc --check
 
       - name: "Check clippy: Gear"
-        run: ./gear.sh clippy gear
+        run: ./scripts/gear.sh clippy gear
 
       - name: "Check clippy: Examples"
-        run: ./gear.sh clippy examples
+        run: ./scripts/gear.sh clippy examples
 
       - name: "Check compile: Node benchmark"
-        run: ./gear.sh check benchmark
+        run: ./scripts/gear.sh check benchmark
 
   build:
     #needs: check # TODO: Uncomment if need to run steps consequently
@@ -60,34 +60,34 @@ jobs:
           node-version: "16"
       
       - name: "Show: Versioning"
-        run: ./gear.sh --show
+        run: ./scripts/gear.sh --show
       
       - name: "Install: Node.js packages"
-        run: ./gear.sh init js
+        run: ./scripts/gear.sh init js
 
       - name: "ACTIONS: Artifact cache"
         uses: Swatinem/rust-cache@v1
 
       - name: "Build: Gear"
-        run: ./gear.sh build gear --release
+        run: ./scripts/gear.sh build gear --release
 
       - name: "Build: Examples (WASM)"
-        run: ./gear.sh build examples
+        run: ./scripts/gear.sh build examples
       
       - name: "Build: Split examples by .opt and .meta"
-        run: ./gear.sh build examples-proc
+        run: ./scripts/gear.sh build examples-proc
 
       - name: "Test: Gear workspace"
-        run: ./gear.sh test gear --release
+        run: ./scripts/gear.sh test gear --release
 
       - name: "Test: JS metadata"
-        run: ./gear.sh test js
+        run: ./scripts/gear.sh test js
 
       - name: "Test: Wasmi backend"
         run: cargo test -p gear-core-backend --release --no-default-features --features wasmi_backend
 
       - name: "Test: Process gear-test"
-        run: ./gear.sh test gtest -vv
+        run: ./scripts/gear.sh test gtest -vv
 
       - name: "Test: Process node testsuite"
-        run: ./gear.sh test ntest
+        run: ./scripts/gear.sh test ntest
