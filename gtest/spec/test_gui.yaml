@@ -33,12 +33,12 @@ fixtures:
               value:
                 ok: 3
           
-          # - destination: 0
-          #   payload:
-          #     kind: custom
-          #     value:
-          #       field:
-          #         some: 
-          #           - some: 3
-          #           - 128
-          #           - [0, 1, 2]
+          - destination: 0
+            payload:
+              kind: custom
+              value:
+                field:
+                  some: 
+                    - some: 3
+                    - 128
+                    - [0, 1, 2]

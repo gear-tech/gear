@@ -67,33 +67,33 @@ pub unsafe extern "C" fn init() {
         },
     };
 
-    msg::reply(outgoing, 10_000_000, 555);
+    msg::send(0.into(), outgoing, 10_000_000, 555);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    // let incoming: (Map, Option<scope::B>) = msg::load().expect("Unable to decode payload");
+    let incoming: (Map, Option<scope::B>) = msg::load().expect("Unable to decode payload");
 
-    // let outgoing = match incoming {
-    //     (_m, Some(b)) => CustomStruct {
-    //         field: Some(b),
-    //     },
-    //     (m, None) => {
-    //         let count = m.keys().count();
+    let outgoing = match incoming {
+        (_m, Some(b)) => CustomStruct {
+            field: Some(b),
+        },
+        (m, None) => {
+            let count = m.keys().count();
 
-    //         let opt_count = if let Ok(v) = count.try_into() {
-    //             Some(v)
-    //         } else {
-    //             None
-    //         };
+            let opt_count = if let Ok(v) = count.try_into() {
+                Some(v)
+            } else {
+                None
+            };
             
-    //         let b = (opt_count, 128u128, [0, 1, 2]);
+            let b = (opt_count, 128u128, [0, 1, 2]);
 
-    //         CustomStruct{
-    //             field: Some(b),
-    //         }
-    //     }
-    // };
+            CustomStruct{
+                field: Some(b),
+            }
+        }
+    };
 
-    // msg::reply(outgoing, 10_000_000, 555);
+    msg::reply(outgoing, 10_000_000, 555);
 }
