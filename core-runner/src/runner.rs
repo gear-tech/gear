@@ -669,13 +669,25 @@ fn run(
         last_error_returned: None,
     };
 
-    let (res, mut ext) = env.setup_and_run(
-        ext,
-        binary,
-        program.get_pages(),
-        &memory,
-        entry_point.into(),
-    );
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "wasmtime")] {
+            let (res, mut ext) = env.setup_and_run(
+                ext,
+                binary,
+                program.get_pages(),
+                &memory,
+                entry_point.into(),
+            );
+        } else if #[cfg(feature = "sandbox")] {
+            let (res, mut ext) = env.setup_and_run(
+                ext,
+                binary,
+                program.id().as_slice(),
+                &memory,
+                entry_point.into(),
+            );
+        }
+    }
 
     let outcome = match res {
         Ok(_) => ExecutionOutcome::Normal,
