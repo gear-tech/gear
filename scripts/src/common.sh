@@ -1,3 +1,5 @@
+#!/usr/bin/env sh
+
 bold() {
     tput bold
 }
