@@ -60,7 +60,7 @@ pallet-gear = { version = "2.0.0", default-features = false, path = "../pallets/
 gear-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../pallets/gear/rpc/runtime-api" }
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/gear-tech/substrate.git", rev = "ccf9bee" }
+substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
 
 [features]
 default = ["std"]

@@ -14,7 +14,7 @@ codec = { package = "parity-scale-codec", version = "2", default-features = fals
 common = { package = "tests-common", path = "../common", optional = true }
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/gear-tech/substrate.git", rev = "ccf9bee" }
+substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
 
 [dev-dependencies]
 env_logger = "0.9"
