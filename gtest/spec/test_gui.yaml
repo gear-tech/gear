@@ -22,7 +22,7 @@ fixtures:
             - zerokey: 0
               lonelykey: 1
               couplekey: 2
-            -
+            - # None 
 
     expected:
       - log:
