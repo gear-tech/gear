@@ -4,110 +4,228 @@ ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
 
-. $SCRIPTS/build.sh
-. $SCRIPTS/check.sh
-. $SCRIPTS/clippy.sh
-. $SCRIPTS/common.sh
-. $SCRIPTS/docker.sh
-. $SCRIPTS/format.sh
-. $SCRIPTS/init.sh
-. $SCRIPTS/test.sh
+. "$SCRIPTS"/build.sh
+. "$SCRIPTS"/check.sh
+. "$SCRIPTS"/clippy.sh
+. "$SCRIPTS"/common.sh
+. "$SCRIPTS"/docker.sh
+. "$SCRIPTS"/format.sh
+. "$SCRIPTS"/init.sh
+. "$SCRIPTS"/test.sh
+
+show() {
+  rustup show
+
+  header "node.js\n-------\n"
+  node -v
+
+  header "\nnpm\n---\n"
+  npm -v
+}
+
+gear_usage() {
+  cat << EOF
+
+  Usage: ./gear.sh [command] [subcommand] [OPTIONAL]
+
+  Commands:
+    -h, --help     show help message and exit
+    -s, --show     show env versioning and installed toolchains
+
+    build          build gear parts
+    check          check that gear parts are compilable
+    clippy         check clippy errors for gear parts
+    docker         docker functionality
+    format         format gear parts via rustfmt
+    init           initializes and updates packages and toolchains
+    test           test tool
+    
+  Try ./gear.sh -h (or --help) to learn more about each command.
+
+EOF
+}
 
 COMMAND="$1"
 shift
 
+SUBCOMMAND = "$2"
+shift
+
 case "$COMMAND" in
-    -h | --help) gear_usage; exit; ;;
-    -s | --show) show; exit; ;;
+  -h | --help | help)
+    gear_usage
+    exit; ;;
 
-    build) case "$1" in
-                -h | --help) build_usage; exit; ;;
+  -s | --show | show)
+    show
+    exit; ;;
 
-                gear) header "Building gear workspace"
-                        shift; gear_build "$@"; ;;
-                examples) header "Building gear examples"
-                        shift; examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
-                wasm-proc) header "Building wasm-proc util";
-                        shift; wasm_proc_build; ;;
-                examples-proc) header "Processing examples via wasm-proc";
-                        shift; examples_proc "$TARGET_DIR"; ;;
-                node) header "Building gear node";
-                        shift; node_build "$@"; ;;
+  build)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        build_usage
+        exit; ;;
 
-                *) header "Unknown option: $1"; build_usage; exit 1; ;;
-        esac;;
+      gear)
+        header "Building gear workspace"
+        gear_build "$@"; ;;
 
-    check) case "$1" in
-                -h | --help) check_usage; exit; ;;
+      examples)
+        header "Building gear examples"
+        examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
 
-                gear) header "Checking gear workspace compile"
-                        shift; gear_check "$@"; ;;
-                examples) header "Checking gear examples compile"
-                        shift; examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
-                benchmark) header "Checking node benchmarks compile"
-                        shift; benchmark_check; ;;
+      wasm-proc)
+        header "Building wasm-proc util"
+        wasm_proc_build; ;;
 
-                *) header "Unknown option: $1"; check_usage; exit 1; ;;
-        esac;;
+      examples-proc)
+        header "Processing examples via wasm-proc"
+        examples_proc "$TARGET_DIR"; ;;
 
-    clippy) case "$1" in
-                -h | --help) clippy_usage; exit; ;;
+      node)
+        header "Building gear node"
+        node_build "$@"; ;;
 
-                gear) header "Checking clippy errors of gear workspace"
-                        shift; gear_clippy "$@"; ;;
-                examples) header "Checking clippy errors of gear program examples"
-                        shift; examples_clippy; ;;
+      *)
+        header "Unknown option: $SUBCOMMAND"
+        build_usage
+        exit 1; ;;
+    esac;;
 
-                *) header "Unknown option: $1"; clippy_usage; exit 1; ;;
-        esac;;
+  check)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        check_usage
+        exit; ;;
+      
+      gear)
+        header "Checking gear workspace compile"
+        gear_check "$@"; ;;
+      
+      examples)
+        header "Checking gear examples compile"
+        examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
-    docker) case "$1" in
-                -h | --help) docker_usage; exit; ;;
+      benchmark)
+        header "Checking node benchmarks compile"
+        benchmark_check; ;;
 
-                run) header "Running docker"
-                        shift; echo docker_run; ;;
+      *)
+        header "Unknown option: $SUBCOMMAND"
+        check_usage
+        exit 1; ;;
+    esac;;
 
-                *) header "Unknown option: $1"; docker_usage; exit 1; ;;
-        esac;;
+  clippy)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        clippy_usage
+        exit; ;;
 
-    format) case "$1" in
-                -h | --help) format_usage; exit; ;;
+      gear)
+        header "Checking clippy errors of gear workspace"
+        gear_clippy "$@"; ;;
+      
+      examples)
+        header "Checking clippy errors of gear program examples"
+        examples_clippy; ;;
 
-                gear) header "Formatting gear workspace"
-                        shift; format "$ROOT_DIR/Cargo.toml" "$@"; ;;
-                examples) header "Formatting gear program examples"
-                        shift; format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
-                doc) header "Formatting gear doc"
-                        shift; doc_format "$@"; ;;
+      *)
+        header "Unknown option: $SUBCOMMAND"
+        clippy_usage
+        exit 1; ;;
+    esac;;
 
-                *) header "Unknown option: $1"; format_usage; exit 1; ;;
-        esac;;
+  docker)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        docker_usage
+        exit; ;;
 
-    init) case "$1" in
-                -h | --help) init_usage; exit; ;;
+      run)
+        header "Running docker"
+        docker_run; ;;
 
-                wasm) header "Initializing WASM environment"
-                        shift; wasm_init; ;;
-                js) header "Syncing JS packages"
-                        shift; js_init; ;;
+      *)
+        header "Unknown option: $SUBCOMMAND"
+        docker_usage
+        exit 1; ;;
+    esac;;
 
-                *) header "Unknown option: $1"; init_usage; exit 1; ;;
-        esac;;
+  format)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        format_usage
+        exit; ;;
 
-    test) case "$1" in
-                -h | --help) test_usage; exit; ;;
+      gear)
+        header "Formatting gear workspace"
+        format "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
-                gear) header "Running gear tests"
-                        shift; workspace_test "$@"; ;;
-                js) header "Running js tests"
-                        shift; js_test "$ROOT_DIR"; ;;
-                gtest) header "Running gtest"
-                        shift; gtest "$ROOT_DIR" "$@"; ;;
-                ntest) header "Running node testsuite"
-                        shift; ntest "$ROOT_DIR"; ;;
+      examples)
+        header "Formatting gear program examples"
+        format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
 
-                *) header "Unknown option: $1"; test_usage; exit 1; ;;
-        esac;;
+      doc)
+        header "Formatting gear doc"
+        doc_format "$@"; ;;
 
-        *) header "Unknown option: $COMMAND"; gear_usage; exit 1; ;;
+      *)
+        header "Unknown option: $SUBCOMMAND"
+        format_usage
+        exit 1; ;;
+    esac;;
+
+  init)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        init_usage
+        exit; ;;
+
+      wasm)
+        header "Initializing WASM environment"
+        wasm_init; ;;
+
+      js)
+        header "Syncing JS packages"
+        js_init "$ROOT_DIR"; ;;
+
+      *)
+        header "Unknown option: $SUBCOMMAND"
+        init_usage
+        exit 1; ;;
+    esac;;
+
+  test)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        test_usage
+        exit; ;;
+
+      gear)
+        header "Running gear tests"
+        workspace_test "$@"; ;;
+
+      js)
+        header "Running js tests"
+        js_test "$ROOT_DIR"; ;;
+
+      gtest)
+        header "Running gtest"
+        gtest "$ROOT_DIR" "$@"; ;;
+
+      ntest)
+        header "Running node testsuite"
+        ntest "$ROOT_DIR"; ;;
+
+      *)
+        header "Unknown option: $SUBCOMMAND"
+        test_usage
+        exit 1; ;;
+    esac;;
+
+  *)
+    header "Unknown option: $COMMAND"
+    gear_usage
+    exit 1; ;;
 esac

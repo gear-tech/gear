@@ -1,19 +1,19 @@
 #!/usr/bin/env sh
 
 docker_usage() {
-   cat << HEREDOC
+  cat << EOF
 
-   Usage: ./gear.sh docker [subcommand]
+  Usage: ./gear.sh docker [subcommand] [FLAGS]
 
-   Subcommands:
-     -h, --help     show help message and exit
+  Subcommands:
+    -h, --help     show help message and exit
 
-     run            runs docker-compose
+    run            runs docker-compose
 
-HEREDOC
+EOF
 }
 
 docker_run() {
-    docker-compose down --remove-orphans
-    docker-compose run --rm --service-ports dev "$@"
+  docker-compose down --remove-orphans
+  docker-compose run --rm --service-ports dev "$@"
 }

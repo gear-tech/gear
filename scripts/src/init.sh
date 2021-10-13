@@ -1,31 +1,32 @@
 #!/usr/bin/env sh
 
 init_usage() {
-   cat << HEREDOC
+  cat << EOF
 
-   Usage: ./gear.sh init [subcommand]
+  Usage: ./gear.sh init [subcommand]
 
-   Subcommands:
-     -h, --help     show help message and exit
+  Subcommands:
+    -h, --help     show help message and exit
 
-     wasm           update rustc and add wasm target
-     js             install and update js packages via npm
+    wasm           update rustc and add wasm target
+    js             install and update js packages via npm
 
-HEREDOC
+EOF
 }
 
 wasm_init() {
-    if [ -z $CI_PROJECT_NAME ] ; then
-        rustup update nightly
-        rustup update stable
-    fi
+  if [ -z $CI_PROJECT_NAME ] ; then
+    rustup update nightly
+    rustup update stable
+  fi
 
-    rustup target add wasm32-unknown-unknown --toolchain nightly
+  rustup target add wasm32-unknown-unknown --toolchain nightly
 }
 
+# $1 = ROOT_DIR
 js_init() {
-    npm --prefix "$ROOT_DIR"/utils/wasm-proc/metadata-js install
-    npm --prefix "$ROOT_DIR"/utils/wasm-proc/metadata-js update
-    npm --prefix "$ROOT_DIR"/gtest/src/js install
-    npm --prefix "$ROOT_DIR"/gtest/src/js update
+  npm --prefix "$1"/utils/wasm-proc/metadata-js install
+  npm --prefix "$1"/utils/wasm-proc/metadata-js update
+  npm --prefix "$1"/gtest/src/js install
+  npm --prefix "$1"/gtest/src/js update
 }
