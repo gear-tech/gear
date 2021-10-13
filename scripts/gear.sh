@@ -48,7 +48,7 @@ EOF
 COMMAND="$1"
 shift
 
-SUBCOMMAND = "$2"
+SUBCOMMAND="$1"
 shift
 
 case "$COMMAND" in
@@ -72,7 +72,7 @@ case "$COMMAND" in
 
       examples)
         header "Building gear examples"
-        examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
+        examples_build "$ROOT_DIR" "$TARGET_DIR"; ;;
 
       wasm-proc)
         header "Building wasm-proc util"
@@ -108,7 +108,7 @@ case "$COMMAND" in
 
       benchmark)
         header "Checking node benchmarks compile"
-        benchmark_check; ;;
+        benchmark_check "$@"; ;;
 
       *)
         header "Unknown option: $SUBCOMMAND"
@@ -144,7 +144,7 @@ case "$COMMAND" in
 
       run)
         header "Running docker"
-        docker_run; ;;
+        docker_run "$@"; ;;
 
       *)
         header "Unknown option: $SUBCOMMAND"

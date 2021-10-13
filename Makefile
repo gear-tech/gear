@@ -1,168 +1,166 @@
-.PHONY: init
-init:
-	@./scripts/env.sh init
-
-.PHONY: wasm-init
-wasm-init:
-	@./scripts/env.sh wasm
-
-.PHONY: js-init
-js-init:
-	@./scripts/env.sh js
-
+# Common section
 .PHONY: show
 show:
-	@./scripts/env.sh show
+	@ ./scripts/gear.sh show
 
-.PHONY: docker-run
-docker-run:
-	@./scripts/env.sh docker
+.PHONY: pre-commit
+pre-commit: fmt clippy test
 
-.PHONY: clippy
-clippy:
-	@./scripts/clippy.sh all
-
-.PHONY: gear-clippy
-gear-clippy:
-	@./scripts/clippy.sh gear
-
-.PHONY: examples-clippy
-examples-clippy:
-	@./scripts/clippy.sh examples
-
-.PHONY: fmt
-fmt:
-	@./scripts/format.sh all
-
-.PHONY: gear-fmt
-gear-fmt:
-	@./scripts/format.sh gear
-
-.PHONY: examples-fmt
-examples-fmt:
-	@./scripts/format.sh examples
-
-.PHONY: doc-fmt
-doc-fmt:
-	@./scripts/format.sh doc
-
-.PHONY: check-fmt
-check-fmt:
-	@./scripts/format.sh all check
-
+# Build section
 .PHONY: all
-all:
-	@./scripts/build.sh all
+all: gear examples
 
 .PHONY: all-release
-all-release:
-	@./scripts/build.sh all release
+all-release: gear-release examples
 
 .PHONY: gear
 gear:
-	@./scripts/build.sh gear
+	@ sh ./scripts/gear.sh build gear
 
 .PHONY: gear-release
 gear-release:
-	@./scripts/build.sh gear release
+	@ sh ./scripts/gear.sh build gear --release
 
 .PHONY: examples
-examples:
-	@./scripts/build.sh examples
+examples: build-examples proc-examples
 
-.PHONY: node
-node:
-	@./scripts/build.sh node
-
-.PHONY: node-release
-node-release:
-	@./scripts/build.sh node release
+.PHONY: build-examples
+build-examples:
+	@ ./scripts/gear.sh build examples
 
 .PHONY: wasm-proc
 wasm-proc:
-	@./scripts/build.sh wasm-proc
+	@ ./scripts/gear.sh build wasm-proc
 
+.PHONY: proc-examples
+proc-examples: wasm-proc
+	@ ./scripts/gear.sh build examples-proc
+
+.PHONY: node
+node:
+	@ ./scripts/gear.sh build node
+
+.PHONY: node-release
+node-release:
+	@ ./scripts/gear.sh build node --release
+
+# Check section
 .PHONY: check
-check:
-	@./scripts/build.sh all check
+check: check-gear check-examples check-benchmark
 
 .PHONY: check-release
-check-release:
-	@./scripts/build.sh all check release
+check-release: check-gear-release check-examples check-benchmark-release
 
-.PHONY: gear-check
-gear-check:
-	@./scripts/build.sh gear check
+.PHONY: check-gear
+check-gear:
+	@ ./scripts/gear.sh check gear
 
-.PHONY: gear-check-release
-gear-check-release:
-	@./scripts/build.sh gear check release
+.PHONY: check-gear-release
+check-gear-release:
+	@ ./scripts/gear.sh check gear --release
 
-.PHONY: examples-check
-examples-check:
-	@./scripts/build.sh examples check
+.PHONY: check-examples
+check-examples:
+	@ ./scripts/gear.sh check examples
 
+.PHONY: check-benchmark
+check-benchmark:
+	@ ./scripts/gear.sh check benchmark
+
+.PHONY: check-benchmark-release
+check-benchmark-release:
+	@ ./scripts/gear.sh check benchmark --release
+
+# Clippy section
+.PHONY: clippy
+clippy: clippy-gear clippy-examples
+
+.PHONY: clippy-release
+clippy-release: clippy-gear-release clippy-examples
+
+.PHONY: clippy-gear
+clippy-gear:
+	@ ./scripts/gear.sh clippy gear
+
+.PHONY: clippy-gear-release
+clippy-gear-release:
+	@ ./scripts/gear.sh clippy gear --release
+
+.PHONY: clippy-examples
+clippy-examples:
+	@ ./scripts/gear.sh clippy examples
+
+# Docker section
+.PHONY: docker-run
+docker-run:
+	@ ./scripts/gear.sh docker run
+
+# Format section
+.PHONY: fmt
+fmt: fmt-gear fmt-examples fmt-doc
+
+.PHONY: fmt-check
+fmt-check: fmt-gear-check fmt-examples-check fmt-doc-check
+
+.PHONY: fmt-gear
+fmt-gear:
+	@ ./scripts/gear.sh format gear
+
+.PHONY: fmt-gear-check
+fmt-gear-check:
+	@ ./scripts/gear.sh format gear --check
+
+.PHONY: fmt-examples
+fmt-examples:
+	@ ./scripts/gear.sh format examples
+
+.PHONY: fmt-examples-check
+fmt-examples-check:
+	@ ./scripts/gear.sh format examples --check
+
+.PHONY: fmt-doc
+fmt-doc:
+	@ ./scripts/gear.sh format doc
+
+.PHONY: fmt-doc-check
+fmt-doc-check:
+	@ ./scripts/gear.sh format doc --check
+
+# Init section
+.PHONY: init
+init: init-wasm init-js
+
+.PHONY: init-wasm
+init-wasm:
+	@ ./scripts/gear.sh init wasm
+
+.PHONY: init-js
+init-js:
+	@ ./scripts/gear.sh init js
+
+# Test section
 .PHONY: test
-test:
-	@./scripts/test.sh all
+test: test-gear test-js gtest ntest
 
 .PHONY: test-release
-test-release:
-	@./scripts/test.sh all release
+test: test-gear-release test-js gtest ntest
 
-.PHONY: test-full
-test-full:
-	@./scripts/test.sh full release
+.PHONY: test-gear
+test-gear: init-js
+	@ ./scripts/gear.sh test gear
 
-.PHONY: gear-test
-gear-test:
-	@./scripts/test.sh gear
+.PHONY: test-gear-release
+test-gear-release: init-js
+	@ ./scripts/gear.sh test gear --release
 
-.PHONY: gear-test-release
-gear-test-release:
-	@./scripts/test.sh gear release
-
-.PHONY: standalone-test
-standalone-test:
-	@./scripts/test.sh standalone
-
-.PHONY: standalone-test-release
-standalone-test-release:
-	@./scripts/test.sh standalone release
-
-.PHONY: js-test
-js-test:
-	@./scripts/test.sh js
+.PHONY: test-js
+test-js: init-js
+	@ ./scripts/gear.sh test js
 
 .PHONY: gtest
-gtest:
-	@./scripts/test.sh gtest
-
-.PHONY: gtest-v
-gtest-v:
-	@./scripts/test.sh gtest v
-
-.PHONY: gtest-vv
-gtest-vv:
-	@./scripts/test.sh gtest vv
+gtest: init-js examples
+	@ ./scripts/gear.sh test gtest
 
 .PHONY: ntest
 ntest:
-	@./scripts/test.sh ntest
-
-.PHONY: bench
-bench:
-	@./scripts/test.sh bench
-
-.PHONY: node-run
-node-run:
-	@cargo run --package gear-node --release -- --dev --tmp
-
-.PHONY: clean
-clean:
-	@rm -rf target
-	@rm -rf examples/target
-
-.PHONY: pre-commit
-pre-commit:
-	@./scripts/pre-commit.sh
+	@ ./scripts/gear.sh test ntest
