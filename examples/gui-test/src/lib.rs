@@ -48,9 +48,7 @@ pub unsafe extern "C" fn init() {
 
             Err(Some(status.to_string()))
         }
-        Action::BVariant(b) => {
-            b.map(|inner| inner.field).ok_or(None)
-        }
+        Action::BVariant(b) => b.map(|inner| inner.field).ok_or(None),
         Action::CVariant(c) => {
             let count = c.keys().count();
             Ok(count.try_into().expect("Too much keys"))
