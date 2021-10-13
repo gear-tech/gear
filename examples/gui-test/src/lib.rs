@@ -74,11 +74,7 @@ pub unsafe extern "C" fn handle() {
         (m, None) => {
             let count = m.keys().count();
 
-            let opt_count = if let Ok(v) = count.try_into() {
-                Some(v)
-            } else {
-                None
-            };
+            let opt_count = count.try_into().ok();
 
             let arr: [u8; 3] = [0, 1, 2];
 
