@@ -140,7 +140,7 @@ init-js:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest ntest
+test: test-gear test-js gtest
 
 .PHONY: test-release
 test: test-gear-release test-js gtest ntest
