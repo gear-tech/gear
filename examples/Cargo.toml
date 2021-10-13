@@ -12,6 +12,7 @@ members = [
     "fib",
     "mem",
     "guestbook",
+    "gui-test",
     "incomplete_async_payloads",
     "meta",
     "minimal",
