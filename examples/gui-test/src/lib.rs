@@ -49,11 +49,7 @@ pub unsafe extern "C" fn init() {
             Err(Some(status.to_string()))
         }
         Action::BVariant(b) => {
-            if let Some(inner) = b {
-                Ok(inner.field)
-            } else {
-                Err(None)
-            }
+            b.map(|inner| inner.field).ok_or(None)
         }
         Action::CVariant(c) => {
             let count = c.keys().count();
