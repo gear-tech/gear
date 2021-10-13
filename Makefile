@@ -6,6 +6,15 @@ show:
 .PHONY: pre-commit
 pre-commit: fmt clippy test
 
+.PHONY: clean
+clean:
+	@ cargo clean --manifest-path=./Cargo.toml
+	@ cargo clean --manifest-path=./examples/Cargo.toml
+
+.PHONY: clean-node
+clean-node:
+	@ cargo clean -p gear-node
+
 # Build section
 .PHONY: all
 all: gear examples
