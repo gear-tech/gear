@@ -107,15 +107,15 @@ case "$COMMAND" in
         exit; ;;
       
       gear)
-        header "Checking gear workspace compile"
+        header "Checking gear workspace"
         gear_check "$@"; ;;
       
       examples)
-        header "Checking gear examples compile"
+        header "Checking gear examples"
         examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
       benchmark)
-        header "Checking node benchmarks compile"
+        header "Checking node benchmarks"
         benchmark_check "$@"; ;;
 
       *)
@@ -131,11 +131,11 @@ case "$COMMAND" in
         exit; ;;
 
       gear)
-        header "Checking clippy errors of gear workspace"
+        header "Invoking clippy on gear workspace"
         gear_clippy "$@"; ;;
       
       examples)
-        header "Checking clippy errors of gear program examples"
+        header "Invoking clippy on gear examples"
         examples_clippy; ;;
 
       *)
@@ -171,7 +171,7 @@ case "$COMMAND" in
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
       examples)
-        header "Formatting gear program examples"
+        header "Formatting gear examples"
         format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
 
       doc)
