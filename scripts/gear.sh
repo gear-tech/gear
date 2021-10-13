@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+set -e
+
 ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
 SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
@@ -46,10 +48,16 @@ EOF
 }
 
 COMMAND="$1"
-shift
+if [ "$#" -ne  "0" ]
+then
+  shift
+fi
 
 SUBCOMMAND="$1"
-shift
+if [ "$#" -ne  "0" ]
+then
+    shift
+fi
 
 case "$COMMAND" in
   -h | --help | help)
