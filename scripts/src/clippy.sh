@@ -21,9 +21,12 @@ gear_clippy() {
     -- -D warnings
 }
 
+# $1 - ROOT DIR
 examples_clippy() {
+  cd "$1"/examples
   cargo +nightly clippy --workspace --release --no-deps -- \
     -A clippy::missing_safety_doc \
-	-A clippy::stable_sort_primitive \
+	  -A clippy::stable_sort_primitive \
     -D warnings
+  cd "$1"
 }

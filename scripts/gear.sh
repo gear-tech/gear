@@ -136,7 +136,7 @@ case "$COMMAND" in
       
       examples)
         header "Invoking clippy on gear examples"
-        examples_clippy; ;;
+        examples_clippy "$ROOT_DIR"; ;;
 
       *)
         header "Unknown option: $SUBCOMMAND"
