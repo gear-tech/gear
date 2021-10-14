@@ -412,11 +412,11 @@ impl RunnerContext {
     }
 
     pub fn storage(&mut self) -> &InMemoryStorage {
-        self.runner_state.as_storage()
+        self.runner_state.convert_to_storage()
     }
 
     fn runner(&mut self) -> &mut MemoryRunner {
-        self.runner_state.as_runner()
+        self.runner_state.convert_to_runner()
     }
 
     fn next_message_id(&mut self) -> MessageId {
@@ -465,7 +465,7 @@ enum RunnerState {
 }
 
 impl RunnerState {
-    fn as_runner(&mut self) -> &mut MemoryRunner {
+    fn convert_to_runner(&mut self) -> &mut MemoryRunner {
         if let Self::Runner(runner) = self {
             runner
         } else {
@@ -474,11 +474,11 @@ impl RunnerState {
                 _ => Self::Runner(Runner::new(&Config::default(), InMemoryStorage::default())),
             };
 
-            self.as_runner()
+            self.convert_to_runner()
         }
     }
 
-    fn as_storage(&mut self) -> &InMemoryStorage {
+    fn convert_to_storage(&mut self) -> &InMemoryStorage {
         if let Self::Storage(storage, _) = self {
             storage
         } else {
@@ -495,7 +495,7 @@ impl RunnerState {
                 Self::Storage(InMemoryStorage::default(), Config::default())
             };
 
-            self.as_storage()
+            self.convert_to_storage()
         }
     }
 }
