@@ -152,10 +152,10 @@ init-js:
 test: test-gear test-js gtest
 
 .PHONY: test-release
-test: test-gear-release test-js gtest ntest
+test-release: test-gear-release test-js gtest ntest
 
 .PHONY: test-gear
-test-gear: init-js
+test-gear: init-js examples
 	@ ./scripts/gear.sh test gear
 
 .PHONY: test-gear-release

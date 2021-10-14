@@ -2,7 +2,7 @@ title: gui test
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_gui_test.wasm
+    path: target/wasm32-unknown-unknown/release/demo_gui_test.wasm
     init_message:
       kind: custom
       value:
