@@ -3,10 +3,15 @@
 format_usage() {
   cat << EOF
 
-  Usage: ./gear.sh format [subcommand] [RUST_FLAGS]
+  Usage:
+    ./gear.sh format <FLAG>
+    ./gear.sh format <SUBCOMMAND> [CARGO FLAGS]
+
+  Flags:
+    -h, --help     show help message and exit
 
   Subcommands:
-    -h, --help     show help message and exit
+    help           show help message and exit
 
     gear           format gear workspace or check via --check
     examples       format gear program examples or check via --check

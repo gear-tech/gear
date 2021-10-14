@@ -28,11 +28,16 @@ show() {
 gear_usage() {
   cat << EOF
 
-  Usage: ./gear.sh [command] [subcommand] [OPTIONAL]
+  Usage:
+    ./gear.sh <FLAG>
+    ./gear.sh <COMMAND> <SUBCOMMAND> [CARGO FLAGS]
+
+  Flags:
+    -h, --help     show help message and exit
 
   Commands:
-    -h, --help     show help message and exit
-    -s, --show     show env versioning and installed toolchains
+    help           show help message and exit
+    show           show env versioning and installed toolchains
 
     build          build gear parts
     check          check that gear parts are compilable
@@ -42,7 +47,7 @@ gear_usage() {
     init           initializes and updates packages and toolchains
     test           test tool
     
-  Try ./gear.sh -h (or --help) to learn more about each command.
+  Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
 EOF
 }
@@ -64,7 +69,7 @@ case "$COMMAND" in
     gear_usage
     exit; ;;
 
-  -s | --show | show)
+  show)
     show
     exit; ;;
 
@@ -95,7 +100,7 @@ case "$COMMAND" in
         node_build "$@"; ;;
 
       *)
-        header "Unknown option: $SUBCOMMAND"
+        header  "Unknown option: '$SUBCOMMAND'"
         build_usage
         exit 1; ;;
     esac;;
@@ -119,7 +124,7 @@ case "$COMMAND" in
         benchmark_check "$@"; ;;
 
       *)
-        header "Unknown option: $SUBCOMMAND"
+        header  "Unknown option: '$SUBCOMMAND'"
         check_usage
         exit 1; ;;
     esac;;
@@ -139,7 +144,7 @@ case "$COMMAND" in
         examples_clippy "$ROOT_DIR"; ;;
 
       *)
-        header "Unknown option: $SUBCOMMAND"
+        header  "Unknown option: '$SUBCOMMAND'"
         clippy_usage
         exit 1; ;;
     esac;;
@@ -155,7 +160,7 @@ case "$COMMAND" in
         docker_run "$@"; ;;
 
       *)
-        header "Unknown option: $SUBCOMMAND"
+        header  "Unknown option: '$SUBCOMMAND'"
         docker_usage
         exit 1; ;;
     esac;;
@@ -179,7 +184,7 @@ case "$COMMAND" in
         doc_format "$@"; ;;
 
       *)
-        header "Unknown option: $SUBCOMMAND"
+        header  "Unknown option: '$SUBCOMMAND'"
         format_usage
         exit 1; ;;
     esac;;
@@ -199,7 +204,7 @@ case "$COMMAND" in
         js_init "$ROOT_DIR"; ;;
 
       *)
-        header "Unknown option: $SUBCOMMAND"
+        header  "Unknown option: '$SUBCOMMAND'"
         init_usage
         exit 1; ;;
     esac;;
@@ -227,13 +232,13 @@ case "$COMMAND" in
         ntest "$ROOT_DIR"; ;;
 
       *)
-        header "Unknown option: $SUBCOMMAND"
+        header  "Unknown option: '$SUBCOMMAND'"
         test_usage
         exit 1; ;;
     esac;;
 
   *)
-    header "Unknown option: $COMMAND"
+    header "Unknown option: '$COMMAND'"
     gear_usage
     exit 1; ;;
 esac

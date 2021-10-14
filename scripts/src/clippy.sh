@@ -3,10 +3,15 @@
 clippy_usage() {
   cat << EOF
 
-  Usage: ./gear.sh clippy [subcommand] [RUST_FLAGS]
+  Usage:
+    ./gear.sh clippy <FLAG>
+    ./gear.sh clippy <SUBCOMMAND> [CARGO FLAGS]
+
+  Flags:
+    -h, --help     show help message and exit
 
   Subcommands:
-    -h, --help     show help message and exit
+    help           show help message and exit
 
     gear           check gear workspace for clippy errors
     examples       check gear program examples for clippy errors

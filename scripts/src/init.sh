@@ -3,10 +3,15 @@
 init_usage() {
   cat << EOF
 
-  Usage: ./gear.sh init [subcommand]
+  Usage:
+    ./gear.sh init <FLAG>
+    ./gear.sh init <SUBCOMMAND>
+
+  Flags:
+    -h, --help     show help message and exit
 
   Subcommands:
-    -h, --help     show help message and exit
+    help           show help message and exit
 
     wasm           update rustc and add wasm target
     js             install and update js packages via npm

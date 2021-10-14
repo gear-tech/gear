@@ -5,10 +5,15 @@
 build_usage() {
   cat << EOF
 
-  Usage: ./gear.sh build [subcommand] [RUST_FLAGS]
+  Usage:
+    ./gear.sh build <FLAG>
+    ./gear.sh build <SUBCOMMAND> [CARGO FLAGS]
+
+  Flags:
+    -h, --help     show help message and exit
 
   Subcommands:
-    -h, --help     show help message and exit
+    help           show help message and exit
 
     gear           build gear workspace
     examples       build gear program examples
@@ -38,10 +43,7 @@ examples_proc() {
 
 # $1 = ROOT DIR, $2 = TARGET DIR
 examples_build() {
-  for entry in $(get_members "$1"/examples); do
-    for member in "$1"/examples/$entry; do
-      cd "$member"
-      CARGO_TARGET_DIR="$2" cargo +nightly build --release
-    done
-  done
+  cd "$1"/examples
+  CARGO_TARGET_DIR="$2" cargo +nightly build --release --workspace
+  cd "$1"
 }

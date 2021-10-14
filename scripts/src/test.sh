@@ -3,10 +3,15 @@
 test_usage() {
   cat << EOF
 
-  Usage: ./gear.sh test [subcommand] [RUST_FLAGS]
+  Usage:
+    ./gear.sh test <FLAG>
+    ./gear.sh test <SUBCOMMAND> [CARGO FLAGS]
+
+  Flags:
+    -h, --help     show help message and exit
 
   Subcommands:
-    -h, --help     show help message and exit
+    help           show help message and exit
 
     gear           run workspace tests
     js             run metadata js tests

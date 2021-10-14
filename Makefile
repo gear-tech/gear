@@ -24,11 +24,11 @@ all-release: gear-release examples
 
 .PHONY: gear
 gear:
-	@ sh ./scripts/gear.sh build gear
+	@ ./scripts/gear.sh build gear
 
 .PHONY: gear-release
 gear-release:
-	@ sh ./scripts/gear.sh build gear --release
+	@ ./scripts/gear.sh build gear --release
 
 .PHONY: examples
 examples: build-examples proc-examples

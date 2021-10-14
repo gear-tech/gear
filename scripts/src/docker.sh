@@ -3,10 +3,15 @@
 docker_usage() {
   cat << EOF
 
-  Usage: ./gear.sh docker [subcommand] [FLAGS]
+  Usage:
+    ./gear.sh docker <FLAG>
+    ./gear.sh docker <SUBCOMMAND> [DOCKER FLAGS]
+
+  Flags:
+    -h, --help     show help message and exit
 
   Subcommands:
-    -h, --help     show help message and exit
+    help           show help message and exit
 
     run            runs docker-compose
 

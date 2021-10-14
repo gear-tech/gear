@@ -5,10 +5,15 @@
 check_usage() {
   cat << EOF
 
-  Usage: ./gear.sh check [subcommand] [RUST_FLAGS]
+  Usage:
+    ./gear.sh check <FLAG>
+    ./gear.sh check <SUBCOMMAND> [CARGO FLAGS]
+
+  Flags:
+    -h, --help     show help message and exit
 
   Subcommands:
-    -h, --help     show help message and exit
+    help           show help message and exit
 
     gear           check gear workspace compile
     examples       check gear program examples compile
@@ -23,12 +28,9 @@ gear_check() {
 
 # $1 = ROOT DIR, $2 = TARGET DIR
 examples_check() {
-  for entry in $(get_members "$1"/examples); do
-    for member in "$1"/examples/"$entry"; do
-      cd "$member"
-      CARGO_TARGET_DIR="$2" cargo +nightly check --release
-    done
-  done
+  cd "$1"/examples
+  CARGO_TARGET_DIR="$2" cargo +nightly check --release --workspace
+  cd "$1"
 }
 
 benchmark_check() {
