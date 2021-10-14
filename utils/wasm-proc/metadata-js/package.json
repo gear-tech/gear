@@ -1,6 +1,6 @@
 {
     "name": "gear-metadata",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "scripts": {
         "test": "node test.js"
     },
@@ -17,6 +17,6 @@
     },
     "homepage": "https://github.com/gear-tech/gear#readme",
     "dependencies": {
-        "@polkadot/api": "^6.0.5"
+        "@polkadot/api": "^6.1.2"
     }
 }

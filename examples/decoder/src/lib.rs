@@ -1,6 +1,6 @@
 #![no_std]
 
-use gcore::msg;
+use gstd::msg;
 use gstd::prelude::*;
 
 #[no_mangle]
@@ -38,10 +38,7 @@ pub unsafe extern "C" fn handle() {
         leaves.reverse();
         let leaf = leaves.pop().expect("An error occured during calculating");
 
-        msg::send_push(
-            &handle,
-            format!("[{}, {}];", leaf + 1, vertex + 1).as_bytes(),
-        );
+        handle.push(format!("[{}, {}];", leaf + 1, vertex + 1));
 
         degrees[*vertex] -= 1;
 
@@ -50,12 +47,9 @@ pub unsafe extern "C" fn handle() {
         }
     }
 
-    msg::send_push(
-        &handle,
-        format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1).as_bytes(),
-    );
+    handle.push(format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1));
 
-    msg::send_commit(handle, msg::source(), 10_000_000, 0);
+    handle.commit(msg::source(), 10_000_000, 0);
 }
 
 #[no_mangle]

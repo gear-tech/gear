@@ -53,6 +53,7 @@ enum FuncIndex {
     MsgId,
     SendInit,
     SendPush,
+    ReplyCommit,
     ReplyPush,
     Read,
     Reply,
@@ -121,6 +122,12 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             )
             .map(|_| None)
             .map_err(|_| Trap::new(TrapKind::UnexpectedSignature)),
+
+            Some(FuncIndex::ReplyCommit) => {
+                funcs::reply_commit(self.ext.clone())(args.nth(0), args.nth(1), args.nth(2))
+                    .map(|_| None)
+                    .map_err(|_| Trap::new(TrapKind::UnexpectedSignature))
+            }
 
             Some(FuncIndex::ReplyPush) => {
                 funcs::reply_push(self.ext.clone())(args.nth(0), args.nth(1))
@@ -212,6 +219,9 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
                 ValueType::I64,
                 ValueType::I32,
                 ValueType::I32 => None),
+            "gr_reply_commit" => {
+                func_instance!(ReplyCommit, ValueType::I32, ValueType::I64, ValueType::I32 => None)
+            }
             "gr_reply_push" => {
                 func_instance!(ReplyPush, ValueType::I32, ValueType::I32 => None)
             }

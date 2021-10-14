@@ -102,7 +102,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, exec::gas_available(), 0);
+        msg::reply(reply, exec::gas_available() - 2_500_000, 0);
     }
 
     fn state() -> &'static mut NodeState {
@@ -297,12 +297,14 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         let init: Initialization = msg::load().expect("Failed to decode init");
+
         STATE = Some(NodeState {
             status: init.status,
             sub_nodes: BTreeSet::default(),
             transition: None,
         });
-        msg::reply(b"CREATED", 0, 0);
+
+        msg::reply((), exec::gas_available() - 2_500_000, 0);
     }
 }
 
@@ -325,19 +327,16 @@ mod tests {
     #[test]
     fn program_can_be_initialized() {
         let mut runner = RunnerContext::default();
-        runner.init_program(InitProgram::from(wasm_code()).message(Initialization { status: 5 }));
 
-        let storage = runner.storage();
-
-        assert_eq!(
-            storage.log.get().last().map(|m| m.payload().to_vec()),
-            Some(b"CREATED".to_vec())
+        // Assertions are performed when decoding reply
+        let _reply: () = runner.init_program_with_reply(
+            InitProgram::from(wasm_code()).message(Initialization { status: 5 }),
         );
     }
 
     #[test]
     fn one_node_can_change_status() {
-        // env_logger::Builder::from_env(env_logger::Env::default()).init();
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
         let mut runner = RunnerContext::default();
 
@@ -355,7 +354,7 @@ mod tests {
 
     #[test]
     fn multiple_nodes_can_prepare_to_change_status() {
-        env_logger::Builder::from_env(env_logger::Env::default()).init();
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
         let mut runner = RunnerContext::default();
 
