@@ -1,5 +1,11 @@
 ---
 #Install/update backend docker-compose
+
+#- name: remove db
+#  shell: >
+#    docker exec -it ec2-user_gear_1 gear-node purge-chain --base-path /gear/ --chain /gear/staging.json -y
+#  become: yes
+
 - name: Copy docker-compose
   template:
     src: docker-compose.yaml.j2
