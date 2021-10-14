@@ -135,8 +135,8 @@ async fn main() {
                         msg::source()
                     ));
 
-                    unsafe { STATE.borrow_mut().members.remove(&member_id) };
                     msg::send(member_id, b"success", 0, state.reward);
+                    unsafe { STATE.borrow_mut().members.remove(&member_id) };
                 }
             }
         }
