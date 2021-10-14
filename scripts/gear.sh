@@ -202,6 +202,10 @@ case "$COMMAND" in
       js)
         header "Syncing JS packages"
         js_init "$ROOT_DIR"; ;;
+      
+      update-js)
+        header "Updating JS packages"
+        js_update "$ROOT_DIR"; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"

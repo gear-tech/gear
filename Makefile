@@ -147,6 +147,10 @@ init-wasm:
 init-js:
 	@ ./scripts/gear.sh init js
 
+.PHONY: update-js
+update-js:
+	@ ./scripts/gear.sh init update-js
+
 # Test section
 .PHONY: test
 test: test-gear test-js gtest
