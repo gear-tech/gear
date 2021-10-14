@@ -49,5 +49,5 @@ pub unsafe extern "C" fn init() {
     // Set owner id from init payload
     STATE.set_owner_id(Some(id));
 
-    msg::reply(b"INIT", 0, 0);
+    msg::reply(b"INIT", exec::gas_available() / 2, 0);
 }
