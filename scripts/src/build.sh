@@ -1,7 +1,5 @@
 #!/usr/bin/env sh
 
-. $(dirname "$0")/src/common.sh
-
 build_usage() {
   cat << EOF
 

@@ -9,19 +9,30 @@ TARGET_DIR="$ROOT_DIR/target"
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
 . "$SCRIPTS"/clippy.sh
-. "$SCRIPTS"/common.sh
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
 . "$SCRIPTS"/test.sh
 
+bold() {
+  tput bold
+}
+
+normal() {
+  tput sgr0
+}
+
+header() {
+  bold && printf "$1\n" && normal
+}
+
 show() {
   rustup show
 
-  header "node.js\n-------\n"
+  header "node.js\n-------"
   node -v
 
-  header "\nnpm\n---\n"
+  header "\nnpm\n---"
   npm -v
 }
 
