@@ -177,21 +177,35 @@ case "$COMMAND" in
     esac;;
 
   format)
+    CHECK=false
+    for flag in "$@"
+      do [ "$flag" = "--check" ] && CHECK="true"
+    done
+
     case "$SUBCOMMAND" in
       -h | --help | help)
         format_usage
         exit; ;;
 
       gear)
-        header "Formatting gear workspace"
+        if [ "$CHECK" = "true" ]
+          then header "Checking gear workspace formatting"
+          else header "Formatting gear workspace"
+        fi
         format "$ROOT_DIR/Cargo.toml" "$@"; ;;
 
       examples)
-        header "Formatting gear examples"
+        if [ "$CHECK" = "true" ]
+          then header "Checking gear examples formatting"
+          else header "Formatting gear examples"
+        fi
         format "$ROOT_DIR/examples/Cargo.toml" "$@"; ;;
 
       doc)
-        header "Formatting gear doc"
+        if [ "$CHECK" = "true" ]
+          then header "Checking gear doc formatting"
+          else header "Formatting gear doc"
+        fi
         doc_format "$@"; ;;
 
       *)
