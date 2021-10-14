@@ -89,24 +89,22 @@ async fn main() {
                         state.admins = [state.owner_id.unwrap()].into();
 
                         for member in config.members {
-                            state.members.insert(ProgramId::from_slice(
-                                &decode_hex(str::from_utf8(&member).unwrap())
-                                    .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-                            ));
+                            state
+                                .members
+                                .insert(ProgramId::from_slice(&decode_address(&member)));
                         }
 
                         for admin in config.admins {
-                            state.admins.insert(ProgramId::from_slice(
-                                &decode_hex(str::from_utf8(&admin).unwrap())
-                                    .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-                            ));
+                            state
+                                .admins
+                                .insert(ProgramId::from_slice(&decode_address(&admin)));
                         }
 
                         state.clone()
                     });
                 }
                 ext::debug("CONFIG UPDATED");
-                msg::reply(b"CONFIG UPDATED", gstd::exec::gas_available(), 0);
+                msg::reply(b"CONFIG UPDATED", gstd::exec::gas_available() / 2, 0);
             }
         }
         Action::ProgramId(program_id) => {
@@ -161,17 +159,15 @@ pub unsafe extern "C" fn init() {
 
     ext::debug("config loaded");
     for member in config.members {
-        state.members.insert(ProgramId::from_slice(
-            &decode_hex(str::from_utf8(&member).unwrap())
-                .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-        ));
+        state
+            .members
+            .insert(ProgramId::from_slice(&decode_address(&member)));
     }
 
     for admin in config.admins {
-        state.admins.insert(ProgramId::from_slice(
-            &decode_hex(str::from_utf8(&admin).unwrap())
-                .expect("DECODE HEX FAILED: INVALID PROGRAM ID"),
-        ));
+        state
+            .admins
+            .insert(ProgramId::from_slice(&decode_address(&admin)));
     }
 
     state.code = String::from_utf8(config.code).unwrap();
@@ -189,4 +185,10 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
         .step_by(2)
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
         .collect()
+}
+
+fn decode_address(input: &[u8]) -> Vec<u8> {
+    let out = bs58::decode(input).into_vec().expect("wrong address");
+    // ext::debug(&format!("{:x?}", &out[1..out.len() - 2]));
+    out[1..out.len() - 2].to_vec()
 }
