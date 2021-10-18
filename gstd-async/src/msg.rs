@@ -68,7 +68,7 @@ impl WakeSignals {
             .expect("Somehow received reply for the message we never sent");
 
         signal.payload = Some(payload);
-        gcore::exec::wake(signal.message_id);
+        gcore::exec::wake(signal.message_id, gcore::exec::gas_available());
     }
 
     pub(crate) fn poll(&mut self, message_reply_to: MessageId) -> ReplyPoll {

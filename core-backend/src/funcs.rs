@@ -252,14 +252,12 @@ pub(crate) fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static
     }
 }
 
-pub(crate) fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
-    move |waker_id_ptr| {
-        let _ = ext.with(|ext: &mut E| {
+pub(crate) fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i64) -> Result<(), &'static str> {
+    move |waker_id_ptr, gas_limit| {
+        ext.with(|ext: &mut E| {
             let waker_id: MessageId = get_id(ext, waker_id_ptr).into();
-            ext.wake(waker_id)
-        })?;
-        // Intentionally return an error to break the execution
-        Err(EXIT_TRAP_STR)
+            ext.wake(waker_id, gas_limit as _)
+        })?
     }
 }
 

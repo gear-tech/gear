@@ -281,12 +281,12 @@ mod wasm {
                     } else {
                         transition.state = TransitionState::Failed;
                     }
-                    exec::wake(transition.message_id);
+                    exec::wake(transition.message_id, exec::gas_available());
                 }
                 Err(e) => {
                     transition.state = TransitionState::Failed;
                     ext::debug(&format!("Error processing reply: {:?}", e));
-                    exec::wake(transition.message_id);
+                    exec::wake(transition.message_id, exec::gas_available());
                 }
             }
         } else {
