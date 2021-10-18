@@ -84,9 +84,6 @@ jobs:
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
-      - name: "Test: Wasmi backend"
-        run: cargo test -p gear-core-backend --release --no-default-features --features wasmi_backend
-
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest -vv
 
