@@ -12,10 +12,10 @@ regex = "1.4"
 structopt = "0.3.23"
 
 # Substrate deps
-frame-system = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
-sc-cli = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git" }
-sc-service = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git" }
-sp-io = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git" }
+sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git" }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git" }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git" }
 
 # Internal deps
 gear-common = { path = "../../common" }
