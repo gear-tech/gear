@@ -299,6 +299,41 @@ impl<E: Ext + 'static> Environment<E> {
             result
         }
 
+        fn reply_commit<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let message_id_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            let gas_limit: i64 = match args[1] {
+                Value::I64(val) => val,
+                _ => return Err(HostError),
+            };
+            let value_ptr: i32 = match args[2] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            ctx.ext
+                .with(|ext: &mut E| -> Result<(), &'static str> {
+                    let value = funcs::get_u128(ext, value_ptr);
+                    let message_id = ext.reply_commit(ReplyPacket::new(
+                        0,
+                        vec![].into(),
+                        gas_limit as _,
+                        value,
+                    ))?;
+                    ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+                    Ok(())
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_| {
+                    ctx.trap_reason = Some("Trapping: unable to send message");
+                    HostError
+                })
+        }
+
         fn reply_to<E: Ext>(
             ctx: &mut Runtime<E>,
             args: &[Value],
@@ -458,6 +493,7 @@ impl<E: Ext + 'static> Environment<E> {
         env_builder.add_host_func("env", "gr_source", source);
         env_builder.add_host_func("env", "gr_value", value);
         env_builder.add_host_func("env", "gr_reply", reply);
+        env_builder.add_host_func("env", "gr_reply_commit", reply_commit);
         env_builder.add_host_func("env", "gr_reply_to", reply_to);
         env_builder.add_host_func("env", "gr_reply_push", reply_push);
         env_builder.add_host_func("env", "gr_debug", debug);
