@@ -734,7 +734,7 @@ fn run(
         msg.into_message(program.id())
     });
 
-    let awakening = awakening.map(|(gas_limit, id)| {
+    let awakening = awakening.map(|(id, gas_limit)| {
         let mut gas_to_transfer = gas_limit;
         if gas_to_transfer > gas_left {
             gas_to_transfer = gas_left;
