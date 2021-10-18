@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Wasmtime environment for running a module.
+//! sp-sandbox environment for running a module.
 
-// use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
 use super::memory::MemoryWrap;
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
