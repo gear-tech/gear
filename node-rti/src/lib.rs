@@ -173,7 +173,7 @@ pub trait GearExecutor {
             data: ExtMessage {
                 id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
                 gas_limit: u64::MAX,
-                payload: payload,
+                payload,
                 value,
             },
         });

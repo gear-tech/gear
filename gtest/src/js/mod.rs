@@ -111,7 +111,7 @@ impl MetaData {
                     script_path,
                     vec![
                         "-p",
-                        &path,
+                        path,
                         "-t",
                         &meta_type.to_string(),
                         "-b",
@@ -130,7 +130,7 @@ impl MetaData {
                 script_path.push(PathBuf::from("gtest/src/js/encode.js"));
                 let bytes = hex::decode(call_node(
                     script_path,
-                    vec!["-p", &path, "-t", &meta_type.to_string(), "-j", &json],
+                    vec!["-p", path, "-t", &meta_type.to_string(), "-j", &json],
                 ))
                 .expect("Unable to decode hex from js");
 
@@ -217,12 +217,12 @@ mod tests {
         let bytes = json
             .clone()
             .convert(
-                "examples/target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
                 &MetaType::Output,
             )
             .or_else(|_| {
                 json.convert(
-                    "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                    "target/examples/wasm32-unknown-unknown/release/guestbook.meta.wasm",
                     &MetaType::Output,
                 )
             });
