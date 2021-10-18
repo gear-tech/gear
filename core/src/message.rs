@@ -584,6 +584,8 @@ pub trait MessageIdGenerator {
     }
 }
 
+type AwakeningHandle = Option<(u64, MessageId)>;
+
 /// Message state of the current session.
 ///
 /// Contains all generated outgoing messages with their formation statuses.
@@ -596,7 +598,7 @@ pub struct MessageState {
     /// Message to be added to wait list.
     pub waiting: Option<IncomingMessage>,
     /// Message to be waken.
-    pub awakening: Option<(u64, MessageId)>,
+    pub awakening: AwakeningHandle,
 }
 
 /// Message context for the currently running program.
@@ -767,7 +769,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Vec<OutgoingMessage>,
         Option<ReplyMessage>,
         Option<IncomingMessage>,
-        Option<(u64, MessageId)>,
+        AwakeningHandle,
     ) {
         let Self { state, .. } = self;
         let mut state = Rc::try_unwrap(state)
