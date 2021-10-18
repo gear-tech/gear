@@ -717,7 +717,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         if self.state.borrow().awakening.is_some() {
             return Err(Error::DuplicateAwakening);
         }
-        self.state.borrow_mut().awakening = Some((gas_limit, waker_id));
+        self.state.borrow_mut().awakening = Some((waker_id, gas_limit));
         Ok(())
     }
 
