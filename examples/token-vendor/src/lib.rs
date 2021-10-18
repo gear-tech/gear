@@ -8,10 +8,10 @@ use gstd_async::msg as msg_async;
 use gstd_async::mutex::Mutex;
 
 use alloc::collections::BTreeSet;
-use codec::Decode;
+use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-const GAS_RESERVE: u64 = 10_000_000;
+const GAS_RESERVE: u64 = 50_000_000;
 
 struct State {
     owner_id: Option<ProgramId>,
@@ -42,11 +42,13 @@ impl State {
         self.code = config.code;
         self.reward = config.reward;
 
+        self.admins.insert(owner_id);
         for admin in config.admins {
             let id = address_to_id(admin).map_err(|_| "Invalid admin address")?;
             self.admins.insert(id);
         }
 
+        self.members.insert(owner_id);
         for member in config.members {
             let id = address_to_id(member).map_err(|_| "Invalid member address")?;
             self.members.insert(id);
@@ -161,7 +163,7 @@ async fn main() {
                 panic!()
             });
 
-            let response = msg_async::send_and_wait_for_reply(id, b"ping", GAS_RESERVE, 0).await;
+            let response = msg_async::send_and_wait_for_reply(id, &String::from("ping").encode(), GAS_RESERVE, 0).await;
 
             let ping = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
                 ext::debug("Failed to decode string from pong-response");
@@ -172,7 +174,7 @@ async fn main() {
 
             if ping.to_lowercase() == "pong" {
                 let response =
-                    msg_async::send_and_wait_for_reply(id, b"success", GAS_RESERVE, 0).await;
+                    msg_async::send_and_wait_for_reply(id, &String::from("success").encode(), GAS_RESERVE, 0).await;
 
                 let success = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
                     ext::debug("Failed to decode string from MemberID-response");
@@ -217,5 +219,6 @@ pub unsafe extern "C" fn init() {
         panic!()
     }
 
+    ext::debug("Initialized");
     msg::reply("Initialized", exec::gas_available() - GAS_RESERVE, 0);
 }

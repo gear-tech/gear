@@ -33,6 +33,8 @@ const GAS_RESERVE: u64 = 10_000_000;
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     STATE.set_user_id(msg::source());
+
+    ext::debug("CONTRACT: Inited successfully");
 }
 
 #[no_mangle]
@@ -42,7 +44,7 @@ pub unsafe extern "C" fn handle() {
         panic!()
     });
 
-    ext::debug(&format!("CONTRACT: Got payload: '{}'", &payload));
+    ext::debug(&format!("CONTRACT: Got payload: '{}'", payload));
     
     if payload == "success" {
         msg::reply(STATE.get_hex_id(), exec::gas_available() - GAS_RESERVE, 0);
