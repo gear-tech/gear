@@ -30,6 +30,7 @@ use gcore::MessageId;
 pub use gstd_async_macro::main;
 
 pub mod msg;
+pub mod mutex;
 mod waker;
 
 type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;

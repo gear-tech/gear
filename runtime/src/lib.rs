@@ -248,7 +248,6 @@ impl pallet_grandpa::Config for Runtime {
     type HandleEquivocation = ();
 
     type WeightInfo = ();
-    type MaxAuthorities = MaxAuthorities;
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -549,7 +548,7 @@ impl_runtime_apis! {
 
             let storage_info = AllPalletsWithSystem::storage_info();
 
-            return (list, storage_info)
+            (list, storage_info)
         }
 
         fn dispatch_benchmark(

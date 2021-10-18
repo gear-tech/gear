@@ -64,6 +64,10 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> M
     gcore::msg::reply(payload.as_ref(), gas_limit, value)
 }
 
+pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
+    gcore::msg::reply_commit(gas_limit, value)
+}
+
 pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
     gcore::msg::reply_push(payload.as_ref());
 }

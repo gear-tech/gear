@@ -354,7 +354,15 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         if let Some((gas, waker_id)) = run_result.awakening {
             if let Some(mut msg) = self.wait_list.remove(waker_id) {
                 // Increase gas available to the message
-                msg.gas_limit += gas;
+                if u64::max_value() - gas < msg.gas_limit() {
+                    // TODO: issue #323
+                    log::debug!(
+                        "Gas limit ({}) after wake (+{}) exceeded u64::max() and will be burned",
+                        msg.gas_limit,
+                        gas
+                    );
+                }
+                msg.gas_limit = msg.gas_limit.saturating_add(gas);
                 context.message_buf.push(msg);
             }
         }

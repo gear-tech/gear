@@ -2,7 +2,7 @@ title: Ping-pong
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
 
 fixtures:
   - title: ping-pong

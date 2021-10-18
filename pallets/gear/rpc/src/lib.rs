@@ -115,7 +115,7 @@ where
             Some(value) => Ok(try_into_rpc_gas_spent(value)?),
             None => Err(RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
-                message: format!("Empty run result"),
+                message: "Empty run result".to_string(),
                 data: None,
             }),
         }

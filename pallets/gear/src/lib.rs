@@ -45,7 +45,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use primitive_types::H256;
     use scale_info::TypeInfo;
-    use sp_runtime::traits::UniqueSaturatedInto;
+    use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
@@ -82,7 +82,7 @@ pub mod pallet {
         /// Program initialized.
         InitSuccess(MessageInfo),
         /// Dispatch message with a specific ID enqueued for processing.
-        DispatchMessageEnqueued(H256),
+        DispatchMessageEnqueued(MessageInfo),
         /// Dispatched message has resulted in an outcome
         MessageDispatched(DispatchOutcome),
         /// Some number of messages processed.
@@ -92,6 +92,8 @@ pub mod pallet {
         DebugMode(bool),
         /// A snapshot of the debug data: programs and message queue ('debug mode' only)
         DebugDataSnapshot(DebugData),
+        /// Value and gas has been claimed from a message in mailbox by the addressee
+        ClaimedValueFromMailbox(H256),
     }
 
     // Gear pallet error.
@@ -216,7 +218,7 @@ pub mod pallet {
             // Adjust the block gas allowance based on actual remaining weight
             GasAllowance::<T>::put(remaining_weight);
             let mut weight = T::DbWeight::get().writes(1);
-            weight = weight + Self::process_queue();
+            weight += Self::process_queue();
 
             weight
         }
@@ -316,7 +318,7 @@ pub mod pallet {
                         ) {
                             Err(_) => {
                                 // `init_program` in Runner can only return Err(_) in two cases:
-                                // - failure to write program to Program Stroage
+                                // - failure to write program to Program Storage
                                 // - failure to instrument the init code
                                 // In both cases the function returns before any gas could be spent.
                                 // Hence no need to adjust the remaining gas allowance.
@@ -362,12 +364,14 @@ pub mod pallet {
                                     // TODO: weight to fee calculator might not be identity fee
                                     let charge = Self::gas_to_fee(gas_charge);
 
-                                    if let Err(_) = T::Currency::transfer(
+                                    if T::Currency::transfer(
                                         &<T::AccountId as Origin>::from_origin(destination),
                                         &Self::block_author(),
                                         charge,
                                         ExistenceRequirement::AllowDeath,
-                                    ) {
+                                    )
+                                    .is_err()
+                                    {
                                         // should not be possible since there should've been reserved enough for
                                         // the transfer
                                         // TODO: audit this
@@ -691,7 +695,7 @@ pub mod pallet {
         /// - `value`: balance to be transferred to the program once it's been created.
         ///
         /// Emits the following events:
-        /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+        /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
         #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
@@ -731,7 +735,7 @@ pub mod pallet {
             let message_id = common::next_message_id(&payload);
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
                 id: message_id,
-                origin: who.into_origin(),
+                origin: who.clone().into_origin(),
                 destination,
                 payload,
                 gas_limit,
@@ -739,7 +743,11 @@ pub mod pallet {
                 reply: None,
             });
 
-            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
+            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                message_id,
+                origin: who.into_origin(),
+                program_id: destination,
+            }));
 
             Ok(().into())
         }
@@ -778,24 +786,53 @@ pub mod pallet {
 
             let destination = original_message.source;
 
-            let gas_limit_reserve = Self::gas_to_fee(gas_limit);
+            let locked_gas = original_message.gas_limit;
+            // Offset the gas_limit against the gas passed to us in the original message
+            let gas_limit_reserve = Self::gas_to_fee(gas_limit.saturating_sub(locked_gas));
 
-            // First we reserve enough funds on the account to pay for 'gas_limit'
-            T::Currency::reserve(&who, gas_limit_reserve)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+            if gas_limit_reserve > 0_u32.into() {
+                // First we reserve enough funds on the account to pay for 'gas_limit'
+                T::Currency::reserve(&who, gas_limit_reserve)
+                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+            } else {
+                // There still might be some gas leftover that needs to be refunded to the origin
+                // Assuming the programs has enough balance
+                T::Currency::transfer(
+                    &<T::AccountId as Origin>::from_origin(destination),
+                    &who,
+                    Self::gas_to_fee(locked_gas.saturating_sub(gas_limit)),
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
 
-            // Since messages a guaranteed to be dispatched, we transfer value immediately
-            T::Currency::transfer(
-                &who,
-                &<T::AccountId as Origin>::from_origin(destination),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
-            // Only after reservation the message is actually put in the queue.
+            let locked_value: BalanceOf<T> = original_message.value.unique_saturated_into();
+            // Tally up the `values` from the two messages to find out who owes who
+            let offset_value = value.saturating_sub(locked_value);
+            if offset_value > 0_u32.into() {
+                // Some outstanding amount still remains to be transferred to the original message source
+                T::Currency::transfer(
+                    &who,
+                    &<T::AccountId as Origin>::from_origin(destination),
+                    offset_value,
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            } else {
+                // The value owed to us exceeds the `value` to transfer out
+                // TODO: here we assume that since the message ended up in the mailbox all necessary
+                // checks had been done, including the validity of the `value`amount the program that had created
+                // the message wants to transfer (in other words, it has enough balance). Need to audit this.
+                T::Currency::transfer(
+                    &<T::AccountId as Origin>::from_origin(destination),
+                    &who,
+                    locked_value.saturating_sub(value),
+                    ExistenceRequirement::AllowDeath, // TODO: should we use ExistenceRequirement::KeepAlive instead?
+                )?;
+            }
+
             let message_id = common::next_message_id(&payload);
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
                 id: message_id,
-                origin: who.into_origin(),
+                origin: who.clone().into_origin(),
                 destination,
                 payload,
                 gas_limit,
@@ -803,7 +840,11 @@ pub mod pallet {
                 reply: Some(reply_to_id),
             });
 
-            Self::deposit_event(Event::DispatchMessageEnqueued(message_id));
+            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                message_id,
+                origin: who.into_origin(),
+                program_id: destination,
+            }));
 
             Ok(().into())
         }
@@ -846,6 +887,35 @@ pub mod pallet {
                     )?;
                 }
             }
+
+            Ok(().into())
+        }
+
+        #[frame_support::transactional]
+        #[pallet::weight(T::DbWeight::get().writes(1))]
+        pub fn claim_value_from_mailbox(
+            origin: OriginFor<T>,
+            message_id: H256,
+        ) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let message = Self::remove_from_mailbox(who.clone().into_origin(), message_id)
+                .ok_or(Error::<T>::NoMessageInMailbox)?;
+
+            let amount = Self::gas_to_fee(message.gas_limit)
+                .saturating_add(message.value.unique_saturated_into());
+
+            if amount > 0_u32.into() {
+                // Assuming the programs has enough balance
+                T::Currency::transfer(
+                    &<T::AccountId as Origin>::from_origin(message.source),
+                    &who,
+                    amount,
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
+
+            Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 
             Ok(().into())
         }

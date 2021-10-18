@@ -77,7 +77,7 @@ where
     // to call into the runtime.
     // `io.extend_with(YourRpcTrait::to_delegate(YourRpcStruct::new(ReferenceToClient, ...)));`
 
-    io.extend_with(GearApi::to_delegate(Gear::new(client.clone())));
+    io.extend_with(GearApi::to_delegate(Gear::new(client)));
 
     io
 }

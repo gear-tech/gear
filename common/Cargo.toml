@@ -14,10 +14,11 @@ primitive-types = { version = "0.10.1", default-features = false, features = ["s
 gear-core = { path = "../core" }
 
 # Substrate deps
-sp-core = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
-sp-io = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
-sp-runtime = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
-sp-std = { version = "4.0.0-dev", git = "https://github.com/ukint-vs/substrate.git", default-features = false }
+
+sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
+sp-runtime = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
 
 [features]
 default = ["std"]

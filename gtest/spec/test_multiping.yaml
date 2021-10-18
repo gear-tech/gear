@@ -2,7 +2,7 @@ title: Multiping
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_multiping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_multiping.wasm
 
 fixtures:
   - title: multiping

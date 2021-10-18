@@ -70,7 +70,7 @@ impl StorageQueue {
     pub fn queue<T: Encode + Decode>(&mut self, value: T, id: H256) {
         // store value
         sp_io::storage::set(
-            &self.key_with_prefix(&id.as_bytes()),
+            &self.key_with_prefix(id.as_bytes()),
             &Node { value, next: None }.encode(),
         );
 
@@ -102,9 +102,9 @@ impl StorageQueue {
         if self.is_empty() {
             None
         } else if let Some(value_key) = self.head {
-            if let Some(val) = sp_io::storage::get(&self.key_with_prefix(&value_key.as_bytes())) {
+            if let Some(val) = sp_io::storage::get(&self.key_with_prefix(value_key.as_bytes())) {
                 let node: Node<T> = Node::<T>::decode(&mut &val[..]).expect("Node<T> decode fail");
-                sp_io::storage::clear(&self.key_with_prefix(&value_key.as_bytes()));
+                sp_io::storage::clear(&self.key_with_prefix(value_key.as_bytes()));
                 if let Some(next) = node.next {
                     self.set_head(next);
                 } else {

@@ -51,11 +51,11 @@ fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::er
 
     let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
-    utils::optimize(&mut binary_module, vec!["handle", "init"])
+    utils::optimize(&mut binary_module, vec!["handle", "handle_reply", "init"])
         .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
-        .map_err(|e| Error::SerializationFailed(e))?;
+        .map_err(Error::SerializationFailed)?;
 
     debug!("Optimized wasm: {}", binary_file_name.to_string_lossy());
     Ok(())
@@ -84,7 +84,7 @@ fn optimize_meta(
     .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(metadata_file_name.clone(), metadata_module)
-        .map_err(|e| Error::SerializationFailed(e))?;
+        .map_err(Error::SerializationFailed)?;
 
     debug!("Metadata wasm: {}", metadata_file_name.to_string_lossy());
     Ok(())
@@ -138,6 +138,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     for file in wasm_files {
+        if !file.ends_with(".wasm") || file.ends_with(".meta.wasm") || file.ends_with(".opt.wasm") {
+            continue;
+        }
+
         let module = parity_wasm::deserialize_file(file)?;
         if !skip_opt {
             optimize(file, module.clone())?;

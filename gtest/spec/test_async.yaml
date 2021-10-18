@@ -2,19 +2,25 @@ title: Async-await
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_async.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async.wasm
     init_message:
       kind: utf-8
       value: "{2},{3},{4}"
 
   - id: 2
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
 
   - id: 3
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
 
   - id: 4
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+  - id: 5
+    path: target/wasm32-unknown-unknown/release/demo_mutex.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
 
 fixtures:
   - title: async-await
@@ -78,6 +84,46 @@ fixtures:
       - step: 10
         log:
           - destination: 0
-            payload:
+            payload: &success
               kind: utf-8
               value: SUCCESS
+
+  - title: mutex
+
+    messages:
+      - destination: 5
+        payload: *start
+      - destination: 5
+        payload: *start
+
+    expected:
+      - step: 1
+        messages:
+          - destination: 5
+            payload: *start
+          - destination: 2
+            payload: *ping
+      - step: 2
+        messages:
+          - destination: 2
+            payload: *ping
+      - step: 3
+        messages:
+          - destination: 5
+            payload: *pong
+      - step: 4
+        messages:
+          - destination: 5
+            payload: *start
+      - step: 5
+        messages:
+          - destination: 5
+            payload: *start
+      - step: 6
+        messages:
+          - destination: 2
+            payload: *ping
+      - step: 7
+        messages:
+          - destination: 5
+            payload: *pong

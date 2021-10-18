@@ -123,6 +123,8 @@ pub enum Error {
     OutOfBounds,
     /// An attempt to push a payload into reply that was not set
     NoReplyFound,
+    /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
+    UncommitedPayloads,
 }
 
 /// Incoming message.
@@ -537,6 +539,11 @@ impl ReplyPacket {
             exit_code,
         }
     }
+
+    /// Gas limit of the reply message.
+    pub fn gas_limit(&self) -> u64 {
+        self.gas_limit
+    }
 }
 
 /// Generator of message id.
@@ -585,7 +592,7 @@ pub struct MessageState {
     /// Collection of outgoing messages generated.
     pub outgoing: Vec<(Option<Payload>, Option<OutgoingMessage>)>,
     /// Reply generated.
-    pub reply: Option<ReplyMessage>,
+    pub reply: (Option<Payload>, Option<ReplyMessage>),
     /// Message to be added to wait list.
     pub waiting: Option<IncomingMessage>,
     /// Message to be waken.
@@ -612,21 +619,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             current: Rc::new(incoming_message),
             id_generator: Rc::new(id_generator.into()),
         }
-    }
-
-    /// Record reply to the current message.
-    pub fn reply(&self, msg: ReplyPacket) -> Result<MessageId, Error> {
-        if self.state.borrow().reply.is_some() {
-            return Err(Error::DuplicateReply);
-        }
-
-        let reply = self.id_generator.borrow_mut().produce_reply(msg);
-
-        let message_id = reply.id();
-
-        self.state.borrow_mut().reply = Some(reply);
-
-        Ok(message_id)
     }
 
     /// Initialize a new message with `NotFormed` formation status and return its handle.
@@ -662,22 +654,59 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Err(Error::LateAccess)
     }
 
+    /// Record reply to the current message.
+    pub fn reply_commit(&mut self, packet: ReplyPacket) -> Result<MessageId, Error> {
+        let mut state = self.state.borrow_mut();
+
+        match &mut state.reply {
+            (_, Some(_)) => Err(Error::LateAccess),
+            (payload, msg) => {
+                let mut reply = self.id_generator.borrow_mut().produce_reply(packet);
+
+                reply
+                    .payload
+                    .0
+                    .splice(0..0, payload.take().unwrap_or_default().0);
+
+                *msg = Some(reply);
+
+                Ok(msg.as_ref().unwrap().id())
+            }
+        }
+    }
+
     /// Push an extra buffer into reply message.
-    pub fn reply_push(&self, buffer: &[u8]) -> Result<(), Error> {
-        if let Some(reply) = &mut self.state.borrow_mut().reply {
-            reply.payload.0.extend_from_slice(buffer);
-            return Ok(());
+    pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
+        let mut state = self.state.borrow_mut();
+
+        match &mut state.reply {
+            (_, Some(_)) => return Err(Error::LateAccess),
+            (Some(payload), _) => payload.0.extend_from_slice(buffer),
+            (None, _) => state.reply.0 = Some(buffer.to_vec().into()),
         }
 
-        Err(Error::NoReplyFound)
+        Ok(())
     }
 
     /// Add the current message to the wait list.
     pub fn wait(&self) -> Result<(), Error> {
-        if self.state.borrow().waiting.is_some() {
+        let mut state = self.state.borrow_mut();
+
+        if let (Some(_), None) = state.reply {
+            return Err(Error::UncommitedPayloads);
+        }
+
+        for msg in state.outgoing.iter() {
+            if msg.1.is_none() {
+                return Err(Error::UncommitedPayloads);
+            }
+        }
+
+        if state.waiting.is_some() {
             return Err(Error::DuplicateWaiting);
         }
-        self.state.borrow_mut().waiting = Some(self.current().clone());
+
+        state.waiting = Some(self.current().clone());
         Ok(())
     }
 
@@ -707,16 +736,12 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
             (payload, msg) => {
                 let mut outgoing = self.id_generator.borrow_mut().produce_outgoing(packet);
 
-                let packet_payload = outgoing.payload.0.clone();
-                outgoing.payload.0.clear();
                 outgoing
                     .payload
                     .0
-                    .extend_from_slice(&payload.as_ref().unwrap().0);
-                outgoing.payload.0.extend_from_slice(&packet_payload);
+                    .splice(0..0, payload.take().unwrap_or_default().0);
 
                 *msg = Some(outgoing);
-                *payload = None;
 
                 Ok(msg.as_ref().unwrap().id())
             }
@@ -755,7 +780,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                 .drain(..)
                 .filter_map(|v| if v.0 == None { v.1 } else { None })
                 .collect(),
-            state.reply,
+            state.reply.1,
             state.waiting,
             state.awakening,
         )
@@ -821,30 +846,37 @@ mod tests {
         // Сhecking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
         assert_eq!(context.nonce(), DEFAULT_NONCE);
-        assert!(context.state.borrow_mut().reply.is_none());
+        assert!(context.state.borrow_mut().reply.0.is_none());
+        assert!(context.state.borrow_mut().reply.1.is_none());
 
-        // Creating a reply packet to set the `ReplyMessage`
-        let reply_packet = ReplyPacket::new(0, vec![0, 0, 0].into(), 0, 0);
+        // Creating a reply packet
+        let reply_packet = ReplyPacket::new(0, vec![0, 0].into(), 0, 0);
 
-        // Checking that we are not able to push extra payload into
-        // reply message if we have not set it yet
-        assert!(context.reply_push(&[0]).is_err());
+        // Checking that we are able to initialize reply
+        assert!(context.reply_push(&[1, 2, 3]).is_ok());
 
         // Setting reply message and making sure the operation was successful
-        assert!(context.reply(reply_packet.clone()).is_ok());
+        assert!(context.reply_commit(reply_packet.clone()).is_ok());
 
         // After every successful generation of `Message`, `nonse` increases by one
         assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
 
         // Checking that the `ReplyMessage` mathes the passed one
         assert_eq!(
-            context.state.borrow_mut().reply.as_ref().unwrap().payload,
-            vec![0, 0, 0].into()
+            context.state.borrow_mut().reply.1.as_ref().unwrap().payload,
+            vec![1, 2, 3, 0, 0].into()
         );
 
-        // Checking that repeated call `reply(...)` returns error and does not
+        // Checking that repeated call `reply_push(...)` returns error and does not do anything
+        assert!(context.reply_push(&[1]).is_err());
+        assert_eq!(
+            context.state.borrow_mut().reply.1.as_ref().unwrap().payload,
+            vec![1, 2, 3, 0, 0].into()
+        );
+
+        // Checking that repeated call `reply_commit(...)` returns error and does not
         // increase nonse, because `ReplyMessage` is not generated
-        assert!(context.reply(reply_packet.clone()).is_err());
+        assert!(context.reply_commit(reply_packet.clone()).is_err());
         assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
 
         // Checking that at this point vector of outgoing messages is empty
@@ -905,26 +937,15 @@ mod tests {
         assert!(context.send_push(expected_handle, &[2, 2]).is_ok());
 
         // Checking that reply message not lost and matches our initial
-        assert!(context.state.borrow().reply.is_some());
+        assert!(context.state.borrow().reply.1.is_some());
         assert_eq!(
-            context.state.borrow().reply.as_ref().unwrap().payload.0,
-            vec![0, 0, 0]
+            context.state.borrow().reply.1.as_ref().unwrap().payload.0,
+            vec![1, 2, 3, 0, 0]
         );
-
-        // Checking that we are able to push extra payload into reply message
-        assert!(context.reply_push(&[1, 2]).is_ok());
-        assert!(context.reply_push(&[3, 4]).is_ok());
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
         let expected_result = context.drain();
         assert_eq!(expected_result.0.len(), 1);
         assert_eq!(expected_result.0[0].payload.0, vec![5, 7, 9]);
-
-        // Checking that we successfully pushed extra payload into reply
-        assert!(expected_result.1.is_some());
-        assert_eq!(
-            expected_result.1.unwrap().payload.0,
-            vec![0, 0, 0, 1, 2, 3, 4]
-        );
     }
 }

@@ -9,8 +9,9 @@ pub unsafe extern "C" fn handle() {
         String::from_utf8(gstd::msg::load_bytes()).expect("Invalid message: should be utf-8");
 
     if new_msg == "PING" {
-        msg::reply(b"PO", 10_000_000, 0);
+        msg::reply_push(b"PO");
         msg::reply_push(b"NG");
+        msg::reply_commit(10_000_000, 0);
     }
 
     if new_msg == "PING PING PING" {

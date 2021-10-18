@@ -8,7 +8,7 @@ static mut DEST_0: ProgramId = ProgramId([0u8; 32]);
 static mut DEST_1: ProgramId = ProgramId([0u8; 32]);
 static mut DEST_2: ProgramId = ProgramId([0u8; 32]);
 
-const GAS_COST: u64 = 5_000_000;
+const GAS_LIMIT: u64 = 50_000_000;
 
 gstd::metadata! {
     title: "demo async",
@@ -23,7 +23,7 @@ gstd::metadata! {
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    let dests: Vec<&str> = input.split(",").collect();
+    let dests: Vec<&str> = input.split(',').collect();
     if dests.len() != 3 {
         panic!("Invalid input, should be three IDs separated by comma");
     }
@@ -50,16 +50,16 @@ async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     if message == "START" {
         let reply1 =
-            msg_async::send_and_wait_for_reply(unsafe { DEST_0 }, b"PING", GAS_COST, 0).await;
+            msg_async::send_and_wait_for_reply(unsafe { DEST_0 }, b"PING", GAS_LIMIT, 0).await;
         let reply2 =
-            msg_async::send_and_wait_for_reply(unsafe { DEST_1 }, b"PING", GAS_COST, 0).await;
+            msg_async::send_and_wait_for_reply(unsafe { DEST_1 }, b"PING", GAS_LIMIT, 0).await;
         let reply3 =
-            msg_async::send_and_wait_for_reply(unsafe { DEST_2 }, b"PING", GAS_COST, 0).await;
+            msg_async::send_and_wait_for_reply(unsafe { DEST_2 }, b"PING", GAS_LIMIT, 0).await;
 
         if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
-            msg::reply(b"SUCCESS", exec::gas_available() - GAS_COST, 0);
+            msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);
         } else {
-            msg::reply(b"FAIL", exec::gas_available() - GAS_COST, 0);
+            msg::reply(b"FAIL", exec::gas_available() - GAS_LIMIT, 0);
         }
     }
 }

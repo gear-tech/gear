@@ -27,9 +27,9 @@ use sp_std::vec::Vec;
 impl From<CoreMessage> for crate::Message {
     fn from(message: CoreMessage) -> crate::Message {
         crate::Message {
-            id: H256::from_slice(&message.id.as_slice()),
-            source: H256::from_slice(&message.source.as_slice()),
-            dest: H256::from_slice(&message.dest.as_slice()),
+            id: H256::from_slice(message.id.as_slice()),
+            source: H256::from_slice(message.source.as_slice()),
+            dest: H256::from_slice(message.dest.as_slice()),
             payload: message.payload.into_raw(),
             gas_limit: message.gas_limit,
             value: message.value,
@@ -97,7 +97,7 @@ pub fn set_program(program: Program) {
             static_pages: program.static_pages(),
             persistent_pages: program
                 .get_pages()
-                .into_iter()
+                .iter()
                 .map(|(num, _)| num.raw())
                 .collect(),
             code_hash,
@@ -105,7 +105,7 @@ pub fn set_program(program: Program) {
         },
         program
             .get_pages()
-            .into_iter()
+            .iter()
             .map(|(num, buf)| (num.raw(), buf.to_vec()))
             .collect(),
     );
