@@ -584,7 +584,7 @@ pub trait MessageIdGenerator {
     }
 }
 
-type AwakeningHandle = Option<(u64, MessageId)>;
+type AwakeningHandle = Option<(MessageId, u64)>;
 
 /// Message state of the current session.
 ///
