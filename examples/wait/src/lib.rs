@@ -17,7 +17,7 @@ pub unsafe extern "C" fn handle() {
     }
     if STATE == 1 {
         STATE = 2;
-        exec::wake(MSG_ID);
+        exec::wake(MSG_ID, exec::gas_available());
     }
     msg::send(msg::source(), b"WAITED", 1_000_000, 0);
 }

@@ -596,7 +596,7 @@ pub struct MessageState {
     /// Message to be added to wait list.
     pub waiting: Option<IncomingMessage>,
     /// Message to be waken.
-    pub awakening: Option<MessageId>,
+    pub awakening: Option<(u64, MessageId)>,
 }
 
 /// Message context for the currently running program.
@@ -711,11 +711,11 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Mark a message to be woken using `waker_id`.
-    pub fn wake(&self, waker_id: MessageId) -> Result<(), Error> {
+    pub fn wake(&self, waker_id: MessageId, gas_limit: u64) -> Result<(), Error> {
         if self.state.borrow().awakening.is_some() {
             return Err(Error::DuplicateAwakening);
         }
-        self.state.borrow_mut().awakening = Some(waker_id);
+        self.state.borrow_mut().awakening = Some((gas_limit, waker_id));
         Ok(())
     }
 
@@ -767,7 +767,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Vec<OutgoingMessage>,
         Option<ReplyMessage>,
         Option<IncomingMessage>,
-        Option<MessageId>,
+        Option<(u64, MessageId)>,
     ) {
         let Self { state, .. } = self;
         let mut state = Rc::try_unwrap(state)
