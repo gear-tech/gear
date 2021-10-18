@@ -121,7 +121,7 @@ pub trait Ext {
     fn wait(&mut self) -> Result<(), &'static str>;
 
     /// Wake the waiting message and move it to the processing queue.
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str>;
+    fn wake(&mut self, waker_id: MessageId, gas_limit: u64) -> Result<(), &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -246,7 +246,7 @@ mod tests {
         fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())
         }
-        fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
+        fn wake(&mut self, _waker_id: MessageId, _gas_limit: u64) -> Result<(), &'static str> {
             Ok(())
         }
     }

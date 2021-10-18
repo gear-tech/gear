@@ -187,7 +187,7 @@ impl<E: Ext + 'static> Externals for Runtime<E> {
             }
 
             Some(FuncIndex::Wake) => {
-                funcs::wake(self.ext.clone())(args.nth(0))
+                funcs::wake(self.ext.clone())(args.nth(0), args.nth(1))
                     .map(|_| None)
                     .map_err(|_| Trap::new(TrapKind::Unreachable)) // TODO: Define custom HostError for "exit" trap
             }
@@ -245,7 +245,7 @@ impl<E: Ext + 'static> ModuleImportResolver for Environment<E> {
             "gr_source" => func_instance!(Source, ValueType::I32 => None),
             "gr_value" => func_instance!(Value, ValueType::I32 => None),
             "gr_wait" => func_instance!(Wait, => None),
-            "gr_wake" => func_instance!(Wake, ValueType::I32 => None),
+            "gr_wake" => func_instance!(Wake, ValueType::I32, ValueType::I64 => None),
 
             _ => {
                 return Err(InterpreterError::Function(format!(

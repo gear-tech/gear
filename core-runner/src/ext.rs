@@ -183,10 +183,10 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
+    fn wake(&mut self, waker_id: MessageId, gas_limit: u64) -> Result<(), &'static str> {
         let result = self
             .messages
-            .wake(waker_id)
+            .wake(waker_id, gas_limit)
             .map_err(|_| "Unable to mark the message to be woken");
 
         self.return_with_tracing(result)
