@@ -163,7 +163,13 @@ async fn main() {
                 panic!()
             });
 
-            let response = msg_async::send_and_wait_for_reply(id, &String::from("ping").encode(), GAS_RESERVE, 0).await;
+            let response = msg_async::send_and_wait_for_reply(
+                id,
+                &String::from("ping").encode(),
+                GAS_RESERVE,
+                0,
+            )
+            .await;
 
             let ping = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
                 ext::debug("Failed to decode string from pong-response");
@@ -173,8 +179,13 @@ async fn main() {
             ext::debug(&format!("Got ping-reply: '{}'", ping));
 
             if ping.to_lowercase() == "pong" {
-                let response =
-                    msg_async::send_and_wait_for_reply(id, &String::from("success").encode(), GAS_RESERVE, 0).await;
+                let response = msg_async::send_and_wait_for_reply(
+                    id,
+                    &String::from("success").encode(),
+                    GAS_RESERVE,
+                    0,
+                )
+                .await;
 
                 let success = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
                     ext::debug("Failed to decode string from MemberID-response");
