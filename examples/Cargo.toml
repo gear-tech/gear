@@ -25,6 +25,7 @@ members = [
     "vec",
     "wait",
     "token-vendor",
+    "token-vendor/workshop-example",
 ]
 
 [profile.release]
