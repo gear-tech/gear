@@ -20,7 +20,7 @@ const argv = yargs
     .argv;
 
 let wasmBytes = fs.readFileSync(argv.path);
-let json = JSON.parse(argv.json);
+let json = argv.json;
 let findingType = argv.type;
 
 getWasmMetadata(wasmBytes).then( meta => {
