@@ -19,13 +19,9 @@
 //! sp-sandbox extensions for memory and memory context.
 
 use alloc::boxed::Box;
-use alloc::collections::{BTreeMap, BTreeSet};
 use core::any::Any;
 
 use gear_core::memory::{Error, Memory, PageNumber};
-use gear_core::program::ProgramId;
-
-use primitive_types::H256;
 
 /// Wrapper for sp_sandbox::Memory.
 pub struct MemoryWrap(sp_sandbox::Memory);
@@ -34,18 +30,6 @@ impl MemoryWrap {
     /// Wrap sp_sandbox::Memory for Memory trait.
     pub fn new(mem: sp_sandbox::Memory) -> Self {
         MemoryWrap(mem)
-    }
-
-    fn set_pages_from_key(&self, program_id: &[u8]) {
-        // let mut persistent_pages = BTreeMap::new();
-
-        if let Some(program) = gear_common::get_program(H256::from_slice(program_id)) {
-            for page_num in program.persistent_pages {
-                let key = gear_common::page_key(H256::from_slice(program_id), page_num);
-                self.0
-                    .setmem_from_key(PageNumber::from(page_num).offset() as u32, &key);
-            }
-        }
     }
 }
 

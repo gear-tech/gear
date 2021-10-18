@@ -138,7 +138,7 @@ fn code_key(code_hash: H256) -> (Vec<u8>, Vec<u8>) {
     (key, ref_counter)
 }
 
-pub fn page_key(id: H256, page: u32) -> Vec<u8> {
+fn page_key(id: H256, page: u32) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
     id.encode_to(&mut key);

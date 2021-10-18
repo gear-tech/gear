@@ -63,7 +63,7 @@ impl<E: Ext + 'static> Environment<E> {
         &mut self,
         ext: E,
         binary: &[u8],
-        program_id: &[u8],
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
     ) -> (anyhow::Result<()>, E) {
@@ -474,7 +474,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         let instance = Instance::new(binary, &env_builder, &mut runtime).unwrap();
 
-        let result = self.run_inner(instance, program_id, memory, move |mut instance| {
+        let result = self.run_inner(instance, memory_pages, memory, move |mut instance| {
             let result = instance.invoke(entry_point, &[], &mut runtime);
             if let Err(e) = &result {
                 if let Some(trap) = runtime.trap_reason {
@@ -502,37 +502,14 @@ impl<E: Ext + 'static> Environment<E> {
     fn run_inner(
         &mut self,
         instance: Instance<Runtime<E>>,
-        program_id: &[u8],
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         func: impl FnOnce(Instance<Runtime<E>>) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        use primitive_types::H256;
-
-        let mem: &sp_sandbox::Memory = match memory.as_any().downcast_ref::<sp_sandbox::Memory>() {
-            Some(mem) => mem,
-            None => panic!("Memory is not sp_sandbox::Memory"),
-        };
-
-        if let Some(program) = gear_common::get_program(H256::from_slice(program_id)) {
-            log::debug!("program: {:?}", program);
-            for page_num in program.persistent_pages {
-                let key = gear_common::page_key(H256::from_slice(program_id), page_num);
-
-                if memory.size().raw() - 1 < page_num {
-                    memory
-                        .grow((page_num - (memory.size().raw() - 1)).into())
-                        .map_err(|e| anyhow::anyhow!("Can't grow memory: {:?}", e))?;
-                }
-
-                mem.setmem_from_key(PageNumber::from(page_num).offset() as u32, &key)
-                    .map_err(|e| anyhow::anyhow!("Can't set module memory: {:?}", e))?;
-            }
-        }
-
         // Set module memory.
-        // memory
-        //     .set_pages(memory_pages)
-        //     .map_err(|e| anyhow::anyhow!("Can't set module memory: {:?}", e))?;
+        memory
+            .set_pages(memory_pages)
+            .map_err(|e| anyhow::anyhow!("Can't set module memory: {:?}", e))?;
 
         func(instance)
     }

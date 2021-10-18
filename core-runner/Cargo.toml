@@ -6,7 +6,6 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-cfg-if = "1.0.0"
 anyhow = { version = "1.0.44", default-features = false }
 blake2-rfc = { version = "*", default-features = false }
 codec = { package = "parity-scale-codec", version = "2.2.0", features = ["derive"], default-features = false }
