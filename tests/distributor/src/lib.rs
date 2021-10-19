@@ -319,6 +319,6 @@ mod tests {
             MessageBuilder::from(Request::Join(4)).destination(program_id_1),
         ]);
 
-        assert_eq!(results, vec![Reply::Success, Reply::StateFailure])
+        assert_eq!(results, vec![Reply::Success, Reply::Success])
     }
 }
