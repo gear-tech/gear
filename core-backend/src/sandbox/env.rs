@@ -526,7 +526,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         self.ext.set(ext);
 
-        let mem: &sp_sandbox::Memory = match memory.as_any().downcast_ref::<sp_sandbox::Memory>() {
+        let mem = match memory.as_any().downcast_ref::<sp_sandbox::Memory>() {
             Some(mem) => mem,
             None => panic!("Memory is not sp_sandbox::Memory"),
         };
