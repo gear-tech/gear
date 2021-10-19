@@ -346,11 +346,11 @@ impl<E: Ext + 'static> Environment<E> {
                     ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
                     Ok(())
                 })
-                .map(|_| ReturnValue::Unit)
+                .map(|_| Ok(ReturnValue::Unit))
                 .map_err(|_| {
                     ctx.trap_reason = Some("Trapping: unable to send message");
                     HostError
-                })
+                })?
         }
 
         fn reply_to<E: Ext>(
@@ -491,9 +491,12 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn wait<E: Ext>(ctx: &mut Runtime<E>, _args: &[Value]) -> Result<ReturnValue, HostError> {
-            let _ = ctx
-                .ext
-                .with(|ext: &mut E| -> Result<(), &'static str> { ext.wait() });
+            let _ : Result<ReturnValue, HostError> = ctx.ext.with(|ext: &mut E| ext.wait())
+                .map(|_| Ok(ReturnValue::Unit))
+                .map_err(|err| {
+                    ctx.trap_reason = Some(err);
+                    HostError
+                })?;
             ctx.trap_reason = Some("exit");
             Err(HostError)
         }
@@ -503,15 +506,20 @@ impl<E: Ext + 'static> Environment<E> {
                 Value::I32(val) => val,
                 _ => return Err(HostError),
             };
-            let _ = ctx
-                .ext
+            let gas_limit: i64 = match args[1] {
+                Value::I64(val) => val,
+                _ => return Err(HostError),
+            };
+            ctx.ext
                 .with(|ext: &mut E| {
                     let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
-                    ext.wake(waker_id)
+                    ext.wake(waker_id, gas_limit as _)
                 })
-                .unwrap();
-            ctx.trap_reason = Some("exit");
-            Err(HostError)
+                .map(|_| Ok(ReturnValue::Unit))
+                .map_err(|err| {
+                    ctx.trap_reason = Some(err);
+                    HostError
+                })?
         }
 
         self.ext.set(ext);
