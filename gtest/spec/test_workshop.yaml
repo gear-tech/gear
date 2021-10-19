@@ -2,7 +2,7 @@ title: Workshop
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/token_vendor.wasm
+    path: target/wasm32-unknown-unknown/release/token_vendor.wasm
     init_message:
       kind: custom
       value:
@@ -12,7 +12,7 @@ programs:
         members: []
   
   - id: 2
-    path: examples/target/wasm32-unknown-unknown/release/workshop_example.wasm
+    path: target/wasm32-unknown-unknown/release/workshop_example.wasm
 
 fixtures:
   - title: Test workshop contract
