@@ -164,7 +164,7 @@ pub fn gas_spent(program_id: H256, payload: Vec<u8>, value: u128) -> Result<u64,
         data: ExtMessage {
             id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
             gas_limit: u64::MAX,
-            payload: payload,
+            payload,
             value,
         },
     });
