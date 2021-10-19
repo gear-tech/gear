@@ -638,7 +638,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         match self.outgoing_payloads[handle].take() {
             Some(payload) => {
                 let mut outgoing = self.id_generator.borrow_mut().produce_outgoing(packet);
-
                 outgoing.payload.0.splice(0..0, payload.0);
 
                 let id = outgoing.id();
