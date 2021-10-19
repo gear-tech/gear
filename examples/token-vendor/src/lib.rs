@@ -9,8 +9,8 @@ use gstd_async::mutex::Mutex;
 
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use scale_info::TypeInfo;
 use primitive_types::H256;
+use scale_info::TypeInfo;
 
 const GAS_RESERVE: u64 = 50_000_000;
 
@@ -44,12 +44,12 @@ impl State {
         self.reward = config.reward;
 
         self.admins.insert(owner_id);
+
         for admin in config.admins {
             let id = address_to_id(admin).map_err(|_| "Invalid admin address")?;
             self.admins.insert(id);
         }
 
-        self.members.insert(owner_id);
         for member in config.members {
             let id = address_to_id(member).map_err(|_| "Invalid member address")?;
             self.members.insert(id);
@@ -73,6 +73,10 @@ impl State {
             for admin in admins {
                 let id = address_to_id(admin).map_err(|_| "Invalid admin address")?;
                 self.admins.insert(id);
+            }
+
+            if let Some(owner) = self.owner_id {
+                self.admins.insert(owner);
             }
         }
 
@@ -140,6 +144,8 @@ async fn main() {
 
     ext::debug(&format!("Got Action: {:?}", action));
 
+    let source = msg::source();
+
     match action {
         Action::UpdateConfig(config) => {
             if unsafe { !STATE.admins.contains(&source) } {
@@ -156,8 +162,6 @@ async fn main() {
         }
         Action::ProgramId(hex) => {
             let _ = MUTEX.lock().await;
-
-            let source = msg::source();
 
             if unsafe { !STATE.members.contains(&source) } {
                 ext::debug("Sender is not a member of the workshop");
