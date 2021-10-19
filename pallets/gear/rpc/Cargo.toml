@@ -17,11 +17,11 @@ serde = { version = "1.0", features = ["derive"], optional = true }
 
 # Substrate packages
 
-sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-rpc = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
-sp-runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", default-features = false }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
+sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
+sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
+sp-rpc = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
+sp-runtime = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
 
 # local packages
 

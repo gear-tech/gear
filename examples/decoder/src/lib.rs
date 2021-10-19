@@ -25,8 +25,8 @@ pub unsafe extern "C" fn handle() {
     }
 
     let mut leaves = vec![];
-    for vertex in 0..nodes {
-        if degrees[vertex] == 1 {
+    for (vertex, degree) in degrees.iter().enumerate().take(nodes) {
+        if *degree == 1 {
             leaves.push(vertex);
         }
     }

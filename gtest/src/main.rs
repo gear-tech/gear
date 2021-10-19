@@ -21,12 +21,11 @@ mod js;
 mod runner;
 mod sample;
 
-use clap::{AppSettings, Clap};
+use clap::Parser;
 use gear_core::storage::InMemoryStorage;
 use std::io::Write;
 
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
 struct Opts {
     /// Skip messages checks
     #[clap(long)]

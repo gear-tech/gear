@@ -110,7 +110,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                     let wasm = test
                         .programs
                         .iter()
-                        .filter(|p| u64::from(p.id) == u64::from(program.id))
+                        .filter(|p| p.id == program.id)
                         .last()
                         .expect("Program not found")
                         .path
@@ -167,7 +167,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 let wasm = test
                     .programs
                     .iter()
-                    .filter(|p| u64::from(p.id) == message.destination)
+                    .filter(|p| p.id == message.destination)
                     .last()
                     .expect("Program not found")
                     .path

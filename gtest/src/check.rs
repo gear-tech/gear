@@ -152,34 +152,32 @@ fn check_messages(
                     .as_mut()
                     .map(|payload| match payload {
                         PayloadVariant::Custom(_) => {
-                            progs_n_paths
+                            if let Some(v) = progs_n_paths
                                 .iter()
                                 .find(|v| ProgramId::from(v.1) == msg.source())
-                                .map(|v| {
-                                    let path: String = v.0.replace(".wasm", ".meta.wasm");
+                            {
+                                let path: String = v.0.replace(".wasm", ".meta.wasm");
 
-                                    let json = MetaData::Json(
-                                        String::from_utf8(payload.to_bytes()).unwrap(),
-                                    );
+                                let json =
+                                    MetaData::Json(String::from_utf8(payload.to_bytes()).unwrap());
 
-                                    let bytes = json
+                                let bytes = json
+                                    .convert(&path, &meta_type)
+                                    .expect("Unable to get bytes");
+
+                                *payload = PayloadVariant::Utf8(
+                                    bytes
                                         .convert(&path, &meta_type)
-                                        .expect("Unable to get bytes");
+                                        .expect("Unable to get json")
+                                        .into_json(),
+                                );
 
-                                    *payload = PayloadVariant::Utf8(
-                                        bytes
-                                            .convert(&path, &meta_type)
-                                            .expect("Unable to get json")
-                                            .into_json(),
-                                    );
-
-                                    msg.payload =
-                                        MetaData::CodecBytes(msg.payload.clone().into_raw())
-                                            .convert(&path, &meta_type)
-                                            .expect("Unable to get bytes")
-                                            .into_bytes()
-                                            .into();
-                                });
+                                msg.payload = MetaData::CodecBytes(msg.payload.clone().into_raw())
+                                    .convert(&path, &meta_type)
+                                    .expect("Unable to get bytes")
+                                    .into_bytes()
+                                    .into();
+                            };
 
                             !payload.equals(msg.payload.as_ref())
                         }
@@ -268,8 +266,8 @@ fn check_allocations(
                         .collect::<Vec<_>>();
                     let mut expected_pages = expected_pages.clone();
 
-                    actual_pages.sort();
-                    expected_pages.sort();
+                    actual_pages.sort_unstable();
+                    expected_pages.sort_unstable();
 
                     if actual_pages != expected_pages {
                         errors.push(format!(
@@ -441,7 +439,7 @@ where
 
                         if !errors.is_empty() {
                             total_failed += 1;
-                            format!("{}", errors.join("\n")).bright_red()
+                            errors.join("\n").to_string().bright_red()
                         } else {
                             "Ok".bright_green()
                         }

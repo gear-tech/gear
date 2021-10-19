@@ -8,7 +8,7 @@ use scale_info::TypeInfo;
 #[derive(Decode, TypeInfo)]
 enum Action<A, B, C> {
     AVariant(A),
-    BVariant(B),
+    BVar(B),
     CVariant(C),
 }
 
@@ -33,10 +33,11 @@ gstd::metadata! {
         output: CustomStruct<Option<(Option<u8>, u128, [u8; 3])>>
 }
 
+type InitIncoming = Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>>;
+
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let incoming: Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>> =
-        msg::load().expect("Unable to decode payload");
+    let incoming: InitIncoming = msg::load().expect("Unable to decode payload");
 
     let outgoing: Result<u8, Option<String>> = match incoming {
         Action::AVariant(a) => {
@@ -48,7 +49,7 @@ pub unsafe extern "C" fn init() {
 
             Err(Some(status.to_string()))
         }
-        Action::BVariant(b) => b.map(|inner| inner.field).ok_or(None),
+        Action::BVar(b) => b.map(|inner| inner.field).ok_or(None),
         Action::CVariant(c) => {
             let count = c.keys().count();
             Ok(count.try_into().expect("Too much keys"))
@@ -58,10 +59,11 @@ pub unsafe extern "C" fn init() {
     msg::send(0.into(), outgoing, 10_000_000, 555);
 }
 
+type HandleIncoming = (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>);
+
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let incoming: (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>) =
-        msg::load().expect("Unable to decode payload");
+    let incoming: HandleIncoming = msg::load().expect("Unable to decode payload");
 
     let outgoing = match incoming {
         (_m, Some(b)) => CustomStruct { field: Some(b) },

@@ -218,7 +218,7 @@ pub mod pallet {
             // Adjust the block gas allowance based on actual remaining weight
             GasAllowance::<T>::put(remaining_weight);
             let mut weight = T::DbWeight::get().writes(1);
-            weight = weight + Self::process_queue();
+            weight += Self::process_queue();
 
             weight
         }
@@ -364,12 +364,14 @@ pub mod pallet {
                                     // TODO: weight to fee calculator might not be identity fee
                                     let charge = Self::gas_to_fee(gas_charge);
 
-                                    if let Err(_) = T::Currency::transfer(
+                                    if T::Currency::transfer(
                                         &<T::AccountId as Origin>::from_origin(destination),
                                         &Self::block_author(),
                                         charge,
                                         ExistenceRequirement::AllowDeath,
-                                    ) {
+                                    )
+                                    .is_err()
+                                    {
                                         // should not be possible since there should've been reserved enough for
                                         // the transfer
                                         // TODO: audit this

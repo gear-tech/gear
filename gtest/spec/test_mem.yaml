@@ -2,7 +2,7 @@ title: Memory test
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_mem.wasm
+    path: target/wasm32-unknown-unknown/release/demo_mem.wasm
 
 fixtures:
   - title: Test for memory result

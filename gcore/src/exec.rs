@@ -26,7 +26,7 @@ mod sys {
     extern "C" {
         pub fn gr_gas_available() -> u64;
         pub fn gr_wait() -> !;
-        pub fn gr_wake(waker_id_ptr: *const u8) -> !;
+        pub fn gr_wake(waker_id_ptr: *const u8, gas_limit: u64);
     }
 }
 
@@ -80,7 +80,8 @@ pub fn wait() -> ! {
 /// If message has been paused using the [`wait`] function, then it is possible
 /// to continue its execution by calling this function. `waker_id` specifies a
 /// particular message to be taken out of the *waiting queue* and put into the
-/// *processing queue*.
+/// *processing queue*. `gas_limit` is the gas value to be transferred from the
+/// current handling message to the waked one.
 ///
 /// # Examples
 ///
@@ -89,11 +90,11 @@ pub fn wait() -> ! {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     exec::wake(MessageId::default());
+///     exec::wake(MessageId::default(), exec::gas_available());
 /// }
 /// ```
-pub fn wake(waker_id: MessageId) -> ! {
+pub fn wake(waker_id: MessageId, gas_limit: u64) {
     unsafe {
-        sys::gr_wake(waker_id.as_slice().as_ptr());
+        sys::gr_wake(waker_id.as_slice().as_ptr(), gas_limit);
     }
 }

@@ -2,7 +2,7 @@ title: Decoder
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_decoder.wasm
+    path: target/wasm32-unknown-unknown/release/demo_decoder.wasm
 
 fixtures:
   - title: decoder

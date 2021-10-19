@@ -48,11 +48,10 @@ mod wasm {
     extern crate alloc;
 
     use alloc::collections::BTreeSet;
-    use alloc::rc::Rc;
     use codec::{Decode, Encode};
-    use core::cell::RefCell;
     use core::future::Future;
     use gstd::{exec, ext, msg, prelude::*, ProgramId};
+    use gstd_async::mutex::Mutex;
 
     use super::{Reply, Request};
 
@@ -62,14 +61,14 @@ mod wasm {
     }
 
     struct ProgramState {
-        nodes: Rc<RefCell<BTreeSet<Program>>>,
+        nodes: Mutex<BTreeSet<Program>>,
         amount: u64,
     }
 
     impl Default for ProgramState {
         fn default() -> Self {
             Self {
-                nodes: Rc::new(RefCell::new(BTreeSet::default())),
+                nodes: Mutex::new(BTreeSet::default()),
                 amount: 0,
             }
         }
@@ -118,7 +117,7 @@ mod wasm {
             }
         }
 
-        fn nodes() -> &'static Rc<RefCell<BTreeSet<Program>>> {
+        fn nodes() -> &'static Mutex<BTreeSet<Program>> {
             unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").nodes }
         }
 
@@ -146,12 +145,8 @@ mod wasm {
         async fn handle_receive(amount: u64) -> Reply {
             ext::debug(&format!("Handling receive {}", amount));
 
-            let (subnodes_count, nodes) = match Program::nodes().try_borrow() {
-                Ok(nodes) => (nodes.len() as u64, nodes),
-                Err(_) => {
-                    return Reply::StateFailure;
-                }
-            };
+            let nodes = Program::nodes().lock().await;
+            let subnodes_count = nodes.as_ref().len() as u64;
 
             if subnodes_count > 0 {
                 let distributed_per_node = amount / subnodes_count;
@@ -159,7 +154,7 @@ mod wasm {
                 let mut left_over = amount - distributed_total;
 
                 if distributed_per_node > 0 {
-                    for program in nodes.iter() {
+                    for program in nodes.as_ref().iter() {
                         if let Err(_) = program.do_send(distributed_per_node).await {
                             // reclaiming amount from nodes that fail!
                             left_over += distributed_per_node;
@@ -178,15 +173,9 @@ mod wasm {
         }
 
         async fn handle_join(program_id: u64) -> Reply {
-            let mut nodes = match Self::nodes().try_borrow_mut() {
-                Ok(nodes) => nodes,
-                Err(_) => {
-                    return Reply::StateFailure; // Probably receive in progress, so nodes cannot be altered!
-                }
-            };
-
-            nodes.insert(Program::new(program_id));
-
+            let mut nodes = Self::nodes().lock().await;
+            ext::debug("Inserting into nodes");
+            nodes.as_mut().insert(Program::new(program_id));
             Reply::Success
         }
 
@@ -194,14 +183,9 @@ mod wasm {
             let mut amount = *Program::amount();
             ext::debug(&format!("Own amount: {}", amount));
 
-            let nodes = match Program::nodes().try_borrow() {
-                Ok(nodes) => nodes,
-                Err(_) => {
-                    return Reply::StateFailure;
-                }
-            };
+            let nodes = Program::nodes().lock().await;
 
-            for program in nodes.iter() {
+            for program in nodes.as_ref().iter() {
                 ext::debug("Querying next node");
                 amount += match program.do_report().await {
                     Ok(amount) => {
@@ -296,8 +280,6 @@ mod tests {
 
     #[test]
     fn composite_program() {
-        env_logger::Builder::from_env(env_logger::Env::default()).init();
-
         let program_id_1 = 1;
         let program_id_2 = 2;
         let program_id_3 = 3;
@@ -320,6 +302,8 @@ mod tests {
     // This test show how RefCell will prevent to do conficting changes (prevent multi-aliasing of the program state)
     #[test]
     fn conflicting_nodes() {
+        env_logger::Builder::from_env(env_logger::Env::default()).init();
+
         let program_id_1 = 1;
         let program_id_2 = 2;
         let program_id_3 = 3;
@@ -333,6 +317,6 @@ mod tests {
             MessageBuilder::from(Request::Join(4)).destination(program_id_1),
         ]);
 
-        assert_eq!(results, vec![Reply::Success, Reply::StateFailure])
+        assert_eq!(results, vec![Reply::Success, Reply::Success])
     }
 }

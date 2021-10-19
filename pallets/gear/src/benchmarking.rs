@@ -184,8 +184,8 @@ benchmarks! {
         Gear::<T>::insert_to_mailbox(
             caller.clone().into_origin(),
             common::Message {
-                id: original_message_id.clone(),
-                source: program_id.clone(),
+                id: original_message_id,
+                source: program_id,
                 dest: caller.clone().into_origin(),
                 payload: vec![],
                 gas_limit: 10_000_000_u64,
@@ -218,8 +218,8 @@ benchmarks! {
         let code = generate_wasm(q).unwrap();
         MessageQueue::<T>::append(
             IntermediateMessage::InitProgram {
-                origin: caller.clone().into_origin(),
-                code: code.clone(),
+                origin: caller.into_origin(),
+                code,
                 program_id: account::<T::AccountId>("program", q, 0).into_origin(),
                 init_message_id: account::<T::AccountId>("message", q, 100).into_origin(),
                 payload: Vec::new(),

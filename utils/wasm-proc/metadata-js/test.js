@@ -6,7 +6,7 @@ const wasmMetadata = require(".");
 const { TypeRegistry } = require('@polkadot/types')
 
 let wasmBytes = fs.readFileSync(
-    path.join(__dirname, "../../../examples/target/wasm32-unknown-unknown/release/demo_meta.meta.wasm")
+    path.join(__dirname, "../../../target/wasm32-unknown-unknown/release/demo_meta.meta.wasm")
 );
 
 wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
@@ -28,7 +28,7 @@ wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {
 
 // async
 wasmBytes = fs.readFileSync(
-    path.join(__dirname, "../../../examples/target/wasm32-unknown-unknown/release/demo_async.meta.wasm")
+    path.join(__dirname, "../../../target/wasm32-unknown-unknown/release/demo_async.meta.wasm")
 );
 
 wasmMetadata.getWasmMetadata(wasmBytes).then(metadata => {

@@ -46,7 +46,7 @@ pub unsafe extern "C" fn handle() {
             ext::debug(log);
         }
     } else {
-        ext::debug(&format!("Not enough gas"));
+        ext::debug("Not enough gas");
     }
 }
 

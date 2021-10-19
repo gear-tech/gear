@@ -2,22 +2,22 @@ title: Async-await
 
 programs:
   - id: 1
-    path: examples/target/wasm32-unknown-unknown/release/demo_async.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async.wasm
     init_message:
       kind: utf-8
       value: "{2},{3},{4}"
 
   - id: 2
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
 
   - id: 3
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
 
   - id: 4
-    path: examples/target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
 
   - id: 5
-    path: examples/target/wasm32-unknown-unknown/release/demo_mutex.wasm
+    path: target/wasm32-unknown-unknown/release/demo_mutex.wasm
     init_message:
       kind: utf-8
       value: "{2}"
