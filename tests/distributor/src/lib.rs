@@ -280,7 +280,6 @@ mod tests {
 
     #[test]
     fn composite_program() {
-
         let program_id_1 = 1;
         let program_id_2 = 2;
         let program_id_3 = 3;
@@ -303,7 +302,6 @@ mod tests {
     // This test show how RefCell will prevent to do conficting changes (prevent multi-aliasing of the program state)
     #[test]
     fn conflicting_nodes() {
-
         env_logger::Builder::from_env(env_logger::Env::default()).init();
 
         let program_id_1 = 1;
