@@ -10,6 +10,7 @@ use gstd_async::mutex::Mutex;
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use primitive_types::H256;
 
 const GAS_RESERVE: u64 = 50_000_000;
 
@@ -107,7 +108,7 @@ struct UpdateConfig {
 #[derive(Debug, Decode, TypeInfo)]
 enum Action {
     UpdateConfig(UpdateConfig),
-    ProgramId(String),
+    ProgramId(H256),
 }
 
 static MUTEX: Mutex<()> = Mutex::new(());
@@ -141,6 +142,11 @@ async fn main() {
 
     match action {
         Action::UpdateConfig(config) => {
+            if unsafe { !STATE.admins.contains(&source) } {
+                ext::debug("Sender is not an admin of the workshop");
+                return;
+            }
+
             if let Err(e) = unsafe { STATE.update(config) } {
                 ext::debug(&format!("Failed to update State: {}", e));
                 panic!()
@@ -158,10 +164,7 @@ async fn main() {
                 return;
             }
 
-            let id = hex_to_id(hex).unwrap_or_else(|_| {
-                ext::debug("Failed to decode hex from input");
-                panic!()
-            });
+            let id = ProgramId(hex.to_fixed_bytes());
 
             let response = msg_async::send_and_wait_for_reply(
                 id,

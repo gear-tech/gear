@@ -9,12 +9,7 @@ programs:
         code: "TEST"
         reward: 100
         admins: []
-        
-         #"5PjvXfkazFi1fqHSoqxcLqSYc68nxXthDN1KhFPa7VX5" # gtest log sender
         members: []
-        
-         # - "5PjvXfkazFi1fqHSoqxcLqSYc68nxXthDN1KhFPa7VX5" #gtest log sender
-          #- "5GxGiUYajGRWvVkRC5A8d2FjMHTDcq7HKaEDw1QaWHNecFNd"
   
   - id: 2
     path: examples/target/wasm32-unknown-unknown/release/workshop_example.wasm
@@ -58,7 +53,6 @@ fixtures:
             kind: custom
             # gtest log sender in hex format
             value: 41420f0000000000000000000000000000000000000000000000000000000000
-
 
   - title: Vendor interaction with contract
 
