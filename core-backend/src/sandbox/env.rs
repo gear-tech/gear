@@ -491,7 +491,9 @@ impl<E: Ext + 'static> Environment<E> {
         }
 
         fn wait<E: Ext>(ctx: &mut Runtime<E>, _args: &[Value]) -> Result<ReturnValue, HostError> {
-            let _ : Result<ReturnValue, HostError> = ctx.ext.with(|ext: &mut E| ext.wait())
+            let _: Result<ReturnValue, HostError> = ctx
+                .ext
+                .with(|ext: &mut E| ext.wait())
                 .map(|_| Ok(ReturnValue::Unit))
                 .map_err(|err| {
                     ctx.trap_reason = Some(err);
