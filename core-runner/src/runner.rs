@@ -748,16 +748,6 @@ fn run(
         gas_left -= gas_to_transfer;
     });
 
-    /*let awakening = awakening.map(|(id, gas_limit)| {
-        let mut gas_to_transfer = gas_limit;
-        if gas_to_transfer > gas_left {
-            gas_to_transfer = gas_left;
-        }
-        // Transfer current messages's gas to the woken message
-        gas_left -= gas_to_transfer;
-        (gas_to_transfer, id)
-    });*/
-
     RunResult {
         messages,
         reply,
