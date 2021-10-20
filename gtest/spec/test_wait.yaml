@@ -9,31 +9,54 @@ fixtures:
 
     messages:
       - destination: 1
-        payload:
+        payload: &first
           kind: utf-8
           value: FIRST
 
       - destination: 1
-        payload:
+        payload: &second
           kind: utf-8
           value: SECOND
 
+      - destination: 1
+        payload: &third
+          kind: utf-8
+          value: THIRD
+
     expected:
-      - step: 1
+      - step: 0 # All three messages in the queue
         messages:
           - destination: 1
-            payload:
-              kind: utf-8
-              value: SECOND
+            payload: *first
 
-      - step: 2
+          - destination: 1
+            payload: *second
+
+          - destination: 1
+            payload: *third
+
+      - step: 1 # First message processed
         messages:
           - destination: 1
-            payload:
-              kind: utf-8
-              value: FIRST
+            payload: *second
 
-      - step: 3
+          - destination: 1
+            payload: *third
+
+      - step: 2 # Second message processed
+        messages:
+          - destination: 1
+            payload: *third
+
+      - step: 3 # First and second message awakened
+        messages:
+          - destination: 1
+            payload: *first
+
+          - destination: 1
+            payload: *second
+
+      - step: 4 # First and second message processed
         log:
           - destination: 0
             payload:
