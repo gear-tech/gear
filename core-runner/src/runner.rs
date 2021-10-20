@@ -739,13 +739,14 @@ fn run(
         msg.into_message(program.id())
     });
 
-    awakening.iter_mut().for_each(|(_id, gas_limit)| {
+    awakening.iter_mut().for_each(|(_, gas_limit)| {
         let mut gas_to_transfer = *gas_limit;
         if gas_to_transfer > gas_left {
             gas_to_transfer = gas_left;
         }
         // Transfer current messages's gas to the woken message
         gas_left -= gas_to_transfer;
+        *gas_limit = gas_to_transfer;
     });
 
     RunResult {
