@@ -115,8 +115,6 @@ pub enum Error {
     DuplicateReply,
     /// Duplicate waiting message.
     DuplicateWaiting,
-    /// Duplicate message to be woken.
-    DuplicateAwakening,
     /// An attempt to commit or to push a payload into an already formed message.
     LateAccess,
     /// No message found with given handle, or handle exceedes the maximum messages amount.
@@ -595,8 +593,8 @@ pub struct MessageState {
     pub reply: Option<ReplyMessage>,
     /// Message to be added to wait list.
     pub waiting: Option<IncomingMessage>,
-    /// Message to be waken.
-    pub awakening: Option<(MessageId, u64)>,
+    /// Messages to be waken.
+    pub awakening: Vec<(MessageId, u64)>,
 }
 
 /// Message context for the currently running program.
@@ -739,10 +737,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
     /// Mark a message to be woken using `waker_id`.
     pub fn wake(&self, waker_id: MessageId, gas_limit: u64) -> Result<(), Error> {
-        if self.state.borrow().awakening.is_some() {
-            return Err(Error::DuplicateAwakening);
-        }
-        self.state.borrow_mut().awakening = Some((waker_id, gas_limit));
+        self.state.borrow_mut().awakening.push((waker_id, gas_limit));
         Ok(())
     }
 

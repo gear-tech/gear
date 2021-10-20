@@ -599,8 +599,8 @@ pub struct RunResult {
     pub reply: Option<ReplyMessage>,
     /// Message to be added to the wait list.
     pub waiting: Option<Message>,
-    /// Message to be woken.
-    pub awakening: Option<(u64, MessageId)>,
+    /// Messages to be woken.
+    pub awakening: Vec<(MessageId, u64)>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
