@@ -351,8 +351,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             self.wait_list.insert(waiting_msg.id, waiting_msg);
         }
 
-        if let Some((gas, waker_id)) = run_result.awakening {
-            if let Some(mut msg) = self.wait_list.remove(waker_id) {
+        for (waker_id, gas) in &run_result.awakening {
+            if let Some(mut msg) = self.wait_list.remove(*waker_id) {
                 // Increase gas available to the message
                 if u64::max_value() - gas < msg.gas_limit() {
                     // TODO: issue #323
@@ -362,7 +362,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                         gas
                     );
                 }
-                msg.gas_limit = msg.gas_limit.saturating_add(gas);
+                msg.gas_limit = msg.gas_limit.saturating_add(*gas);
                 context.message_buf.push(msg);
             }
         }
@@ -633,10 +633,10 @@ fn run(
             {
                 let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: vec![],
+                    messages: Vec::new(),
                     reply: None,
                     waiting: None,
-                    awakening: None,
+                    awakening: Vec::new(),
                     gas_left,
                     gas_spent: 0,
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
@@ -649,10 +649,10 @@ fn run(
             {
                 let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: vec![],
+                    messages: Vec::new(),
                     reply: None,
                     waiting: None,
-                    awakening: None,
+                    awakening: Vec::new(),
                     gas_left,
                     gas_spent: 0,
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
@@ -712,7 +712,7 @@ fn run(
         outgoing,
         reply,
         waiting,
-        awakening,
+        mut awakening,
     } = ext.messages.into_state();
 
     for outgoing_msg in outgoing {
@@ -739,7 +739,16 @@ fn run(
         msg.into_message(program.id())
     });
 
-    let awakening = awakening.map(|(id, gas_limit)| {
+    awakening.iter_mut().for_each(|(_id, gas_limit)| {
+        let mut gas_to_transfer = *gas_limit;
+        if gas_to_transfer > gas_left {
+            gas_to_transfer = gas_left;
+        }
+        // Transfer current messages's gas to the woken message
+        gas_left -= gas_to_transfer;
+    });
+
+    /*let awakening = awakening.map(|(id, gas_limit)| {
         let mut gas_to_transfer = gas_limit;
         if gas_to_transfer > gas_left {
             gas_to_transfer = gas_left;
@@ -747,7 +756,7 @@ fn run(
         // Transfer current messages's gas to the woken message
         gas_left -= gas_to_transfer;
         (gas_to_transfer, id)
-    });
+    });*/
 
     RunResult {
         messages,
