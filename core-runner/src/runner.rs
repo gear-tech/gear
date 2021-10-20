@@ -29,7 +29,7 @@ use gear_core::{
     memory::{Memory, MemoryContext, PageNumber},
     message::{
         ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
-        OutgoingMessage, ReplyMessage,
+        MessageState, OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
     storage::{Log, MessageQueue, ProgramStorage, Storage, WaitList},
@@ -708,7 +708,12 @@ fn run(
     let mut messages = vec![];
 
     program.set_message_nonce(ext.messages.nonce());
-    let (outgoing, reply, waiting, awakening) = ext.messages.drain();
+    let MessageState {
+        outgoing,
+        reply,
+        waiting,
+        awakening,
+    } = ext.messages.into_state();
 
     for outgoing_msg in outgoing {
         messages.push(outgoing_msg.clone());
