@@ -106,7 +106,7 @@ impl<E: Ext + 'static> Environment<E> {
                 Ok(())
             });
             result
-                .map_err(|err| {
+                .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to send message");
                     HostError
                 })
@@ -219,11 +219,16 @@ impl<E: Ext + 'static> Environment<E> {
             };
             let at = at as u32 as usize;
             let len = len as u32 as usize;
-            ctx.ext.with(|ext: &mut E| {
-                let msg = ext.msg().to_vec();
-                ext.set_mem(dest as _, &msg[at..(at + len)]);
-            });
-            Ok(ReturnValue::Unit)
+            ctx.ext
+                .with(|ext: &mut E| {
+                    let msg = ext.msg().to_vec();
+                    ext.set_mem(dest as _, &msg[at..(at + len)]);
+                })
+                .map(|_| ReturnValue::Unit)
+                .map_err(|_err| {
+                    ctx.trap_reason = Some("Trapping: unable to report about gas used");
+                    HostError
+                })
         }
 
         fn size<E: Ext>(ctx: &mut Runtime<E>, _args: &[Value]) -> Result<ReturnValue, HostError> {
@@ -241,7 +246,7 @@ impl<E: Ext + 'static> Environment<E> {
             ctx.ext
                 .with(|ext: &mut E| ext.gas(val as _))
                 .map(|_| ReturnValue::Unit)
-                .map_err(|err| {
+                .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to report about gas used");
                     HostError
                 })
@@ -311,7 +316,7 @@ impl<E: Ext + 'static> Environment<E> {
                     ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
                 })
                 .map(|_| ReturnValue::Unit)
-                .map_err(|err| {
+                .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to send reply message");
                     HostError
                 });
@@ -403,7 +408,7 @@ impl<E: Ext + 'static> Environment<E> {
                     ext.reply_push(&payload)
                 })
                 .map(|_| ReturnValue::Unit)
-                .map_err(|err| {
+                .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to push payload into reply");
                     HostError
                 })
@@ -563,7 +568,7 @@ impl<E: Ext + 'static> Environment<E> {
 
         let result = self.run_inner(instance, memory_pages, memory, move |mut instance| {
             let result = instance.invoke(entry_point, &[], &mut runtime);
-            if let Err(e) = &result {
+            if let Err(_e) = &result {
                 if let Some(trap) = runtime.trap_reason {
                     if funcs::is_exit_trap(&trap.to_string()) {
                         // We don't propagate a trap when exit
