@@ -64,7 +64,6 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear
 
 # Internal
 gear-runtime = { path = "../runtime" }
-gear-node-rti = { path = "../node-rti" }
 gear-test-cli = { path = "../utils/gear-test-cli" }
 
 [build-dependencies]

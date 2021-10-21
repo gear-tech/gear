@@ -258,7 +258,7 @@ pub mod pallet {
         }
 
         pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
-            rti::gear_executor::gas_spent(destination, payload, 0).ok()
+            runner::gas_spent(destination, payload, 0).ok()
         }
 
         /// Returns true if a program resulted in an error during initialization
@@ -307,7 +307,7 @@ pub mod pallet {
                             );
                             continue;
                         }
-                        match rti::gear_executor::init_program(
+                        match runner::init_program(
                             origin,
                             program_id,
                             code.to_vec(),
@@ -459,7 +459,7 @@ pub mod pallet {
             }
 
             loop {
-                match rti::gear_executor::process(GasAllowance::<T>::get()) {
+                match runner::process(GasAllowance::<T>::get()) {
                     Ok(execution_report) => {
                         if execution_report.handled == 0 {
                             break;

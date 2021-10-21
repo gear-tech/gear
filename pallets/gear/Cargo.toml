@@ -21,7 +21,7 @@ primitive-types = { version = "0.10.1", default-features = false, features = ["s
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-rti = { package = "gear-node-rti", path = "../../node-rti", default-features = false }
+runner = { package = "gear-node-runner", path = "../../node-runner", default-features = false }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", default-features = false }
@@ -48,9 +48,9 @@ std = [
 	"codec/std",
 	"log/std",
 	"common/std",
+	"runner/std",
 	"frame-support/std",
 	"frame-system/std",
-	"rti/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",

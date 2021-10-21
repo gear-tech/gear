@@ -11,7 +11,7 @@ scale-info = { version = "1.0.0", default-features = false, features = ["derive"
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
 # Internal deps
-gear-core = { path = "../core", optional = true }
+gear-core = { path = "../core" }
 
 # Substrate deps
 
@@ -24,7 +24,6 @@ sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.
 default = ["std"]
 std = [
     "codec/std",
-    "gear-core",
     "scale-info/std",
     "sp-core/std",
     "sp-std/std",

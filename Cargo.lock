@@ -1958,10 +1958,8 @@ name = "gear-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cfg-if 1.0.0",
  "derive_more",
  "hashbrown 0.11.2",
- "libc",
  "log",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -1976,11 +1974,10 @@ dependencies = [
  "anyhow",
  "cfg-if 1.0.0",
  "gear-core",
- "libc",
  "log",
  "num-derive",
  "num-traits",
- "wasmi",
+ "sp-sandbox",
  "wasmtime",
 ]
 
@@ -2004,7 +2001,6 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
- "gear-node-rti",
  "gear-runtime",
  "gear-test-cli",
  "hex-literal",
@@ -2043,7 +2039,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-node-rti"
+name = "gear-node-runner"
 version = "0.1.0"
 dependencies = [
  "frame-system",
@@ -2053,12 +2049,8 @@ dependencies = [
  "gear-runtime",
  "log",
  "parity-scale-codec",
- "primitive-types",
- "scale-info",
  "sp-core",
- "sp-externalities",
  "sp-io",
- "sp-runtime-interface",
  "sp-std",
  "wabt",
 ]
@@ -2132,7 +2124,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-runner",
- "gear-node-rti",
+ "gear-node-runner",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2150,7 +2142,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-node-rti",
+ "gear-node-runner",
  "gear-runtime",
  "gear-test",
  "parity-scale-codec",
@@ -4143,7 +4135,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-node-rti",
+ "gear-node-runner",
  "hex-literal",
  "log",
  "pallet-authorship",
@@ -6889,6 +6881,20 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "sp-sandbox"
+version = "0.10.0-dev"
+source = "git+https://github.com/gear-tech/substrate.git#bb32803a3a273395e3ff935131a75f637d8aaaba"
+dependencies = [
+ "log",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-io",
+ "sp-std",
+ "sp-wasm-interface",
+ "wasmi",
 ]
 
 [[package]]

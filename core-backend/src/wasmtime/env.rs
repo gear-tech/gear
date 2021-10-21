@@ -155,11 +155,10 @@ impl<E: Ext + 'static> Environment<E> {
             if let Some(name) = import_name {
                 *ext = match *name {
                     "memory" => {
-                        let mem: &wasmtime::Memory =
-                            match memory.as_any().downcast_ref::<wasmtime::Memory>() {
-                                Some(mem) => mem,
-                                None => panic!("Memory is not wasmtime::Memory"),
-                            };
+                        let mem = match memory.as_any().downcast_ref::<wasmtime::Memory>() {
+                            Some(mem) => mem,
+                            None => panic!("Memory is not wasmtime::Memory"),
+                        };
                         Some(wasmtime::Extern::Memory(Clone::clone(mem)))
                     }
                     key if self.funcs.contains_key(key) => Some(self.funcs[key].clone().into()),

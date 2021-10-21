@@ -16,7 +16,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provide wasmi support.
+use crate::ext::*;
+use gear_core::storage::{Log, Storage};
+use gear_core_runner::runner::{Config, Runner};
 
-pub mod env;
-pub mod memory;
+pub type ExtRunner = Runner<ExtMessageQueue, ExtProgramStorage, ExtWaitList>;
+
+pub fn new() -> ExtRunner {
+    Runner::new(
+        &Config::default(),
+        Storage {
+            message_queue: ExtMessageQueue::default(),
+            program_storage: ExtProgramStorage,
+            wait_list: ExtWaitList::default(),
+            log: Log::default(),
+        },
+    )
+}

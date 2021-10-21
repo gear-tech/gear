@@ -32,10 +32,7 @@ use std::{sync::Arc, time::Duration};
 pub struct ExecutorDispatch;
 
 impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
-    type ExtendHostFunctions = (
-        gear_node_rti::gear_executor::HostFunctions,
-        frame_benchmarking::benchmarking::HostFunctions,
-    );
+    type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
         gear_runtime::api::dispatch(method, data)

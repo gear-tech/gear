@@ -27,7 +27,7 @@ use gear_core::{
     },
 };
 use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
-use gear_node_rti::ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList};
+use gear_node_runner::ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList};
 use std::fmt::Write;
 
 use regex::Regex;

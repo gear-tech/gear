@@ -39,9 +39,6 @@ pub enum PageAction {
     None,
 }
 
-/// Page information.
-pub type PageInfo = (PageNumber, PageAction, *const u8);
-
 /// External api for managing memory, messages, allocations and gas-counting.
 pub trait Ext {
     /// Allocate number of pages.

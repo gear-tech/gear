@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeSet;
-
 use gear_common::STORAGE_PROGRAM_PREFIX;
 use gear_core::{
     message::{Message, MessageId},
     program::{Program, ProgramId},
     storage::{MessageMap, MessageQueue, ProgramStorage, WaitList},
 };
+use sp_std::collections::btree_set::BTreeSet;
+use sp_std::prelude::*;
 
 #[derive(Default)]
 pub struct ExtProgramStorage;
