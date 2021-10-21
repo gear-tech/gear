@@ -27,7 +27,7 @@ gear_build() {
 }
 
 node_build() {
-  cargo build -p gear-node "$@"
+  cargo build -p node "$@"
 }
 
 wasm_proc_build() {

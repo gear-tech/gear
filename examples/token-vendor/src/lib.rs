@@ -5,7 +5,6 @@ extern crate alloc;
 
 use gstd::{exec, ext, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
-use gstd_async::mutex::Mutex;
 
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -115,8 +114,6 @@ enum Action {
     ProgramId(H256),
 }
 
-static MUTEX: Mutex<()> = Mutex::new(());
-
 static mut STATE: State = State {
     owner_id: None,
     code: String::new(),
@@ -161,8 +158,6 @@ async fn main() {
             msg::reply("Config updated", exec::gas_available() - GAS_RESERVE, 0);
         }
         Action::ProgramId(hex) => {
-            let _ = MUTEX.lock().await;
-
             if unsafe { !STATE.members.contains(&source) } {
                 ext::debug("Sender is not a member of the workshop");
                 return;
