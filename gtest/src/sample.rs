@@ -92,14 +92,14 @@ impl Default for SourceVariant {
 }
 
 impl SourceVariant {
-    pub fn into_program_id(&self) -> ProgramId {
+    pub fn into_program_id(self) -> ProgramId {
         match self {
             Self::Account(s) => {
-                ProgramId::from_slice(Keyring::from_str(s).unwrap().to_h256_public().as_bytes())
+                ProgramId::from_slice(Keyring::from_str(&s).unwrap().to_h256_public().as_bytes())
             }
-            SourceVariant::ProgramId(id) => ProgramId::from(*id),
+            SourceVariant::ProgramId(id) => ProgramId::from(id),
             SourceVariant::SS58(s) => {
-                ProgramId::from_slice(Public::from_ss58check(s).unwrap().as_bytes_ref())
+                ProgramId::from_slice(Public::from_ss58check(&s).unwrap().as_bytes_ref())
             }
         }
     }

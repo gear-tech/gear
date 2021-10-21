@@ -49,7 +49,7 @@ fn parse_payload(payload: String) -> String {
     let ss58_regex = Regex::new(r"\{(?P<id>[A-Za-z0-9]+)\}").unwrap();
 
     // Insert ProgramId
-    let mut s = payload.clone();
+    let mut s = payload;
     while let Some(caps) = program_id_regex.captures(&s) {
         let id = caps["id"].parse::<u64>().unwrap();
         s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
@@ -158,7 +158,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         }
         let mut init_source: ProgramId = SOME_FIXED_USER.into();
         if let Some(source) = &program.source {
-            init_source = source.into_program_id();
+            init_source = source.clone().into_program_id();
         }
         runner.init_program(InitializeProgramInfo {
             new_program_id: program.id.into(),
@@ -212,7 +212,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         };
         let mut message_source: ProgramId = 0.into();
         if let Some(source) = &message.source {
-            message_source = source.into_program_id();
+            message_source = source.clone().into_program_id();
         }
         runner.queue_message(MessageDispatch {
             source_id: message_source,
