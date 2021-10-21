@@ -124,9 +124,13 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 _ => init_msg.clone().into_raw(),
             }
         }
+        let mut init_source: ProgramId = SOME_FIXED_USER.into();
+        if let Some(source) = &program.source {
+            init_source = source.into_program_id();
+        }
         runner.init_program(InitializeProgramInfo {
             new_program_id: program.id.into(),
-            source_id: SOME_FIXED_USER.into(),
+            source_id: init_source,
             code,
             message: ExtMessage {
                 id: nonce.into(),
@@ -183,8 +187,12 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 .map(|payload| payload.clone().into_raw())
                 .unwrap_or_default(),
         };
+        let mut message_source: ProgramId = 0.into();
+        if let Some(source) = &message.source {
+            message_source = source.into_program_id();
+        }
         runner.queue_message(MessageDispatch {
-            source_id: 0.into(),
+            source_id: message_source,
             destination_id: message.destination.into(),
             data: ExtMessage {
                 id: nonce.into(),
