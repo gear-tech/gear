@@ -6,19 +6,26 @@ use gcore::{exec, msg, MessageId};
 extern crate gstd;
 
 static mut STATE: u32 = 0;
-static mut MSG_ID: MessageId = MessageId([0; 32]);
+static mut MSG_ID_1: MessageId = MessageId([0; 32]);
+static mut MSG_ID_2: MessageId = MessageId([0; 32]);
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
     match STATE {
         0 => {
             STATE = 1;
-            MSG_ID = msg::id();
+            MSG_ID_1 = msg::id();
             exec::wait();
         }
         1 => {
             STATE = 2;
-            exec::wake(MSG_ID, exec::gas_available());
+            MSG_ID_2 = msg::id();
+            exec::wait();
+        }
+        2 => {
+            STATE = 3;
+            exec::wake(MSG_ID_1, exec::gas_available() / 2);
+            exec::wake(MSG_ID_2, exec::gas_available() / 2);
         }
         _ => {
             msg::send(msg::source(), b"WAITED", 1_000_000, 0);
