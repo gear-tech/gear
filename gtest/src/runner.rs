@@ -28,7 +28,10 @@ use gear_core::{
 };
 use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
 use gear_node_runner::ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList};
+use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
+use sp_keyring::sr25519::Keyring;
 use std::fmt::Write;
+use std::str::FromStr;
 
 use regex::Regex;
 
@@ -37,6 +40,43 @@ fn encode_hex(bytes: &[u8]) -> String {
     for &b in bytes {
         write!(&mut s, "{:02x}", b).expect("Format failed")
     }
+    s
+}
+
+fn parse_payload(payload: String) -> String {
+    let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
+    let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
+    let ss58_regex = Regex::new(r"\{(?P<id>[A-Za-z0-9]+)\}").unwrap();
+
+    // Insert ProgramId
+    let mut s = payload;
+    while let Some(caps) = program_id_regex.captures(&s) {
+        let id = caps["id"].parse::<u64>().unwrap();
+        s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+    }
+
+    while let Some(caps) = account_regex.captures(&s) {
+        let id = &caps["id"];
+        s = s.replace(
+            &caps[0],
+            &encode_hex(
+                ProgramId::from_slice(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
+                    .as_slice(),
+            ),
+        );
+    }
+
+    while let Some(caps) = ss58_regex.captures(&s) {
+        let id = &caps["id"];
+        s = s.replace(
+            &caps[0],
+            &encode_hex(
+                ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
+                    .as_slice(),
+            ),
+        );
+    }
+
     s
 }
 
@@ -85,27 +125,19 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
 ) -> anyhow::Result<Runner<MQ, PS, WL>> {
     let mut runner = Runner::new(&Config::default(), storage);
     let mut nonce = 0;
-    let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
-                PayloadVariant::Utf8(s) => {
-                    // Insert ProgramId
-                    let mut s = s.clone();
-                    while let Some(caps) = program_id_regex.captures(&s) {
-                        let id = caps["id"].parse::<u64>().unwrap();
-                        s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
-                    }
-                    s.into_bytes()
-                }
+                PayloadVariant::Utf8(s) => parse_payload(s.clone()).into_bytes(),
                 PayloadVariant::Custom(v) => {
                     let meta_type = MetaType::InitInput;
 
-                    let json = MetaData::Json(
-                        serde_json::to_string(&v).expect("Cannot convert to string"),
-                    );
+                    let payload =
+                        parse_payload(serde_json::to_string(&v).expect("Cannot convert to string"));
+
+                    let json = MetaData::Json(payload);
 
                     let wasm = test
                         .programs
@@ -124,9 +156,13 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 _ => init_msg.clone().into_raw(),
             }
         }
+        let mut init_source: ProgramId = SOME_FIXED_USER.into();
+        if let Some(source) = &program.source {
+            init_source = source.clone().into_program_id();
+        }
         runner.init_program(InitializeProgramInfo {
             new_program_id: program.id.into(),
-            source_id: SOME_FIXED_USER.into(),
+            source_id: init_source,
             code,
             message: ExtMessage {
                 id: nonce.into(),
@@ -144,24 +180,15 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => {
                 // Insert ProgramId
-                if let Some(caps) = program_id_regex.captures(s) {
-                    let id = caps["id"].parse::<u64>().unwrap();
-                    let s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
-                    (s.clone().into_bytes()).to_vec()
-                } else {
-                    message
-                        .payload
-                        .as_ref()
-                        .expect("Checked above.")
-                        .clone()
-                        .into_raw()
-                }
+                parse_payload(s.clone()).as_bytes().to_vec()
             }
             Some(PayloadVariant::Custom(v)) => {
                 let meta_type = MetaType::Input;
 
-                let json =
-                    MetaData::Json(serde_json::to_string(&v).expect("Cannot convert to string"));
+                let payload =
+                    parse_payload(serde_json::to_string(&v).expect("Cannot convert to string"));
+
+                let json = MetaData::Json(payload);
 
                 let wasm = test
                     .programs
@@ -183,8 +210,12 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 .map(|payload| payload.clone().into_raw())
                 .unwrap_or_default(),
         };
+        let mut message_source: ProgramId = 0.into();
+        if let Some(source) = &message.source {
+            message_source = source.clone().into_program_id();
+        }
         runner.queue_message(MessageDispatch {
-            source_id: 0.into(),
+            source_id: message_source,
             destination_id: message.destination.into(),
             data: ExtMessage {
                 id: nonce.into(),
