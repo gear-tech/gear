@@ -25,15 +25,4 @@ sp-runtime = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substr
 
 # local packages
 
-gear-rpc-runtime-api = { version = "2.0.0", path = "./runtime-api", default-features = false }
-
-[features]
-default = ["std"]
-std = [
-    "scale-info/std",
-    "serde",
-    "sp-api/std",
-    "sp-core/std",
-    "sp-runtime/std",
-    "gear-rpc-runtime-api/std",
-]
+gear-rpc-runtime-api = { version = "2.0.0", path = "./runtime-api" }
