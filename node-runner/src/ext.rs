@@ -35,7 +35,7 @@ pub struct ExtMessageQueue {
 
 #[derive(Default)]
 pub struct ExtWaitList {
-    cache: BTreeSet<MessageId>,
+    cache: BTreeSet<(ProgramId, MessageId)>,
 }
 
 impl ProgramStorage for ExtProgramStorage {
@@ -96,23 +96,23 @@ impl MessageQueue for ExtMessageQueue {
 }
 
 impl WaitList for ExtWaitList {
-    fn insert(&mut self, id: MessageId, message: Message) {
-        self.cache.insert(id);
-        gear_common::native::insert_waiting_message(id, message);
+    fn insert(&mut self, prog_id: ProgramId, msg_id: MessageId, message: Message) {
+        self.cache.insert((prog_id, msg_id));
+        gear_common::native::insert_waiting_message(prog_id, msg_id, message);
     }
 
-    fn remove(&mut self, id: MessageId) -> Option<Message> {
-        self.cache.remove(&id);
-        gear_common::native::remove_waiting_message(id)
+    fn remove(&mut self, prog_id: ProgramId, msg_id: MessageId) -> Option<Message> {
+        self.cache.remove(&(prog_id, msg_id));
+        gear_common::native::remove_waiting_message(prog_id, msg_id)
     }
 }
 
 impl From<ExtWaitList> for MessageMap {
     fn from(queue: ExtWaitList) -> MessageMap {
         let mut map = MessageMap::new();
-        queue.cache.into_iter().for_each(|id| {
-            if let Some(msg) = gear_common::native::get_waiting_message(id) {
-                map.insert(id, msg);
+        queue.cache.into_iter().for_each(|(prog_id, msg_id)| {
+            if let Some(msg) = gear_common::native::get_waiting_message(prog_id, msg_id) {
+                map.insert((prog_id, msg_id), msg);
             }
         });
         map
@@ -177,6 +177,7 @@ mod tests {
             // with prefix `g::wait::` to make sure iterator exhausts correctly.
             let msg_id = MessageId::from(1);
             storage.wait_list.insert(
+                ProgramId::from(1),
                 msg_id,
                 Message::new_system(msg_id, ProgramId::from(1), Payload::from(vec![]), 0, 0),
             );
