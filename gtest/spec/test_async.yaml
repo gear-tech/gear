@@ -22,6 +22,12 @@ programs:
       kind: utf-8
       value: "{2}"
 
+  - id: 6
+    path: target/wasm32-unknown-unknown/release/demo_rwlock_write.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
+
 fixtures:
   - title: async-await
 
@@ -126,4 +132,44 @@ fixtures:
       - step: 7
         messages:
           - destination: 5
+            payload: *pong
+
+  - title: rwlock-write # RwLock writer-only is similar to mutex
+
+    messages:
+      - destination: 6
+        payload: *start
+      - destination: 6
+        payload: *start
+
+    expected:
+      - step: 1
+        messages:
+          - destination: 6
+            payload: *start
+          - destination: 2
+            payload: *ping
+      - step: 2
+        messages:
+          - destination: 2
+            payload: *ping
+      - step: 3
+        messages:
+          - destination: 6
+            payload: *pong
+      - step: 4
+        messages:
+          - destination: 6
+            payload: *start
+      - step: 5
+        messages:
+          - destination: 6
+            payload: *start
+      - step: 6
+        messages:
+          - destination: 2
+            payload: *ping
+      - step: 7
+        messages:
+          - destination: 6
             payload: *pong
