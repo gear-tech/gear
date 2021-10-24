@@ -3,6 +3,9 @@ title: Ping-pong
 programs:
   - id: 1
     path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+    source:
+      kind: account
+      value: alice
 
 fixtures:
   - title: ping-pong

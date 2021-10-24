@@ -29,7 +29,7 @@ use gear_core::{
     memory::{Memory, MemoryContext, PageNumber},
     message::{
         ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
-        OutgoingMessage, ReplyMessage,
+        MessageState, OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
     storage::{Log, MessageQueue, ProgramStorage, Storage, WaitList},
@@ -351,8 +351,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             self.wait_list.insert(waiting_msg.id, waiting_msg);
         }
 
-        if let Some((gas, waker_id)) = run_result.awakening {
-            if let Some(mut msg) = self.wait_list.remove(waker_id) {
+        for (waker_id, gas) in &run_result.awakening {
+            if let Some(mut msg) = self.wait_list.remove(*waker_id) {
                 // Increase gas available to the message
                 if u64::max_value() - gas < msg.gas_limit() {
                     // TODO: issue #323
@@ -362,7 +362,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                         gas
                     );
                 }
-                msg.gas_limit = msg.gas_limit.saturating_add(gas);
+                msg.gas_limit = msg.gas_limit.saturating_add(*gas);
                 context.message_buf.push(msg);
             }
         }
@@ -599,8 +599,8 @@ pub struct RunResult {
     pub reply: Option<ReplyMessage>,
     /// Message to be added to the wait list.
     pub waiting: Option<Message>,
-    /// Message to be woken.
-    pub awakening: Option<(u64, MessageId)>,
+    /// Messages to be woken.
+    pub awakening: Vec<(MessageId, u64)>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
@@ -633,10 +633,10 @@ fn run(
             {
                 let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: vec![],
+                    messages: Vec::new(),
                     reply: None,
                     waiting: None,
-                    awakening: None,
+                    awakening: Vec::new(),
                     gas_left,
                     gas_spent: 0,
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
@@ -649,10 +649,10 @@ fn run(
             {
                 let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: vec![],
+                    messages: Vec::new(),
                     reply: None,
                     waiting: None,
-                    awakening: None,
+                    awakening: Vec::new(),
                     gas_left,
                     gas_spent: 0,
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
@@ -708,7 +708,12 @@ fn run(
     let mut messages = vec![];
 
     program.set_message_nonce(ext.messages.nonce());
-    let (outgoing, reply, waiting, awakening) = ext.messages.drain();
+    let MessageState {
+        outgoing,
+        reply,
+        waiting,
+        mut awakening,
+    } = ext.messages.into_state();
 
     for outgoing_msg in outgoing {
         messages.push(outgoing_msg.clone());
@@ -734,14 +739,14 @@ fn run(
         msg.into_message(program.id())
     });
 
-    let awakening = awakening.map(|(id, gas_limit)| {
-        let mut gas_to_transfer = gas_limit;
+    awakening.iter_mut().for_each(|(_, gas_limit)| {
+        let mut gas_to_transfer = *gas_limit;
         if gas_to_transfer > gas_left {
             gas_to_transfer = gas_left;
         }
         // Transfer current messages's gas to the woken message
         gas_left -= gas_to_transfer;
-        (gas_to_transfer, id)
+        *gas_limit = gas_to_transfer;
     });
 
     RunResult {

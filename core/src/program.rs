@@ -29,7 +29,9 @@ use crate::memory::{PageBuf, PageNumber};
 /// Program identifier.
 ///
 /// 256-bit program identifier. In production environments, should be the result of a cryptohash function.
-#[derive(Clone, Copy, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq)]
+#[derive(
+    Clone, Copy, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq, PartialOrd, Ord,
+)]
 pub struct ProgramId([u8; 32]);
 
 impl fmt::Display for ProgramId {
@@ -191,8 +193,13 @@ impl Program {
 
     /// Set memory page from buffer.
     pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<()> {
-        self.persistent_pages
-            .insert(page, Box::new(PageBuf::try_from(buf)?));
+        self.persistent_pages.insert(
+            page,
+            Box::new(
+                PageBuf::try_from(buf)
+                    .map_err(|err| anyhow::format_err!("TryFromSlice err: {}", err))?,
+            ),
+        );
         Ok(())
     }
 

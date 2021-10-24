@@ -3,7 +3,7 @@
 use gstd::{ext, msg, prelude::*};
 use gstd_async::msg as msg_async;
 
-const GAS_LIMIT: u64 = 5_000_000;
+const GAS_LIMIT: u64 = 50_000_000;
 
 #[gstd_async::main]
 async fn main() {

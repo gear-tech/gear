@@ -41,8 +41,8 @@ impl GearTestCmd {
                     sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX, None);
                     sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX, None);
                     gear_core::storage::Storage {
-                        message_queue: rti::ext::ExtMessageQueue::default(),
-                        program_storage: rti::ext::ExtProgramStorage,
+                        message_queue: runner::ext::ExtMessageQueue::default(),
+                        program_storage: runner::ext::ExtProgramStorage,
                         wait_list: Default::default(),
                         log: Default::default(),
                     }

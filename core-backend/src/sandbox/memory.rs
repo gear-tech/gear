@@ -16,19 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Wasmi extensions for memory and memory context.
+//! sp-sandbox extensions for memory and memory context.
 
 use alloc::boxed::Box;
 use core::any::Any;
 
 use gear_core::memory::{Error, Memory, PageNumber};
 
-/// Wrapper for wasmi::MemoryRef.
-pub struct MemoryWrap(wasmi::MemoryRef);
+/// Wrapper for sp_sandbox::Memory.
+pub struct MemoryWrap(sp_sandbox::Memory);
 
 impl MemoryWrap {
-    /// Wrap wasmi::MemoryRef for Memory trait.
-    pub fn new(mem: wasmi::MemoryRef) -> Self {
+    /// Wrap sp_sandbox::Memory for Memory trait.
+    pub fn new(mem: sp_sandbox::Memory) -> Self {
         MemoryWrap(mem)
     }
 }
@@ -37,13 +37,13 @@ impl MemoryWrap {
 impl Memory for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.0
-            .grow(wasmi::memory_units::Pages(pages.raw() as usize))
-            .map(|prev| (prev.0 as u32).into())
+            .grow(pages.raw())
+            .map(|prev| prev.into())
             .map_err(|_| Error::OutOfMemory)
     }
 
     fn size(&self) -> PageNumber {
-        (self.0.current_size().0 as u32).into()
+        self.0.size().into()
     }
 
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
@@ -54,16 +54,16 @@ impl Memory for MemoryWrap {
 
     fn read(&self, offset: usize, buffer: &mut [u8]) {
         self.0
-            .get_into(offset as u32, buffer)
+            .get(offset as u32, buffer)
             .expect("Memory out of bounds.");
     }
 
     fn data_size(&self) -> usize {
-        (self.0.current_size().0 as u32 * 65536) as usize
+        (self.0.size() * 65536) as usize
     }
 
     fn data_ptr(&self) -> *mut u8 {
-        self.0.direct_access_mut().as_mut().as_mut_ptr()
+        todo!()
     }
 
     fn clone(&self) -> Box<dyn Memory> {
@@ -81,6 +81,7 @@ impl Clone for MemoryWrap {
     }
 }
 
+// can't be tested outside the node runtime
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,14 +89,10 @@ mod tests {
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
         use core::convert::TryInto;
-        use wasmi::{memory_units::Pages, MemoryInstance as WasmMemory};
+        use sp_sandbox::Memory as WasmMemory;
 
         let memory = MemoryWrap::new(
-            WasmMemory::alloc(
-                Pages(static_pages.try_into().unwrap()),
-                Some(Pages(max_pages.try_into().unwrap())),
-            )
-            .expect("Memory creation failed"),
+            WasmMemory::new(static_pages, Some(max_pages)).expect("Memory creation failed"),
         );
 
         MemoryContext::new(
