@@ -20,6 +20,7 @@ members = [
     "mutex",
     "panicker",
     "ping",
+    "rwlock-write",
     "sum",
     "sync_duplicate",
     "vec",
