@@ -1,0 +1,13 @@
+[package]
+name = "demo-rwlock-write"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+gstd-async = { path = "../../gstd-async" }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
