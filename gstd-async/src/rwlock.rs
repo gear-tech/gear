@@ -4,6 +4,7 @@ use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
+    ops::{Deref, DerefMut},
 };
 use gcore::MessageId;
 
@@ -39,7 +40,7 @@ impl RwLockWakes {
 pub struct RwLock<T> {
     locked: UnsafeCell<Option<MessageId>>,
     value: UnsafeCell<T>,
-    wakes: RwLockWakes
+    wakes: RwLockWakes,
 }
 
 // we are always single-threaded
@@ -52,6 +53,28 @@ pub struct RwLockReadGuard<'a, T> {
 impl<'a, T> AsRef<T> for RwLockReadGuard<'a, T> {
     fn as_ref(&self) -> &'a T {
         unsafe { &*self.lock.value.get() }
+    }
+}
+
+impl<T> Deref for RwLockReadGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { &*self.lock.value.get() }
+    }
+}
+
+impl<T> Deref for RwLockWriteGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { &*self.lock.value.get() }
+    }
+}
+
+impl<T> DerefMut for RwLockWriteGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.lock.value.get() }
     }
 }
 
@@ -90,13 +113,13 @@ pub struct RwLockWriteFuture<'a, T> {
     lock: &'a RwLock<T>,
 }
 
-impl <'a, T> Future for RwLockReadFuture<'a, T> {
+impl<'a, T> Future for RwLockReadFuture<'a, T> {
     type Output = RwLockReadGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let read = unsafe { &mut *self.lock.locked.get() };
         if read.is_none() {
-            Poll::Ready(RwLockReadGuard{ lock: self.lock })
+            Poll::Ready(RwLockReadGuard { lock: self.lock })
         } else {
             self.lock.wakes.add_wake(gcore::msg::id());
             Poll::Pending
@@ -104,14 +127,14 @@ impl <'a, T> Future for RwLockReadFuture<'a, T> {
     }
 }
 
-impl <'a, T> Future for RwLockWriteFuture<'a, T> {
+impl<'a, T> Future for RwLockWriteFuture<'a, T> {
     type Output = RwLockWriteGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let write = unsafe { &mut *self.lock.locked.get() };
         if write.is_none() {
             *write = Some(gcore::msg::id());
-            Poll::Ready(RwLockWriteGuard{ lock: self.lock })
+            Poll::Ready(RwLockWriteGuard { lock: self.lock })
         } else {
             self.lock.wakes.add_wake(gcore::msg::id());
             Poll::Pending
