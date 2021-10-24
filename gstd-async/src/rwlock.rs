@@ -2,9 +2,9 @@ use alloc::collections::VecDeque;
 use core::{
     cell::UnsafeCell,
     future::Future,
+    ops::{Deref, DerefMut},
     pin::Pin,
     task::{Context, Poll},
-    ops::{Deref, DerefMut},
 };
 use gcore::MessageId;
 

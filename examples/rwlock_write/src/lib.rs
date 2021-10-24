@@ -28,7 +28,7 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     if message == "START" {
-        let mut val = RWLOCK.write().await;
+        let _val = RWLOCK.write().await;
 
         let reply =
             msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0).await;
