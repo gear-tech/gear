@@ -143,8 +143,8 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
         let readers = &self.lock.readers;
         let readers_count = readers.get() + 1;
 
-        let read = unsafe { &mut *self.lock.locked.get() };
-        if read.is_none() && readers_count <= READERS_LIMIT {
+        let lock = unsafe { &mut *self.lock.locked.get() };
+        if lock.is_none() && readers_count <= READERS_LIMIT {
             readers.replace(readers_count);
             Poll::Ready(RwLockReadGuard { lock: self.lock })
         } else {
@@ -158,9 +158,9 @@ impl<'a, T> Future for RwLockWriteFuture<'a, T> {
     type Output = RwLockWriteGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let write = unsafe { &mut *self.lock.locked.get() };
-        if write.is_none() && self.lock.readers.get() == 0 {
-            *write = Some(gcore::msg::id());
+        let lock = unsafe { &mut *self.lock.locked.get() };
+        if lock.is_none() && self.lock.readers.get() == 0 {
+            *lock = Some(gcore::msg::id());
             Poll::Ready(RwLockWriteGuard { lock: self.lock })
         } else {
             self.lock.wakes.add_wake(gcore::msg::id());
