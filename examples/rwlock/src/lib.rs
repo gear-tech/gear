@@ -1,12 +1,12 @@
 #![no_std]
 
-use gstd::{exec, msg, prelude::*, ProgramId};
+use gstd::{exec, ext, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
 static mut PING_DEST: ProgramId = ProgramId([0u8; 32]);
 static RWLOCK: gstd_async::rwlock::RwLock<u32> = gstd_async::rwlock::RwLock::new(0);
 
-const GAS_LIMIT: u64 = 50_000_000;
+const GAS_LIMIT: u64 = 100_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
@@ -42,8 +42,19 @@ async fn main() {
             )
             .await;
         }
+        "get&ping" => {
+            let val = RWLOCK.read().await;
+            msg_async::send_and_wait_for_reply(
+                unsafe { PING_DEST },
+                b"PING",
+                GAS_LIMIT,
+                0,
+            )
+            .await;
+            msg::reply(*val, exec::gas_available() - GAS_LIMIT, 0);
+        }
         _ => {
-            RWLOCK.write().await;
+            let a = RWLOCK.write().await;
             RWLOCK.read().await;
         }
     }

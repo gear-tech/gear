@@ -106,3 +106,94 @@ fixtures:
             payload:
               kind: i32
               value: 1
+
+  - title: write while reading
+
+    messages:
+      - destination: 1
+        payload: &getNping
+          kind: utf-8
+          value: get&ping
+      
+      - destination: 1
+        payload: *get
+      
+      - destination: 1
+        payload: *inc
+      
+      # This shows that *inc will await read-guard drop,
+      # while another one (with *get) will be created
+    
+    expected:
+      - step: 0
+        messages:
+        - destination: 1
+          payload: *getNping
+        
+        - destination: 1
+          payload: *get
+        
+        - destination: 1
+          payload: *inc
+        # *getNping goes in waitlist, locks rwlock on read
+      - step: 1
+        messages:
+          - destination: 1
+            payload: *get
+          - destination: 1
+            payload: *inc
+          - destination: 2
+            payload: *ping
+      - step: 2
+        log:
+          - destination: 0
+            payload:
+              kind: i32
+              value: 0
+        messages:
+          - destination: 1
+            payload: *inc
+          - destination: 2
+            payload: *ping
+      # *inc goes into wait list
+      - step: 3
+        messages:
+          - destination: 2
+            payload: *ping
+      
+      - step: 4
+        messages:
+          - destination: 1
+            payload: *pong
+      
+      - step: 5
+        messages:
+          - destination: 1
+            payload: *getNping # from waitlist
+      
+      - step: 6
+        log:
+          - destination: 0
+            payload:
+              kind: i32
+              value: 0
+          - destination: 0
+            payload:
+              kind: i32
+              value: 0 # should be 0. but now equals 1.
+        
+  - title: forever lock
+
+    messages:
+      - destination: 1
+        payload: 
+          kind: utf-8
+          value: panic
+      
+      # This forever blocks program now.
+      
+      - destination: 1
+        payload: *get
+    
+    expected:
+      - log: []
