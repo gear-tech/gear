@@ -36,19 +36,25 @@ fixtures:
     expected:
       - log:
         - destination: 1000001 # gtest log sender
-          source: 1
+          source:
+            kind: id
+            value: 1
           payload:
             kind: custom
             value: Initialized
 
         - destination: 0
-          source: 2
+          source:
+            kind: id
+            value: 2
           payload:
             kind: custom
             value: pong
         
         - destination: 0
-          source: 2
+          source:
+            kind: id
+            value: 2
           payload:
             kind: custom
             # gtest log sender in hex format
