@@ -24,6 +24,8 @@ members = [
     "sync_duplicate",
     "vec",
     "wait",
+    "token-vendor",
+    "token-vendor/workshop-example",
 ]
 
 [profile.release]

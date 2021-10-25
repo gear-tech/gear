@@ -53,7 +53,7 @@ pub struct Program {
     pub source: Option<SourceVariant>,
     pub init_message: Option<PayloadVariant>,
     pub init_gas_limit: Option<u64>,
-    pub init_value: Option<u64>,
+    pub init_value: Option<u128>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -193,7 +193,7 @@ pub struct Message {
     pub init: Option<bool>,
     pub payload: Option<PayloadVariant>,
     pub gas_limit: Option<u64>,
-    pub value: Option<u64>,
+    pub value: Option<u128>,
     #[serde(rename = "exitCode")]
     pub exit_code: Option<i32>,
 }
