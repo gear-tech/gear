@@ -1,12 +1,15 @@
 use alloc::collections::VecDeque;
 use core::{
-    cell::UnsafeCell,
+    cell::{Cell, UnsafeCell},
     future::Future,
     ops::{Deref, DerefMut},
     pin::Pin,
     task::{Context, Poll},
 };
 use gcore::MessageId;
+
+type ReadersCount = u8;
+const READERS_LIMIT: ReadersCount = 32;
 
 // Option<VecDeque> to make new `const fn`
 struct RwLockWakes(UnsafeCell<Option<VecDeque<MessageId>>>);
@@ -40,6 +43,7 @@ impl RwLockWakes {
 pub struct RwLock<T> {
     locked: UnsafeCell<Option<MessageId>>,
     value: UnsafeCell<T>,
+    readers: Cell<ReadersCount>,
     wakes: RwLockWakes,
 }
 
@@ -48,6 +52,25 @@ unsafe impl<T> Sync for RwLock<T> {}
 
 pub struct RwLockReadGuard<'a, T> {
     lock: &'a RwLock<T>,
+}
+
+impl<'a, T> Drop for RwLockReadGuard<'a, T> {
+    fn drop(&mut self) {
+        unsafe {
+            let readers = &self.lock.readers;
+            let readers_count = readers.get() - 1;
+
+            readers.replace(readers_count);
+
+            if readers_count == 0 {
+                *self.lock.locked.get() = None;
+
+                if let Some(message_id) = self.lock.wakes.dequeue_wake() {
+                    gcore::exec::wake(message_id, 0);
+                }
+            }
+        }
+    }
 }
 
 impl<'a, T> AsRef<T> for RwLockReadGuard<'a, T> {
@@ -117,8 +140,12 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
     type Output = RwLockReadGuard<'a, T>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let readers = &self.lock.readers;
+        let readers_count = readers.get() + 1;
+
         let read = unsafe { &mut *self.lock.locked.get() };
-        if read.is_none() {
+        if read.is_none() && readers_count <= READERS_LIMIT {
+            readers.replace(readers_count);
             Poll::Ready(RwLockReadGuard { lock: self.lock })
         } else {
             self.lock.wakes.add_wake(gcore::msg::id());
@@ -132,7 +159,7 @@ impl<'a, T> Future for RwLockWriteFuture<'a, T> {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let write = unsafe { &mut *self.lock.locked.get() };
-        if write.is_none() {
+        if write.is_none() && self.lock.readers.get() == 0 {
             *write = Some(gcore::msg::id());
             Poll::Ready(RwLockWriteGuard { lock: self.lock })
         } else {
@@ -155,6 +182,7 @@ impl<T> RwLock<T> {
         RwLock {
             value: UnsafeCell::new(t),
             locked: UnsafeCell::new(None),
+            readers: Cell::new(0),
             wakes: RwLockWakes::new(),
         }
     }

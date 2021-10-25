@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{exec, ext, msg, prelude::*, ProgramId};
+use gstd::{exec, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
 static mut PING_DEST: ProgramId = ProgramId([0u8; 32]);
@@ -44,17 +44,11 @@ async fn main() {
         }
         "get&ping" => {
             let val = RWLOCK.read().await;
-            msg_async::send_and_wait_for_reply(
-                unsafe { PING_DEST },
-                b"PING",
-                GAS_LIMIT,
-                0,
-            )
-            .await;
+            msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0).await;
             msg::reply(*val, exec::gas_available() - GAS_LIMIT, 0);
         }
         _ => {
-            let a = RWLOCK.write().await;
+            let _write = RWLOCK.write().await;
             RWLOCK.read().await;
         }
     }
