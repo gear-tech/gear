@@ -134,10 +134,7 @@ gstd::metadata! {
 
 #[gstd_async::main]
 async fn main() {
-    let action: Action = msg::load().unwrap_or_else(|_| {
-        debug!("Unable to decode Action");
-        panic!()
-    });
+    let action: Action = msg::load().expect("Unable to decode Action");
 
     debug!("Got Action: {:?}", action);
 
@@ -151,8 +148,7 @@ async fn main() {
             }
 
             if let Err(e) = unsafe { STATE.update(config) } {
-                debug!("Failed to update State: {}", e);
-                panic!()
+                panic!("Failed to update State: {}", e);
             }
 
             msg::reply("Config updated", exec::gas_available() - GAS_RESERVE, 0);
@@ -173,10 +169,8 @@ async fn main() {
             )
             .await;
 
-            let ping = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
-                debug!("Failed to decode string from pong-response");
-                panic!()
-            });
+            let ping = String::decode(&mut response.as_ref())
+                .expect("Failed to decode string from pong-response");
 
             debug!("Got ping-reply: '{}'", ping);
 
@@ -189,17 +183,13 @@ async fn main() {
                 )
                 .await;
 
-                let success = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
-                    debug!("Failed to decode string from MemberID-response");
-                    panic!()
-                });
+                let success = String::decode(&mut response.as_ref())
+                    .expect("Failed to decode string from MemberID-response");
 
                 debug!("Got success-reply: '{}'", success);
 
-                let member_id = hex_to_id(success).unwrap_or_else(|_| {
-                    debug!("Failed to decode hex from MemberId-response");
-                    panic!()
-                });
+                let member_id =
+                    hex_to_id(success).expect("Failed to decode hex from MemberId-response");
 
                 if source == member_id {
                     debug!(
@@ -220,16 +210,12 @@ async fn main() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let config: InitConfig = msg::load().unwrap_or_else(|_| {
-        debug!("Unable to decode InitConfig");
-        panic!()
-    });
+    let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
 
     debug!("Got InitConfig: {:?}", config);
 
     if let Err(e) = STATE.init(msg::source(), config) {
-        debug!("Failed to init State: {}", e);
-        panic!()
+        panic!("Failed to init State: {}", e);
     }
 
     debug!("Initialized");

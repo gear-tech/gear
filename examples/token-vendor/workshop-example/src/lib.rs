@@ -39,10 +39,7 @@ pub unsafe extern "C" fn init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let payload: String = msg::load().unwrap_or_else(|_| {
-        debug!("CONTRACT: Unable to decode handle input");
-        panic!()
-    });
+    let payload: String = msg::load().expect("CONTRACT: Unable to decode handle input");
 
     debug!("CONTRACT: Got payload: '{}'", payload);
 
