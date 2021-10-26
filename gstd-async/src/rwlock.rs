@@ -19,20 +19,13 @@ impl RwLockWakes {
         unsafe {
             let mutable_option = &mut *self.0.get();
 
-            let mut vec_deque = mutable_option.take().unwrap_or_else(VecDeque::new);
+            let vec_deque = mutable_option.get_or_insert_with(VecDeque::new);
             vec_deque.push_back(message_id);
-
-            *mutable_option = Some(vec_deque);
         }
     }
 
     fn dequeue_wake(&self) -> Option<MessageId> {
-        unsafe {
-            match &mut *self.0.get() {
-                Some(vec_deque) => vec_deque.pop_front(),
-                None => None,
-            }
-        }
+        unsafe { (*self.0.get()).as_mut().and_then(|v| v.pop_front()) }
     }
 
     const fn new() -> Self {
@@ -58,7 +51,7 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
     fn drop(&mut self) {
         unsafe {
             let readers = &self.lock.readers;
-            let readers_count = readers.get() - 1;
+            let readers_count = readers.get().saturating_sub(1);
 
             readers.replace(readers_count);
 
@@ -141,7 +134,7 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let readers = &self.lock.readers;
-        let readers_count = readers.get() + 1;
+        let readers_count = readers.get().saturating_add(1);
 
         let lock = unsafe { &mut *self.lock.locked.get() };
         if lock.is_none() && readers_count <= READERS_LIMIT {
