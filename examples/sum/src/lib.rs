@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{exec, ext, msg, prelude::*, ProgramId};
+use gstd::{debug, exec, msg, prelude::*, ProgramId};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -37,16 +37,13 @@ pub unsafe extern "C" fn handle() {
     if exec::gas_available() > 4_000_000_000 {
         msg::send(STATE.send_to(), new_msg + new_msg, 4_000_000_000, 0);
 
-        ext::debug(&format!(
-            "{:?} total message(s) stored: ",
-            MESSAGE_LOG.len()
-        ));
+        debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
 
         for log in MESSAGE_LOG.iter() {
-            ext::debug(log);
+            debug!(log);
         }
     } else {
-        ext::debug("Not enough gas");
+        debug!("Not enough gas");
     }
 }
 

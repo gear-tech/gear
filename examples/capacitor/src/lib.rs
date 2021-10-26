@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{ext, msg, prelude::*};
+use gstd::{debug, msg, prelude::*};
 
 // Begin of demo
 static mut CHARGE: u32 = 0;
@@ -17,13 +17,10 @@ pub unsafe extern "C" fn handle() {
 
     CHARGE += to_add;
 
-    ext::debug(&format!(
-        "Charge capacitor with {}, new charge {}",
-        to_add, CHARGE,
-    ));
+    debug!("Charge capacitor with {}, new charge {}", to_add, CHARGE);
 
     if CHARGE >= LIMIT {
-        ext::debug(&format!("Discharge #{} due to limit {}", CHARGE, LIMIT,));
+        debug!("Discharge #{} due to limit {}", CHARGE, LIMIT);
 
         msg::send_bytes(
             msg::source(),
@@ -44,8 +41,5 @@ pub unsafe extern "C" fn init() {
 
     LIMIT = limit;
 
-    ext::debug(&format!(
-        "Init capacitor with limit capacity {}, {}",
-        LIMIT, initstr,
-    ));
+    debug!("Init capacitor with limit capacity {}, {}", LIMIT, initstr);
 }
