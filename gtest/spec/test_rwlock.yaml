@@ -197,3 +197,18 @@ fixtures:
     
     expected:
       - log: []
+
+  - title: check readers
+
+    messages:
+      - destination: 1
+        payload: 
+          kind: utf-8
+          value: check readers
+    
+    expected:
+      - log:
+        - destination: 0
+          payload:
+            kind: i32
+            value: 0
