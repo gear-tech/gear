@@ -30,8 +30,9 @@ pub mod meta;
 pub mod msg;
 pub mod prelude;
 
+pub use gcore::exec;
 #[cfg(feature = "debug")]
-pub use gcore::{exec, ext};
+pub use gcore::ext;
 pub use gcore::{MessageId, ProgramId};
 
 #[cfg(not(feature = "debug"))]
