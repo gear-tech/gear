@@ -2,6 +2,7 @@ use alloc::collections::VecDeque;
 use core::{
     cell::UnsafeCell,
     future::Future,
+    ops::{Deref, DerefMut},
     pin::Pin,
     task::{Context, Poll},
 };
@@ -65,6 +66,20 @@ impl<'a, T> AsRef<T> for MutexGuard<'a, T> {
 
 impl<'a, T> AsMut<T> for MutexGuard<'a, T> {
     fn as_mut(&mut self) -> &'a mut T {
+        unsafe { &mut *self.mutex.value.get() }
+    }
+}
+
+impl<T> Deref for MutexGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { &*self.mutex.value.get() }
+    }
+}
+
+impl<T> DerefMut for MutexGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.mutex.value.get() }
     }
 }
