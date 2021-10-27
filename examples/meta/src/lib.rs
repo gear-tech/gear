@@ -75,7 +75,12 @@ pub struct Wallet {
 }
 
 #[derive(TypeInfo, Decode, Clone)]
-pub struct AsyncReplyForFuture {
+pub struct MessageAsyncIn {
+    pub empty: (),
+}
+
+#[derive(TypeInfo, Encode, Clone)]
+pub struct MessageAsyncOut {
     pub empty: (),
 }
 
@@ -88,7 +93,8 @@ gstd::metadata! {
         input: MessageIn,
         output: MessageOut,
     r#async:
-        reply: AsyncReplyForFuture
+        input: MessageAsyncIn,
+        output: MessageAsyncOut
 }
 
 static mut WALLETS: Vec<Wallet> = Vec::new();
