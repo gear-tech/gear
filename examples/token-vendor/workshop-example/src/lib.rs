@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{exec, ext, msg, prelude::*, ProgramId};
+use gstd::{debug, exec, msg, prelude::*, ProgramId};
 
 gstd::metadata! {
     title: "GEAR Workshop Contract Example",
@@ -34,17 +34,14 @@ const GAS_RESERVE: u64 = 10_000_000;
 pub unsafe extern "C" fn init() {
     STATE.set_user_id(msg::source());
 
-    ext::debug("CONTRACT: Inited successfully");
+    debug!("CONTRACT: Inited successfully");
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let payload: String = msg::load().unwrap_or_else(|_| {
-        ext::debug("CONTRACT: Unable to decode handle input");
-        panic!()
-    });
+    let payload: String = msg::load().expect("CONTRACT: Unable to decode handle input");
 
-    ext::debug(&format!("CONTRACT: Got payload: '{}'", payload));
+    debug!("CONTRACT: Got payload: '{}'", payload);
 
     if payload == "success" {
         msg::reply(STATE.get_hex_id(), exec::gas_available() - GAS_RESERVE, 0);

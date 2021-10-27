@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{ext, msg, prelude::*, ProgramId};
+use gstd::{debug, msg, prelude::*, ProgramId};
 
 use core::convert::TryInto;
 use demo_chat::shared::{MemberMessage, RoomMessage};
@@ -39,20 +39,20 @@ fn bot(message: MemberMessage) {
     unsafe {
         match message {
             Private(text) => {
-                ext::debug(&format!(
+                debug!(
                     "BOT '{}': received private message from #{}: '{}'",
                     STATE.name(),
                     u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
                     String::from_utf8(text).expect("invalid utf-8"),
-                ));
+                );
             }
             Room(text) => {
-                ext::debug(&format!(
+                debug!(
                     "BOT '{}': received room message from #{}: '{}'",
                     STATE.name(),
                     u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
                     String::from_utf8(text).expect("invalid utf-8"),
-                ));
+                );
             }
         }
     }
@@ -81,9 +81,9 @@ pub unsafe extern "C" fn init() {
             );
         }
         _ => {
-            ext::debug("INITIALIZATION FAILED");
+            debug!("INITIALIZATION FAILED");
         }
     }
 
-    ext::debug(&format!("BOT '{}' created", STATE.name()));
+    debug!("BOT '{}' created", STATE.name());
 }

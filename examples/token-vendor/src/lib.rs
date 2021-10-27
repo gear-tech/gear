@@ -3,7 +3,7 @@
 
 extern crate alloc;
 
-use gstd::{exec, ext, msg, prelude::*, ProgramId};
+use gstd::{debug, exec, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 
 use alloc::collections::BTreeSet;
@@ -134,32 +134,28 @@ gstd::metadata! {
 
 #[gstd_async::main]
 async fn main() {
-    let action: Action = msg::load().unwrap_or_else(|_| {
-        ext::debug("Unable to decode Action");
-        panic!()
-    });
+    let action: Action = msg::load().expect("Unable to decode Action");
 
-    ext::debug(&format!("Got Action: {:?}", action));
+    debug!("Got Action: {:?}", action);
 
     let source = msg::source();
 
     match action {
         Action::UpdateConfig(config) => {
             if unsafe { !STATE.admins.contains(&source) } {
-                ext::debug("Sender is not an admin of the workshop");
+                debug!("Sender is not an admin of the workshop");
                 return;
             }
 
             if let Err(e) = unsafe { STATE.update(config) } {
-                ext::debug(&format!("Failed to update State: {}", e));
-                panic!()
+                panic!("Failed to update State: {}", e);
             }
 
             msg::reply("Config updated", exec::gas_available() - GAS_RESERVE, 0);
         }
         Action::ProgramId(hex) => {
             if unsafe { !STATE.members.contains(&source) } {
-                ext::debug("Sender is not a member of the workshop");
+                debug!("Sender is not a member of the workshop");
                 return;
             }
 
@@ -173,12 +169,10 @@ async fn main() {
             )
             .await;
 
-            let ping = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
-                ext::debug("Failed to decode string from pong-response");
-                panic!()
-            });
+            let ping = String::decode(&mut response.as_ref())
+                .expect("Failed to decode string from pong-response");
 
-            ext::debug(&format!("Got ping-reply: '{}'", ping));
+            debug!("Got ping-reply: '{}'", ping);
 
             if ping.to_lowercase() == "pong" {
                 let response = msg_async::send_and_wait_for_reply(
@@ -189,23 +183,19 @@ async fn main() {
                 )
                 .await;
 
-                let success = String::decode(&mut response.as_ref()).unwrap_or_else(|_| {
-                    ext::debug("Failed to decode string from MemberID-response");
-                    panic!()
-                });
+                let success = String::decode(&mut response.as_ref())
+                    .expect("Failed to decode string from MemberID-response");
 
-                ext::debug(&format!("Got success-reply: '{}'", success));
+                debug!("Got success-reply: '{}'", success);
 
-                let member_id = hex_to_id(success).unwrap_or_else(|_| {
-                    ext::debug("Failed to decode hex from MemberId-response");
-                    panic!()
-                });
+                let member_id =
+                    hex_to_id(success).expect("Failed to decode hex from MemberId-response");
 
                 if source == member_id {
-                    ext::debug(&format!(
+                    debug!(
                         "SUCCESS:\n  member: {:?}\n  contract: {:?}",
                         member_id, source
-                    ));
+                    );
 
                     msg::reply("Success", exec::gas_available() - GAS_RESERVE, unsafe {
                         STATE.reward
@@ -220,18 +210,14 @@ async fn main() {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let config: InitConfig = msg::load().unwrap_or_else(|_| {
-        ext::debug("Unable to decode InitConfig");
-        panic!()
-    });
+    let config: InitConfig = msg::load().expect("Unable to decode InitConfig");
 
-    ext::debug(&format!("Got InitConfig: {:?}", config));
+    debug!("Got InitConfig: {:?}", config);
 
     if let Err(e) = STATE.init(msg::source(), config) {
-        ext::debug(&format!("Failed to init State: {}", e));
-        panic!()
+        panic!("Failed to init State: {}", e);
     }
 
-    ext::debug("Initialized");
+    debug!("Initialized");
     msg::reply("Initialized", exec::gas_available() - GAS_RESERVE, 0);
 }

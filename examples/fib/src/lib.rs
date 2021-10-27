@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{ext, msg, prelude::*};
+use gstd::{debug, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -25,13 +25,10 @@ pub unsafe extern "C" fn handle() {
         0,
     );
 
-    ext::debug(&format!(
-        "{:?} total message(s) stored: ",
-        MESSAGE_LOG.len()
-    ));
+    debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
 
     for log in MESSAGE_LOG.iter() {
-        ext::debug(log);
+        debug!(log);
     }
 }
 

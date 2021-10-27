@@ -24,44 +24,59 @@
 extern crate galloc;
 
 mod bail;
+mod debug;
 #[cfg(feature = "meta")]
 pub mod meta;
 pub mod msg;
 pub mod prelude;
 
+pub use gcore::exec;
 #[cfg(feature = "debug")]
-pub use gcore::{exec, ext};
+pub use gcore::ext;
 pub use gcore::{MessageId, ProgramId};
 
+#[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
-    #[cfg(feature = "debug")]
-    {
-        ext::debug("Runtime memory exhausted. Aborting");
-    }
     core::arch::wasm32::unreachable()
 }
 
+#[cfg(feature = "debug")]
+#[cfg(target_arch = "wasm32")]
+#[alloc_error_handler]
+pub fn oom(_: core::alloc::Layout) -> ! {
+    ext::debug("Runtime memory exhausted. Aborting");
+    core::arch::wasm32::unreachable()
+}
+
+#[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    #[cfg(feature = "debug")]
-    {
-        use galloc::prelude::*;
+    core::arch::wasm32::unreachable();
+}
 
-        let location_info = if let Some(location) = panic_info.location() {
-            format!(", at: {}, {}", location.file(), location.line())
-        } else {
-            String::new()
-        };
+#[cfg(feature = "debug")]
+#[cfg(target_arch = "wasm32")]
+#[panic_handler]
+fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+    let info = prelude::format!("panic occurred: '{:?}'", panic_info);
 
-        if let Some(payload_str) = panic_info.payload().downcast_ref::<&str>() {
-            ext::debug(&format!(
-                "panic, payload: {:?}{}",
-                payload_str, location_info
-            ));
-        }
-    }
+    let payload = if info.len() > 64 && &info[59..63] == "Some" {
+        let msg_len = info.rfind("{").map(|v| v.saturating_sub(86)).unwrap_or(0);
+
+        &info[64..64 + msg_len]
+    } else {
+        &"UNKNOWN"
+    };
+
+    let location = panic_info
+        .location()
+        .map(|v| prelude::format!(", at `{}`, line {}", v.file(), v.line()))
+        .unwrap_or_default();
+
+    ext::debug(&prelude::format!("Panicked with {:?}{}", payload, location));
+
     core::arch::wasm32::unreachable();
 }
