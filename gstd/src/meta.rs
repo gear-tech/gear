@@ -58,8 +58,8 @@ macro_rules! metadata {
         gstd::declare!(meta_init_output -> $init_output);
         gstd::declare!(meta_input -> $input);
         gstd::declare!(meta_output -> $output);
-        gstd::declare!(meta_async_input-> $async_input);
-        gstd::declare!(meta_async_output-> $async_output);
+        gstd::declare!(meta_async_input -> $async_input);
+        gstd::declare!(meta_async_output -> $async_output);
         gstd::declare!(meta_registry -> gstd::meta::to_hex_registry(gstd::types!($($t), +)));
     };
     // #1: all
