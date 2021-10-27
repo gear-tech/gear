@@ -20,8 +20,11 @@
 #[cfg(feature = "debug")]
 #[macro_export]
 macro_rules! debug {
-    ($arg:expr) => {
+    ($arg:literal) => {
         gstd::ext::debug(&gstd::prelude::format!("{}", $arg));
+    };
+    ($arg:expr) => {
+        gstd::ext::debug(&gstd::prelude::format!("{:?}", $arg));
     };
     ($fmt:literal, $($args:tt)+) => {
         gstd::ext::debug(&gstd::prelude::format!($fmt, $($args)+));
