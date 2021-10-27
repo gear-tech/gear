@@ -123,7 +123,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
     test: &Test,
     fixture_no: usize,
 ) -> anyhow::Result<Runner<MQ, PS, WL>> {
-    let mut runner = Runner::new(&Config::default(), storage);
+    let mut runner = Runner::new(&Config::default(), storage, 0);
     let mut nonce = 0;
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
@@ -248,6 +248,7 @@ where
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
+            runner.set_block_height(step_no as _);
             let run_result = runner.run_next(u64::MAX);
 
             log::info!("step: {}", step_no + 1);

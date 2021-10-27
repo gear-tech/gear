@@ -293,6 +293,14 @@ impl<E: Ext + 'static> Environment<E> {
             Ok(ReturnValue::Unit)
         }
 
+        fn block_height<E: Ext>(
+            ctx: &mut Runtime<E>,
+            _args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let block_height = ctx.ext.with(|ext: &mut E| ext.block_height()).unwrap_or(0);
+            Ok(ReturnValue::Value(Value::I32(block_height as i32)))
+        }
+
         fn reply<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
             let payload_ptr: i32 = match args[0] {
                 Value::I32(val) => val,
@@ -547,6 +555,7 @@ impl<E: Ext + 'static> Environment<E> {
         env_builder.add_memory("env", "memory", mem.clone());
         env_builder.add_host_func("env", "alloc", alloc);
         env_builder.add_host_func("env", "free", free);
+        env_builder.add_host_func("env", "gr_block_height", block_height);
         env_builder.add_host_func("env", "gr_send", send);
         env_builder.add_host_func("env", "gr_send_commit", send_commit);
         env_builder.add_host_func("env", "gr_send_init", send_init);

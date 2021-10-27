@@ -34,6 +34,7 @@ pub struct Ext {
     pub gas_counter: Box<dyn GasCounter>,
     pub alloc_cost: u64,
     pub last_error_returned: Option<&'static str>,
+    pub block_height: u32,
 }
 
 impl Ext {
@@ -61,6 +62,10 @@ impl EnvExt for Ext {
             .map_err(|_e| "Allocation error");
 
         self.return_with_tracing(result)
+    }
+
+    fn block_height(&self) -> u32 {
+        self.block_height
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {

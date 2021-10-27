@@ -227,7 +227,7 @@ impl RunnerContext {
     }
 
     pub fn with_config(config: &Config) -> Self {
-        Self::new(Runner::new(config, Default::default()))
+        Self::new(Runner::new(config, Default::default(), 0))
     }
 
     pub fn init_program<P>(&mut self, init_data: P)
@@ -470,8 +470,8 @@ impl RunnerState {
             runner
         } else {
             *self = match std::mem::take(self) {
-                Self::Storage(storage, config) => Self::Runner(Runner::new(&config, storage)),
-                _ => Self::Runner(Runner::new(&Config::default(), InMemoryStorage::default())),
+                Self::Storage(storage, config) => Self::Runner(Runner::new(&config, storage, 0)),
+                _ => Self::Runner(Runner::default()),
             };
 
             self.convert_to_runner()
