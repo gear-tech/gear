@@ -77,6 +77,7 @@ fn optimize_meta(
             "meta_init_output",
             "meta_input",
             "meta_output",
+            "meta_async_reply",
             "meta_registry",
             "meta_title",
         ],
