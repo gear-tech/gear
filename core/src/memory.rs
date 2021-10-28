@@ -187,6 +187,42 @@ impl MemoryContext {
         self.program_id
     }
 
+    /// KEK
+    pub fn pre_alloc(&self, pages: u32) -> Result<u32, Error> {
+        // silly allocator, brute-forces fist continuous sector
+        let mut candidate = self.static_pages.raw();
+        let mut found = 0u32;
+
+        while found < pages {
+            if candidate + pages > self.max_pages.raw() {
+                log::debug!(
+                    "candidate: {}, pages: {}, max_pages: {}",
+                    candidate,
+                    pages,
+                    self.max_pages.raw()
+                );
+                return Err(Error::OutOfMemory);
+            }
+
+            if self.allocations.contains(&(candidate + found).into()) {
+                candidate += 1;
+                found = 0;
+                continue;
+            }
+
+            found += 1;
+        }
+
+        let extra_grow;
+        if candidate + found > self.memory.size().raw() {
+            extra_grow = candidate + found - self.memory.size().raw();
+        } else {
+            extra_grow = 0;
+        }
+
+        return Ok(extra_grow);
+    }
+
     /// Alloc specific number of pages for the currently running program.
     pub fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
@@ -213,8 +249,9 @@ impl MemoryContext {
             found += 1;
         }
 
+        let extra_grow;
         if candidate + found > self.memory.size().raw() {
-            let extra_grow = candidate + found - self.memory.size().raw();
+            extra_grow = candidate + found - self.memory.size().raw();
             self.memory.grow(extra_grow.into())?;
         }
 

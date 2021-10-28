@@ -54,7 +54,12 @@ impl Ext {
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        self.gas(pages.raw() * self.alloc_cost as u32)?;
+        let res = self.memory_context.pre_alloc(pages.raw());
+        if res.is_ok() {
+            self.gas(res.unwrap() * self.alloc_cost as u32)?;
+        } else {
+            self.gas(pages.raw() * self.alloc_cost as u32)?;
+        }
 
         let result = self
             .memory_context
