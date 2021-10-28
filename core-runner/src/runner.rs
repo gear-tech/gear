@@ -154,7 +154,7 @@ pub struct ExtMessage {
 
 /// Program initialization request.
 ///
-/// Program is initializaed from some user identity. The identity of the program itself must be known.
+/// Program is initialized from some user identity. The identity of the program itself must be known.
 /// The initialization message id also must be known in advance (all message chain about program initialization
 /// will start from the deterministic message known in advance).
 pub struct InitializeProgramInfo {
