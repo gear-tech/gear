@@ -22,8 +22,16 @@ use std::process::Command;
 pub enum MetaType {
     InitInput,
     InitOutput,
-    Input,
-    Output,
+    #[allow(unused)]
+    AsyncInitInput,
+    #[allow(unused)]
+    AsyncInitOutput,
+    HandleInput,
+    HandleOutput,
+    #[allow(unused)]
+    AsyncHandleInput,
+    #[allow(unused)]
+    AsyncHandleOutput,
 }
 
 impl ToString for MetaType {
@@ -31,8 +39,12 @@ impl ToString for MetaType {
         match self {
             MetaType::InitInput => "init_input",
             MetaType::InitOutput => "init_output",
-            MetaType::Input => "input",
-            MetaType::Output => "output",
+            MetaType::AsyncInitInput => "async_init_input",
+            MetaType::AsyncInitOutput => "async_init_output",
+            MetaType::HandleInput => "handle_input",
+            MetaType::HandleOutput => "handle_output",
+            MetaType::AsyncHandleInput => "async_handle_input",
+            MetaType::AsyncHandleOutput => "async_handle_output",
         }
         .into()
     }
@@ -175,13 +187,13 @@ mod tests {
         let bytes = json
             .clone()
             .convert(
-                "examples/target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
-                &MetaType::Input,
+                "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                &MetaType::HandleInput,
             )
             .or_else(|_| {
                 json.convert(
-                    "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
-                    &MetaType::Input,
+                    "examples/target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
+                    &MetaType::HandleInput,
                 )
             });
 
@@ -190,10 +202,11 @@ mod tests {
             msg: "Some message, really huge text".into(),
         });
 
-        let codec_bytes = bytes.clone().expect("Could not find file ").into_bytes();
+        let codec_bytes = bytes.clone().expect("Could not find file").into_bytes();
+
         assert_eq!(hex::encode(codec_bytes), hex::encode(expectation.encode()));
 
-        let msg = Action::decode(&mut bytes.expect("Could not find file ").into_bytes().as_ref())
+        let msg = Action::decode(&mut bytes.expect("Could not find file").into_bytes().as_ref())
             .expect("Unable to decode CodecBytes");
 
         assert_eq!(msg, expectation);
@@ -218,12 +231,12 @@ mod tests {
             .clone()
             .convert(
                 "target/wasm32-unknown-unknown/release/guestbook.meta.wasm",
-                &MetaType::Output,
+                &MetaType::HandleOutput,
             )
             .or_else(|_| {
                 json.convert(
                     "target/examples/wasm32-unknown-unknown/release/guestbook.meta.wasm",
-                    &MetaType::Output,
+                    &MetaType::HandleOutput,
                 )
             });
 
@@ -238,11 +251,12 @@ mod tests {
             },
         ];
 
-        let codec_bytes = bytes.clone().expect("Could not find file ").into_bytes();
+        let codec_bytes = bytes.clone().expect("Could not find file").into_bytes();
+
         assert_eq!(hex::encode(codec_bytes), hex::encode(expectation.encode()));
 
         let msg = Vec::<MessageIn>::decode(
-            &mut bytes.expect("Could not find file ").into_bytes().as_ref(),
+            &mut bytes.expect("Could not find file").into_bytes().as_ref(),
         )
         .expect("Unable to decode CodecBytes");
 
