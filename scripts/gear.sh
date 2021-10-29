@@ -260,6 +260,10 @@ case "$COMMAND" in
         header "Running node testsuite"
         ntest "$ROOT_DIR"; ;;
 
+      pallet)
+        header "Running pallet-gear tests"
+        pallet_test "$@"; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         test_usage

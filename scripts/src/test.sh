@@ -17,6 +17,7 @@ test_usage() {
     js             run metadata js tests
     gtest          run gtest testing tool
     ntest          run node testsuite
+    pallet         run pallet-gear tests
 
 EOF
 }
@@ -40,4 +41,8 @@ gtest() {
 # $1 - ROOT DIR
 ntest() {
   cargo run --package gear-node --release -- runtests "$1"/gtest/spec/*.yaml
+}
+
+pallet_test() {
+  cargo test -p pallet-gear "$@"
 }

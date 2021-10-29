@@ -11,6 +11,11 @@ clean:
 	@ cargo clean --manifest-path=./Cargo.toml
 	@ cargo clean --manifest-path=./examples/Cargo.toml
 
+.PHONY: clean-examples
+clean-examples:
+	@ rm -rf ./target/wasm32-unknown-unknown
+	@ cargo clean --manifest-path=./examples/Cargo.toml
+
 .PHONY: clean-node
 clean-node:
 	@ cargo clean -p gear-node
@@ -153,10 +158,10 @@ update-js:
 
 # Test section
 .PHONY: test
-test: test-gear test-js gtest
+test: test-gear test-pallet test-js gtest
 
 .PHONY: test-release
-test-release: test-gear-release test-js gtest ntest
+test-release: test-gear-release test-pallet-release test-js gtest ntest
 
 .PHONY: test-gear
 test-gear: init-js examples
@@ -177,3 +182,11 @@ gtest: init-js examples
 .PHONY: ntest
 ntest:
 	@ ./scripts/gear.sh test ntest
+
+.PHONY: test-pallet
+test-pallet:
+	@ ./scripts/gear.sh test pallet
+
+.PHONY: test-pallet-release
+test-pallet-release:
+	@ ./scripts/gear.sh test pallet --release
