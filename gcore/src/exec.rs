@@ -38,7 +38,7 @@ mod sys {
 /// ```
 /// use gcore::{exec, msg};
 ///
-/// // Perform work while gas_available is more than 1000
+/// // Send a reply after the block height reaches the number 1000
 /// pub unsafe extern "C" fn handle() {
 ///     if exec::block_height() >= 1000 {
 ///         msg::reply(b"Block #1000 reached", 1_000_000, 0);
