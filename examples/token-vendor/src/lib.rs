@@ -123,13 +123,13 @@ static mut STATE: State = State {
 };
 
 gstd::metadata! {
-    title: "Workshop token vendor contract";
+    title: "Workshop token vendor contract",
     init:
-        input: InitConfig;
-        output: String;
+        input: InitConfig,
+        output: String,
     handle:
-        input: Action;
-        output: String;
+        input: Action,
+        output: String,
 }
 
 #[gstd_async::main]

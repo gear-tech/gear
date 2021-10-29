@@ -11,13 +11,13 @@ static mut DEST_2: ProgramId = ProgramId([0u8; 32]);
 const GAS_LIMIT: u64 = 50_000_000;
 
 gstd::metadata! {
-    title: "demo async";
+    title: "demo async",
     init:
-        input: Vec<u8>;
-        output: Vec<u8>;
+        input: Vec<u8>,
+        output: Vec<u8>,
     handle:
-        input: Vec<u8>;
-        output: Vec<u8>;
+        input: Vec<u8>,
+        output: Vec<u8>,
 }
 
 #[no_mangle]

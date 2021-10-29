@@ -95,19 +95,19 @@ pub struct MessageHandleAsyncOut {
 }
 
 gstd::metadata! {
-    title: "Example program with metadata";
+    title: "Example program with metadata",
     init:
-        input: MessageInitIn;
-        output: MessageInitOut;
+        input: MessageInitIn,
+        output: MessageInitOut,
         awaiting:
-            input: MessageInitAsyncIn;
-            output: MessageInitAsyncOut;
+            input: MessageInitAsyncIn,
+            output: MessageInitAsyncOut,
     handle:
-        input: MessageIn;
-        output: MessageOut;
+        input: MessageIn,
+        output: MessageOut,
         awaiting:
-            input: MessageHandleAsyncIn;
-            output: MessageHandleAsyncOut;
+            input: MessageHandleAsyncIn,
+            output: MessageHandleAsyncOut,
 }
 
 static mut WALLETS: Vec<Wallet> = Vec::new();

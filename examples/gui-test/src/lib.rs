@@ -24,13 +24,13 @@ struct CustomStruct<T: Decode + Encode + TypeInfo> {
 }
 
 gstd::metadata! {
-    title: "GUI test program";
+    title: "GUI test program",
     init:
-        input: Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>>;
-        output: Result<u8, Option<String>>;
+        input: Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>>,
+        output: Result<u8, Option<String>>,
     handle:
-        input: (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>);
-        output: CustomStruct<Option<(Option<u8>, u128, [u8; 3])>>;
+        input: (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>),
+        output: CustomStruct<Option<(Option<u8>, u128, [u8; 3])>>,
 }
 
 type InitIncoming = Action<AStruct, Option<CustomStruct<u8>>, BTreeMap<String, u8>>;

@@ -3,12 +3,12 @@
 use gstd::{exec, ext, msg, prelude::*, ProgramId};
 
 gstd::metadata! {
-    title: "GEAR Workshop Contract Example";
+    title: "GEAR Workshop Contract Example",
     init:
-        output: String;
+        output: String,
     handle:
-        input: String;
-        output: String;
+        input: String,
+        output: String,
 }
 
 struct State {

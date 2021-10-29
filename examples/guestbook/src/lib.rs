@@ -17,10 +17,10 @@ pub struct MessageIn {
 }
 
 gstd::metadata! {
-    title: "Guestbook";
+    title: "Guestbook",
     handle:
-        input: Action;
-        output: Vec<MessageIn>;
+        input: Action,
+        output: Vec<MessageIn>,
 }
 
 static mut MESSAGES: Vec<MessageIn> = Vec::new();

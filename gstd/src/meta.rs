@@ -76,25 +76,25 @@ macro_rules! metadata {
     };
 
     (
-        title: $title:literal; // program title
+        title: $title:literal, // program title
         $(
             init: // init messaging types
-                $(input: $ii:ty;)? // init input
-                $(output: $io:ty;)? // init output
+                $(input: $ii:ty,)? // init input
+                $(output: $io:ty,)? // init output
             $(
                 awaiting:
-                    $(input: $aii:ty;)? // async init input
-                    $(output: $aio:ty;)? // async init output
+                    $(input: $aii:ty,)? // async init input
+                    $(output: $aio:ty,)? // async init output
             )?
         )?
         $(
             handle: // handle messaging types
-                $(input: $hi:ty;)?
-                $(output: $ho:ty;)?
+                $(input: $hi:ty,)?
+                $(output: $ho:ty,)?
             $(
                 awaiting:
-                    $(input: $ahi:ty;)? // async handle input
-                    $(output: $aho:ty;)? // async handle output
+                    $(input: $ahi:ty,)? // async handle input
+                    $(output: $aho:ty,)? // async handle output
             )?
         )?
     ) => {
