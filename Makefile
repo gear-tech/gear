@@ -11,6 +11,11 @@ clean:
 	@ cargo clean --manifest-path=./Cargo.toml
 	@ cargo clean --manifest-path=./examples/Cargo.toml
 
+.PHONY: clean-examples
+clean-examples:
+	@ rm -rf ./target/wasm32-unknown-unknown
+	@ cargo clean --manifest-path=./examples/Cargo.toml
+
 .PHONY: clean-node
 clean-node:
 	@ cargo clean -p gear-node
