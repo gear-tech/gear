@@ -57,7 +57,7 @@ gear_usage() {
     format         format gear parts via rustfmt
     init           initializes and updates packages and toolchains
     test           test tool
-    
+
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
 EOF
@@ -121,11 +121,11 @@ case "$COMMAND" in
       -h | --help | help)
         check_usage
         exit; ;;
-      
+
       gear)
         header "Checking gear workspace"
         gear_check "$@"; ;;
-      
+
       examples)
         header "Checking gear examples"
         examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
@@ -149,7 +149,7 @@ case "$COMMAND" in
       gear)
         header "Invoking clippy on gear workspace"
         gear_clippy "$@"; ;;
-      
+
       examples)
         header "Invoking clippy on gear examples"
         examples_clippy "$ROOT_DIR"; ;;
@@ -227,7 +227,7 @@ case "$COMMAND" in
       js)
         header "Syncing JS packages"
         js_init "$ROOT_DIR"; ;;
-      
+
       update-js)
         header "Updating JS packages"
         js_update "$ROOT_DIR"; ;;
@@ -254,7 +254,7 @@ case "$COMMAND" in
 
       gtest)
         header "Running gtest"
-        gtest "$ROOT_DIR" "$@"; ;;
+        gtest "$ROOT_DIR" $(echo "$ROOT_DIR/examples/**/*.yaml") "$@"; ;;
 
       ntest)
         header "Running node testsuite"

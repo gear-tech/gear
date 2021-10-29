@@ -46,6 +46,9 @@ pub trait Ext {
     /// The resulting page number should point to `pages` consecutives memory pages.
     fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
 
+    /// Get the current block height.
+    fn block_height(&self) -> u32;
+
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
 
@@ -191,6 +194,9 @@ mod tests {
     impl Ext for ExtImplementedStruct {
         fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> {
             Err("")
+        }
+        fn block_height(&self) -> u32 {
+            0
         }
         fn send_init(&mut self) -> Result<usize, &'static str> {
             Ok(0)

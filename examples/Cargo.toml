@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "async",
+    "block-height",
     "chat",
     "chat/bot",
     "chat/room",

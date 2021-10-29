@@ -32,10 +32,14 @@ use gear_core::{
         MessageState, OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
-    storage::{Log, MessageQueue, ProgramStorage, Storage, WaitList},
+    storage::{
+        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, Log, MessageQueue,
+        ProgramStorage, Storage, WaitList,
+    },
 };
 use gear_core_backend::Environment;
 
+use crate::builder::RunnerBuilder;
 use crate::ext::Ext;
 use crate::util::BlakeMessageIdGenerator;
 
@@ -131,6 +135,7 @@ impl RunNextResult {
 ///
 /// This instance allows to handle multiple messages using underlying allocation, message and program
 /// storage.
+#[derive(Default)]
 pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
@@ -138,7 +143,11 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub(crate) log: Log,
     pub(crate) config: Config,
     env: Environment<Ext>,
+    block_height: u32,
 }
+
+/// Fully in-memory runner builder (for tests).
+pub type InMemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
 
 /// Message payload with pre-generated identifier and economic data.
 pub struct ExtMessage {
@@ -232,7 +241,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     /// New runner instance.
     ///
     /// Provide configuration, storage.
-    pub fn new(config: &Config, storage: Storage<MQ, PS, WL>) -> Self {
+    pub fn new(config: &Config, storage: Storage<MQ, PS, WL>, block_height: u32) -> Self {
         let env = Environment::new();
 
         let Storage {
@@ -249,7 +258,13 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             log,
             config: config.clone(),
             env,
+            block_height,
         }
+    }
+
+    /// Create an empty [`RunnerBuilder`].
+    pub fn builder() -> RunnerBuilder<MQ, PS, WL> {
+        RunnerBuilder::new()
     }
 
     /// Run handling next message in the queue.
@@ -316,6 +331,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             },
             &next_message.into(),
             gas_limit,
+            self.block_height,
         );
 
         if run_result.outcome.was_trap() {
@@ -479,6 +495,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             EntryPoint::Init,
             &msg,
             initialization.message.gas_limit,
+            self.block_height,
         );
 
         for message in context.message_buf.drain(..) {
@@ -511,6 +528,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     /// Queue a reply message for the underlying message queue.
     pub fn queue_reply(&mut self, dispatch: ReplyDispatch) {
         self.message_queue.queue(dispatch.into_message());
+    }
+
+    /// Set the block height value.
+    pub fn set_block_height(&mut self, value: u32) {
+        self.block_height = value;
     }
 }
 
@@ -609,6 +631,7 @@ pub struct RunResult {
     pub outcome: ExecutionOutcome,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run(
     env: &mut Environment<Ext>,
     context: &mut RunningContext,
@@ -617,6 +640,7 @@ fn run(
     entry_point: EntryPoint,
     message: &IncomingMessage,
     gas_limit: u64,
+    block_height: u32,
 ) -> RunResult {
     let mut gas_counter = Box::new(GasCounterLimited::new(gas_limit)) as Box<dyn GasCounter>;
 
@@ -675,6 +699,7 @@ fn run(
         gas_counter,
         alloc_cost: context.alloc_cost(),
         last_error_returned: None,
+        block_height,
     };
 
     let (res, mut ext) = env.setup_and_run(
@@ -765,7 +790,8 @@ mod tests {
     extern crate wabt;
 
     use super::*;
-    use crate::builder::RunnerBuilder;
+    use crate::builder::{InMemoryRunnerBuilder, RunnerBuilder};
+    use core::convert::TryInto;
     use env_logger::Env;
     use gear_core::storage::{InMemoryStorage, MessageMap};
 
@@ -806,7 +832,7 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build().build();
+        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build();
 
         runner.queue_message(MessageDispatch {
             source_id: 1001.into(),
@@ -909,15 +935,14 @@ mod tests {
               )
           )"#;
 
-        let mut runner = RunnerBuilder::new()
+        let mut runner = InMemoryRunnerBuilder::new()
             .program(parse_wat(wat))
-            .init_message(ExtMessage {
+            .with_init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),
                 gas_limit: u64::MAX,
                 value: 0,
             })
-            .build()
             .build();
 
         runner.run_next(u64::MAX);
@@ -1006,7 +1031,7 @@ mod tests {
             )
           )"#;
 
-        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build().build();
+        let mut runner = InMemoryRunnerBuilder::new().program(parse_wat(wat)).build();
 
         runner.run_next(u64::MAX);
 
@@ -1064,15 +1089,14 @@ mod tests {
 
         let mut runner = RunnerBuilder::new()
             .program(parse_wat(wat))
-            .source(source_id)
-            .id(dest_id)
-            .init_message(ExtMessage {
+            .with_source_id(source_id)
+            .with_program_id(dest_id)
+            .with_init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),
                 gas_limit: u64::MAX,
                 value: 0,
             })
-            .build()
             .build();
 
         let payload = b"Test Wait";
@@ -1133,15 +1157,14 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = RunnerBuilder::new()
+        let mut runner = InMemoryRunnerBuilder::new()
             .program(parse_wat(wat))
-            .init_message(ExtMessage {
+            .with_init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: "init".as_bytes().to_vec(),
                 gas_limit: u64::MAX,
                 value: 0,
             })
-            .build()
             .build();
 
         let gas_limit = 1000_000;
@@ -1172,8 +1195,6 @@ mod tests {
             .map(|m| (m.payload().to_vec(), m.source(), m.dest()))
             .unwrap();
 
-        use core::convert::TryInto;
-
         let gas_available = gas_available
             .as_slice()
             .try_into()
@@ -1199,7 +1220,7 @@ mod tests {
             )
         )"#;
 
-        let mut runner = Runner::new(&Config::default(), InMemoryStorage::default());
+        let mut runner = InMemoryRunner::default(); //Runner::new(&Config::default(), InMemoryStorage::default());
 
         let caller_id = 1001.into();
 
@@ -1255,17 +1276,16 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner = RunnerBuilder::new()
+        let mut runner = InMemoryRunnerBuilder::new()
             .program(parse_wat(wat))
-            .source(1001)
-            .id(1)
-            .init_message(ExtMessage {
+            .with_source_id(1001)
+            .with_program_id(1)
+            .with_init_message(ExtMessage {
                 id: 1000001.into(),
                 payload: vec![],
                 gas_limit: u64::MAX,
                 value: 0,
             })
-            .build()
             .build();
 
         runner.queue_message(MessageDispatch {

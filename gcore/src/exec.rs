@@ -24,10 +24,29 @@ use crate::MessageId;
 
 mod sys {
     extern "C" {
+        pub fn gr_block_height() -> u32;
         pub fn gr_gas_available() -> u64;
         pub fn gr_wait() -> !;
         pub fn gr_wake(waker_id_ptr: *const u8, gas_limit: u64);
     }
+}
+
+/// Get the current block height.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// // Send a reply after the block height reaches the number 1000
+/// pub unsafe extern "C" fn handle() {
+///     if exec::block_height() >= 1000 {
+///         msg::reply(b"Block #1000 reached", 1_000_000, 0);
+///     }
+/// }
+/// ```
+pub fn block_height() -> u32 {
+    unsafe { sys::gr_block_height() }
 }
 
 /// Get the current value of the gas available for execution.
@@ -39,7 +58,7 @@ mod sys {
 /// # Examples
 ///
 /// ```
-/// use gcore::{exec, msg};
+/// use gcore::exec;
 ///
 /// // Perform work while gas_available is more than 1000
 /// pub unsafe extern "C" fn handle() {

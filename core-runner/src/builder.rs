@@ -19,24 +19,33 @@
 use super::runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
 use alloc::vec::*;
 use gear_core::storage::{
-    InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
+    InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, MessageQueue, ProgramStorage,
+    Storage, WaitList,
 };
 
 /// Builder for [`Runner`].
-pub struct RunnerBuilder {
+#[derive(Default)]
+pub struct RunnerBuilder<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     config: Config,
     programs: Vec<InitializeProgramInfo>,
-    storage: InMemoryStorage,
+    storage: Storage<MQ, PS, WL>,
+    block_height: u32,
 }
 
-impl RunnerBuilder {
-    /// Default [`Runner`].
+/// Fully in-memory runner builder (for tests).
+pub type InMemoryRunnerBuilder =
+    RunnerBuilder<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
+
+impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> RunnerBuilder<MQ, PS, WL> {
+    /// Create an empty `RunnerBuilder` for default [`Runner`].
     pub fn new() -> Self {
-        Self {
-            config: Config::default(),
-            programs: vec![],
-            storage: InMemoryStorage::default(),
-        }
+        Default::default()
+    }
+
+    /// Set block height.
+    pub fn block_height(mut self, value: u32) -> Self {
+        self.block_height = value;
+        self
     }
 
     /// Set [`Config`].
@@ -45,72 +54,62 @@ impl RunnerBuilder {
         self
     }
 
-    /// Set [`Program`] to be initialized on build.
-    pub fn program(self, code: Vec<u8>) -> ProgramBuilder {
-        ProgramBuilder::new(self, code)
+    /// Add a program code to be initialized on build.
+    pub fn program(mut self, code: Vec<u8>) -> Self {
+        let counter = self.programs.len() as u64;
+
+        self.programs.push(InitializeProgramInfo {
+            source_id: 1001.into(),
+            new_program_id: (1 + counter).into(),
+            code,
+            message: ExtMessage {
+                id: (1000000 + counter).into(),
+                payload: Vec::new(),
+                gas_limit: u64::MAX,
+                value: 0,
+            },
+        });
+        self
+    }
+
+    /// Change the source ID in the last added program info.
+    pub fn with_source_id(mut self, id: u64) -> Self {
+        let program = self
+            .programs
+            .last_mut()
+            .expect("No any program added, call `program()` before");
+        program.source_id = id.into();
+        self
+    }
+
+    /// Change the program ID of the last added program.
+    pub fn with_program_id(mut self, id: u64) -> Self {
+        let program = self
+            .programs
+            .last_mut()
+            .expect("No any program added, call `program()` before");
+        program.new_program_id = id.into();
+        self
+    }
+
+    /// Change the init message in the last added program info.
+    pub fn with_init_message(mut self, message: ExtMessage) -> Self {
+        let program = self
+            .programs
+            .last_mut()
+            .expect("No any program added, call `program()` before");
+        program.message = message;
+        self
     }
 
     /// Initialize all programs and return [`Runner`].
-    pub fn build(self) -> Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
-        let mut runner = Runner::new(&self.config, self.storage);
+    pub fn build(self) -> Runner<MQ, PS, WL> {
+        let mut runner = Runner::new(&self.config, self.storage, self.block_height);
         for program in self.programs {
             runner
                 .init_program(program)
                 .expect("failed to init program");
         }
         runner
-    }
-}
-
-pub struct ProgramBuilder {
-    runner_builder: RunnerBuilder,
-    code: Vec<u8>,
-    source_id: u64,
-    new_program_id: u64,
-    message: ExtMessage,
-}
-
-impl ProgramBuilder {
-    pub fn new(runner_builder: RunnerBuilder, code: Vec<u8>) -> Self {
-        let counter = runner_builder.programs.len() as u64;
-        ProgramBuilder {
-            runner_builder,
-            code,
-            source_id: 1001,
-            new_program_id: 1 + counter,
-            message: ExtMessage {
-                id: (1000000 + counter).into(),
-                payload: vec![],
-                gas_limit: u64::MAX,
-                value: 0,
-            },
-        }
-    }
-
-    pub fn build(self) -> RunnerBuilder {
-        let mut runner = self.runner_builder;
-
-        runner.programs.push(InitializeProgramInfo {
-            source_id: self.source_id.into(),
-            new_program_id: self.new_program_id.into(),
-            code: self.code,
-            message: self.message,
-        });
-        runner
-    }
-
-    pub fn source(mut self, id: u64) -> Self {
-        self.source_id = id;
-        self
-    }
-
-    pub fn id(mut self, id: u64) -> Self {
-        self.new_program_id = id;
-        self
-    }
-
-    pub fn init_message(mut self, message: ExtMessage) -> Self {
-        self.message = message;
-        self
     }
 }

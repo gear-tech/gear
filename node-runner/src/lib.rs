@@ -20,17 +20,19 @@
 extern crate alloc;
 pub mod ext;
 
-pub mod runner;
-
 use codec::{Decode, Encode};
 use sp_core::H256;
 
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 
 use gear_core_runner::{
-    ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult,
+    ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult, Runner,
 };
 use sp_std::prelude::*;
+
+use crate::ext::*;
+
+pub type ExtRunner = Runner<ExtMessageQueue, ExtProgramStorage, ExtWaitList>;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -93,9 +95,8 @@ impl ExecutionReport {
     }
 }
 
-pub fn process(max_gas_limit: u64) -> Result<ExecutionReport, Error> {
-    let mut runner = crate::runner::new();
-
+pub fn process(max_gas_limit: u64, block_height: u32) -> Result<ExecutionReport, Error> {
+    let mut runner = ExtRunner::builder().block_height(block_height).build();
     let result = runner.run_next(max_gas_limit);
 
     let Storage {
@@ -109,6 +110,7 @@ pub fn process(max_gas_limit: u64) -> Result<ExecutionReport, Error> {
     Ok(ExecutionReport::collect(message_queue, result))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn init_program(
     caller_id: H256,
     program_id: H256,
@@ -117,8 +119,9 @@ pub fn init_program(
     init_payload: Vec<u8>,
     gas_limit: u64,
     value: u128,
+    block_height: u32,
 ) -> Result<ExecutionReport, Error> {
-    let mut runner = crate::runner::new();
+    let mut runner = ExtRunner::builder().block_height(block_height).build();
 
     let init_message_id = MessageId::from_slice(&init_message_id[..]);
     let run_result = runner
@@ -156,7 +159,7 @@ pub fn init_program(
 }
 
 pub fn gas_spent(program_id: H256, payload: Vec<u8>, value: u128) -> Result<u64, Error> {
-    let mut runner = crate::runner::new();
+    let mut runner = ExtRunner::default();
 
     runner.queue_message(MessageDispatch {
         source_id: ProgramId::from(1),

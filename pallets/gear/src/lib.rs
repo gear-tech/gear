@@ -282,6 +282,7 @@ pub mod pallet {
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
+            let block_height = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
 
             for message in messages {
                 match message {
@@ -315,6 +316,7 @@ pub mod pallet {
                             payload.to_vec(),
                             gas_limit,
                             value,
+                            block_height,
                         ) {
                             Err(_) => {
                                 // `init_program` in Runner can only return Err(_) in two cases:
@@ -459,7 +461,7 @@ pub mod pallet {
             }
 
             loop {
-                match runner::process(GasAllowance::<T>::get()) {
+                match runner::process(GasAllowance::<T>::get(), block_height) {
                     Ok(execution_report) => {
                         if execution_report.handled == 0 {
                             break;

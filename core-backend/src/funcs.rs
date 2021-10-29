@@ -38,6 +38,10 @@ pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'s
     }
 }
 
+pub(crate) fn block_height<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
+    move || ext.with(|ext: &mut E| ext.block_height()).unwrap_or(0) as i32
+}
+
 pub(crate) fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |page: i32| {
         let page = page as u32;
