@@ -2056,19 +2056,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-rpc-runtime-api"
-version = "2.0.0"
-dependencies = [
- "pallet-gear",
- "parity-scale-codec",
- "scale-info",
- "serde_json",
- "sp-api",
- "sp-core",
- "sp-std",
-]
-
-[[package]]
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [
@@ -2079,12 +2066,12 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
- "gear-rpc-runtime-api",
  "hex-literal",
  "pallet-aura",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-rpc-runtime-api",
  "pallet-grandpa",
  "pallet-randomness-collective-flip",
  "pallet-sudo",
@@ -4159,18 +4146,27 @@ dependencies = [
 name = "pallet-gear-rpc"
 version = "2.0.0"
 dependencies = [
- "gear-rpc-runtime-api",
  "jsonrpc-core",
  "jsonrpc-core-client",
  "jsonrpc-derive",
+ "pallet-gear-rpc-runtime-api",
  "parity-scale-codec",
- "scale-info",
- "serde",
  "sp-api",
  "sp-blockchain",
  "sp-core",
  "sp-rpc",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-gear-rpc-runtime-api"
+version = "2.0.0"
+dependencies = [
+ "pallet-gear",
+ "parity-scale-codec",
+ "sp-api",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]

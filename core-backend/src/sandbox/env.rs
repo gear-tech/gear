@@ -92,25 +92,27 @@ impl<E: Ext + 'static> Environment<E> {
                 _ => return Err(HostError),
             };
 
-            let result = ctx.ext.with(|ext: &mut E| -> Result<(), &'static str> {
-                let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
-                let payload = funcs::get_vec(ext, payload_ptr, payload_len);
-                let value = funcs::get_u128(ext, value_ptr);
-                let message_id = ext.send(OutgoingPacket::new(
-                    dest,
-                    payload.into(),
-                    gas_limit as _,
-                    value,
-                ))?;
-                ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
-                Ok(())
-            });
-            result
+            let result = ctx
+                .ext
+                .with(|ext: &mut E| -> Result<(), &'static str> {
+                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    let value = funcs::get_u128(ext, value_ptr);
+                    let message_id = ext.send(OutgoingPacket::new(
+                        dest,
+                        payload.into(),
+                        gas_limit as _,
+                        value,
+                    ))?;
+                    ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+                    Ok(())
+                })
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to send message");
                     HostError
-                })
-                .map(|_| ReturnValue::Unit)
+                });
+            result
         }
 
         fn send_commit<E: Ext>(
@@ -149,9 +151,9 @@ impl<E: Ext + 'static> Environment<E> {
                     ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
                     Ok(())
                 })
-                .map(|_| ReturnValue::Unit)
-                .map_err(|err| {
-                    ctx.trap_reason = Some(err);
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
+                .map_err(|_err| {
+                    ctx.trap_reason = Some("Trapping: unable to send message");
                     HostError
                 })
         }
@@ -160,16 +162,9 @@ impl<E: Ext + 'static> Environment<E> {
             ctx: &mut Runtime<E>,
             _args: &[Value],
         ) -> Result<ReturnValue, HostError> {
-            let result = ctx
-                .ext
+            ctx.ext
                 .with(|ext: &mut E| ext.send_init())
-                .map_err(|err| {
-                    ctx.trap_reason = Some(err);
-                    HostError
-                })
-                .unwrap();
-            result
-                .map(|handle| ReturnValue::Value(Value::I32(handle as _)))
+                .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle as _))))
                 .map_err(|err| {
                     ctx.trap_reason = Some(err);
                     HostError
@@ -197,7 +192,7 @@ impl<E: Ext + 'static> Environment<E> {
                     let payload = funcs::get_vec(ext, payload_ptr, payload_len);
                     ext.send_push(handle_ptr as _, &payload)
                 })
-                .map(|_| ReturnValue::Unit)
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|err| {
                     ctx.trap_reason = Some(err);
                     HostError
@@ -223,10 +218,11 @@ impl<E: Ext + 'static> Environment<E> {
                 .with(|ext: &mut E| {
                     let msg = ext.msg().to_vec();
                     ext.set_mem(dest as _, &msg[at..(at + len)]);
+                    Ok(())
                 })
-                .map(|_| ReturnValue::Unit)
-                .map_err(|_err| {
-                    ctx.trap_reason = Some("Trapping: unable to report about gas used");
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
+                .map_err(|err| {
+                    ctx.trap_reason = Some(err);
                     HostError
                 })
         }
@@ -245,7 +241,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| ext.gas(val as _))
-                .map(|_| ReturnValue::Unit)
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to report about gas used");
                     HostError
@@ -262,19 +258,18 @@ impl<E: Ext + 'static> Environment<E> {
             let ptr = ctx
                 .ext
                 .with(|ext: &mut E| ext.alloc(pages.into()))
-                .unwrap()
-                .map(|v| {
-                    let ptr = v.raw();
-                    log::debug!("ALLOC: {} pages at {}", pages, ptr);
-                    ptr
-                })
-                .map(|res| ReturnValue::Value(Value::I32(res as i32)))
+                .and_then(|v| {
+                    v.map(|v| {
+                        let ptr = v.raw();
+                        log::debug!("ALLOC: {} pages at {}", pages, ptr);
+                        ptr
+                    })
+                });
+            ptr.map(|res| ReturnValue::Value(Value::I32(res as i32)))
                 .map_err(|err| {
                     ctx.trap_reason = Some(err);
                     HostError
-                });
-
-            ptr
+                })
         }
 
         fn free<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
@@ -283,7 +278,14 @@ impl<E: Ext + 'static> Environment<E> {
                 _ => return Err(HostError),
             };
             let page = pages as u32;
-            if let Err(e) = ctx.ext.with(|ext: &mut E| ext.free(page.into())).unwrap() {
+            if let Err(e) = ctx
+                .ext
+                .with(|ext: &mut E| ext.free(page.into()))
+                .map_err(|err| {
+                    ctx.trap_reason = Some(err);
+                    HostError
+                })?
+            {
                 log::debug!("FREE ERROR: {:?}", e);
             } else {
                 log::debug!("FREE: {}", page);
@@ -315,7 +317,7 @@ impl<E: Ext + 'static> Environment<E> {
                     let value = funcs::get_u128(ext, value_ptr);
                     ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
                 })
-                .map(|_| ReturnValue::Unit)
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to send reply message");
                     HostError
@@ -351,11 +353,11 @@ impl<E: Ext + 'static> Environment<E> {
                     ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
                     Ok(())
                 })
-                .map(|_| Ok(ReturnValue::Unit))
-                .map_err(|_| {
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
+                .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to send message");
                     HostError
-                })?
+                })
         }
 
         fn reply_to<E: Ext>(
@@ -407,7 +409,7 @@ impl<E: Ext + 'static> Environment<E> {
                     let payload = funcs::get_vec(ext, payload_ptr, payload_len);
                     ext.reply_push(&payload)
                 })
-                .map(|_| ReturnValue::Unit)
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to push payload into reply");
                     HostError
@@ -456,8 +458,9 @@ impl<E: Ext + 'static> Environment<E> {
                 .with(|ext: &mut E| {
                     let message_id = ext.message_id();
                     ext.set_mem(msg_id_ptr as isize as _, message_id.as_slice());
+                    Ok(())
                 })
-                .map(|_| ReturnValue::Unit)
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|err| {
                     ctx.trap_reason = Some(err);
                     HostError
@@ -473,8 +476,9 @@ impl<E: Ext + 'static> Environment<E> {
                 .with(|ext: &mut E| {
                     let source = ext.source();
                     ext.set_mem(source_ptr as isize as _, source.as_slice());
+                    Ok(())
                 })
-                .map(|_| ReturnValue::Unit)
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|err| {
                     ctx.trap_reason = Some(err);
                     HostError
@@ -487,8 +491,11 @@ impl<E: Ext + 'static> Environment<E> {
                 _ => return Err(HostError),
             };
             ctx.ext
-                .with(|ext: &mut E| funcs::set_u128(ext, value_ptr, ext.value()))
-                .map(|_| ReturnValue::Unit)
+                .with(|ext: &mut E| {
+                    funcs::set_u128(ext, value_ptr, ext.value());
+                    Ok(())
+                })
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|err| {
                     ctx.trap_reason = Some(err);
                     HostError
