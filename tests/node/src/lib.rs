@@ -102,7 +102,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, exec::gas_available() - 2_500_000, 0);
+        msg::reply(reply, exec::gas_available() - 20_500_000, 0);
     }
 
     fn state() -> &'static mut NodeState {
@@ -304,7 +304,7 @@ mod wasm {
             transition: None,
         });
 
-        msg::reply((), exec::gas_available() - 2_500_000, 0);
+        msg::reply((), exec::gas_available() - 20_500_000, 0);
     }
 }
 

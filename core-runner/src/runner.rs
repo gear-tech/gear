@@ -1256,7 +1256,7 @@ mod tests {
 
         assert_eq!(
             result.gas_spent[0].1,
-            runner.alloc_cost() * 1 + runner.load_page_cost() * 1 + 3000
+            runner.alloc_cost() * 2 + runner.load_page_cost() * 1 + 3000
         );
 
         runner.complete();

@@ -63,13 +63,17 @@ pub struct GasCounterLimited {
 pub trait GasCounter {
     /// Charge some gas.
     fn charge(&mut self, amount: u64) -> ChargeResult;
-    /// Report how much gas is left.
-    fn left(&self) -> u64;
+
     /// Reduce gas.
-    ///
     /// This means that gas was not spent, but rather transfered
     /// to another actor.
     fn reduce(&mut self, amount: u64) -> ChargeResult;
+
+    /// KEK
+    fn add_gas(&mut self, amount: u64) -> ChargeResult;
+
+    /// Report how much gas is left.
+    fn left(&self) -> u64;
 
     /// Report how much gas is burned.
     fn burned(&self) -> u64;
@@ -81,6 +85,10 @@ impl GasCounter for GasCounterUnlimited {
     }
 
     fn reduce(&mut self, _amount: u64) -> ChargeResult {
+        ChargeResult::Enough
+    }
+
+    fn add_gas(&mut self, _amount: u64) -> ChargeResult {
         ChargeResult::Enough
     }
 
@@ -111,6 +119,20 @@ impl GasCounter for GasCounterLimited {
         }
 
         self.left -= amount;
+
+        ChargeResult::Enough
+    }
+
+    fn add_gas(&mut self, amount: u64) -> ChargeResult {
+        if amount > u64::MAX - self.left {
+            return ChargeResult::NotEnough;
+        }
+        self.left += amount;
+
+        if amount > self.burned {
+            return ChargeResult::NotEnough;
+        }
+        self.burned -= amount;
 
         ChargeResult::Enough
     }

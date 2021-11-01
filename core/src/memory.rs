@@ -137,6 +137,7 @@ pub trait Memory: Any {
 pub struct MemoryContext {
     program_id: ProgramId,
     memory: Box<dyn Memory>,
+    init_allocations: BTreeSet<PageNumber>,
     allocations: BTreeSet<PageNumber>,
     max_pages: PageNumber,
     static_pages: PageNumber,
@@ -148,6 +149,7 @@ impl Clone for MemoryContext {
             program_id: self.program_id,
             memory: self.memory.clone(),
             allocations: self.allocations.clone(),
+            init_allocations: self.init_allocations.clone(),
             max_pages: self.max_pages,
             static_pages: self.static_pages,
         }
@@ -176,51 +178,21 @@ impl MemoryContext {
         Self {
             program_id,
             memory,
+            init_allocations: allocations.clone(),
             allocations,
             max_pages,
             static_pages,
         }
     }
 
+    /// KEK
+    pub fn is_init_page(&self, page: PageNumber) -> bool {
+        self.init_allocations.contains(&page)
+    }
+
     /// Return currently used program id.
     pub fn program_id(&self) -> ProgramId {
         self.program_id
-    }
-
-    /// KEK
-    pub fn pre_alloc(&self, pages: u32) -> Result<u32, Error> {
-        // silly allocator, brute-forces fist continuous sector
-        let mut candidate = self.static_pages.raw();
-        let mut found = 0u32;
-
-        while found < pages {
-            if candidate + pages > self.max_pages.raw() {
-                log::debug!(
-                    "candidate: {}, pages: {}, max_pages: {}",
-                    candidate,
-                    pages,
-                    self.max_pages.raw()
-                );
-                return Err(Error::OutOfMemory);
-            }
-
-            if self.allocations.contains(&(candidate + found).into()) {
-                candidate += 1;
-                found = 0;
-                continue;
-            }
-
-            found += 1;
-        }
-
-        let extra_grow;
-        if candidate + found > self.memory.size().raw() {
-            extra_grow = candidate + found - self.memory.size().raw();
-        } else {
-            extra_grow = 0;
-        }
-
-        return Ok(extra_grow);
     }
 
     /// Alloc specific number of pages for the currently running program.

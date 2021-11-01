@@ -1275,9 +1275,12 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/grishasobol/dlmalloc-rs#74ecb8165d45f2a3d2ef7921c7371014911e9815"
 dependencies = [
  "libc",
+ "libc_print",
+ "spin 0.9.2",
+ "static_assertions",
+ "str-buf",
 ]
 
 [[package]]
@@ -1930,7 +1933,7 @@ dependencies = [
 name = "galloc"
 version = "0.1.0"
 dependencies = [
- "dlmalloc 0.1.4 (git+https://github.com/grishasobol/dlmalloc-rs)",
+ "dlmalloc 0.1.4",
 ]
 
 [[package]]
@@ -2901,6 +2904,14 @@ name = "libc"
 version = "0.2.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8f7255a17a627354f321ef0055d63b898c6fb27eff628af4d1b66b7331edf6"
+
+[[package]]
+name = "libc_print"
+version = "0.1.16"
+source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "libloading"
@@ -5180,7 +5191,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell",
- "spin",
+ "spin 0.5.2",
  "untrusted",
  "web-sys",
  "winapi 0.3.9",
@@ -7107,6 +7118,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
+name = "spin"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "511254be0c5bcf062b019a6c89c01a664aa359ded62f78aa72c6fc137c0590e5"
+dependencies = [
+ "lock_api 0.4.2",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7130,6 +7150,12 @@ dependencies = [
  "num-traits",
  "rand 0.8.4",
 ]
+
+[[package]]
+name = "str-buf"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5273f1a92cb22cb10c25f1f6d7b7f7db8d9836f219947040842a37252326f64"
 
 [[package]]
 name = "strsim"

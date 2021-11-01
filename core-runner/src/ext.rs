@@ -53,18 +53,40 @@ impl Ext {
 }
 
 impl EnvExt for Ext {
-    fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        let res = self.memory_context.pre_alloc(pages.raw());
-        if res.is_ok() {
-            self.gas(res.unwrap() * self.alloc_cost as u32)?;
-        } else {
-            self.gas(pages.raw() * self.alloc_cost as u32)?;
-        }
+    fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
+        // Greedly sub gas for grow and allocations
+        self.gas( 2 * pages_num.raw() * self.alloc_cost as u32)?;
+
+        let old_mem_size = self.memory_context.memory().size().raw();
 
         let result = self
             .memory_context
-            .alloc(pages)
+            .alloc(pages_num)
             .map_err(|_e| "Allocation error");
+
+        if result.is_err() {
+            return self.return_with_tracing(result);
+        }
+
+        // Returns back greedly used gas for grow
+        let new_mem_size = self.memory_context.memory().size().raw();
+        let grow_pages_num = new_mem_size - old_mem_size;
+        let mut gas_to_return_back = self.alloc_cost * (pages_num.raw() - grow_pages_num) as u64;
+
+        // Returns back greedly used gas for new allocations
+        let first_page = result.unwrap().raw();
+        let last_page = first_page + pages_num.raw() - 1;
+        let mut new_alloced_pages_num = 0;
+        for page in first_page..=last_page {
+            if !self.memory_context.is_init_page(page.into()) {
+                new_alloced_pages_num += 1;
+            }
+        }
+        gas_to_return_back += self.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
+
+        if self.gas_counter.add_gas(gas_to_return_back) != ChargeResult::Enough {
+            return self.return_with_tracing(Err("Gas limit - add too many gas"));
+        }
 
         self.return_with_tracing(result)
     }
@@ -142,6 +164,13 @@ impl EnvExt for Ext {
 
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
         let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
+
+        // Returns back gas for alloced page if it's new
+        if !self.memory_context.is_init_page(ptr) {
+            if self.gas_counter.add_gas(self.alloc_cost) != ChargeResult::Enough {
+                return self.return_with_tracing(Err("Gas limit - add too many gas"));
+            }
+        }
 
         self.return_with_tracing(result)
     }
