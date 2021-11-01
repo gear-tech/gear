@@ -20,7 +20,7 @@ gstd::metadata! {
     title: "Guestbook",
     handle:
         input: Action,
-        output: Vec<MessageIn>
+        output: Vec<MessageIn>,
 }
 
 static mut MESSAGES: Vec<MessageIn> = Vec::new();

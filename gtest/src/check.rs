@@ -144,7 +144,7 @@ fn check_messages(
                 let meta_type = if exp.init.unwrap_or(false) {
                     MetaType::InitOutput
                 } else {
-                    MetaType::Output
+                    MetaType::HandleOutput
                 };
 
                 if exp

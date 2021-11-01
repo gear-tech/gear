@@ -183,7 +183,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
                 parse_payload(s.clone()).as_bytes().to_vec()
             }
             Some(PayloadVariant::Custom(v)) => {
-                let meta_type = MetaType::Input;
+                let meta_type = MetaType::HandleInput;
 
                 let payload =
                     parse_payload(serde_json::to_string(&v).expect("Cannot convert to string"));

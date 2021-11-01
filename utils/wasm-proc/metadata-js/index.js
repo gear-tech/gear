@@ -34,8 +34,12 @@ exports.getWasmMetadata = async (wasmBytes) => {
     let metadata = {
         init_input: "",
         init_output: "",
-        input: "",
-        output: "",
+        async_init_input: "",
+        async_init_output: "",
+        handle_input: "",
+        handle_output: "",
+        async_handle_input: "",
+        async_handle_output: "",
         registry: "",
         title: ""
     }
@@ -44,8 +48,12 @@ exports.getWasmMetadata = async (wasmBytes) => {
 
     metadata.init_input = readMeta(memory, module.instance.exports.meta_init_input());
     metadata.init_output = readMeta(memory, module.instance.exports.meta_init_output());
-    metadata.input = readMeta(memory, module.instance.exports.meta_input());
-    metadata.output = readMeta(memory, module.instance.exports.meta_output());
+    metadata.async_init_input = readMeta(memory, module.instance.exports.meta_async_init_input());
+    metadata.async_init_output = readMeta(memory, module.instance.exports.meta_async_init_output());
+    metadata.handle_input = readMeta(memory, module.instance.exports.meta_handle_input());
+    metadata.handle_output = readMeta(memory, module.instance.exports.meta_handle_output());
+    metadata.async_handle_input = readMeta(memory, module.instance.exports.meta_async_handle_input());
+    metadata.async_handle_output = readMeta(memory, module.instance.exports.meta_async_handle_output());
     metadata.registry = `0x${readMeta(memory, module.instance.exports.meta_registry())}`;
     metadata.title = readMeta(memory, module.instance.exports.meta_title());
 

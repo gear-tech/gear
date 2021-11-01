@@ -74,14 +74,40 @@ pub struct Wallet {
     pub person: Person,
 }
 
+#[derive(TypeInfo, Decode, Clone)]
+pub struct MessageInitAsyncIn {
+    pub empty: (),
+}
+
+#[derive(TypeInfo, Encode, Clone)]
+pub struct MessageInitAsyncOut {
+    pub empty: (),
+}
+
+#[derive(TypeInfo, Decode, Clone)]
+pub struct MessageHandleAsyncIn {
+    pub empty: (),
+}
+
+#[derive(TypeInfo, Encode, Clone)]
+pub struct MessageHandleAsyncOut {
+    pub empty: (),
+}
+
 gstd::metadata! {
     title: "Example program with metadata",
     init:
         input: MessageInitIn,
         output: MessageInitOut,
+        awaiting:
+            input: MessageInitAsyncIn,
+            output: MessageInitAsyncOut,
     handle:
         input: MessageIn,
-        output: MessageOut
+        output: MessageOut,
+        awaiting:
+            input: MessageHandleAsyncIn,
+            output: MessageHandleAsyncOut,
 }
 
 static mut WALLETS: Vec<Wallet> = Vec::new();

@@ -129,7 +129,7 @@ gstd::metadata! {
         output: String,
     handle:
         input: Action,
-        output: String
+        output: String,
 }
 
 #[gstd_async::main]

@@ -8,7 +8,7 @@ gstd::metadata! {
         output: String,
     handle:
         input: String,
-        output: String
+        output: String,
 }
 
 struct State {

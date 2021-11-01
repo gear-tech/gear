@@ -17,7 +17,7 @@ gstd::metadata! {
         output: Vec<u8>,
     handle:
         input: Vec<u8>,
-        output: Vec<u8>
+        output: Vec<u8>,
 }
 
 #[no_mangle]

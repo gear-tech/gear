@@ -37,7 +37,7 @@ pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
 
 #[macro_export]
 macro_rules! types {
-    ($($t:ty), +) => { gstd::prelude::vec![$(scale_info::MetaType::new::<$t>()), +] };
+    ($($t:ty), *) => { gstd::prelude::vec![$(scale_info::MetaType::new::<$t>()), *] };
 }
 
 #[macro_export]
@@ -52,72 +52,70 @@ macro_rules! declare {
 
 #[macro_export]
 macro_rules! metadata {
-    ($title:literal, $init_input:expr, $init_output:expr, $input:expr, $output:expr, $($t:ty), +) => {
+    (
+        $title:literal,
+        $init_input:expr,
+        $init_output:expr,
+        $async_init_input:expr,
+        $async_init_output:expr,
+        $handle_input:expr,
+        $handle_output:expr,
+        $async_handle_input:expr,
+        $async_handle_output:expr
+        $(, $t:ty) *) => {
         gstd::declare!(meta_title -> $title);
         gstd::declare!(meta_init_input -> $init_input);
         gstd::declare!(meta_init_output -> $init_output);
-        gstd::declare!(meta_input -> $input);
-        gstd::declare!(meta_output -> $output);
-        gstd::declare!(meta_registry -> gstd::meta::to_hex_registry(gstd::types!($($t), +)));
+        gstd::declare!(meta_async_init_input -> $async_init_input);
+        gstd::declare!(meta_async_init_output -> $async_init_output);
+        gstd::declare!(meta_handle_input -> $handle_input);
+        gstd::declare!(meta_handle_output -> $handle_output);
+        gstd::declare!(meta_async_handle_input -> $async_handle_input);
+        gstd::declare!(meta_async_handle_output -> $async_handle_output);
+        gstd::declare!(meta_registry -> gstd::meta::to_hex_registry(gstd::types!($($t), *)));
     };
-    // 1 all
-    (title: $t:literal, init: input: $ii:ty, output: $io:ty, handle: input: $i:ty, output: $o:ty) => {
-        gstd::metadata!($t, stringify!($ii), stringify!($io), stringify!($i), stringify!($o), $ii, $io, $i, $o);
-    };
-    // 2 no $o
-    (title: $t:literal, init: input: $ii:ty, output: $io:ty, handle: input: $i:ty) => {
-        gstd::metadata!($t, stringify!($ii), stringify!($io), stringify!($i), "", $ii, $io, $i);
-    };
-    // 3 no $i
-    (title: $t:literal, init: input: $ii:ty, output: $io:ty, handle: output: $o:ty) => {
-        gstd::metadata!($t, stringify!($ii), stringify!($io), "", stringify!($o), $ii, $io, $o);
-    };
-    // 4 no $i, $o
-    (title: $t:literal, init: input: $ii:ty, output: $io:ty) => {
-        gstd::metadata!($t, stringify!($ii), stringify!($io), "", "", $ii, $io);
-    };
-    // 5 no $io
-    (title: $t:literal, init: input: $ii:ty, handle: input: $i:ty, output: $o:ty) => {
-        gstd::metadata!($t, stringify!($ii), "", stringify!($i), stringify!($o), $ii, $i, $o);
-    };
-    // 6 no $io, $o
-    (title: $t:literal, init: input: $ii:ty, handle: input: $i:ty) => {
-        gstd::metadata!($t, stringify!($ii), "", stringify!($i), "", $ii, $i);
-    };
-    // 7 no $io, $i
-    (title: $t:literal, init: input: $ii:ty, handle: output: $o:ty) => {
-        gstd::metadata!($t, stringify!($ii), "", "", stringify!($o), $ii, $o);
-    };
-    // 8 no $io, $i, $o
-    (title: $t:literal, init: input: $ii:ty) => {
-        gstd::metadata!($t, stringify!($ii), "", "", "", $ii);
-    };
-    // 9 no $ii
-    (title: $t:literal, init: output: $io:ty, handle: input: $i:ty, output: $o:ty) => {
-        gstd::metadata!($t, "", stringify!($io), stringify!($i), stringify!($o), $io, $i, $o);
-    };
-    // 10 no $ii, $o
-    (title: $t:literal, init: output: $io:ty, handle: input: $i:ty) => {
-        gstd::metadata!($t, "", stringify!($io), stringify!($i), "", $io, $i);
-    };
-    // 11 no $ii, $i
-    (title: $t:literal, init: output: $io:ty, handle: output: $o:ty) => {
-        gstd::metadata!($t, "", stringify!($io), "", stringify!($o), $io, $o);
-    };
-    // 12 no $ii, $i, $o
-    (title: $t:literal, init: output: $io:ty) => {
-        gstd::metadata!($t, "", stringify!($io), "", "", $io);
-    };
-    // 13 no $ii, $io
-    (title: $t:literal, handle: input: $i:ty, output: $o:ty) => {
-        gstd::metadata!($t, "", "", stringify!($i), stringify!($o), $i, $o);
-    };
-    // 14 no $ii, $io, $o
-    (title: $t:literal, handle: input: $i:ty) => {
-        gstd::metadata!($t, "", "", stringify!($i), "", $i);
-    };
-    // 15 no $ii, $io, $i
-    (title: $t:literal, handle: output: $o:ty) => {
-        gstd::metadata!($t, "", "", "", stringify!($o), $o);
+
+    (
+        title: $title:literal, // program title
+        $(
+            init: // init messaging types
+                $(input: $ii:ty,)? // init input
+                $(output: $io:ty,)? // init output
+            $(
+                awaiting:
+                    $(input: $aii:ty,)? // async init input
+                    $(output: $aio:ty,)? // async init output
+            )?
+        )?
+        $(
+            handle: // handle messaging types
+                $(input: $hi:ty,)?
+                $(output: $ho:ty,)?
+            $(
+                awaiting:
+                    $(input: $ahi:ty,)? // async handle input
+                    $(output: $aho:ty,)? // async handle output
+            )?
+        )?
+    ) => {
+        gstd::metadata!(
+            $title, // program title
+            stringify!($($($ii)?)?), // init input
+            stringify!($($($io)?)?), // init output
+            stringify!($($($($aii)?)?)?), // async init input
+            stringify!($($($($aio)?)?)?), // async init output
+            stringify!($($($hi)?)?), // handle input
+            stringify!($($($ho)?)?), // handle output
+            stringify!($($($($ahi)?)?)?), // async handle input
+            stringify!($($($($aho)?)?)?) // async handle output
+            $($(, $ii)?)? // init input
+            $($(, $io)?)? // init output
+            $($($(, $aii)?)?)? // async init input
+            $($($(, $aio)?)?)? // async init output
+            $($(, $hi)?)? // handle input
+            $($(, $ho)?)?// handle output
+            $($($(, $ahi)?)?)? // async handle input
+            $($($(, $aho)?)?)? // async handle output
+        );
     };
 }
