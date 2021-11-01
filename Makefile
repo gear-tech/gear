@@ -168,7 +168,7 @@ test-gear: init-js examples
 	@ ./scripts/gear.sh test gear
 
 .PHONY: test-gear-release
-test-gear-release: init-js
+test-gear-release: init-js examples
 	@ ./scripts/gear.sh test gear --release
 
 .PHONY: test-js
