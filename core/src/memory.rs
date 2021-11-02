@@ -137,6 +137,7 @@ pub trait Memory: Any {
 pub struct MemoryContext {
     program_id: ProgramId,
     memory: Box<dyn Memory>,
+    /// Pages which has been in storage.
     init_allocations: BTreeSet<PageNumber>,
     allocations: BTreeSet<PageNumber>,
     max_pages: PageNumber,
@@ -185,7 +186,8 @@ impl MemoryContext {
         }
     }
 
-    /// KEK
+    /// Returns whether page is initial,
+    /// means page has been already in storage.
     pub fn is_init_page(&self, page: PageNumber) -> bool {
         self.init_allocations.contains(&page)
     }
