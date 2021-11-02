@@ -6,4 +6,4 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-dlmalloc = { path = "/home/gregory/src/dlmalloc-rs", features = [] }
+dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rs.git" }

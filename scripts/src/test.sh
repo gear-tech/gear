@@ -35,7 +35,7 @@ gtest() {
   ROOT_DIR="$1"
   shift
 
-  cargo run --package gear-test --release -- "$ROOT_DIR"/gtest/spec/test_*.yaml "$@"
+  cargo run --package gear-test --release -- "$ROOT_DIR"/gtest/spec/*.yaml "$@"
 }
 
 # $1 - ROOT DIR

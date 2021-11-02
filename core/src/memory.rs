@@ -223,9 +223,8 @@ impl MemoryContext {
             found += 1;
         }
 
-        let extra_grow;
         if candidate + found > self.memory.size().raw() {
-            extra_grow = candidate + found - self.memory.size().raw();
+            let extra_grow = candidate + found - self.memory.size().raw();
             self.memory.grow(extra_grow.into())?;
         }
 
