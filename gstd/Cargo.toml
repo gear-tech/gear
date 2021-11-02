@@ -13,5 +13,5 @@ hex = { version = "0.4.3", default-features = false, features = ["alloc"], optio
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"], optional = true}
 
 [features]
-debug = ["gcore/debug"]
+debug = ["gcore/debug", "galloc/debug"]
 meta = ["hex", "scale-info"]
