@@ -46,9 +46,9 @@ pub(crate) fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'sta
     move |page: i32| {
         let page = page as u32;
         if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into()))? {
-            log::debug!("FREE PAGES ERROR: {:?}", e);
+            log::debug!("FREE PAGE ERROR: {:?}", e);
         } else {
-            log::debug!("FREE PAGES: {}", page);
+            log::debug!("FREE PAGE: {}", page);
         }
         Ok(())
     }
