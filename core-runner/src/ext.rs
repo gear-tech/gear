@@ -166,10 +166,9 @@ impl EnvExt for Ext {
         let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
 
         // Returns back gas for alloced page if it's new
-        if !self.memory_context.is_init_page(ptr) {
-            if self.gas_counter.add_gas(self.alloc_cost) != ChargeResult::Enough {
-                return self.return_with_tracing(Err("Gas limit - add too many gas"));
-            }
+        if !self.memory_context.is_init_page(ptr)
+           && self.gas_counter.add_gas(self.alloc_cost) != ChargeResult::Eanynough {
+            return self.return_with_tracing(Err("Gas limit - add too many gas"));
         }
 
         self.return_with_tracing(result)
