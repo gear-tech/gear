@@ -55,7 +55,7 @@ impl Ext {
 impl EnvExt for Ext {
     fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
         // Greedly sub gas for grow and allocations
-        self.gas( 2 * pages_num.raw() * self.alloc_cost as u32)?;
+        self.gas(2 * pages_num.raw() * self.alloc_cost as u32)?;
 
         let old_mem_size = self.memory_context.memory().size().raw();
 

@@ -301,7 +301,8 @@ mod tests {
         // (for code execution and e.t.c)
         let mut runner = RunnerContext::with_config(&config);
         runner.init_program(wasm_code());
-        let first_run_report: RunReport<Reply> = runner.request_report(Request::Allocate(allocation_size));
+        let first_run_report: RunReport<Reply> =
+            runner.request_report(Request::Allocate(allocation_size));
         assert_eq!(first_run_report.result, RunResult::Normal);
 
         // Second run - we set page allocation cost, then spent gas must
