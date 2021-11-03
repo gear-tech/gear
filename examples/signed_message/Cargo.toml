@@ -9,10 +9,11 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-gstd = { path = "../../gstd", features = ["debug"] }
-sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+gstd = { path = "../../gstd", features = ["debug", "meta"] }
+sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, features = ['full_crypto'] }
 getrandom = { version = "0.2", features = ["js"] }
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 
 [features]
 default = []
