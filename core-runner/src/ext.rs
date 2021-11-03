@@ -167,7 +167,8 @@ impl EnvExt for Ext {
 
         // Returns back gas for alloced page if it's new
         if !self.memory_context.is_init_page(ptr)
-            && self.gas_counter.refund(self.alloc_cost) != ChargeResult::Enough {
+            && self.gas_counter.refund(self.alloc_cost) != ChargeResult::Enough
+        {
             return self.return_with_tracing(Err("Gas limit - add too many gas"));
         }
 
