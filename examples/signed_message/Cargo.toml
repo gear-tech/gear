@@ -1,0 +1,22 @@
+[package]
+name = "signed_message"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+getrandom = { version = "0.2", features = ["js"] }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+
+[features]
+default = []
+std = [
+	"sp-core/std",
+	"codec/std",
+]

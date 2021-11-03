@@ -23,6 +23,7 @@ members = [
     "ping",
     "rwlock",
     "rwlock_write",
+    "signed_message",
     "sum",
     "sync_duplicate",
     "vec",
