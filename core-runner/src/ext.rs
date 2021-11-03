@@ -84,7 +84,7 @@ impl EnvExt for Ext {
         }
         gas_to_return_back += self.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
 
-        if self.gas_counter.add_gas(gas_to_return_back) != ChargeResult::Enough {
+        if self.gas_counter.refund(gas_to_return_back) != ChargeResult::Enough {
             return self.return_with_tracing(Err("Gas limit - add too many gas"));
         }
 
@@ -167,7 +167,7 @@ impl EnvExt for Ext {
 
         // Returns back gas for alloced page if it's new
         if !self.memory_context.is_init_page(ptr)
-           && self.gas_counter.add_gas(self.alloc_cost) != ChargeResult::Eanynough {
+            && self.gas_counter.refund(self.alloc_cost) != ChargeResult::Enough {
             return self.return_with_tracing(Err("Gas limit - add too many gas"));
         }
 

@@ -69,8 +69,8 @@ pub trait GasCounter {
     /// to another actor.
     fn reduce(&mut self, amount: u64) -> ChargeResult;
 
-    /// Add gas.
-    fn add_gas(&mut self, amount: u64) -> ChargeResult;
+    /// Refund gas amount.
+    fn refund(&mut self, amount: u64) -> ChargeResult;
 
     /// Report how much gas is left.
     fn left(&self) -> u64;
@@ -88,7 +88,7 @@ impl GasCounter for GasCounterUnlimited {
         ChargeResult::Enough
     }
 
-    fn add_gas(&mut self, _amount: u64) -> ChargeResult {
+    fn refund(&mut self, _amount: u64) -> ChargeResult {
         ChargeResult::Enough
     }
 
@@ -123,7 +123,7 @@ impl GasCounter for GasCounterLimited {
         ChargeResult::Enough
     }
 
-    fn add_gas(&mut self, amount: u64) -> ChargeResult {
+    fn refund(&mut self, amount: u64) -> ChargeResult {
         if amount > u64::MAX - self.left || amount > self.burned {
             return ChargeResult::NotEnough;
         }
