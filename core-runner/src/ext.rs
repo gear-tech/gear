@@ -33,6 +33,7 @@ pub struct Ext {
     pub messages: MessageContext<BlakeMessageIdGenerator>,
     pub gas_counter: Box<dyn GasCounter>,
     pub alloc_cost: u64,
+    pub mem_grow_cost: u64,
     pub last_error_returned: Option<&'static str>,
     pub block_height: u32,
 }
@@ -54,8 +55,10 @@ impl Ext {
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
-        // Greedly sub gas for grow and allocations
-        self.gas(2 * pages_num.raw() * self.alloc_cost as u32)?;
+        // Greedly sub gas for allocations
+        self.gas(pages_num.raw() * self.alloc_cost as u32)?;
+        // Greedly sub gas for grow
+        self.gas(pages_num.raw() * self.mem_grow_cost as u32)?;
 
         let old_mem_size = self.memory_context.memory().size().raw();
 
@@ -71,7 +74,7 @@ impl EnvExt for Ext {
         // Returns back greedly used gas for grow
         let new_mem_size = self.memory_context.memory().size().raw();
         let grow_pages_num = new_mem_size - old_mem_size;
-        let mut gas_to_return_back = self.alloc_cost * (pages_num.raw() - grow_pages_num) as u64;
+        let mut gas_to_return_back = self.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
 
         // Returns back greedly used gas for allocations
         let first_page = result.unwrap().raw();

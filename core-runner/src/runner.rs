@@ -50,6 +50,8 @@ pub struct Config {
     pub max_pages: PageNumber,
     /// Gas cost for memory page allocation.
     pub alloc_cost: u64,
+    /// Gas cost for memory grow
+    pub mem_grow_cost: u64,
     /// Gas cost for init memory page.
     pub init_cost: u64,
     /// Gas cost for loading memory page from program state.
@@ -63,8 +65,22 @@ impl Default for Config {
         Self {
             max_pages: MAX_PAGES.into(),
             alloc_cost: ALLOC_COST.into(),
+            mem_grow_cost: MEM_GROW_COST.into(),
             init_cost: INIT_COST.into(),
             load_page_cost: LOAD_PAGE_COST.into(),
+        }
+    }
+}
+
+impl Config {
+    /// Returns config with all costs set to zero
+    pub fn zero_cost_config() -> Self {
+        Self {
+            max_pages: MAX_PAGES.into(),
+            alloc_cost:     0,
+            mem_grow_cost:  0,
+            init_cost:      0,
+            load_page_cost: 0,
         }
     }
 }
@@ -428,6 +444,11 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         self.config.alloc_cost
     }
 
+    /// Gas memory grow cost configuration of this runner.
+    pub fn mem_grow_cost(&self) -> u64 {
+        self.config.mem_grow_cost
+    }
+
     /// Gas initial memory page cost of this runner.
     pub fn init_cost(&self) -> u64 {
         self.config.init_cost
@@ -556,6 +577,7 @@ impl From<EntryPoint> for &'static str {
 static MAX_PAGES: u32 = 512;
 static INIT_COST: u32 = 5000;
 static ALLOC_COST: u32 = 10000;
+static MEM_GROW_COST: u32 = 10000;
 static LOAD_PAGE_COST: u32 = 3000;
 
 struct RunningContext {
@@ -579,6 +601,10 @@ impl RunningContext {
 
     pub fn alloc_cost(&self) -> u64 {
         self.config.alloc_cost
+    }
+
+    pub fn mem_grow_cost(&self) -> u64 {
+        self.config.mem_grow_cost
     }
 
     fn push_message(&mut self, msg: Message) {
@@ -698,6 +724,7 @@ fn run(
         messages: MessageContext::new(message.clone(), id_generator),
         gas_counter,
         alloc_cost: context.alloc_cost(),
+        mem_grow_cost: context.mem_grow_cost(),
         last_error_returned: None,
         block_height,
     };

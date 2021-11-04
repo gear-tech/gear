@@ -142,10 +142,7 @@ mod tests {
 
     #[test]
     fn init_init_cost() {
-        let mut config = Config::default();
-        config.alloc_cost = 0;
-        config.init_cost = 0;
-        config.load_page_cost = 0;
+        let mut config = Config::zero_cost_config();
         let mut runner = RunnerContext::with_config(&config);
 
         let baseline: RunReport<()> =
@@ -178,10 +175,7 @@ mod tests {
         // Init logger
         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let mut config = Config::default();
-        config.alloc_cost = 0;
-        config.init_cost = 0;
-        config.load_page_cost = 0;
+        let mut config = Config::zero_cost_config();
 
         let pages_num = 1;
         let allocation_size = pages_num * PAGE_SIZE as u32;
@@ -194,11 +188,13 @@ mod tests {
         );
         assert_eq!(first_run_report.result, RunResult::Normal);
 
-        // Second run - we set page allocation cost, then spent gas must
-        // be bigger than at first run by @config.alloc_const * `pages alloced`.
-        // Because of allocation overhead we need @pages_num pages to allocate @allocation_size.
-        config.alloc_cost = 10000;
-        let gas_limit = first_run_report.gas_spent + 2 * config.alloc_cost;
+        // Second run - we set page allocation cost and mem grow cost,
+        // then spent gas must be bigger, than at first run by `@config.mem_grow_cost * pages alloced`.
+        // Here allocation cost does not change final gas amount, because each allocation will be free.
+        // Because of allocation overhead we need `@pages_num + 1` pages to allocate @allocation_size.
+        config.alloc_cost = 12345;
+        config.mem_grow_cost = 10000;
+        let gas_limit = first_run_report.gas_spent + 2 * config.mem_grow_cost;
         let mut runner = RunnerContext::with_config(&config);
         let report: RunReport<()> =
             runner.init_program_with_report(InitProgram::from(wasm_code()).message(
@@ -211,10 +207,7 @@ mod tests {
 
     #[test]
     fn init_load_cost() {
-        let mut config = Config::default();
-        config.alloc_cost = 0;
-        config.init_cost = 0;
-        config.load_page_cost = 0;
+        let mut config = Config::zero_cost_config();
         let mut runner = RunnerContext::with_config(&config);
 
         let baseline: RunReport<()> =
@@ -244,10 +237,7 @@ mod tests {
 
     #[test]
     fn handle_init_cost() {
-        let mut config = Config::default();
-        config.alloc_cost = 0;
-        config.init_cost = 0;
-        config.load_page_cost = 0;
+        let mut config = Config::zero_cost_config();
         let mut runner = RunnerContext::with_config(&config);
         runner.init_program(wasm_code());
 
@@ -289,10 +279,7 @@ mod tests {
         // Init logger
         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let mut config = Config::default();
-        config.alloc_cost = 0;
-        config.init_cost = 0;
-        config.load_page_cost = 0;
+        let mut config = Config::zero_cost_config();
 
         let pages_num = 2;
         let allocation_size = pages_num * PAGE_SIZE as u32;
@@ -305,11 +292,13 @@ mod tests {
             runner.request_report(Request::Allocate(allocation_size));
         assert_eq!(first_run_report.result, RunResult::Normal);
 
-        // Second run - we set page allocation cost, then spent gas must
-        // be bigger than at first run by @config.alloc_const * `pages alloced`.
-        // Because of allocation overhead we need @pages_num + 1 pages to allocate @allocation_size.
-        config.alloc_cost = 10000;
-        let gas_limit = first_run_report.gas_spent + 3 * config.alloc_cost;
+        // Second run - we set page allocation cost and mem grow cost,
+        // then spent gas must be bigger, than at first run by `@config.mem_grow_cost * pages alloced`.
+        // Here allocation cost does not change final gas amount, because each allocation will be free.
+        // Because of allocation overhead we need `@pages_num + 1` pages to allocate @allocation_size.
+        config.alloc_cost = 12345;
+        config.mem_grow_cost = 10000;
+        let gas_limit = first_run_report.gas_spent + 3 * config.mem_grow_cost;
         let mut runner = RunnerContext::with_config(&config);
         runner.init_program(wasm_code());
         let report: RunReport<Reply> = runner.request_report(
@@ -321,10 +310,7 @@ mod tests {
 
     #[test]
     fn handle_load_cost() {
-        let mut config = Config::default();
-        config.alloc_cost = 0;
-        config.init_cost = 0;
-        config.load_page_cost = 0;
+        let mut config = Config::zero_cost_config();
         let mut runner = RunnerContext::with_config(&config);
         runner.init_program(wasm_code());
 
