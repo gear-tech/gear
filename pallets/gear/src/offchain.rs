@@ -70,8 +70,8 @@ use sp_runtime::traits::Saturating;
 use sp_std::convert::TryInto;
 
 // Off-chain worker constants
-pub const STORAGE_OCW_WAITLIST: &'static [u8] = b"g::ocw::waitlist";
-pub const STORAGE_OCW_LOCK: &'static [u8] = b"g::ocw::lock";
+pub const STORAGE_OCW_WAITLIST: &[u8] = b"g::ocw::waitlist";
+pub const STORAGE_OCW_LOCK: &[u8] = b"g::ocw::lock";
 
 #[cfg_attr(test, derive(PartialEq))]
 pub enum OffchainError<BlockNumber> {
