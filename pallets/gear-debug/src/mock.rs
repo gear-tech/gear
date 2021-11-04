@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear;
-use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
+use crate as pallet_gear_debug;
+use frame_support::traits::FindAuthor;
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
-use sp_core::H256;
+use primitive_types::H256;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup},
@@ -32,7 +32,6 @@ type Block = frame_system::mocking::MockBlock<Test>;
 pub const BLOCK_AUTHOR: u64 = 255;
 
 // Configure a mock runtime to test the pallet.
-#[cfg(feature = "debug-mode")]
 construct_runtime!(
     pub enum Test where
         Block = Block,
@@ -40,28 +39,10 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-
-        // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
-    }
-);
-
-#[cfg(not(feature = "debug-mode"))]
-construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
-    {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        Timestamp: pallet_timestamp::{Pallet, Storage},
     }
 );
 
@@ -115,14 +96,6 @@ parameter_types! {
     pub const MaxBatchSize: u32 = 10;
 }
 
-impl pallet_gear::Config for Test {
-    type Event = Event;
-    type Currency = Balances;
-    type WeightInfo = ();
-    type BlockGasLimit = BlockGasLimit;
-}
-
-#[cfg(feature = "debug-mode")]
 impl pallet_gear_debug::Config for Test {
     type Event = Event;
     type WeightInfo = ();
@@ -172,16 +145,4 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));
     ext
-}
-
-pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
-    while System::block_number() < n {
-        System::on_finalize(System::block_number());
-        System::set_block_number(System::block_number() + 1);
-        System::on_initialize(System::block_number());
-        Gear::on_initialize(System::block_number());
-        let remaining_weight =
-            remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
-        Gear::on_idle(System::block_number(), remaining_weight);
-    }
 }
