@@ -15,3 +15,25 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+/// **The `debug!` macro**
+#[cfg(feature = "debug")]
+#[macro_export]
+macro_rules! debug {
+    ($arg:literal) => {
+        gstd::util::debug(&gstd::prelude::format!("{}", $arg));
+    };
+    ($arg:expr) => {
+        gstd::util::debug(&gstd::prelude::format!("{:?}", $arg));
+    };
+    ($fmt:literal, $($args:tt)+) => {
+        gstd::util::debug(&gstd::prelude::format!($fmt, $($args)+));
+    };
+}
+
+#[cfg(not(feature = "debug"))]
+#[macro_export]
+macro_rules! debug {
+    ($arg:expr) => {};
+    ($fmt:literal, $($args:tt)+) => {};
+}

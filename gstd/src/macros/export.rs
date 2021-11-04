@@ -15,3 +15,13 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+#[macro_export]
+macro_rules! export {
+    ($f:ident -> $val:expr) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
+            gstd::util::to_wasm_ptr($val)
+        }
+    };
+}
