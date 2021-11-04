@@ -49,8 +49,8 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
         return compile_error(&function.sig.ident, "handle function must have no arguments");
     }
 
-    if main_fn.sig.asyncness.is_none() {
-        return compile_error(&main_fn.sig.fn_token, "handle function must be async");
+    if function.sig.asyncness.is_none() {
+        return compile_error(&function.sig.fn_token, "handle function must be async");
     }
 
     let body = &function.block;

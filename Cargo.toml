@@ -30,7 +30,7 @@ members = [
     "runtime",
     "tests/btree",
     "tests/common",
-    "tests/distributor",
+    # "tests/distributor",
     "tests/gas_limit/",
     "tests/node",
     "utils/gear-test-cli",

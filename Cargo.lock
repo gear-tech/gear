@@ -2256,23 +2256,14 @@ version = "0.1.0"
 dependencies = [
  "galloc",
  "gcore",
+ "gstd-codegen",
  "hex",
  "parity-scale-codec",
  "scale-info",
 ]
 
 [[package]]
-name = "gstd-async"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.17",
- "gcore",
- "gstd",
- "gstd-async-macro",
-]
-
-[[package]]
-name = "gstd-async-macro"
+name = "gstd-codegen"
 version = "0.1.0"
 dependencies = [
  "quote",
@@ -7345,20 +7336,6 @@ dependencies = [
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "tests-distributor"
-version = "0.1.0"
-dependencies = [
- "env_logger 0.9.0",
- "gear-core",
- "gear-core-runner",
- "gstd",
- "gstd-async",
- "parity-scale-codec",
- "substrate-wasm-builder",
- "tests-common",
 ]
 
 [[package]]

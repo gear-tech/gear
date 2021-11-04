@@ -36,14 +36,14 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 #[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
     core::arch::wasm32::unreachable();
 }
 
 #[cfg(feature = "debug")]
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
-fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
     let info = prelude::format!("panic occurred: '{:?}'", panic_info);
 
     let payload = if info.len() > 64 && &info[59..63] == "Some" {
