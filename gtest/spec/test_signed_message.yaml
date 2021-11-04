@@ -1,4 +1,4 @@
-title: Signed message
+title: Signed message (well known cases)
 
 programs:
   - id: 1
@@ -10,38 +10,15 @@ programs:
         account: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
 
 fixtures:
-  - title: Well known cases
+  - title: PING from Bob
 
     messages:
       - destination: 1
         payload:
           kind: custom
           value:
+            message: "PING"
             signature: "0xea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
-      # "PING2" message signed by Bob
-      - destination: 1
-        payload:
-          kind: custom
-          value:
-            signature: "0x803536f0d81b433f266404c1be55913b01ea7812ea2842cc4dcad22f0a50d75e13bd2dbc77cd985c778e2aacedbc40a27082b8404455dcf9bf087f025138c182"
-      # "PING" signed by Alice
-      - destination: 1
-        payload:
-          kind: custom
-          value:
-            signature: "0x5653dffa5d5d34be4cafd21f27ee05a291a119ec0b775d78e8414baf42bcbf5d784b2194e63fa146f4a42f021ca9178fb0f13ecebdef7841084644bb48bb0688"
-      # "PING2" signed by Alice
-      - destination: 1
-        payload:
-          kind: custom
-          value:
-            signature: "0xfefcb51acc83528dcf5f54e421bf9ce82499f423da400f731f98768c5371866a23288450c92f9db1c4b281eb751a8311e651829fa5da39a024a6d1149e877c8b"
-      # "PING" signed by Bob but with '--scheme Ecdsa'
-      - destination: 1
-        payload:
-          kind: custom
-          value:
-            signature: "0xe7f984e6453258bb26425b37448b3130c9ece70e18f1744cbef92dbb7e8df82c645822aca46c943c5660824b85956675c4914a858853b37857f04431154ccbe400"
 
     expected:
       - step: 1
@@ -50,15 +27,63 @@ fixtures:
             payload:
               kind: utf-8
               value: Authorized PONG
-      - step: 2
+
+  - title: PING2 from Bob
+
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            message: "PING2"
+            signature: "0x803536f0d81b433f266404c1be55913b01ea7812ea2842cc4dcad22f0a50d75e13bd2dbc77cd985c778e2aacedbc40a27082b8404455dcf9bf087f025138c182"
+
+    expected:
+      - step: 1
         log:
           - destination: 0
-      - step: 3
-        log:
-          - destination: 0
-      - step: 4
-        log:
-          - destination: 0
-      - step: 5
-        log:
-          - destination: 0
+            payload:
+              kind: utf-8
+              value: Authorized reply
+
+  - title: PING from Alice
+
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            message: "PING"
+            signature: "0x5653dffa5d5d34be4cafd21f27ee05a291a119ec0b775d78e8414baf42bcbf5d784b2194e63fa146f4a42f021ca9178fb0f13ecebdef7841084644bb48bb0688"
+
+    expected:
+      - step: 1
+        log: []
+
+  - title: PING2 from Alice
+
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            message: "PING2"
+            signature: "0xfefcb51acc83528dcf5f54e421bf9ce82499f423da400f731f98768c5371866a23288450c92f9db1c4b281eb751a8311e651829fa5da39a024a6d1149e877c8b"
+
+    expected:
+      - step: 1
+        log: []
+
+  - title: PING from Bob but with '--scheme Ecdsa'
+
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            message: "PING"
+            signature: "0xe7f984e6453258bb26425b37448b3130c9ece70e18f1744cbef92dbb7e8df82c645822aca46c943c5660824b85956675c4914a858853b37857f04431154ccbe400"
+
+    expected:
+      - step: 1
+        log: []
