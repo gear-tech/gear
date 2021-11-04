@@ -1,10 +1,9 @@
 #![no_std]
 
 use codec::Decode;
-use gstd::{debug, msg, prelude::*};
+use gstd::{debug, msg, prelude::*, ProgramId};
 use sp_core::{
     crypto::{AccountId32, UncheckedFrom},
-    H256,
     sr25519,
 };
 
@@ -17,8 +16,7 @@ struct InitArgs {
 
 #[derive(Debug, Decode, TypeInfo)]
 struct HandleArgs {
-    // now it just "PING"
-    // message: Vec<u8>,
+    message: Vec<u8>,
     signature: Vec<u8>,
 }
 
@@ -32,7 +30,7 @@ gstd::metadata! {
             output: (),
 }
 
-static mut SIGNATORY: Option<<sr25519::Pair as sp_core::Pair>::Public> = None;
+static mut SIGNATORY: Option<ProgramId> = None;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -41,13 +39,25 @@ pub unsafe extern "C" fn handle() {
 
     let mut signature = <sr25519::Pair as sp_core::Pair>::Signature::default();
     if args.signature.len() != AsRef::<[u8]>::as_ref(&signature).len() {
-        debug!("if args.signature.len() != signature.as_ref().len() {");
+        debug!("wrong signature length");
         return;
     }
 
     signature.as_mut().copy_from_slice(&args.signature);
-    if <sr25519::Pair as sp_core::Pair>::verify(&signature, &b"PING", &SIGNATORY.unwrap()) {
-        msg::reply_bytes("Authorized PONG", 10_000_000, 0);
+
+    let pub_key = <sr25519::Pair as sp_core::Pair>::Public::unchecked_from(
+        SIGNATORY.expect("has to be inited").0,
+    );
+    debug!("{:?}", pub_key);
+    if <sr25519::Pair as sp_core::Pair>::verify(&signature, &args.message, &pub_key) {
+        // msg::send(SIGNATORY.unwrap(), b"Authorized PONG", 10_000_000, 0);
+        let reply: &[u8] = if &args.message == b"PING" {
+            b"Authorized PONG"
+        } else {
+            b"Authorized reply"
+        };
+
+        msg::reply_bytes(reply, 10_000_000, 0);
     }
 }
 
@@ -60,8 +70,5 @@ pub unsafe extern "C" fn init() {
     debug!("{:?}", args);
 
     let bytes: [u8; 32] = args.account.into();
-    let pub_key = <sr25519::Pair as sp_core::Pair>::Public::unchecked_from(bytes);
-    debug!("{:?}", pub_key);
-
-    SIGNATORY = Some(pub_key);
+    SIGNATORY = Some(ProgramId(bytes));
 }
