@@ -180,7 +180,7 @@ where
                     _ => unreachable!("only two types of events can be encountered here; qed"),
                 };
                 match current_events_counter.get_mut(&msg_id) {
-                    Some(count) => *count = *count + score,
+                    Some(count) => *count += score,
                     _ => {
                         current_events_counter.insert(msg_id, score);
                     }
@@ -247,9 +247,9 @@ where
         let (removed_ids, mut billing_data): (Vec<H256>, Vec<WaitListInvoiceData<T::BlockNumber>>) =
             waitlist_data
                 .iter()
-                .filter_map(
-                    |(msg_id, (msg, inserted_at, maybe_removed_at))| match maybe_removed_at {
-                        Some(removed_at) => Some((
+                .filter_map(|(msg_id, (msg, inserted_at, maybe_removed_at))| {
+                    maybe_removed_at.as_ref().map(|removed_at| {
+                        (
                             msg_id,
                             WaitListInvoiceData {
                                 program_id: msg.dest,
@@ -257,10 +257,9 @@ where
                                 start: *inserted_at,
                                 end: *removed_at,
                             },
-                        )),
-                        _ => None,
-                    },
-                )
+                        )
+                    })
+                })
                 .collect::<Vec<_>>()
                 .into_iter()
                 .unzip();
