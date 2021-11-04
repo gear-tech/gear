@@ -168,7 +168,7 @@ impl EnvExt for Ext {
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
         let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
 
-        // Returns back gas for alloced page if it's new
+        // Returns back gas for allocated page if it's new
         if !self.memory_context.is_init_page(ptr)
             && self.gas_counter.refund(self.alloc_cost) != ChargeResult::Enough
         {
