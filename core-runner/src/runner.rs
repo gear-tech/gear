@@ -77,9 +77,9 @@ impl Config {
     pub fn zero_cost_config() -> Self {
         Self {
             max_pages: MAX_PAGES.into(),
-            alloc_cost:     0,
-            mem_grow_cost:  0,
-            init_cost:      0,
+            alloc_cost: 0,
+            mem_grow_cost: 0,
+            init_cost: 0,
             load_page_cost: 0,
         }
     }
