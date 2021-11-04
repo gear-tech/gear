@@ -22,6 +22,7 @@
 #![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
 
 extern crate galloc;
+pub use gcore::exec;
 
 mod macros;
 use handlers::{panic, oom};

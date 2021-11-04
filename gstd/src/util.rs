@@ -20,6 +20,9 @@ use crate::prelude::{Box, String, Vec};
 use codec::Encode;
 use scale_info::{MetaType, PortableRegistry, Registry};
 
+#[cfg(feature = "debug")]
+pub use gcore::ext::debug;
+
 pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
     let mut registry = Registry::new();
     registry.register_types(meta_types);
