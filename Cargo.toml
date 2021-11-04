@@ -22,7 +22,7 @@ members = [
     "core-runner",
     "galloc",
     "gcore",
-    # "gstd",
+    "gstd",
     "gtest",
     "node",
     "node-runner",

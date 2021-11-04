@@ -1,0 +1,13 @@
+[package]
+name = "gstd"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+galloc = { path = "../galloc" }
+gcore = { path = "../gcore" }
+
+[features]
+debug = ["gcore/debug"]
