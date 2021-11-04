@@ -18,6 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[macro_use]
+extern crate alloc;
+
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -31,8 +34,42 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+mod offchain;
+
+/// Cryptography used by off-chain workers.
+pub mod crypto {
+    use crate::KEY_TYPE;
+
+    use frame_support::sp_runtime::app_crypto::{app_crypto, sr25519};
+    use frame_support::sp_runtime::{MultiSignature, MultiSigner};
+
+    app_crypto!(sr25519, KEY_TYPE);
+
+    pub struct AuthorityId;
+
+    impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for AuthorityId {
+        type RuntimeAppPublic = Public;
+        type GenericSignature = sp_core::sr25519::Signature;
+        type GenericPublic = sp_core::sr25519::Public;
+    }
+
+    // For tests. TODO: do we need it?
+    // impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
+    //     for AuthorityId
+    // {
+    //     type RuntimeAppPublic = Public;
+    //     type GenericSignature = sp_core::sr25519::Signature;
+    //     type GenericPublic = sp_core::sr25519::Public;
+    // }
+}
+
+pub const KEY_TYPE: sp_runtime::KeyTypeId = sp_runtime::KeyTypeId(*b"gear");
+pub const RENT_COLLECTION_INTERVAL: u32 = 10;
+pub const WAITLIST_FEE_PER_BLOCK: u128 = 100;
+
 #[frame_support::pallet]
 pub mod pallet {
+    use super::offchain::PaymentPayload;
     use super::*;
     use common::{self, IntermediateMessage, Message, Origin};
     use frame_support::{
@@ -42,16 +79,26 @@ pub mod pallet {
         traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
         weights::{IdentityFee, WeightToFeePolynomial},
     };
+    use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SignedPayload};
     use frame_system::pallet_prelude::*;
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
-    use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+    use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_authorship::Config {
+    pub trait Config:
+        frame_system::Config + pallet_authorship::Config + CreateSignedTransaction<Call<Self>>
+    where
+        Self::AccountId: Origin,
+    {
+        /// The identifier type for an offchain worker.
+        type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
+
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+        type Event: From<Event<Self>>
+            + IsType<<Self as frame_system::Config>::Event>
+            + TryInto<Event<Self>>;
 
         /// Gas and value transfer currency
         type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
@@ -72,7 +119,10 @@ pub mod pallet {
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
-    pub enum Event<T: Config> {
+    pub enum Event<T: Config>
+    where
+        T::AccountId: Origin,
+    {
         /// Log event from the specific program.
         Log(common::Message),
         /// Program created and an init message enqueued.
@@ -94,6 +144,10 @@ pub mod pallet {
         DebugDataSnapshot(DebugData),
         /// Value and gas has been claimed from a message in mailbox by the addressee
         ClaimedValueFromMailbox(H256),
+        /// A message has been added to the wait list
+        AddedToWaitList(common::Message),
+        /// A message has been removed from the wait list
+        RemovedFromWaitList(H256),
     }
 
     // Gear pallet error.
@@ -119,6 +173,47 @@ pub mod pallet {
         ///
         /// Occurs if a message is sent to a program that is in an uninitialized state.
         ProgramIsNotInitialized,
+    }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type Call = Call<T>;
+        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            match call {
+                Call::collect_waitlist_rent { payload, signature } => {
+                    let signature_valid =
+                        SignedPayload::<T>::verify::<T::AuthorityId>(payload, signature.clone());
+                    if !signature_valid {
+                        return InvalidTransaction::BadProof.into();
+                    }
+
+                    let block_number = payload.block_number;
+                    let last_collected_at = <RentPaidUpTo<T>>::get();
+                    if block_number
+                        < last_collected_at.saturating_add(RENT_COLLECTION_INTERVAL.into())
+                    {
+                        return InvalidTransaction::Stale.into();
+                    }
+                    let current_block = <frame_system::Pallet<T>>::block_number();
+                    if current_block < block_number {
+                        return InvalidTransaction::Future.into();
+                    }
+
+                    ValidTransaction::with_tag_prefix("gear")
+                        .priority(TransactionPriority::max_value())
+                        .and_provides(block_number)
+                        .longevity(
+                            TryInto::<u64>::try_into(RENT_COLLECTION_INTERVAL / 2).unwrap_or(5_u64),
+                        )
+                        .propagate(true)
+                        .build()
+                }
+                _ => InvalidTransaction::Call.into(),
+            }
+        }
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -167,7 +262,10 @@ pub mod pallet {
     pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
 
     #[pallet::type_value]
-    pub fn DefaultForGasLimit<T: Config>() -> u64 {
+    pub fn DefaultForGasLimit<T: Config>() -> u64
+    where
+        T::AccountId: Origin,
+    {
         T::BlockGasLimit::get()
     }
 
@@ -191,6 +289,14 @@ pub mod pallet {
     #[pallet::getter(fn debug_mode)]
     pub type DebugMode<T> = StorageValue<_, bool, ValueQuery, DefaultForDebugMode>;
 
+    /// The block at which the rent for a space in the wait list was last collected.
+    ///
+    /// Used in the offchain worker to schedule the next rent collection, as well as
+    /// ensure this transaction is sent at most every `RENT_COLLECTION_INTERVAL` blocks.
+    #[pallet::storage]
+    #[pallet::getter(fn rent_collected_at)]
+    pub type RentPaidUpTo<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
     where
@@ -211,6 +317,7 @@ pub mod pallet {
         /// There should always remain enough weight for this hook to be invoked
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
+                target: "runtime::gear",
                 "{} of weight remains in block {:?} after normal extrinsics have been processed",
                 remaining_weight,
                 bn,
@@ -221,6 +328,33 @@ pub mod pallet {
             weight += Self::process_queue();
 
             weight
+        }
+
+        /// Offchain worker
+        ///
+        /// Makes necessary actions to maintain data needed for charging programs
+        /// for keeping messages in the wait list
+        fn offchain_worker(now: BlockNumberFor<T>) {
+            // Only do something if we are a potential validator.
+            if sp_io::offchain::is_validator() {
+                log::debug!(
+                    target: "gear",
+                    "Offchain worker at block {:?}", now,
+                );
+                let res = Self::waitlist_usage(now);
+                if let Err(e) = res {
+                    log::error!(
+                        target: "gear",
+                        "Error in offchain worker at {:?}: {:?}", now, e,
+                    )
+                }
+            } else {
+                log::debug!(
+                    target: "gear",
+                    "Skipping offchain worker at {:?}: not a validator.",
+                    now,
+                )
+            }
         }
     }
 
@@ -303,6 +437,7 @@ pub mod pallet {
                             // Put message back to storage to let it be processed in future blocks
                             MessageQueue::<T>::append(message);
                             log::info!(
+                                target: "runtime::gear",
                                 "⛽️ Block gas limit exceeded: init message {} will be re-queued",
                                 init_message_id,
                             );
@@ -334,6 +469,7 @@ pub mod pallet {
                                 // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
                                 ProgramsLimbo::<T>::insert(program_id, origin);
                                 log::info!(
+                                    target: "runtime::gear",
                                     "👻 Program {} will stay in limbo until explicitly removed",
                                     program_id
                                 );
@@ -409,6 +545,7 @@ pub mod pallet {
                                     // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
                                     ProgramsLimbo::<T>::insert(program_id, origin);
                                     log::info!(
+                                        target: "runtime::gear",
                                         "👻 Program {} will stay in limbo until explicitly removed",
                                         program_id
                                     );
@@ -496,6 +633,17 @@ pub mod pallet {
                             Self::insert_to_mailbox(message.dest, message.clone());
 
                             Self::deposit_event(Event::Log(message));
+                        }
+
+                        for event in execution_report.events {
+                            match event {
+                                runner::Event::WaitListInsert(msg) => {
+                                    Self::deposit_event(Event::AddedToWaitList(msg))
+                                }
+                                runner::Event::WaitListRemove(msg_id) => {
+                                    Self::deposit_event(Event::RemovedFromWaitList(msg_id))
+                                }
+                            }
                         }
 
                         for (message_id, outcome) in execution_report.outcomes {
@@ -943,6 +1091,50 @@ pub mod pallet {
 
             // This extrinsic is not chargeable
             Ok(Pays::No.into())
+        }
+
+        /// Collect rent payment for keeping messages in the wait list.
+        ///
+        /// This transaction is unsigned (that is, the origin must be `RawOrigin::None`),
+        /// however, the payload must be signed by one of the validators for the
+        /// transaction to be accepted into the transaction pool.
+        #[pallet::weight(1_000_000)]
+        pub fn collect_waitlist_rent(
+            origin: OriginFor<T>,
+            payload: PaymentPayload<T::Public, T::BlockNumber>,
+            _signature: T::Signature,
+        ) -> DispatchResultWithPostInfo {
+            ensure_none(origin)?;
+            log::debug!(target: "runtime::gear", "[collect_waitlist_rent] payload: {:?}", payload);
+
+            for invoice in payload.payment_data {
+                let amount: BalanceOf<T> = WAITLIST_FEE_PER_BLOCK
+                    .saturating_mul(
+                        invoice
+                            .end
+                            .saturating_sub(invoice.start)
+                            .unique_saturated_into(),
+                    )
+                    .unique_saturated_into();
+                if T::Currency::transfer(
+                    &<T::AccountId as Origin>::from_origin(invoice.program_id),
+                    &Self::block_author(),
+                    amount,
+                    ExistenceRequirement::AllowDeath,
+                )
+                .is_err()
+                {
+                    // TODO: decide what to do in case a program doesn't have enough funds to pay rent
+                    log::error!(
+                        target: "runtime::gear", "[collect_waitlist_rent] Insufficient funds: {:?}",
+                        invoice.program_id,
+                    );
+                }
+            }
+
+            // Update the block number up to which rent has been collected
+            <RentPaidUpTo<T>>::put(payload.block_number);
+            Ok(().into())
         }
     }
 }

@@ -24,13 +24,15 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+use codec::Encode;
 use pallet_grandpa::fg_primitives;
 use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::traits::{
-    AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify,
+    self, AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor,
+    SaturatedConversion, StaticLookup, Verify,
 };
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
@@ -334,10 +336,70 @@ parameter_types! {
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
 }
 impl pallet_gear::Config for Runtime {
+    type AuthorityId = pallet_gear::crypto::AuthorityId;
     type Event = Event;
     type Currency = Balances;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type BlockGasLimit = BlockGasLimit;
+}
+
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
+where
+    Call: From<LocalCall>,
+{
+    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+        call: Call,
+        public: <Signature as traits::Verify>::Signer,
+        account: AccountId,
+        nonce: Index,
+    ) -> Option<(
+        Call,
+        <UncheckedExtrinsic as traits::Extrinsic>::SignaturePayload,
+    )> {
+        let tip = 0;
+        // take the biggest period possible.
+        let period = BlockHashCount::get()
+            .checked_next_power_of_two()
+            .map(|c| c / 2)
+            .unwrap_or(2) as u64;
+        let current_block = System::block_number()
+            .saturated_into::<u64>()
+            // The `System::block_number` is initialized with `n+1`,
+            // so the actual block number is `n`.
+            .saturating_sub(1);
+        let extra = (
+            frame_system::CheckSpecVersion::<Runtime>::new(),
+            frame_system::CheckTxVersion::<Runtime>::new(),
+            frame_system::CheckGenesis::<Runtime>::new(),
+            frame_system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
+            frame_system::CheckNonce::<Runtime>::from(nonce),
+            frame_system::CheckWeight::<Runtime>::new(),
+            pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+        );
+        #[cfg_attr(not(feature = "std"), allow(unused_variables))]
+        let raw_payload = SignedPayload::new(call, extra)
+            .map_err(|e| {
+                log::warn!("Unable to create signed payload: {:?}", e);
+            })
+            .ok()?;
+        let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
+        let address = Self::Lookup::unlookup(account);
+        let (call, extra, _) = raw_payload.deconstruct();
+        Some((call, (address, signature, extra)))
+    }
+}
+
+impl frame_system::offchain::SigningTypes for Runtime {
+    type Public = <Signature as traits::Verify>::Signer;
+    type Signature = Signature;
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+    Call: From<C>,
+{
+    type Extrinsic = UncheckedExtrinsic;
+    type OverarchingCall = Call;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -357,7 +419,7 @@ construct_runtime!(
         Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
         Utility: pallet_utility::{Pallet, Call, Storage, Event},
         Authorship: pallet_authorship::{Pallet, Storage},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
     }
 );
 
@@ -383,6 +445,8 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
+/// The payload being signed in transactions.
+pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.

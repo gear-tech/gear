@@ -207,6 +207,13 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
         })?;
 
     if config.offchain_worker.enabled {
+        sp_keystore::SyncCryptoStore::sr25519_generate_new(
+            &*keystore_container.sync_keystore(),
+            gear_runtime::pallet_gear::KEY_TYPE,
+            Some("//Alice"),
+        )
+        .expect("Creating key with account Alice should succeed.");
+
         sc_service::build_offchain_workers(
             &config,
             task_manager.spawn_handle(),

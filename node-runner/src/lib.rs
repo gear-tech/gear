@@ -26,7 +26,8 @@ use sp_core::H256;
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 
 use gear_core_runner::{
-    ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult, Runner,
+    Event as CoreEvent, ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch,
+    RunNextResult, Runner,
 };
 use sp_std::prelude::*;
 
@@ -41,12 +42,19 @@ pub enum Error {
 }
 
 #[derive(Debug, Encode, Decode)]
+pub enum Event {
+    WaitListInsert(gear_common::Message),
+    WaitListRemove(H256),
+}
+
+#[derive(Debug, Encode, Decode)]
 pub struct ExecutionReport {
     pub handled: u32,
     pub log: Vec<gear_common::Message>,
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
+    pub events: Vec<Event>,
 }
 
 impl ExecutionReport {
@@ -56,6 +64,7 @@ impl ExecutionReport {
             gas_left,
             gas_spent,
             outcomes,
+            events,
             ..
         } = result;
 
@@ -89,6 +98,15 @@ impl ExecutionReport {
                             },
                         },
                     )
+                })
+                .collect(),
+            events: events
+                .into_iter()
+                .map(|e| match e {
+                    CoreEvent::WaitListInsert(msg) => Event::WaitListInsert(msg.into()),
+                    CoreEvent::WaitListRemove(msg_id) => {
+                        Event::WaitListRemove(H256::from_slice(msg_id.as_slice()))
+                    }
                 })
                 .collect(),
         }
@@ -145,6 +163,7 @@ pub fn init_program(
         init_message_id,
         ProgramId::from_slice(&caller_id[..]),
         run_result,
+        vec![], // TODO: rework once async `init()` is supported
     );
 
     let Storage {

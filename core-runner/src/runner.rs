@@ -69,6 +69,15 @@ impl Default for Config {
     }
 }
 
+/// Events generated during a program run.
+#[derive(Debug, Clone)]
+pub enum Event {
+    /// A message has been inserted in the wait list during a program run
+    WaitListInsert(Message),
+    /// A message has been removed from the wait list during a program run
+    WaitListRemove(MessageId),
+}
+
 /// Result of one or more message handling.
 #[derive(Debug, Default, Clone)]
 pub struct RunNextResult {
@@ -80,6 +89,8 @@ pub struct RunNextResult {
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
     pub gas_spent: Vec<(ProgramId, u64)>,
+    /// Events reflecting changes in underlying state
+    pub events: Vec<Event>,
 }
 
 impl RunNextResult {
@@ -100,12 +111,19 @@ impl RunNextResult {
     }
 
     /// Accrue one run of the message hadling.
-    pub fn accrue(&mut self, message_id: MessageId, caller_id: ProgramId, result: RunResult) {
+    pub fn accrue(
+        &mut self,
+        message_id: MessageId,
+        caller_id: ProgramId,
+        result: RunResult,
+        events: Vec<Event>,
+    ) {
         self.handled += 1;
         self.outcomes.insert(message_id, result.outcome);
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
+        self.events = events;
     }
 
     /// Empty run result.
@@ -114,9 +132,14 @@ impl RunNextResult {
     }
 
     /// From one single run.
-    pub fn from_single(message_id: MessageId, caller_id: ProgramId, run_result: RunResult) -> Self {
+    pub fn from_single(
+        message_id: MessageId,
+        caller_id: ProgramId,
+        run_result: RunResult,
+        events: Vec<Event>,
+    ) -> Self {
         let mut result = Self::empty();
-        result.accrue(message_id, caller_id, run_result);
+        result.accrue(message_id, caller_id, run_result, events);
         result
     }
 
@@ -363,7 +386,10 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             }
         }
 
+        let mut waitlist_events = Vec::new();
+
         if let Some(waiting_msg) = run_result.waiting.take() {
+            waitlist_events.push(Event::WaitListInsert(waiting_msg.clone()));
             self.wait_list
                 .insert(program.id(), waiting_msg.id, waiting_msg);
         }
@@ -381,10 +407,16 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
                 }
                 msg.gas_limit = msg.gas_limit.saturating_add(*gas);
                 context.message_buf.push(msg);
+                waitlist_events.push(Event::WaitListRemove(*waker_id));
             }
         }
 
-        let result = RunNextResult::from_single(next_message_id, next_message_source, run_result);
+        let result = RunNextResult::from_single(
+            next_message_id,
+            next_message_source,
+            run_result,
+            waitlist_events,
+        );
 
         for message in context.message_buf.drain(..) {
             if self.program_storage.exists(message.dest()) {
