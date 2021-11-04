@@ -15,3 +15,97 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use core::{
+    cell::UnsafeCell,
+    future::Future,
+    ops::{Deref, DerefMut},
+    pin::Pin,
+    task::{Context, Poll},
+};
+use crate::MessageId;
+
+use crate::future::access_queue::AccessQueue;
+
+pub struct Mutex<T> {
+    locked: UnsafeCell<Option<MessageId>>,
+    value: UnsafeCell<T>,
+    queue: AccessQueue,
+}
+
+impl<T> Mutex<T> {
+    pub fn lock(&self) -> MutexLockFuture<'_, T> {
+        MutexLockFuture { mutex: self }
+    }
+
+    pub const fn new(t: T) -> Mutex<T> {
+        Mutex {
+            value: UnsafeCell::new(t),
+            locked: UnsafeCell::new(None),
+            queue: AccessQueue::new(),
+        }
+    }
+}
+
+pub struct MutexGuard<'a, T> {
+    mutex: &'a Mutex<T>,
+}
+
+impl<'a, T> Drop for MutexGuard<'a, T> {
+    fn drop(&mut self) {
+        unsafe {
+            *self.mutex.locked.get() = None;
+            if let Some(message_id) = self.mutex.queue.dequeue() {
+                crate::exec::wake(message_id.0, 0);
+            }
+        }
+    }
+}
+
+impl<'a, T> AsRef<T> for MutexGuard<'a, T> {
+    fn as_ref(&self) -> &'a T {
+        unsafe { &*self.mutex.value.get() }
+    }
+}
+
+impl<'a, T> AsMut<T> for MutexGuard<'a, T> {
+    fn as_mut(&mut self) -> &'a mut T {
+        unsafe { &mut *self.mutex.value.get() }
+    }
+}
+
+impl<T> Deref for MutexGuard<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { &*self.mutex.value.get() }
+    }
+}
+
+impl<T> DerefMut for MutexGuard<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.mutex.value.get() }
+    }
+}
+
+// we are always single-threaded
+unsafe impl<T> Sync for Mutex<T> {}
+
+pub struct MutexLockFuture<'a, T> {
+    mutex: &'a Mutex<T>,
+}
+
+impl<'a, T> Future for MutexLockFuture<'a, T> {
+    type Output = MutexGuard<'a, T>;
+
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let lock = unsafe { &mut *self.mutex.locked.get() };
+        if lock.is_none() {
+            *lock = Some(crate::msg::id());
+            Poll::Ready(MutexGuard { mutex: self.mutex })
+        } else {
+            self.mutex.queue.enqueue(crate::msg::id());
+            Poll::Pending
+        }
+    }
+}

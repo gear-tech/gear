@@ -16,11 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod access_queue;
-mod event_loop;
-pub mod mutex;
-pub mod rwlock;
-pub(crate) mod signals;
-mod waker;
+use crate::prelude::VecDeque;
+use core::cell::UnsafeCell;
+use crate::MessageId;
 
-pub use event_loop::{main_loop, handle_reply};
+// Option<VecDeque> to make new `const fn`
+pub(crate) struct AccessQueue(UnsafeCell<Option<VecDeque<MessageId>>>);
+
+impl AccessQueue {
+    pub(crate) fn enqueue(&self, message_id: MessageId) {
+        let inner = unsafe { &mut *self.0.get() };
+
+        let vec_deque = inner.get_or_insert_with(VecDeque::new);
+        vec_deque.push_back(message_id);   
+    }
+
+    pub(crate) fn dequeue(&self) -> Option<MessageId> {
+        let inner = unsafe { &mut *self.0.get() };
+
+        inner.as_mut().and_then(|v| v.pop_front())
+    }
+
+    pub(crate) const fn new() -> Self {
+        AccessQueue(UnsafeCell::new(None))
+    }
+}

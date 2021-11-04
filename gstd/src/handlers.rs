@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{util, prelude};
-
 #[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
@@ -29,7 +27,7 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
-    util::debug("Runtime memory exhausted. Aborting");
+    crate::util::debug("Runtime memory exhausted. Aborting");
     core::arch::wasm32::unreachable()
 }
 
@@ -44,7 +42,7 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    let info = prelude::format!("panic occurred: '{:?}'", panic_info);
+    let info = crate::prelude::format!("panic occurred: '{:?}'", panic_info);
 
     let payload = if info.len() > 64 && &info[59..63] == "Some" {
         let msg_len = info.rfind("{").map(|v| v.saturating_sub(86)).unwrap_or(0);
@@ -56,10 +54,10 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
 
     let location = panic_info
         .location()
-        .map(|v| prelude::format!(", at `{}`, line {}", v.file(), v.line()))
+        .map(|v| crate::prelude::format!(", at `{}`, line {}", v.file(), v.line()))
         .unwrap_or_default();
 
-    util::debug(&prelude::format!("Panicked with {:?}{}", payload, location));
+    crate::util::debug(&crate::prelude::format!("Panicked with {:?}{}", payload, location));
 
     core::arch::wasm32::unreachable();
 }

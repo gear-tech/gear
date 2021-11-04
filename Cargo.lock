@@ -2254,6 +2254,7 @@ dependencies = [
 name = "gstd"
 version = "0.1.0"
 dependencies = [
+ "futures 0.3.17",
  "galloc",
  "gcore",
  "gstd-codegen",
