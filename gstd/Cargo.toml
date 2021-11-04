@@ -8,6 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 galloc = { path = "../galloc" }
 gcore = { path = "../gcore" }
+gstd-codegen = { path = "codegen" }
 
 [features]
 debug = ["gcore/debug"]
