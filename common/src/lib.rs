@@ -23,8 +23,13 @@ pub mod storage_queue;
 pub mod value_tree;
 
 use codec::{Decode, Encode};
+use frame_support::{
+    dispatch::DispatchError,
+    weights::{IdentityFee, WeightToFeePolynomial},
+};
 use primitive_types::H256;
 use scale_info::TypeInfo;
+use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;
@@ -39,6 +44,8 @@ pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_REFS_PREFIX: &[u8] = b"g::code::refs";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
+
+pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
 pub type ExitCode = i32;
 
@@ -101,6 +108,24 @@ impl Origin for H256 {
     }
 }
 
+pub trait GasToFeeConverter {
+    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
+
+    fn gas_to_fee(gas: u64) -> Self::Balance {
+        IdentityFee::<Self::Balance>::calc(&gas)
+    }
+}
+
+pub trait PaymentProvider<AccountId> {
+    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
+
+    fn withhold_reserved(
+        source: H256,
+        dest: &AccountId,
+        amount: Self::Balance,
+    ) -> Result<(), DispatchError>;
+}
+
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
 pub enum IntermediateMessage {
     InitProgram {
@@ -148,7 +173,7 @@ fn page_key(id: H256, page: u32) -> Vec<u8> {
     key
 }
 
-fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
@@ -286,21 +311,14 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     original_nonce
 }
 
-pub fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message) {
-    sp_io::storage::set(&wait_key(prog_id, msg_id), &message.encode());
+pub fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message, bn: u32) {
+    let payload = (message, bn);
+    sp_io::storage::set(&wait_key(prog_id, msg_id), &payload.encode());
 }
 
-pub(crate) fn get_waiting_message(prog_id: H256, msg_id: H256) -> Option<Message> {
-    sp_io::storage::get(&wait_key(prog_id, msg_id))
-        .as_ref()
-        .map(|val| Message::decode(&mut &val[..]).ok())
-        .flatten()
-}
-
-pub fn remove_waiting_message(prog_id: H256, msg_id: H256) -> Option<Message> {
+pub fn remove_waiting_message(prog_id: H256, msg_id: H256) -> Option<(Message, u32)> {
     let id = wait_key(prog_id, msg_id);
-    let msg: Option<Message> = sp_io::storage::get(&id)
-        .map(|val| Message::decode(&mut &val[..]).expect("message encoded correctly"));
+    let msg = sp_io::storage::get(&id).and_then(|val| <(Message, u32)>::decode(&mut &val[..]).ok());
 
     if msg.is_some() {
         sp_io::storage::clear(&id);

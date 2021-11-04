@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::*;
 use codec::Encode;
-use common::{self, IntermediateMessage, Origin as _};
+use common::{self, IntermediateMessage, Origin as _, GAS_VALUE_PREFIX};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::program::{Program, ProgramId};

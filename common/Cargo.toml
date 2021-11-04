@@ -19,6 +19,8 @@ sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate
 sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-arithmetic = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 [features]
 default = ["std"]
@@ -29,5 +31,7 @@ std = [
     "sp-std/std",
     "sp-io/std",
     "sp-runtime/std",
+    "sp-arithmetic/std",
+    "frame-support/std",
     "primitive-types/std",
 ]
