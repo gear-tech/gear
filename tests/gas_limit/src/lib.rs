@@ -200,9 +200,16 @@ mod tests {
             runner.init_program_with_report(InitProgram::from(wasm_code()).message(
                 MessageBuilder::from(Request::Allocate(allocation_size)).gas_limit(gas_limit),
             ));
-
         assert_eq!(report.result, RunResult::Normal);
         assert_eq!(report.gas_left, 0);
+
+        // Check gas limit exceeded
+        let mut runner = RunnerContext::with_config(&config);
+        let report: RunReport<()> =
+            runner.init_program_with_report(InitProgram::from(wasm_code()).message(
+                MessageBuilder::from(Request::Allocate(allocation_size)).gas_limit(gas_limit - 1),
+            ));
+        assert_eq!(report.result, RunResult::Trap("Gas limit exceeded".into()));
     }
 
     #[test]
@@ -306,6 +313,14 @@ mod tests {
         );
         assert_eq!(report.result, RunResult::Normal);
         assert_eq!(report.gas_left, 0);
+
+        // Check gas limit exceeded
+        let mut runner = RunnerContext::with_config(&config);
+        runner.init_program(wasm_code());
+        let report: RunReport<Reply> = runner.request_report(
+            MessageBuilder::from(Request::Allocate(allocation_size)).gas_limit(gas_limit - 1),
+        );
+        assert_eq!(report.result, RunResult::Trap("Gas limit exceeded".into()));
     }
 
     #[test]
