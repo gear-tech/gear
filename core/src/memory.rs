@@ -186,8 +186,8 @@ impl MemoryContext {
         }
     }
 
-    /// Returns whether page is initial,
-    /// means page has been already in storage.
+    /// Return `true` if the page is the initial page,
+    /// it means that the page was already in the storage.
     pub fn is_init_page(&self, page: PageNumber) -> bool {
         self.init_allocations.contains(&page)
     }
