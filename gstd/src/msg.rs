@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::future::signals::{self, ReplyPoll};
-use crate::prelude::{convert::AsRef, Vec, vec};
-use crate::{MessageId, ActorId};
+use crate::prelude::{convert::AsRef, vec, Vec};
+use crate::{ActorId, MessageId};
 use codec::{Decode, Encode, Output};
 use core::{
     future::Future,
@@ -105,7 +105,12 @@ pub fn send_bytes<T: AsRef<[u8]>>(
     gas_limit: u64,
     value: u128,
 ) -> MessageId {
-    MessageId(gcore::msg::send(program.0, payload.as_ref(), gas_limit, value))
+    MessageId(gcore::msg::send(
+        program.0,
+        payload.as_ref(),
+        gas_limit,
+        value,
+    ))
 }
 
 pub struct MessageFuture {
@@ -145,7 +150,6 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
     }
 }
 
-
 /// Send a message and wait for reply.
 pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
@@ -169,5 +173,8 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     let waiting_reply_to = send_bytes(program, payload.encode(), gas_limit, value);
     signals::signals_static().register_signal(waiting_reply_to, id());
 
-    CodecMessageFuture::<D> { waiting_reply_to, phantom: PhantomData }
+    CodecMessageFuture::<D> {
+        waiting_reply_to,
+        phantom: PhantomData,
+    }
 }

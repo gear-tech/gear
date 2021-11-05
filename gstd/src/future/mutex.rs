@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::MessageId;
 use core::{
     cell::UnsafeCell,
     future::Future,
@@ -23,7 +24,6 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use crate::MessageId;
 
 use crate::future::access_queue::AccessQueue;
 
@@ -56,7 +56,7 @@ impl<'a, T> Drop for MutexGuard<'a, T> {
         unsafe {
             *self.mutex.locked.get() = None;
             if let Some(message_id) = self.mutex.queue.dequeue() {
-                crate::exec::wake(message_id.0, 0);
+                crate::exec::wake(message_id, 0);
             }
         }
     }

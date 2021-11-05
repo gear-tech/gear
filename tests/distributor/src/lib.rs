@@ -50,14 +50,14 @@ mod wasm {
     use alloc::collections::BTreeSet;
     use codec::{Decode, Encode};
     use core::future::Future;
-    use gstd::{exec, ext, msg, prelude::*, ProgramId};
-    use gstd_async::mutex::Mutex;
+    use gstd::future::mutex::Mutex;
+    use gstd::{exec, msg, prelude::*, util, ActorId};
 
     use super::{Reply, Request};
 
     #[derive(Eq, Ord, PartialEq, PartialOrd)]
     struct Program {
-        handle: ProgramId,
+        handle: ActorId,
     }
 
     struct ProgramState {
@@ -77,7 +77,7 @@ mod wasm {
     static mut STATE: Option<ProgramState> = None;
 
     impl Program {
-        fn new(handle: impl Into<ProgramId>) -> Self {
+        fn new(handle: impl Into<ActorId>) -> Self {
             Self {
                 handle: handle.into(),
             }
@@ -91,7 +91,7 @@ mod wasm {
 
             let program_handle = self.handle;
             async move {
-                let reply_bytes = gstd_async::msg::send_and_wait_for_reply(
+                let reply_bytes = msg::send_bytes_and_wait_for_reply(
                     program_handle,
                     &encoded_request[..],
                     exec::gas_available() - 25_000_000,
@@ -133,17 +133,17 @@ mod wasm {
                     Request::Report => Self::handle_report().await,
                 },
                 Err(e) => {
-                    ext::debug(&format!("Error processing request: {:?}", e));
+                    util::debug(&format!("Error processing request: {:?}", e));
                     Reply::Failure
                 }
             };
 
-            ext::debug("Handle request finished");
+            util::debug("Handle request finished");
             msg::reply(reply, exec::gas_available() - 25_000_000, 0);
         }
 
         async fn handle_receive(amount: u64) -> Reply {
-            ext::debug(&format!("Handling receive {}", amount));
+            util::debug(&format!("Handling receive {}", amount));
 
             let nodes = Program::nodes().lock().await;
             let subnodes_count = nodes.as_ref().len() as u64;
@@ -162,10 +162,10 @@ mod wasm {
                     }
                 }
 
-                ext::debug(&format!("Set own amount to: {}", left_over));
+                util::debug(&format!("Set own amount to: {}", left_over));
                 *Self::amount() = *Self::amount() + left_over;
             } else {
-                ext::debug(&format!("Set own amount to: {}", amount));
+                util::debug(&format!("Set own amount to: {}", amount));
                 *Self::amount() = *Self::amount() + amount;
             }
 
@@ -174,27 +174,27 @@ mod wasm {
 
         async fn handle_join(program_id: u64) -> Reply {
             let mut nodes = Self::nodes().lock().await;
-            ext::debug("Inserting into nodes");
+            util::debug("Inserting into nodes");
             nodes.as_mut().insert(Program::new(program_id));
             Reply::Success
         }
 
         async fn handle_report() -> Reply {
             let mut amount = *Program::amount();
-            ext::debug(&format!("Own amount: {}", amount));
+            util::debug(&format!("Own amount: {}", amount));
 
             let nodes = Program::nodes().lock().await;
 
             for program in nodes.as_ref().iter() {
-                ext::debug("Querying next node");
+                util::debug("Querying next node");
                 amount += match program.do_report().await {
                     Ok(amount) => {
-                        ext::debug(&format!("Sub-node result: {}", amount));
+                        util::debug(&format!("Sub-node result: {}", amount));
                         amount
                     }
                     Err(_) => {
                         // skipping erroneous sub-nodes!
-                        ext::debug("Skipping errorneous node");
+                        util::debug("Skipping errorneous node");
                         0
                     }
                 }
@@ -206,16 +206,16 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
-        ext::debug("Handling sequence started");
-        gstd_async::main_loop(Program::handle_request());
-        ext::debug("Handling sequence terminated");
+        util::debug("Handling sequence started");
+        gstd::main_loop(Program::handle_request());
+        util::debug("Handling sequence terminated");
     }
 
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         STATE = Some(ProgramState::default());
         msg::reply((), 0, 0);
-        ext::debug("Program initialized");
+        util::debug("Program initialized");
     }
 }
 

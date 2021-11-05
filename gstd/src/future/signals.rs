@@ -16,11 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::{Vec, BTreeMap};
+use crate::prelude::{BTreeMap, Vec};
 use crate::MessageId;
 
 #[derive(Debug)]
 struct WakeSignal {
+    #[allow(dead_code)]
     message_id: MessageId,
     payload: Option<Vec<u8>>,
 }
@@ -56,6 +57,7 @@ impl WakeSignals {
         );
     }
 
+    #[cfg(not(feature = "no_reply"))]
     pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>) {
         let mut signal = self
             .signals

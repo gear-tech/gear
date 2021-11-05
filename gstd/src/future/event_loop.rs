@@ -18,11 +18,11 @@
 
 extern crate alloc;
 
+use crate::future::waker;
+use crate::MessageId;
 use alloc::{boxed::Box, collections::BTreeMap};
 use core::{future::Future, pin::Pin, task::Context};
 use futures::FutureExt;
-use crate::MessageId;
-use crate::future::waker;
 
 type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
@@ -59,12 +59,15 @@ where
         // Done!
     } else {
         main_futures_static().insert(crate::msg::id(), actual_future);
-        gcore::exec::wait()
+        crate::exec::wait()
     }
 }
 
+#[allow(clippy::missing_safety_doc)]
+#[cfg(not(feature = "no_reply"))]
 #[no_mangle]
 pub unsafe extern "C" fn handle_reply() {
     let original_message_id = crate::msg::reply_to();
-    crate::future::signals::signals_static().record_reply(original_message_id, crate::msg::load_bytes());
+    crate::future::signals::signals_static()
+        .record_reply(original_message_id, crate::msg::load_bytes());
 }

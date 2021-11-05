@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::prelude::VecDeque;
-use core::cell::UnsafeCell;
 use crate::MessageId;
+use core::cell::UnsafeCell;
 
 // Option<VecDeque> to make new `const fn`
 pub(crate) struct AccessQueue(UnsafeCell<Option<VecDeque<MessageId>>>);
@@ -28,7 +28,7 @@ impl AccessQueue {
         let inner = unsafe { &mut *self.0.get() };
 
         let vec_deque = inner.get_or_insert_with(VecDeque::new);
-        vec_deque.push_back(message_id);   
+        vec_deque.push_back(message_id);
     }
 
     pub(crate) fn dequeue(&self) -> Option<MessageId> {

@@ -46,7 +46,10 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     if !function.sig.inputs.is_empty() {
-        return compile_error(&function.sig.ident, "handle function must have no arguments");
+        return compile_error(
+            &function.sig.ident,
+            "handle function must have no arguments",
+        );
     }
 
     if function.sig.asyncness.is_none() {
@@ -58,7 +61,8 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     quote!(
         #[no_mangle]
         pub unsafe extern "C" fn handle() {
-            gstd::sync::event_loop(async #body);
+            gstd::main_loop(async #body);
         }
-    ).into()
+    )
+    .into()
 }

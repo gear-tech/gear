@@ -6,21 +6,21 @@ use core::{
     ptr,
     task::{Context, RawWaker, RawWakerVTable, Waker},
 };
-use gstd::{exec, msg, prelude::*, ProgramId};
-use gstd_async::{msg as msg_async, rwlock::RwLockReadGuard};
+use gstd::future::rwlock::RwLockReadGuard;
+use gstd::{exec, msg, prelude::*, ActorId};
 
-static mut PING_DEST: ProgramId = ProgramId([0u8; 32]);
-static RWLOCK: gstd_async::rwlock::RwLock<u32> = gstd_async::rwlock::RwLock::new(0);
+static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
+static RWLOCK: gstd::future::rwlock::RwLock<u32> = gstd::future::rwlock::RwLock::new(0);
 
 const GAS_LIMIT: u64 = 100_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let dest = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    PING_DEST = ProgramId::from_slice(&hex::decode(dest).expect("Invalid hex"));
+    PING_DEST = ActorId::from_slice(&hex::decode(dest).expect("Invalid hex"));
 }
 
-#[gstd_async::main]
+#[gstd::main]
 async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
@@ -33,14 +33,14 @@ async fn main() {
             *val += 1;
         }
         "ping&get" => {
-            msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT * 2, 0)
+            msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT * 2, 0)
                 .await;
             msg::reply(*RWLOCK.read().await, exec::gas_available() - GAS_LIMIT, 0);
         }
         "inc&ping" => {
             let mut val = RWLOCK.write().await;
             *val += 1;
-            msg_async::send_and_wait_for_reply(
+            msg::send_bytes_and_wait_for_reply(
                 unsafe { PING_DEST },
                 b"PING",
                 exec::gas_available() - GAS_LIMIT,
@@ -50,7 +50,7 @@ async fn main() {
         }
         "get&ping" => {
             let val = RWLOCK.read().await;
-            msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0).await;
+            msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0).await;
             msg::reply(*val, exec::gas_available() - GAS_LIMIT, 0);
         }
         "check readers" => {

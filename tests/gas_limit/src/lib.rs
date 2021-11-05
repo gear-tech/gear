@@ -31,7 +31,7 @@ mod wasm {
     extern crate alloc;
 
     use codec::{Decode, Encode};
-    use gstd::{ext, msg, prelude::*, MessageId, ProgramId};
+    use gstd::{msg, prelude::*, util, ActorId, MessageId};
 
     use super::{Reply, Request};
 
@@ -60,7 +60,7 @@ mod wasm {
             .map(|_| ())
             .unwrap_or_else(|e| {
                 msg::load::<()>()
-                    .unwrap_or_else(|_| ext::debug(&format!("Error processing request: {:?}", e)))
+                    .unwrap_or_else(|_| util::debug(&format!("Error processing request: {:?}", e)))
             });
 
         msg::reply((), 0, 0);
@@ -71,15 +71,12 @@ mod wasm {
         let reply = msg::load::<Request>()
             .map(process_request)
             .unwrap_or_else(|e| {
-                ext::debug(&format!("Error processing request: {:?}", e));
+                util::debug(&format!("Error processing request: {:?}", e));
                 Reply::Error
             });
 
         msg::reply(reply, 0, 0);
     }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle_reply() {}
 }
 
 #[cfg(test)]

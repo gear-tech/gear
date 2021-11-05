@@ -16,25 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
-#![cfg_attr(feature = "strict", deny(warnings))]
-#![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
+use crate::MessageId;
+pub use gcore::exec::{block_height, gas_available};
 
-extern crate galloc;
+pub fn wait() -> ! {
+    gcore::exec::wait()
+}
 
-pub mod exec;
-pub mod future;
-mod general;
-mod handlers;
-mod macros;
-pub mod msg;
-pub mod prelude;
-pub mod util;
-
-#[cfg(not(feature = "no_reply"))]
-pub use future::handle_reply;
-pub use future::main_loop;
-pub use general::{ActorId, MessageId};
-pub use gstd_codegen::main;
-pub use handlers::*;
+pub fn wake(waker_id: MessageId, gas_limit: u64) {
+    gcore::exec::wake(waker_id.0, gas_limit)
+}

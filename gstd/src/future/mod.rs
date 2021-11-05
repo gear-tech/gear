@@ -23,4 +23,6 @@ pub mod rwlock;
 pub(crate) mod signals;
 mod waker;
 
-pub use event_loop::{main_loop, handle_reply};
+#[cfg(not(feature = "no_reply"))]
+pub use event_loop::handle_reply;
+pub use event_loop::main_loop;

@@ -57,7 +57,11 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
         .map(|v| crate::prelude::format!(", at `{}`, line {}", v.file(), v.line()))
         .unwrap_or_default();
 
-    crate::util::debug(&crate::prelude::format!("Panicked with {:?}{}", payload, location));
+    crate::util::debug(&crate::prelude::format!(
+        "Panicked with {:?}{}",
+        payload,
+        location
+    ));
 
     core::arch::wasm32::unreachable();
 }

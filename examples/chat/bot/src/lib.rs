@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{debug, msg, prelude::*, ProgramId};
+use gstd::{debug, msg, prelude::*, ActorId};
 
 use core::convert::TryInto;
 use demo_chat::shared::{MemberMessage, RoomMessage};
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn init() {
             let (name, room_id) = (&split[0], &split[1]);
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
             STATE.set_name(s);
-            let room_id = ProgramId::from_slice(
+            let room_id = ActorId::from_slice(
                 &decode_hex(room_id).expect("INITIALIZATION FAILED: INVALID ROOM ID"),
             );
             msg::send(

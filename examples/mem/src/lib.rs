@@ -11,7 +11,4 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle_reply() {}
-
-#[no_mangle]
 pub unsafe extern "C" fn init() {}

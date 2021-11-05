@@ -19,5 +19,31 @@
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct MessageId(pub(crate) gcore::MessageId);
 
+impl From<gcore::MessageId> for MessageId {
+    fn from(other: gcore::MessageId) -> Self {
+        Self(other)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct ActorId(pub(crate) gcore::ProgramId);
+
+impl From<u64> for ActorId {
+    fn from(other: u64) -> Self {
+        Self(other.into())
+    }
+}
+
+impl ActorId {
+    pub const fn new(arr: [u8; 32]) -> Self {
+        Self(gcore::ProgramId(arr))
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
+    pub fn from_slice(slice: &[u8]) -> Self {
+        Self(gcore::ProgramId::from_slice(slice))
+    }
+}

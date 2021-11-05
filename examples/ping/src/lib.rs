@@ -22,9 +22,4 @@ pub unsafe extern "C" fn handle() {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
-    msg::reply("PONG", 10_000_000, 0);
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn init() {}

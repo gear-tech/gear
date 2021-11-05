@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::future::access_queue::AccessQueue;
+use crate::MessageId;
 use core::{
     cell::{Cell, UnsafeCell},
     future::Future,
@@ -23,8 +25,6 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use crate::MessageId;
-use crate::future::access_queue::AccessQueue;
 
 type ReadersCount = u8;
 const READERS_LIMIT: ReadersCount = 32;
@@ -74,7 +74,7 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
                 *self.lock.locked.get() = None;
 
                 if let Some(message_id) = self.lock.queueu.dequeue() {
-                    crate::exec::wake(message_id.0, 0);
+                    crate::exec::wake(message_id, 0);
                 }
             }
         }
@@ -118,7 +118,7 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
         unsafe {
             *self.lock.locked.get() = None;
             if let Some(message_id) = self.lock.queueu.dequeue() {
-                crate::exec::wake(message_id.0, 0);
+                crate::exec::wake(message_id, 0);
             }
         }
     }
