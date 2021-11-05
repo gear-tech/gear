@@ -181,7 +181,7 @@ mod tests {
         let allocation_size = pages_num * PAGE_SIZE as u32;
 
         // First run is to calculate gas spent without pages allocation cost
-        // (for code execution and e.t.c)
+        // (for code execution etc.)
         let mut runner = RunnerContext::with_config(&config);
         let first_run_report: RunReport<()> = runner.init_program_with_report(
             InitProgram::from(wasm_code()).message(Request::Allocate(allocation_size)),
@@ -292,7 +292,7 @@ mod tests {
         let allocation_size = pages_num * PAGE_SIZE as u32;
 
         // First run is to calculate gas spent without pages allocation cost
-        // (for code execution and e.t.c)
+        // (for code execution etc.)
         let mut runner = RunnerContext::with_config(&config);
         runner.init_program(wasm_code());
         let first_run_report: RunReport<Reply> =
