@@ -25,7 +25,6 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
 
-#[macro_use]
 extern crate alloc;
 
 pub mod env;
