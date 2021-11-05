@@ -34,4 +34,37 @@ cfg_if::cfg_if! {
     }
 }
 
+#[cfg(feature = "wasmtime_backend")]
 mod funcs;
+
+use alloc::vec::Vec;
+use gear_core::env::Ext;
+
+pub(crate) const EXIT_TRAP_STR: &str = "exit";
+
+// Helper functions
+pub(crate) fn is_exit_trap(trap: &str) -> bool {
+    trap.starts_with(EXIT_TRAP_STR)
+}
+
+pub(crate) fn get_id<E: Ext>(ext: &E, ptr: i32) -> [u8; 32] {
+    let mut id = [0u8; 32];
+    ext.get_mem(ptr as _, &mut id);
+    id
+}
+
+pub(crate) fn get_u128<E: Ext>(ext: &E, ptr: i32) -> u128 {
+    let mut u128_le = [0u8; 16];
+    ext.get_mem(ptr as _, &mut u128_le);
+    u128::from_le_bytes(u128_le)
+}
+
+pub(crate) fn get_vec<E: Ext>(ext: &E, ptr: i32, len: i32) -> Vec<u8> {
+    let mut vec = vec![0u8; len as _];
+    ext.get_mem(ptr as _, &mut vec);
+    vec
+}
+
+pub(crate) fn set_u128<E: Ext>(ext: &mut E, ptr: i32, val: u128) {
+    ext.set_mem(ptr as _, &val.to_le_bytes());
+}

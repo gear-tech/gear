@@ -29,8 +29,6 @@ use gear_core::memory::{Memory, PageBuf, PageNumber};
 use gear_core::message::{MessageId, OutgoingPacket, ReplyPacket};
 use gear_core::program::ProgramId;
 
-use crate::funcs;
-
 struct Runtime<E: Ext + 'static> {
     ext: LaterExt<E>,
     trap_reason: Option<&'static str>,
@@ -95,9 +93,9 @@ impl<E: Ext + 'static> Environment<E> {
             let result = ctx
                 .ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
-                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
-                    let value = funcs::get_u128(ext, value_ptr);
+                    let dest: ProgramId = crate::get_id(ext, program_id_ptr).into();
+                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
+                    let value = crate::get_u128(ext, value_ptr);
                     let message_id = ext.send(OutgoingPacket::new(
                         dest,
                         payload.into(),
@@ -142,8 +140,8 @@ impl<E: Ext + 'static> Environment<E> {
 
             ctx.ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
-                    let value = funcs::get_u128(ext, value_ptr);
+                    let dest: ProgramId = crate::get_id(ext, program_id_ptr).into();
+                    let value = crate::get_u128(ext, value_ptr);
                     let message_id = ext.send_commit(
                         handle_ptr as _,
                         OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
@@ -189,7 +187,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
                     ext.send_push(handle_ptr as _, &payload)
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -321,8 +319,8 @@ impl<E: Ext + 'static> Environment<E> {
             let result = ctx
                 .ext
                 .with(|ext: &mut E| {
-                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
-                    let value = funcs::get_u128(ext, value_ptr);
+                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
+                    let value = crate::get_u128(ext, value_ptr);
                     ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -351,7 +349,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let value = funcs::get_u128(ext, value_ptr);
+                    let value = crate::get_u128(ext, value_ptr);
                     let message_id = ext.reply_commit(ReplyPacket::new(
                         0,
                         vec![].into(),
@@ -414,7 +412,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
                     ext.reply_push(&payload)
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -500,7 +498,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    funcs::set_u128(ext, value_ptr, ext.value());
+                    crate::set_u128(ext, value_ptr, ext.value());
                     Ok(())
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -534,7 +532,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
+                    let waker_id: MessageId = crate::get_id(ext, waker_id_ptr).into();
                     ext.wake(waker_id, gas_limit as _)
                 })
                 .map(|_| Ok(ReturnValue::Unit))
@@ -586,7 +584,7 @@ impl<E: Ext + 'static> Environment<E> {
             let result = instance.invoke(entry_point, &[], &mut runtime);
             if let Err(_e) = &result {
                 if let Some(trap) = runtime.trap_reason {
-                    if funcs::is_exit_trap(&trap.to_string()) {
+                    if crate::is_exit_trap(&trap.to_string()) {
                         // We don't propagate a trap when exit
                         return Ok(());
                     }
