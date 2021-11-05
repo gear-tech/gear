@@ -29,22 +29,22 @@
 //! carried forward to the next block, the number of insertions by the
 //! end of each block equals exactly the number of removals + 1.
 //!
-//!           |             |
-//!      In --|-->          |
-//!           |    blk N    |
-//!           |-------------|
-//!                . . .
-//!           |-------------|
-//!           |           --|--> Out   
-//!      In --|-->          |
-//!           | blk (N + k) |
-//!           |-------------|
-//!                . . .
-//!           |-------------|
-//!           |           --|--> Out   
-//!      In --|-->          |
-//!           |           --|--> Out
-//!           | blk (N + m) |
+//! #          |             |
+//! #     In --|-->          |
+//! #          |    blk N    |
+//! #          |-------------|
+//! #               . . .
+//! #          |-------------|
+//! #          |           --|--> Out
+//! #     In --|-->          |
+//! #          | blk (N + k) |
+//! #          |-------------|
+//! #               . . .
+//! #          |-------------|
+//! #          |           --|--> Out
+//! #     In --|-->          |
+//! #          |           --|--> Out
+//! #          | blk (N + m) |
 //!
 //! Since the precise order of insertions/removals may not always be established,
 //! it is possible to encounter two insertions or removals in a row.

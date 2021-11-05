@@ -40,8 +40,13 @@ mod offchain;
 pub mod crypto {
     use crate::KEY_TYPE;
 
-    use frame_support::sp_runtime::app_crypto::{app_crypto, sr25519};
-    use frame_support::sp_runtime::{MultiSignature, MultiSigner};
+    // use sp_core::sr25519::Signature as Sr25519Signature;
+    use sp_runtime::{
+        app_crypto::{app_crypto, sr25519},
+        // traits::Verify,
+        MultiSignature,
+        MultiSigner,
+    };
 
     app_crypto!(sr25519, KEY_TYPE);
 
@@ -53,7 +58,7 @@ pub mod crypto {
         type GenericPublic = sp_core::sr25519::Public;
     }
 
-    // For tests. TODO: do we need it?
+    // #[cfg(test)]
     // impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
     //     for AuthorityId
     // {

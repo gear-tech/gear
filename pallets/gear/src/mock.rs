@@ -20,12 +20,18 @@ use crate as pallet_gear;
 use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
-use sp_core::H256;
-use sp_runtime::testing::Header;
-use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+use primitive_types::H256;
+// use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStore};
+// use sp_core::offchain::{testing, TransactionPoolExt};
+use sp_runtime::testing::{TestSignature, TestXt, UintAuthorityId};
+use sp_runtime::{
+    testing::Header,
+    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentityLookup, Verify},
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+pub type Signature = TestSignature;
 
 pub const BLOCK_AUTHOR: u64 = 255;
 
@@ -37,7 +43,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
     }
@@ -93,6 +99,7 @@ parameter_types! {
 
 impl pallet_gear::Config for Test {
     type Event = Event;
+    type AuthorityId = TestAuthorityId;
     type Currency = Balances;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
@@ -114,6 +121,47 @@ impl pallet_authorship::Config for Test {
     type UncleGenerations = ();
     type FilterUncle = ();
     type EventHandler = ();
+}
+
+pub struct TestAuthorityId;
+impl frame_system::offchain::AppCrypto<UintAuthorityId, TestSignature> for TestAuthorityId {
+    type RuntimeAppPublic = UintAuthorityId;
+    type GenericPublic = UintAuthorityId;
+    type GenericSignature = TestSignature;
+}
+
+impl frame_system::offchain::SigningTypes for Test {
+    type Public = UintAuthorityId;
+    type Signature = Signature;
+}
+
+// impl frame_system::offchain::SigningTypes for Test {
+//     type Public = <Signature as Verify>::Signer;
+//     type Signature = Signature;
+// }
+
+type Extrinsic = TestXt<Call, ()>;
+
+impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
+where
+    Call: From<LocalCall>,
+{
+    type OverarchingCall = Call;
+    type Extrinsic = Extrinsic;
+}
+
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
+where
+    Call: From<LocalCall>,
+{
+    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+        call: Call,
+        _public: <Signature as Verify>::Signer,
+        _account: u64,
+        nonce: u64,
+    ) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+        Some((call, (nonce, ())))
+    }
 }
 
 // Build genesis storage according to the mock runtime.

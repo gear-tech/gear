@@ -41,6 +41,7 @@ env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
 hex-literal = "0.3.3"
+# sp-keystore = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
 default = ['std']
