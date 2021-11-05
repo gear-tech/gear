@@ -2,9 +2,11 @@
 
 set -e
 
-ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
+SELF="$0"
+ROOT_DIR="$(cd "$(dirname "$SELF")"/.. && pwd)"
 SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
+EXT="hack"
 
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
@@ -60,6 +62,9 @@ gear_usage() {
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
+  The ./gear.sh requires the 'сargo-hack' extension.
+  If it's not found, it will be installed automatically.
+
 EOF
 }
 
@@ -75,12 +80,20 @@ then
     shift
 fi
 
+if [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" != "$EXT" ] &&
+  [ "$COMMAND" != "init" ] && [ "$SUBCOMMAND" != "cargo" ]
+  then
+    "$SELF" init cargo
+    header
+fi
+
 case "$COMMAND" in
   -h | --help | help)
     gear_usage
     exit; ;;
 
   show)
+    header "Showing installed tools"
     show
     exit; ;;
 
@@ -231,6 +244,10 @@ case "$COMMAND" in
       update-js)
         header "Updating JS packages"
         js_update "$ROOT_DIR"; ;;
+
+      cargo)
+        header "Installing cargo extension '$EXT'"
+        cargo_init; ;;
 
       *)
         header  "Unknown option: '$SUBCOMMAND'"
