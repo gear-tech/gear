@@ -24,7 +24,6 @@
 extern crate galloc;
 
 pub mod exec;
-pub mod future;
 mod general;
 mod handlers;
 mod macros;
@@ -32,9 +31,12 @@ pub mod msg;
 pub mod prelude;
 pub mod util;
 
-#[cfg(not(feature = "no_reply"))]
-pub use future::handle_reply;
-pub use future::main_loop;
-pub use general::{ActorId, MessageId};
+#[cfg(feature = "async")]
+pub mod future;
+#[cfg(feature = "async")]
+pub use future::{handle_reply, main_loop};
+#[cfg(feature = "async")]
 pub use gstd_codegen::main;
+
+pub use general::{ActorId, MessageId};
 pub use handlers::*;

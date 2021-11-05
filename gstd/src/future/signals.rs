@@ -21,7 +21,6 @@ use crate::MessageId;
 
 #[derive(Debug)]
 struct WakeSignal {
-    #[allow(dead_code)]
     message_id: MessageId,
     payload: Option<Vec<u8>>,
 }
@@ -57,7 +56,6 @@ impl WakeSignals {
         );
     }
 
-    #[cfg(not(feature = "no_reply"))]
     pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>) {
         let mut signal = self
             .signals

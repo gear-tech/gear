@@ -64,7 +64,6 @@ where
 }
 
 #[allow(clippy::missing_safety_doc)]
-#[cfg(not(feature = "no_reply"))]
 #[no_mangle]
 pub unsafe extern "C" fn handle_reply() {
     let original_message_id = crate::msg::reply_to();

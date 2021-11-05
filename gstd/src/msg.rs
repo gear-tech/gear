@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#[cfg(feature = "async")]
 use crate::future::signals::{self, ReplyPoll};
 use crate::prelude::{convert::AsRef, vec, Vec};
 use crate::{ActorId, MessageId};
 use codec::{Decode, Encode, Output};
+#[cfg(feature = "async")]
 use core::{
     future::Future,
     pin::Pin,
@@ -113,10 +115,12 @@ pub fn send_bytes<T: AsRef<[u8]>>(
     ))
 }
 
+#[cfg(feature = "async")]
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
 }
 
+#[cfg(feature = "async")]
 impl Future for MessageFuture {
     type Output = Vec<u8>;
 
@@ -130,13 +134,16 @@ impl Future for MessageFuture {
     }
 }
 
+#[cfg(feature = "async")]
 use core::marker::PhantomData;
 
+#[cfg(feature = "async")]
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
     phantom: PhantomData<T>,
 }
 
+#[cfg(feature = "async")]
 impl<D: Decode> Future for CodecMessageFuture<D> {
     type Output = Result<D, codec::Error>;
 
@@ -151,6 +158,7 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
 }
 
 /// Send a message and wait for reply.
+#[cfg(feature = "async")]
 pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -164,6 +172,7 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
 }
 
 /// Send a message and wait for reply.
+#[cfg(feature = "async")]
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
