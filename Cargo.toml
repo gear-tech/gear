@@ -29,11 +29,7 @@ members = [
     "node-runner",
     "pallets/*",
     "runtime",
-    "tests/btree",
-    "tests/common",
-    "tests/distributor",
-    "tests/gas_limit/",
-    "tests/node",
+    "tests/*",
     "utils/gear-test-cli",
     "utils/wasm-proc",
 ]

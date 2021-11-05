@@ -364,11 +364,12 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         }
 
         if let Some(waiting_msg) = run_result.waiting.take() {
-            self.wait_list.insert(waiting_msg.id, waiting_msg);
+            self.wait_list
+                .insert(program.id(), waiting_msg.id, waiting_msg);
         }
 
         for (waker_id, gas) in &run_result.awakening {
-            if let Some(mut msg) = self.wait_list.remove(*waker_id) {
+            if let Some(mut msg) = self.wait_list.remove(program.id(), *waker_id) {
                 // Increase gas available to the message
                 if u64::max_value() - gas < msg.gas_limit() {
                     // TODO: issue #323
@@ -1122,8 +1123,8 @@ mod tests {
         } = runner.complete();
         let mut wait_list: MessageMap = wait_list.into();
 
-        assert!(wait_list.contains_key(&msg_id));
-        let msg = wait_list.remove(&msg_id).unwrap();
+        assert!(wait_list.contains_key(&(dest_id.into(), msg_id)));
+        let msg = wait_list.remove(&(dest_id.into(), msg_id)).unwrap();
 
         assert_eq!(msg.source, source_id.into());
         assert_eq!(msg.dest, dest_id.into());
