@@ -80,11 +80,10 @@ then
     shift
 fi
 
-if [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" != "$EXT" ] &&
-  [ "$COMMAND" != "init" ] && [ "$SUBCOMMAND" != "cargo" ]
+if (! [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" = "$EXT" ]) &&
+  (! [ "$COMMAND" = "init" ]) && (! [ "$SUBCOMMAND" = "cargo" ])
   then
     "$SELF" init cargo
-    header
 fi
 
 case "$COMMAND" in

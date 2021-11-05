@@ -23,7 +23,7 @@ EOF
 }
 
 workspace_test() {
-  cargo test --workspace "$@"
+  cargo hack test --workspace "$@"
 }
 
 # $1 - ROOT DIR
@@ -35,14 +35,14 @@ gtest() {
   ROOT_DIR="$1"
   shift
 
-  cargo run --package gear-test --release -- "$ROOT_DIR"/gtest/spec/*.yaml "$@"
+  cargo hack run --package gear-test --release -- "$ROOT_DIR"/gtest/spec/*.yaml "$@"
 }
 
 # $1 - ROOT DIR
 ntest() {
-  cargo run --package gear-node --release -- runtests "$1"/gtest/spec/*.yaml
+  cargo hack run --package gear-node --release -- runtests "$1"/gtest/spec/*.yaml
 }
 
 pallet_test() {
-  cargo test -p pallet-gear "$@"
+  cargo hack test -p pallet-gear "$@"
 }

@@ -142,7 +142,7 @@ fmt-doc-check:
 
 # Init section
 .PHONY: init
-init: init-wasm init-js
+init: init-wasm init-cargo init-js
 
 .PHONY: init-wasm
 init-wasm:
@@ -155,6 +155,10 @@ init-js:
 .PHONY: update-js
 update-js:
 	@ ./scripts/gear.sh init update-js
+
+.PHONY: init-cargo
+init-cargo:
+	@ ./scripts/gear.sh init cargo
 
 # Test section
 .PHONY: test

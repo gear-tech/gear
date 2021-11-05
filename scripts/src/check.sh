@@ -21,18 +21,18 @@ EOF
 }
 
 gear_check() {
-  cargo check --workspace "$@"
+  cargo hack check --workspace "$@"
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
 examples_check() {
   cd "$1"/examples
-  CARGO_TARGET_DIR="$2" cargo +nightly check --release --workspace
+  CARGO_TARGET_DIR="$2" cargo +nightly hack check --release --workspace
   cd "$1"
 }
 
 benchmark_check() {
-  cargo check --features=runtime-benchmarks "$@" \
+  cargo hack check --features=runtime-benchmarks "$@" \
     -p gear-node \
     -p pallet-gear \
     -p gear-runtime
