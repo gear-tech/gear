@@ -39,8 +39,7 @@ show() {
 }
 
 check_extension() {
-  if (! [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" = "$EXT" ]) &&
-    (! [ "$COMMAND" = "init" ]) && (! [ "$SUBCOMMAND" = "cargo" ])
+  if (! [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" = "$EXT" ])
     then
       "$SELF" init cargo
   fi
