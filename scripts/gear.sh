@@ -25,16 +25,16 @@ normal() {
 }
 
 header() {
-  bold && printf "$1\n" && normal
+  bold && printf "\n  >> $1\n" && normal
 }
 
 show() {
   rustup show
 
-  header "node.js\n-------"
+  bold && printf "node.js\n-------\n\n" && normal
   node -v
 
-  header "\nnpm\n---"
+  bold && printf "\nnpm\n---\n\n" && normal
   npm -v
 }
 
