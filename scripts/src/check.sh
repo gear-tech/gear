@@ -21,7 +21,7 @@ EOF
 }
 
 gear_check() {
-  cargo hack check --workspace "$@"
+  cargo check --workspace "$@"
 }
 
 # $1 = ROOT DIR, $2 = TARGET DIR
@@ -32,7 +32,7 @@ examples_check() {
 }
 
 benchmark_check() {
-  cargo hack check --features=runtime-benchmarks "$@" \
+  cargo check --features=runtime-benchmarks "$@" \
     -p gear-node \
     -p pallet-gear \
     -p gear-runtime

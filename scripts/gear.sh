@@ -38,6 +38,14 @@ show() {
   npm -v
 }
 
+check_extension() {
+  if (! [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" = "$EXT" ]) &&
+    (! [ "$COMMAND" = "init" ]) && (! [ "$SUBCOMMAND" = "cargo" ])
+    then
+      "$SELF" init cargo
+  fi
+}
+
 gear_usage() {
   cat << EOF
 
@@ -62,7 +70,7 @@ gear_usage() {
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
 
-  The ./gear.sh requires the 'сargo-hack' extension.
+  The ./gear.sh requires the 'сargo-hack' extension sometime.
   If it's not found, it will be installed automatically.
 
 EOF
@@ -78,12 +86,6 @@ SUBCOMMAND="$1"
 if [ "$#" -ne  "0" ]
 then
     shift
-fi
-
-if (! [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" = "$EXT" ]) &&
-  (! [ "$COMMAND" = "init" ]) && (! [ "$SUBCOMMAND" = "cargo" ])
-  then
-    "$SELF" init cargo
 fi
 
 case "$COMMAND" in
@@ -107,6 +109,7 @@ case "$COMMAND" in
         gear_build "$@"; ;;
 
       examples)
+        check_extension
         header "Building gear examples"
         examples_build "$ROOT_DIR" "$TARGET_DIR"; ;;
 
@@ -139,6 +142,7 @@ case "$COMMAND" in
         gear_check "$@"; ;;
 
       examples)
+        check_extension
         header "Checking gear examples"
         examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
@@ -163,6 +167,7 @@ case "$COMMAND" in
         gear_clippy "$@"; ;;
 
       examples)
+        check_extension
         header "Invoking clippy on gear examples"
         examples_clippy "$ROOT_DIR"; ;;
 

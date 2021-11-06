@@ -23,15 +23,15 @@ EOF
 }
 
 gear_build() {
-  cargo hack build --workspace "$@"
+  cargo build --workspace "$@"
 }
 
 node_build() {
-  cargo hack build -p gear-node "$@"
+  cargo build -p gear-node "$@"
 }
 
 wasm_proc_build() {
-  cargo hack build -p wasm-proc --release
+  cargo build -p wasm-proc --release
 }
 
 # $1 = TARGET DIR
