@@ -34,6 +34,7 @@ wabt = "0.10"
 default = ["std"]
 std = [
     "codec/std",
+    "gear-common/std",
     "gear-core-runner/sandbox",
     "log/std",
     "sp-io/std",

@@ -20,9 +20,7 @@ EOF
 }
 
 gear_clippy() {
-  cargo +nightly hack clippy --workspace \
-  --exclude gear-node-runner "$@" \
-  -- --no-deps -D warnings
+  cargo +nightly hack clippy --workspace "$@" -- --no-deps -D warnings
 }
 
 # $1 - ROOT DIR
