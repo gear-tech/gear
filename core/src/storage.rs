@@ -251,6 +251,7 @@ pub type InMemoryStorage = Storage<InMemoryMessageQueue, InMemoryProgramStorage,
 mod tests {
     extern crate wabt;
     use super::*;
+    use alloc::vec;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
