@@ -33,6 +33,7 @@ pub struct Ext {
     pub messages: MessageContext<BlakeMessageIdGenerator>,
     pub gas_counter: Box<dyn GasCounter>,
     pub alloc_cost: u64,
+    pub mem_grow_cost: u64,
     pub last_error_returned: Option<&'static str>,
     pub block_height: u32,
 }
@@ -53,13 +54,42 @@ impl Ext {
 }
 
 impl EnvExt for Ext {
-    fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str> {
-        self.gas(pages.raw() * self.alloc_cost as u32)?;
+    fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
+        // Greedily charge gas for allocations
+        self.gas(pages_num.raw() * self.alloc_cost as u32)?;
+        // Greedily charge gas for grow
+        self.gas(pages_num.raw() * self.mem_grow_cost as u32)?;
+
+        let old_mem_size = self.memory_context.memory().size().raw();
 
         let result = self
             .memory_context
-            .alloc(pages)
+            .alloc(pages_num)
             .map_err(|_e| "Allocation error");
+
+        if result.is_err() {
+            return self.return_with_tracing(result);
+        }
+
+        // Returns back greedly used gas for grow
+        let new_mem_size = self.memory_context.memory().size().raw();
+        let grow_pages_num = new_mem_size - old_mem_size;
+        let mut gas_to_return_back = self.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
+
+        // Returns back greedly used gas for allocations
+        let first_page = result.unwrap().raw();
+        let last_page = first_page + pages_num.raw() - 1;
+        let mut new_alloced_pages_num = 0;
+        for page in first_page..=last_page {
+            if !self.memory_context.is_init_page(page.into()) {
+                new_alloced_pages_num += 1;
+            }
+        }
+        gas_to_return_back += self.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
+
+        if self.gas_counter.refund(gas_to_return_back) != ChargeResult::Enough {
+            return self.return_with_tracing(Err("Gas limit - add too many gas"));
+        }
 
         self.return_with_tracing(result)
     }
@@ -137,6 +167,13 @@ impl EnvExt for Ext {
 
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
         let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
+
+        // Returns back gas for allocated page if it's new
+        if !self.memory_context.is_init_page(ptr)
+            && self.gas_counter.refund(self.alloc_cost) != ChargeResult::Enough
+        {
+            return self.return_with_tracing(Err("Gas limit - add too many gas"));
+        }
 
         self.return_with_tracing(result)
     }

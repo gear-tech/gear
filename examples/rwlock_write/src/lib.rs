@@ -7,7 +7,7 @@ use gstd_async::msg as msg_async;
 static mut PING_DEST: ProgramId = ProgramId([0u8; 32]);
 static RWLOCK: gstd_async::rwlock::RwLock<u32> = gstd_async::rwlock::RwLock::new(0);
 
-const GAS_LIMIT: u64 = 50_000_000;
+const GAS_LIMIT: u64 = 500_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {

@@ -27,7 +27,7 @@ pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'s
 
         let ptr = ext.with(|ext: &mut E| ext.alloc(pages.into()))?.map(|v| {
             let ptr = v.raw();
-            log::debug!("ALLOC: {} pages at {}", pages, ptr);
+            log::debug!("ALLOC PAGES: {} pages at {}", pages, ptr);
             ptr
         })?;
 
@@ -43,9 +43,9 @@ pub(crate) fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'sta
     move |page: i32| {
         let page = page as u32;
         if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into()))? {
-            log::debug!("FREE ERROR: {:?}", e);
+            log::debug!("FREE PAGE ERROR: {:?}", e);
         } else {
-            log::debug!("FREE: {}", page);
+            log::debug!("FREE PAGE: {}", page);
         }
         Ok(())
     }

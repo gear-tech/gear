@@ -35,7 +35,7 @@ fixtures:
             destination: 1
         allocations:
           - program_id: 1
-            contains_pages: [17]
+            contains_pages: []
       - step: 2
         messages:
           - payload:
