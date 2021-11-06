@@ -18,5 +18,12 @@
 
 //! Provide sp-sandbox support.
 
+#![no_std]
+
+extern crate alloc;
+
 pub mod env;
 pub mod memory;
+
+pub use env::SandboxEnvironment;
+pub use memory::MemoryWrap;

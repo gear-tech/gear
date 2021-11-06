@@ -10,7 +10,7 @@ anyhow = { version = "1.0.45", default-features = false }
 blake2-rfc = { version = "*", default-features = false }
 codec = { package = "parity-scale-codec", version = "2.2.0", features = ["derive"], default-features = false }
 gear-core = { path = "../core" }
-gear-core-backend = { path = "../core-backend", default-features = false, optional = true }
+gear-backend-common = { path = "../core-backend/common", default-features = false }
 log = { version = "0.4.14", default-features = false }
 
 [dev-dependencies]
@@ -18,6 +18,3 @@ env_logger = "0.9.0"
 wabt = "0.10.0"
 
 [features]
-default = ["wasmtime"]
-wasmtime = ["gear-core-backend/wasmtime_backend", "log/std"]
-sandbox = ["gear-core-backend/sandbox_backend"]
