@@ -160,6 +160,39 @@ update-js:
 init-cargo:
 	@ ./scripts/gear.sh init cargo
 
+# Run section
+.PHONY: run-node
+run-node:
+	@ ./scripts/gear.sh run node
+
+.PHONY: run-node-release
+run-node-release:
+	@ ./scripts/gear.sh run node --release
+
+.PHONY: run-dev-node
+run-dev-node:
+	@ ./scripts/gear.sh run node -- --dev
+
+.PHONY: run-dev-node-release
+run-dev-node-release:
+	@ ./scripts/gear.sh run node --release -- --dev
+
+.PHONY: purge-chain
+purge-chain:
+	@ ./scripts/gear.sh run purge-chain
+
+.PHONY: purge-chain-release
+purge-chain-release:
+	@ ./scripts/gear.sh run purge-chain --release
+
+.PHONY: purge-dev-chain
+purge-dev-chain:
+	@ ./scripts/gear.sh run purge-dev-chain
+
+.PHONY: purge-dev-chain-release
+purge-dev-chain-release:
+	@ ./scripts/gear.sh run purge-dev-chain --release
+
 # Test section
 .PHONY: test
 test: test-gear test-pallet test-js gtest

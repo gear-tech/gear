@@ -14,6 +14,7 @@ EXT="hack"
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
+. "$SCRIPTS"/run.sh
 . "$SCRIPTS"/test.sh
 
 bold() {
@@ -65,6 +66,7 @@ gear_usage() {
     docker         docker functionality
     format         format gear parts via rustfmt
     init           initializes and updates packages and toolchains
+    run            run gear-node processing
     test           test tool
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
@@ -255,6 +257,30 @@ case "$COMMAND" in
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         init_usage
+        exit 1; ;;
+    esac;;
+
+  run)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        run_usage
+        exit; ;;
+
+      node)
+        header "Running gear node"
+        run_node "$@"; ;;
+
+      purge-chain)
+        header "Purging gear node chain"
+        purge_chain "$@"; ;;
+
+      purge-dev-chain)
+        header "Purging gear dev node chain"
+        purge_dev_chain "$@"; ;;
+
+      *)
+        header  "Unknown option: '$SUBCOMMAND'"
+        run_usage
         exit 1; ;;
     esac;;
 
