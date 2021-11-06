@@ -104,7 +104,7 @@ impl<E: Ext + 'static> Environment<E> {
                 .map(|_| ());
             if let Err(e) = &result {
                 if let Some(trap) = e.downcast_ref::<Trap>() {
-                    if funcs::is_exit_trap(&trap.to_string()) {
+                    if crate::is_exit_trap(&trap.to_string()) {
                         // We don't propagate a trap when exit
                         return Ok(());
                     }
