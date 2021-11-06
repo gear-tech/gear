@@ -18,6 +18,7 @@ log = { version = "0.4", default-features = false }
 # Internal deps
 gear-core = { path = "../core" }
 gear-core-runner = { path = "../core-runner", default-features = false }
+gear-backend-common = { path = "../core-backend/common", default-features = false }
 gear-common = { path = "../common", default-features = false }
 
 # Substrate deps

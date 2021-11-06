@@ -18,7 +18,7 @@
 
 //! Wasmtime environment for running a module.
 
-use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
+use wasmtime::{Extern, Func, Instance, Module, Store, Trap};
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
@@ -347,8 +347,6 @@ impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
 }
 
 impl<E: Ext> gear_backend_common::Environment<E> for WasmtimeEnvironment<E> {
-    type Memory = crate::memory::MemoryWrap;
-
     fn setup_and_run(
         &mut self,
         ext: E,
@@ -360,7 +358,7 @@ impl<E: Ext> gear_backend_common::Environment<E> for WasmtimeEnvironment<E> {
         self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point)
     }
 
-    fn create_memory(&self, total_pages: u32) -> Self::Memory {
-        self.create_memory_inner(total_pages)
+    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory> {
+        Box::new(self.create_memory_inner(total_pages))
     }
 }

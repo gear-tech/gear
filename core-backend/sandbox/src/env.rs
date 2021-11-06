@@ -637,8 +637,6 @@ impl<E: Ext + 'static> Default for SandboxEnvironment<E> {
 }
 
 impl<E: Ext> gear_backend_common::Environment<E> for SandboxEnvironment<E> {
-    type Memory = MemoryWrap;
-
     fn setup_and_run(
         &mut self,
         ext: E,
@@ -650,7 +648,7 @@ impl<E: Ext> gear_backend_common::Environment<E> for SandboxEnvironment<E> {
         self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point)
     }
 
-    fn create_memory(&self, total_pages: u32) -> Self::Memory {
-        self.create_memory_inner(total_pages)
+    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory> {
+        Box::new(self.create_memory_inner(total_pages))
     }
 }

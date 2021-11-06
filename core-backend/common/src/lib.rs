@@ -27,12 +27,10 @@ pub mod funcs;
 use alloc::{boxed::Box, collections::BTreeMap};
 use gear_core::{
     env::Ext,
-    memory::{PageBuf, PageNumber},
+    memory::{Memory, PageBuf, PageNumber},
 };
 
 pub trait Environment<E: Ext>: Default + Sized {
-    type Memory;
-
     fn setup_and_run(
         &mut self,
         ext: E,
@@ -42,5 +40,5 @@ pub trait Environment<E: Ext>: Default + Sized {
         entry_point: &str,
     ) -> (anyhow::Result<()>, E);
 
-    fn create_memory(&self, total_pages: u32) -> Self::Memory;
+    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory>;
 }
