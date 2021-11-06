@@ -76,7 +76,7 @@ pub unsafe extern "C" fn init() {
                 RoomMessage::Join {
                     under_name: name.to_string().into_bytes(),
                 },
-                10_000_000,
+                1_000_000_000,
                 0,
             );
         }

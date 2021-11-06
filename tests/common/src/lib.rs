@@ -486,6 +486,7 @@ impl RunnerState {
                 let config = Config {
                     max_pages: runner.max_pages(),
                     alloc_cost: runner.alloc_cost(),
+                    mem_grow_cost: runner.mem_grow_cost(),
                     init_cost: runner.init_cost(),
                     load_page_cost: runner.load_page_cost(),
                 };
