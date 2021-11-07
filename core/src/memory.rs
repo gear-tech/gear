@@ -137,6 +137,8 @@ pub trait Memory: Any {
 pub struct MemoryContext {
     program_id: ProgramId,
     memory: Box<dyn Memory>,
+    /// Pages which has been in storage.
+    init_allocations: BTreeSet<PageNumber>,
     allocations: BTreeSet<PageNumber>,
     max_pages: PageNumber,
     static_pages: PageNumber,
@@ -148,6 +150,7 @@ impl Clone for MemoryContext {
             program_id: self.program_id,
             memory: self.memory.clone(),
             allocations: self.allocations.clone(),
+            init_allocations: self.init_allocations.clone(),
             max_pages: self.max_pages,
             static_pages: self.static_pages,
         }
@@ -176,10 +179,17 @@ impl MemoryContext {
         Self {
             program_id,
             memory,
+            init_allocations: allocations.clone(),
             allocations,
             max_pages,
             static_pages,
         }
+    }
+
+    /// Return `true` if the page is the initial page,
+    /// it means that the page was already in the storage.
+    pub fn is_init_page(&self, page: PageNumber) -> bool {
+        self.init_allocations.contains(&page)
     }
 
     /// Return currently used program id.

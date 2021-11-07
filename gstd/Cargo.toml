@@ -17,4 +17,4 @@ futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
 [features]
 async = ["gstd-codegen"]
-debug = ["gcore/debug"]
+debug = ["galloc/debug", "gcore/debug"]

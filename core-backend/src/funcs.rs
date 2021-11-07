@@ -17,12 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::string::String;
-use alloc::vec::Vec;
 use gear_core::env::{Ext, LaterExt};
 use gear_core::message::{MessageId, OutgoingPacket, ReplyPacket};
 use gear_core::program::ProgramId;
-
-const EXIT_TRAP_STR: &str = "exit";
 
 pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'static str> {
     move |pages: i32| {
@@ -30,7 +27,7 @@ pub(crate) fn alloc<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<u32, &'s
 
         let ptr = ext.with(|ext: &mut E| ext.alloc(pages.into()))?.map(|v| {
             let ptr = v.raw();
-            log::debug!("ALLOC: {} pages at {}", pages, ptr);
+            log::debug!("ALLOC PAGES: {} pages at {}", pages, ptr);
             ptr
         })?;
 
@@ -46,9 +43,9 @@ pub(crate) fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'sta
     move |page: i32| {
         let page = page as u32;
         if let Err(e) = ext.with(|ext: &mut E| ext.free(page.into()))? {
-            log::debug!("FREE ERROR: {:?}", e);
+            log::debug!("FREE PAGE ERROR: {:?}", e);
         } else {
-            log::debug!("FREE: {}", page);
+            log::debug!("FREE PAGE: {}", page);
         }
         Ok(())
     }
@@ -109,8 +106,8 @@ pub(crate) fn reply<E: Ext>(
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let payload = get_vec(ext, payload_ptr, payload_len);
-            let value = get_u128(ext, value_ptr);
+            let payload = crate::get_vec(ext, payload_ptr, payload_len);
+            let value = crate::get_u128(ext, value_ptr);
             let message_id =
                 ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
@@ -125,7 +122,7 @@ pub(crate) fn reply_commit<E: Ext>(
 ) -> impl Fn(i32, i64, i32) -> Result<(), &'static str> {
     move |message_id_ptr: i32, gas_limit: i64, value_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let value = get_u128(ext, value_ptr);
+            let value = crate::get_u128(ext, value_ptr);
             let message_id =
                 ext.reply_commit(ReplyPacket::new(0, vec![].into(), gas_limit as _, value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
@@ -140,7 +137,7 @@ pub(crate) fn reply_push<E: Ext>(
 ) -> impl Fn(i32, i32) -> Result<(), &'static str> {
     move |payload_ptr: i32, payload_len: i32| {
         ext.with(|ext: &mut E| {
-            let payload = get_vec(ext, payload_ptr, payload_len);
+            let payload = crate::get_vec(ext, payload_ptr, payload_len);
             ext.reply_push(&payload)
         })?
         .map_err(|_| "Trapping: unable to push payload into reply")
@@ -172,9 +169,9 @@ pub(crate) fn send<E: Ext>(
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr).into();
-            let payload = get_vec(ext, payload_ptr, payload_len);
-            let value = get_u128(ext, value_ptr);
+            let dest: ProgramId = crate::get_id(ext, program_id_ptr).into();
+            let payload = crate::get_vec(ext, payload_ptr, payload_len);
+            let value = crate::get_u128(ext, value_ptr);
             let message_id = ext.send(OutgoingPacket::new(
                 dest,
                 payload.into(),
@@ -197,8 +194,8 @@ pub(crate) fn send_commit<E: Ext>(
           gas_limit: i64,
           value_ptr: i32| {
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr).into();
-            let value = get_u128(ext, value_ptr);
+            let dest: ProgramId = crate::get_id(ext, program_id_ptr).into();
+            let value = crate::get_u128(ext, value_ptr);
             let message_id = ext.send_commit(
                 handle_ptr as _,
                 OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
@@ -224,7 +221,7 @@ pub(crate) fn send_push<E: Ext>(
 ) -> impl Fn(i32, i32, i32) -> Result<(), &'static str> {
     move |handle_ptr: i32, payload_ptr: i32, payload_len: i32| {
         ext.with(|ext: &mut E| {
-            let payload = get_vec(ext, payload_ptr, payload_len);
+            let payload = crate::get_vec(ext, payload_ptr, payload_len);
             ext.send_push(handle_ptr as _, &payload)
         })?
         .map_err(|_| "Trapping: unable to push payload into message")
@@ -245,49 +242,22 @@ pub(crate) fn source<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'s
 }
 
 pub(crate) fn value<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
-    move |value_ptr: i32| ext.with(|ext: &mut E| set_u128(ext, value_ptr, ext.value()))
+    move |value_ptr: i32| ext.with(|ext: &mut E| crate::set_u128(ext, value_ptr, ext.value()))
 }
 
 pub(crate) fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
     move || {
         let _ = ext.with(|ext: &mut E| ext.wait())?;
         // Intentionally return an error to break the execution
-        Err(EXIT_TRAP_STR)
+        Err(crate::EXIT_TRAP_STR)
     }
 }
 
 pub(crate) fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i64) -> Result<(), &'static str> {
     move |waker_id_ptr, gas_limit| {
         ext.with(|ext: &mut E| {
-            let waker_id: MessageId = get_id(ext, waker_id_ptr).into();
+            let waker_id: MessageId = crate::get_id(ext, waker_id_ptr).into();
             ext.wake(waker_id, gas_limit as _)
         })?
     }
-}
-
-// Helper functions
-pub(crate) fn is_exit_trap(trap: &str) -> bool {
-    trap.starts_with(EXIT_TRAP_STR)
-}
-
-pub(crate) fn get_id<E: Ext>(ext: &E, ptr: i32) -> [u8; 32] {
-    let mut id = [0u8; 32];
-    ext.get_mem(ptr as _, &mut id);
-    id
-}
-
-pub(crate) fn get_u128<E: Ext>(ext: &E, ptr: i32) -> u128 {
-    let mut u128_le = [0u8; 16];
-    ext.get_mem(ptr as _, &mut u128_le);
-    u128::from_le_bytes(u128_le)
-}
-
-pub(crate) fn get_vec<E: Ext>(ext: &E, ptr: i32, len: i32) -> Vec<u8> {
-    let mut vec = vec![0u8; len as _];
-    ext.get_mem(ptr as _, &mut vec);
-    vec
-}
-
-pub(crate) fn set_u128<E: Ext>(ext: &mut E, ptr: i32, val: u128) {
-    ext.set_mem(ptr as _, &val.to_le_bytes());
 }

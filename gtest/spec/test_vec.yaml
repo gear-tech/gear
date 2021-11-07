@@ -30,8 +30,5 @@ fixtures:
             exact_pages: [17]
           - program_id: 2
             filter: dynamic
-            exact_pages: [17, 18]
-        memory:
-          - program_id: 2
-            at: "0x1238d4"
-            bytes: "0x01000000"
+            exact_pages: [17]
+

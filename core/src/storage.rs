@@ -143,15 +143,15 @@ impl From<InMemoryMessageQueue> for Vec<Message> {
 }
 
 /// Message map with id as a key.
-pub type MessageMap = BTreeMap<MessageId, Message>;
+pub type MessageMap = BTreeMap<(ProgramId, MessageId), Message>;
 
 /// Wait list for suspended messages.
 pub trait WaitList: Default {
     /// Insert a message to the wait list.
-    fn insert(&mut self, id: MessageId, message: Message);
+    fn insert(&mut self, program_id: ProgramId, msg_id: MessageId, message: Message);
 
     /// Remove the message from the wait list and return it if any.
-    fn remove(&mut self, id: MessageId) -> Option<Message>;
+    fn remove(&mut self, program_id: ProgramId, id: MessageId) -> Option<Message>;
 }
 
 /// In-memory wait list (for tests).
@@ -168,12 +168,12 @@ impl InMemoryWaitList {
 }
 
 impl WaitList for InMemoryWaitList {
-    fn insert(&mut self, id: MessageId, message: Message) {
-        self.inner.insert(id, message);
+    fn insert(&mut self, program_id: ProgramId, id: MessageId, message: Message) {
+        self.inner.insert((program_id, id), message);
     }
 
-    fn remove(&mut self, id: MessageId) -> Option<Message> {
-        self.inner.remove(&id)
+    fn remove(&mut self, program_id: ProgramId, id: MessageId) -> Option<Message> {
+        self.inner.remove(&(program_id, id))
     }
 }
 
@@ -251,6 +251,7 @@ pub type InMemoryStorage = Storage<InMemoryMessageQueue, InMemoryProgramStorage,
 mod tests {
     extern crate wabt;
     use super::*;
+    use alloc::vec;
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()

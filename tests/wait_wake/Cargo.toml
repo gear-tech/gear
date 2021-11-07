@@ -1,5 +1,5 @@
 [package]
-name = "tests-gas-limit"
+name = "tests-wait-wake"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
@@ -14,9 +14,6 @@ common = { package = "tests-common", path = "../common", optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-
-[dev-dependencies]
-env_logger = "0.9"
 
 [lib]
 

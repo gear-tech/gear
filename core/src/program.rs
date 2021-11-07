@@ -258,7 +258,7 @@ mod tests {
     use super::{Program, ProgramId};
     use crate::util::encode_hex;
     use alloc::collections::BTreeMap;
-    use alloc::vec::Vec;
+    use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()

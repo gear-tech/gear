@@ -12,7 +12,7 @@ use gstd::{exec, msg, prelude::*, ActorId};
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
 static RWLOCK: gstd::future::rwlock::RwLock<u32> = gstd::future::rwlock::RwLock::new(0);
 
-const GAS_LIMIT: u64 = 100_000_000;
+const GAS_LIMIT: u64 = 1_000_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {

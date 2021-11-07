@@ -770,6 +770,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 /// functionality from the `message.rs` module
 mod tests {
     use super::*;
+    use alloc::vec;
 
     // Struct that would produce MessageId generation
     pub struct BlakeMessageIdGenerator {
