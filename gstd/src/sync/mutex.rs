@@ -25,7 +25,7 @@ use core::{
     task::{Context, Poll},
 };
 
-use crate::future::access_queue::AccessQueue;
+use super::access::AccessQueue;
 
 pub struct Mutex<T> {
     locked: UnsafeCell<Option<MessageId>>,

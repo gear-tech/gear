@@ -16,24 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::{Box, String, Vec};
-use codec::Encode;
-use scale_info::{MetaType, PortableRegistry, Registry};
+mod async_sending;
+pub use async_sending::*;
 
-#[cfg(feature = "debug")]
-pub use gcore::ext::debug;
-
-pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
-    let mut registry = Registry::new();
-    registry.register_types(meta_types);
-
-    let registry: PortableRegistry = registry.into();
-    hex::encode(registry.encode())
-}
-
-pub fn to_wasm_ptr<T: AsRef<[u8]>>(bytes: T) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([
-        bytes.as_ref().as_ptr() as _,
-        bytes.as_ref().len() as _,
-    ]))
-}
+mod sync_sending;
+pub use sync_sending::*;

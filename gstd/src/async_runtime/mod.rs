@@ -16,18 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use core::ptr;
-use core::task::{RawWaker, RawWakerVTable, Waker};
-
-const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
-
-unsafe fn clone_waker(ptr: *const ()) -> RawWaker {
-    RawWaker::new(ptr, &VTABLE)
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn handle_reply() {
+    let original_message_id = crate::msg::reply_to();
+    self::signals::signals_static()
+        .record_reply(original_message_id, crate::msg::load_bytes());
 }
-unsafe fn wake(_ptr: *const ()) {}
-unsafe fn wake_by_ref(_ptr: *const ()) {}
-unsafe fn drop_waker(_ptr: *const ()) {}
 
-pub(crate) fn empty() -> Waker {
-    unsafe { Waker::from_raw(RawWaker::new(ptr::null(), &VTABLE)) }
-}
+pub mod futures;
+pub mod signals;
+
+pub use crate::async_runtime::futures::*;
+pub use crate::async_runtime::signals::*;

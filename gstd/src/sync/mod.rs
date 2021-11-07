@@ -16,11 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod access_queue;
-mod event_loop;
+mod access;
+
 pub mod mutex;
 pub mod rwlock;
-pub(crate) mod signals;
-mod waker;
-
-pub use event_loop::{handle_reply, main_loop};

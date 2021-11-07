@@ -1,0 +1,91 @@
+use crate::prelude::{convert::AsRef, vec, Vec};
+use crate::{ActorId, MessageId};
+use codec::{Decode, Encode, Output};
+
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MessageHandle(gcore::MessageHandle);
+
+impl MessageHandle {
+    pub fn init() -> Self {
+        send_init()
+    }
+
+    pub fn push<T: AsRef<[u8]>>(&self, payload: T) {
+        gcore::msg::send_push(&self.0, payload.as_ref());
+    }
+
+    pub fn commit(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
+        MessageId(gcore::msg::send_commit(self.0, program.0, gas_limit, value))
+    }
+}
+
+impl Output for MessageHandle {
+    fn write(&mut self, bytes: &[u8]) {
+        gcore::msg::send_push(&self.0, bytes);
+    }
+}
+
+pub fn id() -> MessageId {
+    MessageId(gcore::msg::id())
+}
+
+pub fn reply_to() -> MessageId {
+    MessageId(gcore::msg::reply_to())
+}
+
+pub fn source() -> ActorId {
+    ActorId(gcore::msg::source())
+}
+
+pub fn value() -> u128 {
+    gcore::msg::value()
+}
+
+pub fn load<D: Decode>() -> Result<D, codec::Error> {
+    D::decode(&mut load_bytes().as_ref())
+}
+
+pub fn load_bytes() -> Vec<u8> {
+    let mut result = vec![0u8; gcore::msg::size()];
+    gcore::msg::load(&mut result[..]);
+    result
+}
+
+pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
+    reply_bytes(&payload.encode(), gas_limit, value)
+}
+
+pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> MessageId {
+    MessageId(gcore::msg::reply(payload.as_ref(), gas_limit, value))
+}
+
+pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
+    MessageId(gcore::msg::reply_commit(gas_limit, value))
+}
+
+pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
+    gcore::msg::reply_push(payload.as_ref());
+}
+
+pub fn send_init() -> MessageHandle {
+    MessageHandle(gcore::msg::send_init())
+}
+
+pub fn send<E: Encode>(program: ActorId, payload: E, gas_limit: u64, value: u128) -> MessageId {
+    send_bytes(program, &payload.encode(), gas_limit, value)
+}
+
+pub fn send_bytes<T: AsRef<[u8]>>(
+    program: ActorId,
+    payload: T,
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
+    MessageId(gcore::msg::send(
+        program.0,
+        payload.as_ref(),
+        gas_limit,
+        value,
+    ))
+}

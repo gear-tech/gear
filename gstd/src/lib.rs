@@ -23,20 +23,15 @@
 
 extern crate galloc;
 
+mod common;
 pub mod exec;
-mod general;
-mod handlers;
-mod macros;
+pub mod macros;
 pub mod msg;
 pub mod prelude;
-pub mod util;
+pub mod sync;
 
-#[cfg(feature = "async")]
-pub mod future;
-#[cfg(feature = "async")]
-pub use future::{handle_reply, main_loop};
-#[cfg(feature = "async")]
-pub use gstd_codegen::main;
+pub use common::*;
 
-pub use general::{ActorId, MessageId};
-pub use handlers::*;
+mod async_runtime;
+
+pub use async_runtime::{main_loop, handle_reply};

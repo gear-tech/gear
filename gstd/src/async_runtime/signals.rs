@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::prelude::{BTreeMap, Vec};
-use crate::MessageId;
+use crate::common::MessageId;
 
 #[derive(Debug)]
 struct WakeSignal {

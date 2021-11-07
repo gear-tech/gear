@@ -18,8 +18,7 @@
 
 extern crate alloc;
 
-use crate::future::waker;
-use crate::MessageId;
+use crate::common::MessageId;
 use alloc::{boxed::Box, collections::BTreeMap};
 use core::{future::Future, pin::Pin, task::Context};
 use futures::FutureExt;
@@ -50,7 +49,7 @@ where
         .unwrap_or_else(|| future.boxed_local());
 
     // Create context based on an empty waker
-    let waker = waker::empty();
+    let waker = empty_waker();
     let mut cx = Context::from_waker(&waker);
 
     let pinned = Pin::new(&mut actual_future);
@@ -63,10 +62,18 @@ where
     }
 }
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
-    let original_message_id = crate::msg::reply_to();
-    crate::future::signals::signals_static()
-        .record_reply(original_message_id, crate::msg::load_bytes());
+use core::ptr;
+use core::task::{RawWaker, RawWakerVTable, Waker};
+
+const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
+
+unsafe fn clone_waker(ptr: *const ()) -> RawWaker {
+    RawWaker::new(ptr, &VTABLE)
+}
+unsafe fn wake(_ptr: *const ()) {}
+unsafe fn wake_by_ref(_ptr: *const ()) {}
+unsafe fn drop_waker(_ptr: *const ()) {}
+
+fn empty_waker() -> Waker {
+    unsafe { Waker::from_raw(RawWaker::new(ptr::null(), &VTABLE)) }
 }

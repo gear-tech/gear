@@ -38,8 +38,8 @@ macro_rules! metadata {
         gstd::export!(meta_handle_output -> $handle_output);
         gstd::export!(meta_async_handle_input -> $async_handle_input);
         gstd::export!(meta_async_handle_output -> $async_handle_output);
-        gstd::export!(meta_registry -> gstd::util::to_hex_registry(
-            gstd::prelude::vec![$(scale_info::MetaType::new::<$t>()), *]
+        gstd::export!(meta_registry -> gstd::macros::util::to_hex_registry(
+            gstd::prelude::vec![$(gstd::macros::util::MetaType::new::<$t>()), *]
         ));
     };
 
