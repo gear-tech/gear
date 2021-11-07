@@ -21,7 +21,7 @@ EOF
 }
 
 run_node() {
-  RUST_LOG=gwasm=debug,gear=debug cargo run -p gear-node "$@"
+  RUST_LOG=gwasm=debug,gear_core_backend=debug cargo run -p gear-node "$@"
 }
 
 purge_chain() {
