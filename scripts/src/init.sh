@@ -16,6 +16,7 @@ init_usage() {
     wasm           update rustc and add wasm target
     js             install js packages via npm
     update-js      update js packages via npm
+    cargo          install 'cargo-hack' extension for cargo
 
 EOF
 }
@@ -39,4 +40,8 @@ js_init() {
 js_update() {
   npm --prefix "$1"/utils/wasm-proc/metadata-js update
   npm --prefix "$1"/gtest/src/js update
+}
+
+cargo_init() {
+  cargo install cargo-hack
 }

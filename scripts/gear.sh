@@ -2,9 +2,11 @@
 
 set -e
 
-ROOT_DIR="$(cd "$(dirname "$0")"/.. && pwd)"
+SELF="$0"
+ROOT_DIR="$(cd "$(dirname "$SELF")"/.. && pwd)"
 SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
+EXT="hack"
 
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
@@ -12,6 +14,7 @@ TARGET_DIR="$ROOT_DIR/target"
 . "$SCRIPTS"/docker.sh
 . "$SCRIPTS"/format.sh
 . "$SCRIPTS"/init.sh
+. "$SCRIPTS"/run.sh
 . "$SCRIPTS"/test.sh
 
 bold() {
@@ -23,17 +26,24 @@ normal() {
 }
 
 header() {
-  bold && printf "$1\n" && normal
+  bold && printf "\n  >> $1\n" && normal
 }
 
 show() {
   rustup show
 
-  header "node.js\n-------"
+  bold && printf "node.js\n-------\n\n" && normal
   node -v
 
-  header "\nnpm\n---"
+  bold && printf "\nnpm\n---\n\n" && normal
   npm -v
+}
+
+check_extension() {
+  if (! [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" = "$EXT" ])
+    then
+      "$SELF" init cargo
+  fi
 }
 
 gear_usage() {
@@ -56,9 +66,13 @@ gear_usage() {
     docker         docker functionality
     format         format gear parts via rustfmt
     init           initializes and updates packages and toolchains
+    run            run gear-node processing
     test           test tool
 
   Try ./gear.sh <COMMAND> -h (or --help) to learn more about each command.
+
+  The ./gear.sh requires the 'сargo-hack' extension sometime.
+  If it's not found, it will be installed automatically.
 
 EOF
 }
@@ -81,6 +95,7 @@ case "$COMMAND" in
     exit; ;;
 
   show)
+    header "Showing installed tools"
     show
     exit; ;;
 
@@ -95,6 +110,7 @@ case "$COMMAND" in
         gear_build "$@"; ;;
 
       examples)
+        check_extension
         header "Building gear examples"
         examples_build "$ROOT_DIR" "$TARGET_DIR"; ;;
 
@@ -127,6 +143,7 @@ case "$COMMAND" in
         gear_check "$@"; ;;
 
       examples)
+        check_extension
         header "Checking gear examples"
         examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
@@ -151,6 +168,7 @@ case "$COMMAND" in
         gear_clippy "$@"; ;;
 
       examples)
+        check_extension
         header "Invoking clippy on gear examples"
         examples_clippy "$ROOT_DIR"; ;;
 
@@ -232,9 +250,37 @@ case "$COMMAND" in
         header "Updating JS packages"
         js_update "$ROOT_DIR"; ;;
 
+      cargo)
+        header "Installing cargo extension '$EXT'"
+        cargo_init; ;;
+
       *)
         header  "Unknown option: '$SUBCOMMAND'"
         init_usage
+        exit 1; ;;
+    esac;;
+
+  run)
+    case "$SUBCOMMAND" in
+      -h | --help | help)
+        run_usage
+        exit; ;;
+
+      node)
+        header "Running gear node"
+        run_node "$@"; ;;
+
+      purge-chain)
+        header "Purging gear node chain"
+        purge_chain "$@"; ;;
+
+      purge-dev-chain)
+        header "Purging gear dev node chain"
+        purge_dev_chain "$@"; ;;
+
+      *)
+        header  "Unknown option: '$SUBCOMMAND'"
+        run_usage
         exit 1; ;;
     esac;;
 
