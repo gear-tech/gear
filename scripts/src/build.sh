@@ -42,6 +42,6 @@ examples_proc() {
 # $1 = ROOT DIR, $2 = TARGET DIR
 examples_build() {
   cd "$1"/examples
-  CARGO_TARGET_DIR="$2" cargo +nightly build --release --workspace
+  CARGO_TARGET_DIR="$2" cargo +nightly hack build --release --workspace
   cd "$1"
 }
