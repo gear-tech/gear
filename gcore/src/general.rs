@@ -18,23 +18,25 @@
 
 //! Common structures used in GEAR programs.
 //!
-//! This module contains definitions of common structures that are used to work with
-//! GEAR api.
+//! This module contains definitions of common structures that are used to work
+//! with GEAR api.
 
 /// Message handle.
 ///
 ///
 /// GEAR allows users and programs to interact with other users and programs via
-/// messages. Message creation consists of the following parts - message initialisation,
-/// filling the message with payload (can be gradual), message sending.
+/// messages. Message creation consists of the following parts - message
+/// initialisation, filling the message with payload (can be gradual), message
+/// sending.
 ///
-/// Here are the functions that make up the parts of building and sending messages:
-/// [`msg::send_init`](crate::msg::send_init), - message initialization
-/// [`msg::send_push`](crate::msg::send_push), - add payload to a message
-/// [`msg::send_commit`](crate::msg::send_commit) - send a message
+/// Here are the functions that make up the parts of building and sending
+/// messages: [`msg::send_init`](crate::msg::send_init), - message
+/// initialization [`msg::send_push`](crate::msg::send_push), - add payload to a
+/// message [`msg::send_commit`](crate::msg::send_commit) - send a message
 ///
 /// In order to identify a message that is being built from parts of a program
-/// you should use `MessageHandle` obtained via [`msg::send_init`](crate::msg::send_init).
+/// you should use `MessageHandle` obtained via
+/// [`msg::send_init`](crate::msg::send_init).
 ///
 /// # Examples
 ///
@@ -51,11 +53,11 @@ pub struct MessageHandle(pub u32);
 
 /// Message identifier.
 ///
-/// GEAR allows users and programs to interact with other users and programs via messages.
-/// Each message has its own unique 256-bit id. This id is represented via the
-/// `MessageId` struct. Message identifier can be obtained for the currently processed
-/// message using the [`msg::id`](crate::msg::id) function. Also, each send and reply
-/// functions return a message identifier.
+/// GEAR allows users and programs to interact with other users and programs via
+/// messages. Each message has its own unique 256-bit id. This id is represented
+/// via the `MessageId` struct. Message identifier can be obtained for the
+/// currently processed message using the [`msg::id`](crate::msg::id) function.
+/// Also, each send and reply functions return a message identifier.
 ///
 /// # Examples
 ///
@@ -94,11 +96,12 @@ impl MessageId {
 
 /// Program identifier.
 ///
-/// GEAR allows users and programs to interact with other users and programs via messages.
-/// Source and target program as well as user are represented by 256-bit identifier
-/// `ProgramId` struct. The source `ProgramId` for a message being processed can be
-/// obtained using [`msg::source`](crate::msg::source) function. Also, each send function
-/// has a target `ProgramId` as one of the arguments.
+/// GEAR allows users and programs to interact with other users and programs via
+/// messages. Source and target program as well as user are represented by
+/// 256-bit identifier `ProgramId` struct. The source `ProgramId` for a message
+/// being processed can be obtained using [`msg::source`](crate::msg::source)
+/// function. Also, each send function has a target `ProgramId` as one of the
+/// arguments.
 ///
 /// # Examples
 ///

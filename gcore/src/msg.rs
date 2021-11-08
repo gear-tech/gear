@@ -19,10 +19,11 @@
 //! Messaging API for GEAR programs.
 //!
 //! This module contains sys calls API for incoming message processing and
-//! synchronous message sending. Messages are the main interface for communications
-//! between actors (users and programs). Every GEAR program contains code for
-//! processing an incoming message. During a message processing a program can send
-//! messages to other programs and users including reply to the initial message.
+//! synchronous message sending. Messages are the main interface for
+//! communications between actors (users and programs). Every GEAR program
+//! contains code for processing an incoming message. During a message
+//! processing a program can send messages to other programs and users including
+//! reply to the initial message.
 
 use crate::MessageHandle;
 use crate::{MessageId, ProgramId};
@@ -114,14 +115,16 @@ pub fn load(buffer: &mut [u8]) {
 ///
 /// Some programs can reply to other programs, i.e. check another program's
 /// state and use it as a parameter for its own business logic [`MessageId`].
-/// This function allows sending such replies, which are similar to standard messages
-/// in terms of payload and different only in the way the message processing is
-/// handled by a separate program function called [`handle_reply`].
+/// This function allows sending such replies, which are similar to standard
+/// messages in terms of payload and different only in the way the message
+/// processing is handled by a separate program function called
+/// [`handle_reply`].
 ///
-/// First argument is the reply message payload in bytes. Second argument is `gas_limit`
+/// First argument is the reply message payload in bytes. Second argument is
+/// `gas_limit`
 /// - maximum gas allowed to be utilized during the reply message processing.
-/// Last argument `value` is the value to be transferred from the current program account
-/// to the reply message target account.
+/// Last argument `value` is the value to be transferred from the current
+/// program account to the reply message target account.
 ///
 /// Reply message transactions will be posted only after processing is finished,
 /// similar to the standard message [`send`].
@@ -157,11 +160,12 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
 /// Finalize and send a current reply message.
 
 /// Some programs can reply on their messages to other programs, i.e. check
-/// another program's state and use it as a parameter for its own business logic.
-/// Basic implementation is covered in [`reply`] function.
+/// another program's state and use it as a parameter for its own business
+/// logic. Basic implementation is covered in [`reply`] function.
 ///
-/// This function allows sending reply messages filled with payload parts sent via
-/// ['send_push'] during the message handling. This function is similar to [`send_commit`].
+/// This function allows sending reply messages filled with payload parts sent
+/// via ['send_push'] during the message handling. This function is similar to
+/// [`send_commit`].
 ///
 /// # Examples
 ///
@@ -195,13 +199,14 @@ pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
 
 /// Push a payload part to the current reply message.
 ///
-/// Some programs can reply on their messages to other programs, i.e. check another
-/// program's state and use it as a parameter for its own business logic.
-/// Basic implementation is covered in [`reply`] function.
+/// Some programs can reply on their messages to other programs, i.e. check
+/// another program's state and use it as a parameter for its own business
+/// logic. Basic implementation is covered in [`reply`] function.
 ///
-/// This function allows filling the reply payload during the message `handling`.
-/// The payload can consist of several parts. Finalization of the reply message is done
-/// via [`reply_commit`] function similar to [`send_commit`].
+/// This function allows filling the reply payload during the message
+/// `handling`. The payload can consist of several parts. Finalization of the
+/// reply message is done via [`reply_commit`] function similar to
+/// [`send_commit`].
 ///
 /// # Examples
 ///
@@ -219,12 +224,12 @@ pub fn reply_push(payload: &[u8]) {
     unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _) }
 }
 
-/// Get an identifier of the initial message which the current handle_reply function is
-/// called on.
+/// Get an identifier of the initial message which the current handle_reply
+/// function is called on.
 ///
 /// Processing the reply to the message in GEAR program is performed using
-/// [`handle_reply`] function. In order to obtain the original message id on which
-///reply has been posted, a program should call this function.
+/// [`handle_reply`] function. In order to obtain the original message id on
+/// which reply has been posted, a program should call this function.
 ///
 /// # Examples
 ///
@@ -255,10 +260,10 @@ pub fn reply_to() -> MessageId {
 /// Second argument is message payload in bytes.
 /// Third argument is gas_limit - maximum gas allowed to be utilized during the
 /// sent message processing.
-/// Last argument is the value to be transferred from the current program account
-/// to the message target account.
-/// Send transaction will be posted only after the execution of processing is finished,
-/// similar to the reply message [`reply`].
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+/// Send transaction will be posted only after the execution of processing is
+/// finished, similar to the reply message [`reply`].
 ///
 /// # Examples
 ///
@@ -300,14 +305,15 @@ pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> 
 /// GEAR allows programs to work with messages that consist of several parts.
 /// This function finalizes the message built in parts and sends it.
 ///
-/// First argument is the message handle [MessageHandle] which specifies a particular
-/// message built in parts.
+/// First argument is the message handle [MessageHandle] which specifies a
+/// particular message built in parts.
 /// Second argument is the address of the target account.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during reply
-/// message processing.
-/// Last argument is the value to be transferred from the current program account
-/// to the message target account.
-/// Send transaction will be posted only after the execution of processing is finished.
+/// Third argument is gas_limit - maximum gas allowed to be utilized during
+/// reply message processing.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+/// Send transaction will be posted only after the execution of processing is
+/// finished.
 ///
 /// # Examples
 ///
@@ -350,7 +356,8 @@ pub fn send_commit(
 /// Initialize a message to send formed in parts.
 ///
 /// GEAR allows programs to work with messages that consist of several parts.
-/// This function initializes a message built in parts and returns corresponding message `handle`.
+/// This function initializes a message built in parts and returns corresponding
+/// message `handle`.
 ///
 /// # Examples
 ///
@@ -377,7 +384,8 @@ pub fn send_init() -> MessageHandle {
 /// Push a payload part of the message to be sent in parts.
 ///
 /// GEAR allows programs to work with messages in parts.
-/// This function adds a `payload` part to the message specified by message `handle`.
+/// This function adds a `payload` part to the message specified by message
+/// `handle`.
 ///
 /// # Examples
 ///
@@ -404,7 +412,8 @@ pub fn send_push(handle: &MessageHandle, payload: &[u8]) {
 
 /// Get the payload size of the message being processed.
 ///
-/// This function is used to obtain the payload size of the current message being processed.
+/// This function is used to obtain the payload size of the current message
+/// being processed.
 ///
 /// # Examples
 ///

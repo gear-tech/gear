@@ -57,8 +57,9 @@ pub fn block_height() -> u32 {
 ///
 /// Each message processing consumes gas, both on instructions execution and
 /// memory allocations. This function returns a value of the gas available for
-/// spending during current execution. Its use may help to avoid unexpected behaviors
-/// during the smart-contract execution in case of not enough gas available.
+/// spending during current execution. Its use may help to avoid unexpected
+/// behaviors during the smart-contract execution in case of not enough gas
+/// available.
 ///
 /// # Examples
 ///
@@ -81,8 +82,9 @@ pub fn gas_available() -> u64 {
 /// If the message handling needs to be paused, i.e. to wait for another
 /// execution to finish, this function should be used. [`wait`] finishes current
 /// message handle execution with a special result and puts the current message
-/// into the *waiting queue* to be awakened using the correspondent [`wake`] function later.
-/// All gas that hasn't yet been spent is attributed to the message in the *waiting queue*.
+/// into the *waiting queue* to be awakened using the correspondent [`wake`]
+/// function later. All gas that hasn't yet been spent is attributed to the
+/// message in the *waiting queue*.
 ///
 /// # Examples
 ///
@@ -100,11 +102,11 @@ pub fn wait() -> ! {
 
 /// Resume previously paused message handling.
 ///
-/// If a message has been paused using the [`wait`] function, then it is possible
-/// to continue its execution by calling this function. [`waker_id`] which specifies a
-/// particular message to be taken out of the *waiting queue* and put into the
-/// *processing queue*. `gas_limit` is the gas value to be transferred from the
-/// current handling message to the waked one.
+/// If a message has been paused using the [`wait`] function, then it is
+/// possible to continue its execution by calling this function. [`waker_id`]
+/// which specifies a particular message to be taken out of the *waiting queue*
+/// and put into the *processing queue*. `gas_limit` is the gas value to be
+/// transferred from the current handling message to the waked one.
 ///
 /// # Examples
 ///
