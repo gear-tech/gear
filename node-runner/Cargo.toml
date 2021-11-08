@@ -35,6 +35,7 @@ wabt = "0.10"
 default = ["std"]
 std = [
     "codec/std",
+    "gear-common/std",
     "log/std",
     "sp-io/std",
     "sp-core/std",
