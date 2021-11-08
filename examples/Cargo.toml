@@ -3,6 +3,9 @@ resolver = "2"
 
 members = [
     "async",
+    "async-sign",
+    "async-sign/common",
+    "async-sign/signed_message",
     "block-height",
     "chat",
     "chat/bot",
