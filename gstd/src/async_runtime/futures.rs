@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::common::MessageId;
 use crate::prelude::{BTreeMap, Box};
+use crate::MessageId;
 use core::{
     future::Future,
     pin::Pin,
@@ -40,7 +40,7 @@ pub fn event_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    let mut current_future = crate::async_runtime::futures()
+    let mut current_future = super::futures()
         .remove(&crate::msg::id())
         .unwrap_or_else(|| future.boxed_local());
 
@@ -53,7 +53,7 @@ where
     if pinned.poll(&mut cx).is_ready() {
         // Done!
     } else {
-        crate::async_runtime::futures().insert(crate::msg::id(), current_future);
+        super::futures().insert(crate::msg::id(), current_future);
         crate::exec::wait()
     }
 }
