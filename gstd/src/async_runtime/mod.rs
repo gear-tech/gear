@@ -16,14 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
-    let original_message_id = crate::msg::reply_to();
-    self::signals::signals_static()
-        .record_reply(original_message_id, crate::msg::load_bytes());
-}
-
 pub mod futures;
 pub mod signals;
 
