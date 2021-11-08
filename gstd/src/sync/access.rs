@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::VecDeque;
 use crate::common::MessageId;
+use crate::prelude::VecDeque;
 use core::cell::UnsafeCell;
 
 // Option<VecDeque> to make new `const fn`

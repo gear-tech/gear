@@ -16,13 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use scale_info::TypeInfo;
-use codec::{Decode, Encode};
-use primitive_types::H256;
 use crate::prelude::convert::TryFrom;
 use crate::prelude::String;
+use codec::{Decode, Encode};
+use primitive_types::H256;
+use scale_info::TypeInfo;
 
-#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+#[derive(
+    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
+)]
 pub struct MessageId([u8; 32]);
 
 impl Into<gcore::MessageId> for MessageId {
@@ -43,7 +45,9 @@ impl AsRef<[u8]> for MessageId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+#[derive(
+    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
+)]
 pub struct ActorId([u8; 32]);
 
 impl ActorId {

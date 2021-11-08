@@ -2,7 +2,6 @@ use crate::prelude::{convert::AsRef, vec, Vec};
 use crate::{ActorId, MessageId};
 use codec::{Decode, Encode, Output};
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);
 
@@ -82,10 +81,5 @@ pub fn send_bytes<T: AsRef<[u8]>>(
     gas_limit: u64,
     value: u128,
 ) -> MessageId {
-    gcore::msg::send(
-        program.into(),
-        payload.as_ref(),
-        gas_limit,
-        value,
-    ).into()
+    gcore::msg::send(program.into(), payload.as_ref(), gas_limit, value).into()
 }

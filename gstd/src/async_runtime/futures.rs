@@ -17,8 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::common::MessageId;
-use crate::prelude::{Box, BTreeMap};
-use core::{ptr, future::Future, pin::Pin, task::{Context, RawWaker, RawWakerVTable, Waker}};
+use crate::prelude::{BTreeMap, Box};
+use core::{
+    future::Future,
+    pin::Pin,
+    ptr,
+    task::{Context, RawWaker, RawWakerVTable, Waker},
+};
 use futures::FutureExt;
 
 const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);

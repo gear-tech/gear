@@ -21,10 +21,10 @@ mod signals;
 
 pub use self::futures::event_loop;
 
-use signals::WakeSignals;
 use self::futures::FuturesMap;
-pub(crate) use signals::ReplyPoll;
 use crate::prelude::BTreeMap;
+pub(crate) use signals::ReplyPoll;
+use signals::WakeSignals;
 
 static mut FUTURES: Option<FuturesMap> = None;
 
@@ -35,9 +35,7 @@ pub(crate) fn futures() -> &'static mut FuturesMap {
 static mut SIGNALS: Option<WakeSignals> = None;
 
 pub(crate) fn signals() -> &'static mut WakeSignals {
-    unsafe {
-        SIGNALS.get_or_insert_with(WakeSignals::new)
-    }
+    unsafe { SIGNALS.get_or_insert_with(WakeSignals::new) }
 }
 
 #[allow(clippy::missing_safety_doc)]

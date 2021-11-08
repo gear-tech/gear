@@ -1,14 +1,13 @@
 use crate::async_runtime::{signals, ReplyPoll};
 
+use crate::prelude::{convert::AsRef, Vec};
+use crate::{ActorId, MessageId};
+use codec::{Decode, Encode};
 use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
-use crate::prelude::{convert::AsRef, Vec};
-use crate::{ActorId, MessageId};
-use codec::{Decode, Encode};
-
 
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
@@ -27,15 +26,12 @@ impl Future for MessageFuture {
     }
 }
 
-
 use core::marker::PhantomData;
-
 
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
     phantom: PhantomData<T>,
 }
-
 
 impl<D: Decode> Future for CodecMessageFuture<D> {
     type Output = Result<D, codec::Error>;

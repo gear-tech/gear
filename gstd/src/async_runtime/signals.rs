@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::{BTreeMap, Vec};
 use crate::common::MessageId;
+use crate::prelude::{BTreeMap, Vec};
 
 pub type Payload = Vec<u8>;
 
@@ -38,7 +38,9 @@ pub(crate) struct WakeSignals {
 
 impl WakeSignals {
     pub fn new() -> Self {
-        Self { signals: BTreeMap::new() }
+        Self {
+            signals: BTreeMap::new(),
+        }
     }
 
     pub fn register_signal(&mut self, waiting_reply_to: MessageId) {
@@ -67,8 +69,11 @@ impl WakeSignals {
             Some(signal @ WakeSignal { payload: None, .. }) => {
                 self.signals.insert(reply_to, signal);
                 ReplyPoll::Pending
-            },
-            Some(WakeSignal { payload: Some(payload), .. }) => ReplyPoll::Some(payload),
+            }
+            Some(WakeSignal {
+                payload: Some(payload),
+                ..
+            }) => ReplyPoll::Some(payload),
         }
     }
 }

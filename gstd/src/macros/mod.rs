@@ -31,11 +31,11 @@ pub mod util {
     pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
         let mut registry = Registry::new();
         registry.register_types(meta_types);
-    
+
         let registry: PortableRegistry = registry.into();
         hex::encode(registry.encode())
     }
-    
+
     pub fn to_wasm_ptr<T: AsRef<[u8]>>(bytes: T) -> *mut [i32; 2] {
         Box::into_raw(Box::new([
             bytes.as_ref().as_ptr() as _,
