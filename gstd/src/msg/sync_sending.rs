@@ -16,7 +16,7 @@ impl MessageHandle {
     }
 
     pub fn commit(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
-        MessageId(gcore::msg::send_commit(self.0, program.0, gas_limit, value))
+        gcore::msg::send_commit(self.0, program.into(), gas_limit, value).into()
     }
 }
 
@@ -27,15 +27,15 @@ impl Output for MessageHandle {
 }
 
 pub fn id() -> MessageId {
-    MessageId(gcore::msg::id())
+    gcore::msg::id().into()
 }
 
 pub fn reply_to() -> MessageId {
-    MessageId(gcore::msg::reply_to())
+    gcore::msg::reply_to().into()
 }
 
 pub fn source() -> ActorId {
-    ActorId(gcore::msg::source())
+    gcore::msg::source().into()
 }
 
 pub fn value() -> u128 {
@@ -57,11 +57,11 @@ pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
 }
 
 pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> MessageId {
-    MessageId(gcore::msg::reply(payload.as_ref(), gas_limit, value))
+    gcore::msg::reply(payload.as_ref(), gas_limit, value).into()
 }
 
 pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
-    MessageId(gcore::msg::reply_commit(gas_limit, value))
+    gcore::msg::reply_commit(gas_limit, value).into()
 }
 
 pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
@@ -82,10 +82,10 @@ pub fn send_bytes<T: AsRef<[u8]>>(
     gas_limit: u64,
     value: u128,
 ) -> MessageId {
-    MessageId(gcore::msg::send(
-        program.0,
+    gcore::msg::send(
+        program.into(),
         payload.as_ref(),
         gas_limit,
         value,
-    ))
+    ).into()
 }

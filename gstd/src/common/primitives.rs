@@ -16,34 +16,94 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
-pub struct MessageId(pub(crate) gcore::MessageId);
+use scale_info::TypeInfo;
+use codec::{Decode, Encode};
+use primitive_types::H256;
+use crate::prelude::convert::TryFrom;
+use crate::prelude::String;
+
+#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+pub struct MessageId([u8; 32]);
+
+impl Into<gcore::MessageId> for MessageId {
+    fn into(self) -> gcore::MessageId {
+        gcore::MessageId(self.0)
+    }
+}
 
 impl From<gcore::MessageId> for MessageId {
     fn from(other: gcore::MessageId) -> Self {
-        Self(other)
+        Self(other.0)
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
-pub struct ActorId(pub(crate) gcore::ProgramId);
-
-impl From<u64> for ActorId {
-    fn from(other: u64) -> Self {
-        Self(other.into())
+impl AsRef<[u8]> for MessageId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
+
+#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode)]
+pub struct ActorId([u8; 32]);
 
 impl ActorId {
     pub const fn new(arr: [u8; 32]) -> Self {
-        Self(gcore::ProgramId(arr))
+        Self(arr)
     }
 
-    pub fn as_slice(&self) -> &[u8] {
-        self.0.as_slice()
+    pub fn from_slice(slice: &[u8]) -> Result<Self, &'static str> {
+        if slice.len() != 32 {
+            return Err("Not enough len");
+        }
+
+        let mut actor_id: Self = Default::default();
+        actor_id.0[..].copy_from_slice(slice);
+
+        Ok(actor_id)
     }
 
-    pub fn from_slice(slice: &[u8]) -> Self {
-        Self(gcore::ProgramId::from_slice(slice))
+    pub fn from_bs58(address: String) -> Result<ActorId, &'static str> {
+        bs58::decode(address)
+            .into_vec()
+            .map(|v| ActorId::from_slice(&v[1..v.len() - 2].to_vec()))
+            .map_err(|_| "")?
+    }
+}
+
+impl From<[u8; 32]> for ActorId {
+    fn from(arr: [u8; 32]) -> Self {
+        Self::new(arr)
+    }
+}
+
+impl TryFrom<&[u8]> for ActorId {
+    type Error = &'static str;
+
+    fn try_from(slice: &[u8]) -> Result<Self, Self::Error> {
+        Self::from_slice(slice)
+    }
+}
+
+impl From<H256> for ActorId {
+    fn from(h256: H256) -> Self {
+        Self::new(h256.to_fixed_bytes())
+    }
+}
+
+impl From<gcore::ProgramId> for ActorId {
+    fn from(other: gcore::ProgramId) -> Self {
+        Self(other.0)
+    }
+}
+
+impl Into<gcore::ProgramId> for ActorId {
+    fn into(self) -> gcore::ProgramId {
+        gcore::ProgramId(self.0)
+    }
+}
+
+impl AsRef<[u8]> for ActorId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }

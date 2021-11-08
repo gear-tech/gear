@@ -63,14 +63,6 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub unsafe extern "C" fn handle() {
             gstd::main_loop(async #body);
         }
-
-        #[allow(clippy::missing_safety_doc)]
-        #[no_mangle]
-        pub unsafe extern "C" fn handle_reply() {
-            let original_message_id = crate::msg::reply_to();
-            self::signals::signals_static()
-                .record_reply(original_message_id, crate::msg::load_bytes());
-        }
     )
     .into()
 }

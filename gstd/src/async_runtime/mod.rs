@@ -21,3 +21,11 @@ pub mod signals;
 
 pub use crate::async_runtime::futures::*;
 pub use crate::async_runtime::signals::*;
+
+#[allow(clippy::missing_safety_doc)]
+#[no_mangle]
+pub unsafe extern "C" fn handle_reply() {
+    let original_message_id = crate::msg::reply_to();
+    self::signals::signals_static()
+        .record_reply(original_message_id, crate::msg::load_bytes());
+}

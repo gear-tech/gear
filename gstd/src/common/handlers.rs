@@ -27,7 +27,7 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
-    crate::util::debug("Runtime memory exhausted. Aborting");
+    crate::debug!("Runtime memory exhausted. Aborting");
     core::arch::wasm32::unreachable()
 }
 
@@ -57,11 +57,7 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
         .map(|v| crate::prelude::format!(", at `{}`, line {}", v.file(), v.line()))
         .unwrap_or_default();
 
-    crate::util::debug(&crate::prelude::format!(
-        "Panicked with {:?}{}",
-        payload,
-        location
-    ));
+    crate::debug!("Panicked with {:?}{}", payload, location);
 
     core::arch::wasm32::unreachable();
 }

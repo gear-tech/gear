@@ -2257,12 +2257,14 @@ dependencies = [
 name = "gstd"
 version = "0.1.0"
 dependencies = [
+ "bs58",
  "futures 0.3.17",
  "galloc",
  "gcore",
  "gstd-codegen",
  "hex",
  "parity-scale-codec",
+ "primitive-types",
  "scale-info",
 ]
 
