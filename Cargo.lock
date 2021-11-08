@@ -1276,18 +1276,7 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rs.git?rev=fd9ccfe#fd9ccfe0011596b20a4482cd2c1acea60ff7925c"
-dependencies = [
- "libc",
- "libc_print",
- "static_assertions",
- "str-buf",
-]
-
-[[package]]
-name = "dlmalloc"
-version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rs.git#e77526e009b829a9a838735b7c4dba24c4442a13"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=324d4c94de64e5e104b49938a3471331d9ad9c2b#324d4c94de64e5e104b49938a3471331d9ad9c2b"
 dependencies = [
  "libc",
  "libc_print",
@@ -1937,7 +1926,7 @@ dependencies = [
 name = "galloc"
 version = "0.1.0"
 dependencies = [
- "dlmalloc 0.1.4 (git+https://github.com/gear-tech/dlmalloc-rs.git?rev=fd9ccfe)",
+ "dlmalloc",
 ]
 
 [[package]]
@@ -1950,7 +1939,7 @@ checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
 name = "gcore"
 version = "0.1.0"
 dependencies = [
- "dlmalloc 0.1.4 (git+https://github.com/gear-tech/dlmalloc-rs.git)",
+ "dlmalloc",
 ]
 
 [[package]]
