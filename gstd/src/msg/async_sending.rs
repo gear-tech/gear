@@ -1,5 +1,4 @@
-
-use crate::async_runtime::signals::{self, ReplyPoll};
+use crate::async_runtime::{signals, ReplyPoll};
 
 use core::{
     future::Future,
@@ -20,7 +19,7 @@ impl Future for MessageFuture {
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
-        match signals::signals_static().poll(fut.waiting_reply_to) {
+        match signals().poll(fut.waiting_reply_to) {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
             ReplyPoll::Some(actual_reply) => Poll::Ready(actual_reply),
@@ -43,7 +42,7 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self;
-        match signals::signals_static().poll(fut.waiting_reply_to)        {
+        match signals().poll(fut.waiting_reply_to)        {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
             ReplyPoll::Some(actual_reply) => Poll::Ready(D::decode(&mut actual_reply.as_ref())),
@@ -59,7 +58,7 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     value: u128,
 ) -> MessageFuture {
     let waiting_reply_to = crate::msg::send_bytes(program, payload, gas_limit, value);
-    signals::signals_static().register_signal(waiting_reply_to, crate::msg::id());
+    signals().register_signal(waiting_reply_to);
 
     MessageFuture { waiting_reply_to }
 }
@@ -72,7 +71,7 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     value: u128,
 ) -> CodecMessageFuture<D> {
     let waiting_reply_to = crate::msg::send_bytes(program, payload.encode(), gas_limit, value);
-    signals::signals_static().register_signal(waiting_reply_to, crate::msg::id());
+    signals().register_signal(waiting_reply_to);
 
     CodecMessageFuture::<D> {
         waiting_reply_to,

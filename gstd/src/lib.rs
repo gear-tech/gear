@@ -34,4 +34,4 @@ pub use common::*;
 
 mod async_runtime;
 
-pub use async_runtime::{main_loop, handle_reply};
+pub use async_runtime::{event_loop, handle_reply};

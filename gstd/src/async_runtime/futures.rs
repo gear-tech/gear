@@ -16,35 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-extern crate alloc;
-
 use crate::common::MessageId;
-use alloc::{boxed::Box, collections::BTreeMap};
-use core::{future::Future, pin::Pin, task::Context};
+use crate::prelude::{Box, BTreeMap};
+use core::{ptr, future::Future, pin::Pin, task::{Context, RawWaker, RawWakerVTable, Waker}};
 use futures::FutureExt;
 
-type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
 
-static mut MAIN_FUTURES: Option<BTreeMap<MessageId, LocalBoxFuture<'static, ()>>> = None;
-
-fn main_futures_static() -> &'static mut BTreeMap<MessageId, LocalBoxFuture<'static, ()>> {
-    unsafe {
-        if MAIN_FUTURES.is_none() {
-            MAIN_FUTURES = Some(BTreeMap::new())
-        }
-
-        MAIN_FUTURES
-            .as_mut()
-            .expect("Set if none above; cannot fail")
-    }
+fn empty_waker() -> Waker {
+    unsafe { Waker::from_raw(RawWaker::new(ptr::null(), &VTABLE)) }
 }
 
+type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
+pub(crate) type FuturesMap = BTreeMap<MessageId, LocalBoxFuture<'static, ()>>;
+
 /// Asynchronous message handling main loop.
-pub fn main_loop<F>(future: F)
+pub fn event_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    let mut actual_future = main_futures_static()
+    let mut current_future = crate::async_runtime::futures()
         .remove(&crate::msg::id())
         .unwrap_or_else(|| future.boxed_local());
 
@@ -52,20 +43,15 @@ where
     let waker = empty_waker();
     let mut cx = Context::from_waker(&waker);
 
-    let pinned = Pin::new(&mut actual_future);
+    let pinned = Pin::new(&mut current_future);
 
     if pinned.poll(&mut cx).is_ready() {
         // Done!
     } else {
-        main_futures_static().insert(crate::msg::id(), actual_future);
+        crate::async_runtime::futures().insert(crate::msg::id(), current_future);
         crate::exec::wait()
     }
 }
-
-use core::ptr;
-use core::task::{RawWaker, RawWakerVTable, Waker};
-
-const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
 
 unsafe fn clone_waker(ptr: *const ()) -> RawWaker {
     RawWaker::new(ptr, &VTABLE)
@@ -73,7 +59,3 @@ unsafe fn clone_waker(ptr: *const ()) -> RawWaker {
 unsafe fn wake(_ptr: *const ()) {}
 unsafe fn wake_by_ref(_ptr: *const ()) {}
 unsafe fn drop_waker(_ptr: *const ()) {}
-
-fn empty_waker() -> Waker {
-    unsafe { Waker::from_raw(RawWaker::new(ptr::null(), &VTABLE)) }
-}

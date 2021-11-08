@@ -19,76 +19,56 @@
 use crate::prelude::{BTreeMap, Vec};
 use crate::common::MessageId;
 
-#[derive(Debug)]
+pub type Payload = Vec<u8>;
+
+pub(crate) enum ReplyPoll {
+    None,
+    Pending,
+    Some(Payload),
+}
+
 struct WakeSignal {
     message_id: MessageId,
-    payload: Option<Vec<u8>>,
+    payload: Option<Payload>,
 }
 
 pub(crate) struct WakeSignals {
     signals: BTreeMap<MessageId, WakeSignal>,
 }
 
-pub enum ReplyPoll {
-    None,
-    Pending,
-    Some(Vec<u8>),
-}
-
 impl WakeSignals {
-    pub(crate) fn new() -> Self {
-        WakeSignals {
-            signals: BTreeMap::new(),
-        }
+    pub fn new() -> Self {
+        Self { signals: BTreeMap::new() }
     }
 
-    pub(crate) fn register_signal(
-        &mut self,
-        waiting_reply_to: MessageId,
-        wake_this_message: MessageId,
-    ) {
+    pub fn register_signal(&mut self, waiting_reply_to: MessageId) {
         self.signals.insert(
             waiting_reply_to,
             WakeSignal {
-                message_id: wake_this_message,
+                message_id: crate::msg::id(),
                 payload: None,
             },
         );
     }
 
-    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>) {
+    pub fn record_reply(&mut self) {
         let mut signal = self
             .signals
-            .get_mut(&waiting_reply_to)
+            .get_mut(&crate::msg::reply_to())
             .expect("Somehow received reply for the message we never sent");
 
-        signal.payload = Some(payload);
-        gcore::exec::wake(signal.message_id.into(), gcore::exec::gas_available());
+        signal.payload = Some(crate::msg::load_bytes());
+        crate::exec::wake(signal.message_id, crate::exec::gas_available());
     }
 
-    pub(crate) fn poll(&mut self, message_reply_to: MessageId) -> ReplyPoll {
-        match self.signals.remove(&message_reply_to) {
+    pub fn poll(&mut self, reply_to: MessageId) -> ReplyPoll {
+        match self.signals.remove(&reply_to) {
             None => ReplyPoll::None,
             Some(signal @ WakeSignal { payload: None, .. }) => {
-                self.signals.insert(message_reply_to, signal);
+                self.signals.insert(reply_to, signal);
                 ReplyPoll::Pending
-            }
-            Some(WakeSignal {
-                payload: Some(reply_payload),
-                ..
-            }) => ReplyPoll::Some(reply_payload),
+            },
+            Some(WakeSignal { payload: Some(payload), .. }) => ReplyPoll::Some(payload),
         }
-    }
-}
-
-static mut SIGNALS: Option<WakeSignals> = None;
-
-pub(crate) fn signals_static() -> &'static mut WakeSignals {
-    unsafe {
-        if SIGNALS.as_ref().is_none() {
-            SIGNALS = Some(WakeSignals::new());
-        }
-
-        SIGNALS.as_mut().expect("Created if none above; can't fail")
     }
 }

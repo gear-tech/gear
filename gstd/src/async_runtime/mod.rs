@@ -16,16 +16,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub mod futures;
-pub mod signals;
+mod futures;
+mod signals;
 
-pub use crate::async_runtime::futures::*;
-pub use crate::async_runtime::signals::*;
+pub use self::futures::event_loop;
+
+use signals::WakeSignals;
+use self::futures::FuturesMap;
+pub(crate) use signals::ReplyPoll;
+use crate::prelude::BTreeMap;
+
+static mut FUTURES: Option<FuturesMap> = None;
+
+pub(crate) fn futures() -> &'static mut FuturesMap {
+    unsafe { FUTURES.get_or_insert_with(BTreeMap::new) }
+}
+
+static mut SIGNALS: Option<WakeSignals> = None;
+
+pub(crate) fn signals() -> &'static mut WakeSignals {
+    unsafe {
+        SIGNALS.get_or_insert_with(WakeSignals::new)
+    }
+}
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn handle_reply() {
-    let original_message_id = crate::msg::reply_to();
-    self::signals::signals_static()
-        .record_reply(original_message_id, crate::msg::load_bytes());
+    signals().record_reply();
 }
