@@ -204,8 +204,8 @@ pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
 /// another program's state and use it as a parameter for its own business
 /// logic. Basic implementation is covered in [`reply`] function.
 ///
-/// This function allows filling the reply payload parts via ['reply_push'] during the message
-/// `handling`. The payload can consist of several parts. 
+/// This function allows filling the reply payload parts via ['reply_push']
+/// during the message `handling`. The payload can consist of several parts.
 ///
 /// # Examples
 ///
