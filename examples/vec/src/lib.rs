@@ -19,8 +19,8 @@ pub unsafe extern "C" fn handle() {
     msg::send(msg::source(), v.len() as i32, 10_000_000, 0);
     debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
 
-    // Test idea is to allocate two wasm pages and check this allocation,
-    // so we must skip @v disctruction.
+    // The test idea is to allocate two wasm pages and check this allocation,
+    // so we must skip `v` destruction.
     core::mem::forget(v);
 
     for log in MESSAGE_LOG.iter() {
