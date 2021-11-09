@@ -35,7 +35,7 @@ mod sys {
 ///
 /// The block height serves to identify a particular block.
 /// This information can be used to enable many scenarios like restricting or
-/// allowing of some functions until this condition is reached.
+/// allowing of some functions until certain block height is reached.
 ///
 /// # Examples
 ///
