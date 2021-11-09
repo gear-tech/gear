@@ -2,7 +2,7 @@
 
 use codec::Decode;
 use common::{
-    gstd::{self, debug, msg, ProgramId},
+    gstd::{self, debug, exec, msg, ProgramId},
     HandleArgs,
 };
 use scale_info::TypeInfo;
@@ -65,7 +65,7 @@ pub unsafe extern "C" fn handle() {
         } else {
             b"Incorrect signature"
         };
-    msg::reply_bytes(reply, 10_000_000, 0);
+    msg::reply_bytes(reply, exec::gas_available() - 100_000_000, 0);
 }
 
 #[no_mangle]
