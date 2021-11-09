@@ -26,7 +26,7 @@ gstd::metadata! {
 }
 
 fn hex_to_id(hex: &str) -> Result<ProgramId, ()> {
-    let hex = hex.strip_prefix("0x").unwrap_or(&hex);
+    let hex = hex.strip_prefix("0x").unwrap_or(hex);
 
     hex::decode(hex)
         .map(|bytes| ProgramId::from_slice(&bytes))

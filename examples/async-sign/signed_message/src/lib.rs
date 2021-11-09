@@ -20,10 +20,8 @@ gstd::metadata! {
     title: "SignedMessage",
         init:
             input: InitArgs,
-            output: (),
         handle:
             input: HandleArgs,
-            output: (),
 }
 
 static mut SIGNATORY: Option<ProgramId> = None;
