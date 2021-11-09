@@ -24,7 +24,8 @@ log = "0.4.14"
 parity-scale-codec = { version = "*", features = ["derive"], default-features = false }
 sp-keyring = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-
+gear-backend-common = { path = "../core-backend/common" }
+gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
 
 [[bin]]
 name = "gtest"
@@ -33,6 +34,3 @@ path = "src/main.rs"
 [lib]
 
 [features]
-default = ["wasmtime"]
-wasmtime = ["gear-core-runner/wasmtime"]
-sandbox = ["gear-core-runner/sandbox"]

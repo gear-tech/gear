@@ -19,11 +19,15 @@
 //! sp-sandbox environment for running a module.
 
 use super::memory::MemoryWrap;
-use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
-use alloc::string::{String, ToString};
+use alloc::{
+    boxed::Box,
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec,
+};
 use sp_sandbox::{EnvironmentDefinitionBuilder, HostError, Instance, ReturnValue, Value};
 
+use gear_backend_common::funcs;
 use gear_core::env::{Ext, LaterExt};
 use gear_core::memory::{Memory, PageBuf, PageNumber};
 use gear_core::message::{MessageId, OutgoingPacket, ReplyPacket};
@@ -35,11 +39,11 @@ struct Runtime<E: Ext + 'static> {
 }
 
 /// Environment to run one module at a time providing Ext.
-pub struct Environment<E: Ext + 'static> {
+pub struct SandboxEnvironment<E: Ext + 'static> {
     ext: LaterExt<E>,
 }
 
-impl<E: Ext + 'static> Environment<E> {
+impl<E: Ext + 'static> SandboxEnvironment<E> {
     /// New environment.
     ///
     /// To run actual function with provided external environment, `setup_and_run` should be used.
@@ -56,7 +60,7 @@ impl<E: Ext + 'static> Environment<E> {
     ///
     /// This will also set the beginning of the memory region to the `static_area` content _after_
     /// creatig instance.
-    pub fn setup_and_run(
+    pub(crate) fn setup_and_run_inner(
         &mut self,
         ext: E,
         binary: &[u8],
@@ -93,9 +97,9 @@ impl<E: Ext + 'static> Environment<E> {
             let result = ctx
                 .ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let dest: ProgramId = crate::get_id(ext, program_id_ptr).into();
-                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
-                    let value = crate::get_u128(ext, value_ptr);
+                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    let value = funcs::get_u128(ext, value_ptr);
                     let message_id = ext.send(OutgoingPacket::new(
                         dest,
                         payload.into(),
@@ -140,8 +144,8 @@ impl<E: Ext + 'static> Environment<E> {
 
             ctx.ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let dest: ProgramId = crate::get_id(ext, program_id_ptr).into();
-                    let value = crate::get_u128(ext, value_ptr);
+                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+                    let value = funcs::get_u128(ext, value_ptr);
                     let message_id = ext.send_commit(
                         handle_ptr as _,
                         OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
@@ -187,7 +191,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
                     ext.send_push(handle_ptr as _, &payload)
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -319,8 +323,8 @@ impl<E: Ext + 'static> Environment<E> {
             let result = ctx
                 .ext
                 .with(|ext: &mut E| {
-                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
-                    let value = crate::get_u128(ext, value_ptr);
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+                    let value = funcs::get_u128(ext, value_ptr);
                     ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -349,7 +353,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let value = crate::get_u128(ext, value_ptr);
+                    let value = funcs::get_u128(ext, value_ptr);
                     let message_id = ext.reply_commit(ReplyPacket::new(
                         0,
                         vec![].into(),
@@ -412,7 +416,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    let payload = crate::get_vec(ext, payload_ptr, payload_len);
+                    let payload = funcs::get_vec(ext, payload_ptr, payload_len);
                     ext.reply_push(&payload)
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -498,7 +502,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    crate::set_u128(ext, value_ptr, ext.value());
+                    funcs::set_u128(ext, value_ptr, ext.value());
                     Ok(())
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -532,7 +536,7 @@ impl<E: Ext + 'static> Environment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    let waker_id: MessageId = crate::get_id(ext, waker_id_ptr).into();
+                    let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
                     ext.wake(waker_id, gas_limit as _)
                 })
                 .map(|_| Ok(ReturnValue::Unit))
@@ -584,7 +588,7 @@ impl<E: Ext + 'static> Environment<E> {
             let result = instance.invoke(entry_point, &[], &mut runtime);
             if let Err(_e) = &result {
                 if let Some(trap) = runtime.trap_reason {
-                    if crate::is_exit_trap(&trap.to_string()) {
+                    if funcs::is_exit_trap(&trap.to_string()) {
                         // We don't propagate a trap when exit
                         return Ok(());
                     }
@@ -605,7 +609,7 @@ impl<E: Ext + 'static> Environment<E> {
     }
 
     /// Create memory inside this environment.
-    pub fn create_memory(&self, total_pages: u32) -> MemoryWrap {
+    pub(crate) fn create_memory_inner(&self, total_pages: u32) -> MemoryWrap {
         MemoryWrap::new(sp_sandbox::Memory::new(total_pages, None).expect("Create env memory fail"))
     }
 
@@ -625,9 +629,26 @@ impl<E: Ext + 'static> Environment<E> {
     }
 }
 
-impl<E: Ext + 'static> Default for Environment<E> {
+impl<E: Ext + 'static> Default for SandboxEnvironment<E> {
     /// Creates a default environment.
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<E: Ext> gear_backend_common::Environment<E> for SandboxEnvironment<E> {
+    fn setup_and_run(
+        &mut self,
+        ext: E,
+        binary: &[u8],
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory: &dyn gear_core::memory::Memory,
+        entry_point: &str,
+    ) -> (anyhow::Result<()>, E) {
+        self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point)
+    }
+
+    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory> {
+        Box::new(self.create_memory_inner(total_pages))
     }
 }

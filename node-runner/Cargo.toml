@@ -17,7 +17,8 @@ log = { version = "0.4", default-features = false }
 
 # Internal deps
 gear-core = { path = "../core" }
-gear-core-runner = { path = "../core-runner", default-features = false, features = ["sandbox"] }
+gear-core-runner = { path = "../core-runner", default-features = false }
+gear-backend-common = { path = "../core-backend/common", default-features = false }
 gear-common = { path = "../common", default-features = false }
 
 # Substrate deps
@@ -35,7 +36,6 @@ default = ["std"]
 std = [
     "codec/std",
     "gear-common/std",
-    "gear-core-runner/sandbox",
     "log/std",
     "sp-io/std",
     "sp-core/std",

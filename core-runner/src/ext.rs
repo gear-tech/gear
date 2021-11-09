@@ -28,13 +28,21 @@ use crate::util::BlakeMessageIdGenerator;
 
 use alloc::boxed::Box;
 
+/// Structure providing externalities for running host functions.
 pub struct Ext {
+    /// Memory context.
     pub memory_context: MemoryContext,
+    /// Message context.
     pub messages: MessageContext<BlakeMessageIdGenerator>,
+    /// Gas counter.
     pub gas_counter: Box<dyn GasCounter>,
+    /// Cost per allocation.
     pub alloc_cost: u64,
+    /// Cost per gmemory grow.
     pub mem_grow_cost: u64,
+    /// Any guest code panic explanation, if available.
     pub last_error_returned: Option<&'static str>,
+    /// Current block height.
     pub block_height: u32,
 }
 

@@ -16,18 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Runner for gear-core.
+//! Provide sp-sandbox support.
 
 #![no_std]
-#![warn(missing_docs)]
 
-#[macro_use]
 extern crate alloc;
 
-mod builder;
+pub mod env;
+pub mod memory;
 
-mod ext;
-pub mod runner;
-mod util;
-pub use ext::Ext;
-pub use runner::*;
+pub use env::SandboxEnvironment;
+pub use memory::MemoryWrap;

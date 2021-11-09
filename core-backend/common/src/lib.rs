@@ -16,7 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Provide sp-sandbox support.
+//! Crate provides support for wasm runtime.
 
-pub mod env;
-pub mod memory;
+#![no_std]
+
+extern crate alloc;
+
+pub mod funcs;
+
+use alloc::{boxed::Box, collections::BTreeMap};
+use gear_core::{
+    env::Ext,
+    memory::{Memory, PageBuf, PageNumber},
+};
+
+pub trait Environment<E: Ext>: Default + Sized {
+    fn setup_and_run(
+        &mut self,
+        ext: E,
+        binary: &[u8],
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory: &dyn gear_core::memory::Memory,
+        entry_point: &str,
+    ) -> (anyhow::Result<()>, E);
+
+    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory>;
+}

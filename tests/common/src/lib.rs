@@ -17,16 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode, Error as CodecError};
+use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::storage::{
     InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
 };
 use gear_core::{message::MessageId, program::ProgramId};
 use gear_core_runner::{
-    Config, ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner,
+    Config, ExecutionOutcome, Ext, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner,
 };
 use std::collections::HashSet;
 
-pub type MemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
+pub type MemoryRunner = Runner<
+    InMemoryMessageQueue,
+    InMemoryProgramStorage,
+    InMemoryWaitList,
+    WasmtimeEnvironment<Ext>,
+>;
 
 pub struct InitProgram {
     pub program_id: Option<ProgramId>,
@@ -227,7 +233,12 @@ impl RunnerContext {
     }
 
     pub fn with_config(config: &Config) -> Self {
-        Self::new(Runner::new(config, Default::default(), 0))
+        Self::new(Runner::new(
+            config,
+            Default::default(),
+            0,
+            WasmtimeEnvironment::default(),
+        ))
     }
 
     pub fn init_program<P>(&mut self, init_data: P)
@@ -470,7 +481,12 @@ impl RunnerState {
             runner
         } else {
             *self = match std::mem::take(self) {
-                Self::Storage(storage, config) => Self::Runner(Runner::new(&config, storage, 0)),
+                Self::Storage(storage, config) => Self::Runner(Runner::new(
+                    &config,
+                    storage,
+                    0,
+                    WasmtimeEnvironment::default(),
+                )),
                 _ => Self::Runner(Runner::default()),
             };
 

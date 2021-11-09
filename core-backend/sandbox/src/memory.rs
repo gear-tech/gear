@@ -88,7 +88,6 @@ mod tests {
     use gear_core::memory::MemoryContext;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
-        use core::convert::TryInto;
         use sp_sandbox::Memory as WasmMemory;
 
         let memory = MemoryWrap::new(

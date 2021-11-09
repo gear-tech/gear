@@ -18,28 +18,28 @@
 
 //! Wasmtime environment for running a module.
 
-use wasmtime::{Engine, Extern, Func, Instance, Module, Store, Trap};
+use wasmtime::{Extern, Func, Instance, Module, Store, Trap};
 
 use alloc::boxed::Box;
 use alloc::collections::BTreeMap;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 
-use super::memory::MemoryWrap;
+use crate::memory::MemoryWrap;
 
 use gear_core::env::{Ext, LaterExt};
 use gear_core::memory::{Memory, PageBuf, PageNumber};
 
-use crate::funcs;
+use gear_backend_common::funcs;
 
 /// Environment to run one module at a time providing Ext.
-pub struct Environment<E: Ext + 'static> {
+pub struct WasmtimeEnvironment<E: Ext + 'static> {
     store: wasmtime::Store,
     ext: LaterExt<E>,
     funcs: BTreeMap<&'static str, Func>,
 }
 
-impl<E: Ext + 'static> Environment<E> {
+impl<E: Ext + 'static> WasmtimeEnvironment<E> {
     /// New environment.
     ///
     /// To run actual function with provided external environment, `setup_and_run` should be used.
@@ -82,7 +82,7 @@ impl<E: Ext + 'static> Environment<E> {
     ///
     /// This will also set the beginning of the memory region to the `static_area` content _after_
     /// creatig instance.
-    pub fn setup_and_run(
+    pub fn setup_and_run_inner(
         &mut self,
         ext: E,
         binary: &[u8],
@@ -104,7 +104,7 @@ impl<E: Ext + 'static> Environment<E> {
                 .map(|_| ());
             if let Err(e) = &result {
                 if let Some(trap) = e.downcast_ref::<Trap>() {
-                    if crate::is_exit_trap(&trap.to_string()) {
+                    if funcs::is_exit_trap(&trap.to_string()) {
                         // We don't propagate a trap when exit
                         return Ok(());
                     }
@@ -118,13 +118,8 @@ impl<E: Ext + 'static> Environment<E> {
         (result, ext)
     }
 
-    /// Return engine used by this environment.
-    pub fn engine(&self) -> &Engine {
-        self.store.engine()
-    }
-
     /// Create memory inside this environment.
-    pub fn create_memory(&self, total_pages: u32) -> MemoryWrap {
+    pub fn create_memory_inner(&self, total_pages: u32) -> MemoryWrap {
         MemoryWrap::new(
             wasmtime::Memory::new(
                 &self.store,
@@ -344,9 +339,26 @@ impl<E: Ext + 'static> Environment<E> {
     }
 }
 
-impl<E: Ext + 'static> Default for Environment<E> {
+impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
     /// Creates a default environment.
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<E: Ext> gear_backend_common::Environment<E> for WasmtimeEnvironment<E> {
+    fn setup_and_run(
+        &mut self,
+        ext: E,
+        binary: &[u8],
+        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory: &dyn gear_core::memory::Memory,
+        entry_point: &str,
+    ) -> (anyhow::Result<()>, E) {
+        self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point)
+    }
+
+    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory> {
+        Box::new(self.create_memory_inner(total_pages))
     }
 }

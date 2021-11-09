@@ -258,7 +258,12 @@ pub mod pallet {
         }
 
         pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
-            runner::gas_spent(destination, payload, 0).ok()
+            runner::gas_spent::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
+                destination,
+                payload,
+                0,
+            )
+            .ok()
         }
 
         /// Returns true if a program resulted in an error during initialization
@@ -308,7 +313,9 @@ pub mod pallet {
                             );
                             continue;
                         }
-                        match runner::init_program(
+                        match runner::init_program::<
+                            gear_backend_sandbox::SandboxEnvironment<runner::Ext>,
+                        >(
                             origin,
                             program_id,
                             code.to_vec(),
@@ -461,7 +468,10 @@ pub mod pallet {
             }
 
             loop {
-                match runner::process(GasAllowance::<T>::get(), block_height) {
+                match runner::process::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
+                    GasAllowance::<T>::get(),
+                    block_height,
+                ) {
                     Ok(execution_report) => {
                         if execution_report.handled == 0 {
                             break;

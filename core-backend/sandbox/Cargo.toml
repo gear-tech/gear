@@ -1,0 +1,16 @@
+[package]
+name = "gear-backend-sandbox"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+anyhow = { version = "1.0.45", default-features = false }
+cfg-if = "1.0.0"
+gear-core = { path = "../../core" }
+log = { version = "0.4.14", default-features = false }
+num-derive = { version = "0.3.3", optional = true }
+num-traits = { version = "0.2.14", optional = true }
+sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+gear-backend-common = { path = "../common" }
