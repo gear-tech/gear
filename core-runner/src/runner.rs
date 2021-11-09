@@ -715,6 +715,31 @@ fn run<E: Environment<Ext>>(
 
     let memory = env.create_memory(program.static_pages());
 
+    // Charge gas for feature memory grows.
+    let max_page = program.get_pages().iter().next_back();
+    if let Some(max_page) = max_page {
+        let max_page_num = *max_page.0;
+        let mem_size = memory.size();
+        if max_page_num >= mem_size {
+            let amount =
+                context.config.mem_grow_cost * ((max_page_num - mem_size).raw() as u64 + 1);
+            let res = gas_counter.charge(amount);
+            if res != gas::ChargeResult::Enough {
+                return RunResult {
+                    messages: Vec::new(),
+                    reply: None,
+                    waiting: None,
+                    awakening: Vec::new(),
+                    gas_left: gas_counter.left(),
+                    gas_spent: 0,
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for grow memory size.")),
+                };
+            }
+        } else {
+            assert!(max_page_num.raw() == mem_size.raw() - 1);
+        }
+    }
+
     let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
