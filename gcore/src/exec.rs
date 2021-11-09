@@ -103,7 +103,7 @@ pub fn wait() -> ! {
 /// Resume previously paused message handling.
 ///
 /// If a message has been paused using the [`wait`] function, then it is
-/// possible to continue its execution by calling this function. [`waker_id`]
+/// possible to continue its execution by calling this function. `waker_id`
 /// which specifies a particular message to be taken out of the *waiting queue*
 /// and put into the *processing queue*. `gas_limit` is the gas value to be
 /// transferred from the current handling message to the waked one.
