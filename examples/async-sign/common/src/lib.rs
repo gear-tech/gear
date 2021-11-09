@@ -1,5 +1,7 @@
 #![no_std]
 
+pub use gstd;
+
 use codec::Decode;
 use gstd::prelude::*;
 use scale_info::TypeInfo;

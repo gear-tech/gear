@@ -1,8 +1,10 @@
 #![no_std]
 
 use codec::Decode;
-use common::HandleArgs;
-use gstd::{debug, msg, ProgramId};
+use common::{
+    gstd::{self, debug, msg, ProgramId},
+    HandleArgs,
+};
 use scale_info::TypeInfo;
 use sp_core::{
     crypto::{AccountId32, UncheckedFrom},
