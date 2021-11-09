@@ -1,10 +1,7 @@
 #![no_std]
 
 use codec::Decode;
-use common::{
-    gstd::{self, debug, exec, msg, ProgramId},
-    HandleArgs,
-};
+use gstd::{debug, exec, msg, prelude::*, ProgramId};
 use scale_info::TypeInfo;
 use sp_core::{
     crypto::{AccountId32, UncheckedFrom},
@@ -14,6 +11,12 @@ use sp_core::{
 #[derive(Debug, Decode, TypeInfo)]
 struct InitArgs {
     account: AccountId32,
+}
+
+#[derive(Debug, Decode, TypeInfo)]
+pub struct HandleArgs {
+    pub message: Vec<u8>,
+    pub signature: Vec<u8>,
 }
 
 gstd::metadata! {

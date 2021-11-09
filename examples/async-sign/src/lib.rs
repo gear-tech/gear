@@ -1,8 +1,8 @@
 #![no_std]
 
 use codec::Encode;
-use common::gstd::{self, debug, msg, prelude::*, ProgramId};
 use core::str;
+use gstd::{debug, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
 use scale_info::TypeInfo;
 

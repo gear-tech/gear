@@ -1,6 +1,6 @@
 #![no_std]
 
-use common::gstd::{exec, msg};
+use gstd::{exec, msg};
 
 static mut SIGN: bool = true;
 
