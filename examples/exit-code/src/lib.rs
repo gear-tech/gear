@@ -10,7 +10,7 @@ pub unsafe extern "C" fn init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    msg::send_bytes(ProgramId::from(3), "PING", 500_000_000_000, 0);
+    msg::send_bytes(ProgramId::from(2), "PING", 500_000_000_000, 0);
 }
 
 #[no_mangle]
