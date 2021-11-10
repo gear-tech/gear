@@ -7,7 +7,31 @@ programs:
   - id: 2
     path: target/wasm32-unknown-unknown/release/demo_panicker.wasm
 
+  - id: 3
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+
 fixtures:
+  - title: normal
+
+    messages:
+      - destination: 3
+        source:
+          kind: id
+          value: 1
+        payload:
+          kind: utf-8
+          value: PING
+
+    expected:
+      - log:
+        - destination: 0
+          source:
+            kind: id
+            value: 1
+          payload:
+            kind: utf-8
+            value: 0
+
   - title: panic
 
     messages:
@@ -36,7 +60,7 @@ fixtures:
         source:
           kind: id
           value: 1
-        gas_limit: 0
+        gas_limit: 1000
         payload:
           kind: utf-8
           value: START
