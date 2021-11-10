@@ -108,8 +108,11 @@ pub trait Ext {
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
-    /// Report that some gas has been used.
-    fn gas(&mut self, amount: u32) -> Result<(), &'static str>;
+    /// Charge some gas.
+    fn charge_gas(&mut self, amount: u32) -> Result<(), &'static str>;
+
+    /// Refund some gas.
+    fn refund_gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
     /// Tell how much gas is left in running context.
     fn gas_available(&mut self) -> u64;
@@ -237,7 +240,10 @@ mod tests {
         fn msg(&mut self) -> &[u8] {
             &[]
         }
-        fn gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+        fn charge_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
+            Ok(())
+        }
+        fn refund_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
         fn gas_available(&mut self) -> u64 {

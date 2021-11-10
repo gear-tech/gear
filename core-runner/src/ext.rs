@@ -64,9 +64,9 @@ impl Ext {
 impl EnvExt for Ext {
     fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
         // Greedily charge gas for allocations
-        self.gas(pages_num.raw() * self.alloc_cost as u32)?;
+        self.charge_gas(pages_num.raw() * self.alloc_cost as u32)?;
         // Greedily charge gas for grow
-        self.gas(pages_num.raw() * self.mem_grow_cost as u32)?;
+        self.charge_gas(pages_num.raw() * self.mem_grow_cost as u32)?;
 
         let old_mem_size = self.memory_context.memory().size().raw();
 
@@ -95,9 +95,7 @@ impl EnvExt for Ext {
         }
         gas_to_return_back += self.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
 
-        if self.gas_counter.refund(gas_to_return_back) != ChargeResult::Enough {
-            return self.return_with_tracing(Err("Gas limit - add too many gas"));
-        }
+        self.refund_gas(gas_to_return_back as u32)?;
 
         self.return_with_tracing(result)
     }
@@ -177,10 +175,8 @@ impl EnvExt for Ext {
         let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
 
         // Returns back gas for allocated page if it's new
-        if !self.memory_context.is_init_page(ptr)
-            && self.gas_counter.refund(self.alloc_cost) != ChargeResult::Enough
-        {
-            return self.return_with_tracing(Err("Gas limit - add too many gas"));
+        if !self.memory_context.is_init_page(ptr) {
+            self.refund_gas(self.alloc_cost as u32)?;
         }
 
         self.return_with_tracing(result)
@@ -208,11 +204,19 @@ impl EnvExt for Ext {
         self.messages.current().payload()
     }
 
-    fn gas(&mut self, val: u32) -> Result<(), &'static str> {
+    fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
         if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
             Ok(())
         } else {
             self.return_with_tracing(Err("Gas limit exceeded"))
+        }
+    }
+
+    fn refund_gas(&mut self, val: u32) -> Result<(), &'static str> {
+        if self.gas_counter.refund(val as u64) == ChargeResult::Enough {
+            Ok(())
+        } else {
+            self.return_with_tracing(Err("Too many gas added"))
         }
     }
 
