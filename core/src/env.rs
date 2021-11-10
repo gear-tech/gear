@@ -108,10 +108,10 @@ pub trait Ext {
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
-    /// Charge some gas. TODO: why u32?
+    /// Charge some gas.
     fn charge_gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
-    /// Refund some gas. TODO: why u32?
+    /// Refund some gas.
     fn refund_gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
     /// Tell how much gas is left in running context.
