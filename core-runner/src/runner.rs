@@ -18,8 +18,6 @@
 
 //! Module for running programs.
 
-use core::default;
-
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
