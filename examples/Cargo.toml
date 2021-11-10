@@ -10,6 +10,7 @@ members = [
     "collector",
     "capacitor",
     "decoder",
+    "exit-code",
     "fib",
     "mem",
     "guestbook",

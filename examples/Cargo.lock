@@ -99,6 +99,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-exit-code"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
 name = "demo-fib"
 version = "0.1.0"
 dependencies = [

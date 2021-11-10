@@ -21,7 +21,7 @@ use crate::{MessageId, ProgramId};
 use codec::{Decode, Encode, Output};
 
 use galloc::prelude::*;
-pub use gcore::msg::{id, reply_to, source, value};
+pub use gcore::msg::{exit_code, id, reply_to, source, value};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);

@@ -30,6 +30,7 @@ use crate::{MessageId, ProgramId};
 
 mod sys {
     extern "C" {
+        pub fn gr_exit_code() -> u32;
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
         pub fn gr_reply(
@@ -63,6 +64,24 @@ mod sys {
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
     }
+}
+
+/// Get the exit code of the message being processed.
+///
+/// This function is used to check that reply message were processed successfully or not.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let exit_code = msg::exit_code();
+/// }
+/// ```
+pub fn exit_code() -> usize {
+    unsafe { sys::gr_exit_code() as _ }
 }
 
 /// Obtain an identifier of the message currently being processed.

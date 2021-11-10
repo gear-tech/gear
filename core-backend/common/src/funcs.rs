@@ -39,6 +39,12 @@ pub fn block_height<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
     move || ext.with(|ext: &mut E| ext.block_height()).unwrap_or(0) as i32
 }
 
+pub fn exit_code<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
+    move || {
+        ext.with(|ext: &mut E| ext.reply_to().map(|v| v.1).unwrap_or(0)).unwrap_or(1) as i32
+    }
+}
+
 pub fn free<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |page: i32| {
         let page = page as u32;

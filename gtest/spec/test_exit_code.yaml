@@ -1,0 +1,52 @@
+title: Async-await
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_exit_code.wasm
+
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_panicker.wasm
+
+fixtures:
+  - title: panic
+
+    messages:
+      - destination: 2
+        source:
+          kind: id
+          value: 1
+        payload:
+          kind: utf-8
+          value: any
+
+    expected:
+      - log:
+        - destination: 0
+          source:
+            kind: id
+            value: 1
+          payload:
+            kind: utf-8
+            value: 1
+
+  - title: trap
+
+    messages:
+      - destination: 2
+        source:
+          kind: id
+          value: 1
+        gas_limit: 0
+        payload:
+          kind: utf-8
+          value: START
+
+    expected:
+      - log:
+        - destination: 0
+          source:
+            kind: id
+            value: 1
+          payload:
+            kind: utf-8
+            value: 1
