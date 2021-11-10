@@ -18,6 +18,8 @@
 
 //! Module for running programs.
 
+use core::default;
+
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
@@ -683,15 +685,10 @@ fn run<E: Environment<Ext>>(
             if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
                 == gas::ChargeResult::NotEnough
             {
-                let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: Vec::new(),
-                    reply: None,
-                    waiting: None,
-                    awakening: Vec::new(),
-                    gas_left,
-                    gas_spent: 0,
+                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
+                    ..Default::default()
                 };
             }
         }
@@ -699,15 +696,10 @@ fn run<E: Environment<Ext>>(
             if gas_counter.charge(context.config.load_page_cost * program.get_pages().len() as u64)
                 == gas::ChargeResult::NotEnough
             {
-                let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: Vec::new(),
-                    reply: None,
-                    waiting: None,
-                    awakening: Vec::new(),
-                    gas_left,
-                    gas_spent: 0,
+                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
+                    ..Default::default()
                 };
             }
         }
@@ -726,13 +718,9 @@ fn run<E: Environment<Ext>>(
             let res = gas_counter.charge(amount);
             if res != gas::ChargeResult::Enough {
                 return RunResult {
-                    messages: Vec::new(),
-                    reply: None,
-                    waiting: None,
-                    awakening: Vec::new(),
                     gas_left: gas_counter.left(),
-                    gas_spent: 0,
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for grow memory size.")),
+                    ..Default::default()
                 };
             }
         } else {
