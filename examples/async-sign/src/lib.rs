@@ -50,7 +50,7 @@ async fn main() {
     debug!("message = {:?}", message);
     if message == "START" {
         let encoded = SignRequest {
-            message: vec![b'P', b'I', b'N', b'G'],
+            message: b"PING".to_vec(),
         }
         .encode();
 
@@ -67,9 +67,11 @@ async fn main() {
         .await;
         debug!("reply = {:?}", reply);
 
-        let mut result = String::with_capacity(FINISH_STRING.len() + reply.len());
-        result.push_str(FINISH_STRING);
-        result.push_str(str::from_utf8(&reply).expect("Failed to interpret `reply` as utf-8"));
+        let result = format!(
+            "{}{}",
+            FINISH_STRING,
+            str::from_utf8(&reply).expect("Failed to interpret `reply` as utf-8")
+        );
 
         msg::reply_bytes(result, GAS_LIMIT, 0);
     }

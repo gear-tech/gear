@@ -38,7 +38,7 @@ fixtures:
       - step: 2
         messages:
           - destination: 1
-            payload:
+            payload: &good
               kind: bytes
               value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
 
@@ -50,9 +50,7 @@ fixtures:
       - step: 4
         messages:
           - destination: 3
-            payload:
-              kind: bytes
-              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+            payload: *good
 
       - step: 5
         messages:
@@ -65,10 +63,8 @@ fixtures:
         messages:
           - destination: 1
             payload: *start
-        log: []
 
       - step: 7
-        messages: []
         log:
           - destination: 0
             payload:
@@ -107,16 +103,14 @@ fixtures:
           - destination: 2
             payload: *ping
           - destination: 1
-            payload:
+            payload: &good
               kind: bytes
               value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
 
       - step: 4
         messages:
           - destination: 1
-            payload: &good
-              kind: bytes
-              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+            payload: *good
           - destination: 1
             payload: &bad
               kind: bytes
@@ -135,7 +129,6 @@ fixtures:
             payload: *start
           - destination: 1
             payload: *start
-        log: []
 
       - step: 7
         messages:
@@ -143,7 +136,6 @@ fixtures:
             payload: *start
           - destination: 3
             payload: *good
-        log: []
 
       - step: 8
         messages:
@@ -151,7 +143,6 @@ fixtures:
             payload: *good
           - destination: 3
             payload: *bad
-        log: []
 
       - step: 9
         messages:
@@ -161,7 +152,6 @@ fixtures:
             payload:
               kind: utf-8
               value: "Reply to signed message"
-        log: []
 
       - step: 10
         messages:
@@ -173,7 +163,6 @@ fixtures:
             payload:
               kind: utf-8
               value: "Incorrect signature"
-        log: []
 
       - step: 11
         messages:
@@ -183,7 +172,6 @@ fixtures:
               value: "Incorrect signature"
           - destination: 1
             payload: *start
-        log: []
 
       - step: 12
         messages:
@@ -191,7 +179,6 @@ fixtures:
             payload: *start
           - destination: 1
             payload: *start
-        log: []
 
       - step: 13
         messages:
@@ -204,7 +191,6 @@ fixtures:
               value: "FINISH: Reply to signed message"
 
       - step: 14
-        messages: []
         log:
           - destination: 0
             payload:
