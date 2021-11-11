@@ -259,7 +259,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 _ => return Err(HostError),
             };
             ctx.ext
-                .with(|ext: &mut E| ext.gas(val as _))
+                .with(|ext: &mut E| ext.charge_gas(val as _))
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|_err| {
                     ctx.trap_reason = Some("Trapping: unable to report about gas used");

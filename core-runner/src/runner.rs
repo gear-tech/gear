@@ -692,15 +692,10 @@ fn run<E: Environment<Ext>>(
             if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
                 == gas::ChargeResult::NotEnough
             {
-                let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: Vec::new(),
-                    reply: None,
-                    waiting: None,
-                    awakening: Vec::new(),
-                    gas_left,
-                    gas_spent: 0,
+                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
+                    ..Default::default()
                 };
             }
         }
@@ -708,21 +703,37 @@ fn run<E: Environment<Ext>>(
             if gas_counter.charge(context.config.load_page_cost * program.get_pages().len() as u64)
                 == gas::ChargeResult::NotEnough
             {
-                let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: Vec::new(),
-                    reply: None,
-                    waiting: None,
-                    awakening: Vec::new(),
-                    gas_left,
-                    gas_spent: 0,
+                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
+                    ..Default::default()
                 };
             }
         }
     };
 
     let memory = env.create_memory(program.static_pages());
+
+    // Charge gas for feature memory grows.
+    let max_page = program.get_pages().iter().next_back();
+    if let Some(max_page) = max_page {
+        let max_page_num = *max_page.0;
+        let mem_size = memory.size();
+        if max_page_num >= mem_size {
+            let amount =
+                context.config.mem_grow_cost * ((max_page_num - mem_size).raw() as u64 + 1);
+            let res = gas_counter.charge(amount);
+            if res != gas::ChargeResult::Enough {
+                return RunResult {
+                    gas_left: gas_counter.left(),
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for grow memory size.")),
+                    ..Default::default()
+                };
+            }
+        } else {
+            assert!(max_page_num.raw() == mem_size.raw() - 1);
+        }
+    }
 
     let ext = Ext {
         memory_context: MemoryContext::new(

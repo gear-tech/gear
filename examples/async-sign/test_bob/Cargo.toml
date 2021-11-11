@@ -1,0 +1,10 @@
+[package]
+name = "test_bob"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = { path = "../../../gstd", features = ["debug", "meta"] }

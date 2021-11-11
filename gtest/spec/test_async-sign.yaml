@@ -1,0 +1,202 @@
+title: Async-sign (well known cases)
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_async_sign.wasm
+    init_message:
+      kind: utf-8
+      value: "{2},{3}"
+
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/test_bob.wasm
+
+  - id: 3
+    path: target/wasm32-unknown-unknown/release/demo_signed_message.wasm
+    init_message:
+      kind: custom
+      value:
+        # bob
+        account: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+
+fixtures:
+  - title: signed message
+
+    messages:
+      - destination: 1
+        payload: &start
+          kind: utf-8
+          value: START
+
+    expected:
+      - step: 1
+        messages:
+          - destination: 2
+            payload:
+              kind: bytes
+              value: "0x1050494e47"
+
+      - step: 2
+        messages:
+          - destination: 1
+            payload: &good
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+      - step: 3
+        messages:
+          - destination: 1
+            payload: *start
+
+      - step: 4
+        messages:
+          - destination: 3
+            payload: *good
+
+      - step: 5
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: "Reply to signed message"
+
+      - step: 6
+        messages:
+          - destination: 1
+            payload: *start
+
+      - step: 7
+        log:
+          - destination: 0
+            payload:
+              kind: utf-8
+              value: "FINISH: Reply to signed message"
+
+  - title: bad signature
+
+    messages:
+      - destination: 1
+        payload: &start
+          kind: utf-8
+          value: START
+      - destination: 1
+        payload: *start
+
+    expected:
+      - step: 1
+        messages:
+          - destination: 1
+            payload: *start
+          - destination: 2
+            payload: &ping
+              kind: bytes
+              value: "0x1050494e47"
+
+      - step: 2
+        messages:
+          - destination: 2
+            payload: *ping
+          - destination: 2
+            payload: *ping
+
+      - step: 3
+        messages:
+          - destination: 2
+            payload: *ping
+          - destination: 1
+            payload: &good
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+      - step: 4
+        messages:
+          - destination: 1
+            payload: *good
+          - destination: 1
+            payload: &bad
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a587"
+
+      - step: 5
+        messages:
+          - destination: 1
+            payload: *bad
+          - destination: 1
+            payload: *start
+
+      - step: 6
+        messages:
+          - destination: 1
+            payload: *start
+          - destination: 1
+            payload: *start
+
+      - step: 7
+        messages:
+          - destination: 1
+            payload: *start
+          - destination: 3
+            payload: *good
+
+      - step: 8
+        messages:
+          - destination: 3
+            payload: *good
+          - destination: 3
+            payload: *bad
+
+      - step: 9
+        messages:
+          - destination: 3
+            payload: *bad
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: "Reply to signed message"
+
+      - step: 10
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: "Reply to signed message"
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: "Incorrect signature"
+
+      - step: 11
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: "Incorrect signature"
+          - destination: 1
+            payload: *start
+
+      - step: 12
+        messages:
+          - destination: 1
+            payload: *start
+          - destination: 1
+            payload: *start
+
+      - step: 13
+        messages:
+          - destination: 1
+            payload: *start
+        log:
+          - destination: 0
+            payload:
+              kind: utf-8
+              value: "FINISH: Reply to signed message"
+
+      - step: 14
+        log:
+          - destination: 0
+            payload:
+              kind: utf-8
+              value: "FINISH: Reply to signed message"
+          - destination: 0
+            payload:
+              kind: utf-8
+              value: "FINISH: Incorrect signature"

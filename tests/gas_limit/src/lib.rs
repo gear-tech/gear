@@ -17,6 +17,7 @@ pub enum Request {
     Spin,
     Panic,
     Allocate(u32),
+    AllocateForever(u32),
     ResizeStatic(u32),
 }
 
@@ -44,6 +45,11 @@ mod wasm {
             Request::Panic => panic!("Panic by request"),
             Request::Allocate(size) => {
                 let _vec: Vec<u8> = Vec::with_capacity(size as usize);
+                Reply::Empty
+            }
+            Request::AllocateForever(size) => {
+                let vec: Vec<u8> = Vec::with_capacity(size as usize);
+                core::mem::forget(vec);
                 Reply::Empty
             }
             Request::ResizeStatic(size) => {
@@ -357,5 +363,56 @@ mod tests {
             runner.request_report(MessageBuilder::from(Request::Empty).gas_limit(gas_limit - 1));
 
         assert_eq!(report2.result, RunResult::Trap("Gas limit exceeded".into()));
+    }
+
+    #[test]
+    fn start_grow_cost() {
+        // Init logger
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+
+        let mut config = Config::zero_cost_config();
+
+        let pages_num = 2;
+        let allocation_size = pages_num * PAGE_SIZE as u32;
+
+        // First run is to calculate gas spent without pages allocation cost
+        // (for code execution etc.)
+        let mut runner = RunnerContext::with_config(&config);
+        let init_report: RunReport<()> =
+            runner.init_program_with_report(InitProgram::from(wasm_code()).message(
+                MessageBuilder::from(Request::AllocateForever(allocation_size)),
+            ));
+        assert_eq!(init_report.result, RunResult::Normal);
+        let first_run_report: RunReport<Reply> = runner.request_report(Request::Empty);
+        assert_eq!(first_run_report.result, RunResult::Normal);
+
+        // Second run - we set mem grow cost.
+        // Spent gas must be bigger, than at first handle by `config.mem_grow_cost * pages alloced`.
+        // This is because we charge gas for each page grow, which is necessary to init memory
+        // when handle is started.
+        // Because of alloc overhead we need `pages_num + 1` pages to allocate `allocation_size`.
+        config.mem_grow_cost = 10000;
+        let gas_limit = first_run_report.gas_spent + (pages_num as u64 + 1) * config.mem_grow_cost;
+        let mut runner = RunnerContext::with_config(&config);
+        let init_report: RunReport<()> =
+            runner.init_program_with_report(InitProgram::from(wasm_code()).message(
+                MessageBuilder::from(Request::AllocateForever(allocation_size)),
+            ));
+        assert_eq!(init_report.result, RunResult::Normal);
+        let report: RunReport<Reply> =
+            runner.request_report(MessageBuilder::from(Request::Empty).gas_limit(gas_limit));
+        assert_eq!(report.result, RunResult::Normal);
+        assert_eq!(report.gas_left, 0);
+
+        // Check gas limit exceeded
+        let mut runner = RunnerContext::with_config(&config);
+        let init_report: RunReport<()> =
+            runner.init_program_with_report(InitProgram::from(wasm_code()).message(
+                MessageBuilder::from(Request::AllocateForever(allocation_size)),
+            ));
+        assert_eq!(init_report.result, RunResult::Normal);
+        let report: RunReport<Reply> =
+            runner.request_report(MessageBuilder::from(Request::Empty).gas_limit(gas_limit - 1));
+        assert_eq!(report.result, RunResult::Trap("Gas limit exceeded".into()));
     }
 }

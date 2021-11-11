@@ -80,7 +80,7 @@ pub fn debug<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), &'stat
 
 pub fn gas<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |val: i32| {
-        ext.with(|ext: &mut E| ext.gas(val as _))?
+        ext.with(|ext: &mut E| ext.charge_gas(val as _))?
             .map_err(|_| "Trapping: unable to report about gas used")
     }
 }

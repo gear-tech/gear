@@ -1,0 +1,17 @@
+[package]
+name = "fungible-token"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+authors = ["Gear Technologies"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = {path = "../../gstd", features = ["debug", "meta"] }
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full"] }
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"]}
