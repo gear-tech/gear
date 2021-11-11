@@ -240,13 +240,17 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             ctx: &mut Runtime<E>,
             _args: &[Value],
         ) -> Result<ReturnValue, HostError> {
-            ctx.ext
-                .with(|ext: &mut E| {
-                    ext.reply_to()
-                        .map(|v| Ok(ReturnValue::Value(Value::I32(v.1))))
-                        .unwrap_or(Ok(ReturnValue::Value(Value::I32(0))))
-                })
-                .unwrap_or(Ok(ReturnValue::Value(Value::I32(1))))
+            let reply_tuple = ctx.ext.with(|ext: &mut E| ext.reply_to()).map_err(|err| {
+                ctx.trap_reason = Some(err);
+                HostError
+            })?;
+
+            if let Some((_, exit_code)) = reply_tuple {
+                Ok(ReturnValue::Value(Value::I32(exit_code)))
+            } else {
+                ctx.trap_reason = Some("Trapping: exit code ran into");
+                Err(HostError)
+            }
         }
 
         fn gas<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {

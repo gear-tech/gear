@@ -39,10 +39,15 @@ pub fn block_height<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
     move || ext.with(|ext: &mut E| ext.block_height()).unwrap_or(0) as i32
 }
 
-pub fn exit_code<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
+pub fn exit_code<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<i32, &'static str> {
     move || {
-        ext.with(|ext: &mut E| ext.reply_to().map(|v| v.1).unwrap_or(0))
-            .unwrap_or(1) as i32
+        let reply_tuple = ext.with(|ext: &mut E| ext.reply_to())?;
+
+        if let Some((_, exit_code)) = reply_tuple {
+            Ok(exit_code)
+        } else {
+            Err("Not running in the reply context")
+        }
     }
 }
 
