@@ -14,14 +14,18 @@ async fn main() {
             debug!("err common processing");
             let handle = msg::send_init();
             handle.push(b"ERR PING");
-            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0).await.expect("Error in async message processing");
+            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+                .await
+                .expect("Error in async message processing");
             // Got panic here without message
             msg::reply("I'll not be sent", GAS_LIMIT, 0);
         }
         "err reply" => {
             debug!("err reply processing");
             msg::reply_push(b"ERR PING");
-            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0).await.expect("Error in async message processing");
+            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+                .await
+                .expect("Error in async message processing");
             // Got panic here without message
             msg::reply("I'll not be sent", GAS_LIMIT, 0);
         }
@@ -30,13 +34,17 @@ async fn main() {
             let handle = msg::send_init();
             handle.push(b"OK PING");
             handle.commit(msg::source(), GAS_LIMIT, 0);
-            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0).await.expect("Error in async message processing");
+            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+                .await
+                .expect("Error in async message processing");
         }
         "ok reply" => {
             debug!("ok reply processing");
             msg::reply_push(b"OK REPLY");
             msg::reply_commit(GAS_LIMIT, 0);
-            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0).await.expect("Error in async message processing");
+            let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+                .await
+                .expect("Error in async message processing");
         }
         _ => {}
     }

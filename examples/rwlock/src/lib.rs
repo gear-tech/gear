@@ -33,8 +33,10 @@ async fn main() {
             *val += 1;
         }
         "ping&get" => {
-            let _ = msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT * 2, 0)
-                .await.expect("Error in async message processing");
+            let _ =
+                msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT * 2, 0)
+                    .await
+                    .expect("Error in async message processing");
             msg::reply(*RWLOCK.read().await, exec::gas_available() - GAS_LIMIT, 0);
         }
         "inc&ping" => {
@@ -46,11 +48,14 @@ async fn main() {
                 exec::gas_available() - GAS_LIMIT,
                 0,
             )
-            .await.expect("Error in async message processing");
+            .await
+            .expect("Error in async message processing");
         }
         "get&ping" => {
             let val = RWLOCK.read().await;
-            let _ = msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0).await.expect("Error in async message processing");
+            let _ = msg_async::send_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
+                .await
+                .expect("Error in async message processing");
             msg::reply(*val, exec::gas_available() - GAS_LIMIT, 0);
         }
         "check readers" => {

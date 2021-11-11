@@ -55,7 +55,10 @@ async fn main() {
         .encode();
 
         let sign_response =
-            msg_async::send_and_wait_for_reply(unsafe { SIGNATORY }, &encoded, GAS_LIMIT, 0).await;
+            msg_async::send_and_wait_for_reply(unsafe { SIGNATORY }, &encoded, GAS_LIMIT, 0)
+                .await
+                .expect("Error in async message processing");
+
         debug!("sign_response = {:?}", sign_response);
 
         let reply = msg_async::send_and_wait_for_reply(
@@ -64,7 +67,9 @@ async fn main() {
             GAS_LIMIT,
             0,
         )
-        .await;
+        .await
+        .expect("Error in async message processing");
+
         debug!("reply = {:?}", reply);
 
         let result = format!(

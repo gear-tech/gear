@@ -61,7 +61,12 @@ impl WakeSignals {
         );
     }
 
-    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>, exit_code: i32) {
+    pub(crate) fn record_reply(
+        &mut self,
+        waiting_reply_to: MessageId,
+        payload: Vec<u8>,
+        exit_code: i32,
+    ) {
         let mut signal = self
             .signals
             .get_mut(&waiting_reply_to)
@@ -115,7 +120,7 @@ impl Future for MessageFuture {
                     return Poll::Ready(Err(exit_code));
                 }
 
-                Poll::Ready(Ok(actual_reply))  
+                Poll::Ready(Ok(actual_reply))
             },
         }
     }
