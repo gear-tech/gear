@@ -27,7 +27,7 @@ use gcore::{msg, MessageId, ProgramId};
 #[derive(Debug)]
 struct WakeSignal {
     message_id: MessageId,
-    payload: Option<Vec<u8>>,
+    payload: Option<(Vec<u8>, i32)>,
 }
 
 pub(crate) struct WakeSignals {
@@ -37,7 +37,7 @@ pub(crate) struct WakeSignals {
 pub enum ReplyPoll {
     None,
     Pending,
-    Some(Vec<u8>),
+    Some((Vec<u8>, i32)),
 }
 
 impl WakeSignals {
@@ -61,7 +61,7 @@ impl WakeSignals {
         );
     }
 
-    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>) {
+    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: (Vec<u8>, i32)) {
         let mut signal = self
             .signals
             .get_mut(&waiting_reply_to)
@@ -110,13 +110,12 @@ impl Future for MessageFuture {
         match signals_static().poll(fut.waiting_reply_to)        {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some(actual_reply) => {
-                let exit_code = gstd::msg::exit_code();
-                if exit_code == 0 {
-                    Poll::Ready(Ok(actual_reply))
-                } else {
-                    Poll::Ready(Err(exit_code))
+            ReplyPoll::Some((actual_reply, exit_code)) => {
+                if exit_code != 0 {
+                    return Poll::Ready(Err(exit_code));
                 }
+
+                Poll::Ready(Ok(actual_reply))  
             },
         }
     }

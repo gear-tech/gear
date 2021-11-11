@@ -76,5 +76,5 @@ where
 #[no_mangle]
 unsafe extern "C" fn handle_reply() {
     let original_message_id = gcore::msg::reply_to();
-    crate::msg::signals_static().record_reply(original_message_id, gstd::msg::load_bytes());
+    crate::msg::signals_static().record_reply(original_message_id, (gstd::msg::load_bytes(), gstd::msg::exit_code()));
 }
