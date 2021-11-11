@@ -18,15 +18,13 @@
 
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter},
+    gas::{ChargeResult, GasCounter, GasCounterLimited},
     memory::{MemoryContext, PageNumber},
     message::{ExitCode, MessageContext, MessageId, OutgoingPacket, ReplyPacket},
     program::ProgramId,
 };
 
 use crate::util::BlakeMessageIdGenerator;
-
-use alloc::boxed::Box;
 
 /// Structure providing externalities for running host functions.
 pub struct Ext {
@@ -35,7 +33,7 @@ pub struct Ext {
     /// Message context.
     pub messages: MessageContext<BlakeMessageIdGenerator>,
     /// Gas counter.
-    pub gas_counter: Box<dyn GasCounter>,
+    pub gas_counter: GasCounterLimited,
     /// Cost per allocation.
     pub alloc_cost: u64,
     /// Cost per gmemory grow.

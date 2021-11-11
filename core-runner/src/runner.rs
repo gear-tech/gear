@@ -18,7 +18,6 @@
 
 //! Module for running programs.
 
-use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
@@ -679,7 +678,7 @@ fn run<E: Environment<Ext>>(
     gas_limit: u64,
     block_height: u32,
 ) -> RunResult {
-    let mut gas_counter = Box::new(GasCounterLimited::new(gas_limit)) as Box<dyn GasCounter>;
+    let mut gas_counter = GasCounterLimited::new(gas_limit);
 
     let id_generator = BlakeMessageIdGenerator {
         program_id: program.id(),
