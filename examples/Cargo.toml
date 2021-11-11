@@ -35,6 +35,8 @@ members = [
     "wait",
     "token-vendor",
     "token-vendor/workshop-example",
+    "fungible-token",
+    "curve-amm",
 ]
 
 [profile.release]
