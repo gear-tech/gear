@@ -1,0 +1,71 @@
+title: Async-await
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_exit_code.wasm
+
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_panicker.wasm
+
+  - id: 3
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+fixtures:
+  - title: normal
+
+    messages:
+      - destination: 3
+        source:
+          kind: id
+          value: 1
+        payload:
+          kind: utf-8
+          value: PING
+
+    expected:
+      - log:
+        - destination: 0
+          source:
+            kind: id
+            value: 1
+          payload:
+            kind: utf-8
+            value: 0
+
+  - title: panic
+
+    messages:
+      - destination: 2
+        source:
+          kind: id
+          value: 1
+        payload:
+          kind: utf-8
+          value: any
+
+    expected:
+      - log:
+        - destination: 0
+          source:
+            kind: id
+            value: 1
+          payload:
+            kind: utf-8
+            value: 1
+
+  - title: gas limit trap
+
+    messages:
+      - destination: 2
+        source:
+          kind: id
+          value: 1
+        gas_limit: 0
+        payload:
+          kind: utf-8
+          value: any
+
+    # has no output due to gas absence
+    # not enough gas to reply for exit_code demo
+    expected:
+      - log: []

@@ -236,6 +236,23 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 .unwrap_or(Ok(ReturnValue::Value(Value::I32(0))))
         }
 
+        fn exit_code<E: Ext>(
+            ctx: &mut Runtime<E>,
+            _args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let reply_tuple = ctx.ext.with(|ext: &mut E| ext.reply_to()).map_err(|err| {
+                ctx.trap_reason = Some(err);
+                HostError
+            })?;
+
+            if let Some((_, exit_code)) = reply_tuple {
+                Ok(ReturnValue::Value(Value::I32(exit_code)))
+            } else {
+                ctx.trap_reason = Some("Trapping: exit code ran into non-reply scenario");
+                Err(HostError)
+            }
+        }
+
         fn gas<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
             let val: i32 = match args[0] {
                 Value::I32(val) => val,
@@ -558,6 +575,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "alloc", alloc);
         env_builder.add_host_func("env", "free", free);
         env_builder.add_host_func("env", "gr_block_height", block_height);
+        env_builder.add_host_func("env", "gr_exit_code", exit_code);
         env_builder.add_host_func("env", "gr_send", send);
         env_builder.add_host_func("env", "gr_send_commit", send_commit);
         env_builder.add_host_func("env", "gr_send_init", send_init);
