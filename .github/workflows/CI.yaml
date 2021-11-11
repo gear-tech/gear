@@ -73,7 +73,7 @@ jobs:
         run: ./scripts/gear.sh build gear --release --locked
 
       - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples
+        run: ./scripts/gear.sh build examples --locked
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc

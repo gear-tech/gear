@@ -112,7 +112,7 @@ case "$COMMAND" in
       examples)
         check_extension
         header "Building gear examples"
-        examples_build "$ROOT_DIR" "$TARGET_DIR"; ;;
+        examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
 
       wasm-proc)
         header "Building wasm-proc util"
