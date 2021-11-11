@@ -48,10 +48,6 @@ pub enum InstrumentError {
     Encode,
 }
 
-/// Gas counter with unlimited gas.
-#[derive(Debug)]
-pub struct GasCounterUnlimited;
-
 /// Gas counter with some predifined maximum gas.
 #[derive(Debug)]
 pub struct GasCounterLimited {
@@ -77,28 +73,6 @@ pub trait GasCounter {
 
     /// Report how much gas is burned.
     fn burned(&self) -> u64;
-}
-
-impl GasCounter for GasCounterUnlimited {
-    fn charge(&mut self, _amount: u64) -> ChargeResult {
-        ChargeResult::Enough
-    }
-
-    fn reduce(&mut self, _amount: u64) -> ChargeResult {
-        ChargeResult::Enough
-    }
-
-    fn refund(&mut self, _amount: u64) -> ChargeResult {
-        ChargeResult::Enough
-    }
-
-    fn left(&self) -> u64 {
-        u64::MAX
-    }
-
-    fn burned(&self) -> u64 {
-        0
-    }
 }
 
 impl GasCounter for GasCounterLimited {
@@ -190,31 +164,7 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
 #[cfg(test)]
 /// This module contains tests of GasCounter's variations
 mod tests {
-    use super::{ChargeResult, GasCounter, GasCounterLimited, GasCounterUnlimited};
-
-    /// Maximum theoretical gas limit.
-    pub fn max_gas() -> u64 {
-        u64::MAX
-    }
-
-    #[test]
-    /// Test that GasCounterUnlimited object is always Enough for `charge(...)`
-    /// and the remaining gas is always at it's maximum
-    fn unlimited_gas_counter_charging() {
-        let mut counter = GasCounterUnlimited;
-
-        assert_eq!(counter.left(), max_gas());
-
-        let result = counter.charge(0);
-
-        assert_eq!(result, ChargeResult::Enough);
-        assert_eq!(counter.left(), max_gas());
-
-        let result = counter.charge(u64::MAX);
-
-        assert_eq!(result, ChargeResult::Enough);
-        assert_eq!(counter.left(), max_gas());
-    }
+    use super::{ChargeResult, GasCounter, GasCounterLimited};
 
     #[test]
     /// Test that GasCounterLimited object returns Enough and decreases the remaining count
