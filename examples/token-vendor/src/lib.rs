@@ -167,7 +167,7 @@ async fn main() {
                 GAS_RESERVE,
                 0,
             )
-            .await;
+            .await.expect("Error in async message processing");
 
             let ping = String::decode(&mut response.as_ref())
                 .expect("Failed to decode string from pong-response");
@@ -181,7 +181,7 @@ async fn main() {
                     GAS_RESERVE,
                     0,
                 )
-                .await;
+                .await.expect("Error in async message processing");
 
                 let success = String::decode(&mut response.as_ref())
                     .expect("Failed to decode string from MemberID-response");

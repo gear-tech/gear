@@ -103,14 +103,21 @@ pub struct MessageFuture {
 }
 
 impl Future for MessageFuture {
-    type Output = Vec<u8>;
+    type Output = Result<Vec<u8>, i32>;
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
         match signals_static().poll(fut.waiting_reply_to)        {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some(actual_reply) => Poll::Ready(actual_reply),
+            ReplyPoll::Some(actual_reply) => {
+                let exit_code = gstd::msg::exit_code();
+                if exit_code == 0 {
+                    Poll::Ready(Ok(actual_reply))
+                } else {
+                    Poll::Ready(Err(exit_code))
+                }
+            },
         }
     }
 }
