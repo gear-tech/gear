@@ -27,7 +27,7 @@ use gcore::{msg, MessageId, ProgramId};
 #[derive(Debug)]
 struct WakeSignal {
     message_id: MessageId,
-    payload: Option<Vec<u8>>,
+    payload: Option<(Vec<u8>, i32)>,
 }
 
 pub(crate) struct WakeSignals {
@@ -37,7 +37,7 @@ pub(crate) struct WakeSignals {
 pub enum ReplyPoll {
     None,
     Pending,
-    Some(Vec<u8>),
+    Some((Vec<u8>, i32)),
 }
 
 impl WakeSignals {
@@ -61,13 +61,18 @@ impl WakeSignals {
         );
     }
 
-    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>) {
+    pub(crate) fn record_reply(
+        &mut self,
+        waiting_reply_to: MessageId,
+        payload: Vec<u8>,
+        exit_code: i32,
+    ) {
         let mut signal = self
             .signals
             .get_mut(&waiting_reply_to)
             .expect("Somehow received reply for the message we never sent");
 
-        signal.payload = Some(payload);
+        signal.payload = Some((payload, exit_code));
         gcore::exec::wake(signal.message_id, gcore::exec::gas_available());
     }
 
@@ -103,14 +108,20 @@ pub struct MessageFuture {
 }
 
 impl Future for MessageFuture {
-    type Output = Vec<u8>;
+    type Output = Result<Vec<u8>, i32>;
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
         match signals_static().poll(fut.waiting_reply_to)        {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some(actual_reply) => Poll::Ready(actual_reply),
+            ReplyPoll::Some((actual_reply, exit_code)) => {
+                if exit_code != 0 {
+                    return Poll::Ready(Err(exit_code));
+                }
+
+                Poll::Ready(Ok(actual_reply))
+            },
         }
     }
 }
