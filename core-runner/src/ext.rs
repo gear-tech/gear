@@ -26,8 +26,6 @@ use gear_core::{
 
 use crate::util::BlakeMessageIdGenerator;
 
-use alloc::boxed::Box;
-
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Memory context.
@@ -35,7 +33,7 @@ pub struct Ext {
     /// Message context.
     pub messages: MessageContext<BlakeMessageIdGenerator>,
     /// Gas counter.
-    pub gas_counter: Box<dyn GasCounter>,
+    pub gas_counter: GasCounter,
     /// Cost per allocation.
     pub alloc_cost: u64,
     /// Cost per gmemory grow.

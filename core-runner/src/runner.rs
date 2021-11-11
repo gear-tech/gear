@@ -18,7 +18,6 @@
 
 //! Module for running programs.
 
-use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
@@ -26,7 +25,7 @@ use codec::{Decode, Encode};
 use gear_backend_common::Environment;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{self, GasCounter, GasCounterLimited},
+    gas::{self, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{
         ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
@@ -679,7 +678,7 @@ fn run<E: Environment<Ext>>(
     gas_limit: u64,
     block_height: u32,
 ) -> RunResult {
-    let mut gas_counter = Box::new(GasCounterLimited::new(gas_limit)) as Box<dyn GasCounter>;
+    let mut gas_counter = GasCounter::new(gas_limit);
 
     let id_generator = BlakeMessageIdGenerator {
         program_id: program.id(),
