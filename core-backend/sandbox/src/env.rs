@@ -248,7 +248,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             if let Some((_, exit_code)) = reply_tuple {
                 Ok(ReturnValue::Value(Value::I32(exit_code)))
             } else {
-                ctx.trap_reason = Some("Trapping: exit code ran into");
+                ctx.trap_reason = Some("Trapping: exit code ran into non-reply scenario");
                 Err(HostError)
             }
         }
