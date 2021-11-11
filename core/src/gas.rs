@@ -50,33 +50,22 @@ pub enum InstrumentError {
 
 /// Gas counter with some predifined maximum gas.
 #[derive(Debug)]
-pub struct GasCounterLimited {
+pub struct GasCounter {
     left: u64,
     burned: u64,
 }
 
-/// Gas counter.
-pub trait GasCounter {
-    /// Charge some gas.
-    fn charge(&mut self, amount: u64) -> ChargeResult;
+impl GasCounter {
+    /// New limited gas counter with initial gas to spend.
+    pub fn new(initial_amount: u64) -> Self {
+        Self {
+            left: initial_amount,
+            burned: 0,
+        }
+    }
 
-    /// Reduce gas.
-    /// This means that gas was not spent, but rather transfered
-    /// to another actor.
-    fn reduce(&mut self, amount: u64) -> ChargeResult;
-
-    /// Refund gas amount.
-    fn refund(&mut self, amount: u64) -> ChargeResult;
-
-    /// Report how much gas is left.
-    fn left(&self) -> u64;
-
-    /// Report how much gas is burned.
-    fn burned(&self) -> u64;
-}
-
-impl GasCounter for GasCounterLimited {
-    fn charge(&mut self, amount: u64) -> ChargeResult {
+    /// Charge `amount` of gas.
+    pub fn charge(&mut self, amount: u64) -> ChargeResult {
         if self.left < amount {
             return ChargeResult::NotEnough;
         }
@@ -87,7 +76,11 @@ impl GasCounter for GasCounterLimited {
         ChargeResult::Enough
     }
 
-    fn reduce(&mut self, amount: u64) -> ChargeResult {
+    /// Reduce gas by `amount`.
+    ///
+    /// Called when message is sent to another program, so the gas `amount` is sent to
+    /// receiving program.
+    pub fn reduce(&mut self, amount: u64) -> ChargeResult {
         if self.left < amount {
             return ChargeResult::NotEnough;
         }
@@ -97,7 +90,8 @@ impl GasCounter for GasCounterLimited {
         ChargeResult::Enough
     }
 
-    fn refund(&mut self, amount: u64) -> ChargeResult {
+    /// Refund `amount` of gas.
+    pub fn refund(&mut self, amount: u64) -> ChargeResult {
         if amount > u64::MAX - self.left || amount > self.burned {
             return ChargeResult::NotEnough;
         }
@@ -108,22 +102,14 @@ impl GasCounter for GasCounterLimited {
         ChargeResult::Enough
     }
 
-    fn left(&self) -> u64 {
+    /// Report how much gas is left.
+    pub fn left(&self) -> u64 {
         self.left
     }
 
-    fn burned(&self) -> u64 {
+    /// Report how much gas is burned.
+    pub fn burned(&self) -> u64 {
         self.burned
-    }
-}
-
-impl GasCounterLimited {
-    /// New limited gas counter with initial gas to spend.
-    pub fn new(initial_amount: u64) -> Self {
-        Self {
-            left: initial_amount,
-            burned: 0,
-        }
     }
 }
 
@@ -162,16 +148,15 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
 }
 
 #[cfg(test)]
-/// This module contains tests of GasCounter's variations
 mod tests {
-    use super::{ChargeResult, GasCounter, GasCounterLimited};
+    use super::{ChargeResult, GasCounter};
 
     #[test]
-    /// Test that GasCounterLimited object returns Enough and decreases the remaining count
+    /// Test that `GasCounter` object returns `Enough` and decreases the remaining count
     /// on calling `charge(...)` when the remaining gas exceeds the required value,
     /// otherwise returns NotEnough
     fn limited_gas_counter_charging() {
-        let mut counter = GasCounterLimited::new(200);
+        let mut counter = GasCounter::new(200);
 
         let result = counter.charge(100);
 

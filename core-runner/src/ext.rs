@@ -18,7 +18,7 @@
 
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter, GasCounterLimited},
+    gas::{ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{ExitCode, MessageContext, MessageId, OutgoingPacket, ReplyPacket},
     program::ProgramId,
@@ -33,7 +33,7 @@ pub struct Ext {
     /// Message context.
     pub messages: MessageContext<BlakeMessageIdGenerator>,
     /// Gas counter.
-    pub gas_counter: GasCounterLimited,
+    pub gas_counter: GasCounter,
     /// Cost per allocation.
     pub alloc_cost: u64,
     /// Cost per gmemory grow.
