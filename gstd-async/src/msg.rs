@@ -61,13 +61,13 @@ impl WakeSignals {
         );
     }
 
-    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: (Vec<u8>, i32)) {
+    pub(crate) fn record_reply(&mut self, waiting_reply_to: MessageId, payload: Vec<u8>, exit_code: i32) {
         let mut signal = self
             .signals
             .get_mut(&waiting_reply_to)
             .expect("Somehow received reply for the message we never sent");
 
-        signal.payload = Some(payload);
+        signal.payload = Some((payload, exit_code));
         gcore::exec::wake(signal.message_id, gcore::exec::gas_available());
     }
 
