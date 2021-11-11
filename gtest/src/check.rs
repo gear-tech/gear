@@ -122,7 +122,7 @@ fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl 
 }
 
 fn check_messages(
-    progs_n_paths: Vec<(String, u64)>,
+    progs_n_paths: &[(&str, ProgramId)],
     messages: &[Message],
     expected_messages: &[sample::Message],
 ) -> Result<(), Vec<MessagesError>> {
@@ -141,21 +141,29 @@ fn check_messages(
             .zip(messages.iter_mut())
             .enumerate()
             .for_each(|(position, (exp, msg))| {
-                let meta_type = if exp.init.unwrap_or(false) {
-                    MetaType::InitOutput
-                } else {
-                    MetaType::HandleOutput
-                };
+                let source_n_dest = [msg.source(), msg.dest()];
+                let is_init = exp.init.unwrap_or(false);
 
                 if exp
                     .payload
                     .as_mut()
                     .map(|payload| match payload {
                         PayloadVariant::Custom(_) => {
-                            if let Some(v) = progs_n_paths
-                                .iter()
-                                .find(|v| ProgramId::from(v.1) == msg.source())
+                            if let Some(v) =
+                                progs_n_paths.iter().find(|v| source_n_dest.contains(&v.1))
                             {
+                                let meta_type = if v.1 == source_n_dest[0] {
+                                    if is_init {
+                                        MetaType::InitOutput
+                                    } else {
+                                        MetaType::HandleOutput
+                                    }
+                                } else if is_init {
+                                    MetaType::InitInput
+                                } else {
+                                    MetaType::HandleInput
+                                };
+
                                 let path: String = v.0.replace(".wasm", ".meta.wasm");
 
                                 let json =
@@ -375,10 +383,12 @@ where
     println!("Total fixtures: {}", total_fixtures);
 
     for test in tests {
-        let mut progs_n_paths = Vec::new();
-        for program in test.programs.iter() {
-            progs_n_paths.push((program.path.clone(), program.id));
-        }
+        let progs_n_paths: Vec<(&str, ProgramId)> = test
+            .programs
+            .iter()
+            .map(|prog| (prog.path.as_ref(), ProgramId::from(prog.id)))
+            .collect();
+
         for fixture_no in 0..test.fixtures.len() {
             for exp in &test.fixtures[fixture_no].expected {
                 let output = match runner::init_fixture(storage_factory(), &test, fixture_no) {
@@ -388,11 +398,9 @@ where
                         let mut errors = Vec::new();
                         if !skip_messages {
                             if let Some(messages) = &exp.messages {
-                                if let Err(msg_errors) = check_messages(
-                                    progs_n_paths.clone(),
-                                    &final_state.messages,
-                                    messages,
-                                ) {
+                                if let Err(msg_errors) =
+                                    check_messages(&progs_n_paths, &final_state.messages, messages)
+                                {
                                     errors.extend(
                                         msg_errors
                                             .into_iter()
@@ -409,7 +417,7 @@ where
                             }
 
                             if let Err(log_errors) =
-                                check_messages(progs_n_paths.clone(), &final_state.log, log)
+                                check_messages(&progs_n_paths, &final_state.log, log)
                             {
                                 errors.extend(
                                     log_errors
