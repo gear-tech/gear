@@ -335,7 +335,15 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
 
         let mut context = self.create_context(allocations);
         let next_message_id = next_message.id();
-        let next_message_exit_code = next_message.reply().map(|v| v.1).unwrap_or(0);
+
+        // We don't generate reply on trap, if we already processing trap message
+        let generate_reply_on_trap = if let Some((_, exit_code)) = next_message.reply() {
+            // reply case. generate if not a trap message
+            exit_code == 0
+        } else {
+            // none-reply case. always generate
+            true
+        };
 
         let mut run_result = run(
             &mut self.env,
@@ -352,7 +360,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
             self.block_height,
         );
 
-        if run_result.outcome.was_trap() && next_message_exit_code != 1 {
+        if run_result.outcome.was_trap() && generate_reply_on_trap {
             // In case of trap, we generate trap reply message
             let program_id = program.id();
             let nonce = program.fetch_inc_message_nonce();
