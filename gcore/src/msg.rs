@@ -68,7 +68,7 @@ mod sys {
 
 /// Get the exit code of the message being processed.
 ///
-/// This function is used to check that reply message were processed
+/// This function is used to check the reply message was processed
 /// successfully or not.
 ///
 /// # Examples
