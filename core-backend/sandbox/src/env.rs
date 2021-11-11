@@ -236,11 +236,16 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 .unwrap_or(Ok(ReturnValue::Value(Value::I32(0))))
         }
 
-        fn exit_code<E: Ext>(ctx: &mut Runtime<E>, _args: &[Value]) -> Result<ReturnValue, HostError> {
+        fn exit_code<E: Ext>(
+            ctx: &mut Runtime<E>,
+            _args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
             ctx.ext
-                .with(|ext: &mut E| ext.reply_to()
-                    .map(|v| Ok(ReturnValue::Value(Value::I32(v.1))))
-                    .unwrap_or(Ok(ReturnValue::Value(Value::I32(0)))))
+                .with(|ext: &mut E| {
+                    ext.reply_to()
+                        .map(|v| Ok(ReturnValue::Value(Value::I32(v.1))))
+                        .unwrap_or(Ok(ReturnValue::Value(Value::I32(0))))
+                })
                 .unwrap_or(Ok(ReturnValue::Value(Value::I32(1))))
         }
 
@@ -310,8 +315,6 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             let block_height = ctx.ext.with(|ext: &mut E| ext.block_height()).unwrap_or(0);
             Ok(ReturnValue::Value(Value::I32(block_height as i32)))
         }
-
-        
 
         fn reply<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
             let payload_ptr: i32 = match args[0] {

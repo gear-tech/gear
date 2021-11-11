@@ -1,16 +1,14 @@
 #![no_std]
 
-use gstd::{msg, ProgramId, prelude::ToString};
+use gstd::{msg, prelude::ToString, ProgramId};
 
 static mut HOST: ProgramId = ProgramId([0u8; 32]);
 
 #[no_mangle]
-pub unsafe extern "C" fn init() {
-}
+pub unsafe extern "C" fn init() {}
 
 #[no_mangle]
-pub unsafe extern "C" fn handle() {
-}
+pub unsafe extern "C" fn handle() {}
 
 #[no_mangle]
 pub unsafe extern "C" fn handle_reply() {
