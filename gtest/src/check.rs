@@ -152,16 +152,13 @@ fn check_messages(
                             if let Some(v) =
                                 progs_n_paths.iter().find(|v| source_n_dest.contains(&v.1))
                             {
-                                let meta_type = if v.1 == source_n_dest[0] {
-                                    if is_init {
-                                        MetaType::InitOutput
-                                    } else {
-                                        MetaType::HandleOutput
-                                    }
-                                } else if is_init {
-                                    MetaType::InitInput
-                                } else {
-                                    MetaType::HandleInput
+                                let is_outgoing = v.1 == source_n_dest[0];
+
+                                let meta_type = match (is_init, is_outgoing) {
+                                    (true, true) => MetaType::InitOutput,
+                                    (true, false) => MetaType::InitInput,
+                                    (false, true) => MetaType::HandleOutput,
+                                    (false, false) => MetaType::HandleInput,
                                 };
 
                                 let path: String = v.0.replace(".wasm", ".meta.wasm");
