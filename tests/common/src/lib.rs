@@ -236,7 +236,7 @@ impl RunnerContext {
         Self::new(Runner::new(
             config,
             Default::default(),
-            0,
+            Default::default(),
             WasmtimeEnvironment::default(),
         ))
     }
@@ -484,7 +484,7 @@ impl RunnerState {
                 Self::Storage(storage, config) => Self::Runner(Runner::new(
                     &config,
                     storage,
-                    0,
+                    Default::default(),
                     WasmtimeEnvironment::default(),
                 )),
                 _ => Self::Runner(Runner::default()),

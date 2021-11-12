@@ -217,7 +217,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-block-height"
+name = "demo-block-info"
 version = "0.1.0"
 dependencies = [
  "gstd",

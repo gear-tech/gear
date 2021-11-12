@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
-use crate::ext::Ext;
+use crate::ext::{BlockInfo, Ext};
 use alloc::vec::*;
 use gear_backend_common::Environment;
 use gear_core::storage::{MessageQueue, ProgramStorage, Storage, WaitList};
@@ -31,7 +31,7 @@ pub struct RunnerBuilder<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: 
     config: Config,
     programs: Vec<InitializeProgramInfo>,
     storage: Storage<MQ, PS, WL>,
-    block_height: u32,
+    block_info: BlockInfo,
     env: core::marker::PhantomData<E>,
 }
 
@@ -48,9 +48,9 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
         Default::default()
     }
 
-    /// Set block height.
-    pub fn block_height(mut self, value: u32) -> Self {
-        self.block_height = value;
+    /// Set the block info.
+    pub fn block_info(mut self, value: BlockInfo) -> Self {
+        self.block_info = value;
         self
     }
 
@@ -110,7 +110,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
 
     /// Initialize all programs and return [`Runner`].
     pub fn build(self) -> Runner<MQ, PS, WL, E> {
-        let mut runner = Runner::new(&self.config, self.storage, self.block_height, E::default());
+        let mut runner = Runner::new(&self.config, self.storage, self.block_info, E::default());
         for program in self.programs {
             runner
                 .init_program(program)

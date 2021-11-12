@@ -40,6 +40,7 @@ construct_runtime!(
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
     }
 );
 
@@ -114,6 +115,17 @@ impl pallet_authorship::Config for Test {
     type UncleGenerations = ();
     type FilterUncle = ();
     type EventHandler = ();
+}
+
+parameter_types! {
+    pub const MinimumPeriod: u64 = 500;
+}
+
+impl pallet_timestamp::Config for Test {
+    type Moment = u64;
+    type OnTimestampSet = ();
+    type MinimumPeriod = MinimumPeriod;
+    type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.
