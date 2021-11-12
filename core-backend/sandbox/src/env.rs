@@ -600,26 +600,32 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             trap_reason: None,
         };
 
-        let instance = Instance::new(binary, &env_builder, &mut runtime).unwrap();
-
-        let result = self.run_inner(instance, memory_pages, memory, move |mut instance| {
-            let result = instance.invoke(entry_point, &[], &mut runtime);
-            if let Err(_e) = &result {
-                if let Some(trap) = runtime.trap_reason {
-                    if funcs::is_exit_trap(&trap.to_string()) {
-                        // We don't propagate a trap when exit
-                        return Ok(());
-                    }
+        let result: anyhow::Result<(), anyhow::Error> =
+            match Instance::new(binary, &env_builder, &mut runtime) {
+                Ok(instance) => {
+                    let result =
+                        self.run_inner(instance, memory_pages, memory, move |mut instance| {
+                            let result = instance.invoke(entry_point, &[], &mut runtime);
+                            if let Err(_e) = &result {
+                                if let Some(trap) = runtime.trap_reason {
+                                    if funcs::is_exit_trap(&trap.to_string()) {
+                                        // We don't propagate a trap when exit
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                            result.map(|_| ()).map_err(|err| {
+                                if let Some(trap) = runtime.trap_reason {
+                                    return anyhow::format_err!("{:?}", trap);
+                                } else {
+                                    return anyhow::format_err!("{:?}", err);
+                                }
+                            })
+                        });
+                    result
                 }
-            }
-            result.map(|_| ()).map_err(|err| {
-                if let Some(trap) = runtime.trap_reason {
-                    return anyhow::format_err!("{:?}", trap);
-                } else {
-                    return anyhow::format_err!("{:?}", err);
-                }
-            })
-        });
+                Err(err) => Err(anyhow::format_err!("{:?}", err)),
+            };
 
         let ext = self.ext.unset();
 
