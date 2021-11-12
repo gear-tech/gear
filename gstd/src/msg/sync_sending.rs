@@ -43,6 +43,10 @@ impl Output for MessageHandle {
     }
 }
 
+pub fn exit_code() -> i32 {
+    gcore::msg::exit_code()
+}
+
 pub fn id() -> MessageId {
     gcore::msg::id().into()
 }

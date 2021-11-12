@@ -17,26 +17,32 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
+use crate::ext::Ext;
 use alloc::vec::*;
-use gear_core::storage::{
-    InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, MessageQueue, ProgramStorage,
-    Storage, WaitList,
-};
+use gear_backend_common::Environment;
+use gear_core::storage::{MessageQueue, ProgramStorage, Storage, WaitList};
+
+#[cfg(test)]
+use gear_core::storage::{InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList};
 
 /// Builder for [`Runner`].
 #[derive(Default)]
-pub struct RunnerBuilder<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
+pub struct RunnerBuilder<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>> {
     config: Config,
     programs: Vec<InitializeProgramInfo>,
     storage: Storage<MQ, PS, WL>,
     block_height: u32,
+    env: core::marker::PhantomData<E>,
 }
 
+#[cfg(test)]
 /// Fully in-memory runner builder (for tests).
-pub type InMemoryRunnerBuilder =
-    RunnerBuilder<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
+pub type InMemoryRunnerBuilder<E> =
+    RunnerBuilder<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, E>;
 
-impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> RunnerBuilder<MQ, PS, WL> {
+impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
+    RunnerBuilder<MQ, PS, WL, E>
+{
     /// Create an empty `RunnerBuilder` for default [`Runner`].
     pub fn new() -> Self {
         Default::default()
@@ -103,8 +109,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> RunnerBuilder<MQ, PS, W
     }
 
     /// Initialize all programs and return [`Runner`].
-    pub fn build(self) -> Runner<MQ, PS, WL> {
-        let mut runner = Runner::new(&self.config, self.storage, self.block_height);
+    pub fn build(self) -> Runner<MQ, PS, WL, E> {
+        let mut runner = Runner::new(&self.config, self.storage, self.block_height, E::default());
         for program in self.programs {
             runner
                 .init_program(program)

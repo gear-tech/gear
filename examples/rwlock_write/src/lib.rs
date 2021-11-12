@@ -29,8 +29,9 @@ async fn main() {
     if message == "START" {
         let _val = RWLOCK.write().await;
 
-        let reply =
-            msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0).await;
+        let reply = msg_async::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
+            .await
+            .expect("Error in async message processing");
 
         if reply == b"PONG" {
             msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);

@@ -1943,6 +1943,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-backend-common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cfg-if 1.0.0",
+ "gear-core",
+ "log",
+ "num-derive",
+ "num-traits",
+]
+
+[[package]]
+name = "gear-backend-sandbox"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cfg-if 1.0.0",
+ "gear-backend-common",
+ "gear-core",
+ "log",
+ "num-derive",
+ "num-traits",
+ "sp-sandbox",
+]
+
+[[package]]
+name = "gear-backend-wasmtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cfg-if 1.0.0",
+ "gear-backend-common",
+ "gear-core",
+ "log",
+ "num-derive",
+ "num-traits",
+ "wasmtime",
+]
+
+[[package]]
 name = "gear-common"
 version = "0.1.0"
 dependencies = [
@@ -1971,28 +2011,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-core-backend"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cfg-if 1.0.0",
- "gear-core",
- "log",
- "num-derive",
- "num-traits",
- "sp-sandbox",
- "wasmtime",
-]
-
-[[package]]
 name = "gear-core-runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "blake2-rfc",
  "env_logger 0.9.0",
+ "gear-backend-common",
+ "gear-backend-wasmtime",
  "gear-core",
- "gear-core-backend",
  "log",
  "parity-scale-codec",
  "wabt",
@@ -2046,6 +2073,7 @@ name = "gear-node-runner"
 version = "0.1.0"
 dependencies = [
  "frame-system",
+ "gear-backend-common",
  "gear-common",
  "gear-core",
  "gear-core-runner",
@@ -2111,6 +2139,8 @@ dependencies = [
  "colored",
  "derive_more",
  "env_logger 0.9.0",
+ "gear-backend-common",
+ "gear-backend-wasmtime",
  "gear-common",
  "gear-core",
  "gear-core-runner",
@@ -2132,6 +2162,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "frame-system",
+ "gear-backend-wasmtime",
  "gear-common",
  "gear-core",
  "gear-node-runner",
@@ -4127,6 +4158,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "gear-backend-sandbox",
  "gear-common",
  "gear-core",
  "gear-node-runner",
@@ -6275,9 +6307,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.68"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f690853975602e1bfe1ccbf50504d67174e3bcf340f23b5ea9992e0587a52d8"
+checksum = "e466864e431129c7e0d3476b92f20458e5879919a0596c6472738d9fa2d342f8"
 dependencies = [
  "itoa",
  "ryu",
@@ -7352,6 +7384,7 @@ dependencies = [
 name = "tests-common"
 version = "0.1.0"
 dependencies = [
+ "gear-backend-wasmtime",
  "gear-core",
  "gear-core-runner",
  "gstd",

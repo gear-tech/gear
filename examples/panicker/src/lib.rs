@@ -5,6 +5,7 @@ extern crate gstd;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
+    gstd::debug!("Starting panicker handle");
     panic!("I just panic every time")
 }
 

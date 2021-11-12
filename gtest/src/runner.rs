@@ -18,6 +18,7 @@
 
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
+use gear_backend_common::Environment;
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
@@ -27,7 +28,10 @@ use gear_core::{
     },
 };
 use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
-use gear_node_runner::ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList};
+use gear_node_runner::{
+    ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList},
+    Ext,
+};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::fmt::Write;
@@ -122,8 +126,13 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
     storage: Storage<MQ, PS, WL>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<Runner<MQ, PS, WL>> {
-    let mut runner = Runner::new(&Config::default(), storage, 0);
+) -> anyhow::Result<Runner<MQ, PS, WL, gear_backend_wasmtime::WasmtimeEnvironment<Ext>>> {
+    let mut runner = Runner::new(
+        &Config::default(),
+        storage,
+        0,
+        gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::default(),
+    );
     let mut nonce = 0;
     for program in test.programs.iter() {
         let code = std::fs::read(program.path.clone())?;
@@ -238,8 +247,8 @@ pub struct FinalState {
     pub wait_list: MessageMap,
 }
 
-pub fn run<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
-    mut runner: Runner<MQ, PS, WL>,
+pub fn run<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>(
+    mut runner: Runner<MQ, PS, WL, E>,
     steps: Option<u64>,
 ) -> (FinalState, anyhow::Result<()>)
 where

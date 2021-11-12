@@ -33,6 +33,10 @@ mod sys {
 
 /// Get the current block height.
 ///
+/// The block height serves to identify a particular block.
+/// This information can be used to enable many scenarios like restricting or
+/// allowing of some functions until certain block height is reached.
+///
 /// # Examples
 ///
 /// ```
@@ -53,14 +57,16 @@ pub fn block_height() -> u32 {
 ///
 /// Each message processing consumes gas, both on instructions execution and
 /// memory allocations. This function returns a value of the gas available for
-/// spending during current execution.
+/// spending during current execution. Its use may help to avoid unexpected
+/// behaviors during the smart-contract execution in case of not enough gas
+/// available.
 ///
 /// # Examples
 ///
 /// ```
 /// use gcore::exec;
 ///
-/// // Perform work while gas_available is more than 1000
+/// // Perform work while `gas_available` is more than 1000
 /// pub unsafe extern "C" fn handle() {
 ///     while exec::gas_available() > 1000 {
 ///         // ...
@@ -73,12 +79,12 @@ pub fn gas_available() -> u64 {
 
 /// Pause the current message handling.
 ///
-/// If the message handling needs to be paused, i.e. to await for some other
-/// execution is finished before current execution can continue, this function
-/// should be used. `wait` finishes current message handle execution with a
-/// special result and puts the current message into the *waiting queue* to be
-/// awakened using the correspondent [`wake`] function later. All gas that
-/// hasn't yet been spent is attributed to the message in the *waiting queue*.
+/// If the message handling needs to be paused, i.e. to wait for another
+/// execution to finish, this function should be used. [`wait`] finishes current
+/// message handle execution with a special result and puts the current message
+/// into the *waiting queue* to be awakened using the correspondent [`wake`]
+/// function later. All gas that hasn't yet been spent is attributed to the
+/// message in the *waiting queue*.
 ///
 /// # Examples
 ///
@@ -96,11 +102,11 @@ pub fn wait() -> ! {
 
 /// Resume previously paused message handling.
 ///
-/// If message has been paused using the [`wait`] function, then it is possible
-/// to continue its execution by calling this function. `waker_id` specifies a
-/// particular message to be taken out of the *waiting queue* and put into the
-/// *processing queue*. `gas_limit` is the gas value to be transferred from the
-/// current handling message to the waked one.
+/// If a message has been paused using the [`wait`] function, then it is
+/// possible to continue its execution by calling this function. `waker_id`
+/// which specifies a particular message to be taken out of the *waiting queue*
+/// and put into the *processing queue*. `gas_limit` is the gas value to be
+/// transferred from the current handling message to the waked one.
 ///
 /// # Examples
 ///

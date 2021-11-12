@@ -1,0 +1,15 @@
+[package]
+name = "demo-async-sign"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug", "meta"] }
+gstd-async = { path = "../../gstd-async" }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }

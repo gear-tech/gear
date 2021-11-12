@@ -18,5 +18,11 @@
 
 //! Provide wasmtime-runtime support.
 
+#![no_std]
+
+extern crate alloc;
+
 pub mod env;
 pub mod memory;
+
+pub use env::WasmtimeEnvironment;

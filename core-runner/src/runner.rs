@@ -18,15 +18,15 @@
 
 //! Module for running programs.
 
-use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 
+use gear_backend_common::Environment;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{self, GasCounter, GasCounterLimited},
-    memory::{Memory, MemoryContext, PageNumber},
+    gas::{self, GasCounter},
+    memory::{MemoryContext, PageNumber},
     message::{
         ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
         MessageState, OutgoingMessage, ReplyMessage,
@@ -37,7 +37,6 @@ use gear_core::{
         ProgramStorage, Storage, WaitList,
     },
 };
-use gear_core_backend::Environment;
 
 use crate::builder::RunnerBuilder;
 use crate::ext::Ext;
@@ -152,18 +151,19 @@ impl RunNextResult {
 /// This instance allows to handle multiple messages using underlying allocation, message and program
 /// storage.
 #[derive(Default)]
-pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
+pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>> {
     pub(crate) program_storage: PS,
     pub(crate) message_queue: MQ,
     pub(crate) wait_list: WL,
     pub(crate) log: Log,
     pub(crate) config: Config,
-    env: Environment<Ext>,
+    env: E,
     block_height: u32,
 }
 
 /// Fully in-memory runner builder (for tests).
-pub type InMemoryRunner = Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
+pub type InMemoryRunner<E> =
+    Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, E>;
 
 /// Message payload with pre-generated identifier and economic data.
 pub struct ExtMessage {
@@ -253,13 +253,13 @@ impl ReplyDispatch {
     }
 }
 
-impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
+impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
+    Runner<MQ, PS, WL, E>
+{
     /// New runner instance.
     ///
     /// Provide configuration, storage.
-    pub fn new(config: &Config, storage: Storage<MQ, PS, WL>, block_height: u32) -> Self {
-        let env = Environment::new();
-
+    pub fn new(config: &Config, storage: Storage<MQ, PS, WL>, block_height: u32, env: E) -> Self {
         let Storage {
             message_queue,
             program_storage,
@@ -279,8 +279,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
     }
 
     /// Create an empty [`RunnerBuilder`].
-    pub fn builder() -> RunnerBuilder<MQ, PS, WL> {
-        RunnerBuilder::new()
+    pub fn builder() -> RunnerBuilder<MQ, PS, WL, E> {
+        crate::runner::RunnerBuilder::new()
     }
 
     /// Run handling next message in the queue.
@@ -335,6 +335,15 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
         let mut context = self.create_context(allocations);
         let next_message_id = next_message.id();
 
+        // We don't generate reply on trap, if we already processing trap message
+        let generate_reply_on_trap = if let Some((_, exit_code)) = next_message.reply() {
+            // reply case. generate if not a trap message
+            exit_code == 0
+        } else {
+            // none-reply case. always generate
+            true
+        };
+
         let mut run_result = run(
             &mut self.env,
             &mut context,
@@ -350,7 +359,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Runner<MQ, PS, WL> {
             self.block_height,
         );
 
-        if run_result.outcome.was_trap() {
+        if run_result.outcome.was_trap() && generate_reply_on_trap {
             // In case of trap, we generate trap reply message
             let program_id = program.id();
             let nonce = program.fetch_inc_message_nonce();
@@ -659,8 +668,8 @@ pub struct RunResult {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run(
-    env: &mut Environment<Ext>,
+fn run<E: Environment<Ext>>(
+    env: &mut E,
     context: &mut RunningContext,
     binary: &[u8],
     program: &mut Program,
@@ -669,7 +678,7 @@ fn run(
     gas_limit: u64,
     block_height: u32,
 ) -> RunResult {
-    let mut gas_counter = Box::new(GasCounterLimited::new(gas_limit)) as Box<dyn GasCounter>;
+    let mut gas_counter = GasCounter::new(gas_limit);
 
     let id_generator = BlakeMessageIdGenerator {
         program_id: program.id(),
@@ -682,15 +691,10 @@ fn run(
             if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
                 == gas::ChargeResult::NotEnough
             {
-                let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: Vec::new(),
-                    reply: None,
-                    waiting: None,
-                    awakening: Vec::new(),
-                    gas_left,
-                    gas_spent: 0,
+                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
+                    ..Default::default()
                 };
             }
         }
@@ -698,15 +702,10 @@ fn run(
             if gas_counter.charge(context.config.load_page_cost * program.get_pages().len() as u64)
                 == gas::ChargeResult::NotEnough
             {
-                let gas_left = gas_counter.left();
                 return RunResult {
-                    messages: Vec::new(),
-                    reply: None,
-                    waiting: None,
-                    awakening: Vec::new(),
-                    gas_left,
-                    gas_spent: 0,
+                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
+                    ..Default::default()
                 };
             }
         }
@@ -714,10 +713,31 @@ fn run(
 
     let memory = env.create_memory(program.static_pages());
 
+    // Charge gas for feature memory grows.
+    let max_page = program.get_pages().iter().next_back();
+    if let Some(max_page) = max_page {
+        let max_page_num = *max_page.0;
+        let mem_size = memory.size();
+        if max_page_num >= mem_size {
+            let amount =
+                context.config.mem_grow_cost * ((max_page_num - mem_size).raw() as u64 + 1);
+            let res = gas_counter.charge(amount);
+            if res != gas::ChargeResult::Enough {
+                return RunResult {
+                    gas_left: gas_counter.left(),
+                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for grow memory size.")),
+                    ..Default::default()
+                };
+            }
+        } else {
+            assert!(max_page_num.raw() == mem_size.raw() - 1);
+        }
+    }
+
     let ext = Ext {
         memory_context: MemoryContext::new(
             program.id(),
-            Memory::clone(&memory),
+            memory.clone(),
             context.allocations.clone(),
             program.static_pages().into(),
             context.max_pages(),
@@ -734,7 +754,7 @@ fn run(
         ext,
         binary,
         program.get_pages(),
-        &memory,
+        &*memory,
         entry_point.into(),
     );
 
@@ -818,10 +838,17 @@ mod tests {
     extern crate wabt;
 
     use super::*;
-    use crate::builder::{InMemoryRunnerBuilder, RunnerBuilder};
+    use crate::builder::InMemoryRunnerBuilder;
     use core::convert::TryInto;
     use env_logger::Env;
     use gear_core::storage::{InMemoryStorage, MessageMap};
+
+    type TestRunner = InMemoryRunner<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>;
+
+    pub fn new_test_builder(
+    ) -> InMemoryRunnerBuilder<gear_backend_wasmtime::WasmtimeEnvironment<Ext>> {
+        InMemoryRunnerBuilder::<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>::new()
+    }
 
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
@@ -860,7 +887,7 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner = RunnerBuilder::new().program(parse_wat(wat)).build();
+        let mut runner: TestRunner = new_test_builder().program(parse_wat(wat)).build();
 
         runner.queue_message(MessageDispatch {
             source_id: 1001.into(),
@@ -963,7 +990,7 @@ mod tests {
               )
           )"#;
 
-        let mut runner = InMemoryRunnerBuilder::new()
+        let mut runner = new_test_builder()
             .program(parse_wat(wat))
             .with_init_message(ExtMessage {
                 id: 1000001.into(),
@@ -1059,7 +1086,7 @@ mod tests {
             )
           )"#;
 
-        let mut runner = InMemoryRunnerBuilder::new().program(parse_wat(wat)).build();
+        let mut runner = new_test_builder().program(parse_wat(wat)).build();
 
         runner.run_next(u64::MAX);
 
@@ -1115,7 +1142,7 @@ mod tests {
         let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
-        let mut runner = RunnerBuilder::new()
+        let mut runner = new_test_builder()
             .program(parse_wat(wat))
             .with_source_id(source_id)
             .with_program_id(dest_id)
@@ -1185,7 +1212,7 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = InMemoryRunnerBuilder::new()
+        let mut runner = new_test_builder()
             .program(parse_wat(wat))
             .with_init_message(ExtMessage {
                 id: 1000001.into(),
@@ -1248,7 +1275,7 @@ mod tests {
             )
         )"#;
 
-        let mut runner = InMemoryRunner::default(); //Runner::new(&Config::default(), InMemoryStorage::default());
+        let mut runner = TestRunner::default(); //Runner::new(&Config::default(), InMemoryStorage::default());
 
         let caller_id = 1001.into();
 
@@ -1304,7 +1331,7 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner = InMemoryRunnerBuilder::new()
+        let mut runner: TestRunner = new_test_builder()
             .program(parse_wat(wat))
             .with_source_id(1001)
             .with_program_id(1)

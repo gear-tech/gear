@@ -30,5 +30,5 @@ fixtures:
             exact_pages: [17]
           - program_id: 2
             filter: dynamic
-            exact_pages: [17]
+            exact_pages: [17,18]
 

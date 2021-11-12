@@ -22,4 +22,5 @@ gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-runtime = { path = "../../runtime" }
 runner = { package = "gear-node-runner", path = "../../node-runner" }
-gear-test = { path = "../../gtest", default-features = false, features = ["sandbox"] }
+gear-test = { path = "../../gtest" }
+gear-backend-wasmtime = { path = "../../core-backend/wasmtime" }

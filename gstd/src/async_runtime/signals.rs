@@ -20,16 +20,17 @@ use crate::prelude::{BTreeMap, Vec};
 use crate::MessageId;
 
 pub type Payload = Vec<u8>;
+pub type ExitCode = i32;
 
 pub(crate) enum ReplyPoll {
     None,
     Pending,
-    Some(Payload),
+    Some((Payload, ExitCode)),
 }
 
 struct WakeSignal {
     message_id: MessageId,
-    payload: Option<Payload>,
+    payload: Option<(Payload, ExitCode)>,
 }
 
 pub(crate) struct WakeSignals {
@@ -59,7 +60,7 @@ impl WakeSignals {
             .get_mut(&crate::msg::reply_to())
             .expect("Somehow received reply for the message we never sent");
 
-        signal.payload = Some(crate::msg::load_bytes());
+        signal.payload = Some((crate::msg::load_bytes(), crate::msg::exit_code()));
         crate::exec::wake(signal.message_id, crate::exec::gas_available());
     }
 

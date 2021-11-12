@@ -97,7 +97,8 @@ mod wasm {
                     exec::gas_available() - 25_000_000,
                     0,
                 )
-                .await;
+                .await
+                .expect("Error in async message processing");
 
                 Rep::decode(&mut &reply_bytes[..]).map_err(|_| "Failed to decode reply")
             }

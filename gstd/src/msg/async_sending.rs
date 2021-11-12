@@ -24,6 +24,7 @@ use core::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
+    marker::PhantomData,
 };
 
 pub struct MessageFuture {
@@ -31,19 +32,28 @@ pub struct MessageFuture {
 }
 
 impl Future for MessageFuture {
-    type Output = Vec<u8>;
+    type Output = Result<Vec<u8>, i32>;
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
         match signals().poll(fut.waiting_reply_to) {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some(actual_reply) => Poll::Ready(actual_reply),
+            ReplyPoll::Some((actual_reply, exit_code)) => {
+                if exit_code != 0 {
+                    return Poll::Ready(Err(exit_code));
+                }
+
+                Poll::Ready(Ok(actual_reply))
+            },
         }
     }
 }
 
-use core::marker::PhantomData;
+pub enum CodecMessageError {
+    ExitCode(i32),
+    CodecError(codec::Error),
+}
 
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
@@ -51,14 +61,20 @@ pub struct CodecMessageFuture<T> {
 }
 
 impl<D: Decode> Future for CodecMessageFuture<D> {
-    type Output = Result<D, codec::Error>;
+    type Output = Result<D, CodecMessageError>;
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self;
         match signals().poll(fut.waiting_reply_to)        {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some(actual_reply) => Poll::Ready(D::decode(&mut actual_reply.as_ref())),
+            ReplyPoll::Some((actual_reply, exit_code)) => {
+                if exit_code != 0 {
+                    return Poll::Ready(Err(CodecMessageError::ExitCode(exit_code)));
+                }
+
+                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(|e| CodecMessageError::CodecError(e)))
+            },
         }
     }
 }
