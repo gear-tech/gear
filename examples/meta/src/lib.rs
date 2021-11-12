@@ -109,7 +109,6 @@ gstd::metadata! {
             input: MessageHandleAsyncIn,
             output: MessageHandleAsyncOut,
     state:
-        input: (),
         output: Vec<Wallet>,
 }
 
