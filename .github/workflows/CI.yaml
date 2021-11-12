@@ -59,10 +59,10 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: "16"
-      
+
       - name: "Show: Versioning"
         run: ./scripts/gear.sh show
-      
+
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
 
@@ -70,17 +70,17 @@ jobs:
         uses: Swatinem/rust-cache@v1
 
       - name: "Build: Gear"
-        run: ./scripts/gear.sh build gear --release
+        run: ./scripts/gear.sh build gear --release --locked
 
       - name: "Build: Examples (WASM)"
-        run: ./scripts/gear.sh build examples
-      
+        run: ./scripts/gear.sh build examples --locked
+
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build examples-proc
 
       - name: "Test: Gear workspace"
         run: ./scripts/gear.sh test gear --release
-      
+
       - name: "Test: Gear pallet" # Temporary feature to test sandbox backend
         run: ./scripts/gear.sh test pallet --release
 
