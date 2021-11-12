@@ -217,7 +217,7 @@ gtest: init-js examples
 	@ ./scripts/gear.sh test gtest
 
 .PHONY: ntest
-ntest:
+ntest: init-js examples
 	@ ./scripts/gear.sh test ntest
 
 .PHONY: test-pallet
