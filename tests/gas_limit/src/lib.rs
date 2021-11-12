@@ -32,7 +32,7 @@ mod wasm {
     extern crate alloc;
 
     use codec::{Decode, Encode};
-    use gstd::{msg, prelude::*, util, ActorId, MessageId};
+    use gstd::{msg, prelude::*, ActorId, MessageId};
 
     use super::{Reply, Request};
 

@@ -22,9 +22,9 @@ use crate::{ActorId, MessageId};
 use codec::{Decode, Encode};
 use core::{
     future::Future,
+    marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
-    marker::PhantomData,
 };
 
 pub struct MessageFuture {
@@ -73,7 +73,7 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
                     return Poll::Ready(Err(CodecMessageError::ExitCode(exit_code)));
                 }
 
-                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(|e| CodecMessageError::CodecError(e)))
+                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(CodecMessageError::CodecError))
             },
         }
     }

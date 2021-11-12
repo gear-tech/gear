@@ -3,7 +3,6 @@
 use codec::Encode;
 use core::str;
 use gstd::{debug, msg, prelude::*, ProgramId};
-use gstd_async::msg as msg_async;
 use scale_info::TypeInfo;
 
 static mut SIGNATORY: ProgramId = ProgramId([0u8; 32]);
@@ -55,13 +54,13 @@ async fn main() {
         .encode();
 
         let sign_response =
-            msg_async::send_and_wait_for_reply(unsafe { SIGNATORY }, &encoded, GAS_LIMIT, 0)
+            msg::send_bytes_and_wait_for_reply(unsafe { SIGNATORY }, &encoded, GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
 
         debug!("sign_response = {:?}", sign_response);
 
-        let reply = msg_async::send_and_wait_for_reply(
+        let reply = msg::send_bytes_and_wait_for_reply(
             unsafe { SIGNED_MESSAGE_PROGRAM },
             &sign_response,
             GAS_LIMIT,

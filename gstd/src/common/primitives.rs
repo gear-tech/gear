@@ -27,9 +27,15 @@ use scale_info::TypeInfo;
 )]
 pub struct MessageId([u8; 32]);
 
-impl Into<gcore::MessageId> for MessageId {
-    fn into(self) -> gcore::MessageId {
-        gcore::MessageId(self.0)
+// impl Into<gcore::MessageId> for MessageId {
+//     fn into(self) -> gcore::MessageId {
+//         gcore::MessageId(self.0)
+//     }
+// }
+
+impl From<MessageId> for gcore::MessageId {
+    fn from(other: MessageId) -> Self {
+        Self(other.0)
     }
 }
 
@@ -100,9 +106,15 @@ impl From<gcore::ProgramId> for ActorId {
     }
 }
 
-impl Into<gcore::ProgramId> for ActorId {
-    fn into(self) -> gcore::ProgramId {
-        gcore::ProgramId(self.0)
+// impl Into<gcore::ProgramId> for ActorId {
+//     fn into(self) -> gcore::ProgramId {
+//         gcore::ProgramId(self.0)
+//     }
+// }
+
+impl From<ActorId> for gcore::ProgramId {
+    fn from(other: ActorId) -> Self {
+        Self(other.0)
     }
 }
 

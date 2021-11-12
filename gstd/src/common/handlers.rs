@@ -27,6 +27,8 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
+    use crate as gstd;
+
     crate::debug!("Runtime memory exhausted. Aborting");
     core::arch::wasm32::unreachable()
 }
@@ -42,6 +44,8 @@ pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[panic_handler]
 pub fn panic(panic_info: &core::panic::PanicInfo) -> ! {
+    use crate as gstd;
+
     let info = crate::prelude::format!("panic occurred: '{:?}'", panic_info);
 
     let payload = if info.len() > 64 && &info[59..63] == "Some" {
