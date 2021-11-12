@@ -641,7 +641,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
         #[pallet::weight(
-            <T as pallet::Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
+            <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
         )]
         pub fn submit_program(
             origin: OriginFor<T>,
@@ -715,7 +715,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::send_message(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
             destination: H256,
@@ -783,7 +783,7 @@ pub mod pallet {
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::send_reply(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: H256,
@@ -880,7 +880,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `ProgramRemoved(id)` when succesful.
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::remove_stale_program())]
+        #[pallet::weight(<T as Config>::WeightInfo::remove_stale_program())]
         pub fn remove_stale_program(
             origin: OriginFor<T>,
             program_id: H256,
