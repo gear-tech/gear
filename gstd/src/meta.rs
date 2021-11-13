@@ -61,7 +61,9 @@ macro_rules! metadata {
         $handle_input:expr,
         $handle_output:expr,
         $async_handle_input:expr,
-        $async_handle_output:expr
+        $async_handle_output:expr,
+        $state_input:expr,
+        $state_output:expr
         $(, $t:ty) *) => {
         gstd::declare!(meta_title -> $title);
         gstd::declare!(meta_init_input -> $init_input);
@@ -72,6 +74,8 @@ macro_rules! metadata {
         gstd::declare!(meta_handle_output -> $handle_output);
         gstd::declare!(meta_async_handle_input -> $async_handle_input);
         gstd::declare!(meta_async_handle_output -> $async_handle_output);
+        gstd::declare!(meta_state_input -> $state_input);
+        gstd::declare!(meta_state_output -> $state_output);
         gstd::declare!(meta_registry -> gstd::meta::to_hex_registry(gstd::types!($($t), *)));
     };
 
@@ -97,6 +101,11 @@ macro_rules! metadata {
                     $(output: $aho:ty,)? // async handle output
             )?
         )?
+        $(
+            state:
+                $(input: $si:ty,)?
+                $(output: $so:ty,)?
+        )?
     ) => {
         gstd::metadata!(
             $title, // program title
@@ -107,7 +116,9 @@ macro_rules! metadata {
             stringify!($($($hi)?)?), // handle input
             stringify!($($($ho)?)?), // handle output
             stringify!($($($($ahi)?)?)?), // async handle input
-            stringify!($($($($aho)?)?)?) // async handle output
+            stringify!($($($($aho)?)?)?), // async handle output
+            stringify!($($($si)?)?), // state input
+            stringify!($($($so)?)?) // state output
             $($(, $ii)?)? // init input
             $($(, $io)?)? // init output
             $($($(, $aii)?)?)? // async init input
@@ -116,6 +127,8 @@ macro_rules! metadata {
             $($(, $ho)?)?// handle output
             $($($(, $ahi)?)?)? // async handle input
             $($($(, $aho)?)?)? // async handle output
+            $($(, $si)?)? // state input
+            $($(, $so)?)? // state output
         );
     };
 }
