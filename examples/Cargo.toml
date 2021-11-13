@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "async",
+    "async-multisig",
     "async-sign",
     "async-sign/signed_message",
     "async-sign/test_bob",
