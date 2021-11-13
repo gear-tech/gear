@@ -61,7 +61,12 @@ pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     quote!(
         #[no_mangle]
         pub unsafe extern "C" fn handle() {
-            gstd::main_loop(async #body);
+            gstd::event_loop(async #body);
+        }
+
+        #[no_mangle]
+        pub unsafe extern "C" fn handle_reply() {
+            gstd::record_reply();
         }
     )
     .into()

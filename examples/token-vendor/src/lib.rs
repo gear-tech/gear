@@ -24,14 +24,16 @@ fn hex_to_id(hex: String) -> Result<ActorId, u8> {
     let hex = hex.strip_prefix("0x").unwrap_or(&hex);
 
     hex::decode(hex)
-        .map(|bytes| ActorId::from_slice(&bytes))
+        .map(|bytes| ActorId::from_slice(&bytes).expect("Unable to create ActorId"))
         .map_err(|_| 0)
 }
 
 fn address_to_id(address: String) -> Result<ActorId, u8> {
     bs58::decode(address)
         .into_vec()
-        .map(|v| ActorId::from_slice(&v[1..v.len() - 2].to_vec()))
+        .map(|v| {
+            ActorId::from_slice(&v[1..v.len() - 2].to_vec()).expect("Unable to create ActorId")
+        })
         .map_err(|_| 1)
 }
 

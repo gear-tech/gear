@@ -8,7 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 galloc = { path = "../galloc" }
 gcore = { path = "../gcore" }
-gstd-codegen = { path = "codegen", optional = true }
+gstd-codegen = { path = "codegen" }
 
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive", "full"]}
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
@@ -18,5 +18,5 @@ primitive-types = { version = "0.10.1", default-features = false, features = ["s
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 
 [features]
-async = ["gstd-codegen"]
+async = []
 debug = ["galloc/debug", "gcore/debug"]

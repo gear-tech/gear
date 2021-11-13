@@ -23,7 +23,7 @@ impl State {
     fn get_hex_id(&self) -> String {
         let id = self.user_id.unwrap_or_default();
 
-        hex::encode(id.as_slice())
+        hex::encode(id.as_ref())
     }
 }
 

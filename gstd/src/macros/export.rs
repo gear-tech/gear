@@ -21,7 +21,7 @@ macro_rules! export {
     ($f:ident -> $val:expr) => {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
-            gstd::util::to_wasm_ptr($val)
+            gstd::macros::util::to_wasm_ptr($val)
         }
     };
 }

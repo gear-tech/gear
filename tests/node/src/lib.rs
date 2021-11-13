@@ -62,7 +62,7 @@ mod wasm {
 
     use alloc::collections::{BTreeMap, BTreeSet};
     use codec::{Decode, Encode};
-    use gstd::{exec, msg, prelude::*, util, ActorId, MessageId};
+    use gstd::{debug, exec, msg, prelude::*, ActorId, MessageId};
 
     use super::{Initialization, Operation, Reply, Request};
 
@@ -97,7 +97,7 @@ mod wasm {
         let reply = match msg::load() {
             Ok(request) => process(request),
             Err(e) => {
-                util::debug(&format!("Error processing request: {:?}", e));
+                debug!("Error processing request: {:?}", e);
                 Reply::Failure
             }
         };
@@ -123,7 +123,7 @@ mod wasm {
                         TransitionState::NotReady => {
                             transition.state = TransitionState::Ready;
 
-                            util::debug("Returning final ready signal");
+                            debug!("Returning final ready signal");
 
                             // this is ready to further process with committing
                             state().transition = Some(transition);
@@ -132,7 +132,7 @@ mod wasm {
                         TransitionState::Ready => {
                             // this means we successfully commited and we can
                             // drop the transition returning success
-                            util::debug("Returning final commit signal");
+                            debug!("Returning final commit signal");
 
                             return Reply::Success;
                         }
@@ -187,10 +187,10 @@ mod wasm {
                         last_sent_message_id: MessageId::default(),
                     };
 
-                    util::debug("Transition started");
+                    debug!("Transition started");
 
                     if state().sub_nodes.len() > 0 {
-                        util::debug("Transition started is complex");
+                        debug!("Transition started is complex");
 
                         transition.query_list = state().sub_nodes.iter().cloned().collect();
                         let first_sub_node = *transition
@@ -251,11 +251,11 @@ mod wasm {
 
                             exec::wait()
                         } else {
-                            util::debug("Returning failure because current state is not READY");
+                            debug!("Returning failure because current state is not READY");
                             Reply::Failure
                         }
                     } else {
-                        util::debug("Returning failure because there is no transition in process");
+                        debug!("Returning failure because there is no transition in process");
                         Reply::Failure
                     }
                 }
@@ -285,12 +285,12 @@ mod wasm {
                 }
                 Err(e) => {
                     transition.state = TransitionState::Failed;
-                    util::debug(&format!("Error processing reply: {:?}", e));
+                    debug!("Error processing reply: {:?}", e);
                     exec::wake(transition.message_id.into(), exec::gas_available());
                 }
             }
         } else {
-            util::debug("Got some reply that can not be processed");
+            debug!("Got some reply that can not be processed");
         }
     }
 

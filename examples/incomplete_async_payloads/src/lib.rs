@@ -13,7 +13,7 @@ async fn main() {
             debug!("err common processing");
             let handle = msg::send_init();
             handle.push(b"ERR PING");
-            let _ = msg_async::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
             // Got panic here without message
@@ -22,7 +22,7 @@ async fn main() {
         "err reply" => {
             debug!("err reply processing");
             msg::reply_push(b"ERR PING");
-            let _ = msg_async::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
             // Got panic here without message
@@ -33,7 +33,7 @@ async fn main() {
             let handle = msg::send_init();
             handle.push(b"OK PING");
             handle.commit(msg::source(), GAS_LIMIT, 0);
-            let _ = msg_async::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
         }
@@ -41,7 +41,7 @@ async fn main() {
             debug!("ok reply processing");
             msg::reply_push(b"OK REPLY");
             msg::reply_commit(GAS_LIMIT, 0);
-            let _ = msg_async::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(2.into(), b"PING", GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
         }

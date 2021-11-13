@@ -21,13 +21,13 @@
 #[macro_export]
 macro_rules! debug {
     ($arg:literal) => {
-        gcore::ext::debug(&gstd::prelude::format!("{}", $arg));
+        gstd::ext::debug(&gstd::prelude::format!("{}", $arg));
     };
     ($arg:expr) => {
-        gcore::ext::debug(&gstd::prelude::format!("{:?}", $arg));
+        gstd::ext::debug(&gstd::prelude::format!("{:?}", $arg));
     };
     ($fmt:literal, $($args:tt)+) => {
-        gcore::ext::debug(&gstd::prelude::format!($fmt, $($args)+));
+        gstd::ext::debug(&gstd::prelude::format!($fmt, $($args)+));
     };
 }
 

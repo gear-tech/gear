@@ -1,7 +1,7 @@
 #![no_std]
 
 use codec::Decode;
-use gstd::{debug, exec, msg, prelude::*, ProgramId};
+use gstd::{debug, exec, msg, prelude::*, ActorId};
 use scale_info::TypeInfo;
 use sp_core::{
     crypto::{AccountId32, UncheckedFrom},
@@ -28,7 +28,7 @@ gstd::metadata! {
         input: HandleArgs,
 }
 
-static mut SIGNATORY: Option<ProgramId> = None;
+static mut SIGNATORY: Option<ActorId> = None;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
@@ -37,7 +37,11 @@ pub unsafe extern "C" fn handle() {
             msg::reply_bytes(b"Uninitialized", 10_000, 0);
             return;
         }
-        Some(s) => s.0,
+        Some(s) => {
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(s.as_ref());
+            arr
+        }
     };
 
     let args: HandleArgs = match msg::load() {
@@ -80,5 +84,5 @@ pub unsafe extern "C" fn init() {
     SIGNATORY = maybe_args
         .map_err(|_| msg::reply_bytes(b"Failed to decode `InitArgs`", 10_000, 0))
         .ok()
-        .map(|a| ProgramId(a.account.into()));
+        .map(|a| ActorId::new(a.account.into()));
 }

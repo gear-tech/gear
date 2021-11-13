@@ -38,8 +38,6 @@ pub(crate) fn signals() -> &'static mut WakeSignals {
     unsafe { SIGNALS.get_or_insert_with(WakeSignals::new) }
 }
 
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-pub unsafe extern "C" fn handle_reply() {
+pub fn record_reply() {
     signals().record_reply();
 }

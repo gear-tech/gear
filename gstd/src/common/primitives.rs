@@ -33,6 +33,13 @@ pub struct MessageId([u8; 32]);
 //     }
 // }
 
+#[cfg(feature = "debug")]
+impl MessageId {
+    pub const fn new(arr: [u8; 32]) -> Self {
+        Self(arr)
+    }
+}
+
 impl From<MessageId> for gcore::MessageId {
     fn from(other: MessageId) -> Self {
         Self(other.0)
@@ -83,6 +90,15 @@ impl ActorId {
 impl From<[u8; 32]> for ActorId {
     fn from(arr: [u8; 32]) -> Self {
         Self::new(arr)
+    }
+}
+
+#[cfg(feature = "debug")]
+impl From<u64> for ActorId {
+    fn from(v: u64) -> Self {
+        let mut arr = [0u8; 32];
+        arr[0..8].copy_from_slice(&v.to_le_bytes()[..]);
+        Self(arr)
     }
 }
 

@@ -18,11 +18,10 @@ pub enum Request {
 
 #[cfg(not(feature = "std"))]
 mod wasm {
-
     extern crate alloc;
 
     use codec::{Decode, Encode};
-    use gstd::{exec, ext, msg, prelude::*, MessageId, ProgramId};
+    use gstd::{exec, msg, prelude::*, ActorId, MessageId};
 
     use super::Request;
 
@@ -34,7 +33,7 @@ mod wasm {
                 unsafe { ECHOES.insert(msg::id(), n) };
                 exec::wait();
             }
-            Request::Wake(id) => exec::wake(MessageId(id), exec::gas_available() - 100_000),
+            Request::Wake(id) => exec::wake(MessageId::new(id), exec::gas_available() - 100_000),
         }
     }
 

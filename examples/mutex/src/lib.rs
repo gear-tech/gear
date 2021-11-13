@@ -1,10 +1,11 @@
 #![no_std]
 
 use core::num::ParseIntError;
+use gstd::sync::mutex::Mutex;
 use gstd::{exec, msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
-static MUTEX: gstd::future::mutex::Mutex<u32> = gstd::future::mutex::Mutex::new(0);
+static MUTEX: Mutex<u32> = Mutex::new(0);
 
 const GAS_LIMIT: u64 = 500_000_000;
 
@@ -13,7 +14,8 @@ pub unsafe extern "C" fn init() {
     let dest = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     PING_DEST = ActorId::from_slice(
         &decode_hex(dest.as_ref()).expect("INTIALIZATION FAILED: INVALID DEST PROGRAM ID"),
-    );
+    )
+    .expect("Unable to create ActorId");
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
@@ -29,10 +31,9 @@ async fn main() {
     if message == "START" {
         let _val = MUTEX.lock().await;
 
-        let reply =
-            msg_async::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
-                .await
-                .expect("Error in async message processing");
+        let reply = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
+            .await
+            .expect("Error in async message processing");
 
         if reply == b"PONG" {
             msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);

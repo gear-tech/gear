@@ -50,8 +50,8 @@ mod wasm {
     use alloc::collections::BTreeSet;
     use codec::{Decode, Encode};
     use core::future::Future;
-    use gstd::future::mutex::Mutex;
-    use gstd::{exec, msg, prelude::*, util, ActorId};
+    use gstd::sync::mutex::Mutex;
+    use gstd::{debug, exec, msg, prelude::*, ActorId};
 
     use super::{Reply, Request};
 
@@ -134,17 +134,17 @@ mod wasm {
                     Request::Report => Self::handle_report().await,
                 },
                 Err(e) => {
-                    util::debug(&format!("Error processing request: {:?}", e));
+                    debug!("Error processing request: {:?}", e);
                     Reply::Failure
                 }
             };
 
-            util::debug("Handle request finished");
+            debug!("Handle request finished");
             msg::reply(reply, exec::gas_available() - 25_000_000, 0);
         }
 
         async fn handle_receive(amount: u64) -> Reply {
-            util::debug(&format!("Handling receive {}", amount));
+            debug!("Handling receive {}", amount);
 
             let nodes = Program::nodes().lock().await;
             let subnodes_count = nodes.as_ref().len() as u64;
@@ -163,10 +163,10 @@ mod wasm {
                     }
                 }
 
-                util::debug(&format!("Set own amount to: {}", left_over));
+                debug!("Set own amount to: {}", left_over);
                 *Self::amount() = *Self::amount() + left_over;
             } else {
-                util::debug(&format!("Set own amount to: {}", amount));
+                debug!("Set own amount to: {}", amount);
                 *Self::amount() = *Self::amount() + amount;
             }
 
@@ -175,27 +175,27 @@ mod wasm {
 
         async fn handle_join(program_id: u64) -> Reply {
             let mut nodes = Self::nodes().lock().await;
-            util::debug("Inserting into nodes");
+            debug!("Inserting into nodes");
             nodes.as_mut().insert(Program::new(program_id));
             Reply::Success
         }
 
         async fn handle_report() -> Reply {
             let mut amount = *Program::amount();
-            util::debug(&format!("Own amount: {}", amount));
+            debug!("Own amount: {}", amount);
 
             let nodes = Program::nodes().lock().await;
 
             for program in nodes.as_ref().iter() {
-                util::debug("Querying next node");
+                debug!("Querying next node");
                 amount += match program.do_report().await {
                     Ok(amount) => {
-                        util::debug(&format!("Sub-node result: {}", amount));
+                        debug!("Sub-node result: {}", amount);
                         amount
                     }
                     Err(_) => {
                         // skipping erroneous sub-nodes!
-                        util::debug("Skipping errorneous node");
+                        debug!("Skipping errorneous node");
                         0
                     }
                 }
@@ -207,16 +207,16 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
-        util::debug("Handling sequence started");
-        gstd::main_loop(Program::handle_request());
-        util::debug("Handling sequence terminated");
+        debug!("Handling sequence started");
+        gstd::event_loop(Program::handle_request());
+        debug!("Handling sequence terminated");
     }
 
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         STATE = Some(ProgramState::default());
         msg::reply((), 0, 0);
-        util::debug("Program initialized");
+        debug!("Program initialized");
     }
 }
 

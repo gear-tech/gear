@@ -23,6 +23,9 @@
 
 extern crate galloc;
 
+#[cfg(feature = "debug")]
+pub use gcore::ext;
+
 mod common;
 pub mod exec;
 pub mod macros;
@@ -35,4 +38,6 @@ pub use common::primitives::*;
 
 mod async_runtime;
 
-pub use async_runtime::{event_loop, handle_reply};
+pub use async_runtime::{event_loop, record_reply};
+
+pub use gstd_codegen::main;

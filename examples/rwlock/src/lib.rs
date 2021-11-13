@@ -6,18 +6,19 @@ use core::{
     ptr,
     task::{Context, RawWaker, RawWakerVTable, Waker},
 };
-use gstd::future::rwlock::RwLockReadGuard;
+use gstd::sync::rwlock::RwLock;
 use gstd::{exec, msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
-static RWLOCK: gstd::future::rwlock::RwLock<u32> = gstd::future::rwlock::RwLock::new(0);
+static RWLOCK: RwLock<u32> = RwLock::new(0);
 
 const GAS_LIMIT: u64 = 1_000_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let dest = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    PING_DEST = ActorId::from_slice(&hex::decode(dest).expect("Invalid hex"));
+    PING_DEST = ActorId::from_slice(&hex::decode(dest).expect("Invalid hex"))
+        .expect("Unable to create ActorId");
 }
 
 #[gstd::main]
@@ -33,20 +34,16 @@ async fn main() {
             *val += 1;
         }
         "ping&get" => {
-            let _ = msg_async::send_bytes_and_wait_for_reply(
-                unsafe { PING_DEST },
-                b"PING",
-                GAS_LIMIT * 2,
-                0,
-            )
-            .await
-            .expect("Error in async message processing");
+            let _ =
+                msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT * 2, 0)
+                    .await
+                    .expect("Error in async message processing");
             msg::reply(*RWLOCK.read().await, exec::gas_available() - GAS_LIMIT, 0);
         }
         "inc&ping" => {
             let mut val = RWLOCK.write().await;
             *val += 1;
-            let _ = msg_async::send_bytes_and_wait_for_reply(
+            let _ = msg::send_bytes_and_wait_for_reply(
                 unsafe { PING_DEST },
                 b"PING",
                 exec::gas_available() - GAS_LIMIT,
@@ -57,18 +54,13 @@ async fn main() {
         }
         "get&ping" => {
             let val = RWLOCK.read().await;
-            let _ = msg_async::send_bytes_and_wait_for_reply(
-                unsafe { PING_DEST },
-                b"PING",
-                GAS_LIMIT,
-                0,
-            )
-            .await
-            .expect("Error in async message processing");
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
+                .await
+                .expect("Error in async message processing");
             msg::reply(*val, exec::gas_available() - GAS_LIMIT, 0);
         }
         "check readers" => {
-            let mut storage: Vec<RwLockReadGuard<u32>> = Vec::new();
+            let mut storage = Vec::new();
             for _ in 0..32 {
                 storage.push(RWLOCK.read().await);
             }

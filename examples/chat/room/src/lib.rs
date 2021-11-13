@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{msg, prelude::*, util, ActorId};
+use gstd::{debug, msg, prelude::*, ActorId};
 
 use demo_chat::shared::{MemberMessage, RoomMessage};
 
@@ -21,7 +21,7 @@ impl State {
         self.members.iter().find(|(member, _name)| *member == id)
     }
     fn room_name(&self) -> &'static str {
-        util::debug(&format!("room_name ptr -> {:p}", self.room_name));
+        debug!("room_name ptr -> {:p}", self.room_name);
         self.room_name
     }
 }
@@ -43,15 +43,11 @@ unsafe fn room(room_msg: RoomMessage) {
         Join { under_name } => {
             let under_name = String::from_utf8(under_name).expect("Invalid utf-8");
 
-            util::debug(&format!(
-                "ROOM '{}': '{}' joined",
-                STATE.room_name(),
-                under_name,
-            ));
+            debug!("ROOM '{}': '{}' joined", STATE.room_name(), under_name,);
             STATE.add_member((msg::source(), under_name));
         }
         Yell { text } => {
-            util::debug(&format!("Yell ptr -> {:p}", text.as_ptr()));
+            debug!("Yell ptr -> {:p}", text.as_ptr());
             for &(id, _) in STATE.members.iter() {
                 if id != msg::source() {
                     msg::send(
@@ -84,5 +80,5 @@ pub unsafe extern "C" fn init() {
             .into_boxed_str(),
     );
     STATE.set_room_name(s);
-    util::debug(&format!("ROOM '{}' created", STATE.room_name()));
+    debug!("ROOM '{}' created", STATE.room_name());
 }

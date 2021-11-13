@@ -1,8 +1,8 @@
 #![no_std]
 
-use gstd::{msg, prelude::ToString, ProgramId};
+use gstd::{msg, prelude::ToString, ActorId};
 
-static mut HOST: ProgramId = ProgramId([0u8; 32]);
+static mut HOST: ActorId = ActorId::new([0u8; 32]);
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {}
