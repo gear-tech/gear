@@ -26,6 +26,15 @@ use gear_core::{
 
 use crate::util::BlakeMessageIdGenerator;
 
+/// Structure with the info about the current block.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BlockInfo {
+    /// Current block height.
+    pub height: u32,
+    /// Current block timestamp in msecs since tne Unix epoch.
+    pub timestamp: u64,
+}
+
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Memory context.
@@ -40,8 +49,8 @@ pub struct Ext {
     pub mem_grow_cost: u64,
     /// Any guest code panic explanation, if available.
     pub last_error_returned: Option<&'static str>,
-    /// Current block height.
-    pub block_height: u32,
+    /// Current block info.
+    pub block_info: BlockInfo,
 }
 
 impl Ext {
@@ -99,7 +108,11 @@ impl EnvExt for Ext {
     }
 
     fn block_height(&self) -> u32 {
-        self.block_height
+        self.block_info.height
+    }
+
+    fn block_timestamp(&self) -> u64 {
+        self.block_info.timestamp
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {

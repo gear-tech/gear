@@ -25,6 +25,7 @@ use crate::MessageId;
 mod sys {
     extern "C" {
         pub fn gr_block_height() -> u32;
+        pub fn gr_block_timestamp() -> u64;
         pub fn gr_gas_available() -> u64;
         pub fn gr_wait() -> !;
         pub fn gr_wake(waker_id_ptr: *const u8, gas_limit: u64);
@@ -51,6 +52,30 @@ mod sys {
 /// ```
 pub fn block_height() -> u32 {
     unsafe { sys::gr_block_height() }
+}
+
+/// Get the current block timestamp.
+///
+/// The timestamp is the number of milliseconds elapsed since the Unix epoch.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// // Send a reply after the block timestamp reaches the February 22, 2022
+/// pub unsafe extern "C" fn handle() {
+///     if exec::block_timestamp() >= 1645488000000 {
+///         msg::reply(
+///             b"The current block is generated after February 22, 2022",
+///             1_000_000,
+///             0,
+///         );
+///     }
+/// }
+/// ```
+pub fn block_timestamp() -> u64 {
+    unsafe { sys::gr_block_timestamp() }
 }
 
 /// Get the current value of the gas available for execution.
