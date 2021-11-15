@@ -171,7 +171,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
             init_source = source.clone().into_program_id();
         }
         runner.init_program(InitializeProgramInfo {
-            new_program_id: program.id.into(),
+            new_program_id: program.id.clone().into_program_id(),
             source_id: init_source,
             code,
             message: ExtMessage {
@@ -226,7 +226,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         }
         runner.queue_message(MessageDispatch {
             source_id: message_source,
-            destination_id: message.destination.into(),
+            destination_id: message.destination.clone().into_program_id(),
             data: ExtMessage {
                 id: nonce.into(),
                 payload,

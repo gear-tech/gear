@@ -16,15 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::str::FromStr;
-
-use gear_core::program::ProgramId;
+use crate::address::{self, Address as ChainAddress};
 use hex::FromHex;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde_yaml::Value;
-
-use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
-use sp_keyring::sr25519::Keyring;
 
 fn de_address<'de, D: Deserializer<'de>>(deserializer: D) -> Result<usize, D::Error> {
     Ok(match Value::deserialize(deserializer)? {
@@ -49,8 +44,9 @@ fn de_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Program {
     pub path: String,
-    pub id: u64,
-    pub source: Option<SourceVariant>,
+    #[serde(deserialize_with = "address::deserialize")]
+    pub id: ChainAddress,
+    pub source: Option<ChainAddress>,
     pub init_message: Option<PayloadVariant>,
     pub init_gas_limit: Option<u64>,
     pub init_value: Option<u128>,
@@ -72,37 +68,6 @@ pub struct Fixture {
     pub title: String,
     pub messages: Vec<Message>,
     pub expected: Vec<Expectation>,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(tag = "kind", content = "value")]
-pub enum SourceVariant {
-    #[serde(rename = "account")]
-    Account(String),
-    #[serde(rename = "id")]
-    ProgramId(u64),
-    #[serde(rename = "ss58")]
-    SS58(String),
-}
-
-impl Default for SourceVariant {
-    fn default() -> Self {
-        Self::Account("alice".to_string())
-    }
-}
-
-impl SourceVariant {
-    pub fn into_program_id(self) -> ProgramId {
-        match self {
-            Self::Account(s) => {
-                ProgramId::from_slice(Keyring::from_str(&s).unwrap().to_h256_public().as_bytes())
-            }
-            SourceVariant::ProgramId(id) => ProgramId::from(id),
-            SourceVariant::SS58(s) => {
-                ProgramId::from_slice(Public::from_ss58check(&s).unwrap().as_bytes_ref())
-            }
-        }
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -188,8 +153,9 @@ pub enum AllocationFilter {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Message {
-    pub source: Option<SourceVariant>,
-    pub destination: u64,
+    pub source: Option<ChainAddress>,
+    #[serde(deserialize_with = "address::deserialize")]
+    pub destination: ChainAddress,
     pub init: Option<bool>,
     pub payload: Option<PayloadVariant>,
     pub gas_limit: Option<u64>,
