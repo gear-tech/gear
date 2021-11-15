@@ -154,7 +154,7 @@ pub unsafe extern "C" fn init() {
 #[no_mangle]
 pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
     let encoded = WALLETS.encode();
-    let result = gstd::meta::to_wasm_ptr(&encoded[..]);
+    let result = gstd::macros::util::to_wasm_ptr(&encoded[..]);
     core::mem::forget(encoded);
 
     result
