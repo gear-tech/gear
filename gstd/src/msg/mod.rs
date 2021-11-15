@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod async_sending;
-pub use async_sending::*;
+mod r#async;
+pub use r#async::*;
 
 mod basic;
 pub use basic::*;
