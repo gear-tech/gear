@@ -39,7 +39,7 @@ use gear_core::{
 };
 
 use crate::builder::RunnerBuilder;
-use crate::ext::Ext;
+use crate::ext::{BlockInfo, Ext};
 use crate::util::BlakeMessageIdGenerator;
 
 /// Runner configuration.
@@ -158,7 +158,7 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environ
     pub(crate) log: Log,
     pub(crate) config: Config,
     env: E,
-    block_height: u32,
+    block_info: BlockInfo,
 }
 
 /// Fully in-memory runner builder (for tests).
@@ -259,7 +259,12 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
     /// New runner instance.
     ///
     /// Provide configuration, storage.
-    pub fn new(config: &Config, storage: Storage<MQ, PS, WL>, block_height: u32, env: E) -> Self {
+    pub fn new(
+        config: &Config,
+        storage: Storage<MQ, PS, WL>,
+        block_info: BlockInfo,
+        env: E,
+    ) -> Self {
         let Storage {
             message_queue,
             program_storage,
@@ -274,7 +279,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
             log,
             config: config.clone(),
             env,
-            block_height,
+            block_info,
         }
     }
 
@@ -356,7 +361,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
             },
             &next_message.into(),
             gas_limit,
-            self.block_height,
+            self.block_info,
         );
 
         if run_result.outcome.was_trap() && generate_reply_on_trap {
@@ -526,7 +531,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
             EntryPoint::Init,
             &msg,
             initialization.message.gas_limit,
-            self.block_height,
+            self.block_info,
         );
 
         for message in context.message_buf.drain(..) {
@@ -563,7 +568,12 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
 
     /// Set the block height value.
     pub fn set_block_height(&mut self, value: u32) {
-        self.block_height = value;
+        self.block_info.height = value;
+    }
+
+    /// Set the block timestamp.
+    pub fn set_block_timestamp(&mut self, value: u64) {
+        self.block_info.timestamp = value;
     }
 }
 
@@ -676,7 +686,7 @@ fn run<E: Environment<Ext>>(
     entry_point: EntryPoint,
     message: &IncomingMessage,
     gas_limit: u64,
-    block_height: u32,
+    block_info: BlockInfo,
 ) -> RunResult {
     let mut gas_counter = GasCounter::new(gas_limit);
 
@@ -747,7 +757,7 @@ fn run<E: Environment<Ext>>(
         alloc_cost: context.alloc_cost(),
         mem_grow_cost: context.mem_grow_cost(),
         last_error_returned: None,
-        block_height,
+        block_info,
     };
 
     let (res, mut ext) = env.setup_and_run(

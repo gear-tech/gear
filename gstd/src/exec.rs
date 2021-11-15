@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::MessageId;
-pub use gcore::exec::{block_height, gas_available};
+pub use gcore::exec::{block_height, block_timestamp, gas_available};
 
 pub fn wait() -> ! {
     gcore::exec::wait()

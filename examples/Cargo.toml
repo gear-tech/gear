@@ -6,7 +6,7 @@ members = [
     "async-sign",
     "async-sign/signed_message",
     "async-sign/test_bob",
-    "block-height",
+    "block-info",
     "chat",
     "chat/bot",
     "chat/room",

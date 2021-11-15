@@ -39,6 +39,10 @@ pub fn block_height<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
     move || ext.with(|ext: &mut E| ext.block_height()).unwrap_or(0) as i32
 }
 
+pub fn block_timestamp<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i64 {
+    move || ext.with(|ext: &mut E| ext.block_timestamp()).unwrap_or(0) as i64
+}
+
 pub fn exit_code<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<i32, &'static str> {
     move || {
         let reply_tuple = ext.with(|ext: &mut E| ext.reply_to())?;

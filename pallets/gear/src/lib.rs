@@ -44,12 +44,15 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use primitive_types::H256;
+    use runner::BlockInfo;
     use scale_info::TypeInfo;
     use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_authorship::Config {
+    pub trait Config:
+        frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
+    {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -287,7 +290,10 @@ pub mod pallet {
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
-            let block_height = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let block_info = BlockInfo {
+                height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+                timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+            };
 
             for message in messages {
                 match message {
@@ -323,7 +329,7 @@ pub mod pallet {
                             payload.to_vec(),
                             gas_limit,
                             value,
-                            block_height,
+                            block_info,
                         ) {
                             Err(_) => {
                                 // `init_program` in Runner can only return Err(_) in two cases:
@@ -470,7 +476,7 @@ pub mod pallet {
             loop {
                 match runner::process::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
                     GasAllowance::<T>::get(),
-                    block_height,
+                    block_info,
                 ) {
                     Ok(execution_report) => {
                         if execution_report.handled == 0 {
@@ -635,7 +641,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
         #[pallet::weight(
-            T::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
+            <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
         )]
         pub fn submit_program(
             origin: OriginFor<T>,
@@ -709,7 +715,7 @@ pub mod pallet {
         /// Emits the following events:
         /// - `DispatchMessageEnqueued(MessageInfo)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(T::WeightInfo::send_message(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_message(payload.len() as u32))]
         pub fn send_message(
             origin: OriginFor<T>,
             destination: H256,
@@ -777,7 +783,7 @@ pub mod pallet {
         ///
         /// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
         #[frame_support::transactional]
-        #[pallet::weight(T::WeightInfo::send_reply(payload.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(payload.len() as u32))]
         pub fn send_reply(
             origin: OriginFor<T>,
             reply_to_id: H256,
@@ -874,7 +880,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `ProgramRemoved(id)` when succesful.
-        #[pallet::weight(T::WeightInfo::remove_stale_program())]
+        #[pallet::weight(<T as Config>::WeightInfo::remove_stale_program())]
         pub fn remove_stale_program(
             origin: OriginFor<T>,
             program_id: H256,

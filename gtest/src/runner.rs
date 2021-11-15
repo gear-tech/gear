@@ -36,6 +36,7 @@ use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::fmt::Write;
 use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
 
@@ -130,7 +131,7 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
     let mut runner = Runner::new(
         &Config::default(),
         storage,
-        0,
+        Default::default(),
         gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::default(),
     );
     let mut nonce = 0;
@@ -258,6 +259,11 @@ where
     if let Some(steps) = steps {
         for step_no in 0..steps {
             runner.set_block_height(step_no as _);
+            let timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            runner.set_block_timestamp(timestamp as _);
             let run_result = runner.run_next(u64::MAX);
 
             log::info!("step: {}", step_no + 1);

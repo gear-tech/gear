@@ -1,14 +1,14 @@
-title: Block height
+title: Block info
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_block_height.wasm
+    path: target/wasm32-unknown-unknown/release/demo_block_info.wasm
     source:
       kind: account
       value: alice
 
 fixtures:
-  - title: block-height
+  - title: block-info
 
     messages:
       - destination: 1

@@ -108,6 +108,8 @@ gstd::metadata! {
         awaiting:
             input: MessageHandleAsyncIn,
             output: MessageHandleAsyncOut,
+    state:
+        output: Vec<Wallet>,
 }
 
 static mut WALLETS: Vec<Wallet> = Vec::new();
@@ -147,4 +149,13 @@ pub unsafe extern "C" fn init() {
     let message_init_out: MessageInitOut = message_init_in.into();
 
     msg::send(0.into(), message_init_out, 0, 0);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
+    let encoded = WALLETS.encode();
+    let result = gstd::meta::to_wasm_ptr(&encoded[..]);
+    core::mem::forget(encoded);
+
+    result
 }

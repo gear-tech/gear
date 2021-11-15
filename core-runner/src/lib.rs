@@ -29,5 +29,5 @@ mod builder;
 mod ext;
 pub mod runner;
 mod util;
-pub use ext::Ext;
+pub use ext::{BlockInfo, Ext};
 pub use runner::*;

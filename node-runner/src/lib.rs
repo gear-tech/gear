@@ -26,7 +26,7 @@ use sp_core::H256;
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 
 use gear_backend_common::Environment;
-pub use gear_core_runner::Ext;
+pub use gear_core_runner::{BlockInfo, Ext};
 use gear_core_runner::{
     ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult, Runner,
 };
@@ -99,9 +99,9 @@ impl ExecutionReport {
 
 pub fn process<E: Environment<Ext>>(
     max_gas_limit: u64,
-    block_height: u32,
+    block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
-    let mut runner = ExtRunner::<E>::builder().block_height(block_height).build();
+    let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
     let result = runner.run_next(max_gas_limit);
 
     let Storage {
@@ -124,9 +124,9 @@ pub fn init_program<E: Environment<Ext>>(
     init_payload: Vec<u8>,
     gas_limit: u64,
     value: u128,
-    block_height: u32,
+    block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
-    let mut runner = ExtRunner::<E>::builder().block_height(block_height).build();
+    let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
 
     let init_message_id = MessageId::from_slice(&init_message_id[..]);
     let run_result = runner
