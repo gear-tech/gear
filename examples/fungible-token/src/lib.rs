@@ -4,10 +4,11 @@
 #![no_std]
 #![feature(const_btree_new)]
 
-use codec::{Decode, Encode};
+// use codec::{Decode, Encode};
 use gstd::{debug, exec, msg, prelude::*, ActorId};
 use primitive_types::H256;
-use scale_info::TypeInfo;
+// use sp_arithmetic::traits::One;
+use fungible_token_messages::{Action, ApproveData, Event, InitConfig, TransferData};
 
 const GAS_RESERVE: u64 = 500_000_000;
 
@@ -41,9 +42,12 @@ impl FungibleToken {
     fn symbol(&self) -> &str {
         &self.symbol
     }
-    #[allow(dead_code)]
-    fn total_supply(&self) -> u128 {
-        self.total_supply
+    fn total_supply(&self) {
+        msg::reply(
+            Event::TotalIssuance(self.total_supply),
+            exec::gas_available() - GAS_RESERVE,
+            0,
+        );
     }
     #[allow(dead_code)]
     fn decimals(&self) -> u8 {
@@ -60,6 +64,14 @@ impl FungibleToken {
     }
     fn get_balance(&self, account: &ActorId) -> u128 {
         *self.balances.get(account).unwrap_or(&0)
+    }
+    fn balance_of(&self, account: &ActorId) {
+        let balance = self.get_balance(account);
+        msg::reply(
+            Event::Balance(balance),
+            exec::gas_available() - GAS_RESERVE,
+            0,
+        );
     }
     fn mint(&mut self, account: &ActorId, amount: u128) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
@@ -187,63 +199,6 @@ impl FungibleToken {
     }
 }
 
-#[derive(Debug, Decode, TypeInfo)]
-struct InitConfig {
-    name: String,
-    symbol: String,
-}
-
-#[derive(Debug, Decode, TypeInfo)]
-struct MintInput {
-    account: H256,
-    amount: u128,
-}
-
-#[derive(Debug, Decode, TypeInfo)]
-struct BurnInput {
-    account: H256,
-    amount: u128,
-}
-
-#[derive(Debug, Encode, Decode, TypeInfo)]
-struct ApproveData {
-    owner: H256,
-    spender: H256,
-    amount: u128,
-}
-
-#[derive(Debug, Decode, Encode, TypeInfo)]
-struct TransferData {
-    from: H256,
-    to: H256,
-    amount: u128,
-}
-
-#[derive(Debug, Decode, Encode, TypeInfo)]
-struct TransferFromData {
-    owner: H256,
-    from: H256,
-    to: H256,
-    amount: u128,
-}
-
-#[derive(Debug, Decode, TypeInfo)]
-enum Action {
-    Mint(MintInput),
-    Burn(BurnInput),
-    Transfer(TransferData),
-    TransferFrom(TransferFromData),
-    Approve(ApproveData),
-    IncreaseAllowance(ApproveData),
-    DecreaseAllowance(ApproveData),
-}
-
-#[derive(Debug, Encode, TypeInfo)]
-enum Event {
-    Transfer(TransferData),
-    Approval(ApproveData),
-}
-
 gstd::metadata! {
     title: "FungibleToken",
         init:
@@ -291,6 +246,13 @@ pub unsafe extern "C" fn handle() {
             let owner = ActorId::new(approve_data.owner.to_fixed_bytes());
             let spender = ActorId::new(approve_data.spender.to_fixed_bytes());
             FUNGIBLE_TOKEN.decrease_allowance(&owner, &spender, approve_data.amount)
+        }
+        Action::TotalIssuance => {
+            FUNGIBLE_TOKEN.total_supply();
+        }
+        Action::BalanceOf(acc) => {
+            let account = ActorId::new(acc.to_fixed_bytes());
+            FUNGIBLE_TOKEN.balance_of(&account);
         }
     }
 }

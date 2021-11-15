@@ -170,6 +170,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "curve-amm"
+version = "0.1.0"
+dependencies = [
+ "fungible-token-messages",
+ "gstd",
+ "hex",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-arithmetic",
+]
+
+[[package]]
 name = "curve25519-dalek"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -490,8 +503,20 @@ dependencies = [
 name = "fungible-token"
 version = "0.1.0"
 dependencies = [
+ "fungible-token-messages",
  "gstd",
  "hex",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-arithmetic",
+]
+
+[[package]]
+name = "fungible-token-messages"
+version = "0.1.0"
+dependencies = [
+ "gstd",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -700,6 +725,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "integer-sqrt"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -1130,6 +1164,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c19772be3c4dd2ceaacf03cb41d5885f2a02c4d8804884918e3a258480803335"
 
 [[package]]
+name = "sp-arithmetic"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12#d76f39995315ec36980908e4b99709bd14927044"
+dependencies = [
+ "integer-sqrt",
+ "num-traits",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12)",
+ "static_assertions",
+]
+
+[[package]]
 name = "sp-core"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#a912c13fbcb1f6f234fa3d458f60ee9d0e46f2c2"
@@ -1151,9 +1199,9 @@ dependencies = [
  "schnorrkel",
  "secrecy",
  "sha2 0.9.8",
- "sp-debug-derive",
+ "sp-debug-derive 3.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "sp-runtime-interface",
- "sp-std",
+ "sp-std 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "sp-storage",
  "tiny-keccak",
  "twox-hash",
@@ -1171,6 +1219,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-debug-derive"
+version = "3.0.0"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12#d76f39995315ec36980908e4b99709bd14927044"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "sp-runtime-interface"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#a912c13fbcb1f6f234fa3d458f60ee9d0e46f2c2"
@@ -1179,7 +1237,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "sp-runtime-interface-proc-macro",
- "sp-std",
+ "sp-std 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "sp-storage",
  "sp-tracing",
  "sp-wasm-interface",
@@ -1204,14 +1262,19 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#a912c13fbcb1f6f234fa3d458f60ee9d0e46f2c2"
 
 [[package]]
+name = "sp-std"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12#d76f39995315ec36980908e4b99709bd14927044"
+
+[[package]]
 name = "sp-storage"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#a912c13fbcb1f6f234fa3d458f60ee9d0e46f2c2"
 dependencies = [
  "parity-scale-codec",
  "ref-cast",
- "sp-debug-derive",
- "sp-std",
+ "sp-debug-derive 3.0.0 (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
+ "sp-std 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
 ]
 
 [[package]]
@@ -1220,7 +1283,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#a912c13fbcb1f6f234fa3d458f60ee9d0e46f2c2"
 dependencies = [
  "parity-scale-codec",
- "sp-std",
+ "sp-std 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
  "tracing",
  "tracing-core",
 ]
@@ -1232,37 +1295,8 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#a912
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std",
+ "sp-std 4.0.0-dev (git+https://github.com/gear-tech/substrate.git?branch=gear-stable)",
 ]
-
-[[package]]
-name = "sp-arithmetic"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12#d76f39995315ec36980908e4b99709bd14927044"
-dependencies = [
- "integer-sqrt",
- "num-traits",
- "parity-scale-codec",
- "scale-info",
- "sp-debug-derive",
- "sp-std",
- "static_assertions",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12#d76f39995315ec36980908e4b99709bd14927044"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-std"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12#d76f39995315ec36980908e4b99709bd14927044"
 
 [[package]]
 name = "static_assertions"

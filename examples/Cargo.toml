@@ -36,6 +36,7 @@ members = [
     "token-vendor",
     "token-vendor/workshop-example",
     "fungible-token",
+    "fungible-token-messages",
     "curve-amm",
 ]
 
