@@ -19,12 +19,12 @@
 #![no_std]
 
 use core::{mem, ptr};
-use gcore::{msg, ProgramId};
+use gcore::{msg, ActorId};
 
 #[cfg(feature = "debug")]
 use gcore::ext;
 
-static mut PROGRAM: ProgramId = ProgramId([0; 32]);
+static mut PROGRAM: ActorId = ActorId([0; 32]);
 static mut MESSAGE: &mut [u8] = &mut [0u8; 1024];
 static mut MESSAGE_LEN: usize = 0;
 static mut GAS_LIMIT: u64 = 0;
@@ -99,10 +99,10 @@ fn messages() {
         id[i] = i as u8;
     }
 
-    msg::send(ProgramId(id), b"HELLO", 1000, 12345678);
+    msg::send(ActorId(id), b"HELLO", 1000, 12345678);
 
     let msg_source = msg::source();
-    assert_eq!(msg_source, ProgramId(id));
+    assert_eq!(msg_source, ActorId(id));
 }
 
 #[cfg(feature = "debug")]

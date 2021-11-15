@@ -20,7 +20,7 @@ use crate::prelude::{convert::AsRef, vec, Vec};
 use crate::{ActorId, MessageId};
 use codec::{Decode, Encode, Output};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);
 
 impl MessageHandle {

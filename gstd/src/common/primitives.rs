@@ -116,19 +116,19 @@ impl From<H256> for ActorId {
     }
 }
 
-impl From<gcore::ProgramId> for ActorId {
-    fn from(other: gcore::ProgramId) -> Self {
+impl From<gcore::ActorId> for ActorId {
+    fn from(other: gcore::ActorId) -> Self {
         Self(other.0)
     }
 }
 
-// impl Into<gcore::ProgramId> for ActorId {
-//     fn into(self) -> gcore::ProgramId {
-//         gcore::ProgramId(self.0)
+// impl Into<gcore::ActorId> for ActorId {
+//     fn into(self) -> gcore::ActorId {
+//         gcore::ActorId(self.0)
 //     }
 // }
 
-impl From<ActorId> for gcore::ProgramId {
+impl From<ActorId> for gcore::ActorId {
     fn from(other: ActorId) -> Self {
         Self(other.0)
     }
