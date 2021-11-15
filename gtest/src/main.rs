@@ -64,7 +64,7 @@ pub fn main() -> anyhow::Result<()> {
             .init(),
     }
 
-    check::check_main(
+    check::check_main::<InMemoryStorage, _>(
         opts.input.to_vec(),
         opts.skip_messages,
         opts.skip_allocations,
