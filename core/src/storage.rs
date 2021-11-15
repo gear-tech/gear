@@ -29,7 +29,7 @@ use crate::{
 
 /// General trait, which informs what exact storage types are used by a storage manager ("carrier").
 ///
-/// Mainly used for readability in order to keep readable signatures of the types that
+/// Mainly used for readability in order to keep readable definitions of types that
 /// manage different storage domains (for example, the [Storage](enum.Storage.html)).
 pub trait StorageCarrier: Default {
     /// Message queue type used by storage manager
