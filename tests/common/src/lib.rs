@@ -21,7 +21,8 @@ use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::storage::InMemoryStorage;
 use gear_core::{message::MessageId, program::ProgramId};
 use gear_core_runner::{
-    Config, ExecutionOutcome, Ext, ExtMessage, InitializeProgramInfo, MessageDispatch, InMemoryRunner,
+    Config, ExecutionOutcome, Ext, ExtMessage, InMemoryRunner, InitializeProgramInfo,
+    MessageDispatch,
 };
 use std::collections::HashSet;
 

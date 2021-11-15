@@ -26,7 +26,6 @@ use sp_core::H256;
 use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
 
 use gear_backend_common::Environment;
-// todo [sab] remove re-export (gtest)
 pub use gear_core_runner::{BlockInfo, Ext};
 use gear_core_runner::{
     ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult, Runner,
