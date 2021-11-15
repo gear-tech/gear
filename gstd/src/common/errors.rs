@@ -20,7 +20,7 @@ use core::fmt;
 
 pub type Result<T> = core::result::Result<T, ContractError>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ContractError {
     Convert(&'static str),
     Decode(codec::Error),

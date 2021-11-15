@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::async_runtime::{signals, ReplyPoll};
-use crate::errors::{Result, ContractError};
+use crate::errors::{ContractError, Result};
 use crate::prelude::{convert::AsRef, Vec};
 use crate::{ActorId, MessageId};
 use codec::{Decode, Encode};

@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::errors::{ContractError, Result};
 use crate::prelude::convert::TryFrom;
 use crate::prelude::String;
-use crate::errors::{Result, ContractError};
 use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;

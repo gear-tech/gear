@@ -48,9 +48,9 @@ pub use core::ptr;
 
 // Re-exported types and traits
 pub use alloc::str::FromStr;
-pub use boxed::Box;
 pub use borrow::ToOwned;
-pub use codec::{Encode, Decode};
+pub use boxed::Box;
+pub use codec::{Decode, Encode};
 pub use collections::{BTreeMap, BTreeSet, VecDeque};
 pub use scale_info::TypeInfo;
 pub use string::{String, ToString};
