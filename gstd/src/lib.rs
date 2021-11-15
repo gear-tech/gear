@@ -37,5 +37,7 @@ pub use common::handlers::*;
 pub use common::primitives::*;
 pub use gstd_codegen::main;
 
+pub use prelude::*;
+
 #[cfg(feature = "debug")]
 pub use gcore::ext;
