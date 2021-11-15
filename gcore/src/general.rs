@@ -48,8 +48,8 @@
 ///     let msg_handle = msg::send_init();
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MessageHandle(pub u32);
+#[derive(Debug, PartialEq, Eq)]
+pub struct MessageHandle(pub(crate) u32);
 
 /// Message identifier.
 ///
