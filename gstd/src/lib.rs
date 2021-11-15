@@ -33,6 +33,7 @@ pub mod msg;
 pub mod prelude;
 pub mod sync;
 
+pub use common::errors;
 pub use common::handlers::*;
 pub use common::primitives::*;
 

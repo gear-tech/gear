@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::async_runtime::{signals, ReplyPoll};
+use crate::errors::{Result, ContractError};
 use crate::prelude::{convert::AsRef, Vec};
 use crate::{ActorId, MessageId};
 use codec::{Decode, Encode};
@@ -32,16 +33,16 @@ pub struct MessageFuture {
 }
 
 impl Future for MessageFuture {
-    type Output = Result<Vec<u8>, i32>;
+    type Output = Result<Vec<u8>>;
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
         match signals().poll(fut.waiting_reply_to) {
-            ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
+            ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
             ReplyPoll::Some((actual_reply, exit_code)) => {
                 if exit_code != 0 {
-                    return Poll::Ready(Err(exit_code));
+                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
                 }
 
                 Poll::Ready(Ok(actual_reply))
@@ -50,32 +51,43 @@ impl Future for MessageFuture {
     }
 }
 
-pub enum CodecMessageError {
-    ExitCode(i32),
-    CodecError(codec::Error),
-}
-
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
     phantom: PhantomData<T>,
 }
 
 impl<D: Decode> Future for CodecMessageFuture<D> {
-    type Output = Result<D, CodecMessageError>;
+    type Output = Result<D>;
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self;
-        match signals().poll(fut.waiting_reply_to)        {
-            ReplyPoll::None => panic!("Somebody created MessageFuture with the message_id that never ended in static replies!"),
+        match signals().poll(fut.waiting_reply_to) {
+            ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
             ReplyPoll::Some((actual_reply, exit_code)) => {
                 if exit_code != 0 {
-                    return Poll::Ready(Err(CodecMessageError::ExitCode(exit_code)));
+                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
                 }
 
-                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(CodecMessageError::CodecError))
+                Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(ContractError::Decode))
             },
         }
+    }
+}
+
+/// Send a message and wait for reply.
+pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
+    program: ActorId,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> CodecMessageFuture<D> {
+    let waiting_reply_to = crate::msg::send(program, payload, gas_limit, value);
+    signals().register_signal(waiting_reply_to);
+
+    CodecMessageFuture::<D> {
+        waiting_reply_to,
+        phantom: PhantomData,
     }
 }
 
@@ -90,20 +102,4 @@ pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     signals().register_signal(waiting_reply_to);
 
     MessageFuture { waiting_reply_to }
-}
-
-/// Send a message and wait for reply.
-pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
-    program: ActorId,
-    payload: E,
-    gas_limit: u64,
-    value: u128,
-) -> CodecMessageFuture<D> {
-    let waiting_reply_to = crate::msg::send_bytes(program, payload.encode(), gas_limit, value);
-    signals().register_signal(waiting_reply_to);
-
-    CodecMessageFuture::<D> {
-        waiting_reply_to,
-        phantom: PhantomData,
-    }
 }

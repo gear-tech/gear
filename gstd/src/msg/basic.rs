@@ -17,31 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::prelude::{convert::AsRef, vec, Vec};
-use crate::{ActorId, MessageId};
-use codec::{Decode, Encode, Output};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MessageHandle(gcore::MessageHandle);
-
-impl MessageHandle {
-    pub fn init() -> Self {
-        send_init()
-    }
-
-    pub fn push<T: AsRef<[u8]>>(&self, payload: T) {
-        gcore::msg::send_push(&self.0, payload.as_ref());
-    }
-
-    pub fn commit(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
-        gcore::msg::send_commit(self.0, program.into(), gas_limit, value).into()
-    }
-}
-
-impl Output for MessageHandle {
-    fn write(&mut self, bytes: &[u8]) {
-        gcore::msg::send_push(&self.0, bytes);
-    }
-}
+use crate::{ActorId, MessageHandle, MessageId};
 
 pub fn exit_code() -> i32 {
     gcore::msg::exit_code()
@@ -51,30 +27,10 @@ pub fn id() -> MessageId {
     gcore::msg::id().into()
 }
 
-pub fn reply_to() -> MessageId {
-    gcore::msg::reply_to().into()
-}
-
-pub fn source() -> ActorId {
-    gcore::msg::source().into()
-}
-
-pub fn value() -> u128 {
-    gcore::msg::value()
-}
-
-pub fn load<D: Decode>() -> Result<D, codec::Error> {
-    D::decode(&mut load_bytes().as_ref())
-}
-
 pub fn load_bytes() -> Vec<u8> {
-    let mut result = vec![0u8; gcore::msg::size()];
+    let mut result = vec![0u8; size()];
     gcore::msg::load(&mut result[..]);
     result
-}
-
-pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
-    reply_bytes(&payload.encode(), gas_limit, value)
 }
 
 pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> MessageId {
@@ -89,12 +45,8 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
     gcore::msg::reply_push(payload.as_ref());
 }
 
-pub fn send_init() -> MessageHandle {
-    MessageHandle(gcore::msg::send_init())
-}
-
-pub fn send<E: Encode>(program: ActorId, payload: E, gas_limit: u64, value: u128) -> MessageId {
-    send_bytes(program, &payload.encode(), gas_limit, value)
+pub fn reply_to() -> MessageId {
+    gcore::msg::reply_to().into()
 }
 
 pub fn send_bytes<T: AsRef<[u8]>>(
@@ -104,4 +56,33 @@ pub fn send_bytes<T: AsRef<[u8]>>(
     value: u128,
 ) -> MessageId {
     gcore::msg::send(program.into(), payload.as_ref(), gas_limit, value).into()
+}
+
+pub fn send_commit(
+    handle: MessageHandle,
+    program: ActorId,
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
+    gcore::msg::send_commit(handle.into(), program.into(), gas_limit, value).into()
+}
+
+pub fn send_init() -> MessageHandle {
+    gcore::msg::send_init().into()
+}
+
+pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) {
+    gcore::msg::send_push(handle.as_ref(), payload.as_ref())
+}
+
+pub fn size() -> usize {
+    gcore::msg::size()
+}
+
+pub fn source() -> ActorId {
+    gcore::msg::source().into()
+}
+
+pub fn value() -> u128 {
+    gcore::msg::value()
 }

@@ -16,11 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod async_sending;
-pub use async_sending::*;
+use crate::prelude::convert::AsRef;
+use crate::errors::{Result, ContractError};
+use crate::{ActorId, MessageId};
+use codec::{Decode, Encode};
 
-mod basic;
-pub use basic::*;
+pub fn load<D: Decode>() -> Result<D> {
+    D::decode(&mut super::load_bytes().as_ref()).map_err(ContractError::Decode)
+}
 
-mod encoded;
-pub use encoded::*;
+pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
+    super::reply_bytes(payload.encode(), gas_limit, value)
+}
+
+pub fn send<E: Encode>(program: ActorId, payload: E, gas_limit: u64, value: u128) -> MessageId {
+    super::send_bytes(program, payload.encode(), gas_limit, value)
+}

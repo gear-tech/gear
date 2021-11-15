@@ -16,11 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod async_sending;
-pub use async_sending::*;
+use core::fmt;
 
-mod basic;
-pub use basic::*;
+pub type Result<T> = core::result::Result<T, ContractError>;
 
-mod encoded;
-pub use encoded::*;
+#[derive(Clone, Debug)]
+pub enum ContractError {
+    Convert(&'static str),
+    Decode(codec::Error),
+    ExitCode(i32),
+    Internal(&'static str),
+}
+
+impl fmt::Display for ContractError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ContractError::Convert(e) => write!(f, "Convertation error: {:?}", e),
+            ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {}", e),
+            ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
+            ContractError::Internal(e) => write!(f, "Internal error: {:?}", e),
+        }
+    }
+}
