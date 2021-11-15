@@ -94,7 +94,7 @@ mod wasm {
                 let reply_bytes = msg::send_bytes_and_wait_for_reply(
                     program_handle,
                     &encoded_request[..],
-                    exec::gas_available() - 25_000_000,
+                    exec::gas_available() - 50_000_000,
                     0,
                 )
                 .await
@@ -140,7 +140,7 @@ mod wasm {
             };
 
             debug!("Handle request finished");
-            msg::reply(reply, exec::gas_available() - 25_000_000, 0);
+            msg::reply(reply, exec::gas_available() - 50_000_000, 0);
         }
 
         async fn handle_receive(amount: u64) -> Reply {
@@ -210,6 +210,11 @@ mod wasm {
         debug!("Handling sequence started");
         gstd::event_loop(Program::handle_request());
         debug!("Handling sequence terminated");
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn handle_reply() {
+        gstd::record_reply();
     }
 
     #[no_mangle]
