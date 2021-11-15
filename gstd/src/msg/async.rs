@@ -28,29 +28,6 @@ use core::{
     task::{Context, Poll},
 };
 
-pub struct MessageFuture {
-    waiting_reply_to: MessageId,
-}
-
-impl Future for MessageFuture {
-    type Output = Result<Vec<u8>>;
-
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let fut = &mut *self;
-        match signals().poll(fut.waiting_reply_to) {
-            ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
-            ReplyPoll::Pending => Poll::Pending,
-            ReplyPoll::Some((actual_reply, exit_code)) => {
-                if exit_code != 0 {
-                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
-                }
-
-                Poll::Ready(Ok(actual_reply))
-            },
-        }
-    }
-}
-
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
     phantom: PhantomData<T>,
@@ -70,6 +47,29 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
                 }
 
                 Poll::Ready(D::decode(&mut actual_reply.as_ref()).map_err(ContractError::Decode))
+            },
+        }
+    }
+}
+
+pub struct MessageFuture {
+    waiting_reply_to: MessageId,
+}
+
+impl Future for MessageFuture {
+    type Output = Result<Vec<u8>>;
+
+    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let fut = &mut *self;
+        match signals().poll(fut.waiting_reply_to) {
+            ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
+            ReplyPoll::Pending => Poll::Pending,
+            ReplyPoll::Some((actual_reply, exit_code)) => {
+                if exit_code != 0 {
+                    return Poll::Ready(Err(ContractError::ExitCode(exit_code)));
+                }
+
+                Poll::Ready(Ok(actual_reply))
             },
         }
     }

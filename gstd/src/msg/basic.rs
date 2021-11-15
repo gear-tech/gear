@@ -17,7 +17,49 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::prelude::{convert::AsRef, vec, Vec};
-use crate::{ActorId, MessageHandle, MessageId};
+use crate::{ActorId, MessageId};
+use codec::Output;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MessageHandle(gcore::MessageHandle);
+
+impl MessageHandle {
+    pub fn init() -> Self {
+        send_init()
+    }
+
+    pub fn push<T: AsRef<[u8]>>(&self, payload: T) {
+        send_push(self, payload);
+    }
+
+    pub fn commit(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
+        send_commit(self, program, gas_limit, value)
+    }
+}
+
+impl Output for MessageHandle {
+    fn write(&mut self, bytes: &[u8]) {
+        self.push(bytes);
+    }
+}
+
+impl AsRef<gcore::MessageHandle> for MessageHandle {
+    fn as_ref(&self) -> &gcore::MessageHandle {
+        &self.0
+    }
+}
+
+impl From<MessageHandle> for gcore::MessageHandle {
+    fn from(other: MessageHandle) -> Self {
+        other.0
+    }
+}
+
+impl From<gcore::MessageHandle> for MessageHandle {
+    fn from(other: gcore::MessageHandle) -> Self {
+        Self(other)
+    }
+}
 
 pub fn exit_code() -> i32 {
     gcore::msg::exit_code()

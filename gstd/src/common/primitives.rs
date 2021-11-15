@@ -19,7 +19,7 @@
 use crate::prelude::convert::TryFrom;
 use crate::prelude::String;
 use crate::errors::{Result, ContractError};
-use codec::{Decode, Encode, Output};
+use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 
@@ -33,6 +33,13 @@ impl ActorId {
         Self(arr)
     }
 
+    pub fn from_bs58(address: String) -> Result<Self> {
+        bs58::decode(address)
+            .into_vec()
+            .map(|v| Self::from_slice(&v[1..v.len() - 2].to_vec()))
+            .map_err(|_| ContractError::Convert("Unable to decode bs58 address"))?
+    }
+
     pub fn from_slice(slice: &[u8]) -> Result<Self> {
         if slice.len() != 32 {
             return Err(ContractError::Convert("Slice should be 32 length"));
@@ -43,18 +50,11 @@ impl ActorId {
 
         Ok(actor_id)
     }
-
-    pub fn from_bs58(address: String) -> Result<ActorId> {
-        bs58::decode(address)
-            .into_vec()
-            .map(|v| ActorId::from_slice(&v[1..v.len() - 2].to_vec()))
-            .map_err(|_| ContractError::Convert("Unable to decode bs58 address"))?
-    }
 }
 
-impl From<[u8; 32]> for ActorId {
-    fn from(arr: [u8; 32]) -> Self {
-        Self::new(arr)
+impl AsRef<[u8]> for ActorId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
@@ -67,11 +67,9 @@ impl From<u64> for ActorId {
     }
 }
 
-impl TryFrom<&[u8]> for ActorId {
-    type Error = ContractError;
-
-    fn try_from(slice: &[u8]) -> Result<Self> {
-        Self::from_slice(slice)
+impl From<[u8; 32]> for ActorId {
+    fn from(arr: [u8; 32]) -> Self {
+        Self(arr)
     }
 }
 
@@ -93,50 +91,11 @@ impl From<ActorId> for gcore::ActorId {
     }
 }
 
-impl AsRef<[u8]> for ActorId {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
+impl TryFrom<&[u8]> for ActorId {
+    type Error = ContractError;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct MessageHandle(gcore::MessageHandle);
-
-impl MessageHandle {
-    pub fn init() -> Self {
-        crate::msg::send_init()
-    }
-
-    pub fn push<T: AsRef<[u8]>>(&self, payload: T) {
-        crate::msg::send_push(self, payload);
-    }
-
-    pub fn commit(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
-        crate::msg::send_commit(self, program, gas_limit, value)
-    }
-}
-
-impl AsRef<gcore::MessageHandle> for MessageHandle {
-    fn as_ref(&self) -> &gcore::MessageHandle {
-        &self.0
-    }
-}
-
-impl From<gcore::MessageHandle> for MessageHandle {
-    fn from(other: gcore::MessageHandle) -> Self {
-        Self(other)
-    }
-}
-
-impl From<MessageHandle> for gcore::MessageHandle {
-    fn from(other: MessageHandle) -> Self {
-        other.0
-    }
-}
-
-impl Output for MessageHandle {
-    fn write(&mut self, bytes: &[u8]) {
-        self.push(bytes);
+    fn try_from(slice: &[u8]) -> Result<Self> {
+        Self::from_slice(slice)
     }
 }
 
@@ -152,6 +111,12 @@ impl MessageId {
     }
 }
 
+impl AsRef<[u8]> for MessageId {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
 impl From<MessageId> for gcore::MessageId {
     fn from(other: MessageId) -> Self {
         Self(other.0)
@@ -161,11 +126,5 @@ impl From<MessageId> for gcore::MessageId {
 impl From<gcore::MessageId> for MessageId {
     fn from(other: gcore::MessageId) -> Self {
         Self(other.0)
-    }
-}
-
-impl AsRef<[u8]> for MessageId {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
     }
 }
