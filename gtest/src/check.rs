@@ -202,7 +202,7 @@ fn check_messages(
                 }
 
                 match_or_else(
-                    Some(ProgramId::from(exp.destination)),
+                    Some(exp.destination.to_program_id()),
                     msg.dest,
                     |expected, actual| {
                         errors.push(MessagesError::destination(position, expected, actual))
@@ -385,7 +385,7 @@ where
         let progs_n_paths: Vec<(&str, ProgramId)> = test
             .programs
             .iter()
-            .map(|prog| (prog.path.as_ref(), ProgramId::from(prog.id)))
+            .map(|prog| (prog.path.as_ref(), prog.id.to_program_id()))
             .collect();
 
         for fixture_no in 0..test.fixtures.len() {
