@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module with custom panic handlers implementations.
+
 #[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]

@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module with basic messaging functions.
+
 use crate::prelude::{convert::AsRef, vec, Vec};
 use crate::{ActorId, MessageId};
 use codec::Output;

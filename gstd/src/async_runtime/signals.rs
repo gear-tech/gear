@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module for signal-magement and waking concrete message based on reply recieved.
+
 use crate::prelude::{BTreeMap, Vec};
 use crate::MessageId;
 

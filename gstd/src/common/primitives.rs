@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Gear primitive types.
+
 use crate::errors::{ContractError, Result};
 use crate::prelude::convert::TryFrom;
 use crate::prelude::String;

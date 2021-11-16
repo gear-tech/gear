@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! This module gives mechanism of waking for async lockers.
+
 use crate::prelude::VecDeque;
 use crate::MessageId;
 use core::cell::UnsafeCell;

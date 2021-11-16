@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Program execution regulation module.
+
 use crate::MessageId;
 pub use gcore::exec::{block_height, block_timestamp, gas_available};
 

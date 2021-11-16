@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Gear `export!` macro. Creates FFI function to be exported.
+
 #[macro_export]
 macro_rules! export {
     ($f:ident -> $val:expr) => {

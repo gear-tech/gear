@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Common things for each Gear contract.
+
 pub mod errors;
 pub mod handlers;
 pub mod primitives;

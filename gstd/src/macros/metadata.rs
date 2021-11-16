@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Gear `metadata!` macro. Exports functions with IO data.
+
 #[macro_export]
 macro_rules! metadata {
     (
