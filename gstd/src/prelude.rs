@@ -52,6 +52,7 @@ pub use borrow::ToOwned;
 pub use boxed::Box;
 pub use codec::{Decode, Encode};
 pub use collections::{BTreeMap, BTreeSet, VecDeque};
+pub use convert::{Into, TryInto};
 pub use scale_info::TypeInfo;
 pub use string::{String, ToString};
 pub use vec::Vec;
