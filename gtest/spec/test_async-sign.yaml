@@ -5,9 +5,12 @@ programs:
     path: target/wasm32-unknown-unknown/release/demo_async_sign.wasm
     init_message:
       kind: utf-8
-      value: "{2},{3}"
+      # bob's Account Id
+      value: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48,{3}"
 
-  - id: 2
+  - id:
+      kind: ss58
+      value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
     path: target/wasm32-unknown-unknown/release/test_bob.wasm
 
   - id: 3
@@ -15,7 +18,7 @@ programs:
     init_message:
       kind: custom
       value:
-        # bob
+        # bob's pub key
         account: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
 
 fixtures:
@@ -30,7 +33,9 @@ fixtures:
     expected:
       - step: 1
         messages:
-          - destination: 2
+          - destination:
+              kind: ss58
+              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
             payload:
               kind: bytes
               value: "0x1050494e47"
@@ -86,21 +91,29 @@ fixtures:
         messages:
           - destination: 1
             payload: *start
-          - destination: 2
+          - destination:
+              kind: ss58
+              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
             payload: &ping
               kind: bytes
               value: "0x1050494e47"
 
       - step: 2
         messages:
-          - destination: 2
+          - destination:
+              kind: ss58
+              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
             payload: *ping
-          - destination: 2
+          - destination:
+              kind: ss58
+              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
             payload: *ping
 
       - step: 3
         messages:
-          - destination: 2
+          - destination:
+              kind: ss58
+              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
             payload: *ping
           - destination: 1
             payload: &good
