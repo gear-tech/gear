@@ -8,7 +8,18 @@ programs:
       value: "{2},{3}"
 
   - id: 2
-    path: target/wasm32-unknown-unknown/release/test_bob.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    init_message:
+      kind: custom
+      value:
+        - request: "0x1050494e47"
+          repeated: false
+          replies:
+            - count: 1
+              reply: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+              # incorrect signature, note the last character
+            - count: 4294967295
+              reply: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a587"
 
   - id: 3
     path: target/wasm32-unknown-unknown/release/demo_signed_message.wasm
