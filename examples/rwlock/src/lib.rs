@@ -6,7 +6,7 @@ use core::{
     ptr,
     task::{Context, RawWaker, RawWakerVTable, Waker},
 };
-use gstd::sync::rwlock::RwLock;
+use gstd::lock::rwlock::RwLock;
 use gstd::{exec, msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);

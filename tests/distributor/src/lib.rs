@@ -50,7 +50,7 @@ mod wasm {
     use alloc::collections::BTreeSet;
     use codec::{Decode, Encode};
     use core::future::Future;
-    use gstd::sync::mutex::Mutex;
+    use gstd::lock::mutex::Mutex;
     use gstd::{debug, exec, msg, prelude::*, ActorId};
 
     use super::{Reply, Request};

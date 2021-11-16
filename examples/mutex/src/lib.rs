@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::sync::mutex::Mutex;
+use gstd::lock::mutex::Mutex;
 use gstd::{exec, msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);

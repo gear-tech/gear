@@ -26,10 +26,10 @@ extern crate galloc;
 mod async_runtime;
 mod common;
 pub mod exec;
+pub mod lock;
 pub mod macros;
 pub mod msg;
 pub mod prelude;
-pub mod sync;
 
 pub use async_runtime::{message_loop, record_reply};
 pub use common::errors;

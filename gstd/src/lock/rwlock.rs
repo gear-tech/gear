@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::sync::access::AccessQueue;
+use super::access::AccessQueue;
 use crate::MessageId;
 use core::{
     cell::{Cell, UnsafeCell},
