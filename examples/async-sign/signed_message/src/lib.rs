@@ -32,16 +32,12 @@ static mut SIGNATORY: Option<ActorId> = None;
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    let signatory = match SIGNATORY {
+    let signatory: [u8; 32] = match SIGNATORY {
         None => {
             msg::reply_bytes(b"Uninitialized", 10_000, 0);
             return;
         }
-        Some(s) => {
-            let mut arr = [0u8; 32];
-            arr.copy_from_slice(s.as_ref());
-            arr
-        }
+        Some(s) => s.into(),
     };
 
     let args: HandleArgs = match msg::load() {

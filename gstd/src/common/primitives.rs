@@ -58,6 +58,12 @@ impl AsRef<[u8]> for ActorId {
     }
 }
 
+impl AsMut<[u8]> for ActorId {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut()
+    }
+}
+
 #[cfg(feature = "debug")]
 impl From<u64> for ActorId {
     fn from(v: u64) -> Self {
@@ -70,6 +76,12 @@ impl From<u64> for ActorId {
 impl From<[u8; 32]> for ActorId {
     fn from(arr: [u8; 32]) -> Self {
         Self(arr)
+    }
+}
+
+impl From<ActorId> for [u8; 32] {
+    fn from(other: ActorId) -> Self {
+        other.0
     }
 }
 
