@@ -52,9 +52,7 @@ where
 
     let pinned = Pin::new(&mut current_future);
 
-    if pinned.poll(&mut cx).is_ready() {
-        // Done!
-    } else {
+    if !pinned.poll(&mut cx).is_ready() {
         super::futures().insert(crate::msg::id(), current_future);
         crate::exec::wait()
     }
