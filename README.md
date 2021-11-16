@@ -61,7 +61,7 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
  - Programs run in WASM WM (near-native code execution speed)
  - **Unique** :crown: : Parallelizable architecture (even greater speed)
- - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
+ - **Unique** :crown: : Actor model for message-passing communications — secure, effective, clear
  - dApp in minutes using GEAR libraries
  - Based on Substrate
 
