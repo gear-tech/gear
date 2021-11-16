@@ -31,7 +31,7 @@ pub mod msg;
 pub mod prelude;
 pub mod sync;
 
-pub use async_runtime::{event_loop, record_reply};
+pub use async_runtime::{message_loop, record_reply};
 pub use common::errors;
 pub use common::handlers::*;
 pub use common::primitives::*;

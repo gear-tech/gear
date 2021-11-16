@@ -36,7 +36,7 @@ type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 pub(crate) type FuturesMap = BTreeMap<MessageId, LocalBoxFuture<'static, ()>>;
 
 /// Asynchronous message handling main loop.
-pub fn event_loop<F>(future: F)
+pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {

@@ -19,7 +19,7 @@
 mod futures;
 mod signals;
 
-pub use self::futures::event_loop;
+pub use self::futures::message_loop;
 
 use self::futures::FuturesMap;
 use crate::prelude::BTreeMap;

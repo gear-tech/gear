@@ -208,7 +208,7 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
         debug!("Handling sequence started");
-        gstd::event_loop(Program::handle_request());
+        gstd::message_loop(Program::handle_request());
         debug!("Handling sequence terminated");
     }
 
