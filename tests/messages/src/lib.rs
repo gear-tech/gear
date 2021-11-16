@@ -32,7 +32,7 @@ mod wasm {
     extern crate alloc;
 
     use codec::{Decode, Encode};
-    use gstd::{ext, msg, prelude::*, MessageId, ProgramId};
+    use gstd::{debug, ext, msg, prelude::*, MessageId, ProgramId};
 
     use super::{Reply, Request};
 
@@ -97,7 +97,7 @@ mod wasm {
         msg::load::<Request>()
             .map(process_request)
             .unwrap_or_else(|e| {
-                ext::debug(&format!("Error processing request: {:?}", e));
+                debug!("Error processing request: {:?}", e);
             });
     }
 }
