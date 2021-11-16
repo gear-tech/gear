@@ -38,7 +38,7 @@ fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn main(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
 
     if function.sig.ident != "main" {

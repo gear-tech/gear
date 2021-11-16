@@ -133,7 +133,7 @@ gstd::metadata! {
         output: String,
 }
 
-#[gstd::main]
+#[gstd::async_main]
 async fn main() {
     let action: Action = msg::load().expect("Unable to decode Action");
 

@@ -21,7 +21,7 @@ pub unsafe extern "C" fn init() {
         .expect("Unable to create ActorId");
 }
 
-#[gstd::main]
+#[gstd::async_main]
 async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 

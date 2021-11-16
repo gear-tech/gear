@@ -43,7 +43,7 @@ pub unsafe extern "C" fn init() {
     SIGNED_MESSAGE_PROGRAM = hex_to_id(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID");
 }
 
-#[gstd::main]
+#[gstd::async_main]
 async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     debug!("message = {:?}", message);

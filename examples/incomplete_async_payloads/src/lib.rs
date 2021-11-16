@@ -4,7 +4,7 @@ use gstd::{debug, msg, prelude::*};
 
 const GAS_LIMIT: u64 = 50_000_000;
 
-#[gstd::main]
+#[gstd::async_main]
 async fn main() {
     let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
 
