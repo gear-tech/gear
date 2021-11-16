@@ -168,10 +168,10 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         }
         let mut init_source: ProgramId = SOME_FIXED_USER.into();
         if let Some(source) = &program.source {
-            init_source = source.into_program_id();
+            init_source = source.to_program_id();
         }
         runner.init_program(InitializeProgramInfo {
-            new_program_id: program.id.into_program_id(),
+            new_program_id: program.id.to_program_id(),
             source_id: init_source,
             code,
             message: ExtMessage {
@@ -222,11 +222,11 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         };
         let mut message_source: ProgramId = 0.into();
         if let Some(source) = &message.source {
-            message_source = source.into_program_id();
+            message_source = source.to_program_id();
         }
         runner.queue_message(MessageDispatch {
             source_id: message_source,
-            destination_id: message.destination.into_program_id(),
+            destination_id: message.destination.to_program_id(),
             data: ExtMessage {
                 id: nonce.into(),
                 payload,

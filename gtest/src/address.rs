@@ -41,15 +41,20 @@ impl Default for Address {
 }
 
 impl Address {
-    pub fn into_program_id(&self) -> ProgramId {
+    pub fn to_program_id(&self) -> ProgramId {
         match self {
-            Self::Account(s) => {
-                ProgramId::from_slice(Keyring::from_str(s).unwrap().to_h256_public().as_bytes())
-            }
+            Self::Account(s) => ProgramId::from_slice(
+                Keyring::from_str(s)
+                    .expect("No account in Keyring")
+                    .to_h256_public()
+                    .as_bytes(),
+            ),
             Self::ProgramId(id) => ProgramId::from(*id),
-            Self::SS58(s) => {
-                ProgramId::from_slice(Public::from_ss58check(s).unwrap().as_bytes_ref())
-            }
+            Self::SS58(s) => ProgramId::from_slice(
+                Public::from_ss58check(s)
+                    .expect("Failed to decode ss58")
+                    .as_bytes_ref(),
+            ),
         }
     }
 }
