@@ -44,13 +44,13 @@ function findMessage(api, expMessage, snapshots, programs) {
 
               payload = api.createType('Bytes', expMessage.payload.value);
             } else if (expMessage.payload.kind === 'i32') {
-              payload = api.createType('i32', expMessage.payload.value);
+              payload = CreateType.encode('i32', expMessage.payload.value);
             } else if (expMessage.payload.kind === 'i64') {
-              payload = api.createType('i64', expMessage.payload.value);
+              payload = CreateType.encode('i64', expMessage.payload.value);
             } else if (expMessage.payload.kind === 'f32') {
-              payload = api.createType('f32', expMessage.payload.value);
+              payload = CreateType.encode('f32', expMessage.payload.value);
             } else if (expMessage.payload.kind === 'f64') {
-              payload = api.createType('f64', expMessage.payload.value);
+              payload = CreateType.encode('f64', expMessage.payload.value);
             } else if (expMessage.payload.kind === 'utf-8') {
               if (expMessage.payload.value.search(/{([0-9]*)\}/) !== -1) {
                 const res = expMessage.payload.value.match(/{([0-9]*)\}/);
@@ -73,8 +73,8 @@ function findMessage(api, expMessage, snapshots, programs) {
               payload = CreateType.encode(metadata[expMessage.destination].handle_output, expMessage.payload.value, metadata[expMessage.destination]);
             }
 
-            // console.log('exp payload - ', payload.toHuman());
-            // console.log('msg payload - ', message.payload.toHuman());
+            // console.log('exp payload - ', payload.toHex());
+            // console.log('msg payload - ', message.payload.toHex());
 
             if (payload.eq(message.payload)) {
 
@@ -85,6 +85,9 @@ function findMessage(api, expMessage, snapshots, programs) {
         } else {
           continue;
         }
+      }
+      if (found !== -1) {
+        break;
       }
     }
   }
@@ -158,60 +161,50 @@ async function checkMessages(api, exp, programs, snapshots) {
   // console.log(messageQueue.toHuman());
   // console.log(exp.messages);
   const errors = [];
-  for (const snapshot of snapshots) {
-    if (snapshot.messageQueue) {
-      let messageQueue = snapshot.messageQueue;
-      // if (exp.messages.length === 0 || exp.messages.length !== messageQueue.length) {
-      //   errors.push(`Messages length doesn't match (expected: ${exp.messages.length}, recieved: ${messageQueue.length})`);
-      //   return errors;
-      // }
-      let found = 0;
-      for (let index = 0; index < exp.messages.length; index++) {
-        const message = api.createType('Message', messageQueue[index]);
-        const expMessage = exp.messages[index];
-        found = findMessage(api, expMessage, snapshots.slice(found), programs);
-        console.log(found);
-        // console.log(payload, message.payload)
-        // if (payload && !message.payload === payload.toU8a()) {
-        //   errors.push(
-        //     `Message payload doesn't match (expected: ${payload.toHuman()}, recieved: ${message.payload.toHuman()})`,
-        //   );
-        // }
-        // if (!message.dest.eq(programs[expMessage.destination])) {
-        //   errors.push(
-        //     `Message destination doesn't match (expected: ${programs[
-        //     expMessage.destination
-        //     ]}, recieved: ${message.dest.toHuman()})`,
-        //   );
-        // }
-        // if ('gas_limit' in expMessage) {
-        //   if (!message.gas_limit.toNumber().eq(expMessage.gas_limit)) {
-        //     errors.push(
-        //       `Message gas_limit doesn't match (expected: ${expMessage.gas_limit
-        //       }, recieved: ${message.gas_limit.toHuman()})`,
-        //     );
-        //   }
-        // }
-        // if ('value' in expMessage) {
-        //   if (!message.value.toNumber().eq(expMessage.value)) {
-        //     errors.push(
-        //       `Message gas_limit doesn't match (expected: ${expMessage.value}, recieved: ${message.value.toHuman()})`,
-        //     );
-        //   }
-        // }
-        if (found === -1) {
-          errors.push(
-            `Message not found (expected: ${JSON.stringify(expMessage, null, 2)})`,
-          );
-          break;
-        }
-        // console.log('msg:', message.toHuman(), 'exp:', expMessage)
-      }
-    }
-
-    if (errors.length > 0) {
+  // if (exp.messages.length === 0 || exp.messages.length !== messageQueue.length) {
+  //   errors.push(`Messages length doesn't match (expected: ${exp.messages.length}, recieved: ${messageQueue.length})`);
+  //   return errors;
+  // }
+  let found = 0;
+  for (let index = 0; index < exp.messages.length; index++) {
+    const expMessage = exp.messages[index];
+    found = findMessage(api, expMessage, snapshots.slice(found), programs);
+    console.log(found);
+    // console.log(payload, message.payload)
+    // if (payload && !message.payload === payload.toU8a()) {
+    //   errors.push(
+    //     `Message payload doesn't match (expected: ${payload.toHuman()}, recieved: ${message.payload.toHuman()})`,
+    //   );
+    // }
+    // if (!message.dest.eq(programs[expMessage.destination])) {
+    //   errors.push(
+    //     `Message destination doesn't match (expected: ${programs[
+    //     expMessage.destination
+    //     ]}, recieved: ${message.dest.toHuman()})`,
+    //   );
+    // }
+    // if ('gas_limit' in expMessage) {
+    //   if (!message.gas_limit.toNumber().eq(expMessage.gas_limit)) {
+    //     errors.push(
+    //       `Message gas_limit doesn't match (expected: ${expMessage.gas_limit
+    //       }, recieved: ${message.gas_limit.toHuman()})`,
+    //     );
+    //   }
+    // }
+    // if ('value' in expMessage) {
+    //   if (!message.value.toNumber().eq(expMessage.value)) {
+    //     errors.push(
+    //       `Message gas_limit doesn't match (expected: ${expMessage.value}, recieved: ${message.value.toHuman()})`,
+    //     );
+    //   }
+    // }
+    if (found === -1) {
+      errors.push(
+        `Message not found (expected: ${JSON.stringify(expMessage, null, 2)})`,
+      );
       break;
     }
+    // console.log('msg:', message.toHuman(), 'exp:', expMessage)
   }
 
 
@@ -262,7 +255,7 @@ async function processExpected(api, sudoPair, fixture, programs, snapshots) {
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
 
-    if (exp.step && exp.step < 2) {
+    if (exp.step && exp.step == 0) {
       continue;
     }
 
@@ -394,21 +387,18 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     );
   }
 
-  let sent = false;
-
 
   const unsub = await debugMode.snapshots(async ({ data }) => {
     // data.programs.forEach(({ id, static_pages, persistent_pages, code_hash, nonce }) => {
     //   console.log(`Program with id: ${id.toHuman()}`);
     // });
     data.messageQueue.forEach(({ id, source, dest, payload, gas_limit, value, reply }) => {
-      console.log(`Message with id: ${id.toHuman()}`);
+      console.log(`Message with id: ${id.toHuman()} payload: ${payload.toHuman()}`);
     });
     snapshots.push(data)
   });
 
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
-  sent = true;
   await sleep(10000);
   unsub();
 
