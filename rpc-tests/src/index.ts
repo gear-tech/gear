@@ -18,6 +18,78 @@ function xxKey(module, key) {
   return xxhashAsHex(module, 128) + xxhashAsHex(key, 128).slice(2);
 }
 
+function findMessage(api, expMessage, snapshots, programs) {
+  let found = -1;
+  // console.log(programs);
+  console.log('find msg');
+  // console.log(expMessage.destination);
+
+  // console.log(programs[expMessage.destination].toHuman());
+  // console.log('snapshots len - ', snapshots.length);
+
+  for (let index = 0; index < snapshots.length; index++) {
+    const snapshot = snapshots[index];
+    if (snapshot.messageQueue) {
+
+      for (const message of snapshot.messageQueue) {
+
+        // console.log('message.dest - ', message.dest);
+        // console.log('expmessage.dest - ', programs[expMessage.destination]);
+
+        if (message.dest.eq(programs[expMessage.destination])) {
+
+          let payload: any;
+          if (expMessage.payload) {
+            if (expMessage.payload.kind === 'bytes') {
+
+              payload = api.createType('Bytes', expMessage.payload.value);
+            } else if (expMessage.payload.kind === 'i32') {
+              payload = api.createType('i32', expMessage.payload.value);
+            } else if (expMessage.payload.kind === 'i64') {
+              payload = api.createType('i64', expMessage.payload.value);
+            } else if (expMessage.payload.kind === 'f32') {
+              payload = api.createType('f32', expMessage.payload.value);
+            } else if (expMessage.payload.kind === 'f64') {
+              payload = api.createType('f64', expMessage.payload.value);
+            } else if (expMessage.payload.kind === 'utf-8') {
+              if (expMessage.payload.value.search(/{([0-9]*)\}/) !== -1) {
+                const res = expMessage.payload.value.match(/{([0-9]*)\}/);
+                const id = Number(res[1]);
+                if (programs[id] !== undefined) {
+                  expMessage.payload.value = expMessage.payload.value.replace(res[0], programs[id].toString().slice(2));
+                }
+              }
+              payload = api.createType('Bytes', expMessage.payload.value);
+            } else if (expMessage.payload.kind === 'custom') {
+
+              message.payload.value = JSON.stringify(expMessage.payload.value);
+              if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
+                const res = message.payload.value.match(/{([0-9]*)\}/);
+                const id = Number(res[1]);
+                if (programs[id] !== undefined) {
+                  expMessage.payload.value = expMessage.payload.value.replace(res[0], programs[id].toString().slice(2));
+                }
+              }
+              payload = CreateType.encode(metadata[expMessage.destination].handle_output, expMessage.payload.value, metadata[expMessage.destination]);
+            }
+
+            // console.log('exp payload - ', payload.toHuman());
+            // console.log('msg payload - ', message.payload.toHuman());
+
+            if (payload.eq(message.payload)) {
+
+              found = index;
+              break;
+            }
+          }
+        } else {
+          continue;
+        }
+      }
+    }
+  }
+  return found;
+}
 
 async function resetStorage(api: GearApi, sudoPair: KeyringPair) {
   const keys = [];
@@ -53,7 +125,8 @@ async function checkLog(api, exp, programs) {
       let found = false;
       if ('payload' in log) {
         if (log.payload.kind === 'custom') {
-          var encoded = CreateType.encode(metadata[log.payload], log.payload.value);
+          var encoded = CreateType.encode(metadata[1].handle_output, log.payload.value, metadata[1]);
+          // console.log(metadata[log.payload]);
         }
         else {
           var encoded = CreateType.encode('Bytes', log.payload.value);
@@ -80,85 +153,67 @@ async function checkLog(api, exp, programs) {
   return errors;
 }
 
-async function checkMessages(api, exp, programs, messageQueue) {
+async function checkMessages(api, exp, programs, snapshots) {
   console.log('checkMessages');
-  console.log(messageQueue.toHuman());
-  console.log(exp.messages);
+  // console.log(messageQueue.toHuman());
+  // console.log(exp.messages);
   const errors = [];
-  if (exp.messages.length === 0 || exp.messages.length !== messageQueue.length) {
-    errors.push(`Messages length doesn't match (expected: ${exp.messages.length}, recieved: ${messageQueue.length})`);
-    return errors;
+  for (const snapshot of snapshots) {
+    if (snapshot.messageQueue) {
+      let messageQueue = snapshot.messageQueue;
+      // if (exp.messages.length === 0 || exp.messages.length !== messageQueue.length) {
+      //   errors.push(`Messages length doesn't match (expected: ${exp.messages.length}, recieved: ${messageQueue.length})`);
+      //   return errors;
+      // }
+      let found = 0;
+      for (let index = 0; index < exp.messages.length; index++) {
+        const message = api.createType('Message', messageQueue[index]);
+        const expMessage = exp.messages[index];
+        found = findMessage(api, expMessage, snapshots.slice(found), programs);
+        console.log(found);
+        // console.log(payload, message.payload)
+        // if (payload && !message.payload === payload.toU8a()) {
+        //   errors.push(
+        //     `Message payload doesn't match (expected: ${payload.toHuman()}, recieved: ${message.payload.toHuman()})`,
+        //   );
+        // }
+        // if (!message.dest.eq(programs[expMessage.destination])) {
+        //   errors.push(
+        //     `Message destination doesn't match (expected: ${programs[
+        //     expMessage.destination
+        //     ]}, recieved: ${message.dest.toHuman()})`,
+        //   );
+        // }
+        // if ('gas_limit' in expMessage) {
+        //   if (!message.gas_limit.toNumber().eq(expMessage.gas_limit)) {
+        //     errors.push(
+        //       `Message gas_limit doesn't match (expected: ${expMessage.gas_limit
+        //       }, recieved: ${message.gas_limit.toHuman()})`,
+        //     );
+        //   }
+        // }
+        // if ('value' in expMessage) {
+        //   if (!message.value.toNumber().eq(expMessage.value)) {
+        //     errors.push(
+        //       `Message gas_limit doesn't match (expected: ${expMessage.value}, recieved: ${message.value.toHuman()})`,
+        //     );
+        //   }
+        // }
+        if (found === -1) {
+          errors.push(
+            `Message not found (expected: ${JSON.stringify(expMessage, null, 2)})`,
+          );
+          break;
+        }
+        // console.log('msg:', message.toHuman(), 'exp:', expMessage)
+      }
+    }
+
+    if (errors.length > 0) {
+      break;
+    }
   }
 
-  for (let index = 0; index < exp.messages.length; index++) {
-    const message = api.createType('Message', messageQueue[index]);
-    const expMessage = exp.messages[index];
-
-    let payload: any;
-    if (expMessage.payload) {
-      if (expMessage.payload.kind === 'bytes') {
-
-        payload = api.createType('Bytes', expMessage.payload.value);
-      } else if (expMessage.payload.kind === 'i32') {
-        payload = api.createType('i32', expMessage.payload.value);
-      } else if (expMessage.payload.kind === 'i64') {
-        payload = api.createType('i64', expMessage.payload.value);
-      } else if (expMessage.payload.kind === 'f32') {
-        payload = api.createType('f32', expMessage.payload.value);
-      } else if (expMessage.payload.kind === 'f64') {
-        payload = api.createType('f64', expMessage.payload.value);
-      } else if (expMessage.payload.kind === 'utf-8') {
-        if (expMessage.payload.value.search(/{([0-9]*)\}/) !== -1) {
-          const res = expMessage.payload.value.match(/{([0-9]*)\}/);
-          const id = Number(res[1]);
-          if (programs[id] !== undefined) {
-            expMessage.payload.value = expMessage.payload.value.replace(res[0], programs[id].toString().slice(2));
-          }
-        }
-        payload = api.createType('Bytes', expMessage.payload.value);
-      } else if (expMessage.payload.kind === 'custom') {
-
-        message.payload.value = JSON.stringify(expMessage.payload.value);
-        if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
-          const res = message.payload.value.match(/{([0-9]*)\}/);
-          const id = Number(res[1]);
-          if (programs[id] !== undefined) {
-            expMessage.payload.value = expMessage.payload.value.replace(res[0], programs[id].toString().slice(2));
-          }
-        }
-        payload = CreateType.encode(metadata[expMessage.destination].handle_output, expMessage.payload.value, metadata[expMessage.destination]);
-      }
-    }
-    console.log(payload, message.payload)
-    if (payload && !message.payload === payload.toU8a()) {
-      errors.push(
-        `Message payload doesn't match (expected: ${payload.toHuman()}, recieved: ${message.payload.toHuman()})`,
-      );
-    }
-    if (!message.dest.eq(programs[expMessage.destination])) {
-      errors.push(
-        `Message destination doesn't match (expected: ${programs[
-        expMessage.destination
-        ]}, recieved: ${message.dest.toHuman()})`,
-      );
-    }
-    if ('gas_limit' in expMessage) {
-      if (!message.gas_limit.toNumber().eq(expMessage.gas_limit)) {
-        errors.push(
-          `Message gas_limit doesn't match (expected: ${expMessage.gas_limit
-          }, recieved: ${message.gas_limit.toHuman()})`,
-        );
-      }
-    }
-    if ('value' in expMessage) {
-      if (!message.value.toNumber().eq(expMessage.value)) {
-        errors.push(
-          `Message gas_limit doesn't match (expected: ${expMessage.value}, recieved: ${message.value.toHuman()})`,
-        );
-      }
-    }
-    // console.log('msg:', message.toHuman(), 'exp:', expMessage)
-  }
 
   return errors;
 }
@@ -207,17 +262,20 @@ async function processExpected(api, sudoPair, fixture, programs, snapshots) {
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
 
-    if ('step' in exp && exp.step !== 0) {
-      if ('messages' in exp) {
+    if (exp.step && exp.step < 2) {
+      continue;
+    }
 
-        const res = await checkMessages(api, exp, programs, snapshots[exp.step + 1].messageQueue);
-        if (res.length === 0) {
-          output.push('MSG: OK');
-        } else {
-          errors.push(`MSG ERR: ${res}`);
-        }
+    if ('messages' in exp) {
+
+      const res = await checkMessages(api, exp, programs, snapshots);
+      if (res.length === 0) {
+        output.push('MSG: OK');
+      } else {
+        errors.push(`MSG ERR: ${res}`);
       }
     }
+
 
     if ('log' in exp) {
       const res = await checkLog(api, exp, programs);
@@ -236,13 +294,13 @@ async function processExpected(api, sudoPair, fixture, programs, snapshots) {
     //     errors.push(`MEMORY ERR: ${res}`);
     //   }
     // }
-  }
-  if (errors.length > 0) {
-    console.log(`Fixture ${fixture.title}`);
-    for (const err of errors) {
-      console.log(err);
+    if (errors.length > 0) {
+      console.log(`Fixture ${fixture.title}`);
+      for (const err of errors) {
+        console.error(err);
+      }
+      process.exit(1);
     }
-    process.exit(1);
   }
   return output;
 }
@@ -255,7 +313,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   // Send messages
   for (let index = 0; index < fixture.messages.length; index++) {
     const message = fixture.messages[index];
-    let gas_limit = 100_000_000_000_000;
+    let gas_limit = 100000000000;
     let value = 0;
 
     if (message.gas_limit) {
@@ -266,6 +324,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
       value = message.value;
     }
     let payload: any;
+
     if (message.payload.kind === 'bytes') {
       payload = api.createType('Bytes', message.payload.value);
       console.log(api.createType('Bytes', message.payload.value).toHex(), message.payload.value);
@@ -321,7 +380,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     const meta = message.payload.kind === 'custom' ? metadata[message.destination] : { handle_input: 'Bytes' };
 
     console.log(message);
-    
+
     txs.push(
       api.message.submit(
         {
@@ -337,7 +396,6 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 
   let sent = false;
 
-  // console.log(txs);
 
   const unsub = await debugMode.snapshots(async ({ data }) => {
     // data.programs.forEach(({ id, static_pages, persistent_pages, code_hash, nonce }) => {
@@ -346,19 +404,13 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     data.messageQueue.forEach(({ id, source, dest, payload, gas_limit, value, reply }) => {
       console.log(`Message with id: ${id.toHuman()}`);
     });
-    if (sent)
-      snapshots.push(data)
+    snapshots.push(data)
   });
 
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
   sent = true;
   await sleep(10000);
   unsub();
-  for (const data of snapshots) {
-    console.log(data.messageQueue.toHuman());
-
-  }
-
 
   return processExpected(api, sudoPair, fixture, programs, snapshots);
 }
@@ -383,38 +435,52 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
         let payload;
         const meta = program.init_message.kind === 'custom' ? metadata[program.id] : { init_input: 'Bytes' };
         if (program.init_message.kind === 'utf-8') {
-          if (program.init_message.value.search(/{([0-9]*)\}/) !== -1) {
-            const res = program.init_message.value.match(/{([0-9]*)\}/);
-            const id = Number(res[1]);
-            if (programs[id] !== undefined) {
-              program.init_message.value = program.init_message.value.replace(res[0], programs[id].toString().slice(2));
+          if (program.init_message.value.search(/\{([0-9]+)\}/g) !== -1) {
+            const res = program.init_message.value.match(/\{([0-9]+)\}/g);
+            for (const match of res) {
+              const id = Number(match.slice(1, match.length - 1));
+              if (programs[id] !== undefined) {
+                program.init_message.value = program.init_message.value.replace(match, programs[id].toString().slice(2));
+              }
             }
           }
+          payload = api.createType('Bytes', program.init_message.value);
+        } else if (program.init_message.kind === 'custom') {
+          program.init_message.value = JSON.stringify(program.init_message.value);
+          if (program.init_message.value.search(/\{([0-9]+)\}/g) !== -1) {
+            const res = program.init_message.value.match(/\{([0-9]+)\}/g);
+            for (const match of res) {
+              const id = Number(match.slice(1, match.length - 1));
+              if (programs[id] !== undefined) {
+                program.init_message.value = program.init_message.value.replace(match, programs[id].toString().slice(2));
+              }
+            }
+          }
+          payload = program.init_message.value;
         }
-        payload = api.createType('Bytes', program.init_message.value);
-        console.log(api.createType('Bytes', '200'), api.createType('Bytes', "'200'"));
-        programs[program.id] = api.program.submit(
+        api.program.submit(
           {
             code: fs.readFileSync(program.path),
             salt: salt[program.id],
             initPayload: payload,
-            gasLimit: 100_000_000,
+            gasLimit: 100000000000,
             value: 0,
           },
           meta,
         );
       } else {
         const meta = { init_input: 'Bytes' };
-        programs[program.id] = api.program.submit(
+        api.program.submit(
           {
             code: fs.readFileSync(program.path),
             salt: salt[program.id],
             initPayload: [],
-            gasLimit: 100_000_000,
+            gasLimit: 100000000000,
             value: 0,
           },
           meta,
         );
+        // assert
       }
       txs.push(api.program.submitted);
     }
