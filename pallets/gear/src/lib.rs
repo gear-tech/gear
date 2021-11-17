@@ -394,6 +394,7 @@ pub mod pallet {
                                 }
 
                                 for message in execution_report.log {
+                                    Self::insert_to_mailbox(message.dest, message.clone());
                                     Self::deposit_event(Event::Log(message));
                                 }
 
