@@ -9,6 +9,7 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import { WsTestProvider } from './ws-test';
 
 var metadata: any = {};
+var programs: any = {};
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -18,7 +19,45 @@ function xxKey(module, key) {
   return xxhashAsHex(module, 128) + xxhashAsHex(key, 128).slice(2);
 }
 
-function findMessage(api, expMessage, snapshots, programs) {
+function replaceRegex(input) {
+  if (input.search(/\{([0-9]+)\}/g) !== -1) {
+    const res = input.match(/\{([0-9]+)\}/g);
+    for (const match of res) {
+      const id = Number(match.slice(1, match.length - 1));
+      
+      if (programs[id] !== undefined) {
+        input = input.replace(match, programs[id].toString().slice(2));
+      }
+    }
+  }
+  return input;
+}
+
+function encodePayload(api, expMessage) {
+  let payload: any;
+  if (expMessage.payload.kind === 'bytes') {
+    payload = api.createType('Bytes', expMessage.payload.value);
+  } else if (expMessage.payload.kind === 'i32') {
+    payload = CreateType.encode('i32', expMessage.payload.value);
+  } else if (expMessage.payload.kind === 'i64') {
+    payload = CreateType.encode('i64', expMessage.payload.value);
+  } else if (expMessage.payload.kind === 'f32') {
+    payload = CreateType.encode('f32', expMessage.payload.value);
+  } else if (expMessage.payload.kind === 'f64') {
+    payload = CreateType.encode('f64', expMessage.payload.value);
+  } else if (expMessage.payload.kind === 'utf-8') {
+    payload = replaceRegex(expMessage.payload.value);
+    payload = api.createType('Bytes', payload);
+  } else if (expMessage.payload.kind === 'custom') {
+
+    expMessage.payload.value = JSON.stringify(expMessage.payload.value);
+    payload = replaceRegex(expMessage.payload.value);
+    payload = CreateType.encode(metadata[expMessage.destination].handle_output, expMessage.payload.value, metadata[expMessage.destination]);
+  }
+  return payload
+}
+
+function findMessage(api, expMessage, snapshots, start) {
   let found = -1;
   // console.log(programs);
   console.log('find msg');
@@ -27,63 +66,31 @@ function findMessage(api, expMessage, snapshots, programs) {
   // console.log(programs[expMessage.destination].toHuman());
   // console.log('snapshots len - ', snapshots.length);
 
-  for (let index = 0; index < snapshots.length; index++) {
+  for (let index = start; index < snapshots.length; index++) {
     const snapshot = snapshots[index];
     if (snapshot.messageQueue) {
 
       for (const message of snapshot.messageQueue) {
-
-        // console.log('message.dest - ', message.dest);
-        // console.log('expmessage.dest - ', programs[expMessage.destination]);
+        if (expMessage.payload.value == "THIRD") {
+          console.log(message.toHuman());
+        }
 
         if (message.dest.eq(programs[expMessage.destination])) {
 
-          let payload: any;
+          
           if (expMessage.payload) {
-            if (expMessage.payload.kind === 'bytes') {
+            let payload = encodePayload(api, expMessage);
 
-              payload = api.createType('Bytes', expMessage.payload.value);
-            } else if (expMessage.payload.kind === 'i32') {
-              payload = CreateType.encode('i32', expMessage.payload.value);
-            } else if (expMessage.payload.kind === 'i64') {
-              payload = CreateType.encode('i64', expMessage.payload.value);
-            } else if (expMessage.payload.kind === 'f32') {
-              payload = CreateType.encode('f32', expMessage.payload.value);
-            } else if (expMessage.payload.kind === 'f64') {
-              payload = CreateType.encode('f64', expMessage.payload.value);
-            } else if (expMessage.payload.kind === 'utf-8') {
-              if (expMessage.payload.value.search(/{([0-9]*)\}/) !== -1) {
-                const res = expMessage.payload.value.match(/{([0-9]*)\}/);
-                const id = Number(res[1]);
-                if (programs[id] !== undefined) {
-                  expMessage.payload.value = expMessage.payload.value.replace(res[0], programs[id].toString().slice(2));
-                }
-              }
-              payload = api.createType('Bytes', expMessage.payload.value);
-            } else if (expMessage.payload.kind === 'custom') {
-
-              message.payload.value = JSON.stringify(expMessage.payload.value);
-              if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
-                const res = message.payload.value.match(/{([0-9]*)\}/);
-                const id = Number(res[1]);
-                if (programs[id] !== undefined) {
-                  expMessage.payload.value = expMessage.payload.value.replace(res[0], programs[id].toString().slice(2));
-                }
-              }
-              payload = CreateType.encode(metadata[expMessage.destination].handle_output, expMessage.payload.value, metadata[expMessage.destination]);
-            }
-
-            // console.log('exp payload - ', payload.toHex());
-            // console.log('msg payload - ', message.payload.toHex());
+            console.log('exp payload - ', payload.toHex());
+            console.log('msg payload - ', message.payload.toHex());
 
             if (payload.eq(message.payload)) {
 
-              found = index;
-              break;
+              // found = index;
+              
+              return index;
             }
           }
-        } else {
-          continue;
         }
       }
       if (found !== -1) {
@@ -114,7 +121,7 @@ async function resetStorage(api: GearApi, sudoPair: KeyringPair) {
   }
 }
 
-async function checkLog(api, exp, programs) {
+async function checkLog(api, exp) {
   const errors = [];
 
   let mailbox = new GearMailbox(api);
@@ -122,21 +129,13 @@ async function checkLog(api, exp, programs) {
   let messagesOpt = await mailbox.readMailbox('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
-    console.log(messages.toHuman());
 
     for (const log of exp.log) {
       let found = false;
       if ('payload' in log) {
-        if (log.payload.kind === 'custom') {
-          var encoded = CreateType.encode(metadata[1].handle_output, log.payload.value, metadata[1]);
-          // console.log(metadata[log.payload]);
-        }
-        else {
-          var encoded = CreateType.encode('Bytes', log.payload.value);
-        }
+        let encoded = encodePayload(api, log);
 
         messages.forEach((message, _id) => {
-          console.log(message.payload.toHuman(), encoded.toHuman());
 
           if (message.payload.toHex() == encoded.toHex()) {
             found = true;
@@ -156,7 +155,7 @@ async function checkLog(api, exp, programs) {
   return errors;
 }
 
-async function checkMessages(api, exp, programs, snapshots) {
+async function checkMessages(api, exp, snapshots) {
   console.log('checkMessages');
   // console.log(messageQueue.toHuman());
   // console.log(exp.messages);
@@ -168,7 +167,7 @@ async function checkMessages(api, exp, programs, snapshots) {
   let found = 0;
   for (let index = 0; index < exp.messages.length; index++) {
     const expMessage = exp.messages[index];
-    found = findMessage(api, expMessage, snapshots.slice(found), programs);
+    found = findMessage(api, expMessage, snapshots, found);
     console.log(found);
     // console.log(payload, message.payload)
     // if (payload && !message.payload === payload.toU8a()) {
@@ -211,7 +210,7 @@ async function checkMessages(api, exp, programs, snapshots) {
   return errors;
 }
 
-async function checkMemory(api: GearApi, exp, programs) {
+async function checkMemory(api: GearApi, exp) {
   const errors = [];
 
   for (const mem of exp.memory) {
@@ -248,20 +247,19 @@ async function checkMemory(api: GearApi, exp, programs) {
   return errors;
 }
 
-async function processExpected(api, sudoPair, fixture, programs, snapshots) {
+async function processExpected(api, sudoPair, fixture, snapshots) {
   const output = [];
   const errors = [];
 
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
-
-    if (exp.step && exp.step == 0) {
+    
+    if (exp.step === 0) {
       continue;
     }
 
     if ('messages' in exp) {
-
-      const res = await checkMessages(api, exp, programs, snapshots);
+      const res = await checkMessages(api, exp, snapshots);
       if (res.length === 0) {
         output.push('MSG: OK');
       } else {
@@ -271,7 +269,7 @@ async function processExpected(api, sudoPair, fixture, programs, snapshots) {
 
 
     if ('log' in exp) {
-      const res = await checkLog(api, exp, programs);
+      const res = await checkLog(api, exp);
       if (res.length === 0) {
         output.push('LOG: OK');
       } else {
@@ -298,7 +296,7 @@ async function processExpected(api, sudoPair, fixture, programs, snapshots) {
   return output;
 }
 
-async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair, fixture: any, programs: any) {
+async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair, fixture: any) {
   const txs = [];
   const snapshots = [];
   let res = [];
@@ -330,13 +328,8 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     } else if (message.payload.kind === 'f64') {
       payload = api.createType('f64', message.payload.value).toU8a();
     } else if (message.payload.kind === 'utf-8') {
-      if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
-        const res = message.payload.value.match(/{([0-9]*)\}/);
-        const id = Number(res[1]);
-        if (programs[id] !== undefined) {
-          message.payload.value = message.payload.value.replace(res[0], programs[id].toString().slice(2));
-        }
-      }
+
+      payload = replaceRegex(message.payload.value);
       payload = api.createType('Bytes', message.payload.value);
       // } else if (message.payload.kind === 'custom') {
       //   if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
@@ -349,13 +342,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
       //   payload = message.payload.value;
     } else if (message.payload.kind === 'custom') {
       message.payload.value = JSON.stringify(message.payload.value);
-      if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
-        const res = message.payload.value.match(/{([0-9]*)\}/);
-        const id = Number(res[1]);
-        if (programs[id] !== undefined) {
-          message.payload.value = message.payload.value.replace(res[0], programs[id].toString().slice(2));
-        }
-      }
+      payload = replaceRegex(message.value);
       payload = message.payload.value;
       // } else if (message.payload.kind === 'custom') {
       //   if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
@@ -402,11 +389,10 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   await sleep(10000);
   unsub();
 
-  return processExpected(api, sudoPair, fixture, programs, snapshots);
+  return processExpected(api, sudoPair, fixture, snapshots);
 }
 
 async function processTest(testData: any, api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair) {
-  const programs = {};
   const salt = {};
   const txs = [];
   for (const fixture of testData.fixtures) {
@@ -425,28 +411,13 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
         let payload;
         const meta = program.init_message.kind === 'custom' ? metadata[program.id] : { init_input: 'Bytes' };
         if (program.init_message.kind === 'utf-8') {
-          if (program.init_message.value.search(/\{([0-9]+)\}/g) !== -1) {
-            const res = program.init_message.value.match(/\{([0-9]+)\}/g);
-            for (const match of res) {
-              const id = Number(match.slice(1, match.length - 1));
-              if (programs[id] !== undefined) {
-                program.init_message.value = program.init_message.value.replace(match, programs[id].toString().slice(2));
-              }
-            }
-          }
-          payload = api.createType('Bytes', program.init_message.value);
+          payload = replaceRegex(program.init_message.value);
+          
+          payload = api.createType('Bytes', payload);
         } else if (program.init_message.kind === 'custom') {
           program.init_message.value = JSON.stringify(program.init_message.value);
-          if (program.init_message.value.search(/\{([0-9]+)\}/g) !== -1) {
-            const res = program.init_message.value.match(/\{([0-9]+)\}/g);
-            for (const match of res) {
-              const id = Number(match.slice(1, match.length - 1));
-              if (programs[id] !== undefined) {
-                program.init_message.value = program.init_message.value.replace(match, programs[id].toString().slice(2));
-              }
-            }
-          }
-          payload = program.init_message.value;
+
+          payload = replaceRegex(program.init_message.value);
         }
         api.program.submit(
           {
@@ -477,7 +448,7 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
 
     await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
 
-    const out = await processFixture(api, debugMode, sudoPair, fixture, programs);
+    const out = await processFixture(api, debugMode, sudoPair, fixture);
     if (out.length > 0) {
       console.log(`Fixture ${fixture.title}: Ok`);
     }
