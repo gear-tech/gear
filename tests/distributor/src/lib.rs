@@ -50,7 +50,7 @@ mod wasm {
     use alloc::collections::BTreeSet;
     use codec::{Decode, Encode};
     use core::future::Future;
-    use gstd::{exec, ext, msg, prelude::*, ProgramId};
+    use gstd::{debug, exec, ext, msg, prelude::*, ProgramId};
     use gstd_async::mutex::Mutex;
 
     use super::{Reply, Request};
@@ -134,7 +134,7 @@ mod wasm {
                     Request::Report => Self::handle_report().await,
                 },
                 Err(e) => {
-                    ext::debug(&format!("Error processing request: {:?}", e));
+                    debug!("Error processing request: {:?}", e);
                     Reply::Failure
                 }
             };

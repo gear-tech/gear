@@ -7426,6 +7426,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tests-messages"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-core-runner",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder",
+ "tests-common",
+]
+
+[[package]]
 name = "tests-node"
 version = "0.1.0"
 dependencies = [
