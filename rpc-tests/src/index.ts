@@ -418,7 +418,7 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
     metadata = {};
     for (const program of testData.programs) {
       salt[program.id] = randomAsHex(20);
-      let bytes = CreateType.encode('bytes', Array.from(fs.readFileSync(program.path)));
+      let bytes = this.createType.create('bytes', Array.from(fs.readFileSync(program.path)));
       let metaBytes = fs.readFileSync(program.path.replace('.wasm', '.meta.wasm'));
       programs[program.id] = api.program.generateProgramId(bytes, salt[program.id]);
       metadata[program.id] = await getWasmMetadata(metaBytes);
@@ -437,7 +437,7 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
 
           payload = replaceRegex(payload);
         }
-        
+
         api.program.submit(
           {
             code: fs.readFileSync(program.path),
