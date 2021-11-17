@@ -9,4 +9,3 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gstd = { path = "../../gstd", features = ["debug"] }
-gstd-async = { path = "../../gstd-async" }

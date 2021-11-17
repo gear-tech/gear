@@ -16,41 +16,39 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
-use crate::ext::Ext;
 use alloc::vec::*;
-use gear_backend_common::Environment;
-use gear_core::storage::{MessageQueue, ProgramStorage, Storage, WaitList};
 
-#[cfg(test)]
-use gear_core::storage::{InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList};
+use gear_backend_common::Environment;
+use gear_core::storage::{Storage, StorageCarrier};
+
+use super::{
+    ext::{BlockInfo, Ext},
+    runner::{Config, ExtMessage, InitializeProgramInfo, Runner},
+};
 
 /// Builder for [`Runner`].
 #[derive(Default)]
-pub struct RunnerBuilder<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>> {
+pub struct RunnerBuilder<SC: StorageCarrier, E: Environment<Ext>> {
     config: Config,
     programs: Vec<InitializeProgramInfo>,
-    storage: Storage<MQ, PS, WL>,
-    block_height: u32,
+    storage: Storage<SC::MQ, SC::PS, SC::WL>,
+    block_info: BlockInfo,
     env: core::marker::PhantomData<E>,
 }
 
 #[cfg(test)]
 /// Fully in-memory runner builder (for tests).
-pub type InMemoryRunnerBuilder<E> =
-    RunnerBuilder<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, E>;
+pub type InMemoryRunnerBuilder<E> = RunnerBuilder<gear_core::storage::InMemoryStorage, E>;
 
-impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
-    RunnerBuilder<MQ, PS, WL, E>
-{
+impl<SC: StorageCarrier, E: Environment<Ext>> RunnerBuilder<SC, E> {
     /// Create an empty `RunnerBuilder` for default [`Runner`].
     pub fn new() -> Self {
         Default::default()
     }
 
-    /// Set block height.
-    pub fn block_height(mut self, value: u32) -> Self {
-        self.block_height = value;
+    /// Set the block info.
+    pub fn block_info(mut self, value: BlockInfo) -> Self {
+        self.block_info = value;
         self
     }
 
@@ -109,8 +107,8 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
     }
 
     /// Initialize all programs and return [`Runner`].
-    pub fn build(self) -> Runner<MQ, PS, WL, E> {
-        let mut runner = Runner::new(&self.config, self.storage, self.block_height, E::default());
+    pub fn build(self) -> Runner<SC, E> {
+        let mut runner = Runner::new(&self.config, self.storage, self.block_info, E::default());
         for program in self.programs {
             runner
                 .init_program(program)

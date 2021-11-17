@@ -9,5 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gstd = { path = "../../gstd", features = ["debug"] }
-gstd-async = { path = "../../gstd-async" }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }

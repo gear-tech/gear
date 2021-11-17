@@ -35,18 +35,24 @@ impl GearTestCmd {
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         new_test_ext()
             .execute_with(|| {
-                gear_test::check::check_main(self.input.to_vec(), false, false, false, || {
-                    sp_io::storage::clear_prefix(gear_common::STORAGE_CODE_PREFIX, None);
-                    sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX, None);
-                    sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX, None);
-                    sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX, None);
-                    gear_core::storage::Storage {
-                        message_queue: runner::ext::ExtMessageQueue::default(),
-                        program_storage: runner::ext::ExtProgramStorage,
-                        wait_list: Default::default(),
-                        log: Default::default(),
-                    }
-                })
+                gear_test::check::check_main::<runner::ExtStorage, _>(
+                    self.input.to_vec(),
+                    false,
+                    false,
+                    false,
+                    || {
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_CODE_PREFIX, None);
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX, None);
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX, None);
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX, None);
+                        gear_core::storage::Storage {
+                            message_queue: runner::ext::ExtMessageQueue::default(),
+                            program_storage: runner::ext::ExtProgramStorage,
+                            wait_list: Default::default(),
+                            log: Default::default(),
+                        }
+                    },
+                )
             })
             .map_err(|e| sc_cli::Error::Application(e.into()))
     }

@@ -35,13 +35,14 @@ sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.g
 sp-runtime = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
 serde = "1.0.101"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 
 [features]
 default = ['std']

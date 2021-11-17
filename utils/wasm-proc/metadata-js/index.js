@@ -40,6 +40,8 @@ exports.getWasmMetadata = async (wasmBytes) => {
         handle_output: "",
         async_handle_input: "",
         async_handle_output: "",
+        state_input: "",
+        state_output: "",
         registry: "",
         title: ""
     }
@@ -54,6 +56,8 @@ exports.getWasmMetadata = async (wasmBytes) => {
     metadata.handle_output = readMeta(memory, module.instance.exports.meta_handle_output());
     metadata.async_handle_input = readMeta(memory, module.instance.exports.meta_async_handle_input());
     metadata.async_handle_output = readMeta(memory, module.instance.exports.meta_async_handle_output());
+    metadata.state_input = readMeta(memory, module.instance.exports.meta_state_input());
+    metadata.state_output = readMeta(memory, module.instance.exports.meta_state_output());
     metadata.registry = `0x${readMeta(memory, module.instance.exports.meta_registry())}`;
     metadata.title = readMeta(memory, module.instance.exports.meta_title());
 

@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{debug, msg, prelude::*, ProgramId};
+use gstd::{debug, msg, prelude::*, ActorId};
 
 use core::convert::TryInto;
 use demo_chat::shared::{MemberMessage, RoomMessage};
@@ -42,7 +42,7 @@ fn bot(message: MemberMessage) {
                 debug!(
                     "BOT '{}': received private message from #{}: '{}'",
                     STATE.name(),
-                    u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
+                    u64::from_le_bytes(msg::source().as_ref()[0..8].try_into().unwrap()),
                     String::from_utf8(text).expect("invalid utf-8"),
                 );
             }
@@ -50,7 +50,7 @@ fn bot(message: MemberMessage) {
                 debug!(
                     "BOT '{}': received room message from #{}: '{}'",
                     STATE.name(),
-                    u64::from_le_bytes(msg::source().as_slice()[0..8].try_into().unwrap()),
+                    u64::from_le_bytes(msg::source().as_ref()[0..8].try_into().unwrap()),
                     String::from_utf8(text).expect("invalid utf-8"),
                 );
             }
@@ -68,9 +68,10 @@ pub unsafe extern "C" fn init() {
             let (name, room_id) = (&split[0], &split[1]);
             let s: &'static str = Box::leak(name.to_string().into_boxed_str());
             STATE.set_name(s);
-            let room_id = ProgramId::from_slice(
+            let room_id = ActorId::from_slice(
                 &decode_hex(room_id).expect("INITIALIZATION FAILED: INVALID ROOM ID"),
-            );
+            )
+            .expect("Unable to create ActorId");
             msg::send(
                 room_id,
                 RoomMessage::Join {

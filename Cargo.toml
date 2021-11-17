@@ -25,7 +25,6 @@ members = [
     "galloc",
     "gcore",
     "gstd",
-    "gstd-async",
     "gtest",
     "node",
     "node-runner",

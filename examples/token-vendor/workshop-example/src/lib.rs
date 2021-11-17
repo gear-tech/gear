@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{debug, exec, msg, prelude::*, ProgramId};
+use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 gstd::metadata! {
     title: "GEAR Workshop Contract Example",
@@ -12,18 +12,18 @@ gstd::metadata! {
 }
 
 struct State {
-    user_id: Option<ProgramId>,
+    user_id: Option<ActorId>,
 }
 
 impl State {
-    fn set_user_id(&mut self, user_id: ProgramId) {
+    fn set_user_id(&mut self, user_id: ActorId) {
         self.user_id = Some(user_id);
     }
 
     fn get_hex_id(&self) -> String {
         let id = self.user_id.unwrap_or_default();
 
-        hex::encode(id.as_slice())
+        hex::encode(id.as_ref())
     }
 }
 

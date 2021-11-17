@@ -49,6 +49,9 @@ pub trait Ext {
     /// Get the current block height.
     fn block_height(&self) -> u32;
 
+    /// Get the current block timestamp.
+    fn block_timestamp(&self) -> u64;
+
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
 
@@ -199,6 +202,9 @@ mod tests {
             Err("")
         }
         fn block_height(&self) -> u32 {
+            0
+        }
+        fn block_timestamp(&self) -> u64 {
             0
         }
         fn send_init(&mut self) -> Result<usize, &'static str> {

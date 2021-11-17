@@ -18,21 +18,15 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use gear_backend_wasmtime::WasmtimeEnvironment;
-use gear_core::storage::{
-    InMemoryMessageQueue, InMemoryProgramStorage, InMemoryStorage, InMemoryWaitList,
-};
+use gear_core::storage::InMemoryStorage;
 use gear_core::{message::MessageId, program::ProgramId};
 use gear_core_runner::{
-    Config, ExecutionOutcome, Ext, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner,
+    Config, ExecutionOutcome, Ext, ExtMessage, InMemoryRunner, InitializeProgramInfo,
+    MessageDispatch,
 };
 use std::collections::HashSet;
 
-pub type MemoryRunner = Runner<
-    InMemoryMessageQueue,
-    InMemoryProgramStorage,
-    InMemoryWaitList,
-    WasmtimeEnvironment<Ext>,
->;
+pub type InMemoryWasmRunner = InMemoryRunner<WasmtimeEnvironment<Ext>>;
 
 pub struct InitProgram {
     pub program_id: Option<ProgramId>,
@@ -222,7 +216,7 @@ pub struct RunnerContext {
 }
 
 impl RunnerContext {
-    pub fn new(runner: MemoryRunner) -> Self {
+    pub fn new(runner: InMemoryWasmRunner) -> Self {
         Self {
             runner_state: RunnerState::Runner(runner),
             program_id: 1,
@@ -233,10 +227,10 @@ impl RunnerContext {
     }
 
     pub fn with_config(config: &Config) -> Self {
-        Self::new(Runner::new(
+        Self::new(InMemoryWasmRunner::new(
             config,
             Default::default(),
-            0,
+            Default::default(),
             WasmtimeEnvironment::default(),
         ))
     }
@@ -426,7 +420,7 @@ impl RunnerContext {
         self.runner_state.convert_to_storage()
     }
 
-    fn runner(&mut self) -> &mut MemoryRunner {
+    fn runner(&mut self) -> &mut InMemoryWasmRunner {
         self.runner_state.convert_to_runner()
     }
 
@@ -470,24 +464,24 @@ impl Default for RunnerContext {
 }
 
 enum RunnerState {
-    Runner(MemoryRunner),
+    Runner(InMemoryWasmRunner),
     Storage(InMemoryStorage, Config),
     Uninitialzied,
 }
 
 impl RunnerState {
-    fn convert_to_runner(&mut self) -> &mut MemoryRunner {
+    fn convert_to_runner(&mut self) -> &mut InMemoryWasmRunner {
         if let Self::Runner(runner) = self {
             runner
         } else {
             *self = match std::mem::take(self) {
-                Self::Storage(storage, config) => Self::Runner(Runner::new(
+                Self::Storage(storage, config) => Self::Runner(InMemoryWasmRunner::new(
                     &config,
                     storage,
-                    0,
+                    Default::default(),
                     WasmtimeEnvironment::default(),
                 )),
-                _ => Self::Runner(Runner::default()),
+                _ => Self::Runner(InMemoryWasmRunner::default()),
             };
 
             self.convert_to_runner()

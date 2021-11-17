@@ -27,6 +27,19 @@ use crate::{
     program::{Program, ProgramId},
 };
 
+/// General trait, which informs what exact storage types are used by a storage manager ("carrier").
+///
+/// Mainly used for readability in order to keep readable definitions of types that
+/// manage different storage domains (for example, the [Storage](enum.Storage.html)).
+pub trait StorageCarrier: Default {
+    /// Message queue type used by storage manager
+    type MQ: MessageQueue;
+    /// Program storage type used by storage manager
+    type PS: ProgramStorage;
+    /// Wait list type used by storage manager
+    type WL: WaitList;
+}
+
 /// Abstraction over program storage.
 pub trait ProgramStorage: Default {
     /// Get the program from the storage.
@@ -218,6 +231,12 @@ pub struct Storage<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
     pub wait_list: WL,
     /// Log.
     pub log: Log,
+}
+
+impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> StorageCarrier for Storage<MQ, PS, WL> {
+    type MQ = MQ;
+    type PS = PS;
+    type WL = WL;
 }
 
 impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Storage<MQ, PS, WL> {

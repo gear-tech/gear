@@ -108,6 +108,9 @@ gstd::metadata! {
         awaiting:
             input: MessageHandleAsyncIn,
             output: MessageHandleAsyncOut,
+    state:
+        input: Option<Id>,
+        output: Vec<Wallet>,
 }
 
 static mut WALLETS: Vec<Wallet> = Vec::new();
@@ -147,4 +150,23 @@ pub unsafe extern "C" fn init() {
     let message_init_out: MessageInitOut = message_init_in.into();
 
     msg::send(0.into(), message_init_out, 0, 0);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
+    let person: Option<Id> = msg::load().expect("failed to decode input argument");
+    let encoded = match person {
+        None => WALLETS.encode(),
+        Some(lookup_id) => WALLETS
+            .iter()
+            .filter(|w| w.id == lookup_id)
+            .cloned()
+            .collect::<Vec<Wallet>>()
+            .encode(),
+    };
+
+    let result = gstd::macros::util::to_wasm_ptr(&encoded[..]);
+    core::mem::forget(encoded);
+
+    result
 }

@@ -1,23 +1,23 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{debug, exec, msg, prelude::*, ProgramId};
+use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
 static mut STATE: State = State {
-    send_to: ProgramId([0u8; 32]),
+    send_to: ActorId::new([0u8; 32]),
 };
 #[derive(Debug)]
 struct State {
-    send_to: ProgramId,
+    send_to: ActorId,
 }
 
 impl State {
-    fn set_send_to(&mut self, to: ProgramId) {
+    fn set_send_to(&mut self, to: ActorId) {
         self.send_to = to;
     }
-    fn send_to(&self) -> ProgramId {
+    fn send_to(&self) -> ActorId {
         self.send_to
     }
 }
@@ -50,8 +50,8 @@ pub unsafe extern "C" fn handle() {
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    let send_to = ProgramId::from_slice(
-        &decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    );
+    let send_to =
+        ActorId::from_slice(&decode_hex(&input).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"))
+            .expect("Unable to create ActorId");
     STATE.set_send_to(send_to);
 }

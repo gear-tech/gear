@@ -83,6 +83,9 @@ fn optimize_meta(
             "meta_async_handle_output",
             "meta_registry",
             "meta_title",
+            "meta_state",
+            "meta_state_input",
+            "meta_state_output",
         ],
     )
     .map_err(|_| Error::OptimizerFailed)?;

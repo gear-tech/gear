@@ -48,7 +48,7 @@
 ///     let msg_handle = msg::send_init();
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MessageHandle(pub u32);
 
 /// Message identifier.
@@ -98,9 +98,9 @@ impl MessageId {
 ///
 /// GEAR allows users and programs to interact with other users and programs via
 /// messages. Source and target program as well as user are represented by
-/// 256-bit identifier `ProgramId` struct. The source `ProgramId` for a message
+/// 256-bit identifier `ActorId` struct. The source `ActorId` for a message
 /// being processed can be obtained using [`msg::source`](crate::msg::source)
-/// function. Also, each send function has a target `ProgramId` as one of the
+/// function. Also, each send function has a target `ActorId` as one of the
 /// arguments.
 ///
 /// # Examples
@@ -113,30 +113,30 @@ impl MessageId {
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
-pub struct ProgramId(pub [u8; 32]);
+pub struct ActorId(pub [u8; 32]);
 
-impl From<u64> for ProgramId {
+impl From<u64> for ActorId {
     fn from(v: u64) -> Self {
-        let mut id = ProgramId([0u8; 32]);
+        let mut id = ActorId([0u8; 32]);
         id.0[0..8].copy_from_slice(&v.to_le_bytes()[..]);
         id
     }
 }
 
-impl ProgramId {
-    /// Create a new ProgramId from 32-byte slice `s`.
+impl ActorId {
+    /// Create a new ActorId from 32-byte slice `s`.
     ///
     /// Panics if the supplied slice length is other than 32.
     pub fn from_slice(s: &[u8]) -> Self {
         if s.len() != 32 {
-            panic!("The slice must contain 32 u8 to be casted to ProgramId");
+            panic!("The slice must contain 32 u8 to be casted to ActorId");
         }
-        let mut id = ProgramId([0u8; 32]);
+        let mut id = ActorId([0u8; 32]);
         id.0[..].copy_from_slice(s);
         id
     }
 
-    /// Get `ProgramId` represented as a slice of `u8`.
+    /// Get `ActorId` represented as a slice of `u8`.
     pub fn as_slice(&self) -> &[u8] {
         &self.0[..]
     }
