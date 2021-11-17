@@ -1,7 +1,7 @@
 #![no_std]
 
 use codec::{Decode, Encode};
-use core::str;
+use core::convert::TryFrom;
 use futures::{future, FutureExt};
 use gstd::{debug, msg, prelude::*, ProgramId};
 use gstd_async::msg as msg_async;
@@ -29,43 +29,34 @@ pub struct SignResponse {
     pub signature: Vec<u8>,
 }
 
+#[derive(Debug, Decode, TypeInfo)]
+pub struct InputArgs {
+    pub threshold: u32,
+    pub destination: [u8; 32],
+    pub signatories: Vec<[u8; 32]>,
+}
+
 gstd::metadata! {
     title: "demo async multisig",
     init:
-        input: Vec<u8>,
-    handle:
-        input: Vec<u8>,
-}
-
-fn hex_to_id(hex: &str) -> Result<ProgramId, ()> {
-    let hex = hex.strip_prefix("0x").unwrap_or(hex);
-
-    hex::decode(hex)
-        .map(|bytes| ProgramId::from_slice(&bytes))
-        .map_err(|_| ())
+        input: InputArgs,
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
-    let dests: Vec<&str> = input.split(',').collect();
-    let len = dests.len();
-    if len < 3 {
-        panic!("Invalid input, should be a number and at least two IDs separated by comma");
-    }
+    let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");
 
-    THRESHOLD = dests[0]
-        .parse::<usize>()
-        .map(|t| t.min(len - 2).max(1))
-        .expect("INTIALIZATION FAILED: INVALID THRESHOLD");
+    SIGNED_MESSAGE_PROGRAM = ProgramId(args.destination);
 
-    SIGNED_MESSAGE_PROGRAM = hex_to_id(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID");
-
-    SIGNATORIES = dests
+    args.signatories
         .into_iter()
-        .skip(2)
-        .map(|s| hex_to_id(s).expect("INTIALIZATION FAILED: INVALID ACCOUNT ID"))
-        .collect();
+        .map(ProgramId)
+        .filter(|s| !SIGNATORIES.contains(s))
+        .for_each(|s| SIGNATORIES.push(s));
+
+    THRESHOLD = usize::try_from(args.threshold)
+        .map(|t| t.min(SIGNATORIES.len()).max(1))
+        .unwrap_or(1);
 }
 
 #[gstd_async::main]
