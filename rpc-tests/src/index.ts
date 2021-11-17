@@ -24,7 +24,7 @@ function replaceRegex(input) {
     const res = input.match(/\{([0-9]+)\}/g);
     for (const match of res) {
       const id = Number(match.slice(1, match.length - 1));
-      
+
       if (programs[id] !== undefined) {
         input = input.replace(match, programs[id].toString().slice(2));
       }
@@ -77,7 +77,7 @@ function findMessage(api, expMessage, snapshots, start) {
 
         if (message.dest.eq(programs[expMessage.destination])) {
 
-          
+
           if (expMessage.payload) {
             let payload = encodePayload(api, expMessage);
 
@@ -87,7 +87,7 @@ function findMessage(api, expMessage, snapshots, start) {
             if (payload.eq(message.payload)) {
 
               // found = index;
-              
+
               return index;
             }
           }
@@ -156,7 +156,7 @@ async function checkLog(api, exp) {
 }
 
 async function checkMessages(api, exp, snapshots) {
-  console.log('checkMessages');
+  console.log('checkMessages', JSON.stringify(exp));
   // console.log(messageQueue.toHuman());
   // console.log(exp.messages);
   const errors = [];
@@ -205,6 +205,7 @@ async function checkMessages(api, exp, snapshots) {
     }
     // console.log('msg:', message.toHuman(), 'exp:', expMessage)
   }
+  snapshots.shift(found);
 
 
   return errors;
@@ -253,7 +254,7 @@ async function processExpected(api, sudoPair, fixture, snapshots) {
 
   for (let expIdx = 0; expIdx < fixture.expected.length; expIdx++) {
     const exp = fixture.expected[expIdx];
-    
+
     if (exp.step === 0) {
       continue;
     }
@@ -393,11 +394,13 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 }
 
 async function processTest(testData: any, api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair) {
-  const salt = {};
-  const txs = [];
   for (const fixture of testData.fixtures) {
     const reset = await resetStorage(api, sudoPair);
 
+    const salt = {};
+    const txs = [];
+    programs = {};
+    metadata = {};
     for (const program of testData.programs) {
       salt[program.id] = randomAsHex(20);
       let bytes = CreateType.encode('bytes', Array.from(fs.readFileSync(program.path)));
@@ -412,7 +415,7 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
         const meta = program.init_message.kind === 'custom' ? metadata[program.id] : { init_input: 'Bytes' };
         if (program.init_message.kind === 'utf-8') {
           payload = replaceRegex(program.init_message.value);
-          
+
           payload = api.createType('Bytes', payload);
         } else if (program.init_message.kind === 'custom') {
           program.init_message.value = JSON.stringify(program.init_message.value);
