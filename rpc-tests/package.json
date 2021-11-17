@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "@gear-js/api": "^0.6.5",
-    "@polkadot/api": "^6.1.1",
+    "@gear-js/api": "^0.8",
+    "@polkadot/api": "^6.8.1",
     "js-yaml": "^4.1.0",
     "yaml": "^1.10.2"
   },
