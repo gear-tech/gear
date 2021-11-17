@@ -26,7 +26,7 @@
 //! reply to the initial message.
 
 use crate::MessageHandle;
-use crate::{MessageId, ProgramId};
+use crate::{ActorId, MessageId};
 
 mod sys {
     extern "C" {
@@ -287,7 +287,7 @@ pub fn reply_to() -> MessageId {
 /// # Examples
 ///
 /// ```
-/// use gcore::{msg, ProgramId};
+/// use gcore::{msg, ActorId};
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
@@ -296,7 +296,7 @@ pub fn reply_to() -> MessageId {
 ///         id[i] = i as u8;
 ///     }
 ///
-///     msg::send(ProgramId(id), b"HELLO", 1000, 12345678);
+///     msg::send(ActorId(id), b"HELLO", 1000, 12345678);
 /// }
 /// ```
 ///
@@ -304,7 +304,7 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+pub fn send(program: ActorId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send(
@@ -355,7 +355,7 @@ pub fn send(program: ProgramId, payload: &[u8], gas_limit: u64, value: u128) -> 
 /// parts.
 pub fn send_commit(
     handle: MessageHandle,
-    program: ProgramId,
+    program: ActorId,
     gas_limit: u64,
     value: u128,
 ) -> MessageId {
@@ -450,7 +450,7 @@ pub fn size() -> usize {
 
 /// Get the identifier of the message source (256-bit address).
 ///
-/// This function is used to obtain [`ProgramId`] of the account that sends
+/// This function is used to obtain [`ActorId`] of the account that sends
 /// the currently processing message (either a program or a user).
 ///
 /// # Examples
@@ -463,8 +463,8 @@ pub fn size() -> usize {
 ///     let who_sends_message = msg::source();
 /// }
 /// ```
-pub fn source() -> ProgramId {
-    let mut program_id = ProgramId::default();
+pub fn source() -> ActorId {
+    let mut program_id = ActorId::default();
     unsafe { sys::gr_source(program_id.as_mut_slice().as_mut_ptr()) }
     program_id
 }

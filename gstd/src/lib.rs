@@ -23,60 +23,21 @@
 
 extern crate galloc;
 
-mod bail;
-mod debug;
-#[cfg(feature = "meta")]
-pub mod meta;
+mod async_runtime;
+mod common;
+pub mod exec;
+pub mod lock;
+pub mod macros;
 pub mod msg;
 pub mod prelude;
 
-pub use gcore::exec;
+pub use async_runtime::{message_loop, record_reply};
+pub use common::errors;
+pub use common::handlers::*;
+pub use common::primitives::*;
+pub use gstd_codegen::async_main;
+
+pub use prelude::*;
+
 #[cfg(feature = "debug")]
 pub use gcore::ext;
-pub use gcore::{MessageId, ProgramId};
-
-#[cfg(not(feature = "debug"))]
-#[cfg(target_arch = "wasm32")]
-#[alloc_error_handler]
-pub fn oom(_: core::alloc::Layout) -> ! {
-    core::arch::wasm32::unreachable()
-}
-
-#[cfg(feature = "debug")]
-#[cfg(target_arch = "wasm32")]
-#[alloc_error_handler]
-pub fn oom(_: core::alloc::Layout) -> ! {
-    ext::debug("Runtime memory exhausted. Aborting");
-    core::arch::wasm32::unreachable()
-}
-
-#[cfg(not(feature = "debug"))]
-#[cfg(target_arch = "wasm32")]
-#[panic_handler]
-fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    core::arch::wasm32::unreachable();
-}
-
-#[cfg(feature = "debug")]
-#[cfg(target_arch = "wasm32")]
-#[panic_handler]
-fn panic(panic_info: &core::panic::PanicInfo) -> ! {
-    let info = prelude::format!("panic occurred: '{:?}'", panic_info);
-
-    let payload = if info.len() > 64 && &info[59..63] == "Some" {
-        let msg_len = info.rfind("{").map(|v| v.saturating_sub(86)).unwrap_or(0);
-
-        &info[64..64 + msg_len]
-    } else {
-        &"UNKNOWN"
-    };
-
-    let location = panic_info
-        .location()
-        .map(|v| prelude::format!(", at `{}`, line {}", v.file(), v.line()))
-        .unwrap_or_default();
-
-    ext::debug(&prelude::format!("Panicked with {:?}{}", payload, location));
-
-    core::arch::wasm32::unreachable();
-}

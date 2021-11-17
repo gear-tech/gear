@@ -16,39 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::prelude::{Box, String, Vec};
-use codec::Encode;
-use scale_info::{MetaType, PortableRegistry, Registry};
-
-pub fn to_wasm_ptr<T: AsRef<[u8]>>(bytes: T) -> *mut [i32; 2] {
-    Box::into_raw(Box::new([
-        bytes.as_ref().as_ptr() as _,
-        bytes.as_ref().len() as _,
-    ]))
-}
-
-pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
-    let mut registry = Registry::new();
-    registry.register_types(meta_types);
-
-    let registry: PortableRegistry = registry.into();
-    hex::encode(registry.encode())
-}
-
-#[macro_export]
-macro_rules! types {
-    ($($t:ty), *) => { gstd::prelude::vec![$(scale_info::MetaType::new::<$t>()), *] };
-}
-
-#[macro_export]
-macro_rules! declare {
-    ($f:ident -> $txt:expr) => {
-        #[no_mangle]
-        pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
-            gstd::meta::to_wasm_ptr($txt)
-        }
-    };
-}
+//! Gear `metadata!` macro. Exports functions with IO data.
 
 #[macro_export]
 macro_rules! metadata {
@@ -65,18 +33,20 @@ macro_rules! metadata {
         $state_input:expr,
         $state_output:expr
         $(, $t:ty) *) => {
-        gstd::declare!(meta_title -> $title);
-        gstd::declare!(meta_init_input -> $init_input);
-        gstd::declare!(meta_init_output -> $init_output);
-        gstd::declare!(meta_async_init_input -> $async_init_input);
-        gstd::declare!(meta_async_init_output -> $async_init_output);
-        gstd::declare!(meta_handle_input -> $handle_input);
-        gstd::declare!(meta_handle_output -> $handle_output);
-        gstd::declare!(meta_async_handle_input -> $async_handle_input);
-        gstd::declare!(meta_async_handle_output -> $async_handle_output);
-        gstd::declare!(meta_state_input -> $state_input);
-        gstd::declare!(meta_state_output -> $state_output);
-        gstd::declare!(meta_registry -> gstd::meta::to_hex_registry(gstd::types!($($t), *)));
+        gstd::export!(meta_title -> $title);
+        gstd::export!(meta_init_input -> $init_input);
+        gstd::export!(meta_init_output -> $init_output);
+        gstd::export!(meta_async_init_input -> $async_init_input);
+        gstd::export!(meta_async_init_output -> $async_init_output);
+        gstd::export!(meta_handle_input -> $handle_input);
+        gstd::export!(meta_handle_output -> $handle_output);
+        gstd::export!(meta_async_handle_input -> $async_handle_input);
+        gstd::export!(meta_async_handle_output -> $async_handle_output);
+        gstd::export!(meta_state_input -> $state_input);
+        gstd::export!(meta_state_output -> $state_output);
+        gstd::export!(meta_registry -> gstd::macros::util::to_hex_registry(
+            gstd::prelude::vec![$(gstd::macros::util::MetaType::new::<$t>()), *]
+        ));
     };
 
     (

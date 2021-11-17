@@ -165,7 +165,7 @@ pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
             .encode(),
     };
 
-    let result = gstd::meta::to_wasm_ptr(&encoded[..]);
+    let result = gstd::macros::util::to_wasm_ptr(&encoded[..]);
     core::mem::forget(encoded);
 
     result

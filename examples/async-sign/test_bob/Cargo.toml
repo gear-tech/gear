@@ -7,4 +7,4 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-gstd = { path = "../../../gstd", features = ["debug", "meta"] }
+gstd = { path = "../../../gstd", features = ["debug"] }

@@ -51,7 +51,7 @@ mod wasm {
 
     use alloc::collections::BTreeMap;
     use codec::{Decode, Encode};
-    use gstd::{debug, ext, msg, prelude::*};
+    use gstd::{debug, msg, prelude::*};
 
     use super::{Reply, Request};
 
@@ -86,9 +86,6 @@ mod wasm {
             }
         }
     }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle_reply() {}
 
     #[no_mangle]
     pub unsafe extern "C" fn init() {

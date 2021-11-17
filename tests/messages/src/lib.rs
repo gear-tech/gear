@@ -3,7 +3,7 @@
 
 use codec::{Decode, Encode};
 #[cfg(not(feature = "std"))]
-use gstd::{prelude::*, *};
+use gstd::prelude::*;
 
 #[cfg(feature = "std")]
 #[cfg(test)]
@@ -32,9 +32,9 @@ mod wasm {
     extern crate alloc;
 
     use codec::{Decode, Encode};
-    use gstd::{debug, ext, msg, prelude::*, MessageId, ProgramId};
+    use gstd::{debug, msg, prelude::*, ActorId};
 
-    use super::{Reply, Request};
+    use super::Request;
 
     mod gear_sys {
         extern "C" {
@@ -55,10 +55,10 @@ mod wasm {
     fn process_request(request: Request) {
         match request {
             Request::SendOnce => {
-                msg::send(ProgramId::from(0), "SendOnce", 0, 0);
+                msg::send(ActorId::from(0), "SendOnce", 0, 0);
             }
             Request::SendInf => loop {
-                msg::send(ProgramId::from(0), "SendInf", 0, 0);
+                msg::send(ActorId::from(0), "SendInf", 0, 0);
             },
             Request::SendPushAfterCommit => unsafe {
                 let handle = gear_sys::gr_send_init();
@@ -66,7 +66,7 @@ mod wasm {
                 gear_sys::gr_send_commit(
                     handle,
                     message_id.as_mut_ptr(),
-                    ProgramId::from(0).as_slice().as_ptr(),
+                    ActorId::from(0).as_ref().as_ptr(),
                     0,
                     0u128.to_le_bytes().as_ptr(),
                 );
