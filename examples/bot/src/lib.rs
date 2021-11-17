@@ -3,11 +3,11 @@
 
 extern crate alloc;
 
-use codec::Decode;
-use scale_info::TypeInfo;
 use alloc::collections::BTreeMap;
+use codec::Decode;
 use core::iter::{Cycle, Iterator};
-use gstd::{exec, msg, prelude::*, debug};
+use gstd::{debug, exec, msg, prelude::*};
+use scale_info::TypeInfo;
 
 const GAS_SPENT: u64 = 100_000_000;
 
@@ -43,8 +43,8 @@ impl<'a> Iterator for ReplyIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         let reply_index = self.reply_index;
         let current_count = self.replies[reply_index].count as usize;
-        if !(self.index < current_count) {
-            return None
+        if self.index >= current_count {
+            return None;
         }
 
         let (new_reply_index, new_index) = {
@@ -122,13 +122,13 @@ pub unsafe extern "C" fn init() {
             HANDLERS.reserve(v.len());
             v
         })
-        .unwrap_or(vec![])
+        .unwrap_or_else(|_| vec![])
         .into_iter()
         .filter(|h| !h.replies.is_empty())
         .for_each(|handler| {
             HANDLERS.push(handler.replies);
             HANDLER_MAP.insert(handler.request, {
-                let iter = ReplyIterator{
+                let iter = ReplyIterator {
                     replies: HANDLERS.last().unwrap(),
                     reply_index: 0,
                     index: 0,

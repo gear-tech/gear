@@ -54,9 +54,9 @@ pub unsafe extern "C" fn init() {
         panic!("Invalid input, should be a number and at least two IDs separated by comma");
     }
 
-    THRESHOLD = usize::from_str_radix(dests[0], 10)
-        .map(|t| if t > len - 2 { len - 2 } else { t })
-        .map(|t| if t < 1 { 1 } else { t })
+    THRESHOLD = dests[0]
+        .parse::<usize>()
+        .map(|t| t.min(len - 2).max(1))
         .expect("INTIALIZATION FAILED: INVALID THRESHOLD");
 
     SIGNED_MESSAGE_PROGRAM = hex_to_id(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID");
