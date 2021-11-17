@@ -20,6 +20,7 @@ function xxKey(module, key) {
 }
 
 function replaceRegex(input) {
+  input = String(input);
   if (input.search(/\{([0-9]+)\}/g) !== -1) {
     const res = input.match(/\{([0-9]+)\}/g);
     for (const match of res) {
@@ -58,9 +59,8 @@ function encodePayload(api, expMessage) {
 }
 
 function findMessage(api, expMessage, snapshots, start) {
-  let found = -1;
   // console.log(programs);
-  console.log('find msg');
+  // console.log('find msg');
   // console.log(expMessage.destination);
 
   // console.log(programs[expMessage.destination].toHuman());
@@ -71,9 +71,6 @@ function findMessage(api, expMessage, snapshots, start) {
     if (snapshot.messageQueue) {
 
       for (const message of snapshot.messageQueue) {
-        if (expMessage.payload.value == "THIRD") {
-          console.log(message.toHuman());
-        }
 
         if (message.dest.eq(programs[expMessage.destination])) {
 
@@ -81,24 +78,19 @@ function findMessage(api, expMessage, snapshots, start) {
           if (expMessage.payload) {
             let payload = encodePayload(api, expMessage);
 
-            console.log('exp payload - ', payload.toHex());
-            console.log('msg payload - ', message.payload.toHex());
+            // console.log('exp payload - ', payload.toHex());
+            // console.log('msg payload - ', message.payload.toHex());
 
             if (payload.eq(message.payload)) {
-
-              // found = index;
 
               return index;
             }
           }
         }
       }
-      if (found !== -1) {
-        break;
-      }
     }
   }
-  return found;
+  return -1;
 }
 
 async function resetStorage(api: GearApi, sudoPair: KeyringPair) {
@@ -129,6 +121,8 @@ async function checkLog(api, exp) {
   let messagesOpt = await mailbox.readMailbox('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
+    console.log(messages.toHuman());
+    
 
     for (const log of exp.log) {
       let found = false;
@@ -156,7 +150,7 @@ async function checkLog(api, exp) {
 }
 
 async function checkMessages(api, exp, snapshots) {
-  console.log('checkMessages', JSON.stringify(exp));
+  // console.log('checkMessages', JSON.stringify(exp));
   // console.log(messageQueue.toHuman());
   // console.log(exp.messages);
   const errors = [];
@@ -305,6 +299,10 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   // Send messages
   for (let index = 0; index < fixture.messages.length; index++) {
     const message = fixture.messages[index];
+    if (message.source) {
+      console.log(`Fixture ${fixture.title} - skipped`);
+      return [];
+    }
     let gas_limit = 100000000000;
     let value = 0;
 
@@ -319,7 +317,6 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 
     if (message.payload.kind === 'bytes') {
       payload = api.createType('Bytes', message.payload.value);
-      console.log(api.createType('Bytes', message.payload.value).toHex(), message.payload.value);
     } else if (message.payload.kind === 'i32') {
       payload = api.createType('i32', message.payload.value).toU8a();
     } else if (message.payload.kind === 'i64') {
@@ -381,7 +378,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     //   console.log(`Program with id: ${id.toHuman()}`);
     // });
     data.messageQueue.forEach(({ id, source, dest, payload, gas_limit, value, reply }) => {
-      console.log(`Message with id: ${id.toHuman()} payload: ${payload.toHuman()}`);
+      // console.log(`Message with id: ${id.toHuman()} payload: ${payload.toHuman()}`);
     });
     snapshots.push(data)
   });
@@ -418,10 +415,11 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
 
           payload = api.createType('Bytes', payload);
         } else if (program.init_message.kind === 'custom') {
-          program.init_message.value = JSON.stringify(program.init_message.value);
+          payload = JSON.stringify(program.init_message.value);
 
-          payload = replaceRegex(program.init_message.value);
+          payload = replaceRegex(payload);
         }
+        
         api.program.submit(
           {
             code: fs.readFileSync(program.path),
