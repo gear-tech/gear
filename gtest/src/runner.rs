@@ -22,16 +22,10 @@ use gear_backend_common::Environment;
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
-    storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, MessageMap, MessageQueue,
-        ProgramStorage, Storage, WaitList,
-    },
+    storage::{InMemoryStorage, MessageMap, Storage, StorageCarrier},
 };
 use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
-use gear_node_runner::{
-    ext::{ExtMessageQueue, ExtProgramStorage, ExtWaitList},
-    Ext,
-};
+use gear_node_runner::{Ext, ExtStorage};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::fmt::Write;
@@ -91,7 +85,7 @@ pub trait CollectState {
     fn collect(self) -> FinalState;
 }
 
-impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList> {
+impl CollectState for InMemoryStorage {
     fn collect(self) -> FinalState {
         FinalState {
             log: self.log.get().to_vec(),
@@ -102,7 +96,7 @@ impl CollectState for Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMe
     }
 }
 
-impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
+impl CollectState for ExtStorage {
     fn collect(self) -> FinalState {
         let log = self.log.get();
         let program_storage = self.program_storage;
@@ -123,11 +117,11 @@ impl CollectState for Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
     }
 }
 
-pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
-    storage: Storage<MQ, PS, WL>,
+pub fn init_fixture<SC: StorageCarrier>(
+    storage: Storage<SC::MQ, SC::PS, SC::WL>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<Runner<MQ, PS, WL, gear_backend_wasmtime::WasmtimeEnvironment<Ext>>> {
+) -> anyhow::Result<Runner<SC, gear_backend_wasmtime::WasmtimeEnvironment<Ext>>> {
     let mut runner = Runner::new(
         &Config::default(),
         storage,
@@ -168,10 +162,10 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         }
         let mut init_source: ProgramId = SOME_FIXED_USER.into();
         if let Some(source) = &program.source {
-            init_source = source.clone().into_program_id();
+            init_source = source.to_program_id();
         }
         runner.init_program(InitializeProgramInfo {
-            new_program_id: program.id.into(),
+            new_program_id: program.id.to_program_id(),
             source_id: init_source,
             code,
             message: ExtMessage {
@@ -222,11 +216,11 @@ pub fn init_fixture<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList>(
         };
         let mut message_source: ProgramId = 0.into();
         if let Some(source) = &message.source {
-            message_source = source.clone().into_program_id();
+            message_source = source.to_program_id();
         }
         runner.queue_message(MessageDispatch {
             source_id: message_source,
-            destination_id: message.destination.into(),
+            destination_id: message.destination.to_program_id(),
             data: ExtMessage {
                 id: nonce.into(),
                 payload,
@@ -248,12 +242,12 @@ pub struct FinalState {
     pub wait_list: MessageMap,
 }
 
-pub fn run<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>(
-    mut runner: Runner<MQ, PS, WL, E>,
+pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
+    mut runner: Runner<SC, E>,
     steps: Option<u64>,
 ) -> (FinalState, anyhow::Result<()>)
 where
-    Storage<MQ, PS, WL>: CollectState,
+    Storage<SC::MQ, SC::PS, SC::WL>: CollectState,
 {
     let mut result = Ok(());
     if let Some(steps) = steps {

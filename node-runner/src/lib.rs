@@ -34,7 +34,9 @@ use sp_std::prelude::*;
 
 use crate::ext::*;
 
-pub type ExtRunner<E> = Runner<ExtMessageQueue, ExtProgramStorage, ExtWaitList, E>;
+type ExtRunner<E> = Runner<ExtStorage, E>;
+/// Storage used for running node
+pub type ExtStorage = Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList>;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
