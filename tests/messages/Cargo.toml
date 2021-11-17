@@ -1,0 +1,22 @@
+[package]
+name = "tests-messages"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+gear-core-runner = { path = "../../core-runner", optional = true }
+gear-core = { path = "../../core", optional = true }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+common = { package = "tests-common", path = "../common", optional = true }
+
+[build-dependencies]
+substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+[lib]
+
+[features]
+std = ["gear-core-runner", "gear-core", "codec/std", "common"]
+default = ["std"]

@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+mod address;
 mod check;
 mod js;
 mod runner;
@@ -64,7 +65,7 @@ pub fn main() -> anyhow::Result<()> {
             .init(),
     }
 
-    check::check_main(
+    check::check_main::<InMemoryStorage, _>(
         opts.input.to_vec(),
         opts.skip_messages,
         opts.skip_allocations,

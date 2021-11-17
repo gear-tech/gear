@@ -202,7 +202,7 @@ fn check_messages(
                 }
 
                 match_or_else(
-                    Some(ProgramId::from(exp.destination)),
+                    Some(exp.destination.to_program_id()),
                     msg.dest,
                     |expected, actual| {
                         errors.push(MessagesError::destination(position, expected, actual))
@@ -352,15 +352,17 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
     Ok(u)
 }
 
-pub fn check_main<MQ: storage::MessageQueue, PS: storage::ProgramStorage, WL: storage::WaitList>(
+pub fn check_main<SC, F>(
     files: Vec<std::path::PathBuf>,
     skip_messages: bool,
     skip_allocations: bool,
     skip_memory: bool,
-    storage_factory: impl Fn() -> storage::Storage<MQ, PS, WL>,
+    storage_factory: F,
 ) -> anyhow::Result<()>
 where
-    storage::Storage<MQ, PS, WL>: CollectState,
+    SC: storage::StorageCarrier,
+    F: Fn() -> storage::Storage<SC::MQ, SC::PS, SC::WL>,
+    storage::Storage<SC::MQ, SC::PS, SC::WL>: CollectState,
 {
     let mut tests = Vec::new();
 
@@ -383,12 +385,13 @@ where
         let progs_n_paths: Vec<(&str, ProgramId)> = test
             .programs
             .iter()
-            .map(|prog| (prog.path.as_ref(), ProgramId::from(prog.id)))
+            .map(|prog| (prog.path.as_ref(), prog.id.to_program_id()))
             .collect();
 
         for fixture_no in 0..test.fixtures.len() {
             for exp in &test.fixtures[fixture_no].expected {
-                let output = match runner::init_fixture(storage_factory(), &test, fixture_no) {
+                let output = match runner::init_fixture::<SC>(storage_factory(), &test, fixture_no)
+                {
                     Ok(initialized_fixture) => {
                         let (mut final_state, _result) = runner::run(initialized_fixture, exp.step);
 

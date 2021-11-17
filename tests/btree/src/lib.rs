@@ -51,7 +51,7 @@ mod wasm {
 
     use alloc::collections::BTreeMap;
     use codec::{Decode, Encode};
-    use gstd::{ext, msg, prelude::*};
+    use gstd::{debug, ext, msg, prelude::*};
 
     use super::{Reply, Request};
 
@@ -62,7 +62,7 @@ mod wasm {
         let reply = match msg::load() {
             Ok(request) => process(request),
             Err(e) => {
-                ext::debug(&format!("Error processing request: {:?}", e));
+                debug!("Error processing request: {:?}", e);
                 Reply::Error
             }
         };

@@ -23,7 +23,7 @@ use codec::{Decode, Encode, Output};
 use galloc::prelude::*;
 pub use gcore::msg::{exit_code, id, reply_to, source, value};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);
 
 impl MessageHandle {

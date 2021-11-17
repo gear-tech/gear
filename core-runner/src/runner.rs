@@ -33,8 +33,7 @@ use gear_core::{
     },
     program::{Program, ProgramId},
     storage::{
-        InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, Log, MessageQueue,
-        ProgramStorage, Storage, WaitList,
+        InMemoryStorage, Log, MessageQueue, ProgramStorage, Storage, StorageCarrier, WaitList,
     },
 };
 
@@ -151,10 +150,10 @@ impl RunNextResult {
 /// This instance allows to handle multiple messages using underlying allocation, message and program
 /// storage.
 #[derive(Default)]
-pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>> {
-    pub(crate) program_storage: PS,
-    pub(crate) message_queue: MQ,
-    pub(crate) wait_list: WL,
+pub struct Runner<SC: StorageCarrier, E: Environment<Ext>> {
+    pub(crate) program_storage: SC::PS,
+    pub(crate) message_queue: SC::MQ,
+    pub(crate) wait_list: SC::WL,
     pub(crate) log: Log,
     pub(crate) config: Config,
     env: E,
@@ -162,8 +161,7 @@ pub struct Runner<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environ
 }
 
 /// Fully in-memory runner builder (for tests).
-pub type InMemoryRunner<E> =
-    Runner<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList, E>;
+pub type InMemoryRunner<E> = Runner<InMemoryStorage, E>;
 
 /// Message payload with pre-generated identifier and economic data.
 pub struct ExtMessage {
@@ -253,15 +251,13 @@ impl ReplyDispatch {
     }
 }
 
-impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
-    Runner<MQ, PS, WL, E>
-{
+impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// New runner instance.
     ///
     /// Provide configuration, storage.
     pub fn new(
         config: &Config,
-        storage: Storage<MQ, PS, WL>,
+        storage: Storage<SC::MQ, SC::PS, SC::WL>,
         block_info: BlockInfo,
         env: E,
     ) -> Self {
@@ -284,7 +280,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
     }
 
     /// Create an empty [`RunnerBuilder`].
-    pub fn builder() -> RunnerBuilder<MQ, PS, WL, E> {
+    pub fn builder() -> RunnerBuilder<SC, E> {
         crate::runner::RunnerBuilder::new()
     }
 
@@ -432,7 +428,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList, E: Environment<Ext>>
     /// Drop this runner.
     ///
     /// This will return underlyign storage and memory state.
-    pub fn complete(self) -> Storage<MQ, PS, WL> {
+    pub fn complete(self) -> Storage<SC::MQ, SC::PS, SC::WL> {
         let Runner {
             program_storage,
             message_queue,
