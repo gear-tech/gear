@@ -1,4 +1,4 @@
-name: Del-DB-on-node
+name: CD-with-purge-chain
 
 on: workflow_dispatch
 env:
