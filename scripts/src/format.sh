@@ -30,6 +30,6 @@ format() {
 }
 
 doc_format() {
-  cargo +nightly fmt -p gstd -p gcore -p gstd-async -- "$@" \
+  cargo +nightly fmt -p gstd -p gcore -- "$@" \
     --config wrap_comments=true,format_code_in_doc_comments=true
 }

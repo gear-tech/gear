@@ -8,8 +8,7 @@ edition = "2018"
 crate-type = ["cdylib"]
 
 [dependencies]
-gstd = { path = "../../gstd", features = ["debug", "meta"] }
-gstd-async = { path = "../../gstd-async" }
+gstd = { path = "../../gstd", features = ["debug"] }
 
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full"] }

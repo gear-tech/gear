@@ -16,17 +16,45 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use core::{convert, mem, panic, ptr};
+//! The `gstd` default prelude.
 
 extern crate alloc;
 
-pub use alloc::{
-    borrow::ToOwned,
-    boxed::Box,
-    collections::{BTreeMap, VecDeque},
-    format,
-    str::FromStr,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+pub use core::prelude::v1::*;
+
+// Public module re-exports
+pub use alloc::borrow;
+pub use alloc::boxed;
+pub use alloc::collections;
+pub use alloc::fmt;
+pub use alloc::format;
+pub use alloc::rc;
+pub use alloc::slice;
+pub use alloc::string;
+pub use alloc::vec;
+pub use core::any;
+pub use core::cell;
+pub use core::clone;
+pub use core::cmp;
+pub use core::convert;
+pub use core::default;
+pub use core::future;
+pub use core::hash;
+pub use core::hint;
+pub use core::iter;
+pub use core::marker;
+pub use core::mem;
+pub use core::ops;
+pub use core::pin;
+pub use core::ptr;
+
+// Re-exported types and traits
+pub use alloc::str::FromStr;
+pub use borrow::ToOwned;
+pub use boxed::Box;
+pub use codec::{Decode, Encode};
+pub use collections::{BTreeMap, BTreeSet, VecDeque};
+pub use convert::{Into, TryInto};
+pub use scale_info::TypeInfo;
+pub use string::{String, ToString};
+pub use vec::Vec;

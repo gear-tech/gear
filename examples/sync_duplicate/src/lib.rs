@@ -1,7 +1,6 @@
 #![no_std]
 
 use gstd::{msg, prelude::*};
-use gstd_async::msg as msg_async;
 
 static mut COUNTER: usize = 0;
 
@@ -21,12 +20,12 @@ fn clear() {
     }
 }
 
-#[gstd_async::main]
+#[gstd::async_main]
 async fn main() {
     let msg = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     if &msg == "async" {
         increase();
-        let _ = msg_async::send_and_wait_for_reply(2.into(), b"PING", 500_000_000, 0)
+        let _ = msg::send_bytes_and_wait_for_reply(2.into(), b"PING", 500_000_000, 0)
             .await
             .expect("Error in async message processing");
         msg::reply(get(), 500_000_000, 0);

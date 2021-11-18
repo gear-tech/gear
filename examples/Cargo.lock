@@ -200,7 +200,6 @@ name = "demo-async"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "gstd-async",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -211,7 +210,6 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gstd",
- "gstd-async",
  "hex",
  "parity-scale-codec",
  "scale-info",
@@ -223,7 +221,6 @@ name = "demo-async-sign"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "gstd-async",
  "hex",
  "parity-scale-codec",
  "scale-info",
@@ -293,7 +290,6 @@ name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "gstd-async",
 ]
 
 [[package]]
@@ -333,7 +329,6 @@ name = "demo-mutex"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "gstd-async",
 ]
 
 [[package]]
@@ -355,7 +350,6 @@ name = "demo-rwlock"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "gstd-async",
  "hex",
 ]
 
@@ -364,7 +358,6 @@ name = "demo-rwlock-write"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "gstd-async",
  "hex",
 ]
 
@@ -391,7 +384,6 @@ version = "0.1.0"
 dependencies = [
  "gcore",
  "gstd",
- "gstd-async",
 ]
 
 [[package]]
@@ -605,25 +597,19 @@ dependencies = [
 name = "gstd"
 version = "0.1.0"
 dependencies = [
+ "bs58",
+ "futures",
  "galloc",
  "gcore",
+ "gstd-codegen",
  "hex",
  "parity-scale-codec",
+ "primitive-types",
  "scale-info",
 ]
 
 [[package]]
-name = "gstd-async"
-version = "0.1.0"
-dependencies = [
- "futures",
- "gcore",
- "gstd",
- "gstd-async-macro",
-]
-
-[[package]]
-name = "gstd-async-macro"
+name = "gstd-codegen"
 version = "0.1.0"
 dependencies = [
  "quote",
@@ -1298,7 +1284,6 @@ version = "0.1.0"
 dependencies = [
  "bs58",
  "gstd",
- "gstd-async",
  "hex",
  "parity-scale-codec",
  "primitive-types",

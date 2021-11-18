@@ -3,8 +3,7 @@
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use futures::{future, FutureExt};
-use gstd::{debug, msg, prelude::*, ProgramId};
-use gstd_async::msg as msg_async;
+use gstd::{debug, msg, prelude::*, ActorId};
 use scale_info::TypeInfo;
 use sp_core::{
     crypto::UncheckedFrom,
@@ -12,8 +11,8 @@ use sp_core::{
     Pair,
 };
 
-static mut SIGNATORIES: Vec<ProgramId> = vec![];
-static mut SIGNED_MESSAGE_PROGRAM: ProgramId = ProgramId([0u8; 32]);
+static mut SIGNATORIES: Vec<ActorId> = vec![];
+static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 static mut THRESHOLD: usize = 0;
 
 const GAS_LIMIT: u64 = 1_000_000_000;
@@ -32,8 +31,8 @@ pub struct SignResponse {
 #[derive(Debug, Decode, TypeInfo)]
 pub struct InputArgs {
     pub threshold: u32,
-    pub destination: [u8; 32],
-    pub signatories: Vec<[u8; 32]>,
+    pub destination: ActorId,
+    pub signatories: Vec<ActorId>,
 }
 
 gstd::metadata! {
@@ -46,11 +45,10 @@ gstd::metadata! {
 pub unsafe extern "C" fn init() {
     let args: InputArgs = msg::load().expect("Failed to decode `InputArgs`");
 
-    SIGNED_MESSAGE_PROGRAM = ProgramId(args.destination);
+    DESTINATION = args.destination;
 
     args.signatories
         .into_iter()
-        .map(ProgramId)
         .filter(|s| !SIGNATORIES.contains(s))
         .for_each(|s| SIGNATORIES.push(s));
 
@@ -59,7 +57,7 @@ pub unsafe extern "C" fn init() {
         .unwrap_or(1);
 }
 
-#[gstd_async::main]
+#[gstd::async_main]
 async fn main() {
     let message = msg::load_bytes();
     debug!("message = {:?}", message);
@@ -73,7 +71,7 @@ async fn main() {
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            msg_async::send_and_wait_for_reply(*s, &encoded, GAS_LIMIT, 0).map(move |r| (i, r))
+            msg::send_bytes_and_wait_for_reply(*s, &encoded, GAS_LIMIT, 0).map(move |r| (i, r))
         })
         .collect();
 
@@ -100,14 +98,14 @@ async fn main() {
             })
             .flatten()
             .map(|signature| {
-                let pub_key = Public::unchecked_from(unsafe { SIGNATORIES[i].0 });
+                let pub_key = Public::unchecked_from(<[u8; 32]>::from(unsafe { SIGNATORIES[i] }));
 
                 Sr25519Pair::verify(&signature, &message, &pub_key).into()
             })
             .unwrap_or(0);
 
         if unsafe { THRESHOLD } <= threshold {
-            msg::send_bytes(unsafe { SIGNED_MESSAGE_PROGRAM }, message, GAS_LIMIT, 0);
+            msg::send_bytes(unsafe { DESTINATION }, message, GAS_LIMIT, 0);
             break;
         } else if threshold + remaining.len() < unsafe { THRESHOLD } {
             // threshold can't be reached even if all remaining

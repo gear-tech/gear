@@ -60,7 +60,7 @@ mod wasm {
 
     use alloc::collections::{BTreeMap, BTreeSet};
     use codec::{Decode, Encode};
-    use gstd::{debug, exec, ext, msg, prelude::*, MessageId, ProgramId};
+    use gstd::{debug, exec, msg, prelude::*, ActorId, MessageId};
 
     use super::{Initialization, Operation, Reply, Request};
 
@@ -74,8 +74,8 @@ mod wasm {
 
     struct Transition {
         to_status: u32,
-        origin: ProgramId,
-        query_list: Vec<ProgramId>,
+        origin: ActorId,
+        query_list: Vec<ActorId>,
         message_id: MessageId,
         last_sent_message_id: MessageId,
         query_index: usize,
@@ -84,7 +84,7 @@ mod wasm {
 
     struct NodeState {
         status: u32,
-        sub_nodes: BTreeSet<ProgramId>,
+        sub_nodes: BTreeSet<ActorId>,
         transition: Option<Transition>,
     }
 
@@ -121,7 +121,7 @@ mod wasm {
                         TransitionState::NotReady => {
                             transition.state = TransitionState::Ready;
 
-                            ext::debug("Returning final ready signal");
+                            debug!("Returning final ready signal");
 
                             // this is ready to further process with committing
                             state().transition = Some(transition);
@@ -130,7 +130,7 @@ mod wasm {
                         TransitionState::Ready => {
                             // this means we successfully commited and we can
                             // drop the transition returning success
-                            ext::debug("Returning final commit signal");
+                            debug!("Returning final commit signal");
 
                             return Reply::Success;
                         }
@@ -185,10 +185,10 @@ mod wasm {
                         last_sent_message_id: MessageId::default(),
                     };
 
-                    ext::debug("Transition started");
+                    debug!("Transition started");
 
                     if state().sub_nodes.len() > 0 {
-                        ext::debug("Transition started is complex");
+                        debug!("Transition started is complex");
 
                         transition.query_list = state().sub_nodes.iter().cloned().collect();
                         let first_sub_node = *transition
@@ -249,11 +249,11 @@ mod wasm {
 
                             exec::wait()
                         } else {
-                            ext::debug("Returning failure because current state is not READY");
+                            debug!("Returning failure because current state is not READY");
                             Reply::Failure
                         }
                     } else {
-                        ext::debug("Returning failure because there is no transition in process");
+                        debug!("Returning failure because there is no transition in process");
                         Reply::Failure
                     }
                 }
@@ -279,16 +279,16 @@ mod wasm {
                     } else {
                         transition.state = TransitionState::Failed;
                     }
-                    exec::wake(transition.message_id, exec::gas_available());
+                    exec::wake(transition.message_id.into(), exec::gas_available());
                 }
                 Err(e) => {
                     transition.state = TransitionState::Failed;
-                    ext::debug(&format!("Error processing reply: {:?}", e));
-                    exec::wake(transition.message_id, exec::gas_available());
+                    debug!("Error processing reply: {:?}", e);
+                    exec::wake(transition.message_id.into(), exec::gas_available());
                 }
             }
         } else {
-            ext::debug("Got some reply that can not be processed");
+            debug!("Got some reply that can not be processed");
         }
     }
 

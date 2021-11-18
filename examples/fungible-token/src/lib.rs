@@ -5,7 +5,7 @@
 #![feature(const_btree_new)]
 
 use codec::{Decode, Encode};
-use gstd::{debug, exec, msg, prelude::*, ProgramId};
+use gstd::{debug, exec, msg, prelude::*, ActorId};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 
@@ -16,8 +16,8 @@ struct FungibleToken {
     name: String,
     symbol: String,
     total_supply: u128,
-    balances: BTreeMap<ProgramId, u128>,
-    allowances: BTreeMap<ProgramId, BTreeMap<ProgramId, u128>>,
+    balances: BTreeMap<ActorId, u128>,
+    allowances: BTreeMap<ActorId, BTreeMap<ActorId, u128>>,
 }
 
 static mut FUNGIBLE_TOKEN: FungibleToken = FungibleToken {
@@ -55,14 +55,14 @@ impl FungibleToken {
     fn decrease_total_supply(&mut self, amount: u128) {
         self.total_supply = self.total_supply.saturating_sub(amount);
     }
-    fn set_balance(&mut self, account: &ProgramId, amount: u128) {
+    fn set_balance(&mut self, account: &ActorId, amount: u128) {
         self.balances.insert(*account, amount);
     }
-    fn get_balance(&self, account: &ProgramId) -> u128 {
+    fn get_balance(&self, account: &ActorId) -> u128 {
         *self.balances.get(account).unwrap_or(&0)
     }
-    fn mint(&mut self, account: &ProgramId, amount: u128) {
-        let zero = ProgramId(H256::zero().to_fixed_bytes());
+    fn mint(&mut self, account: &ActorId, amount: u128) {
+        let zero = ActorId::new(H256::zero().to_fixed_bytes());
         if account == &zero {
             panic!("FungibleToken: Mint to zero address.");
         }
@@ -73,7 +73,7 @@ impl FungibleToken {
         }
         let transfer_data = TransferData {
             from: H256::zero(),
-            to: H256::from_slice(account.as_slice()),
+            to: H256::from_slice(account.as_ref()),
             amount,
         };
         msg::reply(
@@ -82,8 +82,8 @@ impl FungibleToken {
             0,
         );
     }
-    fn burn(&mut self, account: &ProgramId, amount: u128) {
-        let zero = ProgramId(H256::zero().to_fixed_bytes());
+    fn burn(&mut self, account: &ActorId, amount: u128) {
+        let zero = ActorId::new(H256::zero().to_fixed_bytes());
         if account == &zero {
             panic!("FungibleToken: Burn from zero address.");
         }
@@ -93,7 +93,7 @@ impl FungibleToken {
             self.set_balance(account, old_balance.saturating_sub(amount));
         }
         let transfer_data = TransferData {
-            from: H256::from_slice(account.as_slice()),
+            from: H256::from_slice(account.as_ref()),
             to: H256::zero(),
             amount,
         };
@@ -103,8 +103,8 @@ impl FungibleToken {
             0,
         );
     }
-    fn transfer(&mut self, sender: &ProgramId, recipient: &ProgramId, amount: u128) {
-        let zero = ProgramId(H256::zero().to_fixed_bytes());
+    fn transfer(&mut self, sender: &ActorId, recipient: &ActorId, amount: u128) {
+        let zero = ActorId::new(H256::zero().to_fixed_bytes());
         if sender == &zero {
             panic!("FungibleToken: Transfer from zero address.");
         }
@@ -119,8 +119,8 @@ impl FungibleToken {
         let recipient_balance = self.get_balance(recipient);
         self.set_balance(recipient, recipient_balance.saturating_add(amount));
         let transfer_data = TransferData {
-            from: H256::from_slice(sender.as_slice()),
-            to: H256::from_slice(recipient.as_slice()),
+            from: H256::from_slice(sender.as_ref()),
+            to: H256::from_slice(recipient.as_ref()),
             amount,
         };
         msg::reply(
@@ -129,8 +129,8 @@ impl FungibleToken {
             0,
         );
     }
-    fn approve(&mut self, owner: &ProgramId, spender: &ProgramId, amount: u128) {
-        let zero = ProgramId(H256::zero().to_fixed_bytes());
+    fn approve(&mut self, owner: &ActorId, spender: &ActorId, amount: u128) {
+        let zero = ActorId::new(H256::zero().to_fixed_bytes());
         if owner == &zero {
             panic!("FungibleToken: Approve from zero address.");
         }
@@ -143,8 +143,8 @@ impl FungibleToken {
             .or_default()
             .insert(*spender, amount);
         let approve_data = ApproveData {
-            owner: H256::from_slice(owner.as_slice()),
-            spender: H256::from_slice(spender.as_slice()),
+            owner: H256::from_slice(owner.as_ref()),
+            spender: H256::from_slice(spender.as_ref()),
             amount,
         };
         msg::reply(
@@ -153,18 +153,18 @@ impl FungibleToken {
             0,
         );
     }
-    fn get_allowance(&self, owner: &ProgramId, spender: &ProgramId) -> u128 {
+    fn get_allowance(&self, owner: &ActorId, spender: &ActorId) -> u128 {
         *self
             .allowances
             .get(owner)
             .and_then(|m| m.get(spender))
             .unwrap_or(&0)
     }
-    fn increase_allowance(&mut self, owner: &ProgramId, spender: &ProgramId, amount: u128) {
+    fn increase_allowance(&mut self, owner: &ActorId, spender: &ActorId, amount: u128) {
         let allowance = self.get_allowance(owner, spender);
         self.approve(owner, spender, allowance.saturating_add(amount));
     }
-    fn decrease_allowance(&mut self, owner: &ProgramId, spender: &ProgramId, amount: u128) {
+    fn decrease_allowance(&mut self, owner: &ActorId, spender: &ActorId, amount: u128) {
         let allowance = self.get_allowance(owner, spender);
         if amount > allowance {
             panic!("FungibleToken: Decreased allowance below zero.");
@@ -173,9 +173,9 @@ impl FungibleToken {
     }
     fn transfer_from(
         &mut self,
-        owner: &ProgramId,
-        sender: &ProgramId,
-        recipient: &ProgramId,
+        owner: &ActorId,
+        sender: &ActorId,
+        recipient: &ActorId,
         amount: u128,
     ) {
         let current_allowance = self.get_allowance(owner, sender);
@@ -259,37 +259,37 @@ pub unsafe extern "C" fn handle() {
 
     match action {
         Action::Mint(mint_input) => {
-            let to = ProgramId(mint_input.account.to_fixed_bytes());
+            let to = ActorId::new(mint_input.account.to_fixed_bytes());
             FUNGIBLE_TOKEN.mint(&to, mint_input.amount);
         }
         Action::Burn(burn_input) => {
-            let from = ProgramId(burn_input.account.to_fixed_bytes());
+            let from = ActorId::new(burn_input.account.to_fixed_bytes());
             FUNGIBLE_TOKEN.burn(&from, burn_input.amount);
         }
         Action::Transfer(transfer_data) => {
-            let from = ProgramId(transfer_data.from.to_fixed_bytes());
-            let to = ProgramId(transfer_data.to.to_fixed_bytes());
+            let from = ActorId::new(transfer_data.from.to_fixed_bytes());
+            let to = ActorId::new(transfer_data.to.to_fixed_bytes());
             FUNGIBLE_TOKEN.transfer(&from, &to, transfer_data.amount);
         }
         Action::Approve(approve_data) => {
-            let owner = ProgramId(approve_data.owner.to_fixed_bytes());
-            let spender = ProgramId(approve_data.spender.to_fixed_bytes());
+            let owner = ActorId::new(approve_data.owner.to_fixed_bytes());
+            let spender = ActorId::new(approve_data.spender.to_fixed_bytes());
             FUNGIBLE_TOKEN.approve(&owner, &spender, approve_data.amount);
         }
         Action::TransferFrom(transfer_data) => {
-            let owner = ProgramId(transfer_data.owner.to_fixed_bytes());
-            let from = ProgramId(transfer_data.from.to_fixed_bytes());
-            let to = ProgramId(transfer_data.to.to_fixed_bytes());
+            let owner = ActorId::new(transfer_data.owner.to_fixed_bytes());
+            let from = ActorId::new(transfer_data.from.to_fixed_bytes());
+            let to = ActorId::new(transfer_data.to.to_fixed_bytes());
             FUNGIBLE_TOKEN.transfer_from(&owner, &from, &to, transfer_data.amount);
         }
         Action::IncreaseAllowance(approve_data) => {
-            let owner = ProgramId(approve_data.owner.to_fixed_bytes());
-            let spender = ProgramId(approve_data.spender.to_fixed_bytes());
+            let owner = ActorId::new(approve_data.owner.to_fixed_bytes());
+            let spender = ActorId::new(approve_data.spender.to_fixed_bytes());
             FUNGIBLE_TOKEN.increase_allowance(&owner, &spender, approve_data.amount);
         }
         Action::DecreaseAllowance(approve_data) => {
-            let owner = ProgramId(approve_data.owner.to_fixed_bytes());
-            let spender = ProgramId(approve_data.spender.to_fixed_bytes());
+            let owner = ActorId::new(approve_data.owner.to_fixed_bytes());
+            let spender = ActorId::new(approve_data.spender.to_fixed_bytes());
             FUNGIBLE_TOKEN.decrease_allowance(&owner, &spender, approve_data.amount)
         }
     }

@@ -6,12 +6,16 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-gcore = { path = "../gcore" }
 galloc = { path = "../galloc" }
-codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["full"]}
-hex = { version = "0.4.3", default-features = false, features = ["alloc"], optional = true}
-scale-info = { version = "1.0.0", default-features = false, features = ["derive"], optional = true}
+gcore = { path = "../gcore" }
+gstd-codegen = { path = "codegen" }
+
+bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive", "full"]}
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
+primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"]}
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
 [features]
-debug = ["gcore/debug", "galloc/debug"]
-meta = ["hex", "scale-info"]
+debug = ["galloc/debug", "gcore/debug"]

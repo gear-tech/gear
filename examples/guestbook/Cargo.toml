@@ -9,6 +9,6 @@ license = "GPL-3.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-gstd = { path = "../../gstd", features = ["debug", "meta"] }
+gstd = { path = "../../gstd", features = ["debug"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }

@@ -1,4 +1,25 @@
-use alloc::collections::VecDeque;
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! RwLock async implementation.
+
+use super::access::AccessQueue;
+use crate::MessageId;
 use core::{
     cell::{Cell, UnsafeCell},
     future::Future,
@@ -6,38 +27,34 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
-use gcore::MessageId;
 
 type ReadersCount = u8;
 const READERS_LIMIT: ReadersCount = 32;
-
-// Option<VecDeque> to make new `const fn`
-struct RwLockWakes(UnsafeCell<Option<VecDeque<MessageId>>>);
-
-impl RwLockWakes {
-    fn add_wake(&self, message_id: MessageId) {
-        unsafe {
-            let mutable_option = &mut *self.0.get();
-
-            let vec_deque = mutable_option.get_or_insert_with(VecDeque::new);
-            vec_deque.push_back(message_id);
-        }
-    }
-
-    fn dequeue_wake(&self) -> Option<MessageId> {
-        unsafe { (*self.0.get()).as_mut().and_then(|v| v.pop_front()) }
-    }
-
-    const fn new() -> Self {
-        RwLockWakes(UnsafeCell::new(None))
-    }
-}
 
 pub struct RwLock<T> {
     locked: UnsafeCell<Option<MessageId>>,
     value: UnsafeCell<T>,
     readers: Cell<ReadersCount>,
-    wakes: RwLockWakes,
+    queueu: AccessQueue,
+}
+
+impl<T> RwLock<T> {
+    pub fn read(&self) -> RwLockReadFuture<'_, T> {
+        RwLockReadFuture { lock: self }
+    }
+
+    pub fn write(&self) -> RwLockWriteFuture<'_, T> {
+        RwLockWriteFuture { lock: self }
+    }
+
+    pub const fn new(t: T) -> RwLock<T> {
+        RwLock {
+            value: UnsafeCell::new(t),
+            locked: UnsafeCell::new(None),
+            readers: Cell::new(0),
+            queueu: AccessQueue::new(),
+        }
+    }
 }
 
 // we are always single-threaded
@@ -58,8 +75,8 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
             if readers_count == 0 {
                 *self.lock.locked.get() = None;
 
-                if let Some(message_id) = self.lock.wakes.dequeue_wake() {
-                    gcore::exec::wake(message_id, 0);
+                if let Some(message_id) = self.lock.queueu.dequeue() {
+                    crate::exec::wake(message_id, 0);
                 }
             }
         }
@@ -102,8 +119,8 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
     fn drop(&mut self) {
         unsafe {
             *self.lock.locked.get() = None;
-            if let Some(message_id) = self.lock.wakes.dequeue_wake() {
-                gcore::exec::wake(message_id, 0);
+            if let Some(message_id) = self.lock.queueu.dequeue() {
+                crate::exec::wake(message_id, 0);
             }
         }
     }
@@ -141,7 +158,7 @@ impl<'a, T> Future for RwLockReadFuture<'a, T> {
             readers.replace(readers_count);
             Poll::Ready(RwLockReadGuard { lock: self.lock })
         } else {
-            self.lock.wakes.add_wake(gcore::msg::id());
+            self.lock.queueu.enqueue(crate::msg::id());
             Poll::Pending
         }
     }
@@ -153,30 +170,11 @@ impl<'a, T> Future for RwLockWriteFuture<'a, T> {
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let lock = unsafe { &mut *self.lock.locked.get() };
         if lock.is_none() && self.lock.readers.get() == 0 {
-            *lock = Some(gcore::msg::id());
+            *lock = Some(crate::msg::id());
             Poll::Ready(RwLockWriteGuard { lock: self.lock })
         } else {
-            self.lock.wakes.add_wake(gcore::msg::id());
+            self.lock.queueu.enqueue(crate::msg::id());
             Poll::Pending
-        }
-    }
-}
-
-impl<T> RwLock<T> {
-    pub fn read(&self) -> RwLockReadFuture<'_, T> {
-        RwLockReadFuture { lock: self }
-    }
-
-    pub fn write(&self) -> RwLockWriteFuture<'_, T> {
-        RwLockWriteFuture { lock: self }
-    }
-
-    pub const fn new(t: T) -> RwLock<T> {
-        RwLock {
-            value: UnsafeCell::new(t),
-            locked: UnsafeCell::new(None),
-            readers: Cell::new(0),
-            wakes: RwLockWakes::new(),
         }
     }
 }

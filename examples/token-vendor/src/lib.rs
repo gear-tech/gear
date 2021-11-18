@@ -3,8 +3,7 @@
 
 extern crate alloc;
 
-use gstd::{debug, exec, msg, prelude::*, ProgramId};
-use gstd_async::msg as msg_async;
+use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
@@ -14,30 +13,32 @@ use scale_info::TypeInfo;
 const GAS_RESERVE: u64 = 500_000_000;
 
 struct State {
-    owner_id: Option<ProgramId>,
+    owner_id: Option<ActorId>,
     code: String,
     reward: u128,
-    admins: BTreeSet<ProgramId>,
-    members: BTreeSet<ProgramId>,
+    admins: BTreeSet<ActorId>,
+    members: BTreeSet<ActorId>,
 }
 
-fn hex_to_id(hex: String) -> Result<ProgramId, u8> {
+fn hex_to_id(hex: String) -> Result<ActorId, u8> {
     let hex = hex.strip_prefix("0x").unwrap_or(&hex);
 
     hex::decode(hex)
-        .map(|bytes| ProgramId::from_slice(&bytes))
+        .map(|bytes| ActorId::from_slice(&bytes).expect("Unable to create ActorId"))
         .map_err(|_| 0)
 }
 
-fn address_to_id(address: String) -> Result<ProgramId, u8> {
+fn address_to_id(address: String) -> Result<ActorId, u8> {
     bs58::decode(address)
         .into_vec()
-        .map(|v| ProgramId::from_slice(&v[1..v.len() - 2].to_vec()))
+        .map(|v| {
+            ActorId::from_slice(&v[1..v.len() - 2].to_vec()).expect("Unable to create ActorId")
+        })
         .map_err(|_| 1)
 }
 
 impl State {
-    fn init(&mut self, owner_id: ProgramId, config: InitConfig) -> Result<(), &'static str> {
+    fn init(&mut self, owner_id: ActorId, config: InitConfig) -> Result<(), &'static str> {
         self.owner_id = Some(owner_id);
         self.code = config.code;
         self.reward = config.reward;
@@ -111,7 +112,7 @@ struct UpdateConfig {
 #[derive(Debug, Decode, TypeInfo)]
 enum Action {
     UpdateConfig(UpdateConfig),
-    ProgramId(H256),
+    ActorId(H256),
 }
 
 static mut STATE: State = State {
@@ -132,7 +133,7 @@ gstd::metadata! {
         output: String,
 }
 
-#[gstd_async::main]
+#[gstd::async_main]
 async fn main() {
     let action: Action = msg::load().expect("Unable to decode Action");
 
@@ -153,15 +154,15 @@ async fn main() {
 
             msg::reply("Config updated", exec::gas_available() - GAS_RESERVE, 0);
         }
-        Action::ProgramId(hex) => {
+        Action::ActorId(hex) => {
             if unsafe { !STATE.members.contains(&source) } {
                 debug!("Sender is not a member of the workshop");
                 return;
             }
 
-            let id = ProgramId(hex.to_fixed_bytes());
+            let id = ActorId::new(hex.to_fixed_bytes());
 
-            let response = msg_async::send_and_wait_for_reply(
+            let response = msg::send_bytes_and_wait_for_reply(
                 id,
                 &String::from("ping").encode(),
                 GAS_RESERVE,
@@ -176,7 +177,7 @@ async fn main() {
             debug!("Got ping-reply: '{}'", ping);
 
             if ping.to_lowercase() == "pong" {
-                let response = msg_async::send_and_wait_for_reply(
+                let response = msg::send_bytes_and_wait_for_reply(
                     id,
                     &String::from("success").encode(),
                     GAS_RESERVE,
