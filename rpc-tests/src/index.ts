@@ -137,14 +137,14 @@ async function checkLog(api, exp) {
     for (const log of exp.log) {
       let found = false;
       if ('payload' in log) {
-        for (const index of Object.keys(programs)) {
+        for (const index of Object.keys(metadata)) {
 
           let encoded = encodePayload(api, log, programs[index]);
 
           messages.forEach((message, _id) => {
             
 
-            if (message.payload.eq(encoded)) {
+            if (encoded.toHex() == message.payload) {
               // console.log(message.payload.toHex(), encoded.toHex());
               found = true;
               return;
