@@ -1,0 +1,87 @@
+title: Async-multisig (well known cases)
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_async_multisig.wasm
+    init_message:
+      kind: custom
+      value:
+        threshold: 0
+        # Eve
+        destination: "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"
+        signatories:
+          # bob's Account Id
+          - "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+
+  - id:
+      kind: account
+      value: bob
+    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    init_message:
+      kind: custom
+      value:
+        - request: "0x1050494e47"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+  - id:
+      kind: account
+      value: eve
+    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    init_message:
+      kind: custom
+      value:
+        # "PING"
+        - request: "0x50494e47"
+          repeated: true
+          replies:
+            - count: 1
+            # "PONG"
+              reply: "0x504f4e47"
+
+fixtures:
+  - title: Single signatory & zero threshold
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e47"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload:
+              kind: bytes
+              value: "0x1050494e47"
+
+      - step: 2
+        messages:
+          - destination: 1
+            payload: &good
+              kind: bytes
+              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+
+      - step: 3
+        messages:
+          - destination: 1
+            payload: *ping
+
+      - step: 4
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *ping
+
+      - step: 5
+        messages:
+          - destination: 1
+            payload:
+              kind: utf-8
+              value: "PONG"
