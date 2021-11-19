@@ -1,13 +1,9 @@
 
 <p align="center">
   <a href="https://gear-tech.io">
-    <img src="images/footer-logo.svg" width="400" alt="GEAR">
+    <img src="images/title.png" width="700" alt="GEAR">
   </a>
 </p>
-
-<h1 align="center"> 
-The most advanced smart-contract engine
-</h1>
 
 <p align="center">
  <img src="images/gear.gif" alt="Snow"><br>
@@ -61,7 +57,7 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
  - Programs run in WASM WM (near-native code execution speed)
  - **Unique** :crown: : Parallelizable architecture (even greater speed)
- - **Unique** :crown: : Actor model for message-passing communications — secure, effective, clear
+ - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
  - dApp in minutes using GEAR libraries
  - Based on Substrate
 
@@ -102,7 +98,7 @@ Substrate serves as a layer of communication between the relay chain and the par
 
 The internal flow of Gear:
 
-  <img src="images/internal_flow.png" alt="Snow" style="width:100%;">
+  <img src="images/internal_flow.jpg" alt="Snow" style="width:100%;">
 
 Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf">technical paper</a> for some insights about how Gear works internally.
 
