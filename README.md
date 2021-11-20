@@ -10,8 +10,6 @@
 Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in a few minutes.
 </p>
 
-# 
-
 <div align="center">
 
 [![CI][c1]][c2]
@@ -57,7 +55,7 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
  - Programs run in WASM WM (near-native code execution speed)
  - **Unique** :crown: : Parallelizable architecture (even greater speed)
- - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
+ - **Unique** :crown: : Actor model for message-passing communications — secure, effective, clear
  - dApp in minutes using GEAR libraries
  - Based on Substrate
 
@@ -88,11 +86,11 @@ But still have room for improvements due to:
  - Lack of interoperability with other networks
 
 To resolve the interoperability issue, Parity technologies focused on creating a technology that connects every other blockchain: 
-  - Polkadot - a blockchain of blockchains. Provides a “relay chain” (the primary blockchain) that enables “parachains” (functional blockchains) to be deployed on top of it. All parachains are interconnected, creating a massive network of multifunctional blockchain services.
-  - Substrate - a modular framework that allows to create custom-built blockchains with consensus mechanism, core functionality and security out of the box.
+  - Polkadot — a blockchain of blockchains. Provides a “relay chain” (the primary blockchain) that enables “parachains” (functional blockchains) to be deployed on top of it. All parachains are interconnected, creating a massive network of multifunctional blockchain services.
+  - Substrate — a modular framework that allows to create custom-built blockchains with consensus mechanism, core functionality and security out of the box.
 
-Building a blockchain with Substrate allows it to be deployed on any compatible relay chain such as Polkadot and Kusama
-Substrate serves as a layer of communication between the relay chain and the parachain
+Building a blockchain with Substrate allows it to be deployed on any compatible relay chain such as Polkadot and Kusama.
+Substrate serves as a layer of communication between the relay chain and the parachain.
 
 # :factory: How does it work?
 
@@ -104,13 +102,13 @@ Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TE
 
 # :books: Gear components
 
-* [core](https://github.com/gear-tech/gear/tree/master/core) - Gear engine for distributed computing core components.
+* [core](https://github.com/gear-tech/gear/tree/master/core) — Gear engine for distributed computing core components.
 
-* [node](https://github.com/gear-tech/gear/tree/master/node) - Gear substrate-based node, ready for hacking :rocket:.
+* [node](https://github.com/gear-tech/gear/tree/master/node) — Gear substrate-based node, ready for hacking :rocket:.
 
-* [gstd](https://github.com/gear-tech/gear/tree/master/gstd) - Standard library for Gear smart contracts.
+* [gstd](https://github.com/gear-tech/gear/tree/master/gstd) — Standard library for Gear smart contracts.
 
-* [examples](https://github.com/gear-tech/gear/tree/master/examples) - Gear smart contract examples.
+* [examples](https://github.com/gear-tech/gear/tree/master/examples) — Gear smart contract examples.
 
 
 # :baby: Getting Started
@@ -144,8 +142,8 @@ Follow the instructions from [Gear Wiki](https://wiki.gear-tech.io/get-started/g
  <img src="images/add-acc.png" alt="addAcc"><br>
 
 4. Click **Upload program** and choose compiled .wasm file to upload
-    1. Set enough Gas limit - 1 000 000
-    2. Initial parameters, Initial value - keep default
+    1. Set enough Gas limit — 1 000 000
+    2. Initial parameters, Initial value — keep default
     3. Upload file with Metadata, if applicable
         1. the file can be found after program compilation from available examples
     4. Click **Upload program**, wait for the program initialization
