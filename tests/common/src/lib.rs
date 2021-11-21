@@ -24,7 +24,7 @@ use gear_core_runner::{
     Config, ExecutionOutcome, Ext, ExtMessage, InMemoryRunner, InitializeProgramInfo,
     MessageDispatch,
 };
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 pub type InMemoryWasmRunner = InMemoryRunner<WasmtimeEnvironment<Ext>>;
 
@@ -183,6 +183,7 @@ impl<E: Encode> From<E> for MessageDispatchBuilder {
 pub enum RunResult {
     Normal,
     Trap(String),
+    Waiting,
 }
 
 impl From<ExecutionOutcome> for RunResult {
@@ -190,6 +191,7 @@ impl From<ExecutionOutcome> for RunResult {
         match outcome {
             ExecutionOutcome::Normal => RunResult::Normal,
             ExecutionOutcome::Trap(s) => RunResult::Trap(String::from(s.unwrap_or(""))),
+            ExecutionOutcome::Waiting => RunResult::Waiting,
         }
     }
 }
@@ -293,11 +295,9 @@ impl RunnerContext {
         let message_id = message_dispatch.data.id;
 
         let runner = self.runner();
-
         runner.queue_message(message_dispatch);
 
-        while runner.run_next(u64::MAX).handled > 0 {}
-
+        self.run();
         self.get_response_to(message_id)
     }
 
@@ -372,7 +372,7 @@ impl RunnerContext {
             self.runner().queue_message(request);
         }
 
-        while self.runner().run_next(u64::MAX).handled != 0 {}
+        self.run();
 
         message_ids
             .into_iter()
@@ -441,6 +441,17 @@ impl RunnerContext {
         self.program_id += 1;
         program_id
     }
+
+    fn run(&mut self) {
+        let runner = self.runner();
+        loop {
+            let mut result = runner.run_next(u64::MAX);
+            runner.process_wait_list(&mut result);
+            if result.handled == 0 {
+                break;
+            }
+        }
+    }
 }
 
 fn reply_or_panic<D: Decode>(response: Option<Result<D, Error>>) -> D {
@@ -463,9 +474,10 @@ impl Default for RunnerContext {
     }
 }
 
+type WaitList = BTreeMap<Vec<u8>, MessageDispatch>;
 enum RunnerState {
     Runner(InMemoryWasmRunner),
-    Storage(InMemoryStorage, Config),
+    Storage(InMemoryStorage, Config, WaitList),
     Uninitialzied,
 }
 
@@ -475,12 +487,15 @@ impl RunnerState {
             runner
         } else {
             *self = match std::mem::take(self) {
-                Self::Storage(storage, config) => Self::Runner(InMemoryWasmRunner::new(
-                    &config,
-                    storage,
-                    Default::default(),
-                    WasmtimeEnvironment::default(),
-                )),
+                Self::Storage(storage, config, wait_list) => Self::Runner(
+                    InMemoryWasmRunner::new(
+                        &config,
+                        storage,
+                        Default::default(),
+                        WasmtimeEnvironment::default(),
+                    )
+                    .with_wait_list(wait_list),
+                ),
                 _ => Self::Runner(InMemoryWasmRunner::default()),
             };
 
@@ -489,7 +504,7 @@ impl RunnerState {
     }
 
     fn convert_to_storage(&mut self) -> &InMemoryStorage {
-        if let Self::Storage(storage, _) = self {
+        if let Self::Storage(storage, ..) = self {
             storage
         } else {
             *self = if let Self::Runner(runner) = std::mem::take(self) {
@@ -500,10 +515,15 @@ impl RunnerState {
                     init_cost: runner.init_cost(),
                     load_page_cost: runner.load_page_cost(),
                 };
+                let wait_list = runner.wait_list().clone();
                 let storage = runner.complete();
-                Self::Storage(storage, config)
+                Self::Storage(storage, config, wait_list)
             } else {
-                Self::Storage(InMemoryStorage::default(), Config::default())
+                Self::Storage(
+                    InMemoryStorage::default(),
+                    Config::default(),
+                    WaitList::default(),
+                )
             };
 
             self.convert_to_storage()

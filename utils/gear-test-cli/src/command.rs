@@ -48,7 +48,6 @@ impl GearTestCmd {
                         gear_core::storage::Storage {
                             message_queue: runner::ext::ExtMessageQueue::default(),
                             program_storage: runner::ext::ExtProgramStorage,
-                            wait_list: Default::default(),
                             log: Default::default(),
                         }
                     },

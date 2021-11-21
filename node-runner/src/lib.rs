@@ -23,7 +23,12 @@ pub mod ext;
 use codec::{Decode, Encode};
 use sp_core::H256;
 
-use gear_core::{message::MessageId, program::ProgramId, storage::Storage};
+use gear_common::native;
+use gear_core::{
+    message::{Message, MessageId},
+    program::ProgramId,
+    storage::Storage,
+};
 
 use gear_backend_common::Environment;
 pub use gear_core_runner::{BlockInfo, Ext};
@@ -36,7 +41,7 @@ use crate::ext::*;
 
 type ExtRunner<E> = Runner<ExtStorage, E>;
 /// Storage used for running node
-pub type ExtStorage = Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList>;
+pub type ExtStorage = Storage<ExtMessageQueue, ExtProgramStorage>;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -51,6 +56,7 @@ pub struct ExecutionReport {
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
+    pub wait_list: Vec<Message>,
 }
 
 impl ExecutionReport {
@@ -60,6 +66,7 @@ impl ExecutionReport {
             gas_left,
             gas_spent,
             outcomes,
+            wait_list,
             ..
         } = result;
 
@@ -86,7 +93,7 @@ impl ExecutionReport {
                     (
                         H256::from_slice(message_id.as_slice()),
                         match exec_outcome {
-                            ExecutionOutcome::Normal => Ok(()),
+                            ExecutionOutcome::Normal | ExecutionOutcome::Waiting => Ok(()),
                             ExecutionOutcome::Trap(t) => match t {
                                 Some(s) => Err(alloc::string::String::from(s).encode()),
                                 _ => Err(Vec::new()),
@@ -95,6 +102,7 @@ impl ExecutionReport {
                     )
                 })
                 .collect(),
+            wait_list,
         }
     }
 }
@@ -104,7 +112,8 @@ pub fn process<E: Environment<Ext>>(
     block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
     let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
-    let result = runner.run_next(max_gas_limit);
+    let mut result = runner.run_next(max_gas_limit);
+    process_wait_list(&mut result);
 
     let Storage {
         mut message_queue,
@@ -131,14 +140,16 @@ pub fn init_program<E: Environment<Ext>>(
     let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
 
     let init_message_id = MessageId::from_slice(&init_message_id[..]);
+    let program_id = ProgramId::from_slice(&program_id[..]);
+    let source_id = ProgramId::from_slice(&caller_id[..]);
     let run_result = runner
         .init_program(InitializeProgramInfo {
-            new_program_id: ProgramId::from_slice(&program_id[..]),
-            source_id: ProgramId::from_slice(&caller_id[..]),
+            new_program_id: program_id,
+            source_id,
             code: program_code,
             message: ExtMessage {
                 id: init_message_id,
-                payload: init_payload,
+                payload: init_payload.clone(),
                 gas_limit,
                 value,
             },
@@ -148,11 +159,17 @@ pub fn init_program<E: Environment<Ext>>(
             Error::Runner
         })?;
 
-    let result = RunNextResult::from_single(
-        init_message_id,
-        ProgramId::from_slice(&caller_id[..]),
-        run_result,
-    );
+    let init_message = Message {
+        id: init_message_id,
+        source: source_id,
+        dest: program_id,
+        payload: init_payload.into(),
+        gas_limit,
+        value,
+        reply: None,
+    };
+    let mut result = RunNextResult::from_single(init_message, run_result);
+    process_wait_list(&mut result);
 
     let Storage {
         mut message_queue,
@@ -205,4 +222,31 @@ pub fn gas_spent<E: Environment<Ext>>(
     runner.complete();
 
     Ok(total_gas_spent)
+}
+
+fn process_wait_list(result: &mut RunNextResult) {
+    let wait_list = &mut result.wait_list;
+    while let Some(msg) = wait_list.pop() {
+        let actor_id = msg.dest;
+        let msg_id = msg.id;
+        native::insert_waiting_message(actor_id, msg_id, msg);
+    }
+
+    let awakening = &mut result.awakening;
+    while let Some((msg_id, gas)) = awakening.pop() {
+        if let Some(mut msg) = native::remove_waiting_message(result.prog_id, msg_id) {
+            // TODO: Get correct prog id here
+            // Increase gas available to the message
+            if u64::max_value() - gas < msg.gas_limit() {
+                // TODO: issue #323
+                log::debug!(
+                    "Gas limit ({}) after wake (+{}) exceeded u64::max() and will be burned",
+                    msg.gas_limit,
+                    gas
+                );
+            }
+            msg.gas_limit = msg.gas_limit.saturating_add(gas);
+            native::queue_message(msg);
+        }
+    }
 }

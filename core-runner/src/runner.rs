@@ -32,9 +32,7 @@ use gear_core::{
         MessageState, OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
-    storage::{
-        InMemoryStorage, Log, MessageQueue, ProgramStorage, Storage, StorageCarrier, WaitList,
-    },
+    storage::{InMemoryStorage, Log, MessageQueue, ProgramStorage, Storage, StorageCarrier},
 };
 
 use crate::builder::RunnerBuilder;
@@ -86,6 +84,8 @@ impl Config {
 /// Result of one or more message handling.
 #[derive(Debug, Default, Clone)]
 pub struct RunNextResult {
+    /// The ID of the program that has been run.
+    pub prog_id: ProgramId,
     /// How many messages were handled
     pub handled: u32,
     /// Execution outcome per each message
@@ -94,6 +94,10 @@ pub struct RunNextResult {
     pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
     pub gas_spent: Vec<(ProgramId, u64)>,
+    /// List of waiting messages.
+    pub wait_list: Vec<Message>,
+    /// Messages to be waken.
+    pub awakening: Vec<(MessageId, u64)>,
 }
 
 impl RunNextResult {
@@ -120,6 +124,7 @@ impl RunNextResult {
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
+        self.awakening = result.awakening;
     }
 
     /// Empty run result.
@@ -128,9 +133,22 @@ impl RunNextResult {
     }
 
     /// From one single run.
-    pub fn from_single(message_id: MessageId, caller_id: ProgramId, run_result: RunResult) -> Self {
+    pub fn from_single(message: Message, run_result: RunResult) -> Self {
         let mut result = Self::empty();
-        result.accrue(message_id, caller_id, run_result);
+        result.prog_id = message.dest;
+        let message_id = message.id;
+        let source_id = message.source;
+        let mut run_result = run_result;
+        if let ExecutionOutcome::Waiting = run_result.outcome {
+            let mut message = message;
+            // Update gas limit according to gas already spent
+            message.gas_limit = run_result.gas_left;
+            // Keep user's balance reserved until message will be really processed
+            run_result.gas_left = 0;
+            result.wait_list.push(message);
+        }
+
+        result.accrue(message_id, source_id, run_result);
         result
     }
 
@@ -153,17 +171,18 @@ impl RunNextResult {
 pub struct Runner<SC: StorageCarrier, E: Environment<Ext>> {
     pub(crate) program_storage: SC::PS,
     pub(crate) message_queue: SC::MQ,
-    pub(crate) wait_list: SC::WL,
     pub(crate) log: Log,
     pub(crate) config: Config,
     env: E,
     block_info: BlockInfo,
+    wait_list: BTreeMap<Vec<u8>, MessageDispatch>,
 }
 
 /// Fully in-memory runner builder (for tests).
 pub type InMemoryRunner<E> = Runner<InMemoryStorage, E>;
 
 /// Message payload with pre-generated identifier and economic data.
+#[derive(Clone)]
 pub struct ExtMessage {
     /// Id of the message.
     pub id: MessageId,
@@ -196,6 +215,7 @@ pub struct InitializeProgramInfo {
 /// New message dispatch request.
 ///
 /// Message is dispatched from some identity to some identity, both should be known in advance.
+#[derive(Clone)]
 pub struct MessageDispatch {
     /// Identity of the message origin.
     pub source_id: ProgramId,
@@ -257,25 +277,24 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// Provide configuration, storage.
     pub fn new(
         config: &Config,
-        storage: Storage<SC::MQ, SC::PS, SC::WL>,
+        storage: Storage<SC::MQ, SC::PS>,
         block_info: BlockInfo,
         env: E,
     ) -> Self {
         let Storage {
             message_queue,
             program_storage,
-            wait_list,
             log,
         } = storage;
 
         Self {
             program_storage,
             message_queue,
-            wait_list,
             log,
             config: config.clone(),
             env,
             block_info,
+            wait_list: BTreeMap::new(),
         }
     }
 
@@ -345,7 +364,8 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             true
         };
 
-        let mut run_result = run(
+        let incoming_message: IncomingMessage = next_message.clone().into();
+        let run_result = run(
             &mut self.env,
             &mut context,
             &instrumeted_code,
@@ -355,7 +375,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             } else {
                 EntryPoint::Handle
             },
-            &next_message.into(),
+            &incoming_message,
             gas_limit,
             self.block_info,
         );
@@ -389,28 +409,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             }
         }
 
-        if let Some(waiting_msg) = run_result.waiting.take() {
-            self.wait_list
-                .insert(program.id(), waiting_msg.id, waiting_msg);
-        }
-
-        for (waker_id, gas) in &run_result.awakening {
-            if let Some(mut msg) = self.wait_list.remove(program.id(), *waker_id) {
-                // Increase gas available to the message
-                if u64::max_value() - gas < msg.gas_limit() {
-                    // TODO: issue #323
-                    log::debug!(
-                        "Gas limit ({}) after wake (+{}) exceeded u64::max() and will be burned",
-                        msg.gas_limit,
-                        gas
-                    );
-                }
-                msg.gas_limit = msg.gas_limit.saturating_add(*gas);
-                context.message_buf.push(msg);
-            }
-        }
-
-        let result = RunNextResult::from_single(next_message_id, next_message_source, run_result);
+        let result = RunNextResult::from_single(next_message, run_result);
 
         for message in context.message_buf.drain(..) {
             if self.program_storage.exists(message.dest()) {
@@ -425,14 +424,74 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         result
     }
 
+    /// Process the wait list.
+    ///
+    /// Use it only for in-memory storage (i.e. for testing purposes).
+    pub fn process_wait_list(&mut self, result: &mut RunNextResult) {
+        if result.handled == 0 {
+            return;
+        }
+
+        let prog_id = result.prog_id;
+
+        // Convert waiting messages to `MessageDispatch`
+        result.wait_list.drain(..).for_each(|wm| {
+            let msg = MessageDispatch {
+                source_id: wm.source,
+                destination_id: wm.dest,
+                data: ExtMessage {
+                    id: wm.id,
+                    payload: wm.payload.into_raw(),
+                    gas_limit: wm.gas_limit,
+                    value: wm.value,
+                },
+            };
+            self.wait_list.insert(Self::create_id(prog_id, wm.id), msg);
+        });
+
+        // Messages to be added back to the queue
+        let msgs: Vec<_> = result
+            .awakening
+            .iter()
+            .filter_map(|(msg_id, gas)| {
+                let id = Self::create_id(prog_id, *msg_id);
+                //panic!("WAKE: {:?} from {}", &id, self.wait_list.len());
+                self.wait_list.remove(&id).map(|mut msg| {
+                    msg.data.gas_limit = msg.data.gas_limit.saturating_add(*gas);
+                    msg
+                })
+            })
+            .collect();
+
+        for msg in msgs {
+            self.queue_message(msg);
+        }
+    }
+
+    /// Get the wait list copy.
+    ///
+    /// Use it for testing purposes only!
+    pub fn wait_list(&self) -> &BTreeMap<Vec<u8>, MessageDispatch> {
+        &self.wait_list
+    }
+
+    /// Add to the wait list and return `Runner`.
+    ///
+    /// Use it for testing purposes only!
+    pub fn with_wait_list(mut self, wait_list: BTreeMap<Vec<u8>, MessageDispatch>) -> Self {
+        wait_list.into_iter().for_each(|(id, msg)| {
+            self.wait_list.insert(id, msg);
+        });
+        self
+    }
+
     /// Drop this runner.
     ///
     /// This will return underlyign storage and memory state.
-    pub fn complete(self) -> Storage<SC::MQ, SC::PS, SC::WL> {
+    pub fn complete(self) -> Storage<SC::MQ, SC::PS> {
         let Runner {
             program_storage,
             message_queue,
-            wait_list,
             log,
             ..
         } = self;
@@ -440,7 +499,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         Storage {
             message_queue,
             program_storage,
-            wait_list,
             log,
         }
     }
@@ -571,6 +629,15 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     pub fn set_block_timestamp(&mut self, value: u64) {
         self.block_info.timestamp = value;
     }
+
+    fn create_id(prog_id: ProgramId, msg_id: MessageId) -> Vec<u8> {
+        let mut prog_id = prog_id;
+        let mut msg_id = msg_id;
+        let mut id = Vec::with_capacity(64);
+        id.append(&mut prog_id.as_mut_slice().to_vec());
+        id.append(&mut msg_id.as_mut_slice().to_vec());
+        id
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -633,10 +700,12 @@ impl RunningContext {
 /// If trap occured, possible explanation can be attached
 #[derive(Clone, Debug)]
 pub enum ExecutionOutcome {
-    /// Outcome was a trap with some possible explanation.
-    Trap(Option<&'static str>),
     /// Outcome was fine.
     Normal,
+    /// Outcome was a trap with some possible explanation.
+    Trap(Option<&'static str>),
+    /// Execution was interrupted and the message is to be moved to the wait list.
+    Waiting,
 }
 
 impl Default for ExecutionOutcome {
@@ -647,10 +716,7 @@ impl Default for ExecutionOutcome {
 
 impl ExecutionOutcome {
     fn was_trap(&self) -> bool {
-        match self {
-            ExecutionOutcome::Trap(_) => true,
-            ExecutionOutcome::Normal => false,
-        }
+        matches!(self, ExecutionOutcome::Trap(_))
     }
 }
 
@@ -661,15 +727,13 @@ pub struct RunResult {
     pub messages: Vec<OutgoingMessage>,
     /// Reply that was received during the run.
     pub reply: Option<ReplyMessage>,
-    /// Message to be added to the wait list.
-    pub waiting: Option<Message>,
     /// Messages to be woken.
     pub awakening: Vec<(MessageId, u64)>,
     /// Gas that was left.
     pub gas_left: u64,
     /// Gas that was spent.
     pub gas_spent: u64,
-    /// Run outcome (trap/succes).
+    /// Run outcome (trap/success/waiting).
     pub outcome: ExecutionOutcome,
 }
 
@@ -753,6 +817,7 @@ fn run<E: Environment<Ext>>(
         alloc_cost: context.alloc_cost(),
         mem_grow_cost: context.mem_grow_cost(),
         last_error_returned: None,
+        wait_flag: false,
         block_info,
     };
 
@@ -765,7 +830,13 @@ fn run<E: Environment<Ext>>(
     );
 
     let outcome = match res {
-        Ok(_) => ExecutionOutcome::Normal,
+        Ok(_) => {
+            if ext.wait_flag {
+                ExecutionOutcome::Waiting
+            } else {
+                ExecutionOutcome::Normal
+            }
+        }
         Err(e) => {
             let explanation = ext.last_error_returned.take();
             log::debug!(
@@ -790,7 +861,6 @@ fn run<E: Environment<Ext>>(
     let MessageState {
         outgoing,
         reply,
-        waiting,
         mut awakening,
     } = ext.messages.into_state();
 
@@ -810,14 +880,6 @@ fn run<E: Environment<Ext>>(
     let gas_burned = ext.gas_counter.burned();
     let mut gas_left = ext.gas_counter.left();
 
-    let waiting = waiting.map(|mut msg| {
-        // Update gas limit according to gas already spent
-        msg.set_gas_limit(gas_left);
-        // Keep user's balance reserved until message will be really processed
-        gas_left = 0;
-        msg.into_message(program.id())
-    });
-
     awakening.iter_mut().for_each(|(_, gas_limit)| {
         let mut gas_to_transfer = *gas_limit;
         if gas_to_transfer > gas_left {
@@ -831,7 +893,6 @@ fn run<E: Environment<Ext>>(
     RunResult {
         messages,
         reply,
-        waiting,
         awakening,
         gas_left,
         gas_spent: gas_burned,
@@ -847,7 +908,7 @@ mod tests {
     use crate::builder::InMemoryRunnerBuilder;
     use core::convert::TryInto;
     use env_logger::Env;
-    use gear_core::storage::{InMemoryStorage, MessageMap};
+    use gear_core::storage::InMemoryStorage;
 
     type TestRunner = InMemoryRunner<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>;
 
@@ -1173,19 +1234,15 @@ mod tests {
             },
         });
 
-        let _result = runner.run_next(u64::MAX);
+        let mut result = runner.run_next(u64::MAX);
 
         let InMemoryStorage {
             message_queue: _,
             program_storage: _,
-            wait_list,
             log: _,
         } = runner.complete();
-        let mut wait_list: MessageMap = wait_list.into();
 
-        assert!(wait_list.contains_key(&(dest_id.into(), msg_id)));
-        let msg = wait_list.remove(&(dest_id.into(), msg_id)).unwrap();
-
+        let msg = result.wait_list.pop().unwrap();
         assert_eq!(msg.source, source_id.into());
         assert_eq!(msg.dest, dest_id.into());
         assert_eq!(msg.payload(), payload);
