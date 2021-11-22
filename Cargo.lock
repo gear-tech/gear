@@ -2102,6 +2102,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
+ "pallet-gear-debug",
  "pallet-gear-rpc-runtime-api",
  "pallet-grandpa",
  "pallet-randomness-collective-flip",
@@ -4152,6 +4153,37 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
+version = "2.0.0"
+dependencies = [
+ "env_logger 0.9.0",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-backend-sandbox",
+ "gear-common",
+ "gear-core",
+ "gear-node-runner",
+ "hex-literal",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear-debug",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "wabt",
+]
+
+[[package]]
+name = "pallet-gear-debug"
 version = "2.0.0"
 dependencies = [
  "env_logger 0.9.0",

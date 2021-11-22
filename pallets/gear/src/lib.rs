@@ -19,6 +19,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+#[cfg(feature = "debug-mode")]
+pub use pallet_gear_debug::DebugInfo;
 pub use weights::WeightInfo;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -31,6 +33,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub type Authorship<T> = pallet_authorship::Pallet<T>;
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -38,7 +42,6 @@ pub mod pallet {
     use frame_support::{
         dispatch::DispatchResultWithPostInfo,
         pallet_prelude::*,
-        storage::PrefixIterator,
         traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
         weights::{IdentityFee, WeightToFeePolynomial},
     };
@@ -62,8 +65,12 @@ pub mod pallet {
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
+        /// The maximum amount of gas that can be used within a single block.
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
+
+        #[cfg(feature = "debug-mode")]
+        type DebugInfo: DebugInfo;
     }
 
     type BalanceOf<T> =
@@ -91,12 +98,12 @@ pub mod pallet {
         /// Some number of messages processed.
         // TODO: will be replaced by more comprehensive stats
         MessagesDequeued(u32),
-        /// Debug mode has been turned on or off
-        DebugMode(bool),
-        /// A snapshot of the debug data: programs and message queue ('debug mode' only)
-        DebugDataSnapshot(DebugData),
         /// Value and gas has been claimed from a message in mailbox by the addressee
         ClaimedValueFromMailbox(H256),
+        /// A message has been added to the wait list
+        AddedToWaitList(common::Message),
+        /// A message has been removed from the wait list
+        RemovedFromWaitList(H256),
     }
 
     // Gear pallet error.
@@ -150,21 +157,6 @@ pub mod pallet {
         pub origin: H256,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
-    pub struct ProgramDetails {
-        pub id: H256,
-        pub static_pages: u32,
-        pub persistent_pages: BTreeMap<u32, Vec<u8>>,
-        pub code_hash: H256,
-        pub nonce: u64,
-    }
-
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
-    pub struct DebugData {
-        pub message_queue: Vec<Message>,
-        pub programs: Vec<ProgramDetails>,
-    }
-
     #[pallet::storage]
     #[pallet::getter(fn message_queue)]
     pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
@@ -184,15 +176,6 @@ pub mod pallet {
 
     #[pallet::storage]
     pub type ProgramsLimbo<T: Config> = StorageMap<_, Identity, H256, H256>;
-
-    #[pallet::type_value]
-    pub fn DefaultForDebugMode() -> bool {
-        false
-    }
-
-    #[pallet::storage]
-    #[pallet::getter(fn debug_mode)]
-    pub type DebugMode<T> = StorageValue<_, bool, ValueQuery, DefaultForDebugMode>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -214,6 +197,7 @@ pub mod pallet {
         /// There should always remain enough weight for this hook to be invoked
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
+                target: "runtime::gear",
                 "{} of weight remains in block {:?} after normal extrinsics have been processed",
                 remaining_weight,
                 bn,
@@ -233,10 +217,6 @@ pub mod pallet {
     {
         fn gas_to_fee(gas: u64) -> BalanceOf<T> {
             IdentityFee::<BalanceOf<T>>::calc(&gas)
-        }
-
-        fn block_author() -> T::AccountId {
-            <pallet_authorship::Pallet<T>>::author()
         }
 
         pub fn insert_to_mailbox(user: H256, message: common::Message) {
@@ -314,6 +294,7 @@ pub mod pallet {
                             // Put message back to storage to let it be processed in future blocks
                             MessageQueue::<T>::append(message);
                             log::info!(
+                                target: "runtime::gear",
                                 "⛽️ Block gas limit exceeded: init message {} will be re-queued",
                                 init_message_id,
                             );
@@ -347,6 +328,7 @@ pub mod pallet {
                                 // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
                                 ProgramsLimbo::<T>::insert(program_id, origin);
                                 log::info!(
+                                    target: "runtime::gear",
                                     "👻 Program {} will stay in limbo until explicitly removed",
                                     program_id
                                 );
@@ -381,7 +363,7 @@ pub mod pallet {
 
                                     if T::Currency::transfer(
                                         &<T::AccountId as Origin>::from_origin(destination),
-                                        &Self::block_author(),
+                                        &Authorship::<T>::author(),
                                         charge,
                                         ExistenceRequirement::AllowDeath,
                                     )
@@ -423,6 +405,7 @@ pub mod pallet {
                                     // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
                                     ProgramsLimbo::<T>::insert(program_id, origin);
                                     log::info!(
+                                        target: "runtime::gear",
                                         "👻 Program {} will stay in limbo until explicitly removed",
                                         program_id
                                     );
@@ -448,8 +431,9 @@ pub mod pallet {
                                 }
                             }
                         }
-                        if Self::debug_mode() {
-                            Self::do_snapshot();
+                        #[cfg(feature = "debug-mode")]
+                        if T::DebugInfo::is_enabled() {
+                            T::DebugInfo::do_snapshot();
                         }
                     }
                     IntermediateMessage::DispatchMessage {
@@ -500,7 +484,7 @@ pub mod pallet {
 
                             let _ = T::Currency::repatriate_reserved(
                                 &<T::AccountId as Origin>::from_origin(destination),
-                                &Self::block_author(),
+                                &Authorship::<T>::author(),
                                 charge,
                                 BalanceStatus::Free,
                             );
@@ -531,8 +515,9 @@ pub mod pallet {
                     }
                 }
 
-                if Self::debug_mode() {
-                    Self::do_snapshot();
+                #[cfg(feature = "debug-mode")]
+                if T::DebugInfo::is_enabled() {
+                    T::DebugInfo::do_snapshot();
                 }
             }
 
@@ -540,59 +525,6 @@ pub mod pallet {
 
             weight = weight.saturating_sub(Self::gas_allowance());
             weight
-        }
-
-        fn do_snapshot() {
-            #[derive(Decode)]
-            struct Node {
-                value: Message,
-                next: Option<H256>,
-            }
-
-            let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
-            let mut message_queue = vec![];
-
-            if let Some(head) = sp_io::storage::get(&mq_head_key) {
-                let mut next_id = H256::from_slice(&head[..]);
-                loop {
-                    let next_node_key =
-                        [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-                    if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                        let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        message_queue.push(current_node.value);
-                        match current_node.next {
-                            Some(h) => next_id = h,
-                            None => break,
-                        }
-                    }
-                }
-            }
-
-            let programs = PrefixIterator::<ProgramDetails>::new(
-                common::STORAGE_PROGRAM_PREFIX.to_vec(),
-                common::STORAGE_PROGRAM_PREFIX.to_vec(),
-                |key, mut value| {
-                    assert_eq!(key.len(), 32);
-                    let program_id = H256::from_slice(key);
-                    let program = common::Program::decode(&mut value)?;
-                    Ok(ProgramDetails {
-                        id: program_id,
-                        static_pages: program.static_pages,
-                        persistent_pages: common::get_program_pages(
-                            program_id,
-                            program.persistent_pages,
-                        ),
-                        code_hash: program.code_hash,
-                        nonce: program.nonce,
-                    })
-                },
-            )
-            .collect();
-
-            Self::deposit_event(Event::DebugDataSnapshot(DebugData {
-                message_queue,
-                programs,
-            }));
         }
     }
 
@@ -661,14 +593,16 @@ pub mod pallet {
             let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
             // Make sure there is no program with such id in program storage
-            if common::program_exists(id) {
-                return Err(Error::<T>::ProgramAlreadyExists.into());
-            }
+            ensure!(
+                !common::program_exists(id),
+                Error::<T>::ProgramAlreadyExists
+            );
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
-            if gas_limit > T::BlockGasLimit::get() {
-                return Err(Error::<T>::GasLimitTooHigh.into());
-            }
+            ensure!(
+                gas_limit <= T::BlockGasLimit::get(),
+                Error::<T>::GasLimitTooHigh
+            );
 
             let reserve_fee = Self::gas_to_fee(gas_limit);
 
@@ -727,14 +661,16 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Check that the message is not intended for an uninitialized program
-            if Self::is_uninitialized(destination) {
-                return Err(Error::<T>::ProgramIsNotInitialized.into());
-            }
+            ensure!(
+                !Self::is_uninitialized(destination),
+                Error::<T>::ProgramIsNotInitialized
+            );
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
-            if gas_limit > T::BlockGasLimit::get() {
-                return Err(Error::<T>::GasLimitTooHigh.into());
-            }
+            ensure!(
+                gas_limit <= T::BlockGasLimit::get(),
+                Error::<T>::GasLimitTooHigh
+            );
 
             let gas_limit_reserve = Self::gas_to_fee(gas_limit);
 
@@ -795,9 +731,10 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
-            if gas_limit > T::BlockGasLimit::get() {
-                return Err(Error::<T>::GasLimitTooHigh.into());
-            }
+            ensure!(
+                gas_limit <= T::BlockGasLimit::get(),
+                Error::<T>::GasLimitTooHigh
+            );
 
             let original_message =
                 Self::remove_from_mailbox(who.clone().into_origin(), reply_to_id)
@@ -937,29 +874,6 @@ pub mod pallet {
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 
             Ok(().into())
-        }
-
-        /// Turn the debug mode on and off.
-        ///
-        /// The origin must be the root.
-        ///
-        /// Parameters:
-        /// - `debug_mode_on`: if true, debug mode will be turned on, turned off otherwise.
-        ///
-        /// Emits the following events:
-        /// - `DebugMode(debug_mode_on).
-        #[pallet::weight(T::DbWeight::get().writes(1))]
-        pub fn enable_debug_mode(
-            origin: OriginFor<T>,
-            debug_mode_on: bool,
-        ) -> DispatchResultWithPostInfo {
-            ensure_root(origin)?;
-            DebugMode::<T>::put(debug_mode_on);
-
-            Self::deposit_event(Event::DebugMode(debug_mode_on));
-
-            // This extrinsic is not chargeable
-            Ok(Pays::No.into())
         }
     }
 }

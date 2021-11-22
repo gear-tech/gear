@@ -60,8 +60,9 @@ use primitive_types::H256;
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Percent, Permill};
 
-/// Import the template pallet.
 pub use pallet_gear;
+#[cfg(feature = "debug-mode")]
+pub use pallet_gear_debug;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -117,8 +118,8 @@ pub mod opaque {
 }
 
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("node-template"),
-    impl_name: create_runtime_str!("node-template"),
+    spec_name: create_runtime_str!("gear-node"),
+    impl_name: create_runtime_str!("gear-node"),
     authoring_version: 1,
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
@@ -332,15 +333,58 @@ impl pallet_utility::Config for Runtime {
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
+    pub const OCWInterval: u32 = 10;
+    pub const MaxBatchSize: u32 = 100;
 }
 impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type BlockGasLimit = BlockGasLimit;
+    #[cfg(feature = "debug-mode")]
+    type DebugInfo = pallet_gear_debug::Pallet<Runtime>;
+}
+
+#[cfg(feature = "debug-mode")]
+impl pallet_gear_debug::Config for Runtime {
+    type Event = Event;
+    type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+    Call: From<C>,
+{
+    type Extrinsic = UncheckedExtrinsic;
+    type OverarchingCall = Call;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
+#[cfg(feature = "debug-mode")]
+construct_runtime!(
+    pub enum Runtime where
+        Block = Block,
+        NodeBlock = opaque::Block,
+        UncheckedExtrinsic = UncheckedExtrinsic
+    {
+        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+        RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        Aura: pallet_aura::{Pallet, Config<T>},
+        Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
+        Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
+        Utility: pallet_utility::{Pallet, Call, Storage, Event},
+        Authorship: pallet_authorship::{Pallet, Storage},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+
+        // Only available with "debug-mode" feature on
+        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
+    }
+);
+
+#[cfg(not(feature = "debug-mode"))]
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -383,6 +427,8 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
+/// The payload being signed in transactions.
+pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
