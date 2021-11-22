@@ -100,7 +100,7 @@ function findMessage(api, expMessage, snapshots, start) {
             // console.log('exp payload - ', payload.toHex());
             // console.log('msg payload - ', message.payload.toHex());
 
-            if (payload && !payload.toHex() == message.payload) {
+            if (payload && !payload.toHex() === message.payload.toHex()) {
               match = false;
             }
           }
@@ -136,7 +136,7 @@ async function resetStorage(api: GearApi, sudoPair: KeyringPair) {
   let hash = xxKey('Gear', 'MessageQueue');
   keys.push(hash);
 
-  hash = xxKey('Gear', 'Mailbox');
+  hash = xxKey('Gear', 'Mailbox') + 'de1e86a9a8c739864cf3cc5ec2bea59fd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d';
   keys.push(hash);
 
   txs.push(api.tx.sudo.sudo(api.tx.system.killStorage(keys)));
@@ -161,11 +161,13 @@ async function checkLog(api, exp) {
 
 
     for (const log of exp.log) {
-      let found = false;
+
       if ('payload' in log) {
+        let found = false;
         for (const index of Object.keys(metadata)) {
 
           let encoded = encodePayload(api, log, programs[index]);
+
           if (!encoded) {
             console.log('Skip: Cannot construct unknown type');
             found = true;
@@ -173,11 +175,9 @@ async function checkLog(api, exp) {
           }
 
           messages.forEach((message, _id) => {
-
-
-            if (encoded && encoded.toHex() == message.payload) {
-              // console.log(message.payload.toHex(), encoded.toHex());
+            if (message.payload.toHex() === encoded.toHex()) {
               found = true;
+
               return;
             }
           });
@@ -185,11 +185,9 @@ async function checkLog(api, exp) {
         }
 
         if (!found) {
-          console.log(log);
-          errors.push('Not Found');
+          errors.push(`Not Found ${JSON.stringify(log)}`);
         }
       }
-
     }
   } else {
     errors.push('Empty');
@@ -458,10 +456,10 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
     }
 
     for (const program of testData.programs) {
-      
-      if (typeof(program.id) === 'object') {
+
+      if (typeof (program.id) === 'object') {
         console.log('Skipped');
-        
+
         break fixtureLoop;
       }
       if (program.init_message) {
