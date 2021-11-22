@@ -441,6 +441,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 }
 
 async function processTest(testData: any, api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair) {
+  fixtureLoop:
   for (const fixture of testData.fixtures) {
     const reset = await resetStorage(api, sudoPair);
 
@@ -457,6 +458,12 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
     }
 
     for (const program of testData.programs) {
+      
+      if (typeof(program.id) === 'object') {
+        console.log('Skipped');
+        
+        break fixtureLoop;
+      }
       if (program.init_message) {
         let payload;
         const meta = program.init_message.kind === 'custom' ? metadata[program.id] : { init_input: 'Bytes' };
