@@ -22,7 +22,7 @@ fixtures:
     expected:
       - step: 1
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: Reply to signed message
@@ -40,7 +40,7 @@ fixtures:
     expected:
       - step: 1
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: Incorrect signature
@@ -58,7 +58,7 @@ fixtures:
     expected:
       - step: 1
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: Incorrect signature
@@ -76,7 +76,7 @@ fixtures:
     expected:
       - step: 1
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: Wrong signature length

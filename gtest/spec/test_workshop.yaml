@@ -43,7 +43,7 @@ fixtures:
             kind: custom
             value: Initialized
 
-        - destination: 0
+        - destination: 1000001
           source:
             kind: id
             value: 2
@@ -51,7 +51,7 @@ fixtures:
             kind: custom
             value: pong
         
-        - destination: 0
+        - destination: 1000001
           source:
             kind: id
             value: 2

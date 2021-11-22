@@ -16,7 +16,7 @@ fixtures:
     expected:
       - step: 1
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: "[4, 1];[1, 2];[2, 3];[5, 3]"

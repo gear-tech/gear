@@ -39,7 +39,7 @@ fixtures:
 
     expected:
       - log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: custom
               value:
@@ -47,7 +47,7 @@ fixtures:
                   from: 0x0000000000000000000000000000000000000000000000000000000000000000
                   to: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
                   amount: 10000
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: custom
               value:
@@ -55,7 +55,7 @@ fixtures:
                   from: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
                   to: 0x0000000000000000000000000000000000000000000000000000000000000000
                   amount: 10
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: custom
               value:

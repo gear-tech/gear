@@ -214,7 +214,7 @@ pub fn init_fixture<SC: StorageCarrier>(
                 .map(|payload| payload.clone().into_raw())
                 .unwrap_or_default(),
         };
-        let mut message_source: ProgramId = 0.into();
+        let mut message_source: ProgramId = SOME_FIXED_USER.into();
         if let Some(source) = &message.source {
             message_source = source.to_program_id();
         }
