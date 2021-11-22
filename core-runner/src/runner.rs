@@ -175,7 +175,7 @@ pub struct Runner<SC: StorageCarrier, E: Environment<Ext>> {
     pub(crate) config: Config,
     env: E,
     block_info: BlockInfo,
-    wait_list: BTreeMap<Vec<u8>, MessageDispatch>,
+    wait_list: BTreeMap<(ProgramId, MessageId), MessageDispatch>,
 }
 
 /// Fully in-memory runner builder (for tests).
@@ -446,7 +446,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
                     value: wm.value,
                 },
             };
-            self.wait_list.insert(Self::create_id(prog_id, wm.id), msg);
+            self.wait_list.insert((prog_id, wm.id), msg);
         });
 
         // Messages to be added back to the queue
@@ -454,9 +454,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             .awakening
             .iter()
             .filter_map(|(msg_id, gas)| {
-                let id = Self::create_id(prog_id, *msg_id);
-                //panic!("WAKE: {:?} from {}", &id, self.wait_list.len());
-                self.wait_list.remove(&id).map(|mut msg| {
+                self.wait_list.remove(&(prog_id, *msg_id)).map(|mut msg| {
                     msg.data.gas_limit = msg.data.gas_limit.saturating_add(*gas);
                     msg
                 })
@@ -471,14 +469,17 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// Get the wait list copy.
     ///
     /// Use it for testing purposes only!
-    pub fn wait_list(&self) -> &BTreeMap<Vec<u8>, MessageDispatch> {
+    pub fn wait_list(&self) -> &BTreeMap<(ProgramId, MessageId), MessageDispatch> {
         &self.wait_list
     }
 
     /// Add to the wait list and return `Runner`.
     ///
     /// Use it for testing purposes only!
-    pub fn with_wait_list(mut self, wait_list: BTreeMap<Vec<u8>, MessageDispatch>) -> Self {
+    pub fn with_wait_list(
+        mut self,
+        wait_list: BTreeMap<(ProgramId, MessageId), MessageDispatch>,
+    ) -> Self {
         wait_list.into_iter().for_each(|(id, msg)| {
             self.wait_list.insert(id, msg);
         });
@@ -628,15 +629,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// Set the block timestamp.
     pub fn set_block_timestamp(&mut self, value: u64) {
         self.block_info.timestamp = value;
-    }
-
-    fn create_id(prog_id: ProgramId, msg_id: MessageId) -> Vec<u8> {
-        let mut prog_id = prog_id;
-        let mut msg_id = msg_id;
-        let mut id = Vec::with_capacity(64);
-        id.append(&mut prog_id.as_mut_slice().to_vec());
-        id.append(&mut msg_id.as_mut_slice().to_vec());
-        id
     }
 }
 

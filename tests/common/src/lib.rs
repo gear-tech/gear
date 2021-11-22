@@ -474,7 +474,7 @@ impl Default for RunnerContext {
     }
 }
 
-type WaitList = BTreeMap<Vec<u8>, MessageDispatch>;
+type WaitList = BTreeMap<(ProgramId, MessageId), MessageDispatch>;
 enum RunnerState {
     Runner(InMemoryWasmRunner),
     Storage(InMemoryStorage, Config, WaitList),
