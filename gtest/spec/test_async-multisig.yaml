@@ -783,3 +783,60 @@ fixtures:
       - step: 8
 
       - step: 9
+
+  - title: 2 of 3; no replies
+
+    messages:
+      - destination: 3
+        payload: &ping
+          kind: bytes
+          # "PING. NO PONGS"
+          value: "0x50494e472e204e4f20504f4e4753"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &sign_request
+              kind: bytes
+              value: "0x3850494e472e204e4f20504f4e4753"
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *sign_request
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 3
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *sign_request
+
+      - step: 4
+
+      - step: 5
+
+      - step: 6
+
+      - step: 7
+
+      - step: 8
+
+      - step: 9
