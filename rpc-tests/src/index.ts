@@ -57,10 +57,18 @@ function encodePayload(api, expMessage, source) {
     let pid = Object.keys(programs).find(key => programs[key] === source);
     // console.log(pid, programs[1], source);
 
-    if (expMessage.init) {
-      payload = CreateType.encode(metadata[pid].init_output, expMessage.payload.value, metadata[pid]);
-    } else {
-      payload = CreateType.encode(metadata[pid].handle_output, expMessage.payload.value, metadata[pid]);
+    // console.log(metadata[pid]);
+    // console.log(expMessage);
+    try {
+
+      if (expMessage.init) {
+        payload = CreateType.encode(metadata[pid].init_output, expMessage.payload.value, metadata[pid]);
+      } else {
+        payload = CreateType.encode(metadata[pid].handle_output, expMessage.payload.value, metadata[pid]);
+      }
+    } catch (error) {
+      console.log(error);
+      return null;
     }
   }
   return payload
@@ -80,8 +88,9 @@ function findMessage(api, expMessage, snapshots, start) {
 
       for (const message of snapshot.messageQueue) {
 
-        if (message.dest.eq(programs[expMessage.destination])) {
 
+        if (message.dest.eq(programs[expMessage.destination])) {
+          let match = true;
 
           if (expMessage.payload) {
             // console.log(message.toHuman());
@@ -91,10 +100,27 @@ function findMessage(api, expMessage, snapshots, start) {
             // console.log('exp payload - ', payload.toHex());
             // console.log('msg payload - ', message.payload.toHex());
 
-            if (payload.eq(message.payload)) {
-
-              return index;
+            if (payload && !payload.toHex() == message.payload) {
+              match = false;
             }
+          }
+
+          if (expMessage.gas_limit) {
+
+            if (!expMessage.gas_limit.eq(message.gas_limit)) {
+              match = false;
+            }
+          }
+
+          if (expMessage.value) {
+
+            if (!expMessage.value.eq(message.value)) {
+              match = false;
+            }
+          }
+
+          if (match) {
+            return index;
           }
         }
       }
@@ -140,11 +166,16 @@ async function checkLog(api, exp) {
         for (const index of Object.keys(metadata)) {
 
           let encoded = encodePayload(api, log, programs[index]);
+          if (!encoded) {
+            console.log('Skip: Cannot construct unknown type');
+            found = true;
+            continue;
+          }
 
           messages.forEach((message, _id) => {
-            
 
-            if (encoded.toHex() == message.payload) {
+
+            if (encoded && encoded.toHex() == message.payload) {
               // console.log(message.payload.toHex(), encoded.toHex());
               found = true;
               return;
@@ -402,6 +433,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   });
 
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
+
   await sleep(10000);
   unsub();
 
