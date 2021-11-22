@@ -235,7 +235,6 @@ fn process_wait_list(result: &mut RunNextResult) {
     let awakening = &mut result.awakening;
     while let Some((msg_id, gas)) = awakening.pop() {
         if let Some(mut msg) = native::remove_waiting_message(result.prog_id, msg_id) {
-            // TODO: Get correct prog id here
             // Increase gas available to the message
             if u64::max_value() - gas < msg.gas_limit() {
                 // TODO: issue #323
