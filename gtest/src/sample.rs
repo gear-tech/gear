@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module describes structural "bricks" of tests in [spec](https://github.com/gear-tech/gear/tree/master/gtest/spec) directory .
+//!
+//! For now tests are defined in "yaml" format and parsed into models defined in the module by using [serde_yaml](https://docs.serde.rs/serde_yaml/index.html).
+
 use crate::address::{self, Address as ChainAddress};
 use hex::FromHex;
 use serde::{de, Deserialize, Deserializer, Serialize};
@@ -41,14 +45,27 @@ fn de_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
     })
 }
 
+/// Program being tested and it's initialization data.
+///
+/// In test nested structure *program* is one the highest fields. The other one is *fixture*.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Program {
+    /// Path to programs wasm blob.
     pub path: String,
+    /// Program's id.
     #[serde(deserialize_with = "address::deserialize")]
     pub id: ChainAddress,
+    /// Optional message source.
+    ///
+    /// If is `None`, then fixed user address is used.
     pub source: Option<ChainAddress>,
+    /// Optional payload sent to program's `init` function.
     pub init_message: Option<PayloadVariant>,
+    /// Optional gas limit used when initializing program
+    ///
+    /// If is `None` then `u64::MAX` is provided.
     pub init_gas_limit: Option<u64>,
+    /// Optional message value provided to program's `init` function.
     pub init_value: Option<u128>,
 }
 
@@ -63,13 +80,24 @@ pub struct Expectation {
     pub allow_error: Option<bool>,
 }
 
+/// Data describing program being tested.
+///
+/// In test nested structure *fixture* is one the highest fields. The other one is *program*.
+/// `Fixture` is a logical union of:
+/// 1) the set of messages sent to programs defined in the test;
+/// 2) expected results of message processing.
+/// Tests can have multiple `Fixtures`, which means we can define specialized "messages & expectation" block sets, each with its own `title`.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Fixture {
+    /// Fixture title
     pub title: String,
+    /// Messages being sent to programs, defined in the test
     pub messages: Vec<Message>,
+    /// Expected results of the test run.
     pub expected: Vec<Expectation>,
 }
 
+/// Payload data types being used in messages.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "value")]
 pub enum PayloadVariant {
@@ -164,9 +192,13 @@ pub struct Message {
     pub exit_code: Option<i32>,
 }
 
+/// Main model describing test structure
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
+    pub title: String, // todo[sab] tmp - remove
+    /// Programs and related data used for tests
     pub programs: Vec<Program>,
+    /// A set of messages and expected results of running them in the context of defined [programs](todo-field-ref).
     pub fixtures: Vec<Fixture>,
 }
 
