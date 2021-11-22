@@ -1,6 +1,75 @@
 #![no_std]
 #![feature(const_btree_new)]
 
+//!
+//! Hi! I'm bot. I can be configured in `init` and then reply
+//! with fixed payload to the corresponding requests. Requests with
+//! no handler will not be responded.
+//!
+//! [`init`] method gets a handler list - [`Handler`]. `Handler` contains
+//! `request`, predefined `reply` list and the flag `repeated` - if the
+//! processing reply list should be repeated. Handlers are independent.
+//!
+//! `replies` is a list of [`Reply`]. `Reply` consists of the reply-payload
+//! and the count which defines how many times the reply should be sent.
+//! The idea is similiar to how dash pattern is set for line drawing in
+//! various GUI-frameworks.
+//!
+//! For example, I am able to play the usual ping/pong:
+//! ```yaml
+//! init_message:
+//! kind: custom
+//! value:
+//!   # "PING"
+//!   - request: "0x50494e47"
+//!     repeated: true
+//!     replies:
+//!       - count: 1
+//!       # "PONG"
+//!         reply: "0x504f4e47"
+//! ```
+//!
+//! Ping/pong with two different responses:
+//! ```yaml
+//! init_message:
+//! kind: custom
+//! value:
+//!   # "PING"
+//!   - request: "0x50494e47"
+//!     repeated: true
+//!     replies:
+//!       - count: 1
+//!       # "First PONG"
+//!         reply: "0x466972737420504f4e47"
+//!       - count: 1
+//!       # "Second PONG"
+//!         reply: "0x5365636f6e6420504f4e47"
+//! ```
+//!
+//! Ping/pong with defined first answer:
+//! ```yaml
+//! init_message:
+//! kind: custom
+//! value:
+//!   # "PING"
+//!   - request: "0x50494e47"
+//!     repeated: false
+//!     replies:
+//!       - count: 1
+//!       # "The very first PONG"
+//!         reply: "0x546865207665727920666972737420504f4e47"
+//!       # u32::max
+//!       - count: 4294967295
+//!       # "PONG"
+//!         reply: "0x504f4e47"
+//! ```
+//!
+//! Note that this handler is not repeated but the count for second reply is
+//! big enough to emulate an endless loop.
+//!
+//! Feel free to experiment with various Handlers. Hope I can be helpful.
+//!
+
 extern crate alloc;
 
 use alloc::collections::BTreeMap;
@@ -73,13 +142,13 @@ impl<'a> Iterator for ReplyIterator<'a> {
 type Payload = Vec<u8>;
 
 #[derive(Debug, Decode, TypeInfo)]
-struct Reply {
+pub struct Reply {
     reply: Payload,
     count: u32,
 }
 
 #[derive(Debug, Decode, TypeInfo)]
-struct Handler {
+pub struct Handler {
     request: Payload,
     replies: Vec<Reply>,
     repeated: bool,
@@ -122,7 +191,7 @@ pub unsafe extern "C" fn init() {
             HANDLERS.reserve(v.len());
             v
         })
-        .unwrap_or_else(|_| vec![])
+        .unwrap_or_default()
         .into_iter()
         .filter(|h| !h.replies.is_empty())
         .for_each(|handler| {
