@@ -33,17 +33,14 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 pub unsafe extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
     MESSAGE_LOG.push(format!("(sum) New msg: {:?}", new_msg));
+    debug!("sum gas_available: {}", exec::gas_available());
 
-    if exec::gas_available() > 4_000_000_000 {
-        msg::send(STATE.send_to(), new_msg + new_msg, 4_000_000_000, 0);
+    msg::send(STATE.send_to(), new_msg + new_msg, exec::gas_available() - 1_000_000_000, 0);
 
-        debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
+    debug!("{:?} total message(s) stored: ", MESSAGE_LOG.len());
 
-        for log in MESSAGE_LOG.iter() {
-            debug!(log);
-        }
-    } else {
-        debug!("Not enough gas");
+    for log in MESSAGE_LOG.iter() {
+        debug!(log);
     }
 }
 
