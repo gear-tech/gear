@@ -49,9 +49,7 @@ async fn main() {
     let message = msg::load_bytes();
     debug!("message = {:?}", message);
 
-    let request = SignRequest {
-        message: message.clone(),
-    };
+    let request = SignRequest { message };
 
     let sign_response: Result<SignResponse, _> =
         msg::send_and_wait_for_reply(unsafe { SIGNATORY }, &request, GAS_LIMIT, 0).await;
@@ -71,11 +69,11 @@ async fn main() {
         .map(|signature| {
             let pub_key = Public::unchecked_from(<[u8; 32]>::from(unsafe { SIGNATORY }));
 
-            Sr25519Pair::verify(&signature, &message, &pub_key)
+            Sr25519Pair::verify(&signature, &request.message, &pub_key)
         })
         .unwrap_or(false);
 
     if verified {
-        msg::send_bytes(unsafe { DESTINATION }, message, GAS_LIMIT, 0);
+        msg::send_bytes(unsafe { DESTINATION }, request.message, GAS_LIMIT, 0);
     }
 }
