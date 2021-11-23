@@ -10,4 +10,4 @@ crate-type = ["cdylib"]
 [dependencies]
 gstd = { path = "../../gstd", features = ["debug"] }
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
-futures = { version = "0.3", default-features = false, features = ["alloc"] }
+futures = { version = "0.3", default-features = false, features = ["alloc", "async-await"] }

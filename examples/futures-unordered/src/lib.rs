@@ -2,6 +2,7 @@
 
 use futures::stream::FuturesUnordered;
 use futures::stream::StreamExt;
+use futures::{select_biased, join};
 use gstd::{debug, msg, prelude::*, ActorId};
 
 static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
@@ -28,32 +29,73 @@ pub unsafe extern "C" fn init() {
 
 #[gstd::async_main]
 async fn main() {
-    let requests = vec![
-        msg::send_bytes_and_wait_for_reply(DEMO_ASYNC, "START", GAS_LIMIT * 10, 0),
-        msg::send_bytes_and_wait_for_reply(DEMO_PING, "PING", GAS_LIMIT, 0),
-    ];
+    let source = msg::source();
+    let command = String::from_utf8(msg::load_bytes()).expect("Unable to decode string");
 
-    let mut unordered: FuturesUnordered<_> = requests.into_iter().collect();
+    match command.as_ref() {
+        // Directly using stream from futures unordered to step through each future done
+        "unordered" => {
+            debug!("UNORDERED: Before any sending");
 
-    debug!("Before any polls");
-    msg::reply_bytes(
-        unordered
-            .next()
-            .await
-            .expect("Can't fail")
-            .expect("Exit code should be 0!"),
-        0,
-        0,
-    );
-    debug!("First (from demo_ping) done");
-    msg::reply_bytes(
-        unordered
-            .next()
-            .await
-            .expect("Can't fail")
-            .expect("Exit code should be 0!"),
-        0,
-        0,
-    );
-    debug!("Second (from demo_async) done");
+            let requests = vec![
+                msg::send_bytes_and_wait_for_reply(DEMO_ASYNC, "START", GAS_LIMIT * 10, 0),
+                msg::send_bytes_and_wait_for_reply(DEMO_PING, "PING", GAS_LIMIT, 0),
+            ];
+
+            let mut unordered: FuturesUnordered<_> = requests.into_iter().collect();
+
+            debug!("Before any polls");
+
+            let first = unordered.next().await;
+            msg::send_bytes(source, first.expect("Can't fail").expect("Exit code is 0"), 0, 0);
+            debug!("First (from demo_ping) done");
+
+            let second = unordered.next().await;
+            msg::send_bytes(source, second.expect("Can't fail").expect("Exit code is 0"), 0, 0);
+            debug!("Second (from demo_async) done");
+
+            msg::reply_bytes("DONE", 0, 0);
+        }
+        // using select! macro to wait for first future done
+        "select" => {
+            debug!("SELECT: Before any sending");
+
+            select_biased! {
+                res = msg::send_bytes_and_wait_for_reply(DEMO_ASYNC, "START", GAS_LIMIT * 10, 0) => {
+                    debug!("Recieved msg from demo_async");
+                    msg::send_bytes(source, res.expect("Exit code is 0"), 0, 0);
+                },
+                res = msg::send_bytes_and_wait_for_reply(DEMO_PING, "PING", GAS_LIMIT, 0) => {
+                    debug!("Recieved msg from demo_ping");
+                    msg::send_bytes(source, res.expect("Exit code is 0"), 0, 0);
+                },
+            };
+
+            debug!("Finish after select");
+
+            msg::reply_bytes("DONE", 0, 0);
+        },
+        // using join! macros to wait all features done
+        "join" => {
+            debug!("JOIN: Before any sending");
+
+            let res = join!(
+                msg::send_bytes_and_wait_for_reply(DEMO_ASYNC, "START", GAS_LIMIT * 10, 0),
+                msg::send_bytes_and_wait_for_reply(DEMO_PING, "PING", GAS_LIMIT, 0)
+            );
+
+            debug!("Finish after join");
+
+            let mut result = String::new();
+
+            result.push_str(&String::from_utf8(res.0.expect("Exit code is 0")).expect("Unable to decode string"));
+            result.push_str(&String::from_utf8(res.1.expect("Exit code is 0")).expect("Unable to decode string"));
+
+            msg::send_bytes(source, result, 0, 0);
+            msg::reply_bytes("DONE", 0, 0);
+        },
+        _ => {
+            panic!("Unknown option");
+        }
+    }
 }

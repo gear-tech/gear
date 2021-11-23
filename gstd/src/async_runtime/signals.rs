@@ -73,6 +73,10 @@ impl WakeSignals {
         crate::exec::wake(signal.message_id, crate::exec::gas_available());
     }
 
+    pub fn waits_for(&self, reply_to: MessageId) -> bool {
+        self.signals.contains_key(&reply_to)
+    }
+
     pub fn poll(&mut self, reply_to: MessageId, cx: &mut Context<'_>) -> ReplyPoll {
         match self.signals.remove(&reply_to) {
             None => ReplyPoll::None,

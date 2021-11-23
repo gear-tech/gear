@@ -22,6 +22,7 @@ use crate::async_runtime::{signals, ReplyPoll};
 use crate::errors::{ContractError, Result};
 use crate::prelude::{convert::AsRef, Vec};
 use crate::{ActorId, MessageId};
+use futures::future::FusedFuture;
 use codec::{Decode, Encode};
 use core::{
     future::Future,
@@ -54,6 +55,12 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
     }
 }
 
+impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
+    fn is_terminated(&self) -> bool {
+        !signals().waits_for(self.waiting_reply_to)
+    }
+}
+
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
 }
@@ -74,6 +81,12 @@ impl Future for MessageFuture {
                 Poll::Ready(Ok(actual_reply))
             },
         }
+    }
+}
+
+impl FusedFuture for MessageFuture {
+    fn is_terminated(&self) -> bool {
+        !signals().waits_for(self.waiting_reply_to)
     }
 }
 

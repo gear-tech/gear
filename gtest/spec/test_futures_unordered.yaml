@@ -32,7 +32,7 @@ fixtures:
           value: 100
         payload:
           kind: utf-8
-          value: ""
+          value: unordered
 
     expected:
       - log:
@@ -44,3 +44,51 @@ fixtures:
           payload:
             kind: utf-8
             value: SUCCESS
+        - destination: 100
+          payload:
+            kind: utf-8
+            value: DONE
+
+  - title: select
+
+    messages:
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: select
+
+    expected:
+      - log:
+        - destination: 100
+          payload:
+            kind: utf-8
+            value: PONG
+        - destination: 100
+          payload:
+            kind: utf-8
+            value: DONE
+
+  - title: join
+
+    messages:
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: join
+
+    expected:
+      - log:
+        - destination: 100
+          payload:
+            kind: utf-8
+            value: SUCCESSPONG
+        - destination: 100
+          payload:
+            kind: utf-8
+            value: DONE
