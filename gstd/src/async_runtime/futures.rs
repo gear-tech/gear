@@ -23,44 +23,45 @@ use crate::MessageId;
 use core::{
     future::Future,
     pin::Pin,
-    ptr,
-    task::{Context, RawWaker, RawWakerVTable, Waker},
+    task::{Context, Waker},
 };
 use futures::FutureExt;
 
-const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
+pub(crate) type FuturesMap = BTreeMap<MessageId, Task>;
 
-fn empty_waker() -> Waker {
-    unsafe { Waker::from_raw(RawWaker::new(ptr::null(), &VTABLE)) }
+type PinnedFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
+
+pub struct Task {
+    waker: Waker,
+    future: PinnedFuture,
 }
 
-type LocalBoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
-pub(crate) type FuturesMap = BTreeMap<MessageId, LocalBoxFuture<'static, ()>>;
+impl Task {
+    fn new<F>(future: F) -> Self
+    where
+        F: Future<Output = ()> + 'static,
+    {
+        Self {
+            waker: super::waker::empty(),
+            future: future.boxed_local(),
+        }
+    }
+}
 
 /// Asynchronous message handling main loop.
 pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,
 {
-    let mut current_future = super::futures()
-        .remove(&crate::msg::id())
-        .unwrap_or_else(|| future.boxed_local());
+    let task = super::futures()
+        .entry(crate::msg::id())
+        .or_insert_with(|| Task::new(future));
 
-    // Create context based on an empty waker
-    let waker = empty_waker();
-    let mut cx = Context::from_waker(&waker);
+    let mut cx = Context::from_waker(&task.waker);
 
-    let pinned = Pin::new(&mut current_future);
-
-    if !pinned.poll(&mut cx).is_ready() {
-        super::futures().insert(crate::msg::id(), current_future);
+    if Pin::new(&mut task.future).poll(&mut cx).is_ready() {
+        super::futures().remove(&crate::msg::id());
+    } else {
         crate::exec::wait()
     }
 }
-
-unsafe fn clone_waker(ptr: *const ()) -> RawWaker {
-    RawWaker::new(ptr, &VTABLE)
-}
-unsafe fn wake(_ptr: *const ()) {}
-unsafe fn wake_by_ref(_ptr: *const ()) {}
-unsafe fn drop_waker(_ptr: *const ()) {}
