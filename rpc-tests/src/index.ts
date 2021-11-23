@@ -1,5 +1,4 @@
 import { CreateType, DebugMode, GearApi, GearKeyring, ProgramDetails, GearMailbox, getWasmMetadata } from '@gear-js/api';
-import testKeyring from '@polkadot/keyring/testing';
 import { xxhashAsHex, blake2AsHex, randomAsHex } from '@polkadot/util-crypto';
 import { Option } from '@polkadot/types';
 import { Codec } from '@polkadot/types/types';
@@ -53,12 +52,7 @@ function encodePayload(api, expMessage, source) {
 
     expMessage.payload.value = JSON.stringify(expMessage.payload.value);
     payload = replaceRegex(expMessage.payload.value);
-    // console.log(metadata);
     let pid = Object.keys(programs).find(key => programs[key] === source);
-    // console.log(pid, programs[1], source);
-
-    // console.log(metadata[pid]);
-    // console.log(expMessage);
     try {
 
       if (expMessage.init) {
@@ -75,13 +69,6 @@ function encodePayload(api, expMessage, source) {
 }
 
 function findMessage(api, expMessage, snapshots, start) {
-  // console.log(programs);
-  // console.log('find msg');
-  // console.log(expMessage.destination);
-
-  // console.log(programs[expMessage.destination].toHuman());
-  // console.log('snapshots len - ', snapshots.length);
-  // console.log('snapshots start - ', start);
 
   for (let index = start; index < snapshots.length; index++) {
     const snapshot = snapshots[index];
@@ -156,7 +143,7 @@ async function checkLog(api, exp) {
   let messagesOpt = await mailbox.readMailbox('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
-    console.log(messages.toHuman());
+    // console.log(messages.toHuman());
 
 
     for (const log of exp.log) {
@@ -175,9 +162,9 @@ async function checkLog(api, exp) {
           }
 
           messages.forEach((message, _id) => {
-            console.log(message.payload);
-            console.log(encoded);
-            console.log(encoded.toHex() === message.payload.toHex());
+            // console.log(message.payload);
+            // console.log(encoded);
+            // console.log(encoded.toHex() === message.payload.toHex());
             
 
             if (encoded.toHex() === message.payload.toHex()) {
@@ -202,47 +189,11 @@ async function checkLog(api, exp) {
 }
 
 async function checkMessages(api, exp, snapshots) {
-  // console.log('checkMessages', JSON.stringify(exp));
-  // console.log(messageQueue.toHuman());
-  // console.log(exp.messages);
   const errors = [];
-  // if (exp.messages.length === 0 || exp.messages.length !== messageQueue.length) {
-  //   errors.push(`Messages length doesn't match (expected: ${exp.messages.length}, recieved: ${messageQueue.length})`);
-  //   return errors;
-  // }
   let found = 0;
   for (let index = 0; index < exp.messages.length; index++) {
     const expMessage = exp.messages[index];
     found = findMessage(api, expMessage, snapshots, found);
-    // console.log(found);
-    // console.log(payload, message.payload)
-    // if (payload && !message.payload === payload.toU8a()) {
-    //   errors.push(
-    //     `Message payload doesn't match (expected: ${payload.toHuman()}, recieved: ${message.payload.toHuman()})`,
-    //   );
-    // }
-    // if (!message.dest.eq(programs[expMessage.destination])) {
-    //   errors.push(
-    //     `Message destination doesn't match (expected: ${programs[
-    //     expMessage.destination
-    //     ]}, recieved: ${message.dest.toHuman()})`,
-    //   );
-    // }
-    // if ('gas_limit' in expMessage) {
-    //   if (!message.gas_limit.toNumber().eq(expMessage.gas_limit)) {
-    //     errors.push(
-    //       `Message gas_limit doesn't match (expected: ${expMessage.gas_limit
-    //       }, recieved: ${message.gas_limit.toHuman()})`,
-    //     );
-    //   }
-    // }
-    // if ('value' in expMessage) {
-    //   if (!message.value.toNumber().eq(expMessage.value)) {
-    //     errors.push(
-    //       `Message gas_limit doesn't match (expected: ${expMessage.value}, recieved: ${message.value.toHuman()})`,
-    //     );
-    //   }
-    // }
     if (found === -1) {
       errors.push(
         `Message not found (expected: ${JSON.stringify(expMessage, null, 2)})`,
@@ -408,12 +359,6 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 
 
   const unsub = await debugMode.snapshots(async ({ data }) => {
-    // data.programs.forEach(({ id, static_pages, persistent_pages, code_hash, nonce }) => {
-    //   console.log(`Program with id: ${id.toHuman()}`);
-    // });
-    data.messageQueue.forEach(({ id, source, dest, payload, gas_limit, value, reply }) => {
-      // console.log(`Message with id: ${id.toHuman()} payload: ${payload.toHuman()}`);
-    });
     snapshots.push(data)
   });
 
@@ -531,15 +476,6 @@ async function main() {
   debugMode.enable();
   const isEnabled = await debugMode.signAndSend(rootKeys);
   console.log(isEnabled);
-
-  // Retrieve the upgrade key from the chain state
-  // const adminId = await api.query.sudo.key();
-
-  // // Find the actual keypair in the keyring (if this is a changed value, the key
-  // // needs to be added to the keyring before - this assumes we have defaults, i.e.
-  // // Alice as the key - and this already exists on the test keyring)
-  // const keyring = testKeyring.createTestKeyring();
-  // const adminPair = keyring.getPair(adminId.toString());
 
   for (const test of tests) {
     if (test.skipRpcTest) continue;
