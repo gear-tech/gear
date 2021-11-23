@@ -30,6 +30,8 @@ enum ValueOrigin {
     Local(H256),
 }
 
+#[allow(clippy::derivable_impls)]
+// this cannot be derived, despite clippy is saying this!!
 impl Default for ValueOrigin {
     fn default() -> Self {
         ValueOrigin::External(H256::default())
@@ -130,12 +132,10 @@ impl ValueView {
                         .load_node(parent)
                         .expect("Parent exist as link and should be loaded");
 
-                    if parent_node.refs == 0 {
-                        // should be an impossible situation
-                        panic!(
-                            "parent node does not contain ref for the node that was created from it"
-                        );
-                    }
+                    assert!(
+                        !parent_node.refs == 0,
+                        "parent node does not contain ref for the node that was created from it"
+                    );
 
                     parent_node.refs -= 1;
                     parent_node.inner = parent_node.inner.saturating_add(self.node.inner);
@@ -168,12 +168,10 @@ impl ValueView {
                     .load_node(parent)
                     .expect("Parent exist as link and should be loaded");
 
-                if parent_node.refs == 0 {
-                    // should be an impossible situation
-                    panic!(
-                        "parent node does not contain ref for the node that was created from it"
-                    );
-                }
+                assert!(
+                    !parent_node.refs == 0,
+                    "parent node does not contain ref for the node that was created from it"
+                );
 
                 parent_node.inner = parent_node.inner.saturating_add(self.node.inner);
                 let mut delete_self = false;
