@@ -22,7 +22,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
-    storage::{InMemoryStorage, MessageMap, Storage, StorageCarrier},
+    storage::{InMemoryStorage, Storage, StorageCarrier},
 };
 use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
 use gear_node_runner::{Ext, ExtStorage};
@@ -91,7 +91,6 @@ impl CollectState for InMemoryStorage {
             log: self.log.get().to_vec(),
             messages: self.message_queue.into(),
             program_storage: self.program_storage.into(),
-            wait_list: self.wait_list.into(),
         }
     }
 }
@@ -112,13 +111,12 @@ impl CollectState for ExtStorage {
             log: log.to_vec(),
             messages,
             program_storage: program_storage.iter().collect(),
-            wait_list: self.wait_list.into(),
         }
     }
 }
 
 pub fn init_fixture<SC: StorageCarrier>(
-    storage: Storage<SC::MQ, SC::PS, SC::WL>,
+    storage: Storage<SC::MQ, SC::PS>,
     test: &Test,
     fixture_no: usize,
 ) -> anyhow::Result<Runner<SC, gear_backend_wasmtime::WasmtimeEnvironment<Ext>>> {
@@ -239,7 +237,6 @@ pub struct FinalState {
     pub messages: Vec<Message>,
     pub log: Vec<Message>,
     pub program_storage: Vec<Program>,
-    pub wait_list: MessageMap,
 }
 
 pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
@@ -247,7 +244,7 @@ pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
     steps: Option<u64>,
 ) -> (FinalState, anyhow::Result<()>)
 where
-    Storage<SC::MQ, SC::PS, SC::WL>: CollectState,
+    Storage<SC::MQ, SC::PS>: CollectState,
 {
     let mut result = Ok(());
     if let Some(steps) = steps {
@@ -258,7 +255,8 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0);
             runner.set_block_timestamp(timestamp as _);
-            let run_result = runner.run_next(u64::MAX);
+            let mut run_result = runner.run_next(u64::MAX);
+            runner.process_wait_list(&mut run_result);
 
             log::info!("step: {}", step_no + 1);
 
@@ -268,7 +266,8 @@ where
         }
     } else {
         loop {
-            let run_result = runner.run_next(u64::MAX);
+            let mut run_result = runner.run_next(u64::MAX);
+            runner.process_wait_list(&mut run_result);
 
             if run_result.handled == 0 {
                 break;

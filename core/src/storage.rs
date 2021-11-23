@@ -18,12 +18,12 @@
 
 //! Storage backing abstractions
 
-use alloc::collections::{BTreeMap, VecDeque};
+use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 use hashbrown::HashMap;
 
 use crate::{
-    message::{Message, MessageId},
+    message::Message,
     program::{Program, ProgramId},
 };
 
@@ -36,8 +36,6 @@ pub trait StorageCarrier: Default {
     type MQ: MessageQueue;
     /// Program storage type used by storage manager
     type PS: ProgramStorage;
-    /// Wait list type used by storage manager
-    type WL: WaitList;
 }
 
 /// Abstraction over program storage.
@@ -155,53 +153,6 @@ impl From<InMemoryMessageQueue> for Vec<Message> {
     }
 }
 
-/// Message map with id as a key.
-pub type MessageMap = BTreeMap<(ProgramId, MessageId), Message>;
-
-/// Wait list for suspended messages.
-pub trait WaitList: Default {
-    /// Insert a message to the wait list.
-    fn insert(&mut self, program_id: ProgramId, msg_id: MessageId, message: Message);
-
-    /// Remove the message from the wait list and return it if any.
-    fn remove(&mut self, program_id: ProgramId, id: MessageId) -> Option<Message>;
-}
-
-/// In-memory wait list (for tests).
-#[derive(Default)]
-pub struct InMemoryWaitList {
-    inner: MessageMap,
-}
-
-impl InMemoryWaitList {
-    /// New in-memory wait list.
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
-impl WaitList for InMemoryWaitList {
-    fn insert(&mut self, program_id: ProgramId, id: MessageId, message: Message) {
-        self.inner.insert((program_id, id), message);
-    }
-
-    fn remove(&mut self, program_id: ProgramId, id: MessageId) -> Option<Message> {
-        self.inner.remove(&(program_id, id))
-    }
-}
-
-impl From<MessageMap> for InMemoryWaitList {
-    fn from(map: MessageMap) -> Self {
-        Self { inner: map }
-    }
-}
-
-impl From<InMemoryWaitList> for MessageMap {
-    fn from(wait_list: InMemoryWaitList) -> MessageMap {
-        wait_list.inner
-    }
-}
-
 /// Log.
 #[derive(Default, Debug)]
 pub struct Log {
@@ -222,47 +173,38 @@ impl Log {
 
 /// Storage.
 #[derive(Default)]
-pub struct Storage<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> {
+pub struct Storage<MQ: MessageQueue, PS: ProgramStorage> {
     /// Message queue stoage.
     pub message_queue: MQ,
     /// Program storage.
     pub program_storage: PS,
-    /// Wait list.
-    pub wait_list: WL,
     /// Log.
     pub log: Log,
 }
 
-impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> StorageCarrier for Storage<MQ, PS, WL> {
+impl<MQ: MessageQueue, PS: ProgramStorage> StorageCarrier for Storage<MQ, PS> {
     type MQ = MQ;
     type PS = PS;
-    type WL = WL;
 }
 
-impl<MQ: MessageQueue, PS: ProgramStorage, WL: WaitList> Storage<MQ, PS, WL> {
+impl<MQ: MessageQueue, PS: ProgramStorage> Storage<MQ, PS> {
     /// Create an empty storage.
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Create a storage from messages queue, programs storage and wait list.
-    pub fn from_components(
-        message_queue: MQ,
-        program_storage: PS,
-        wait_list: WL,
-        log: Log,
-    ) -> Self {
+    pub fn from_components(message_queue: MQ, program_storage: PS, log: Log) -> Self {
         Self {
             message_queue,
             program_storage,
-            wait_list,
             log,
         }
     }
 }
 
 /// Fully in-memory storage (for tests).
-pub type InMemoryStorage = Storage<InMemoryMessageQueue, InMemoryProgramStorage, InMemoryWaitList>;
+pub type InMemoryStorage = Storage<InMemoryMessageQueue, InMemoryProgramStorage>;
 
 #[cfg(test)]
 /// This module contains tests of parts of InMemoryStorage:

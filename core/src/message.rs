@@ -591,8 +591,6 @@ pub struct MessageState {
     pub outgoing: Vec<OutgoingMessage>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
-    /// Message to be added to wait list.
-    pub waiting: Option<IncomingMessage>,
     /// Messages to be waken.
     pub awakening: Vec<(MessageId, u64)>,
 }
@@ -713,10 +711,8 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Ok(())
     }
 
-    /// Add the current message to the wait list.
-    pub fn wait(&self) -> Result<(), Error> {
-        let mut state = self.state.borrow_mut();
-
+    /// Check whether there are uncommited messages.
+    pub fn check_uncommited(&self) -> Result<(), Error> {
         if self.reply_payload.is_some() {
             return Err(Error::UncommitedPayloads);
         }
@@ -726,12 +722,6 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
                 return Err(Error::UncommitedPayloads);
             }
         }
-
-        if state.waiting.is_some() {
-            return Err(Error::DuplicateWaiting);
-        }
-
-        state.waiting = Some(self.current().clone());
         Ok(())
     }
 
