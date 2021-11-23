@@ -4,9 +4,12 @@ programs:
   - id: 1
     path: target/wasm32-unknown-unknown/release/demo_async_sign.wasm
     init_message:
-      kind: utf-8
-      # bob's Account Id
-      value: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48,{3}"
+      kind: custom
+      value:
+        # Eve
+        destination: "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"
+        # bob's Account Id
+        signatory: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
 
   - id:
       kind: ss58
@@ -16,37 +19,46 @@ programs:
       kind: custom
       value:
         - request: "0x1050494e47"
-          repeated: false
+          repeated: true
           replies:
             - count: 1
-              reply: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
-              # incorrect signature, note the last character
-            - count: 4294967295
-              reply: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a587"
+              reply: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
+        # Rejects SignRequest{ message: b"PING2" }
+        - request: "0x1450494e4732"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x00"
+        # Rejects SignRequest{ message: b"PING3" }
+        - request: "0x1450494e4733"
+          repeated: true
+          replies:
+            - count: 1
+              reply: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
 
-  - id: 3
-    path: target/wasm32-unknown-unknown/release/demo_signed_message.wasm
+  - id:
+      kind: account
+      value: eve
+    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
     init_message:
       kind: custom
-      value:
-        # bob's pub key
-        account: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+      value: []
 
 fixtures:
   - title: signed message
 
     messages:
       - destination: 1
-        payload: &start
-          kind: utf-8
-          value: START
+        payload: &ping
+          kind: bytes
+          value: "0x50494e47"
 
     expected:
       - step: 1
         messages:
           - destination:
-              kind: ss58
-              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
+              kind: account
+              value: bob
             payload:
               kind: bytes
               value: "0x1050494e47"
@@ -54,173 +66,105 @@ fixtures:
       - step: 2
         messages:
           - destination: 1
-            payload: &good
+            payload:
               kind: bytes
-              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+              value: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
 
       - step: 3
         messages:
           - destination: 1
-            payload: *start
+            payload: *ping
 
       - step: 4
         messages:
-          - destination: 3
-            payload: *good
-
-      - step: 5
-        messages:
-          - destination: 1
-            payload:
-              kind: utf-8
-              value: "Reply to signed message"
-
-      - step: 6
-        messages:
-          - destination: 1
-            payload: *start
-
-      - step: 7
-        log:
-          - destination: 0
-            payload:
-              kind: utf-8
-              value: "FINISH: Reply to signed message"
+          - destination:
+              kind: account
+              value: eve
+            payload: *ping
 
   - title: bad signature
 
     messages:
       - destination: 1
-        payload: &start
-          kind: utf-8
-          value: START
-      - destination: 1
-        payload: *start
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4732"
 
     expected:
       - step: 1
         messages:
-          - destination: 1
-            payload: *start
           - destination:
-              kind: ss58
-              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-            payload: &ping
+              kind: account
+              value: bob
+            payload:
               kind: bytes
-              value: "0x1050494e47"
+              value: "0x1450494e4732"
 
       - step: 2
         messages:
-          - destination:
-              kind: ss58
-              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-            payload: *ping
-          - destination:
-              kind: ss58
-              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-            payload: *ping
+          - destination: 1
+            payload:
+              kind: bytes
+              value: "0x00"
 
       - step: 3
         messages:
-          - destination:
-              kind: ss58
-              value: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-            payload: *ping
           - destination: 1
-            payload: &good
-              kind: bytes
-              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a588"
+            payload: *ping
 
       - step: 4
+        messages: []
+
+  - title: correct signature but for another message
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4733"
+
+    expected:
+      - step: 1
         messages:
-          - destination: 1
-            payload: *good
-          - destination: 1
-            payload: &bad
+          - destination:
+              kind: account
+              value: bob
+            payload:
               kind: bytes
-              value: "0x1050494e470101ea2602a9883dc2c6b653c1a616cefec77783d1cbb9a3b59e765f8ab2d640813788318a1659638410a731b8b0f172c366327d1125c564a681de82d2282695a587"
+              value: "0x1450494e4733"
 
-      - step: 5
-        messages:
-          - destination: 1
-            payload: *bad
-          - destination: 1
-            payload: *start
-
-      - step: 6
-        messages:
-          - destination: 1
-            payload: *start
-          - destination: 1
-            payload: *start
-
-      - step: 7
-        messages:
-          - destination: 1
-            payload: *start
-          - destination: 3
-            payload: *good
-
-      - step: 8
-        messages:
-          - destination: 3
-            payload: *good
-          - destination: 3
-            payload: *bad
-
-      - step: 9
-        messages:
-          - destination: 3
-            payload: *bad
-          - destination: 1
-            payload:
-              kind: utf-8
-              value: "Reply to signed message"
-
-      - step: 10
+      - step: 2
         messages:
           - destination: 1
             payload:
-              kind: utf-8
-              value: "Reply to signed message"
-          - destination: 1
-            payload:
-              kind: utf-8
-              value: "Incorrect signature"
+              kind: bytes
+              value: "0x0101f44d40d2998053383a34af76bc66d00a16c280eb4ef8e8a9b82abdb311eaed0454553618b5b406c286047e4134bff676560b853088550156564a2365f33f7e8f"
 
-      - step: 11
+      - step: 3
         messages:
           - destination: 1
-            payload:
-              kind: utf-8
-              value: "Incorrect signature"
-          - destination: 1
-            payload: *start
+            payload: *ping
 
-      - step: 12
+      - step: 4
+        messages: []
+
+  - title: no reply
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: bytes
+          value: "0x50494e4734"
+
+    expected:
+      - step: 1
         messages:
-          - destination: 1
-            payload: *start
-          - destination: 1
-            payload: *start
+          - destination:
+              kind: account
+              value: bob
+            payload:
+              kind: bytes
+              value: "0x1450494e4734"
 
-      - step: 13
-        messages:
-          - destination: 1
-            payload: *start
-        log:
-          - destination: 0
-            payload:
-              kind: utf-8
-              value: "FINISH: Reply to signed message"
-
-      - step: 14
-        log:
-          - destination: 0
-            payload:
-              kind: utf-8
-              value: "FINISH: Reply to signed message"
-          - destination: 0
-            payload:
-              kind: utf-8
-              value: "FINISH: Incorrect signature"
+      - step: 2
+        messages: []
