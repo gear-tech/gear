@@ -1,8 +1,8 @@
 #![no_std]
 
-use gstd::{debug, msg, prelude::*, ActorId};
-use futures::stream::StreamExt;
 use futures::stream::FuturesUnordered;
+use futures::stream::StreamExt;
+use gstd::{debug, msg, prelude::*, ActorId};
 
 static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
 static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
@@ -18,10 +18,12 @@ pub unsafe extern "C" fn init() {
     }
     DEMO_ASYNC = ActorId::from_slice(
         &hex::decode(dests[0]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    ).expect("Unable to create ActorId");
+    )
+    .expect("Unable to create ActorId");
     DEMO_PING = ActorId::from_slice(
         &hex::decode(dests[1]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
-    ).expect("Unable to create ActorId");
+    )
+    .expect("Unable to create ActorId");
 }
 
 #[gstd::async_main]
@@ -34,8 +36,24 @@ async fn main() {
     let mut unordered: FuturesUnordered<_> = requests.into_iter().collect();
 
     debug!("Before any polls");
-    msg::reply_bytes(unordered.next().await.expect("Can't fail").expect("Exit code should be 0!"), 0, 0);
+    msg::reply_bytes(
+        unordered
+            .next()
+            .await
+            .expect("Can't fail")
+            .expect("Exit code should be 0!"),
+        0,
+        0,
+    );
     debug!("First (from demo_ping) done");
-    msg::reply_bytes(unordered.next().await.expect("Can't fail").expect("Exit code should be 0!"), 0, 0);
+    msg::reply_bytes(
+        unordered
+            .next()
+            .await
+            .expect("Can't fail")
+            .expect("Exit code should be 0!"),
+        0,
+        0,
+    );
     debug!("Second (from demo_async) done");
 }
