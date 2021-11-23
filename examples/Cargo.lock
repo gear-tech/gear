@@ -362,16 +362,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-signed_message"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
-]
-
-[[package]]
 name = "demo-sum"
 version = "0.1.0"
 dependencies = [
