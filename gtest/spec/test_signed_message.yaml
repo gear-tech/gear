@@ -6,7 +6,7 @@ programs:
     init_message:
       # bob
       kind: bytes
-      value: "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+      value: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
 
 fixtures:
   - title: PING from Bob
