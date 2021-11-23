@@ -39,13 +39,13 @@ function encodePayload(api, expMessage, source) {
   if (expMessage.payload.kind === 'bytes') {
     payload = api.createType('Bytes', expMessage.payload.value);
   } else if (expMessage.payload.kind === 'i32') {
-    payload = CreateType.encode('i32', expMessage.payload.value);
+    payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
   } else if (expMessage.payload.kind === 'i64') {
-    payload = CreateType.encode('i64', expMessage.payload.value);
+    payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
   } else if (expMessage.payload.kind === 'f32') {
-    payload = CreateType.encode('f32', expMessage.payload.value);
+    payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
   } else if (expMessage.payload.kind === 'f64') {
-    payload = CreateType.encode('f64', expMessage.payload.value);
+    payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
   } else if (expMessage.payload.kind === 'utf-8') {
     payload = replaceRegex(expMessage.payload.value);
     payload = api.createType('Bytes', payload);
@@ -81,6 +81,7 @@ function findMessage(api, expMessage, snapshots, start) {
 
   // console.log(programs[expMessage.destination].toHuman());
   // console.log('snapshots len - ', snapshots.length);
+  // console.log('snapshots start - ', start);
 
   for (let index = start; index < snapshots.length; index++) {
     const snapshot = snapshots[index];
@@ -88,19 +89,17 @@ function findMessage(api, expMessage, snapshots, start) {
 
       for (const message of snapshot.messageQueue) {
 
+        // console.log('exp - ', expMessage);
 
+        // console.log(message.toHuman());
         if (message.dest.eq(programs[expMessage.destination])) {
           let match = true;
 
           if (expMessage.payload) {
-            // console.log(message.toHuman());
 
             let payload = encodePayload(api, expMessage, message.source);
 
-            // console.log('exp payload - ', payload.toHex());
-            // console.log('msg payload - ', message.payload.toHex());
-
-            if (payload && !payload.toHex() === message.payload.toHex()) {
+            if (payload && !payload.eq(message.payload)) {
               match = false;
             }
           }
@@ -157,7 +156,7 @@ async function checkLog(api, exp) {
   let messagesOpt = await mailbox.readMailbox('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
-    // console.log(messages.toHuman());
+    console.log(messages.toHuman());
 
 
     for (const log of exp.log) {
@@ -167,6 +166,7 @@ async function checkLog(api, exp) {
         for (const index of Object.keys(metadata)) {
 
           let encoded = encodePayload(api, log, programs[index]);
+          // encoded = api.createType('Bytes', encoded.toU8a());
 
           if (!encoded) {
             console.log('Skip: Cannot construct unknown type');
@@ -175,7 +175,12 @@ async function checkLog(api, exp) {
           }
 
           messages.forEach((message, _id) => {
-            if (message.payload.toHex() === encoded.toHex()) {
+            console.log(message.payload);
+            console.log(encoded);
+            console.log(encoded.toHex() === message.payload.toHex());
+            
+
+            if (encoded.toHex() === message.payload.toHex()) {
               found = true;
 
               return;
@@ -376,28 +381,10 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 
       payload = replaceRegex(message.payload.value);
       payload = api.createType('Bytes', message.payload.value);
-      // } else if (message.payload.kind === 'custom') {
-      //   if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
-      //     const res = message.payload.value.match(/{([0-9]*)\}/);
-      //     const id = Number(res[1]);
-      //     if (programs[id] !== undefined) {
-      //       message.payload.value = message.payload.value.replace(res[0], programs[id].toString().slice(2));
-      //     }
-      //   }
-      //   payload = message.payload.value;
     } else if (message.payload.kind === 'custom') {
       message.payload.value = JSON.stringify(message.payload.value);
       payload = replaceRegex(message.value);
       payload = message.payload.value;
-      // } else if (message.payload.kind === 'custom') {
-      //   if (message.payload.value.search(/{([0-9]*)\}/) !== -1) {
-      //     const res = message.payload.value.match(/{([0-9]*)\}/);
-      //     const id = Number(res[1]);
-      //     if (programs[id] !== undefined) {
-      //       message.payload.value = message.payload.value.replace(res[0], programs[id].toString().slice(2));
-      //     }
-      //   }
-      //   payload = message.payload.value;
     } else {
       payload = message.payload.value;
     }
@@ -473,6 +460,8 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
           payload = JSON.stringify(program.init_message.value);
 
           payload = replaceRegex(payload);
+        } else if (program.init_message.kind === 'bytes') {
+          payload = api.createType('Bytes', program.init_message.value);
         }
 
         api.program.submit(
