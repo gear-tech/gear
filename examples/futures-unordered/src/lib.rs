@@ -2,7 +2,7 @@
 
 use futures::stream::FuturesUnordered;
 use futures::stream::StreamExt;
-use futures::{select_biased, join};
+use futures::{join, select_biased};
 use gstd::{debug, msg, prelude::*, ActorId};
 
 static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
@@ -47,11 +47,21 @@ async fn main() {
             debug!("Before any polls");
 
             let first = unordered.next().await;
-            msg::send_bytes(source, first.expect("Can't fail").expect("Exit code is 0"), 0, 0);
+            msg::send_bytes(
+                source,
+                first.expect("Can't fail").expect("Exit code is 0"),
+                0,
+                0,
+            );
             debug!("First (from demo_ping) done");
 
             let second = unordered.next().await;
-            msg::send_bytes(source, second.expect("Can't fail").expect("Exit code is 0"), 0, 0);
+            msg::send_bytes(
+                source,
+                second.expect("Can't fail").expect("Exit code is 0"),
+                0,
+                0,
+            );
             debug!("Second (from demo_async) done");
 
             msg::reply_bytes("DONE", 0, 0);
@@ -74,7 +84,7 @@ async fn main() {
             debug!("Finish after select");
 
             msg::reply_bytes("DONE", 0, 0);
-        },
+        }
         // using join! macros to wait all features done
         "join" => {
             debug!("JOIN: Before any sending");
@@ -88,12 +98,18 @@ async fn main() {
 
             let mut result = String::new();
 
-            result.push_str(&String::from_utf8(res.0.expect("Exit code is 0")).expect("Unable to decode string"));
-            result.push_str(&String::from_utf8(res.1.expect("Exit code is 0")).expect("Unable to decode string"));
+            result.push_str(
+                &String::from_utf8(res.0.expect("Exit code is 0"))
+                    .expect("Unable to decode string"),
+            );
+            result.push_str(
+                &String::from_utf8(res.1.expect("Exit code is 0"))
+                    .expect("Unable to decode string"),
+            );
 
             msg::send_bytes(source, result, 0, 0);
             msg::reply_bytes("DONE", 0, 0);
-        },
+        }
         _ => {
             panic!("Unknown option");
         }

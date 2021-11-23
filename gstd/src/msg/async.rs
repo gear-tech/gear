@@ -22,7 +22,6 @@ use crate::async_runtime::{signals, ReplyPoll};
 use crate::errors::{ContractError, Result};
 use crate::prelude::{convert::AsRef, Vec};
 use crate::{ActorId, MessageId};
-use futures::future::FusedFuture;
 use codec::{Decode, Encode};
 use core::{
     future::Future,
@@ -30,6 +29,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
+use futures::future::FusedFuture;
 
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
