@@ -164,8 +164,7 @@ gstd::metadata! {
 pub unsafe extern "C" fn handle() {
     let reply = &HANDLER_MAP
         .get_mut(&msg::load_bytes())
-        .map(|i| i.next())
-        .flatten();
+        .and_then(|i| i.next());
     if let Some(r) = reply {
         msg::reply_bytes(r, exec::gas_available() - GAS_SPENT, 0);
     }

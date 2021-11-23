@@ -81,9 +81,10 @@ async fn main() {
 
         threshold += result
             .ok()
-            .map(|bytes| {
+            .and_then(|bytes| {
                 SignResponse::decode(&mut &bytes[..])
-                    .map(|response| {
+                    .ok()
+                    .and_then(|response| {
                         // the same way as in verify.rs from subkey
                         let mut signature: Signature = Default::default();
                         if response.signature.len() == signature.0.len() {
@@ -93,10 +94,7 @@ async fn main() {
                             None
                         }
                     })
-                    .ok()
-                    .flatten()
             })
-            .flatten()
             .map(|signature| {
                 let pub_key = Public::unchecked_from(<[u8; 32]>::from(unsafe { SIGNATORIES[i] }));
 
