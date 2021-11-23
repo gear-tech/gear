@@ -49,6 +49,8 @@ pub struct Ext {
     pub mem_grow_cost: u64,
     /// Any guest code panic explanation, if available.
     pub last_error_returned: Option<&'static str>,
+    /// Flag signaling whether the execution interrupts and goes to the waiting state.
+    pub wait_flag: bool,
     /// Current block info.
     pub block_info: BlockInfo,
 }
@@ -242,8 +244,16 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
             .messages
-            .wait()
-            .map_err(|_| "Unable to add the message to the wait list");
+            .check_uncommited()
+            .map_err(|_| "There are uncommited messages when passing to waiting state")
+            .and_then(|_| {
+                if self.wait_flag {
+                    Err("Cannot pass to the waiting state twice")
+                } else {
+                    self.wait_flag = true;
+                    Ok(())
+                }
+            });
 
         self.return_with_tracing(result)
     }
