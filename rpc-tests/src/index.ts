@@ -412,7 +412,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
           destination: programs[message.destination],
           payload: payload,
           gasLimit: gas_limit,
-          value: 0,
+          value: value,
         },
         meta,
       ),
