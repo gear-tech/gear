@@ -277,6 +277,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-futures-unordered"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gstd",
+ "hex",
+]
+
+[[package]]
 name = "demo-gui-test"
 version = "0.1.0"
 dependencies = [

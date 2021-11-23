@@ -1,0 +1,46 @@
+title: Futures-unordered
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm
+    init_message:
+      kind: utf-8
+      value: "{2},{3}"
+
+  - id: 2
+    path: target/wasm32-unknown-unknown/release/demo_async.wasm
+    init_message:
+      kind: utf-8
+      value: "{3},{4},{5}"
+
+  - id: 3
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+  - id: 4
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+  - id: 5
+    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+
+fixtures:
+  - title: futures-unordered
+
+    messages:
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: ""
+
+    expected:
+      - log:
+        - destination: 100
+          payload:
+            kind: utf-8
+            value: PONG
+        - destination: 100
+          payload:
+            kind: utf-8
+            value: SUCCESS

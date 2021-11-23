@@ -16,6 +16,8 @@ members = [
     "decoder",
     "exit-code",
     "fib",
+    "fungible-token",
+    "futures-unordered",
     "mem",
     "guestbook",
     "gui-test",
@@ -34,7 +36,6 @@ members = [
     "wait",
     "token-vendor",
     "token-vendor/workshop-example",
-    "fungible-token",
 ]
 
 [profile.release]
