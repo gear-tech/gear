@@ -92,3 +92,9 @@ jobs:
 
       - name: "Test: Process node testsuite"
         run: ./scripts/gear.sh test ntest
+
+      - name: "Test: Run RPC tests"
+        run: |
+          tsc -p rpc-tests
+          ./target/release/gear-node --dev --ws-max-out-buffer-capacity 500 --rpc-max-payload 500 & sleep 5
+          node rpc-tests/dist/index.js ./gtest/spec/*.yaml
