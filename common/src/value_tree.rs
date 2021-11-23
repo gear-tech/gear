@@ -44,8 +44,9 @@ pub struct ValueNode {
     consumed: bool,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum ConsumeResult {
-    NothingSpecial,
+    None,
     RefundExternal(H256, u64),
 }
 
@@ -137,13 +138,15 @@ impl ValueView {
                     }
 
                     parent_node.refs -= 1;
+                    parent_node.inner = parent_node.inner.saturating_add(self.node.inner);
+
                     self.save_node(parent, &parent_node);
                     let result = self.new_from_node(parent, parent_node).check_consumed();
                     self.delete();
 
                     result
                 } else {
-                    ConsumeResult::NothingSpecial
+                    ConsumeResult::None
                 }
             }
             ValueOrigin::External(external) => {
@@ -152,7 +155,7 @@ impl ValueView {
                     self.delete();
                     ConsumeResult::RefundExternal(external, inner)
                 } else {
-                    ConsumeResult::NothingSpecial
+                    ConsumeResult::None
                 }
             }
         }
@@ -190,7 +193,7 @@ impl ValueView {
                 let result = if parent_node.refs == 0 {
                     self.new_from_node(parent, parent_node).check_consumed()
                 } else {
-                    ConsumeResult::NothingSpecial
+                    ConsumeResult::None
                 };
 
                 if delete_self {
@@ -207,7 +210,7 @@ impl ValueView {
                     self.delete();
                     ConsumeResult::RefundExternal(external, inner)
                 } else {
-                    ConsumeResult::NothingSpecial
+                    ConsumeResult::None
                 }
             }
         }
@@ -261,7 +264,8 @@ impl ValueView {
     }
 
     fn delete(self) {
-        // TODO: delete key
+        let node_key = node_key(self.prefix.as_ref(), &self.key);
+        sp_io::storage::clear(node_key.as_ref());
     }
 }
 
@@ -298,15 +302,9 @@ mod tests {
             let split_off_1 = value_tree.split_off(split_1, 500);
             let split_off_2 = value_tree.split_off(split_2, 500);
 
-            assert!(matches!(
-                value_tree.consume(),
-                ConsumeResult::NothingSpecial
-            ));
+            assert!(matches!(value_tree.consume(), ConsumeResult::None));
 
-            assert!(matches!(
-                split_off_1.consume(),
-                ConsumeResult::NothingSpecial
-            ));
+            assert!(matches!(split_off_1.consume(), ConsumeResult::None));
 
             assert!(matches!(
                 split_off_2.consume(),
@@ -331,17 +329,120 @@ mod tests {
 
             assert!(matches!(
                 split_off_1.consume(),
-                ConsumeResult::NothingSpecial
+                ConsumeResult::None
             ));
             assert!(matches!(
                 split_off_2.consume(),
-                ConsumeResult::NothingSpecial,
+                ConsumeResult::None,
             ));
 
             assert!(matches!(
                 ValueView::get(b"test::value_tree::".as_ref(), new_root).expect("Should still exist").consume(),
                 ConsumeResult::RefundExternal(e, 900) if e == origin,
             ));
+        });
+    }
+
+    #[test]
+    fn all_keys_are_cleared() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let root = H256::random();
+            let origin = H256::random();
+            let sub_keys = (0..5).map(|_| H256::random()).collect::<Vec<_>>();
+
+            let mut next =
+                ValueView::get_or_create(b"test::value_tree::".as_ref(), origin, root, 2000);
+            for key in sub_keys.iter() {
+                next = next.split_off(*key, 100);
+            }
+
+            ValueView::get(b"test::value_tree::".as_ref(), root)
+                .expect("Should still exist")
+                .consume();
+            for key in sub_keys.iter() {
+                // here we are not yet consumed everything
+                let any_key_under_prefix = sp_io::storage::next_key(b"test::value_tree::")
+                    .filter(|key| key.starts_with(b"test::value_tree::"));
+                assert!(any_key_under_prefix.is_some());
+
+                ValueView::get(b"test::value_tree::".as_ref(), *key)
+                    .expect("Should still exist")
+                    .consume();
+            }
+
+            // here we consumed everything
+            let any_key_under_prefix = sp_io::storage::next_key(b"test::value_tree::")
+                .filter(|key| key.starts_with(b"test::value_tree::"));
+            assert!(any_key_under_prefix.is_none());
+        });
+    }
+
+    #[test]
+    fn long_chain() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let root = H256::random();
+            let m1 = H256::random();
+            let m2 = H256::random();
+            let m3 = H256::random();
+            let m4 = H256::random();
+            let origin = H256::random();
+
+            let mut value_tree =
+                ValueView::get_or_create(b"test::value_tree::".as_ref(), origin, root, 2000);
+
+            let mut split_off_1 = value_tree.split_off(m1, 1500);
+            let mut split_off_2 = split_off_1.split_off(m2, 1000);
+            let mut split_off_3 = split_off_2.split_off(m3, 500);
+            let _split_off_4 = split_off_3.split_off(m4, 250);
+
+            ValueView::get(b"test::value_tree::".as_ref(), root)
+                .expect("Should still exist")
+                .spend(50);
+            ValueView::get(b"test::value_tree::".as_ref(), m1)
+                .expect("Should still exist")
+                .spend(50);
+            ValueView::get(b"test::value_tree::".as_ref(), m2)
+                .expect("Should still exist")
+                .spend(50);
+            ValueView::get(b"test::value_tree::".as_ref(), m3)
+                .expect("Should still exist")
+                .spend(50);
+            ValueView::get(b"test::value_tree::".as_ref(), m4)
+                .expect("Should still exist")
+                .spend(50);
+
+            assert!(matches!(
+                ValueView::get(b"test::value_tree::".as_ref(), m1)
+                    .expect("Should still exist")
+                    .consume(),
+                ConsumeResult::None
+            ));
+            assert!(matches!(
+                ValueView::get(b"test::value_tree::".as_ref(), m2)
+                    .expect("Should still exist")
+                    .consume(),
+                ConsumeResult::None
+            ));
+            assert!(matches!(
+                ValueView::get(b"test::value_tree::".as_ref(), root)
+                    .expect("Should still exist")
+                    .consume(),
+                ConsumeResult::None
+            ));
+            assert!(matches!(
+                ValueView::get(b"test::value_tree::".as_ref(), m4)
+                    .expect("Should still exist")
+                    .consume(),
+                ConsumeResult::None
+            ));
+
+            // 2000 initial, 5*50 spent
+            assert_eq!(
+                ValueView::get(b"test::value_tree::".as_ref(), m3)
+                    .expect("Should still exist")
+                    .consume(),
+                ConsumeResult::RefundExternal(origin, 1750),
+            );
         });
     }
 }
