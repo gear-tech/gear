@@ -1,10 +1,5 @@
 ---
-#Install/update backend docker-compose
-
-#- name: remove db
-#  shell: >
-#    docker exec -it ec2-user_gear_1 gear-node purge-chain --base-path /gear/ --chain /gear/staging.json -y
-#  become: yes
+#Purge chain on docker-compose
 
 - name: Copy docker-compose
   template:
