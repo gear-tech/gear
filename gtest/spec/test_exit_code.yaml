@@ -24,7 +24,7 @@ fixtures:
 
     expected:
       - log:
-        - destination: 1000001
+        - destination: 0
           source:
             kind: id
             value: 1
@@ -45,7 +45,7 @@ fixtures:
 
     expected:
       - log:
-        - destination: 1000001
+        - destination: 0
           source:
             kind: id
             value: 1
