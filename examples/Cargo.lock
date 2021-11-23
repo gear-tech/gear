@@ -221,9 +221,9 @@ name = "demo-async-sign"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "hex",
  "parity-scale-codec",
  "scale-info",
+ "sp-core",
 ]
 
 [[package]]
@@ -359,16 +359,6 @@ version = "0.1.0"
 dependencies = [
  "gstd",
  "hex",
-]
-
-[[package]]
-name = "demo-signed_message"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
 ]
 
 [[package]]
