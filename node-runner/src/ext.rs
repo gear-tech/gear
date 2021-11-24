@@ -18,11 +18,10 @@
 
 use gear_common::STORAGE_PROGRAM_PREFIX;
 use gear_core::{
-    message::{Message, MessageId},
+    message::Message,
     program::{Program, ProgramId},
-    storage::{MessageMap, MessageQueue, ProgramStorage, WaitList},
+    storage::{MessageQueue, ProgramStorage},
 };
-use sp_std::collections::btree_set::BTreeSet;
 use sp_std::prelude::*;
 
 #[derive(Default)]
@@ -31,11 +30,6 @@ pub struct ExtProgramStorage;
 #[derive(Default)]
 pub struct ExtMessageQueue {
     pub log: Vec<Message>,
-}
-
-#[derive(Default)]
-pub struct ExtWaitList {
-    cache: BTreeSet<(ProgramId, MessageId)>,
 }
 
 impl ProgramStorage for ExtProgramStorage {
@@ -95,36 +89,11 @@ impl MessageQueue for ExtMessageQueue {
     }
 }
 
-impl WaitList for ExtWaitList {
-    fn insert(&mut self, prog_id: ProgramId, msg_id: MessageId, message: Message) {
-        self.cache.insert((prog_id, msg_id));
-        gear_common::native::insert_waiting_message(prog_id, msg_id, message);
-    }
-
-    fn remove(&mut self, prog_id: ProgramId, msg_id: MessageId) -> Option<Message> {
-        self.cache.remove(&(prog_id, msg_id));
-        gear_common::native::remove_waiting_message(prog_id, msg_id)
-    }
-}
-
-impl From<ExtWaitList> for MessageMap {
-    fn from(queue: ExtWaitList) -> MessageMap {
-        let mut map = MessageMap::new();
-        queue.cache.into_iter().for_each(|(prog_id, msg_id)| {
-            if let Some(msg) = gear_common::native::get_waiting_message(prog_id, msg_id) {
-                map.insert((prog_id, msg_id), msg);
-            }
-        });
-        map
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use gear_common::{STORAGE_CODE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_WAITLIST_PREFIX};
-    use gear_core::message::Payload;
 
     fn new_test_ext() -> sp_io::TestExternalities {
         frame_system::GenesisConfig::default()
@@ -133,8 +102,7 @@ mod tests {
             .into()
     }
 
-    fn new_test_storage(
-    ) -> gear_core::storage::Storage<ExtMessageQueue, ExtProgramStorage, ExtWaitList> {
+    fn new_test_storage() -> gear_core::storage::Storage<ExtMessageQueue, ExtProgramStorage> {
         sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
         sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
         sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
@@ -142,7 +110,6 @@ mod tests {
         gear_core::storage::Storage {
             message_queue: Default::default(),
             program_storage: ExtProgramStorage,
-            wait_list: Default::default(),
             log: Default::default(),
         }
     }
@@ -172,15 +139,6 @@ mod tests {
                     Program::new(ProgramId::from(id), code.clone(), Default::default()).unwrap();
                 storage.program_storage.set(program);
             }
-
-            // Since `sp_io::storage::next_key` iterates in lexicographic order, message is inserted into wait list
-            // with prefix `g::wait::` to make sure iterator exhausts correctly.
-            let msg_id = MessageId::from(1);
-            storage.wait_list.insert(
-                ProgramId::from(1),
-                msg_id,
-                Message::new_system(msg_id, ProgramId::from(1), Payload::from(vec![]), 0, 0),
-            );
 
             let programs_count = storage.program_storage.iter().count();
             assert_eq!(programs_count, 10)

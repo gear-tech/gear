@@ -3,10 +3,10 @@ resolver = "2"
 
 members = [
     "async",
+    "async-multisig",
     "async-sign",
-    "async-sign/signed_message",
-    "async-sign/test_bob",
     "block-info",
+    "bot",
     "chat",
     "chat/bot",
     "chat/room",
@@ -15,6 +15,8 @@ members = [
     "decoder",
     "exit-code",
     "fib",
+    "fungible-token",
+    "futures-unordered",
     "mem",
     "guestbook",
     "gui-test",
@@ -33,7 +35,6 @@ members = [
     "wait",
     "token-vendor",
     "token-vendor/workshop-example",
-    "fungible-token",
 ]
 
 [profile.release]

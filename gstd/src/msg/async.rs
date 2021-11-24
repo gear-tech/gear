@@ -29,6 +29,7 @@ use core::{
     pin::Pin,
     task::{Context, Poll},
 };
+use futures::future::FusedFuture;
 
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
@@ -38,9 +39,9 @@ pub struct CodecMessageFuture<T> {
 impl<D: Decode> Future for CodecMessageFuture<D> {
     type Output = Result<D>;
 
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut self;
-        match signals().poll(fut.waiting_reply_to) {
+        match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created CodecMessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
             ReplyPoll::Some((actual_reply, exit_code)) => {
@@ -54,6 +55,12 @@ impl<D: Decode> Future for CodecMessageFuture<D> {
     }
 }
 
+impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
+    fn is_terminated(&self) -> bool {
+        !signals().waits_for(self.waiting_reply_to)
+    }
+}
+
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
 }
@@ -61,9 +68,9 @@ pub struct MessageFuture {
 impl Future for MessageFuture {
     type Output = Result<Vec<u8>>;
 
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let fut = &mut *self;
-        match signals().poll(fut.waiting_reply_to) {
+        match signals().poll(fut.waiting_reply_to, cx) {
             ReplyPoll::None => panic!("Somebody created MessageFuture with the MessageId that never ended in static replies!"),
             ReplyPoll::Pending => Poll::Pending,
             ReplyPoll::Some((actual_reply, exit_code)) => {
@@ -74,6 +81,12 @@ impl Future for MessageFuture {
                 Poll::Ready(Ok(actual_reply))
             },
         }
+    }
+}
+
+impl FusedFuture for MessageFuture {
+    fn is_terminated(&self) -> bool {
+        !signals().waits_for(self.waiting_reply_to)
     }
 }
 

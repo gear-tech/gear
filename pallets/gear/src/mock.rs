@@ -21,8 +21,10 @@ use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use sp_core::H256;
-use sp_runtime::testing::Header;
-use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+use sp_runtime::{
+    testing::Header,
+    traits::{BlakeTwo256, IdentityLookup},
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -30,6 +32,25 @@ type Block = frame_system::mocking::MockBlock<Test>;
 pub const BLOCK_AUTHOR: u64 = 255;
 
 // Configure a mock runtime to test the pallet.
+#[cfg(feature = "debug-mode")]
+construct_runtime!(
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Authorship: pallet_authorship::{Pallet, Storage},
+        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+
+        // Only available with "debug-mode" feature on
+        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
+    }
+);
+
+#[cfg(not(feature = "debug-mode"))]
 construct_runtime!(
     pub enum Test where
         Block = Block,
@@ -90,6 +111,8 @@ impl system::Config for Test {
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000;
+    pub const OCWInterval: u32 = 5;
+    pub const MaxBatchSize: u32 = 10;
 }
 
 impl pallet_gear::Config for Test {
@@ -97,6 +120,12 @@ impl pallet_gear::Config for Test {
     type Currency = Balances;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
+}
+
+#[cfg(feature = "debug-mode")]
+impl pallet_gear_debug::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
 }
 
 pub struct FixedBlockAuthor;
