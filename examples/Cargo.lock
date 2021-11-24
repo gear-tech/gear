@@ -205,6 +205,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-multisig"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gstd",
+ "hex",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+]
+
+[[package]]
 name = "demo-async-sign"
 version = "0.1.0"
 dependencies = [
@@ -387,6 +399,15 @@ version = "0.1.0"
 dependencies = [
  "gcore",
  "gstd",
+]
+
+[[package]]
+name = "demo_bot"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -1226,13 +1247,6 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
-]
-
-[[package]]
-name = "test_bob"
-version = "0.1.0"
-dependencies = [
- "gstd",
 ]
 
 [[package]]

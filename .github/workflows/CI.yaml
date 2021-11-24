@@ -12,7 +12,7 @@ env:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
@@ -43,8 +43,7 @@ jobs:
         run: ./scripts/gear.sh check benchmark
 
   build:
-    #needs: check # TODO: Uncomment if need to run steps consequently
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
