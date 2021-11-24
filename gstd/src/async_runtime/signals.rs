@@ -21,6 +21,7 @@
 
 use crate::prelude::{BTreeMap, Vec};
 use crate::MessageId;
+use core::task::{Context, Waker};
 
 pub type Payload = Vec<u8>;
 pub type ExitCode = i32;
@@ -34,6 +35,7 @@ pub(crate) enum ReplyPoll {
 struct WakeSignal {
     message_id: MessageId,
     payload: Option<(Payload, ExitCode)>,
+    waker: Option<Waker>,
 }
 
 pub(crate) struct WakeSignals {
@@ -53,6 +55,7 @@ impl WakeSignals {
             WakeSignal {
                 message_id: crate::msg::id(),
                 payload: None,
+                waker: None,
             },
         );
     }
@@ -64,13 +67,21 @@ impl WakeSignals {
             .expect("Somehow received reply for the message we never sent");
 
         signal.payload = Some((crate::msg::load_bytes(), crate::msg::exit_code()));
+        if let Some(waker) = &signal.waker {
+            waker.wake_by_ref();
+        }
         crate::exec::wake(signal.message_id, crate::exec::gas_available());
     }
 
-    pub fn poll(&mut self, reply_to: MessageId) -> ReplyPoll {
+    pub fn waits_for(&self, reply_to: MessageId) -> bool {
+        self.signals.contains_key(&reply_to)
+    }
+
+    pub fn poll(&mut self, reply_to: MessageId, cx: &mut Context<'_>) -> ReplyPoll {
         match self.signals.remove(&reply_to) {
             None => ReplyPoll::None,
-            Some(signal @ WakeSignal { payload: None, .. }) => {
+            Some(mut signal @ WakeSignal { payload: None, .. }) => {
+                signal.waker = Some(cx.waker().clone());
                 self.signals.insert(reply_to, signal);
                 ReplyPoll::Pending
             }

@@ -16,31 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for Gear contracts asynchronous logic.
+//! Module for Gear contracts asynchronous waker.
 
-mod futures;
-mod signals;
-mod waker;
+use core::{
+    ptr,
+    task::{RawWaker, RawWakerVTable, Waker},
+};
 
-pub use self::futures::message_loop;
+const VTABLE: RawWakerVTable = RawWakerVTable::new(clone_waker, wake, wake_by_ref, drop_waker);
 
-use self::futures::FuturesMap;
-use crate::prelude::BTreeMap;
-pub(crate) use signals::ReplyPoll;
-use signals::WakeSignals;
-
-static mut FUTURES: Option<FuturesMap> = None;
-
-pub(crate) fn futures() -> &'static mut FuturesMap {
-    unsafe { FUTURES.get_or_insert_with(BTreeMap::new) }
+pub(crate) fn empty() -> Waker {
+    unsafe { Waker::from_raw(RawWaker::new(ptr::null(), &VTABLE)) }
 }
 
-static mut SIGNALS: Option<WakeSignals> = None;
-
-pub(crate) fn signals() -> &'static mut WakeSignals {
-    unsafe { SIGNALS.get_or_insert_with(WakeSignals::new) }
+unsafe fn clone_waker(ptr: *const ()) -> RawWaker {
+    RawWaker::new(ptr, &VTABLE)
 }
-
-pub fn record_reply() {
-    signals().record_reply();
-}
+unsafe fn wake(_ptr: *const ()) {}
+unsafe fn wake_by_ref(_ptr: *const ()) {}
+unsafe fn drop_waker(_ptr: *const ()) {}
