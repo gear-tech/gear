@@ -115,6 +115,9 @@ jobs:
       - name: "ACTIONS: Artifact cache"
         uses: Swatinem/rust-cache@v1
 
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build wasm-proc
+
       - name: "Build: Examples (WASM)"
         run: ./scripts/gear.sh build examples --locked
 
