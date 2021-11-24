@@ -86,8 +86,40 @@ jobs:
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
-      - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest -vv
-
       - name: "Test: Process node testsuite"
         run: ./scripts/gear.sh test ntest
+
+  gtest:
+    runs-on: self-hosted
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v2
+
+      - name: "Install: Nightly toolchain"
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: "Show: Versioning"
+        run: ./scripts/gear.sh show
+
+      - name: "Install: Node.js packages"
+        run: ./scripts/gear.sh init js
+
+      - name: "ACTIONS: Artifact cache"
+        uses: Swatinem/rust-cache@v1
+
+      - name: "Build: Examples (WASM)"
+        run: ./scripts/gear.sh build examples --locked
+
+      - name: "Build: Split examples by .opt and .meta"
+        run: ./scripts/gear.sh build examples-proc
+
+      - name: "Test: Process gear-test"
+        run: ./scripts/gear.sh test gtest -vv
