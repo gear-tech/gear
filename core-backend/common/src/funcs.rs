@@ -124,8 +124,7 @@ pub fn reply<E: Ext>(
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let payload = get_vec(ext, payload_ptr, payload_len);
             let value = get_u128(ext, value_ptr);
-            let message_id =
-                ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))?;
+            let message_id = ext.reply(ReplyPacket::from_parts(payload, gas_limit as _, value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -140,7 +139,7 @@ pub fn reply_commit<E: Ext>(
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let value = get_u128(ext, value_ptr);
             let message_id =
-                ext.reply_commit(ReplyPacket::new(0, vec![].into(), gas_limit as _, value))?;
+                ext.reply_commit(ReplyPacket::from_parts(vec![], gas_limit as _, value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -186,12 +185,8 @@ pub fn send<E: Ext>(
             let dest: ProgramId = get_id(ext, program_id_ptr).into();
             let payload = get_vec(ext, payload_ptr, payload_len);
             let value = get_u128(ext, value_ptr);
-            let message_id = ext.send(OutgoingPacket::new(
-                dest,
-                payload.into(),
-                gas_limit as _,
-                value,
-            ))?;
+            let message_id = ext
+                .send(OutgoingPacket::from_parts(payload, gas_limit as _, value).with_dest(dest))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -212,7 +207,7 @@ pub fn send_commit<E: Ext>(
             let value = get_u128(ext, value_ptr);
             let message_id = ext.send_commit(
                 handle_ptr as _,
-                OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
+                OutgoingPacket::from_parts(vec![], gas_limit as _, value).with_dest(dest),
             )?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())

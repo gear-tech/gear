@@ -19,11 +19,14 @@
 use alloc::vec::*;
 
 use gear_backend_common::Environment;
-use gear_core::storage::{Storage, StorageCarrier};
+use gear_core::{
+    message::InnerMessage,
+    storage::{Storage, StorageCarrier},
+};
 
 use super::{
     ext::{BlockInfo, Ext},
-    runner::{Config, ExtMessage, InitializeProgramInfo, Runner},
+    runner::{Config, InitializeProgramInfo, Runner},
 };
 
 /// Builder for [`Runner`].
@@ -66,7 +69,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> RunnerBuilder<SC, E> {
             source_id: 1001.into(),
             new_program_id: (1 + counter).into(),
             code,
-            message: ExtMessage {
+            message: InnerMessage {
                 id: (1000000 + counter).into(),
                 payload: Vec::new(),
                 gas_limit: u64::MAX,
@@ -97,7 +100,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> RunnerBuilder<SC, E> {
     }
 
     /// Change the init message in the last added program info.
-    pub fn with_init_message(mut self, message: ExtMessage) -> Self {
+    pub fn with_init_message(mut self, message: InnerMessage) -> Self {
         let program = self
             .programs
             .last_mut()

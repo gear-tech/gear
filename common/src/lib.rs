@@ -22,6 +22,7 @@ pub mod native;
 pub mod storage_queue;
 
 use codec::{Decode, Encode};
+use gear_core::{message::MessageId, program::ProgramId};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_core::crypto::UncheckedFrom;
@@ -97,6 +98,37 @@ impl Origin for H256 {
 
     fn from_origin(val: H256) -> Self {
         val
+    }
+}
+
+pub trait FromCoreId {
+    fn from_message_id(id: &MessageId) -> Self;
+    fn from_program_id(id: &ProgramId) -> Self;
+}
+
+impl FromCoreId for H256 {
+    fn from_message_id(id: &MessageId) -> Self {
+        H256::from_slice(id.as_slice())
+    }
+
+    fn from_program_id(id: &ProgramId) -> Self {
+        H256::from_slice(id.as_slice())
+    }
+}
+
+pub trait FromHashId {
+    fn from_hash_id(id: &H256) -> Self;
+}
+
+impl FromHashId for MessageId {
+    fn from_hash_id(id: &H256) -> Self {
+        MessageId::from_slice(id.as_ref())
+    }
+}
+
+impl FromHashId for ProgramId {
+    fn from_hash_id(id: &H256) -> Self {
+        ProgramId::from_slice(id.as_ref())
     }
 }
 

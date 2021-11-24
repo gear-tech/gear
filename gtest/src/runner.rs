@@ -20,11 +20,11 @@ use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::Message,
+    message::{InnerMessage, Message},
     program::{Program, ProgramId},
     storage::{InMemoryStorage, Storage, StorageCarrier},
 };
-use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
+use gear_core_runner::{Config, InitializeProgramInfo, Runner};
 use gear_node_runner::{Ext, ExtStorage};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
@@ -166,7 +166,7 @@ pub fn init_fixture<SC: StorageCarrier>(
             new_program_id: program.id.to_program_id(),
             source_id: init_source,
             code,
-            message: ExtMessage {
+            message: InnerMessage {
                 id: nonce.into(),
                 payload: init_message,
                 gas_limit: program.init_gas_limit.unwrap_or(u64::MAX),
@@ -216,16 +216,16 @@ pub fn init_fixture<SC: StorageCarrier>(
         if let Some(source) = &message.source {
             message_source = source.to_program_id();
         }
-        runner.queue_message(MessageDispatch {
-            source_id: message_source,
-            destination_id: message.destination.to_program_id(),
-            data: ExtMessage {
-                id: nonce.into(),
+        runner.queue_message(
+            Message::from_parts(
+                nonce.into(),
                 payload,
-                gas_limit: message.gas_limit.unwrap_or(u64::MAX),
-                value: message.value.unwrap_or_default() as _,
-            },
-        });
+                message.gas_limit.unwrap_or(u64::MAX),
+                message.value.unwrap_or_default() as _,
+            )
+            .with_source(message_source)
+            .with_dest(message.destination.to_program_id()),
+        );
 
         nonce += 1;
     }

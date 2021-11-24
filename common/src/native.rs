@@ -24,35 +24,40 @@ use gear_core::{
 use primitive_types::H256;
 use sp_std::vec::Vec;
 
+use crate::{FromCoreId, FromHashId};
+
 impl From<CoreMessage> for crate::Message {
     fn from(message: CoreMessage) -> crate::Message {
+        let mut message = message;
         crate::Message {
-            id: H256::from_slice(message.id.as_slice()),
-            source: H256::from_slice(message.source.as_slice()),
-            dest: H256::from_slice(message.dest.as_slice()),
-            payload: message.payload.into_raw(),
-            gas_limit: message.gas_limit,
-            value: message.value,
-            reply: message.reply.map(|(message_id, exit_code)| {
-                (H256::from_slice(message_id.as_slice()), exit_code)
-            }),
+            id: H256::from_message_id(&message.id()),
+            source: H256::from_program_id(&message.source()),
+            dest: H256::from_program_id(&message.dest()),
+            payload: message.drain_payload().collect(),
+            gas_limit: message.gas_limit(),
+            value: message.value(),
+            reply: message
+                .reply()
+                .map(|(message_id, exit_code)| (H256::from_message_id(&message_id), exit_code)),
         }
     }
 }
 
 impl From<crate::Message> for CoreMessage {
     fn from(message: crate::Message) -> CoreMessage {
-        CoreMessage {
-            id: MessageId::from_slice(message.id.as_ref()),
-            source: ProgramId::from_slice(message.source.as_ref()),
-            dest: ProgramId::from_slice(message.dest.as_ref()),
-            payload: message.payload.into(),
-            gas_limit: message.gas_limit,
-            value: message.value,
-            reply: message.reply.map(|(message_id, exit_code)| {
-                (MessageId::from_slice(message_id.as_ref()), exit_code)
-            }),
-        }
+        CoreMessage::from_parts(
+            MessageId::from_hash_id(&message.id),
+            message.payload,
+            message.gas_limit,
+            message.value,
+        )
+        .with_source(ProgramId::from_hash_id(&message.source))
+        .with_dest(ProgramId::from_hash_id(&message.dest))
+        .with_reply(
+            message
+                .reply
+                .map(|(message_id, exit_code)| (MessageId::from_hash_id(&message_id), exit_code)),
+        )
     }
 }
 
@@ -61,23 +66,13 @@ pub fn queue_message(message: CoreMessage) {
 }
 
 pub fn dequeue_message() -> Option<CoreMessage> {
-    crate::dequeue_message().map(|msg| CoreMessage {
-        id: MessageId::from_slice(&msg.id[..]),
-        source: ProgramId::from_slice(&msg.source[..]),
-        dest: ProgramId::from_slice(&msg.dest[..]),
-        payload: msg.payload.into(),
-        gas_limit: msg.gas_limit,
-        value: msg.value,
-        reply: msg
-            .reply
-            .map(|(message_id, exit_code)| (MessageId::from_slice(&message_id[..]), exit_code)),
-    })
+    crate::dequeue_message().map(crate::Message::into)
 }
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
-    let id_h256 = H256::from_slice(id.as_slice());
-    crate::get_program(id_h256).map(|prog| {
-        let persistent_pages = crate::get_program_pages(id_h256, prog.persistent_pages);
+    let hash_id = H256::from_program_id(&id);
+    crate::get_program(hash_id).map(|prog| {
+        let persistent_pages = crate::get_program_pages(hash_id, prog.persistent_pages);
         if let Some(code) = crate::get_code(prog.code_hash) {
             let mut program = Program::new(id, code, persistent_pages).unwrap();
             program.set_message_nonce(prog.nonce);
@@ -92,7 +87,7 @@ pub fn set_program(program: Program) {
     let code_hash = sp_io::hashing::blake2_256(program.code()).into();
     crate::set_code(code_hash, program.code());
     crate::set_program(
-        H256::from_slice(program.id().as_slice()),
+        H256::from_program_id(&program.id()),
         crate::Program {
             static_pages: program.static_pages(),
             persistent_pages: program
@@ -112,33 +107,33 @@ pub fn set_program(program: Program) {
 }
 
 pub fn remove_program(id: ProgramId) {
-    crate::remove_program(H256::from_slice(id.as_slice()));
+    crate::remove_program(H256::from_program_id(&id));
 }
 
 pub fn program_exists(id: ProgramId) -> bool {
-    crate::program_exists(H256::from_slice(id.as_slice()))
+    crate::program_exists(H256::from_program_id(&id))
 }
 
 pub fn insert_waiting_message(prog_id: ProgramId, msg_id: MessageId, message: CoreMessage) {
     crate::insert_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
+        H256::from_program_id(&prog_id),
+        H256::from_message_id(&msg_id),
         message.into(),
     );
 }
 
 pub fn get_waiting_message(prog_id: ProgramId, msg_id: MessageId) -> Option<CoreMessage> {
     crate::get_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
+        H256::from_program_id(&prog_id),
+        H256::from_message_id(&msg_id),
     )
     .map(|msg| msg.into())
 }
 
 pub fn remove_waiting_message(prog_id: ProgramId, msg_id: MessageId) -> Option<CoreMessage> {
     crate::remove_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
+        H256::from_program_id(&prog_id),
+        H256::from_message_id(&msg_id),
     )
     .map(|msg| msg.into())
 }

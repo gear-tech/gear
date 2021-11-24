@@ -37,7 +37,7 @@ impl Payload {
     }
 }
 
-impl core::convert::AsRef<[u8]> for Payload {
+impl AsRef<[u8]> for Payload {
     /// Raw bytes as reference.
     fn as_ref(&self) -> &[u8] {
         &self.0[..]
@@ -73,9 +73,9 @@ impl fmt::Display for MessageId {
 
 impl From<u64> for MessageId {
     fn from(v: u64) -> Self {
-        let mut id = Self([0u8; 32]);
-        id.0[0..8].copy_from_slice(&v.to_le_bytes()[..]);
-        id
+        let mut id = [0u8; 32];
+        id[0..8].copy_from_slice(&v.to_le_bytes());
+        Self(id)
     }
 }
 
@@ -87,9 +87,9 @@ impl MessageId {
         if s.len() != 32 {
             panic!("Slice is not 32 bytes length")
         };
-        let mut id = Self([0u8; 32]);
-        id.0[..].copy_from_slice(s);
-        id
+        let mut id = [0u8; 32];
+        id.copy_from_slice(s);
+        Self(id)
     }
 
     /// Return reference to raw bytes of this program id.
@@ -125,197 +125,180 @@ pub enum Error {
     UncommitedPayloads,
 }
 
+/// The common part of all types of messages.
+#[derive(Clone, Debug, Decode, Default, Encode, PartialEq, Eq)]
+pub struct InnerMessage {
+    /// Id of the message.
+    pub id: MessageId,
+    /// Message payload.
+    pub payload: Vec<u8>,
+    /// Gas limit for the message dispatch.
+    pub gas_limit: u64,
+    /// Value associated with the message.
+    pub value: u128,
+}
+
 /// Incoming message.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct IncomingMessage {
-    id: MessageId,
+    /// Inner message.
+    inner: InnerMessage,
+    /// Source of the message.
     source: ProgramId,
-    payload: Payload,
-    gas_limit: u64,
-    value: u128,
+    /// In reply of.
     reply: Option<(MessageId, ExitCode)>,
 }
 
+impl From<Message> for IncomingMessage {
+    fn from(msg: Message) -> Self {
+        IncomingMessage {
+            inner: msg.inner,
+            source: msg.source,
+            reply: msg.reply,
+        }
+    }
+}
+
 impl IncomingMessage {
-    /// Source of the incoming message, if any.
-    pub fn source(&self) -> ProgramId {
-        self.source
+    /// Create a new incoming message from `id`, `payload`, `gas_limit`, and `value`.
+    pub fn from_parts(id: MessageId, payload: Vec<u8>, gas_limit: u64, value: u128) -> Self {
+        Self {
+            inner: InnerMessage {
+                id,
+                payload,
+                gas_limit,
+                value,
+            },
+            source: Default::default(),
+            reply: None,
+        }
     }
 
-    /// Payload of the incoming message.
+    /// Set the source ID and return `Self`.
+    pub fn with_source(mut self, source: ProgramId) -> Self {
+        self.source = source;
+        self
+    }
+
+    /// Set the reply ID and exit code and return `Self`.
+    pub fn with_reply(mut self, reply: MessageId, exit_code: ExitCode) -> Self {
+        self.reply = Some((reply, exit_code));
+        self
+    }
+
+    /// Convert the incoming message to the stored message by providing a destination ID.
+    pub fn into_message(self, dest: ProgramId) -> Message {
+        Message {
+            inner: self.inner,
+            source: self.source,
+            dest,
+            reply: self.reply,
+        }
+    }
+
+    /// ID of the message.
+    pub fn id(&self) -> MessageId {
+        self.inner.id
+    }
+
+    /// Payload assotiated with the message.
     pub fn payload(&self) -> &[u8] {
-        &self.payload.0[..]
+        &self.inner.payload
     }
 
     /// Gas limit of the message.
     pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
-    }
-
-    /// Set gas limit of the message.
-    pub fn set_gas_limit(&mut self, gas_limit: u64) {
-        self.gas_limit = gas_limit;
+        self.inner.gas_limit
     }
 
     /// Value of the message.
     pub fn value(&self) -> u128 {
-        self.value
+        self.inner.value
     }
 
-    /// Id of the message.
-    pub fn id(&self) -> MessageId {
-        self.id
+    /// Source of the incoming message.
+    pub fn source(&self) -> ProgramId {
+        self.source
     }
 
-    /// What this message is a reply to
+    /// What this message is a reply to.
     pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
         self.reply
     }
 }
 
-impl From<Message> for IncomingMessage {
-    fn from(s: Message) -> Self {
-        IncomingMessage {
-            id: s.id(),
-            source: s.source(),
-            payload: s.payload,
-            gas_limit: s.gas_limit,
-            value: s.value,
-            reply: s.reply,
-        }
-    }
-}
-
-impl IncomingMessage {
-    /// New incoming message from specific `source`, `payload` and `gas_limit`.
-    pub fn new(
-        id: MessageId,
-        source: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Self {
-        Self {
-            id,
-            source,
-            payload,
-            gas_limit,
-            value,
-            reply: None,
-        }
-    }
-
-    /// New reply message from specific `source`, `payload` and `gas_limit` and `reply`.
-    pub fn new_reply(
-        id: MessageId,
-        source: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-        reply: MessageId,
-        exit_code: ExitCode,
-    ) -> Self {
-        Self {
-            id,
-            source,
-            payload,
-            gas_limit,
-            value,
-            reply: Some((reply, exit_code)),
-        }
-    }
-
-    /// New system incoming message.
-    pub fn new_system(id: MessageId, payload: Payload, gas_limit: u64, value: u128) -> Self {
-        Self {
-            id,
-            source: ProgramId::system(),
-            payload,
-            gas_limit,
-            value,
-            reply: None,
-        }
-    }
-
-    /// Convert incoming message to the stored message by providing `dest`.
-    pub fn into_message(self, dest: ProgramId) -> Message {
-        Message {
-            id: self.id,
-            source: self.source,
-            dest,
-            payload: self.payload,
-            gas_limit: self.gas_limit,
-            value: self.value,
-            reply: self.reply,
-        }
-    }
-}
-
 /// Outgoing message.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(Clone, Debug, Decode, Default, Encode)]
 pub struct OutgoingMessage {
-    id: MessageId,
+    /// Inner message.
+    inner: InnerMessage,
+    /// Destination of the message.
     dest: ProgramId,
-    payload: Payload,
-    gas_limit: u64,
-    value: u128,
 }
 
 impl OutgoingMessage {
-    /// New outgoing message.
-    pub fn new(
-        id: MessageId,
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Self {
+    /// Create a new outgoing message from `id`, `payload`, `gas_limit`, and `value`.
+    pub fn from_parts(id: MessageId, payload: Vec<u8>, gas_limit: u64, value: u128) -> Self {
         Self {
-            id,
-            dest,
-            payload,
-            gas_limit,
-            value,
+            inner: InnerMessage {
+                id,
+                payload,
+                gas_limit,
+                value,
+            },
+            dest: Default::default(),
         }
     }
 
-    /// Convert outgoing message to the stored message by providing `source`.
+    /// Set the destination ID and return `Self`.
+    pub fn with_dest(mut self, dest: ProgramId) -> Self {
+        self.dest = dest;
+        self
+    }
+
+    /// Convert the outgoing message to the stored message by providing a source ID.
     pub fn into_message(self, source: ProgramId) -> Message {
         Message {
-            id: self.id,
+            inner: self.inner,
             source,
             dest: self.dest,
-            payload: self.payload,
-            gas_limit: self.gas_limit,
-            value: self.value,
             reply: None,
         }
     }
 
-    /// Return declared gas_limit of the message.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
+    /// ID of the message.
+    pub fn id(&self) -> MessageId {
+        self.inner.id
     }
 
-    /// Return message id generated for this packet.
-    pub fn id(&self) -> MessageId {
-        self.id
+    /// Payload assotiated with the message.
+    pub fn payload(&self) -> &[u8] {
+        &self.inner.payload
+    }
+
+    /// Gas limit of the message.
+    pub fn gas_limit(&self) -> u64 {
+        self.inner.gas_limit
+    }
+
+    /// Value of the message.
+    pub fn value(&self) -> u128 {
+        self.inner.value
+    }
+
+    /// Destination of the outgoing message.
+    pub fn dest(&self) -> ProgramId {
+        self.dest
     }
 }
 
 /// Reply message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Default, Encode, PartialEq, Eq)]
 pub struct ReplyMessage {
-    /// Identifier of the reply message.
-    id: MessageId,
-    /// Exit code
+    /// Inner message.
+    inner: InnerMessage,
+    /// Exit code.
     exit_code: ExitCode,
-    /// Payload of the reply message.
-    payload: Payload,
-    /// Gas limit.
-    gas_limit: u64,
-    /// Message value.
-    value: u128,
 }
 
 impl ReplyMessage {
@@ -327,220 +310,150 @@ impl ReplyMessage {
         dest: ProgramId,
     ) -> Message {
         Message {
-            id: self.id,
+            inner: self.inner,
             source: source_program,
             dest,
-            payload: self.payload,
-            gas_limit: self.gas_limit,
-            value: self.value,
             reply: Some((source_message, self.exit_code)),
         }
     }
 
-    /// Return message id generated for this packet.
+    /// ID of the message.
     pub fn id(&self) -> MessageId {
-        self.id
+        self.inner.id
+    }
+
+    /// Payload assotiated with the message.
+    pub fn payload(&self) -> &[u8] {
+        &self.inner.payload
+    }
+
+    /// Gas limit of the message.
+    pub fn gas_limit(&self) -> u64 {
+        self.inner.gas_limit
+    }
+
+    /// Value of the message.
+    pub fn value(&self) -> u128 {
+        self.inner.value
+    }
+
+    /// Exit code.
+    pub fn exit_code(&self) -> ExitCode {
+        self.exit_code
     }
 }
 
 /// Message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Default, Encode, PartialEq, Eq)]
 pub struct Message {
-    /// Id of the message
-    pub id: MessageId,
+    /// Inner message.
+    inner: InnerMessage,
     /// Source of the message.
-    pub source: ProgramId,
+    source: ProgramId,
     /// Destination of the message.
-    pub dest: ProgramId,
-    /// Payload of the message.
-    pub payload: Payload,
-    /// Gas limit.
-    pub gas_limit: u64,
-    /// Message value.
-    pub value: u128,
+    dest: ProgramId,
     /// In reply of.
-    pub reply: Option<(MessageId, ExitCode)>,
+    reply: Option<(MessageId, ExitCode)>,
 }
 
 impl Message {
-    /// New system message to the specific program.
-    pub fn new_system(
-        id: MessageId,
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Message {
-        Message {
-            id,
-            source: 0.into(),
-            dest,
-            payload,
-            gas_limit,
-            value,
+    /// Create a new message from `id`, `payload`, `gas_limit`, and `value`.
+    pub fn from_parts(id: MessageId, payload: Vec<u8>, gas_limit: u64, value: u128) -> Self {
+        Self {
+            inner: InnerMessage {
+                id,
+                payload,
+                gas_limit,
+                value,
+            },
+            source: Default::default(),
+            dest: Default::default(),
             reply: None,
         }
     }
 
-    /// New system message to the specific program.
-    pub fn new(
-        id: MessageId,
-        source: ProgramId,
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-    ) -> Message {
-        Message {
-            id,
-            source,
-            dest,
-            payload,
-            gas_limit,
-            value,
+    /// Create a new message from [`InnerMessage`].
+    pub fn from_inner(inner: InnerMessage) -> Self {
+        Self {
+            inner,
+            source: Default::default(),
+            dest: Default::default(),
             reply: None,
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    /// New system message to the specific program.
-    pub fn new_reply(
-        id: MessageId,
-        source: ProgramId,
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-        reply: MessageId,
-        exit_code: ExitCode,
-    ) -> Message {
-        Message {
-            id,
-            source,
-            dest,
-            payload,
-            gas_limit,
-            value,
-            reply: Some((reply, exit_code)),
-        }
+    /// Set the source ID and return `Self`.
+    pub fn with_source(mut self, source: ProgramId) -> Self {
+        self.source = source;
+        self
     }
 
-    /// Return destination of this message.
-    pub fn dest(&self) -> ProgramId {
-        self.dest
+    /// Set the destination ID and return `Self`.
+    pub fn with_dest(mut self, dest: ProgramId) -> Self {
+        self.dest = dest;
+        self
     }
 
-    /// Return source of this message.
+    /// Set the reply and return `Self`.
+    pub fn with_reply(mut self, reply: Option<(MessageId, ExitCode)>) -> Self {
+        self.reply = reply;
+        self
+    }
+
+    /*/// Set the reply ID and exit code and return `Self`.
+    pub fn with_reply_parts(mut self, reply: MessageId, exit_code: ExitCode) -> Self {
+        self.reply = Some((reply, exit_code));
+        self
+    }*/
+
+    /// ID of the message.
+    pub fn id(&self) -> MessageId {
+        self.inner.id
+    }
+
+    /// Payload assotiated with the message.
+    pub fn payload(&self) -> &[u8] {
+        &self.inner.payload
+    }
+
+    /// Drain payload assotiated with the message.
+    pub fn drain_payload(&mut self) -> alloc::vec::Drain<u8> {
+        self.inner.payload.drain(..)
+    }
+
+    /// Set payload assotiated with the message.
+    pub fn set_payload(&mut self, payload: Vec<u8>) {
+        self.inner.payload = payload;
+    }
+
+    /// Gas limit of the message.
+    pub fn gas_limit(&self) -> u64 {
+        self.inner.gas_limit
+    }
+
+    /// Set gas limit of the message.
+    pub fn set_gas_limit(&mut self, gas_limit: u64) {
+        self.inner.gas_limit = gas_limit;
+    }
+
+    /// Value of the message.
+    pub fn value(&self) -> u128 {
+        self.inner.value
+    }
+
+    /// Source of the message.
     pub fn source(&self) -> ProgramId {
         self.source
     }
 
-    /// Get the payload reference of this message.
-    pub fn payload(&self) -> &[u8] {
-        &self.payload.0[..]
-    }
-
-    /// Message gas limit.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
-    }
-
-    /// Message value.
-    pub fn value(&self) -> u128 {
-        self.value
-    }
-
-    /// Is message a reply and to what.
-    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
-        self.reply
-    }
-
-    /// Message idetifier.
-    pub fn id(&self) -> MessageId {
-        self.id
-    }
-}
-
-/// Outgoing message packet.
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct OutgoingPacket {
-    dest: ProgramId,
-    payload: Payload,
-    gas_limit: u64,
-    value: u128,
-}
-
-impl OutgoingPacket {
-    /// New outgoing message packet.
-    pub fn new(dest: ProgramId, payload: Payload, gas_limit: u64, value: u128) -> Self {
-        Self {
-            dest,
-            payload,
-            gas_limit,
-            value,
-        }
-    }
-
-    /// Gas limit.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
-    }
-
-    /// Value.
-    pub fn value(&self) -> u128 {
-        self.value
-    }
-
-    /// Payload.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
-    }
-
-    /// Destination.
+    /// Destination of the message.
     pub fn dest(&self) -> ProgramId {
         self.dest
     }
-}
 
-impl Default for OutgoingPacket {
-    /// Empty packet with log dest.
-    fn default() -> Self {
-        Self {
-            dest: ProgramId::system(),
-            payload: Payload::default(),
-            gas_limit: 0,
-            value: 0,
-        }
-    }
-}
-
-/// Reply message packet.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
-pub struct ReplyPacket {
-    /// Payload of the reply message.
-    pub payload: Payload,
-    /// Gas limit.
-    pub gas_limit: u64,
-    /// Message value.
-    pub value: u128,
-    /// Exit code
-    pub exit_code: ExitCode,
-}
-
-impl ReplyPacket {
-    /// New reply message in some message context.
-    pub fn new(exit_code: ExitCode, payload: Payload, gas_limit: u64, value: u128) -> Self {
-        Self {
-            payload,
-            gas_limit,
-            value,
-            exit_code,
-        }
-    }
-
-    /// Gas limit of the reply message.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
+    /// What this message is a reply to.
+    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
+        self.reply
     }
 }
 
@@ -551,34 +464,114 @@ pub trait MessageIdGenerator {
 
     /// Query current nonce.
     fn current(&self) -> u64;
+}
 
-    /// Build outgoing message from current packet.
-    ///
-    /// Message id will be generated.
-    fn produce_outgoing(&mut self, packet: OutgoingPacket) -> OutgoingMessage {
-        let id = self.next();
-        OutgoingMessage {
+/// Inner packet.
+#[derive(Clone, Debug, Decode, Default, Encode, PartialEq, Eq)]
+pub struct InnerPacket {
+    /// Packet payload.
+    pub payload: Vec<u8>,
+    /// Gas limit for the packet dispatch.
+    pub gas_limit: u64,
+    /// Value associated with the packet.
+    pub value: u128,
+}
+
+impl InnerPacket {
+    /// Convert `InnerPacket` to [`InnerMessage`].
+    pub fn into_message(self, id: MessageId) -> InnerMessage {
+        InnerMessage {
             id,
-            dest: packet.dest,
-            payload: packet.payload,
-            gas_limit: packet.gas_limit,
-            value: packet.value,
+            payload: self.payload,
+            gas_limit: self.gas_limit,
+            value: self.value,
+        }
+    }
+}
+
+/// Outgoing message packet.
+#[derive(Clone, Debug, Decode, Default, Encode)]
+pub struct OutgoingPacket {
+    /// Inner packet.
+    inner: InnerPacket,
+    /// Destination of the packet.
+    dest: ProgramId,
+}
+
+impl OutgoingPacket {
+    /// Create a new outgoing packet `payload`, `gas_limit`, and `value`.
+    pub fn from_parts(payload: Vec<u8>, gas_limit: u64, value: u128) -> Self {
+        Self {
+            inner: InnerPacket {
+                payload,
+                gas_limit,
+                value,
+            },
+            dest: Default::default(),
         }
     }
 
-    /// Build reply from reply packet.
-    ///
-    /// Message id will be generated.
-    fn produce_reply(&mut self, packet: ReplyPacket) -> ReplyMessage {
-        let id = self.next();
+    /// Set the destination ID and return `Self`.
+    pub fn with_dest(mut self, dest: ProgramId) -> Self {
+        self.dest = dest;
+        self
+    }
 
-        ReplyMessage {
-            id,
-            payload: packet.payload,
-            gas_limit: packet.gas_limit,
-            value: packet.value,
-            exit_code: packet.exit_code,
+    /// Convert `OutgoingMessage` to [`OutgoingMessage`] using provided message ID generator.
+    pub fn into_message(self, id_generator: &mut impl MessageIdGenerator) -> OutgoingMessage {
+        let id = id_generator.next();
+        OutgoingMessage {
+            inner: self.inner.into_message(id),
+            dest: self.dest,
         }
+    }
+
+    /// Gas limit of the packet.
+    pub fn gas_limit(&self) -> u64 {
+        self.inner.gas_limit
+    }
+}
+
+/// Reply message packet.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+pub struct ReplyPacket {
+    /// Inner packet.
+    inner: InnerPacket,
+    /// Exit code
+    exit_code: ExitCode,
+}
+
+impl ReplyPacket {
+    /// Create a new outgoing packet from `payload`, `gas_limit`, and `value`.
+    pub fn from_parts(payload: Vec<u8>, gas_limit: u64, value: u128) -> Self {
+        Self {
+            inner: InnerPacket {
+                payload,
+                gas_limit,
+                value,
+            },
+            exit_code: 0,
+        }
+    }
+
+    /// Set the exit code ID and return `Self`.
+    pub fn with_exit_code(mut self, exit_code: ExitCode) -> Self {
+        self.exit_code = exit_code;
+        self
+    }
+
+    /// Convert `ReplyPacket` to [`ReplyMessage`] using provided message ID generator.
+    pub fn into_message(self, id_generator: &mut impl MessageIdGenerator) -> ReplyMessage {
+        let id = id_generator.next();
+        ReplyMessage {
+            inner: self.inner.into_message(id),
+            exit_code: self.exit_code,
+        }
+    }
+
+    /// Gas limit of the packet.
+    pub fn gas_limit(&self) -> u64 {
+        self.inner.gas_limit
     }
 }
 
@@ -633,10 +626,11 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
         match self.outgoing_payloads[handle].take() {
             Some(payload) => {
-                let mut outgoing = self.id_generator.borrow_mut().produce_outgoing(packet);
-                outgoing.payload.0.splice(0..0, payload.0);
+                let id_generator = &mut *self.id_generator.borrow_mut();
+                let mut outgoing = packet.into_message(id_generator);
+                outgoing.inner.payload.splice(0..0, payload.0);
 
-                let id = outgoing.id();
+                let id = outgoing.inner.id;
                 let mut state = self.state.borrow_mut();
                 state.outgoing.push(outgoing);
                 Ok(id)
@@ -682,14 +676,15 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         match &mut state.reply {
             Some(_) => Err(Error::LateAccess),
             None => {
-                let mut reply = self.id_generator.borrow_mut().produce_reply(packet);
+                let id_generator = &mut *self.id_generator.borrow_mut();
+                let mut reply = packet.into_message(id_generator);
 
                 reply
+                    .inner
                     .payload
-                    .0
                     .splice(0..0, self.reply_payload.take().unwrap_or_default().0);
 
-                let id = reply.id();
+                let id = reply.inner.id;
                 state.reply = Some(reply);
                 Ok(id)
             }
@@ -800,26 +795,21 @@ mod tests {
             nonce: DEFAULT_NONCE,
         };
         // Creating an incoming message around which the runner builds the `MessageContext`
-        let incoming_message = IncomingMessage {
-            id: MessageId::from(INCOMING_MESSAGE_ID),
-            source: ProgramId::from(INCOMING_MESSAGE_SOURCE),
-            payload: vec![1, 2].into(),
-            gas_limit: 0,
-            value: 0,
-            reply: None,
-        };
+        let incoming_message =
+            IncomingMessage::from_parts(INCOMING_MESSAGE_ID.into(), vec![1, 2], 0, 0)
+                .with_source(INCOMING_MESSAGE_SOURCE.into());
 
         // Creating a message context
         let mut context = MessageContext::new(incoming_message, id_generator);
 
         // Сhecking that the initial parameters of the context match the passed constants
-        assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
+        assert_eq!(context.current().id(), MessageId::from(INCOMING_MESSAGE_ID));
         assert_eq!(context.nonce(), DEFAULT_NONCE);
         assert!(context.reply_payload.is_none());
         assert!(context.state.borrow().reply.is_none());
 
         // Creating a reply packet
-        let reply_packet = ReplyPacket::new(0, vec![0, 0].into(), 0, 0);
+        let reply_packet = ReplyPacket::from_parts(vec![0, 0], 0, 0);
 
         // Checking that we are able to initialize reply
         assert!(context.reply_push(&[1, 2, 3]).is_ok());
@@ -832,15 +822,15 @@ mod tests {
 
         // Checking that the `ReplyMessage` mathes the passed one
         assert_eq!(
-            context.state.borrow().reply.as_ref().unwrap().payload,
-            vec![1, 2, 3, 0, 0].into()
+            context.state.borrow().reply.as_ref().unwrap().payload(),
+            vec![1, 2, 3, 0, 0]
         );
 
         // Checking that repeated call `reply_push(...)` returns error and does not do anything
         assert!(context.reply_push(&[1]).is_err());
         assert_eq!(
-            context.state.borrow().reply.as_ref().unwrap().payload,
-            vec![1, 2, 3, 0, 0].into()
+            context.state.borrow().reply.as_ref().unwrap().payload(),
+            vec![1, 2, 3, 0, 0]
         );
 
         // Checking that repeated call `reply_commit(...)` returns error and does not
@@ -869,12 +859,8 @@ mod tests {
         assert!(context.send_push(expected_handle, &[9]).is_ok());
 
         // Creating an outgoing packet to commit sending by parts
-        let commit_packet = OutgoingPacket::new(
-            ProgramId::from(OUTGOING_MESSAGE_DEST + 1),
-            Payload::default(),
-            0,
-            0,
-        );
+        let commit_packet =
+            OutgoingPacket::default().with_dest(ProgramId::from(OUTGOING_MESSAGE_DEST + 1));
 
         // Checking if commit is successful
         assert!(context.send_commit(expected_handle, commit_packet).is_ok());
@@ -906,13 +892,13 @@ mod tests {
         // Checking that reply message not lost and matches our initial
         assert!(context.state.borrow().reply.is_some());
         assert_eq!(
-            context.state.borrow().reply.as_ref().unwrap().payload.0,
+            context.state.borrow().reply.as_ref().unwrap().payload(),
             vec![1, 2, 3, 0, 0]
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or commited)
         let expected_result = context.into_state();
         assert_eq!(expected_result.outgoing.len(), 1);
-        assert_eq!(expected_result.outgoing[0].payload.0, vec![5, 7, 9]);
+        assert_eq!(expected_result.outgoing[0].payload(), vec![5, 7, 9]);
     }
 }

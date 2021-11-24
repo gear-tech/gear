@@ -100,12 +100,9 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                     let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
                     let payload = funcs::get_vec(ext, payload_ptr, payload_len);
                     let value = funcs::get_u128(ext, value_ptr);
-                    let message_id = ext.send(OutgoingPacket::new(
-                        dest,
-                        payload.into(),
-                        gas_limit as _,
-                        value,
-                    ))?;
+                    let message_id = ext.send(
+                        OutgoingPacket::from_parts(payload, gas_limit as _, value).with_dest(dest),
+                    )?;
                     ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
                     Ok(())
                 })
@@ -148,7 +145,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                     let value = funcs::get_u128(ext, value_ptr);
                     let message_id = ext.send_commit(
                         handle_ptr as _,
-                        OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
+                        OutgoingPacket::from_parts(vec![], gas_limit as _, value).with_dest(dest),
                     )?;
                     ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
                     Ok(())
@@ -353,7 +350,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 .with(|ext: &mut E| {
                     let payload = funcs::get_vec(ext, payload_ptr, payload_len);
                     let value = funcs::get_u128(ext, value_ptr);
-                    ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))
+                    ext.reply(ReplyPacket::from_parts(payload, gas_limit as _, value))
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
                 .map_err(|_err| {
@@ -382,12 +379,8 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             ctx.ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
                     let value = funcs::get_u128(ext, value_ptr);
-                    let message_id = ext.reply_commit(ReplyPacket::new(
-                        0,
-                        vec![].into(),
-                        gas_limit as _,
-                        value,
-                    ))?;
+                    let message_id =
+                        ext.reply_commit(ReplyPacket::from_parts(vec![], gas_limit as _, value))?;
                     ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
                     Ok(())
                 })

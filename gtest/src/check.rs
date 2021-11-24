@@ -177,16 +177,18 @@ fn check_messages(
                                         .into_json(),
                                 );
 
-                                msg.payload = MetaData::CodecBytes(msg.payload.clone().into_raw())
-                                    .convert(&path, &meta_type)
-                                    .expect("Unable to get bytes")
-                                    .into_bytes()
-                                    .into();
+                                let payload: Vec<_> = msg.drain_payload().collect();
+                                msg.set_payload(
+                                    MetaData::CodecBytes(payload)
+                                        .convert(&path, &meta_type)
+                                        .expect("Unable to get bytes")
+                                        .into_bytes(),
+                                );
                             };
 
-                            !payload.equals(msg.payload.as_ref())
+                            !payload.equals(msg.payload())
                         }
-                        _ => !payload.equals(msg.payload.as_ref()),
+                        _ => !payload.equals(msg.payload()),
                     })
                     .unwrap_or(false)
                 {
@@ -197,29 +199,29 @@ fn check_messages(
                             .expect("Checked above.")
                             .clone()
                             .into_raw(),
-                        msg.payload.clone().into_raw(),
+                        msg.payload().to_vec(),
                     ))
                 }
 
                 match_or_else(
                     Some(exp.destination.to_program_id()),
-                    msg.dest,
+                    msg.dest(),
                     |expected, actual| {
                         errors.push(MessagesError::destination(position, expected, actual))
                     },
                 );
 
-                match_or_else(exp.gas_limit, msg.gas_limit, |expected, actual| {
+                match_or_else(exp.gas_limit, msg.gas_limit(), |expected, actual| {
                     errors.push(MessagesError::gas_limit(position, expected, actual))
                 });
 
-                match_or_else(exp.value, msg.value, |expected, actual| {
+                match_or_else(exp.value, msg.value(), |expected, actual| {
                     errors.push(MessagesError::value(position, expected, actual))
                 });
 
                 match_or_else(
                     exp.exit_code,
-                    msg.reply.map(|(_, exit_code)| exit_code).unwrap_or(0),
+                    msg.reply().map(|(_, exit_code)| exit_code).unwrap_or(0),
                     |expected, actual| {
                         errors.push(MessagesError::exit_code(position, expected, actual))
                     },

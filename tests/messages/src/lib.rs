@@ -142,7 +142,7 @@ mod tests {
             .log
             .get()
             .iter()
-            .any(|log| log.payload.as_ref() == &expected_payload))
+            .any(|log| log.payload() == &expected_payload))
     }
 
     #[test]

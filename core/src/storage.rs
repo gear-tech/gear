@@ -293,8 +293,6 @@ mod tests {
     #[test]
     /// Test that InMemoryMessageQueue works correctly
     fn message_queue_interaction() {
-        use crate::message::Payload;
-
         // Initialization of empty InMemoryMessageQueue
         let mut message_queue = InMemoryMessageQueue::new();
 
@@ -303,20 +301,8 @@ mod tests {
 
         // Addition of multiple messages
         message_queue.queue_many(vec![
-            Message::new_system(
-                0.into(),
-                ProgramId::from(1),
-                Payload::from(vec![1]),
-                128,
-                512,
-            ),
-            Message::new_system(
-                1.into(),
-                ProgramId::from(2),
-                Payload::from(vec![2]),
-                128,
-                1024,
-            ),
+            Message::from_parts(0.into(), vec![1], 128, 512).with_dest(ProgramId::from(1)),
+            Message::from_parts(1.into(), vec![2], 128, 1024).with_dest(ProgramId::from(2)),
         ]);
 
         // Сhecking that the first message in queue is the one that we added first
@@ -343,7 +329,8 @@ mod tests {
         // Сhecking that log is empty.
         assert!(storage.log.get().is_empty());
 
-        let message = Message::new_system(0.into(), ProgramId::from(1), vec![1].into(), 128, 512);
+        let message =
+            Message::from_parts(0.into(), vec![1], 128, 512).with_dest(ProgramId::from(1));
 
         storage.log.put(message.clone());
 

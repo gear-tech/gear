@@ -23,18 +23,16 @@ pub mod ext;
 use codec::{Decode, Encode};
 use sp_core::H256;
 
-use gear_common::native;
+use gear_common::{native, FromHashId};
 use gear_core::{
-    message::{Message, MessageId},
+    message::{InnerMessage, Message, MessageId},
     program::ProgramId,
     storage::Storage,
 };
 
 use gear_backend_common::Environment;
 pub use gear_core_runner::{BlockInfo, Ext};
-use gear_core_runner::{
-    ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult, Runner,
-};
+use gear_core_runner::{ExecutionOutcome, InitializeProgramInfo, RunNextResult, Runner};
 use sp_std::prelude::*;
 
 use crate::ext::*;
@@ -147,7 +145,7 @@ pub fn init_program<E: Environment<Ext>>(
             new_program_id: program_id,
             source_id,
             code: program_code,
-            message: ExtMessage {
+            message: InnerMessage {
                 id: init_message_id,
                 payload: init_payload.clone(),
                 gas_limit,
@@ -159,15 +157,10 @@ pub fn init_program<E: Environment<Ext>>(
             Error::Runner
         })?;
 
-    let init_message = Message {
-        id: init_message_id,
-        source: source_id,
-        dest: program_id,
-        payload: init_payload.into(),
-        gas_limit,
-        value,
-        reply: None,
-    };
+    let init_message = Message::from_parts(init_message_id, init_payload, gas_limit, value)
+        .with_source(source_id)
+        .with_dest(program_id);
+
     let mut result = RunNextResult::from_single(init_message, run_result);
     process_wait_list(&mut result);
 
@@ -189,16 +182,12 @@ pub fn gas_spent<E: Environment<Ext>>(
 ) -> Result<u64, Error> {
     let mut runner = ExtRunner::<E>::default();
 
-    runner.queue_message(MessageDispatch {
-        source_id: ProgramId::from(1),
-        destination_id: ProgramId::from_slice(&program_id[..]),
-        data: ExtMessage {
-            id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
-            gas_limit: u64::MAX,
-            payload,
-            value,
-        },
-    });
+    let msg_id = MessageId::from_hash_id(&gear_common::next_message_id(&payload));
+    runner.queue_message(
+        Message::from_parts(msg_id, payload, u64::MAX, value)
+            .with_source(ProgramId::from(1))
+            .with_dest(ProgramId::from_hash_id(&program_id)),
+    );
 
     let mut total_gas_spent = 0;
 
@@ -227,8 +216,8 @@ pub fn gas_spent<E: Environment<Ext>>(
 fn process_wait_list(result: &mut RunNextResult) {
     let wait_list = &mut result.wait_list;
     while let Some(msg) = wait_list.pop() {
-        let actor_id = msg.dest;
-        let msg_id = msg.id;
+        let actor_id = msg.dest();
+        let msg_id = msg.id();
         native::insert_waiting_message(actor_id, msg_id, msg);
     }
 
@@ -240,11 +229,11 @@ fn process_wait_list(result: &mut RunNextResult) {
                 // TODO: issue #323
                 log::debug!(
                     "Gas limit ({}) after wake (+{}) exceeded u64::max() and will be burned",
-                    msg.gas_limit,
+                    msg.gas_limit(),
                     gas
                 );
             }
-            msg.gas_limit = msg.gas_limit.saturating_add(gas);
+            msg.set_gas_limit(msg.gas_limit().saturating_add(gas));
             native::queue_message(msg);
         }
     }

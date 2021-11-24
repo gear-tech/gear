@@ -19,11 +19,11 @@
 use codec::{Decode, Encode, Error as CodecError};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::storage::InMemoryStorage;
-use gear_core::{message::MessageId, program::ProgramId};
-use gear_core_runner::{
-    Config, ExecutionOutcome, Ext, ExtMessage, InMemoryRunner, InitializeProgramInfo,
-    MessageDispatch,
+use gear_core::{
+    message::{InnerMessage, Message, MessageId},
+    program::ProgramId,
 };
+use gear_core_runner::{Config, ExecutionOutcome, Ext, InMemoryRunner, InitializeProgramInfo};
 use std::collections::{BTreeMap, HashSet};
 
 pub type InMemoryWasmRunner = InMemoryRunner<WasmtimeEnvironment<Ext>>;
@@ -57,8 +57,8 @@ impl InitProgram {
 
         let message = self
             .message
-            .map(|msg| msg.into_ext(context))
-            .unwrap_or_else(|| MessageBuilder::from(()).into_ext(context));
+            .map(|msg| msg.into_inner(context))
+            .unwrap_or_else(|| MessageBuilder::from(()).into_inner(context));
 
         InitializeProgramInfo {
             new_program_id: self.program_id.unwrap_or_else(|| context.next_program_id()),
@@ -111,9 +111,9 @@ impl MessageBuilder {
         }
     }
 
-    fn into_ext(self, context: &mut RunnerContext) -> ExtMessage {
+    fn into_inner(self, context: &mut RunnerContext) -> InnerMessage {
         self.id.map(|id| context.used_message_ids.insert(id));
-        ExtMessage {
+        InnerMessage {
             id: self.id.unwrap_or_else(|| context.next_message_id()),
             payload: self.payload,
             gas_limit: self.gas_limit.unwrap_or(u64::MAX),
@@ -150,12 +150,10 @@ impl MessageDispatchBuilder {
         self
     }
 
-    fn into_message_dispatch(self, runner: &mut RunnerContext) -> MessageDispatch {
-        MessageDispatch {
-            source_id: self.source.unwrap_or_else(ProgramId::system),
-            destination_id: self.destination.unwrap_or_else(|| 1.into()),
-            data: self.message.into_ext(runner),
-        }
+    fn into_message(self, runner: &mut RunnerContext) -> Message {
+        Message::from_inner(self.message.into_inner(runner))
+            .with_source(self.source.unwrap_or_else(ProgramId::system))
+            .with_dest(self.destination.unwrap_or_else(|| 1.into()))
     }
 }
 
@@ -291,11 +289,11 @@ impl RunnerContext {
         Msg: Into<MessageDispatchBuilder>,
         D: Decode,
     {
-        let message_dispatch = message.into().into_message_dispatch(self);
-        let message_id = message_dispatch.data.id;
+        let message = message.into().into_message(self);
+        let message_id = message.id();
 
         let runner = self.runner();
-        runner.queue_message(message_dispatch);
+        runner.queue_message(message);
 
         self.run();
         self.get_response_to(message_id)
@@ -306,13 +304,13 @@ impl RunnerContext {
         Msg: Into<MessageDispatchBuilder>,
         D: Decode,
     {
-        let message_dispatch = message.into().into_message_dispatch(self);
-        let message_id = message_dispatch.data.id;
-        let program_id = message_dispatch.source_id;
+        let message = message.into().into_message(self);
+        let message_id = message.id();
+        let program_id = message.source();
 
         let runner = self.runner();
 
-        runner.queue_message(message_dispatch);
+        runner.queue_message(message);
 
         let mut result = loop {
             let result = runner.run_next(u64::MAX);
@@ -365,8 +363,8 @@ impl RunnerContext {
         let mut message_ids: Vec<MessageId> = Vec::new();
 
         for request in requests {
-            let request = request.into().into_message_dispatch(self);
-            let message_id = request.data.id;
+            let request = request.into().into_message(self);
+            let message_id = request.id();
 
             message_ids.push(message_id);
             self.runner().queue_message(request);
@@ -402,16 +400,16 @@ impl RunnerContext {
             .log
             .get()
             .iter()
-            .find(|message| message.reply.map(|(to, _)| to == id).unwrap_or(false))
+            .find(|message| message.reply().map(|(to, _)| to == id).unwrap_or(false))
             .map(|message| {
                 let (_, exit_code) = message
-                    .reply
+                    .reply()
                     .expect("messages that are not replies get filtered above");
 
                 if exit_code != 0 {
                     Err(Error::Panic)
                 } else {
-                    D::decode(&mut message.payload.as_ref()).map_err(Error::Decode)
+                    D::decode(&mut message.payload()).map_err(Error::Decode)
                 }
             })
     }
@@ -474,7 +472,7 @@ impl Default for RunnerContext {
     }
 }
 
-type WaitList = BTreeMap<(ProgramId, MessageId), MessageDispatch>;
+type WaitList = BTreeMap<(ProgramId, MessageId), Message>;
 enum RunnerState {
     Runner(InMemoryWasmRunner),
     Storage(InMemoryStorage, Config, WaitList),
