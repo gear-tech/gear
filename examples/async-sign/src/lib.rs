@@ -1,7 +1,7 @@
 #![no_std]
 
 use codec::{Decode, Encode};
-use gstd::{debug, msg, prelude::*, ActorId};
+use gstd::{msg, prelude::*, ActorId};
 use scale_info::TypeInfo;
 use sp_core::{
     crypto::UncheckedFrom,
@@ -47,7 +47,6 @@ pub unsafe extern "C" fn init() {
 #[gstd::async_main]
 async fn main() {
     let message = msg::load_bytes();
-    debug!("message = {:?}", message);
 
     let request = SignRequest { message };
 
