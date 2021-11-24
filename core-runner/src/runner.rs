@@ -533,7 +533,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     ///
     /// # Errors
     /// Function returns an error in several situations:
-    /// 1. Creating, setting and resetting a [Program](todo-ref) ended up with an error.
+    /// 1. Creating, setting and resetting a [Program](../..gear_core/program/struct.Program.html) ended up with an error.
     /// 2. If needed static pages amount is more then the maximum set in the runner config, function returns with an error.
     /// 3. If code instrumentation with gas instructions ended up with an error.
     pub fn init_program(
@@ -733,15 +733,16 @@ pub struct RunResult {
 /// The function is needed to abstract common procedures of different program function calls.
 ///
 /// Actual function run is performed in the virtual machine (VM). Programs, which are run in the VM, import functions from some environment
-/// that Gear provides. These functions (so called sys-calls), are provided by the [backend](todo-ref-sandbox) which implements trait [Environment](todo-ref).
+/// that Gear provides. These functions (so called sys-calls), are provided by sandbox backend or wasmtime backend (see core-backend crates)
+/// which implements trait [Environment](../../gear_backend_common/trait.Environment.html).
 /// This trait provides us an ability to setup all the needed settings for the run and actually run the desired function, providing program (wasm module) with
 /// sys-calls.
-/// A crucial dependency for the actual run in the VM is [Ext](todo-ref), which is created in the function's body.
+/// A crucial dependency for the actual run in the VM is `Ext`, which is created in the function's body.
 ///
 /// By the end of the run all the side effects (changes in memory, newly generated messages) are handled.
 ///
-/// The function doesn't return an error, although the run can end up with a [Trap](todo-ref). However,
-/// in the [outcome](todo-ref) field we state, that the trap occurred. So the trap occurres in several situations:
+/// The function doesn't return an error, although the run can end up with a trap. However,
+/// in the `RunResult.outcome` field we state, that the trap occurred. So the trap occurs in several situations:
 /// 1. Gas charge for initial or loaded pages failed;
 /// 2. There weren't enough gas for future memory grow;
 /// 3. Program function execution ended up with an error.

@@ -149,8 +149,9 @@ fn check_messages(
                     .as_mut()
                     .map(|payload| match payload {
                         PayloadVariant::Custom(_) => {
-                            if let Some(&(path, prog_id)) =
-                                progs_n_paths.iter().find(|(_, prog_id)| source_n_dest.contains(prog_id))
+                            if let Some(&(path, prog_id)) = progs_n_paths
+                                .iter()
+                                .find(|(_, prog_id)| source_n_dest.contains(prog_id))
                             {
                                 let is_outgoing = prog_id == source_n_dest[0];
 
@@ -354,7 +355,7 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 
 /// Runs tests defined in `files`.
 ///
-/// To understand how tests are structured see [sample](todo-ref-module) module.
+/// To understand how tests are structured see [sample](../sample/index.html) module.
 /// For each fixture in the test file from `files` the function setups (initializes) it and then performs all the checks
 /// by first running messages defined in the fixture section and then checking (if required) message state, allocations and memory.
 pub fn check_main<SC, F>(

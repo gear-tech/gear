@@ -87,8 +87,8 @@ pub fn call_node(script_path: PathBuf, args: Vec<&str>) -> Vec<u8> {
 /// Helper type which is used as a store for payload in two different formats, which are
 /// JSON format and in SCALE codec format.
 ///
-/// [CodecBytes](todo-ref) is a variant which stores encoded message payload.
-/// [Json](todo-ref) stores decoded message payload as a JSON string.
+/// [CodecBytes](enum.MetaData.html#variant.CodecBytes) is a variant which stores encoded message payload.
+/// [Json](enum.MetaData.html#variant.Json) stores decoded message payload as a JSON string.
 #[derive(Clone)]
 pub enum MetaData {
     CodecBytes(Vec<u8>),
@@ -114,8 +114,8 @@ impl MetaData {
 
     /// Encodes or decodes metadata.
     ///
-    /// If `Self` stores decoded data, then the function will encode that data to SCALE codec bytes, returning [CodecBytes](todo-ref).
-    /// If `Self` stores encoded data, then the function will decode that data to JSON string, returning [Json](todo-ref).
+    /// If `Self` stores decoded data, then the function will encode that data to SCALE codec bytes, returning [CodecBytes](enum.MetaData.html#variant.CodecBytes).
+    /// If `Self` stores encoded data, then the function will decode that data to JSON string, returning [Json](enum.MetaData.html#variant.Json).
     pub fn convert(self, meta_wasm: &str, meta_type: &MetaType) -> Result<Self, String> {
         let mut gear_path = std::env::current_dir().expect("Unable to get current dir");
         while !gear_path.ends_with("gear") {
