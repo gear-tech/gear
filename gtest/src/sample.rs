@@ -50,7 +50,7 @@ fn de_bytes<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Er
 /// In test nested structure *program* is one the highest fields. The other one is *fixture*.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Program {
-    /// Path to programs wasm blob.
+    /// Path to program's wasm blob.
     pub path: String,
     /// Program's id.
     #[serde(deserialize_with = "address::deserialize")]
@@ -69,13 +69,23 @@ pub struct Program {
     pub init_value: Option<u128>,
 }
 
+/// Expected data after running messages, defined in the fixture.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
+    /// Step number.
+    ///
+    /// By defining the field we control how many messaged does the test runner actually process.
+    /// So, we can perform test checks after different processing steps and look into interim state.
     pub step: Option<usize>,
+    /// Expected messages in the message queue.
     pub messages: Option<Vec<Message>>,
+    /// Expected allocations after program run.
     pub allocations: Option<Vec<Allocations>>,
+    /// Expected data to be in the memory.
     pub memory: Option<Vec<BytesAt>>,
+    /// Expected messages in the log.
     pub log: Option<Vec<Message>>,
+    /// Flag, which points that errors are allowed. Could be used to check traps.
     #[serde(rename = "allowError")]
     pub allow_error: Option<bool>,
 }
@@ -195,7 +205,6 @@ pub struct Message {
 /// Main model describing test structure
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
-    pub title: String, // todo[sab] tmp - remove
     /// Programs and related data used for tests
     pub programs: Vec<Program>,
     /// A set of messages and expected results of running them in the context of defined [programs](todo-field-ref).

@@ -16,9 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Module contains all the needed types and functionality for an easy inference of structures of messages sent to or
+//! received from *init* and *handle* functions..
+//!
+//! Information about message structure makes it easier for an [idea](https://idea.gear-tech.io/) user to send
+//! messages to smart contracts. This modules provides an internal functionality for deducting what fields
+//! must be set for a message to be successfully sent to or received from *init* or *handle* functions.
+
 use std::path::PathBuf;
 use std::process::Command;
 
+/// Helper type to perform correct encode/decode of custom types sent to/received from program functions.
+///
+/// Developer can define his own types, that he expects to be received from function caller, in the smart contract code.
+/// However, what actually is sent to the smart contract is a byte buffer. This type tells additional information to encoder/decoder
+/// about what is the structure of the sent/received message. All in all, we need this meta type information to infer JSON definitions
+/// of the message types.
 pub enum MetaType {
     InitInput,
     InitOutput,
@@ -50,6 +63,8 @@ impl ToString for MetaType {
     }
 }
 
+/// Actually runs a node.js script, which encodes JSON data which is aimed to be sent to function as input or
+/// decodes output bytes into JSON.
 pub fn call_node(script_path: PathBuf, args: Vec<&str>) -> Vec<u8> {
     let script_path = script_path
         .to_str()
@@ -69,6 +84,11 @@ pub fn call_node(script_path: PathBuf, args: Vec<&str>) -> Vec<u8> {
     output.stdout
 }
 
+/// Helper type which is used as a store for payload in two different formats, which are
+/// JSON format and in SCALE codec format.
+///
+/// [CodecBytes](todo-ref) is a variant which stores encoded message payload.
+/// [Json](todo-ref) stores decoded message payload as a JSON string.
 #[derive(Clone)]
 pub enum MetaData {
     CodecBytes(Vec<u8>),
@@ -76,6 +96,7 @@ pub enum MetaData {
 }
 
 impl MetaData {
+    /// Converts `Self` to bytes vector.
     pub fn into_bytes(self) -> Vec<u8> {
         match self {
             Self::CodecBytes(b) => b,
@@ -83,6 +104,7 @@ impl MetaData {
         }
     }
 
+    /// Converts `Self` to string.
     pub fn into_json(self) -> String {
         match self {
             Self::CodecBytes(b) => String::from_utf8(b).expect("Unable to convert to string"),
@@ -90,6 +112,10 @@ impl MetaData {
         }
     }
 
+    /// Encodes or decodes metadata.
+    ///
+    /// If `Self` stores decoded data, then the function will encode that data to SCALE codec bytes, returning [CodecBytes](todo-ref).
+    /// If `Self` stores encoded data, then the function will decode that data to JSON string, returning [Json](todo-ref).
     pub fn convert(self, meta_wasm: &str, meta_type: &MetaType) -> Result<Self, String> {
         let mut gear_path = std::env::current_dir().expect("Unable to get current dir");
         while !gear_path.ends_with("gear") {

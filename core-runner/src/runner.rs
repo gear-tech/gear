@@ -517,10 +517,25 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         RunningContext::new(&self.config, allocations)
     }
 
-    /// Initialize new program.
+    /// Initialize new program This includes putting this program in the storage and dispatching
+    /// initialization message for it.
     ///
-    /// This includes putting this program in the storage and dispatching
-    /// initializationg message for it.
+    /// Initialization process looks as following:
+    /// - The storage is checked for existence of the smart contract with an `initialization.new_program_id` address.
+    /// If there is such entry, we reset it with the code from `initialization.code`. If there weren't any entries, we set
+    /// a new program to the program storage with empty memory pages data.
+    /// - The run of the *init* function is performed.
+    /// - The function run can end up with newly created messages, which are added to the storage message queue
+    /// or log.
+    /// - Running the function in the program can mutate it's state. All the state mutations are at first handled
+    /// in memory. If the function run was successful then program storage will be updated with the program with
+    /// updated pages data. An update actually can happen while running the *init* function.
+    ///
+    /// # Errors
+    /// Function returns an error in several situations:
+    /// 1. Creating, setting and resetting a [Program](todo-ref) ended up with an error.
+    /// 2. If needed static pages amount is more then the maximum set in the runner config, function returns with an error.
+    /// 3. If code instrumentation with gas instructions ended up with an error.
     pub fn init_program(
         &mut self,
         initialization: InitializeProgramInfo,
@@ -713,6 +728,23 @@ pub struct RunResult {
     pub outcome: ExecutionOutcome,
 }
 
+/// Performs run of the `entry_point` function in the `program`.
+///
+/// The function is needed to abstract common procedures of different program function calls.
+///
+/// Actual function run is performed in the virtual machine (VM). Programs, which are run in the VM, import functions from some environment
+/// that Gear provides. These functions (so called sys-calls), are provided by the [backend](todo-ref-sandbox) which implements trait [Environment](todo-ref).
+/// This trait provides us an ability to setup all the needed settings for the run and actually run the desired function, providing program (wasm module) with
+/// sys-calls.
+/// A crucial dependency for the actual run in the VM is [Ext](todo-ref), which is created in the function's body.
+///
+/// By the end of the run all the side effects (changes in memory, newly generated messages) are handled.
+///
+/// The function doesn't return an error, although the run can end up with a [Trap](todo-ref). However,
+/// in the [outcome](todo-ref) field we state, that the trap occurred. So the trap occurres in several situations:
+/// 1. Gas charge for initial or loaded pages failed;
+/// 2. There weren't enough gas for future memory grow;
+/// 3. Program function execution ended up with an error.
 #[allow(clippy::too_many_arguments)]
 fn run<E: Environment<Ext>>(
     env: &mut E,
@@ -764,6 +796,8 @@ fn run<E: Environment<Ext>>(
     if let Some(max_page) = max_page {
         let max_page_num = *max_page.0;
         let mem_size = memory.size();
+        // If we charge for `max_page_num == memsize`, then we perform a double charge,
+        // because gas was charged previously. todo - check that by running tests
         if max_page_num >= mem_size {
             let amount =
                 context.config.mem_grow_cost * ((max_page_num - mem_size).raw() as u64 + 1);
@@ -797,6 +831,10 @@ fn run<E: Environment<Ext>>(
         block_info,
     };
 
+    // Actually runs the `entry_point` function in `binary`. Because of the fact
+    // that contracts can use host functions, that are exported to the module (i.e. important by module),
+    // these functions can need some data to operate on. This data along with some internal procedures
+    // implementing host functions are provided with `ext`.
     let (res, mut ext) = env.setup_and_run(
         ext,
         binary,
@@ -823,6 +861,12 @@ fn run<E: Environment<Ext>>(
             ExecutionOutcome::Trap(explanation)
         }
     };
+
+    // Handling side effects after running program, which requires:
+    // 1. setting newest memory pages for a program
+    // 2. Gathering newly generated messages ("outgoing" and reply messages). They are later
+    // set to the storage.
+    // 3. Transferring remain gas after current run to woken messages.
 
     // get allocated pages
     for page in ext.memory_context.allocations().clone() {

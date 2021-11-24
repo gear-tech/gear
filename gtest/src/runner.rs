@@ -117,6 +117,10 @@ impl CollectState for ExtStorage {
     }
 }
 
+/// Initializes programs defined in `test.programs` and queues all the messages from `test.fixtures[fixture_no]`.
+///
+/// Program initialization and queueing messages is performed by [Runner](todo-ref), which uses `storage` as a storage
+/// manager. This storage is actually returned to the function caller to be later used to run queued messages.
 pub fn init_fixture<SC: StorageCarrier>(
     storage: Storage<SC::MQ, SC::PS>,
     test: &Test,
@@ -130,7 +134,8 @@ pub fn init_fixture<SC: StorageCarrier>(
     );
     let mut nonce = 0;
     for program in test.programs.iter() {
-        let code = std::fs::read(program.path.clone())?;
+        let program_path = program.path.clone();
+        let code = std::fs::read(&program_path)?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
@@ -143,15 +148,7 @@ pub fn init_fixture<SC: StorageCarrier>(
 
                     let json = MetaData::Json(payload);
 
-                    let wasm = test
-                        .programs
-                        .iter()
-                        .filter(|p| p.id == program.id)
-                        .last()
-                        .expect("Program not found")
-                        .path
-                        .clone()
-                        .replace(".wasm", ".meta.wasm");
+                    let wasm = program_path.replace(".wasm", ".meta.wasm");
 
                     json.convert(&wasm, &meta_type)
                         .expect("Unable to get bytes")
@@ -241,6 +238,13 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
+/// Runs queued messages using `runner`.
+///
+/// Param `steps` is needed to control an amount of message processes. This is actually needed
+/// to check the interim state during tests. For example, a user could want to check the state
+/// after processing 2 out of 10 messages in the message queue.
+///
+/// If `steps` is `None`, then all the messages in the queue will be processed.
 pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
     mut runner: Runner<SC, E>,
     messages: Vec<Message>,
