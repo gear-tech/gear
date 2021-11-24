@@ -20,6 +20,7 @@
 
 mod futures;
 mod signals;
+mod waker;
 
 pub use self::futures::message_loop;
 
