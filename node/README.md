@@ -71,7 +71,7 @@ How to program your gear node, see `EXAMPLES.md`
 Purge any existing dev chain state:
 
 ```bash
-./target/release/gear-nnode purge-chain --dev
+./target/release/gear-node purge-chain --dev
 ```
 
 Start a dev chain with detailed logging:
