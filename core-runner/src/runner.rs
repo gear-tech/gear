@@ -731,6 +731,8 @@ fn run<E: Environment<Ext>>(
         nonce: program.message_nonce(),
     };
 
+    let (left_before, burned_before) = (gas_counter.left(), gas_counter.burned());
+
     // Charge gas for initial or loaded pages.
     match entry_point {
         EntryPoint::Init => {
@@ -865,6 +867,16 @@ fn run<E: Environment<Ext>>(
         gas_left -= gas_to_transfer;
         *gas_limit = gas_to_transfer;
     });
+
+    let (left_after, burned_after) = (ext.gas_counter.left(), ext.gas_counter.burned());
+    assert!(left_before >= left_after);
+    assert!(burned_after >= burned_before);
+    log::debug!(
+        "({}) Gas burned: {}; Gas used {}",
+        program.id(),
+        burned_after - burned_before,
+        left_before - left_after
+    );
 
     RunResult {
         messages,

@@ -7,7 +7,7 @@ static mut DEST_0: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_1: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_2: ActorId = ActorId::new([0u8; 32]);
 
-const GAS_LIMIT: u64 = 5_000_000_000;
+const GAS_LIMIT: u64 = 50_000_000;
 
 gstd::metadata! {
     title: "demo async",
