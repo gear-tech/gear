@@ -149,10 +149,11 @@ fn check_messages(
                     .as_mut()
                     .map(|payload| match payload {
                         PayloadVariant::Custom(_) => {
-                            if let Some(v) =
-                                progs_n_paths.iter().find(|v| source_n_dest.contains(&v.1))
+                            if let Some(&(path, prog_id)) = progs_n_paths
+                                .iter()
+                                .find(|(_, prog_id)| source_n_dest.contains(prog_id))
                             {
-                                let is_outgoing = v.1 == source_n_dest[0];
+                                let is_outgoing = prog_id == source_n_dest[0];
 
                                 let meta_type = match (is_init, is_outgoing) {
                                     (true, true) => MetaType::InitOutput,
@@ -161,7 +162,7 @@ fn check_messages(
                                     (false, false) => MetaType::HandleInput,
                                 };
 
-                                let path: String = v.0.replace(".wasm", ".meta.wasm");
+                                let path: String = path.replace(".wasm", ".meta.wasm");
 
                                 let json =
                                     MetaData::Json(String::from_utf8(payload.to_bytes()).unwrap());
@@ -352,6 +353,11 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
     Ok(u)
 }
 
+/// Runs tests defined in `files`.
+///
+/// To understand how tests are structured see [sample](../sample/index.html) module.
+/// For each fixture in the test file from `files` the function setups (initializes) it and then performs all the checks
+/// by first running messages defined in the fixture section and then checking (if required) message state, allocations and memory.
 pub fn check_main<SC, F>(
     files: Vec<std::path::PathBuf>,
     skip_messages: bool,
