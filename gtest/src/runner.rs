@@ -24,7 +24,7 @@ use gear_core::{
     program::{Program, ProgramId},
     storage::{InMemoryStorage, Storage, StorageCarrier},
 };
-use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, MessageDispatch, Runner};
+use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
 use gear_node_runner::{Ext, ExtStorage};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
@@ -33,6 +33,8 @@ use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
+
+type WasmRunner<SC> = Runner<SC, gear_backend_wasmtime::WasmtimeEnvironment<Ext>>;
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
@@ -119,7 +121,7 @@ pub fn init_fixture<SC: StorageCarrier>(
     storage: Storage<SC::MQ, SC::PS>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<Runner<SC, gear_backend_wasmtime::WasmtimeEnvironment<Ext>>> {
+) -> anyhow::Result<(WasmRunner<SC>, Vec<Message>)> {
     let mut runner = Runner::new(
         &Config::default(),
         storage,
@@ -178,6 +180,7 @@ pub fn init_fixture<SC: StorageCarrier>(
     }
 
     let fixture = &test.fixtures[fixture_no];
+    let mut messages = Vec::new();
     for message in fixture.messages.iter() {
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => {
@@ -216,21 +219,20 @@ pub fn init_fixture<SC: StorageCarrier>(
         if let Some(source) = &message.source {
             message_source = source.to_program_id();
         }
-        runner.queue_message(MessageDispatch {
-            source_id: message_source,
-            destination_id: message.destination.to_program_id(),
-            data: ExtMessage {
-                id: nonce.into(),
-                payload,
-                gas_limit: message.gas_limit.unwrap_or(u64::MAX),
-                value: message.value.unwrap_or_default() as _,
-            },
+        messages.push(Message {
+            id: nonce.into(),
+            source: message_source,
+            dest: message.destination.to_program_id(),
+            payload: payload.into(),
+            gas_limit: message.gas_limit.unwrap_or(u64::MAX),
+            value: message.value.unwrap_or_default() as _,
+            reply: None,
         });
 
         nonce += 1;
     }
 
-    Ok(runner)
+    Ok((runner, messages))
 }
 
 pub struct FinalState {
@@ -241,11 +243,13 @@ pub struct FinalState {
 
 pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
     mut runner: Runner<SC, E>,
-    steps: Option<u64>,
+    messages: Vec<Message>,
+    steps: Option<usize>,
 ) -> (FinalState, anyhow::Result<()>)
 where
     Storage<SC::MQ, SC::PS>: CollectState,
 {
+    let mut messages = messages;
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
@@ -255,29 +259,48 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0);
             runner.set_block_timestamp(timestamp as _);
-            let mut run_result = runner.run_next(u64::MAX);
-            runner.process_wait_list(&mut run_result);
+            if step_no < messages.len() {
+                let mut run_result = runner.run_next(messages[step_no].clone(), u64::MAX);
+                runner.process_wait_list(&mut run_result);
 
-            log::info!("step: {}", step_no + 1);
+                log::info!("step: {}", step_no + 1);
 
-            if run_result.any_traps() && step_no + 1 == steps {
-                result = Err(anyhow::anyhow!("Runner resulted in a trap"));
+                if run_result.any_traps() && step_no + 1 == steps {
+                    result = Err(anyhow::anyhow!("Runner resulted in a trap"));
+                }
+
+                {
+                    let messages = &mut messages;
+                    messages.append(&mut run_result.message_queue);
+                }
             }
         }
+        if messages.len() >= steps {
+            messages.drain(0..steps);
+        }
     } else {
-        loop {
-            let mut run_result = runner.run_next(u64::MAX);
+        let mut step_no = 0;
+        while step_no < messages.len() {
+            let mut run_result = runner.run_next(messages[step_no].clone(), u64::MAX);
             runner.process_wait_list(&mut run_result);
 
-            if run_result.handled == 0 {
-                break;
+            {
+                let messages = &mut messages;
+                messages.append(&mut run_result.message_queue);
             }
-
-            log::info!("handled: {}", run_result.handled);
+            step_no += 1;
+        }
+        if messages.len() >= step_no {
+            messages.drain(0..step_no);
         }
     }
 
+    let log = runner.log().get().to_vec();
     let storage = runner.complete();
 
-    (storage.collect(), result)
+    let mut final_state = storage.collect();
+    final_state.messages = messages;
+    final_state.log = log;
+
+    (final_state, result)
 }

@@ -392,8 +392,8 @@ where
             for exp in &test.fixtures[fixture_no].expected {
                 let output = match runner::init_fixture::<SC>(storage_factory(), &test, fixture_no)
                 {
-                    Ok(initialized_fixture) => {
-                        let (mut final_state, _result) = runner::run(initialized_fixture, exp.step);
+                    Ok((runner, messages)) => {
+                        let (mut final_state, _result) = runner::run(runner, messages, exp.step);
 
                         let mut errors = Vec::new();
                         if !skip_messages {

@@ -138,9 +138,7 @@ mod tests {
 
         let expected_payload = "SendOnce".encode();
         assert!(runner
-            .storage()
-            .log
-            .get()
+            .log()
             .iter()
             .any(|log| log.payload.as_ref() == &expected_payload))
     }
