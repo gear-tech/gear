@@ -592,7 +592,7 @@ pub struct MessageState {
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
     /// Messages to be waken.
-    pub awakening: Vec<(MessageId, u64)>,
+    pub awakening: Vec<MessageId>,
 }
 
 /// Message context for the currently running program.
@@ -726,11 +726,11 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     }
 
     /// Mark a message to be woken using `waker_id`.
-    pub fn wake(&self, waker_id: MessageId, gas_limit: u64) -> Result<(), Error> {
+    pub fn wake(&self, waker_id: MessageId) -> Result<(), Error> {
         self.state
             .borrow_mut()
             .awakening
-            .push((waker_id, gas_limit));
+            .push(waker_id);
         Ok(())
     }
 

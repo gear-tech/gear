@@ -76,7 +76,7 @@ impl<'a, T> Drop for RwLockReadGuard<'a, T> {
                 *self.lock.locked.get() = None;
 
                 if let Some(message_id) = self.lock.queueu.dequeue() {
-                    crate::exec::wake(message_id, 0);
+                    crate::exec::wake(message_id);
                 }
             }
         }
@@ -120,7 +120,7 @@ impl<'a, T> Drop for RwLockWriteGuard<'a, T> {
         unsafe {
             *self.lock.locked.get() = None;
             if let Some(message_id) = self.lock.queueu.dequeue() {
-                crate::exec::wake(message_id, 0);
+                crate::exec::wake(message_id);
             }
         }
     }

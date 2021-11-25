@@ -67,7 +67,6 @@ impl From<RunNextResult> for ExecutionReport {
             messages,
             prog_id,
             log,
-            gas_left,
             gas_spent,
             outcomes,
             wait_list,
@@ -86,10 +85,7 @@ impl From<RunNextResult> for ExecutionReport {
             messages,
             program_id: H256::from_slice(prog_id.as_slice()),
             log,
-            gas_refunds: gas_left
-                .into_iter()
-                .map(|(program_id, gas_left)| (H256::from_slice(program_id.as_slice()), gas_left))
-                .collect(),
+            gas_refunds: Vec::new(),
             gas_charges: gas_spent
                 .into_iter()
                 .map(|(program_id, gas_left)| (H256::from_slice(program_id.as_slice()), gas_left))

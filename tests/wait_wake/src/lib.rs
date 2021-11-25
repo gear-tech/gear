@@ -33,7 +33,7 @@ mod wasm {
                 unsafe { ECHOES.insert(msg::id(), n) };
                 exec::wait();
             }
-            Request::Wake(id) => exec::wake(MessageId::new(id), exec::gas_available() - 100_000),
+            Request::Wake(id) => exec::wake(MessageId::new(id)),
         }
     }
 

@@ -25,6 +25,6 @@ pub fn wait() -> ! {
     gcore::exec::wait()
 }
 
-pub fn wake(waker_id: MessageId, gas_limit: u64) {
-    gcore::exec::wake(waker_id.into(), gas_limit)
+pub fn wake(waker_id: MessageId) {
+    gcore::exec::wake(waker_id.into())
 }

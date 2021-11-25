@@ -70,7 +70,7 @@ impl WakeSignals {
         if let Some(waker) = &signal.waker {
             waker.wake_by_ref();
         }
-        crate::exec::wake(signal.message_id, crate::exec::gas_available());
+        crate::exec::wake(signal.message_id);
     }
 
     pub fn waits_for(&self, reply_to: MessageId) -> bool {

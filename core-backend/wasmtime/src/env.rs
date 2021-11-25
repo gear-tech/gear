@@ -72,7 +72,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32("gr_source", funcs::source);
         result.add_func_i32("gr_value", funcs::value);
         result.add_func("gr_wait", funcs::wait);
-        result.add_func_i32_i64("gr_wake", funcs::wake);
+        result.add_func_i32("gr_wake", funcs::wake);
 
         result
     }
@@ -205,16 +205,6 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
     fn add_func_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
         F: 'static + Fn(i32, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap2(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i64<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i64) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,

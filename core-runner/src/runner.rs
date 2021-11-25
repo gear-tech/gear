@@ -92,14 +92,14 @@ pub struct RunNextResult {
     pub prog_id: ProgramId,
     /// Execution outcome per each message
     pub outcomes: BTreeMap<MessageId, ExecutionOutcome>,
-    /// Gas that was left.
-    pub gas_left: Vec<(ProgramId, u64)>,
     /// Gas that was spent.
+    ///
+    /// Gas that was burned for computations.
     pub gas_spent: Vec<(ProgramId, u64)>,
     /// List of waiting messages.
     pub wait_list: Vec<Message>,
     /// Messages to be waken.
-    pub awakening: Vec<(MessageId, u64)>,
+    pub awakening: Vec<MessageId>,
 }
 
 impl RunNextResult {
@@ -112,7 +112,6 @@ impl RunNextResult {
     pub fn accrue(&mut self, message_id: MessageId, caller_id: ProgramId, result: RunResult) {
         self.outcomes.insert(message_id, result.outcome);
         // Report caller's left and spent gas
-        self.gas_left.push((caller_id, result.gas_left));
         self.gas_spent.push((caller_id, result.gas_spent));
         self.awakening = result.awakening;
     }
@@ -123,13 +122,8 @@ impl RunNextResult {
         result.prog_id = message.dest;
         let message_id = message.id;
         let source_id = message.source;
-        let mut run_result = run_result;
+        let run_result = run_result;
         if let ExecutionOutcome::Waiting = run_result.outcome {
-            let mut message = message;
-            // Update gas limit according to gas already spent
-            message.gas_limit = run_result.gas_left;
-            // Keep user's balance reserved until message will be really processed
-            run_result.gas_left = 0;
             result.wait_list.push(message);
         }
 
@@ -313,7 +307,14 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             self.block_info,
         );
 
+        let outgoing_messages = context.message_buf.drain(..).collect::<Vec<_>>();
+
         if run_result.outcome.was_trap() && generate_reply_on_trap {
+
+            let gas_spent_for_outgoing: u64 = outgoing_messages.iter().map(|msg| msg.gas_limit).sum();
+            let burned_gas = run_result.gas_spent;
+            let trap_gas = incoming_message.gas_limit() - gas_spent_for_outgoing - burned_gas;
+
             // In case of trap, we generate trap reply message
             let program_id = program.id();
             let nonce = program.fetch_inc_message_nonce();
@@ -323,7 +324,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
                 source: program_id,
                 dest: message_source,
                 payload: vec![].into(),
-                gas_limit: run_result.gas_left,
+                gas_limit: trap_gas,
                 value: 0,
                 reply: Some((next_message_id, EXIT_CODE_PANIC)),
             };
@@ -337,7 +338,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
         let mut result = RunNextResult::from_single(message, run_result);
 
-        for message in context.message_buf.drain(..) {
+        for message in outgoing_messages.into_iter() {
             if self.program_storage.exists(message.dest()) {
                 self.message_queue.push(message);
             } else {
@@ -366,12 +367,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         let msgs: Vec<_> = result
             .awakening
             .iter()
-            .filter_map(|(msg_id, gas)| {
-                self.wait_list.remove(&(prog_id, *msg_id)).map(|mut msg| {
-                    msg.gas_limit = msg.gas_limit.saturating_add(*gas);
-                    msg
-                })
-            })
+            .filter_map(|msg_id| self.wait_list.remove(&(prog_id, *msg_id)))
             .collect();
 
         for msg in msgs {
@@ -633,10 +629,10 @@ pub struct RunResult {
     /// Reply that was received during the run.
     pub reply: Option<ReplyMessage>,
     /// Messages to be woken.
-    pub awakening: Vec<(MessageId, u64)>,
-    /// Gas that was left.
-    pub gas_left: u64,
-    /// Gas that was spent.
+    pub awakening: Vec<MessageId>,
+    /// Gas that was spen.
+    ///
+    /// This actually was is charged for computations/memory costs/etc and will never get refunded.
     pub gas_spent: u64,
     /// Run outcome (trap/success/waiting).
     pub outcome: ExecutionOutcome,
@@ -687,7 +683,6 @@ fn run<E: Environment<Ext>>(
                 == gas::ChargeResult::NotEnough
             {
                 return RunResult {
-                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
                     ..Default::default()
                 };
@@ -698,7 +693,6 @@ fn run<E: Environment<Ext>>(
                 == gas::ChargeResult::NotEnough
             {
                 return RunResult {
-                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
                     ..Default::default()
                 };
@@ -719,7 +713,6 @@ fn run<E: Environment<Ext>>(
             let res = gas_counter.charge(amount);
             if res != gas::ChargeResult::Enough {
                 return RunResult {
-                    gas_left: gas_counter.left(),
                     outcome: ExecutionOutcome::Trap(Some("Not enough gas for grow memory size.")),
                     ..Default::default()
                 };
@@ -796,7 +789,7 @@ fn run<E: Environment<Ext>>(
     let MessageState {
         outgoing,
         reply,
-        mut awakening,
+        awakening,
     } = ext.messages.into_state();
 
     for outgoing_msg in outgoing {
@@ -812,18 +805,7 @@ fn run<E: Environment<Ext>>(
         ));
     }
 
-    let gas_burned = ext.gas_counter.burned();
-    let mut gas_left = ext.gas_counter.left();
-
-    awakening.iter_mut().for_each(|(_, gas_limit)| {
-        let mut gas_to_transfer = *gas_limit;
-        if gas_to_transfer > gas_left {
-            gas_to_transfer = gas_left;
-        }
-        // Transfer current messages's gas to the woken message
-        gas_left -= gas_to_transfer;
-        *gas_limit = gas_to_transfer;
-    });
+    let gas_spent = ext.gas_counter.burned();
 
     let (left_after, burned_after) = (ext.gas_counter.left(), ext.gas_counter.burned());
     assert!(left_before >= left_after);
@@ -839,8 +821,7 @@ fn run<E: Environment<Ext>>(
         messages,
         reply,
         awakening,
-        gas_left,
-        gas_spent: gas_burned,
+        gas_spent,
         outcome,
     }
 }
@@ -1141,7 +1122,6 @@ mod tests {
 
         let source_id = 1001;
         let dest_id = 1;
-        let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
         let mut runner = new_test_builder()
@@ -1179,7 +1159,6 @@ mod tests {
         assert_eq!(msg.source, source_id.into());
         assert_eq!(msg.dest, dest_id.into());
         assert_eq!(msg.payload(), payload);
-        assert!(msg.gas_limit < gas_limit);
     }
 
     #[test]
@@ -1233,10 +1212,7 @@ mod tests {
 
         let result = runner.run_next(message);
         assert_eq!(result.gas_spent.len(), 1);
-        assert_eq!(result.gas_left.len(), 1);
 
-        assert_eq!(result.gas_left[0].0, caller_id);
-        assert!(result.gas_left[0].1 < gas_limit);
 
         let (gas_available, ..) = runner
             .log
@@ -1250,7 +1226,6 @@ mod tests {
             .try_into()
             .expect("slice with incorrect length");
 
-        assert!(u64::from_le_bytes(gas_available) > result.gas_left[0].1);
         assert!(u64::from_le_bytes(gas_available) < gas_limit);
     }
 
