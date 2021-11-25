@@ -32,7 +32,7 @@ use gear_core::{
         MessageState, OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
-    storage::{InMemoryStorage, Log, MessageQueue, ProgramStorage, Storage, StorageCarrier},
+    storage::{InMemoryStorage, Log, ProgramStorage, Storage, StorageCarrier},
 };
 
 use crate::builder::RunnerBuilder;
@@ -172,7 +172,7 @@ impl RunNextResult {
 #[derive(Default)]
 pub struct Runner<SC: StorageCarrier, E: Environment<Ext>> {
     pub(crate) program_storage: SC::PS,
-    pub(crate) message_queue: SC::MQ,
+    pub(crate) message_queue: Vec<Message>,
     pub(crate) log: Log,
     pub(crate) config: Config,
     env: E,
@@ -227,19 +227,6 @@ pub struct MessageDispatch {
     pub data: ExtMessage,
 }
 
-impl MessageDispatch {
-    fn into_message(self) -> Message {
-        Message::new(
-            self.data.id,
-            self.source_id,
-            self.destination_id,
-            self.data.payload.into(),
-            self.data.gas_limit,
-            self.data.value,
-        )
-    }
-}
-
 /// New reply dispatch request.
 ///
 /// Reply is dispatched from some identity to some identity, both should be known in advance.
@@ -258,40 +245,19 @@ pub struct ReplyDispatch {
     pub data: ExtMessage,
 }
 
-impl ReplyDispatch {
-    fn into_message(self) -> Message {
-        Message::new_reply(
-            self.data.id,
-            self.source_id,
-            self.destination_id,
-            self.data.payload.into(),
-            self.data.gas_limit,
-            self.data.value,
-            self.original_message_id,
-            self.original_exit_code,
-        )
-    }
-}
-
 impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// New runner instance.
     ///
     /// Provide configuration, storage.
-    pub fn new(
-        config: &Config,
-        storage: Storage<SC::MQ, SC::PS>,
-        block_info: BlockInfo,
-        env: E,
-    ) -> Self {
+    pub fn new(config: &Config, storage: Storage<SC::PS>, block_info: BlockInfo, env: E) -> Self {
         let Storage {
-            message_queue,
             program_storage,
             log,
         } = storage;
 
         Self {
             program_storage,
-            message_queue,
+            message_queue: Vec::new(),
             log,
             config: config.clone(),
             env,
@@ -310,24 +276,14 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
     pub fn run_next(&mut self, message: Message, max_gas_limit: u64) -> RunNextResult {
-        // TODO: Temporary solution, to be rewritten
-        self.message_queue.queue(message);
+        let gas_limit = message.gas_limit();
+        let message_source = message.source();
+        let message_dest = message.dest();
 
-        let next_message = match self.message_queue.dequeue() {
-            Some(msg) => msg,
-            None => {
-                return RunNextResult::empty();
-            }
-        };
-
-        let gas_limit = next_message.gas_limit();
-        let next_message_source = next_message.source();
-        let next_message_dest = next_message.dest();
-
-        let mut program = match self.program_storage.get(next_message_dest) {
+        let mut program = match self.program_storage.get(message_dest) {
             Some(program) => program,
             None => {
-                self.log.put(next_message);
+                self.log.put(message);
                 return RunNextResult::log();
             }
         };
@@ -339,7 +295,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
                 gas_limit,
                 max_gas_limit
             );
-            self.message_queue.queue(next_message);
+            self.message_queue.push(message);
             return RunNextResult::empty();
         }
 
@@ -358,10 +314,10 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             .collect();
 
         let mut context = self.create_context(allocations);
-        let next_message_id = next_message.id();
+        let next_message_id = message.id();
 
         // We don't generate reply on trap, if we already processing trap message
-        let generate_reply_on_trap = if let Some((_, exit_code)) = next_message.reply() {
+        let generate_reply_on_trap = if let Some((_, exit_code)) = message.reply() {
             // reply case. generate if not a trap message
             exit_code == 0
         } else {
@@ -369,13 +325,13 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             true
         };
 
-        let incoming_message: IncomingMessage = next_message.clone().into();
+        let incoming_message: IncomingMessage = message.clone().into();
         let run_result = run(
             &mut self.env,
             &mut context,
             &instrumeted_code,
             &mut program,
-            if next_message.reply().is_some() {
+            if message.reply().is_some() {
                 EntryPoint::HandleReply
             } else {
                 EntryPoint::Handle
@@ -391,11 +347,11 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             let nonce = program.fetch_inc_message_nonce();
             let trap_message_id = self.next_message_id(program_id, nonce);
 
-            if self.program_storage.exists(next_message_source) {
-                self.message_queue.queue(Message {
+            if self.program_storage.exists(message_source) {
+                self.message_queue.push(Message {
                     id: trap_message_id,
                     source: program_id,
-                    dest: next_message_source,
+                    dest: message_source,
                     payload: vec![].into(),
                     gas_limit: run_result.gas_left,
                     value: 0,
@@ -405,7 +361,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
                 self.log.put(Message {
                     id: trap_message_id,
                     source: program_id,
-                    dest: next_message_source,
+                    dest: message_source,
                     payload: vec![].into(),
                     gas_limit: run_result.gas_left,
                     value: 0,
@@ -414,22 +370,18 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             }
         }
 
-        let mut result = RunNextResult::from_single(next_message, run_result);
+        let mut result = RunNextResult::from_single(message, run_result);
 
         for message in context.message_buf.drain(..) {
             if self.program_storage.exists(message.dest()) {
-                self.message_queue.queue(message);
+                self.message_queue.push(message);
             } else {
                 self.log.put(message);
             }
         }
 
-        // TODO:  Temporary solution, to be rewritten
-        while let Some(message) = self.message_queue.dequeue() {
-            result.message_queue.push(message);
-        }
-
         self.program_storage.set(program);
+        result.message_queue.append(&mut self.message_queue);
 
         result
     }
@@ -468,16 +420,14 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// Drop this runner.
     ///
     /// This will return underlyign storage and memory state.
-    pub fn complete(self) -> Storage<SC::MQ, SC::PS> {
+    pub fn complete(self) -> Storage<SC::PS> {
         let Runner {
             program_storage,
-            message_queue,
             log,
             ..
         } = self;
 
         Storage {
-            message_queue,
             program_storage,
             log,
         }
@@ -592,7 +542,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
         for message in context.message_buf.drain(..) {
             if self.program_storage.exists(message.dest()) {
-                self.message_queue.queue(message);
+                self.message_queue.push(message);
             } else {
                 self.log.put(message);
             }
@@ -610,16 +560,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         };
 
         id_generator.next()
-    }
-
-    /// Queue message for the underlying message queue.
-    pub fn queue_message(&mut self, dispatch: MessageDispatch) {
-        self.message_queue.queue(dispatch.into_message());
-    }
-
-    /// Queue a reply message for the underlying message queue.
-    pub fn queue_reply(&mut self, dispatch: ReplyDispatch) {
-        self.message_queue.queue(dispatch.into_message());
     }
 
     /// Set the block height value.
@@ -1099,7 +1039,7 @@ mod tests {
         assert_eq!(
             runner
                 .message_queue
-                .dequeue()
+                .pop()
                 .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
             Some((b"ok".to_vec(), 1.into(), 1.into()))
         );
@@ -1184,7 +1124,7 @@ mod tests {
         assert_eq!(
             runner
                 .message_queue
-                .dequeue()
+                .pop()
                 .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
             Some((b"ok".to_vec(), 1.into(), 1.into()))
         );
@@ -1259,7 +1199,6 @@ mod tests {
         let mut result = runner.run_next(message, u64::MAX);
 
         let InMemoryStorage {
-            message_queue: _,
             program_storage: _,
             log: _,
         } = runner.complete();

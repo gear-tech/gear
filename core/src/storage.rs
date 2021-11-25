@@ -32,8 +32,6 @@ use crate::{
 /// Mainly used for readability in order to keep readable definitions of types that
 /// manage different storage domains (for example, the [Storage](enum.Storage.html)).
 pub trait StorageCarrier: Default {
-    /// Message queue type used by storage manager
-    type MQ: MessageQueue;
     /// Program storage type used by storage manager
     type PS: ProgramStorage;
 }
@@ -173,30 +171,26 @@ impl Log {
 
 /// Storage.
 #[derive(Default)]
-pub struct Storage<MQ: MessageQueue, PS: ProgramStorage> {
-    /// Message queue stoage.
-    pub message_queue: MQ,
+pub struct Storage<PS: ProgramStorage> {
     /// Program storage.
     pub program_storage: PS,
     /// Log.
     pub log: Log,
 }
 
-impl<MQ: MessageQueue, PS: ProgramStorage> StorageCarrier for Storage<MQ, PS> {
-    type MQ = MQ;
+impl<PS: ProgramStorage> StorageCarrier for Storage<PS> {
     type PS = PS;
 }
 
-impl<MQ: MessageQueue, PS: ProgramStorage> Storage<MQ, PS> {
+impl<PS: ProgramStorage> Storage<PS> {
     /// Create an empty storage.
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Create a storage from messages queue, programs storage and wait list.
-    pub fn from_components(message_queue: MQ, program_storage: PS, log: Log) -> Self {
+    pub fn from_components(program_storage: PS, log: Log) -> Self {
         Self {
-            message_queue,
             program_storage,
             log,
         }
@@ -204,7 +198,7 @@ impl<MQ: MessageQueue, PS: ProgramStorage> Storage<MQ, PS> {
 }
 
 /// Fully in-memory storage (for tests).
-pub type InMemoryStorage = Storage<InMemoryMessageQueue, InMemoryProgramStorage>;
+pub type InMemoryStorage = Storage<InMemoryProgramStorage>;
 
 #[cfg(test)]
 /// This module contains tests of parts of InMemoryStorage:

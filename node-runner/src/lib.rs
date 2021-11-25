@@ -20,6 +20,7 @@
 extern crate alloc;
 pub mod ext;
 
+use alloc::collections::VecDeque;
 use codec::{Decode, Encode};
 use sp_core::H256;
 
@@ -27,7 +28,7 @@ use gear_common::native;
 use gear_core::{
     message::{Message, MessageId},
     program::ProgramId,
-    storage::{InMemoryMessageQueue, Storage},
+    storage::Storage,
 };
 
 use gear_backend_common::Environment;
@@ -41,7 +42,7 @@ use crate::ext::*;
 
 type ExtRunner<E> = Runner<ExtStorage, E>;
 /// Storage used for running node
-pub type ExtStorage = Storage<InMemoryMessageQueue, ExtProgramStorage>; // TODO: Remove MessageQueue from Storage
+pub type ExtStorage = Storage<ExtProgramStorage>;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -201,14 +202,14 @@ pub fn gas_spent<E: Environment<Ext>>(
         value,
         reply: None,
     };
-    let mut messages = vec![message];
+    let mut messages = VecDeque::from([message]);
 
     let mut total_gas_spent = 0;
 
-    while let Some(message) = messages.pop() {
+    while let Some(message) = messages.pop_front() {
         let mut run_result = runner.run_next(message, u64::MAX);
         for new_message in run_result.message_queue.drain(..) {
-            messages.push(new_message);
+            messages.push_back(new_message);
         }
 
         if let Some(gas_spent) = run_result.gas_spent.first() {
