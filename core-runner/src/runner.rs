@@ -517,7 +517,9 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         RunningContext::new(&self.config, allocations)
     }
 
-    /// Initialize a new program. This includes putting this program in the storage and dispatching
+    /// Initialize a new program.
+    ///
+    /// This includes putting this program in the storage and dispatching
     /// initialization message for it.
     ///
     /// Initialization process looks as following:
@@ -797,8 +799,6 @@ fn run<E: Environment<Ext>>(
     if let Some(max_page) = max_page {
         let max_page_num = *max_page.0;
         let mem_size = memory.size();
-        // If we charge for `max_page_num == memsize`, then we perform a double charge,
-        // because gas was charged previously. todo - check that by running tests
         if max_page_num >= mem_size {
             let amount =
                 context.config.mem_grow_cost * ((max_page_num - mem_size).raw() as u64 + 1);

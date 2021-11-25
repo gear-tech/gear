@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! JS module.
+//!
 //! Module contains all the needed types and functionality for an easy inference of structures of messages sent to or
-//! received from *init* and *handle* functions..
+//! received from *init* and *handle* functions.
 //!
 //! Information about message structure makes it easier for an [idea](https://idea.gear-tech.io/) user to send
 //! messages to smart contracts. This modules provides an internal functionality for deducting what fields
