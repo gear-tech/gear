@@ -20,6 +20,7 @@
 
 pub mod native;
 pub mod storage_queue;
+pub mod value_tree;
 
 use codec::{Decode, Encode};
 use primitive_types::H256;
