@@ -27,13 +27,13 @@ use gear_common::native;
 use gear_core::{
     message::{Message, MessageId},
     program::ProgramId,
-    storage::Storage,
+    storage::{InMemoryMessageQueue, Storage},
 };
 
 use gear_backend_common::Environment;
 pub use gear_core_runner::{BlockInfo, Ext};
 use gear_core_runner::{
-    ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult, Runner,
+    ExecutionOutcome, ExtMessage, InitializeProgramInfo, RunNextResult, Runner,
 };
 use sp_std::prelude::*;
 
@@ -41,7 +41,7 @@ use crate::ext::*;
 
 type ExtRunner<E> = Runner<ExtStorage, E>;
 /// Storage used for running node
-pub type ExtStorage = Storage<ExtMessageQueue, ExtProgramStorage>;
+pub type ExtStorage = Storage<InMemoryMessageQueue, ExtProgramStorage>; // TODO: Remove MessageQueue from Storage
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -49,7 +49,7 @@ pub enum Error {
     Runner,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Default)]
 pub struct ExecutionReport {
     pub handled: u32,
     pub log: Vec<gear_common::Message>,
@@ -112,18 +112,23 @@ pub fn process<E: Environment<Ext>>(
     block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
     let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
-    let mut result = runner.run_next(max_gas_limit);
-    process_wait_list(&mut result);
+    if let Some(message) = native::dequeue_message() {
+        let mut result = runner.run_next(message, max_gas_limit);
+        for message in result.message_queue.drain(..) {
+            native::queue_message(message)
+        }
+        process_wait_list(&mut result);
 
-    let Storage {
-        mut message_queue,
-        log,
-        ..
-    } = runner.complete();
+        let Storage { log, .. } = runner.complete();
 
-    message_queue.log = log.get().to_vec();
+        let ext_message_queue = ExtMessageQueue {
+            log: log.get().to_vec(),
+        };
 
-    Ok(ExecutionReport::collect(message_queue, result))
+        Ok(ExecutionReport::collect(ext_message_queue, result))
+    } else {
+        Ok(Default::default())
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -171,15 +176,13 @@ pub fn init_program<E: Environment<Ext>>(
     let mut result = RunNextResult::from_single(init_message, run_result);
     process_wait_list(&mut result);
 
-    let Storage {
-        mut message_queue,
-        log,
-        ..
-    } = runner.complete();
+    let Storage { log, .. } = runner.complete();
 
-    message_queue.log = log.get().to_vec();
+    let ext_message_queue = ExtMessageQueue {
+        log: log.get().to_vec(),
+    };
 
-    Ok(ExecutionReport::collect(message_queue, result))
+    Ok(ExecutionReport::collect(ext_message_queue, result))
 }
 
 pub fn gas_spent<E: Environment<Ext>>(
@@ -189,21 +192,24 @@ pub fn gas_spent<E: Environment<Ext>>(
 ) -> Result<u64, Error> {
     let mut runner = ExtRunner::<E>::default();
 
-    runner.queue_message(MessageDispatch {
-        source_id: ProgramId::from(1),
-        destination_id: ProgramId::from_slice(&program_id[..]),
-        data: ExtMessage {
-            id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
-            gas_limit: u64::MAX,
-            payload,
-            value,
-        },
-    });
+    let message = Message {
+        id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
+        source: ProgramId::from(1),
+        dest: ProgramId::from_slice(&program_id[..]),
+        gas_limit: u64::MAX,
+        payload: payload.into(),
+        value,
+        reply: None,
+    };
+    let mut messages = vec![message];
 
     let mut total_gas_spent = 0;
 
-    loop {
-        let run_result = runner.run_next(u64::MAX);
+    while let Some(message) = messages.pop() {
+        let mut run_result = runner.run_next(message, u64::MAX);
+        for new_message in run_result.message_queue.drain(..) {
+            messages.push(new_message);
+        }
 
         if let Some(gas_spent) = run_result.gas_spent.first() {
             total_gas_spent += gas_spent.1;
@@ -212,10 +218,6 @@ pub fn gas_spent<E: Environment<Ext>>(
         if run_result.any_traps() {
             log::error!("gas_spent: Empty run result");
             return Err(Error::Runner);
-        }
-
-        if run_result.handled == 0 {
-            break;
         }
     }
 
