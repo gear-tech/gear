@@ -517,7 +517,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         RunningContext::new(&self.config, allocations)
     }
 
-    /// Initialize new program This includes putting this program in the storage and dispatching
+    /// Initialize a new program. This includes putting this program in the storage and dispatching
     /// initialization message for it.
     ///
     /// Initialization process looks as following:
