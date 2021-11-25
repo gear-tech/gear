@@ -733,8 +733,8 @@ pub struct RunResult {
 /// The function is needed to abstract common procedures of different program function calls.
 ///
 /// Actual function run is performed in the virtual machine (VM). Programs, which are run in the VM, import functions from some environment
-/// that Gear provides. These functions (so called sys-calls), are provided by sandbox backend or wasmtime backend (see core-backend crates)
-/// which implements trait [Environment](../../gear_backend_common/trait.Environment.html).
+/// that Gear provides. These functions (so called sys-calls), are provided by sandbox or wasmtime backends (see core-backend crates),
+/// which implement [Environment](../../gear_backend_common/trait.Environment.html) trait.
 /// This trait provides us an ability to setup all the needed settings for the run and actually run the desired function, providing program (wasm module) with
 /// sys-calls.
 /// A crucial dependency for the actual run in the VM is `Ext`, which is created in the function's body.
