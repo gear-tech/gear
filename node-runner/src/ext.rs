@@ -24,10 +24,10 @@ use gear_core::{
 };
 use sp_std::prelude::*;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ExtProgramStorage;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ExtMessageQueue {
     pub log: Vec<Message>,
 }

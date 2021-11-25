@@ -20,7 +20,7 @@ use crate::js::{MetaData, MetaType};
 use crate::runner::{self, CollectState};
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use derive_more::Display;
 use gear_core::{
     memory::PAGE_SIZE,
@@ -28,6 +28,8 @@ use gear_core::{
     program::{Program, ProgramId},
     storage,
 };
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{fmt, fs};
 
 #[derive(Debug, derive_more::From)]
@@ -127,6 +129,7 @@ fn check_messages(
     expected_messages: &[sample::Message],
 ) -> Result<(), Vec<MessagesError>> {
     let mut errors = Vec::new();
+    log::debug!("{:?}", &messages);
     if expected_messages.len() != messages.len() {
         errors.push(MessagesError::count(
             expected_messages.len(),
@@ -135,7 +138,6 @@ fn check_messages(
     } else {
         let mut expected_messages: Vec<sample::Message> = expected_messages.into();
         let mut messages: Vec<Message> = messages.into();
-
         expected_messages
             .iter_mut()
             .zip(messages.iter_mut())
@@ -367,7 +369,7 @@ pub fn check_main<SC, F>(
 ) -> anyhow::Result<()>
 where
     SC: storage::StorageCarrier,
-    F: Fn() -> storage::Storage<SC::MQ, SC::PS>,
+    F: Fn() -> storage::Storage<SC::MQ, SC::PS> + std::marker::Sync,
     storage::Storage<SC::MQ, SC::PS>: CollectState,
 {
     let mut tests = Vec::new();
@@ -383,104 +385,117 @@ where
     }
 
     let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
-    let mut total_failed = 0i32;
+    // let mut total_failed = 0i32;
+    let total_failed = AtomicUsize::new(0);
 
     println!("Total fixtures: {}", total_fixtures);
 
-    for test in tests {
+    tests.par_iter().for_each(|test| {
         let progs_n_paths: Vec<(&str, ProgramId)> = test
             .programs
             .iter()
             .map(|prog| (prog.path.as_ref(), prog.id.to_program_id()))
             .collect();
 
-        for fixture_no in 0..test.fixtures.len() {
-            for exp in &test.fixtures[fixture_no].expected {
-                let output = match runner::init_fixture::<SC>(storage_factory(), &test, fixture_no)
-                {
-                    Ok((runner, messages)) => {
-                        let (mut final_state, _result) = runner::run(runner, messages, exp.step);
+        (0..test.fixtures.len())
+            .into_par_iter()
+            .for_each(|fixture_no| {
+                let output: ColoredString =
+                    match runner::init_fixture::<SC>(storage_factory(), &test, fixture_no) {
+                        Ok((runner, messages)) => {
+                            let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
+                            let results = runner::run(runner, messages, last_exp_steps);
 
-                        let mut errors = Vec::new();
-                        if !skip_messages {
-                            if let Some(messages) = &exp.messages {
-                                if let Err(msg_errors) =
-                                    check_messages(&progs_n_paths, &final_state.messages, messages)
-                                {
-                                    errors.extend(
-                                        msg_errors
-                                            .into_iter()
-                                            .map(|err| format!("Messages check [{}]", err)),
-                                    );
+                            let mut errors = Vec::new();
+                            for exp in &test.fixtures[fixture_no].expected {
+                                let mut final_state = results.last().unwrap().0.clone();
+                                if let Some(step) = exp.step {
+                                    
+                                    final_state = results[step].0.clone();
                                 }
-                            }
-                        }
-                        if let Some(log) = &exp.log {
-                            for message in &final_state.log {
-                                if let Ok(utf8) = std::str::from_utf8(message.payload()) {
-                                    log::info!("log({})", utf8)
+                                if !skip_messages {
+                                    if let Some(messages) = &exp.messages {
+                                        if let Err(msg_errors) = check_messages(
+                                            &progs_n_paths,
+                                            &final_state.messages,
+                                            messages,
+                                        ) {
+                                            errors.push(format!("step: {:?}", exp.step));
+                                            errors.extend(
+                                                msg_errors
+                                                    .into_iter()
+                                                    .map(|err| format!("Messages check [{}]", err)),
+                                            );
+                                        }
+                                    }
                                 }
-                            }
+                                if let Some(log) = &exp.log {
+                                    for message in &final_state.log {
+                                        if let Ok(utf8) = std::str::from_utf8(message.payload()) {
+                                            log::info!("log({})", utf8)
+                                        }
+                                    }
 
-                            if let Err(log_errors) =
-                                check_messages(&progs_n_paths, &final_state.log, log)
-                            {
-                                errors.extend(
-                                    log_errors
-                                        .into_iter()
-                                        .map(|err| format!("Log check [{}]", err)),
-                                );
-                            }
-                        }
-                        if !skip_allocations {
-                            if let Some(alloc) = &exp.allocations {
-                                if let Err(alloc_errors) =
-                                    check_allocations(&final_state.program_storage, alloc)
-                                {
-                                    errors.extend(alloc_errors);
+                                    if let Err(log_errors) =
+                                        check_messages(&progs_n_paths, &final_state.log, log)
+                                    {
+                                        errors.push(format!("step: {:?}", exp.step));
+                                        errors.extend(
+                                            log_errors
+                                                .into_iter()
+                                                .map(|err| format!("Log check [{}]", err)),
+                                        );
+                                    }
+                                }
+                                if !skip_allocations {
+                                    if let Some(alloc) = &exp.allocations {
+                                        if let Err(alloc_errors) =
+                                            check_allocations(&final_state.program_storage, alloc)
+                                        {
+                                            errors.push(format!("step: {:?}", exp.step));
+                                            errors.extend(alloc_errors);
+                                        }
+                                    }
+                                }
+                                if !skip_memory {
+                                    if let Some(mem) = &exp.memory {
+                                        if let Err(mem_errors) =
+                                            check_memory(&mut final_state.program_storage, mem)
+                                        {
+                                            errors.push(format!("step: {:?}", exp.step));
+                                            errors.extend(mem_errors);
+                                        }
+                                    }
                                 }
                             }
-                        }
-                        if !skip_memory {
-                            if let Some(mem) = &exp.memory {
-                                if let Err(mem_errors) =
-                                    check_memory(&mut final_state.program_storage, mem)
-                                {
-                                    errors.extend(mem_errors);
-                                }
+                            if !errors.is_empty() {
+                                errors.insert(0, "\n".to_string());
+                                total_failed.fetch_add(1, Ordering::SeqCst);
+                                errors.join("\n").to_string().bright_red()
+                            } else {
+                                "Ok".bright_green()
                             }
                         }
-
-                        if !errors.is_empty() {
-                            total_failed += 1;
-                            errors.join("\n").to_string().bright_red()
-                        } else {
-                            "Ok".bright_green()
+                        Err(e) => {
+                            total_failed.fetch_add(1, Ordering::SeqCst);
+                            format!("Initialization error ({})", e).bright_red()
                         }
-                    }
-                    Err(e) => {
-                        total_failed += 1;
-                        format!("Initialization error ({})", e).bright_red()
-                    }
-                };
+                    };
 
                 println!(
-                    "Fixture {} (step: {}): {}",
+                    "Fixture {}: {}",
                     test.fixtures[fixture_no].title.bold(),
-                    if let Some(step) = exp.step {
-                        format!("{}", step)
-                    } else {
-                        "final".to_string()
-                    },
                     output
                 );
-            }
-        }
-    }
+            });
+    });
 
-    if total_failed == 0 {
+    if total_failed.load(Ordering::SeqCst) == 0 {
         Ok(())
     } else {
-        Err(anyhow!("{} tests failed", total_failed))
+        Err(anyhow!(
+            "{} tests failed",
+            total_failed.load(Ordering::SeqCst)
+        ))
     }
 }

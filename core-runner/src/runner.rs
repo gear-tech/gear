@@ -467,7 +467,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
     /// Drop this runner.
     ///
-    /// This will return underlyign storage and memory state.
+    /// This will return underlying storage and memory state.
     pub fn complete(self) -> Storage<SC::MQ, SC::PS> {
         let Runner {
             program_storage,
@@ -480,6 +480,17 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             message_queue,
             program_storage,
             log,
+        }
+    }
+
+    /// Storage of this runner.
+    ///
+    /// This will return underlying storage and memory state.
+    pub fn storage(&self) -> Storage<SC::MQ, SC::PS> {
+        Storage {
+            message_queue: self.message_queue.clone(),
+            program_storage: self.program_storage.clone(),
+            log: self.log.clone(),
         }
     }
 

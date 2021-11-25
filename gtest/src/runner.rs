@@ -232,6 +232,7 @@ pub fn init_fixture<SC: StorageCarrier>(
     Ok((runner, messages))
 }
 
+#[derive(Clone, Debug)]
 pub struct FinalState {
     pub messages: Vec<Message>,
     pub log: Vec<Message>,
@@ -249,11 +250,22 @@ pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
     mut runner: Runner<SC, E>,
     messages: Vec<Message>,
     steps: Option<usize>,
-) -> (FinalState, anyhow::Result<()>)
+) -> Vec<(FinalState, anyhow::Result<()>)>
 where
     Storage<SC::MQ, SC::PS>: CollectState,
 {
+    let mut results = Vec::new();
     let mut messages = messages;
+
+    let log = runner.log().get().to_vec();
+    let storage = runner.storage();
+
+    let mut final_state = storage.collect();
+
+    final_state.messages = messages.clone();
+
+    final_state.log = log.clone();
+    results.push((final_state, Ok(())));
     let mut result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
@@ -263,6 +275,7 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0);
             runner.set_block_timestamp(timestamp as _);
+            let do_run = step_no < messages.len();
             if step_no < messages.len() {
                 let mut run_result = runner.run_next(messages[step_no].clone(), u64::MAX);
                 runner.process_wait_list(&mut run_result);
@@ -278,9 +291,20 @@ where
                     messages.append(&mut run_result.message_queue);
                 }
             }
-        }
-        if messages.len() >= steps {
-            messages.drain(0..steps);
+            let log = runner.log().get().to_vec();
+            let storage = runner.storage();
+
+            let mut final_state = storage.collect();
+
+            final_state.messages = messages.clone();
+
+            if do_run {
+                final_state.messages.drain(0..step_no + 1);
+            }
+
+            final_state.log = log.clone();
+
+            results.push((final_state, Ok(())));
         }
     } else {
         let mut step_no = 0;
@@ -293,18 +317,18 @@ where
                 messages.append(&mut run_result.message_queue);
             }
             step_no += 1;
-        }
-        if messages.len() >= step_no {
-            messages.drain(0..step_no);
+            let log = runner.log().get().to_vec();
+            let storage = runner.storage();
+
+            let mut final_state = storage.collect();
+            final_state.messages = messages.clone();
+            final_state.messages.drain(0..step_no);
+
+            final_state.log = log.clone();
+
+            results.push((final_state, Ok(())));
         }
     }
 
-    let log = runner.log().get().to_vec();
-    let storage = runner.complete();
-
-    let mut final_state = storage.collect();
-    final_state.messages = messages;
-    final_state.log = log;
-
-    (final_state, result)
+    results
 }

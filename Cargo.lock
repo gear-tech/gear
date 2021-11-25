@@ -2144,6 +2144,7 @@ dependencies = [
  "hex",
  "log",
  "parity-scale-codec",
+ "rayon",
  "regex",
  "serde",
  "serde_json",

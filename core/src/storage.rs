@@ -31,7 +31,7 @@ use crate::{
 ///
 /// Mainly used for readability in order to keep readable definitions of types that
 /// manage different storage domains (for example, the [Storage](enum.Storage.html)).
-pub trait StorageCarrier: Default {
+pub trait StorageCarrier: Default + Clone {
     /// Message queue type used by storage manager
     type MQ: MessageQueue;
     /// Program storage type used by storage manager
@@ -39,7 +39,7 @@ pub trait StorageCarrier: Default {
 }
 
 /// Abstraction over program storage.
-pub trait ProgramStorage: Default {
+pub trait ProgramStorage: Default + Clone {
     /// Get the program from the storage.
     fn get(&self, id: ProgramId) -> Option<Program>;
 
@@ -54,7 +54,7 @@ pub trait ProgramStorage: Default {
 }
 
 /// In-memory program storage (for tests).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct InMemoryProgramStorage {
     inner: HashMap<ProgramId, Program>,
 }
@@ -103,7 +103,7 @@ impl From<InMemoryProgramStorage> for Vec<Program> {
 }
 
 /// Message queue storage.
-pub trait MessageQueue: Default {
+pub trait MessageQueue: Default + Clone {
     /// Dequeue next message.
     fn dequeue(&mut self) -> Option<Message>;
 
@@ -117,7 +117,7 @@ pub trait MessageQueue: Default {
 }
 
 /// In-memory message queue (for tests).
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct InMemoryMessageQueue {
     inner: VecDeque<Message>,
 }
@@ -154,7 +154,7 @@ impl From<InMemoryMessageQueue> for Vec<Message> {
 }
 
 /// Log.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Log {
     inner: Vec<Message>,
 }
@@ -172,7 +172,7 @@ impl Log {
 }
 
 /// Storage.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Storage<MQ: MessageQueue, PS: ProgramStorage> {
     /// Message queue stoage.
     pub message_queue: MQ,
