@@ -55,7 +55,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 1. Compile and launch node as described in [Gear Node README](https://github.com/gear-tech/gear/tree/master/node).
 
-Alternativaly, download nightly build of Gear node:
+Alternatively, download nightly build of Gear node:
 
     - **Windows x64**: [gear-nightly-windows-x86_64.zip](https://builds.gear.rs/gear-nightly-windows-x86_64.zip)
     - **macOS M1**: [gear-nightly-macos-m1.tar.gz](https://builds.gear.rs/gear-nightly-macos-m1.tar.gz)
