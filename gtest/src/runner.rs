@@ -132,6 +132,7 @@ pub fn init_fixture<SC: StorageCarrier>(
         Default::default(),
         gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::default(),
     );
+    let mut messages = Vec::new();
     let mut nonce = 0;
     for program in test.programs.iter() {
         let program_path = program.path.clone();
@@ -161,8 +162,9 @@ pub fn init_fixture<SC: StorageCarrier>(
         if let Some(source) = &program.source {
             init_source = source.to_program_id();
         }
-        runner.init_program(InitializeProgramInfo {
-            new_program_id: program.id.to_program_id(),
+        let program_id = program.id.to_program_id();
+        let result = runner.init_program(InitializeProgramInfo {
+            new_program_id: program_id,
             source_id: init_source,
             code,
             message: ExtMessage {
@@ -173,11 +175,18 @@ pub fn init_fixture<SC: StorageCarrier>(
             },
         })?;
 
+        messages.append(
+            &mut result
+                .messages
+                .into_iter()
+                .map(|msg| msg.into_message(program_id))
+                .collect(),
+        );
+
         nonce += 1;
     }
 
     let fixture = &test.fixtures[fixture_no];
-    let mut messages = Vec::new();
     for message in fixture.messages.iter() {
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => {
