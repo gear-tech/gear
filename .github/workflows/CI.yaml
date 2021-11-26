@@ -125,4 +125,4 @@ jobs:
         run: ./scripts/gear.sh build examples-proc
 
       - name: "Test: Process gear-test"
-        run: ./scripts/gear.sh test gtest -vv
+        run: ./scripts/gear.sh test gtest
