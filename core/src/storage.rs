@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Storage backing abstractions
+//! Storage backing abstractions.
 
-use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 use hashbrown::HashMap;
 
@@ -30,7 +29,7 @@ use crate::{
 /// General trait, which informs what exact storage types are used by a storage manager ("carrier").
 ///
 /// Mainly used for readability in order to keep readable definitions of types that
-/// manage different storage domains (for example, the [Storage](enum.Storage.html)).
+/// manage different storage domains (for example, the [`Storage`]).
 pub trait StorageCarrier: Default {
     /// Program storage type used by storage manager
     type PS: ProgramStorage;
@@ -111,43 +110,6 @@ pub trait MessageQueue: Default {
     /// Queue many messages.
     fn queue_many(&mut self, messages: Vec<Message>) {
         messages.into_iter().for_each(|m| self.queue(m));
-    }
-}
-
-/// In-memory message queue (for tests).
-#[derive(Default, Debug)]
-pub struct InMemoryMessageQueue {
-    inner: VecDeque<Message>,
-}
-
-impl InMemoryMessageQueue {
-    /// Create an empty in-memory message queue.
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
-
-impl MessageQueue for InMemoryMessageQueue {
-    fn dequeue(&mut self) -> Option<Message> {
-        self.inner.pop_front()
-    }
-
-    fn queue(&mut self, message: Message) {
-        self.inner.push_back(message)
-    }
-}
-
-impl From<Vec<Message>> for InMemoryMessageQueue {
-    fn from(messages: Vec<Message>) -> Self {
-        Self {
-            inner: VecDeque::from(messages),
-        }
-    }
-}
-
-impl From<InMemoryMessageQueue> for Vec<Message> {
-    fn from(queue: InMemoryMessageQueue) -> Vec<Message> {
-        queue.inner.into()
     }
 }
 
@@ -282,50 +244,6 @@ mod tests {
         for program in remaining_programs {
             assert!(program.id() == id1 || program.id() == id3);
         }
-    }
-
-    #[test]
-    /// Test that InMemoryMessageQueue works correctly
-    fn message_queue_interaction() {
-        use crate::message::Payload;
-
-        // Initialization of empty InMemoryMessageQueue
-        let mut message_queue = InMemoryMessageQueue::new();
-
-        // Сhecking that the storage totally empty
-        assert!(message_queue.dequeue().is_none());
-
-        // Addition of multiple messages
-        message_queue.queue_many(vec![
-            Message::new_system(
-                0.into(),
-                ProgramId::from(1),
-                Payload::from(vec![1]),
-                128,
-                512,
-            ),
-            Message::new_system(
-                1.into(),
-                ProgramId::from(2),
-                Payload::from(vec![2]),
-                128,
-                1024,
-            ),
-        ]);
-
-        // Сhecking that the first message in queue is the one that we added first
-        let msg = message_queue
-            .dequeue()
-            .expect("An error occurred during unwraping front queue message");
-
-        assert_eq!(msg.dest(), ProgramId::from(1));
-
-        // Сhecking that the message queue after all our interactions
-        // contains the only one message the we added last
-        let remaining_messages: Vec<Message> = message_queue.into();
-
-        assert_eq!(remaining_messages.len(), 1);
-        assert_eq!(remaining_messages[0].dest(), ProgramId::from(2));
     }
 
     #[test]

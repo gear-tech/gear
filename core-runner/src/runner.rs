@@ -84,12 +84,14 @@ impl Config {
 /// Result of one or more message handling.
 #[derive(Debug, Default, Clone)]
 pub struct RunNextResult {
-    /// List of resulting messages.
-    pub message_queue: Vec<Message>,
-    /// The ID of the program that has been run.
-    pub prog_id: ProgramId,
     /// How many messages were handled.
     pub handled: u32,
+    /// List of resulting messages.
+    pub messages: Vec<Message>,
+    /// List of resulting log messages.
+    pub log: Vec<Message>,
+    /// The ID of the program that has been run.
+    pub prog_id: ProgramId,
     /// Execution outcome per each message
     pub outcomes: BTreeMap<MessageId, ExecutionOutcome>,
     /// Gas that was left.
@@ -299,7 +301,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             return RunNextResult::empty();
         }
 
-        let instrumeted_code = match gas::instrument(program.code()) {
+        let instrumented_code = match gas::instrument(program.code()) {
             Ok(code) => code,
             Err(err) => {
                 log::debug!("Instrumentation error: {:?}", err);
@@ -329,7 +331,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         let run_result = run(
             &mut self.env,
             &mut context,
-            &instrumeted_code,
+            &instrumented_code,
             &mut program,
             if message.reply().is_some() {
                 EntryPoint::HandleReply
@@ -346,27 +348,20 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             let program_id = program.id();
             let nonce = program.fetch_inc_message_nonce();
             let trap_message_id = self.next_message_id(program_id, nonce);
+            let trap_message = Message {
+                id: trap_message_id,
+                source: program_id,
+                dest: message_source,
+                payload: vec![].into(),
+                gas_limit: run_result.gas_left,
+                value: 0,
+                reply: Some((next_message_id, EXIT_CODE_PANIC)),
+            };
 
             if self.program_storage.exists(message_source) {
-                self.message_queue.push(Message {
-                    id: trap_message_id,
-                    source: program_id,
-                    dest: message_source,
-                    payload: vec![].into(),
-                    gas_limit: run_result.gas_left,
-                    value: 0,
-                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
-                });
+                self.message_queue.push(trap_message);
             } else {
-                self.log.put(Message {
-                    id: trap_message_id,
-                    source: program_id,
-                    dest: message_source,
-                    payload: vec![].into(),
-                    gas_limit: run_result.gas_left,
-                    value: 0,
-                    reply: Some((next_message_id, EXIT_CODE_PANIC)),
-                })
+                self.log.put(trap_message)
             }
         }
 
@@ -381,7 +376,8 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         }
 
         self.program_storage.set(program);
-        result.message_queue.append(&mut self.message_queue);
+        result.messages.append(&mut self.message_queue);
+        result.log.append(&mut self.log.get().to_vec());
 
         result
     }
@@ -413,7 +409,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             .collect();
 
         for msg in msgs {
-            result.message_queue.push(msg);
+            result.messages.push(msg);
         }
     }
 
@@ -1058,7 +1054,7 @@ mod tests {
 
         assert_eq!(
             run_result
-                .message_queue
+                .messages
                 .last()
                 .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
             Some((b"test".to_vec(), 1.into(), 1.into()))
@@ -1144,7 +1140,7 @@ mod tests {
 
         assert_eq!(
             run_result
-                .message_queue
+                .messages
                 .last()
                 .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
             Some((vec![256u32 as _].into(), 1.into(), 1.into()))

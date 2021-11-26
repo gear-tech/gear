@@ -18,19 +18,13 @@
 
 use gear_common::STORAGE_PROGRAM_PREFIX;
 use gear_core::{
-    message::Message,
     program::{Program, ProgramId},
-    storage::{MessageQueue, ProgramStorage},
+    storage::ProgramStorage,
 };
 use sp_std::prelude::*;
 
 #[derive(Default)]
 pub struct ExtProgramStorage;
-
-#[derive(Default)]
-pub struct ExtMessageQueue {
-    pub log: Vec<Message>,
-}
 
 impl ProgramStorage for ExtProgramStorage {
     fn get(&self, id: ProgramId) -> Option<Program> {
@@ -76,16 +70,6 @@ impl Iterator for ExtProgramStorageIter {
                 &key[STORAGE_PROGRAM_PREFIX.len()..],
             ))
         })
-    }
-}
-
-impl MessageQueue for ExtMessageQueue {
-    fn dequeue(&mut self) -> Option<Message> {
-        gear_common::native::dequeue_message()
-    }
-
-    fn queue(&mut self, message: Message) {
-        gear_common::native::queue_message(message);
     }
 }
 

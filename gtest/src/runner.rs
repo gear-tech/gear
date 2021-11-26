@@ -275,7 +275,7 @@ where
 
                 {
                     let messages = &mut messages;
-                    messages.append(&mut run_result.message_queue);
+                    messages.append(&mut run_result.messages);
                 }
             }
         }
@@ -290,7 +290,7 @@ where
 
             {
                 let messages = &mut messages;
-                messages.append(&mut run_result.message_queue);
+                messages.append(&mut run_result.messages);
             }
             step_no += 1;
         }
