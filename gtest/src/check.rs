@@ -130,7 +130,6 @@ fn check_messages(
     expected_messages: &[sample::Message],
 ) -> Result<(), Vec<MessagesError>> {
     let mut errors = Vec::new();
-    log::debug!("{:?}", &messages);
     if expected_messages.len() != messages.len() {
         errors.push(MessagesError::count(
             expected_messages.len(),
