@@ -2150,6 +2150,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sp-core",
+ "sp-io",
  "sp-keyring",
 ]
 

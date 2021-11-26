@@ -51,6 +51,7 @@ impl GearTestCmd {
                             log: Default::default(),
                         }
                     },
+                    Some(Box::new(&new_test_ext)),
                 )
             })
             .map_err(|e| sc_cli::Error::Application(e.into()))

@@ -264,9 +264,9 @@ where
 
     final_state.messages = messages.clone();
 
-    final_state.log = log.clone();
+    final_state.log = log;
     results.push((final_state, Ok(())));
-    let mut result = Ok(());
+    let mut _result = Ok(());
     if let Some(steps) = steps {
         for step_no in 0..steps {
             runner.set_block_height(step_no as _);
@@ -283,7 +283,7 @@ where
                 log::info!("step: {}", step_no + 1);
 
                 if run_result.any_traps() && step_no + 1 == steps {
-                    result = Err(anyhow::anyhow!("Runner resulted in a trap"));
+                    _result = Err(anyhow::anyhow!("Runner resulted in a trap"));
                 }
 
                 {

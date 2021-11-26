@@ -71,5 +71,6 @@ pub fn main() -> anyhow::Result<()> {
         opts.skip_allocations,
         opts.skip_memory,
         InMemoryStorage::default,
+        None,
     )
 }
