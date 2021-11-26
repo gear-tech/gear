@@ -380,6 +380,11 @@ pub mod pallet {
                                     Self::deposit_event(Event::Log(message));
                                 }
 
+                                // Enqueuing outgoing messages
+                                for message in execution_report.messages {
+                                    common::queue_message(message);
+                                }
+
                                 // Now, find out if the init message processing outcome is actually an error
                                 let mut is_err = false;
                                 let mut reason = Reason::Error;
@@ -497,6 +502,36 @@ pub mod pallet {
                             Self::insert_to_mailbox(message.dest, message.clone());
 
                             Self::deposit_event(Event::Log(message));
+                        }
+
+                        // Enqueuing outgoing messages
+                        for message in execution_report.messages {
+                            common::queue_message(message);
+                        }
+
+                        for msg in execution_report.wait_list {
+                            Self::deposit_event(Event::AddedToWaitList(msg.clone()));
+                            common::insert_waiting_message(msg.dest, msg.id, msg);
+                        }
+
+                        for (msg_id, gas) in execution_report.awakening {
+                            if let Some(mut msg) =
+                                common::remove_waiting_message(execution_report.program_id, msg_id)
+                            {
+                                // Increase gas available to the message
+                                if u64::max_value() - gas < msg.gas_limit {
+                                    // TODO: issue #323
+                                    log::debug!(
+                                        "Gas limit ({}) after wake (+{}) exceeded u64::max() and will be burned",
+                                        msg.gas_limit,
+                                        gas
+                                    );
+                                }
+                                msg.gas_limit = msg.gas_limit.saturating_add(gas);
+                                common::queue_message(msg);
+
+                                Self::deposit_event(Event::RemovedFromWaitList(msg_id));
+                            }
                         }
 
                         for (message_id, outcome) in execution_report.outcomes {
