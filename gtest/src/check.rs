@@ -22,6 +22,7 @@ use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVa
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use derive_more::Display;
+use env_logger::filter::{Builder, Filter};
 use gear_core::storage::Storage;
 use gear_core::{
     memory::PAGE_SIZE,
@@ -30,8 +31,60 @@ use gear_core::{
     storage,
 };
 use rayon::prelude::*;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, RwLock};
+use std::thread::{self, ThreadId};
 use std::{fmt, fs};
+
+use log::{Log, Metadata, Record, SetLoggerError};
+
+const FILTER_ENV: &str = "RUST_LOG";
+
+pub struct FixtureLogger {
+    inner: Filter,
+    map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>,
+}
+
+impl FixtureLogger {
+    fn new(map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>) -> FixtureLogger {
+        let mut builder = Builder::from_env(FILTER_ENV);
+        builder.parse(
+            "gtest=debug,gear_core=debug,gear_core_backend=debug,gear_core_runner=debug,gwasm=debug",
+        );
+
+        FixtureLogger {
+            inner: builder.build(),
+            map,
+        }
+    }
+
+    fn init(map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>) -> Result<(), SetLoggerError> {
+        let logger = Self::new(map);
+
+        log::set_max_level(logger.inner.filter());
+        log::set_boxed_logger(Box::new(logger))
+    }
+}
+
+impl Log for FixtureLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        self.inner.enabled(metadata)
+    }
+
+    fn log(&self, record: &Record) {
+        // Check if the record is matched by the logger before logging
+        if self.inner.matches(record) {
+            let mut map = self.map.write().expect("RwLock poisoned");
+
+            map.entry(thread::current().id())
+                .or_default()
+                .push(record.args().to_string());
+        }
+    }
+
+    fn flush(&self) {}
+}
 
 #[derive(Debug, derive_more::From)]
 pub struct DisplayedPayload(Vec<u8>);
@@ -464,6 +517,8 @@ where
     F: Fn() -> storage::Storage<SC::MQ, SC::PS> + std::marker::Sync + std::marker::Send,
     storage::Storage<SC::MQ, SC::PS>: CollectState,
 {
+    let map = Arc::new(RwLock::new(HashMap::new()));
+    FixtureLogger::init(Arc::clone(&map))?;
     let mut tests = Vec::new();
 
     for path in files {
@@ -491,6 +546,10 @@ where
         (0..test.fixtures.len())
             .into_par_iter()
             .for_each(|fixture_no| {
+                map.write()
+                    .unwrap()
+                    .insert(thread::current().id(), Vec::new());
+
                 let output = if let Some(test_ext) = &ext {
                     test_ext().execute_with(|| {
                         let storage = storage_factory();
@@ -523,6 +582,16 @@ where
                     test.fixtures[fixture_no].title.bold(),
                     output
                 );
+                if output != "Ok".bright_green() {
+                    map.read()
+                        .unwrap()
+                        .get(&thread::current().id())
+                        .unwrap()
+                        .iter()
+                        .for_each(|line| {
+                            eprintln!("{}", line.bright_red());
+                        });
+                }
             });
     });
 
