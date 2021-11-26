@@ -410,7 +410,7 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 
 #[allow(clippy::too_many_arguments)]
 fn run_fixture<SC>(
-    storage: Storage<<SC as storage::StorageCarrier>::MQ, <SC as storage::StorageCarrier>::PS>,
+    storage: Storage<<SC as storage::StorageCarrier>::PS>,
     test: &Test,
     fixture_no: usize,
     progs_n_paths: &[(&str, ProgramId)],
@@ -421,7 +421,7 @@ fn run_fixture<SC>(
 ) -> ColoredString
 where
     SC: storage::StorageCarrier,
-    storage::Storage<SC::MQ, SC::PS>: CollectState,
+    storage::Storage<SC::PS>: CollectState,
 {
     match runner::init_fixture::<SC>(storage, test, fixture_no) {
         Ok((runner, messages)) => {
