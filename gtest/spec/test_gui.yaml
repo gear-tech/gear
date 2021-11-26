@@ -22,7 +22,7 @@ fixtures:
             - zerokey: 0
               lonelykey: 1
               couplekey: 2
-            - # None 
+            - # None
 
     expected:
       - log:
@@ -32,7 +32,13 @@ fixtures:
               kind: custom
               value:
                 ok: 3
-          
+
+          - destination: 0
+            payload:
+              kind: custom
+              value:
+                field: null
+
           - destination: 0
             payload:
               kind: custom

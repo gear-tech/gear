@@ -367,8 +367,8 @@ pub fn check_main<SC, F>(
 ) -> anyhow::Result<()>
 where
     SC: storage::StorageCarrier,
-    F: Fn() -> storage::Storage<SC::MQ, SC::PS>,
-    storage::Storage<SC::MQ, SC::PS>: CollectState,
+    F: Fn() -> storage::Storage<SC::PS>,
+    storage::Storage<SC::PS>: CollectState,
 {
     let mut tests = Vec::new();
 
