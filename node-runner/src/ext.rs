@@ -18,19 +18,13 @@
 
 use gear_common::STORAGE_PROGRAM_PREFIX;
 use gear_core::{
-    message::Message,
     program::{Program, ProgramId},
-    storage::{MessageQueue, ProgramStorage},
+    storage::ProgramStorage,
 };
 use sp_std::prelude::*;
 
 #[derive(Default, Clone)]
 pub struct ExtProgramStorage;
-
-#[derive(Default, Clone)]
-pub struct ExtMessageQueue {
-    pub log: Vec<Message>,
-}
 
 impl ProgramStorage for ExtProgramStorage {
     fn get(&self, id: ProgramId) -> Option<Program> {
@@ -79,16 +73,6 @@ impl Iterator for ExtProgramStorageIter {
     }
 }
 
-impl MessageQueue for ExtMessageQueue {
-    fn dequeue(&mut self) -> Option<Message> {
-        gear_common::native::dequeue_message()
-    }
-
-    fn queue(&mut self, message: Message) {
-        gear_common::native::queue_message(message);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,13 +86,12 @@ mod tests {
             .into()
     }
 
-    fn new_test_storage() -> gear_core::storage::Storage<ExtMessageQueue, ExtProgramStorage> {
+    fn new_test_storage() -> gear_core::storage::Storage<ExtProgramStorage> {
         sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
         sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
         sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
         sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
         gear_core::storage::Storage {
-            message_queue: Default::default(),
             program_storage: ExtProgramStorage,
             log: Default::default(),
         }

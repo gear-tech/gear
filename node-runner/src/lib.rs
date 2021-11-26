@@ -20,6 +20,7 @@
 extern crate alloc;
 pub mod ext;
 
+use alloc::collections::VecDeque;
 use codec::{Decode, Encode};
 use sp_core::H256;
 
@@ -27,7 +28,7 @@ use gear_common::native;
 use gear_core::{
     message::{Message, MessageId},
     program::ProgramId,
-    storage::{InMemoryMessageQueue, Storage},
+    storage::Storage,
 };
 
 use gear_backend_common::Environment;
@@ -41,7 +42,7 @@ use crate::ext::*;
 
 type ExtRunner<E> = Runner<ExtStorage, E>;
 /// Storage used for running node
-pub type ExtStorage = Storage<InMemoryMessageQueue, ExtProgramStorage>; // TODO: Remove MessageQueue from Storage
+pub type ExtStorage = Storage<ExtProgramStorage>;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -52,17 +53,20 @@ pub enum Error {
 #[derive(Debug, Encode, Decode, Default)]
 pub struct ExecutionReport {
     pub handled: u32,
+    pub messages: Vec<gear_common::Message>,
     pub log: Vec<gear_common::Message>,
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
-    pub wait_list: Vec<Message>,
+    pub wait_list: Vec<gear_common::Message>,
 }
 
 impl ExecutionReport {
-    fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
+    fn collect(result: RunNextResult) -> Self {
         let RunNextResult {
             handled,
+            messages,
+            log,
             gas_left,
             gas_spent,
             outcomes,
@@ -70,13 +74,12 @@ impl ExecutionReport {
             ..
         } = result;
 
-        let log = message_queue
-            .log
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>();
+        let messages = messages.into_iter().map(Into::into).collect();
+        let log = log.into_iter().map(Into::into).collect();
+        let wait_list = wait_list.into_iter().map(Into::into).collect();
 
         ExecutionReport {
+            messages,
             handled: handled as _,
             log,
             gas_refunds: gas_left
@@ -114,18 +117,12 @@ pub fn process<E: Environment<Ext>>(
     let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
     if let Some(message) = native::dequeue_message() {
         let mut result = runner.run_next(message, max_gas_limit);
-        for message in result.message_queue.drain(..) {
+        for message in result.messages.drain(..) {
             native::queue_message(message)
         }
         process_wait_list(&mut result);
 
-        let Storage { log, .. } = runner.complete();
-
-        let ext_message_queue = ExtMessageQueue {
-            log: log.get().to_vec(),
-        };
-
-        Ok(ExecutionReport::collect(ext_message_queue, result))
+        Ok(ExecutionReport::collect(result))
     } else {
         Ok(Default::default())
     }
@@ -176,13 +173,7 @@ pub fn init_program<E: Environment<Ext>>(
     let mut result = RunNextResult::from_single(init_message, run_result);
     process_wait_list(&mut result);
 
-    let Storage { log, .. } = runner.complete();
-
-    let ext_message_queue = ExtMessageQueue {
-        log: log.get().to_vec(),
-    };
-
-    Ok(ExecutionReport::collect(ext_message_queue, result))
+    Ok(ExecutionReport::collect(result))
 }
 
 pub fn gas_spent<E: Environment<Ext>>(
@@ -201,14 +192,14 @@ pub fn gas_spent<E: Environment<Ext>>(
         value,
         reply: None,
     };
-    let mut messages = vec![message];
+    let mut messages = VecDeque::from([message]);
 
     let mut total_gas_spent = 0;
 
-    while let Some(message) = messages.pop() {
+    while let Some(message) = messages.pop_front() {
         let mut run_result = runner.run_next(message, u64::MAX);
-        for new_message in run_result.message_queue.drain(..) {
-            messages.push(new_message);
+        for new_message in run_result.messages.drain(..) {
+            messages.push_back(new_message);
         }
 
         if let Some(gas_spent) = run_result.gas_spent.first() {

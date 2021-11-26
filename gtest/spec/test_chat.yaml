@@ -29,7 +29,7 @@ fixtures:
           value: "0x002c707269766174655f6d7367"
         destination: 2
     expected:
-      - step: 4
+      - step: 6
         messages:
           - payload:
               kind: bytes
@@ -39,12 +39,5 @@ fixtures:
               kind: bytes
               value: "0x012c746573743a2068656c6c6f"
             destination: 3
-        memory:
-          - program_id: 1
-            at: "0x110008"
-            bytes: "0x74657374"
       - messages: []
-        memory:
-          - program_id: 1
-            at: "0x110100"
-            bytes: "0x68656c6c6f"
+

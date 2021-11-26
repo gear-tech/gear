@@ -514,8 +514,8 @@ pub fn check_main<SC, F>(
 ) -> anyhow::Result<()>
 where
     SC: storage::StorageCarrier,
-    F: Fn() -> storage::Storage<SC::MQ, SC::PS> + std::marker::Sync + std::marker::Send,
-    storage::Storage<SC::MQ, SC::PS>: CollectState,
+    F: Fn() -> storage::Storage<SC::PS> + std::marker::Sync + std::marker::Send,
+    storage::Storage<SC::PS>: CollectState,
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
     FixtureLogger::init(Arc::clone(&map))?;

@@ -27,7 +27,7 @@ fixtures:
         allocations:
           - program_id: 1
             filter: dynamic
-            exact_pages: [17]
+            exact_pages: []
           - program_id: 2
             filter: dynamic
             exact_pages: [17,18]

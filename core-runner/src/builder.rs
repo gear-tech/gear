@@ -31,7 +31,7 @@ use super::{
 pub struct RunnerBuilder<SC: StorageCarrier, E: Environment<Ext>> {
     config: Config,
     programs: Vec<InitializeProgramInfo>,
-    storage: Storage<SC::MQ, SC::PS>,
+    storage: Storage<SC::PS>,
     block_info: BlockInfo,
     env: core::marker::PhantomData<E>,
 }

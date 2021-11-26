@@ -63,7 +63,7 @@ unsafe fn room(room_msg: RoomMessage) {
                             )
                             .into_bytes(),
                         ),
-                        200_000_000,
+                        50_000_000,
                         0,
                     );
                 }

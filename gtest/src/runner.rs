@@ -91,7 +91,7 @@ impl CollectState for InMemoryStorage {
     fn collect(self) -> FinalState {
         FinalState {
             log: self.log.get().to_vec(),
-            messages: self.message_queue.into(),
+            messages: Vec::new(),
             program_storage: self.program_storage.into(),
         }
     }
@@ -122,7 +122,7 @@ impl CollectState for ExtStorage {
 /// Program initialization and queueing messages is performed by [Runner](../../gear_core_runner/runner/struct.Runner.html),
 /// which uses `storage` as a storage manager. This storage is actually returned to the function caller to be later used to run queued messages.
 pub fn init_fixture<SC: StorageCarrier>(
-    storage: Storage<SC::MQ, SC::PS>,
+    storage: Storage<SC::PS>,
     test: &Test,
     fixture_no: usize,
 ) -> anyhow::Result<(WasmRunner<SC>, Vec<Message>)> {
@@ -132,6 +132,7 @@ pub fn init_fixture<SC: StorageCarrier>(
         Default::default(),
         gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::default(),
     );
+    let mut messages = Vec::new();
     let mut nonce = 0;
     for program in test.programs.iter() {
         let program_path = program.path.clone();
@@ -161,8 +162,9 @@ pub fn init_fixture<SC: StorageCarrier>(
         if let Some(source) = &program.source {
             init_source = source.to_program_id();
         }
-        runner.init_program(InitializeProgramInfo {
-            new_program_id: program.id.to_program_id(),
+        let program_id = program.id.to_program_id();
+        let result = runner.init_program(InitializeProgramInfo {
+            new_program_id: program_id,
             source_id: init_source,
             code,
             message: ExtMessage {
@@ -173,11 +175,18 @@ pub fn init_fixture<SC: StorageCarrier>(
             },
         })?;
 
+        messages.append(
+            &mut result
+                .messages
+                .into_iter()
+                .map(|msg| msg.into_message(program_id))
+                .collect(),
+        );
+
         nonce += 1;
     }
 
     let fixture = &test.fixtures[fixture_no];
-    let mut messages = Vec::new();
     for message in fixture.messages.iter() {
         let payload = match &message.payload {
             Some(PayloadVariant::Utf8(s)) => {
@@ -252,7 +261,7 @@ pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
     steps: Option<usize>,
 ) -> Vec<(FinalState, anyhow::Result<()>)>
 where
-    Storage<SC::MQ, SC::PS>: CollectState,
+    Storage<SC::PS>: CollectState,
 {
     let mut results = Vec::new();
     let mut messages = messages;
@@ -288,7 +297,7 @@ where
 
                 {
                     let messages = &mut messages;
-                    messages.append(&mut run_result.message_queue);
+                    messages.append(&mut run_result.messages);
                 }
             }
             let log = runner.log().get().to_vec();
@@ -314,7 +323,7 @@ where
 
             {
                 let messages = &mut messages;
-                messages.append(&mut run_result.message_queue);
+                messages.append(&mut run_result.messages);
             }
             step_no += 1;
             let log = runner.log().get().to_vec();
