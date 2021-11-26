@@ -54,33 +54,41 @@ pub enum Error {
 pub struct ExecutionReport {
     pub handled: u32,
     pub messages: Vec<gear_common::Message>,
+    pub program_id: H256,
     pub log: Vec<gear_common::Message>,
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
     pub wait_list: Vec<gear_common::Message>,
+    pub awakening: Vec<(H256, u64)>,
 }
 
-impl ExecutionReport {
-    fn collect(result: RunNextResult) -> Self {
+impl From<RunNextResult> for ExecutionReport {
+    fn from(result: RunNextResult) -> Self {
         let RunNextResult {
             handled,
             messages,
+            prog_id,
             log,
             gas_left,
             gas_spent,
             outcomes,
             wait_list,
-            ..
+            awakening,
         } = result;
 
         let messages = messages.into_iter().map(Into::into).collect();
         let log = log.into_iter().map(Into::into).collect();
         let wait_list = wait_list.into_iter().map(Into::into).collect();
+        let awakening = awakening
+            .into_iter()
+            .map(|(msg_id, gas_limit)| (H256::from_slice(msg_id.as_slice()), gas_limit))
+            .collect();
 
         ExecutionReport {
             messages,
             handled: handled as _,
+            program_id: H256::from_slice(prog_id.as_slice()),
             log,
             gas_refunds: gas_left
                 .into_iter()
@@ -106,6 +114,7 @@ impl ExecutionReport {
                 })
                 .collect(),
             wait_list,
+            awakening,
         }
     }
 }
@@ -116,13 +125,9 @@ pub fn process<E: Environment<Ext>>(
 ) -> Result<ExecutionReport, Error> {
     let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
     if let Some(message) = native::dequeue_message() {
-        let mut result = runner.run_next(message, max_gas_limit);
-        for message in result.messages.drain(..) {
-            native::queue_message(message)
-        }
-        process_wait_list(&mut result);
+        let result = runner.run_next(message, max_gas_limit);
 
-        Ok(ExecutionReport::collect(result))
+        Ok(result.into())
     } else {
         Ok(Default::default())
     }
@@ -173,7 +178,7 @@ pub fn init_program<E: Environment<Ext>>(
     let mut result = RunNextResult::from_single(init_message, run_result);
     process_wait_list(&mut result);
 
-    Ok(ExecutionReport::collect(result))
+    Ok(result.into())
 }
 
 pub fn gas_spent<E: Environment<Ext>>(
