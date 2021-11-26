@@ -62,8 +62,14 @@ impl FixtureLogger {
     fn init(map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>) -> Result<(), SetLoggerError> {
         let logger = Self::new(map);
 
-        log::set_max_level(logger.inner.filter());
-        log::set_boxed_logger(Box::new(logger))
+        let max_level = logger.inner.filter();
+        let r = log::set_boxed_logger(Box::new(logger));
+
+        if r.is_ok() {
+            log::set_max_level(max_level);
+        }
+
+        r
     }
 }
 
@@ -518,7 +524,9 @@ where
     storage::Storage<SC::PS>: CollectState,
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
-    FixtureLogger::init(Arc::clone(&map))?;
+    if let Err(e) = FixtureLogger::init(Arc::clone(&map)) {
+        println!("Logger err: {}", e);
+    }
     let mut tests = Vec::new();
 
     for path in files {
