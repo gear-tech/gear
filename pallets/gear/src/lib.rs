@@ -35,6 +35,8 @@ mod tests;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
+const GAS_VALUE_PREFIX: &'static [u8] = b"g::gas_tree";
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -129,6 +131,10 @@ pub mod pallet {
         ///
         /// Occurs if a message is sent to a program that is in an uninitialized state.
         ProgramIsNotInitialized,
+        /// Message gas tree is not found.
+        ///
+        /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
+        NoMessageTree,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -300,6 +306,14 @@ pub mod pallet {
                             );
                             continue;
                         }
+
+                        let mut gas_tree = common::value_tree::ValueView::get_or_create(
+                            GAS_VALUE_PREFIX,
+                            origin,
+                            init_message_id,
+                            gas_limit,
+                        );
+
                         match runner::init_program::<
                             gear_backend_sandbox::SandboxEnvironment<runner::Ext>,
                         >(
@@ -351,8 +365,8 @@ pub mod pallet {
                                 // Handle the stuff that should be taken care of regardless of the execution outcome
                                 total_handled += 1;
 
-                                // handle refunds
-                                for (destination, gas_charge) in execution_report.gas_charges {
+                                // handle gas charge
+                                for (_, gas_charge) in execution_report.gas_charges {
                                     // Adjust block gas allowance
                                     GasAllowance::<T>::mutate(|x| {
                                         *x = x.saturating_sub(gas_charge)
@@ -361,17 +375,20 @@ pub mod pallet {
                                     // TODO: weight to fee calculator might not be identity fee
                                     let charge = Self::gas_to_fee(gas_charge);
 
-                                    if T::Currency::transfer(
-                                        &<T::AccountId as Origin>::from_origin(destination),
+                                    gas_tree.spend(gas_charge);
+                                    if let Err(e) = T::Currency::transfer(
+                                        &<T::AccountId as Origin>::from_origin(origin),
                                         &Authorship::<T>::author(),
                                         charge,
                                         ExistenceRequirement::AllowDeath,
-                                    )
-                                    .is_err()
-                                    {
+                                    ) {
                                         // should not be possible since there should've been reserved enough for
                                         // the transfer
                                         // TODO: audit this
+                                        log::warn!(
+                                            "Could not transfer enough gas to block producer: {:?}",
+                                            e
+                                        );
                                     }
                                 }
 
@@ -382,6 +399,7 @@ pub mod pallet {
 
                                 // Enqueuing outgoing messages
                                 for message in execution_report.messages {
+                                    gas_tree.split_off(message.id, message.gas_limit);
                                     common::queue_message(message);
                                 }
 
@@ -450,7 +468,14 @@ pub mod pallet {
                         value,
                         reply,
                     } => {
-                        common::queue_message(Message {
+                        let _ = common::value_tree::ValueView::get_or_create(
+                            GAS_VALUE_PREFIX,
+                            origin,
+                            id,
+                            gas_limit,
+                        );
+
+                        let message = Message {
                             id,
                             source: origin,
                             payload,
@@ -458,7 +483,14 @@ pub mod pallet {
                             dest: destination,
                             value,
                             reply: reply.map(|r| (r, 0)),
-                        });
+                        };
+
+                        if common::program_exists(destination) {
+                            common::queue_message(message);
+                        } else {
+                            Self::insert_to_mailbox(destination, message.clone());
+                            Self::deposit_event(Event::Log(message));
+                        }
                     }
                 }
             }
@@ -470,22 +502,27 @@ pub mod pallet {
                     break;
                 }
 
+                let mut gas_tree =
+                    match common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id) {
+                        Some(gas_tree) => gas_tree,
+                        None => {
+                            log::warn!(
+                                "Message does not have associated gas and will be skipped: {:?}",
+                                message.id
+                            );
+                            continue;
+                        }
+                    };
+
                 match runner::process::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
                     message, block_info,
                 ) {
                     Ok(execution_report) => {
                         total_handled += 1;
 
-                        for (destination, gas_left) in execution_report.gas_refunds {
-                            let refund = Self::gas_to_fee(gas_left);
-
-                            let _ = T::Currency::unreserve(
-                                &<T::AccountId as Origin>::from_origin(destination),
-                                refund,
-                            );
-                        }
-
                         for (destination, gas_charge) in execution_report.gas_charges {
+                            gas_tree.spend(gas_charge);
+
                             let charge = Self::gas_to_fee(gas_charge);
 
                             let _ = T::Currency::repatriate_reserved(
@@ -507,31 +544,41 @@ pub mod pallet {
 
                         // Enqueuing outgoing messages
                         for message in execution_report.messages {
+                            gas_tree.split_off(message.id, message.gas_limit);
+
                             common::queue_message(message);
                         }
 
+                        let mut waited = false;
                         for msg in execution_report.wait_list {
                             Self::deposit_event(Event::AddedToWaitList(msg.clone()));
                             common::insert_waiting_message(msg.dest, msg.id, msg);
+                            waited = true;
                         }
 
-                        for (msg_id, gas) in execution_report.awakening {
-                            if let Some(mut msg) =
+                        if !waited {
+                            if let common::value_tree::ConsumeResult::RefundExternal(
+                                external,
+                                gas_left,
+                            ) = gas_tree.consume()
+                            {
+                                let refund = Self::gas_to_fee(gas_left);
+
+                                let _ = T::Currency::unreserve(
+                                    &<T::AccountId as Origin>::from_origin(external),
+                                    refund,
+                                );
+                            }
+                        }
+
+                        for msg_id in execution_report.awakening {
+                            if let Some(msg) =
                                 common::remove_waiting_message(execution_report.program_id, msg_id)
                             {
-                                // Increase gas available to the message
-                                if u64::max_value() - gas < msg.gas_limit {
-                                    // TODO: issue #323
-                                    log::debug!(
-                                        "Gas limit ({}) after wake (+{}) exceeded u64::max() and will be burned",
-                                        msg.gas_limit,
-                                        gas
-                                    );
-                                }
-                                msg.gas_limit = msg.gas_limit.saturating_add(gas);
                                 common::queue_message(msg);
-
                                 Self::deposit_event(Event::RemovedFromWaitList(msg_id));
+                            } else {
+                                log::warn!("Unknown message awaken: {}", msg_id);
                             }
                         }
 
@@ -545,7 +592,11 @@ pub mod pallet {
                             }));
                         }
                     }
-                    Err(_e) => {
+                    Err(e) => {
+                        log::warn!(
+                            "Message processing returned error and will be skipped: {:?}",
+                            e
+                        );
                         // TODO: make error event log record
                         continue;
                     }
@@ -894,17 +945,29 @@ pub mod pallet {
             let message = Self::remove_from_mailbox(who.clone().into_origin(), message_id)
                 .ok_or(Error::<T>::NoMessageInMailbox)?;
 
-            let amount = Self::gas_to_fee(message.gas_limit)
-                .saturating_add(message.value.unique_saturated_into());
+            // gas should be returned to sender tree
+            let gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id)
+                .ok_or(Error::<T>::NoMessageTree)?;
 
-            if amount > 0_u32.into() {
+            if message.value > 0 {
                 // Assuming the programs has enough balance
                 T::Currency::transfer(
                     &<T::AccountId as Origin>::from_origin(message.source),
                     &who,
-                    amount,
+                    message.value.unique_saturated_into(),
                     ExistenceRequirement::AllowDeath,
                 )?;
+            }
+
+            if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
+                gas_tree.consume()
+            {
+                let refund = Self::gas_to_fee(gas_left);
+
+                let _ = T::Currency::unreserve(
+                    &<T::AccountId as Origin>::from_origin(external),
+                    refund,
+                );
             }
 
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));

@@ -54,11 +54,10 @@ pub struct ExecutionReport {
     pub messages: Vec<gear_common::Message>,
     pub program_id: H256,
     pub log: Vec<gear_common::Message>,
-    pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
     pub wait_list: Vec<gear_common::Message>,
-    pub awakening: Vec<(H256, u64)>,
+    pub awakening: Vec<H256>,
 }
 
 impl From<RunNextResult> for ExecutionReport {
@@ -78,14 +77,13 @@ impl From<RunNextResult> for ExecutionReport {
         let wait_list = wait_list.into_iter().map(Into::into).collect();
         let awakening = awakening
             .into_iter()
-            .map(|(msg_id, gas_limit)| (H256::from_slice(msg_id.as_slice()), gas_limit))
+            .map(|msg_id| H256::from_slice(msg_id.as_slice()))
             .collect();
 
         ExecutionReport {
             messages,
             program_id: H256::from_slice(prog_id.as_slice()),
             log,
-            gas_refunds: Vec::new(),
             gas_charges: gas_spent
                 .into_iter()
                 .map(|(program_id, gas_left)| (H256::from_slice(program_id.as_slice()), gas_left))

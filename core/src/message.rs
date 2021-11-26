@@ -727,10 +727,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
     /// Mark a message to be woken using `waker_id`.
     pub fn wake(&self, waker_id: MessageId) -> Result<(), Error> {
-        self.state
-            .borrow_mut()
-            .awakening
-            .push(waker_id);
+        self.state.borrow_mut().awakening.push(waker_id);
         Ok(())
     }
 

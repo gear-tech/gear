@@ -94,8 +94,8 @@ pub struct RunNextResult {
     pub outcomes: BTreeMap<MessageId, ExecutionOutcome>,
     /// Gas that was spent.
     ///
-    /// Gas that was burned for computations.
-    pub gas_spent: Vec<(ProgramId, u64)>,
+    /// Gas that was burned for computations, for each message.
+    pub gas_spent: Vec<(MessageId, u64)>,
     /// List of waiting messages.
     pub wait_list: Vec<Message>,
     /// Messages to be waken.
@@ -109,10 +109,9 @@ impl RunNextResult {
     }
 
     /// Accrue one run of the message hadling.
-    pub fn accrue(&mut self, message_id: MessageId, caller_id: ProgramId, result: RunResult) {
+    pub fn accrue(&mut self, message_id: MessageId, result: RunResult) {
         self.outcomes.insert(message_id, result.outcome);
-        // Report caller's left and spent gas
-        self.gas_spent.push((caller_id, result.gas_spent));
+        self.gas_spent.push((message_id, result.gas_spent));
         self.awakening = result.awakening;
     }
 
@@ -121,13 +120,12 @@ impl RunNextResult {
         let mut result = Self::new();
         result.prog_id = message.dest;
         let message_id = message.id;
-        let source_id = message.source;
         let run_result = run_result;
         if let ExecutionOutcome::Waiting = run_result.outcome {
             result.wait_list.push(message);
         }
 
-        result.accrue(message_id, source_id, run_result);
+        result.accrue(message_id, run_result);
         result
     }
 
@@ -310,8 +308,8 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         let outgoing_messages = context.message_buf.drain(..).collect::<Vec<_>>();
 
         if run_result.outcome.was_trap() && generate_reply_on_trap {
-
-            let gas_spent_for_outgoing: u64 = outgoing_messages.iter().map(|msg| msg.gas_limit).sum();
+            let gas_spent_for_outgoing: u64 =
+                outgoing_messages.iter().map(|msg| msg.gas_limit).sum();
             let burned_gas = run_result.gas_spent;
             let trap_gas = incoming_message.gas_limit() - gas_spent_for_outgoing - burned_gas;
 
@@ -1212,7 +1210,6 @@ mod tests {
 
         let result = runner.run_next(message);
         assert_eq!(result.gas_spent.len(), 1);
-
 
         let (gas_available, ..) = runner
             .log
