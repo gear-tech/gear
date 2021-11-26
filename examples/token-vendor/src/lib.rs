@@ -10,7 +10,7 @@ use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 
-const GAS_RESERVE: u64 = 500_000_000;
+const GAS_RESERVE: u64 = 50_000_000;
 
 struct State {
     owner_id: Option<ActorId>,

@@ -1276,7 +1276,7 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=324d4c94de64e5e104b49938a3471331d9ad9c2b#324d4c94de64e5e104b49938a3471331d9ad9c2b"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=a981bb84ed1e6edcceb4db6f93450551353c31dc#a981bb84ed1e6edcceb4db6f93450551353c31dc"
 dependencies = [
  "libc",
  "libc_print",
@@ -1933,9 +1933,6 @@ checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
 [[package]]
 name = "gcore"
 version = "0.1.0"
-dependencies = [
- "dlmalloc",
-]
 
 [[package]]
 name = "gear-backend-common"

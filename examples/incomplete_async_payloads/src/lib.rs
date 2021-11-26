@@ -2,7 +2,7 @@
 
 use gstd::{debug, msg, prelude::*};
 
-const GAS_LIMIT: u64 = 50_000_000;
+const GAS_LIMIT: u64 = 10_000_000;
 
 #[gstd::async_main]
 async fn main() {
