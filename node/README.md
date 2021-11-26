@@ -53,6 +53,15 @@ rustup update nightly
 rustup target add wasm32-unknown-unknown --toolchain nightly
 ```
 
+## Test network
+
+Test network is live. To run local node connected to test network, compile and launch node without parameters:
+
+```
+cargo build --release
+./target/release/gear-node
+```
+
 ## Dev Net
 
 At the MVP stage, dev net is supported!
