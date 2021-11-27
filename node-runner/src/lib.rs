@@ -20,6 +20,7 @@
 extern crate alloc;
 pub mod ext;
 
+use alloc::collections::VecDeque;
 use codec::{Decode, Encode};
 use sp_core::H256;
 
@@ -33,7 +34,7 @@ use gear_core::{
 use gear_backend_common::Environment;
 pub use gear_core_runner::{BlockInfo, Ext};
 use gear_core_runner::{
-    ExecutionOutcome, ExtMessage, InitializeProgramInfo, MessageDispatch, RunNextResult, Runner,
+    ExecutionOutcome, ExtMessage, InitializeProgramInfo, RunNextResult, Runner,
 };
 use sp_std::prelude::*;
 
@@ -41,7 +42,7 @@ use crate::ext::*;
 
 type ExtRunner<E> = Runner<ExtStorage, E>;
 /// Storage used for running node
-pub type ExtStorage = Storage<ExtMessageQueue, ExtProgramStorage>;
+pub type ExtStorage = Storage<ExtProgramStorage>;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Error {
@@ -49,35 +50,45 @@ pub enum Error {
     Runner,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Default)]
 pub struct ExecutionReport {
     pub handled: u32,
+    pub messages: Vec<gear_common::Message>,
+    pub program_id: H256,
     pub log: Vec<gear_common::Message>,
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
-    pub wait_list: Vec<Message>,
+    pub wait_list: Vec<gear_common::Message>,
+    pub awakening: Vec<(H256, u64)>,
 }
 
-impl ExecutionReport {
-    fn collect(message_queue: ext::ExtMessageQueue, result: RunNextResult) -> Self {
+impl From<RunNextResult> for ExecutionReport {
+    fn from(result: RunNextResult) -> Self {
         let RunNextResult {
             handled,
+            messages,
+            prog_id,
+            log,
             gas_left,
             gas_spent,
             outcomes,
             wait_list,
-            ..
+            awakening,
         } = result;
 
-        let log = message_queue
-            .log
+        let messages = messages.into_iter().map(Into::into).collect();
+        let log = log.into_iter().map(Into::into).collect();
+        let wait_list = wait_list.into_iter().map(Into::into).collect();
+        let awakening = awakening
             .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>();
+            .map(|(msg_id, gas_limit)| (H256::from_slice(msg_id.as_slice()), gas_limit))
+            .collect();
 
         ExecutionReport {
+            messages,
             handled: handled as _,
+            program_id: H256::from_slice(prog_id.as_slice()),
             log,
             gas_refunds: gas_left
                 .into_iter()
@@ -103,6 +114,7 @@ impl ExecutionReport {
                 })
                 .collect(),
             wait_list,
+            awakening,
         }
     }
 }
@@ -112,18 +124,13 @@ pub fn process<E: Environment<Ext>>(
     block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
     let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
-    let mut result = runner.run_next(max_gas_limit);
-    process_wait_list(&mut result);
+    if let Some(message) = native::dequeue_message() {
+        let result = runner.run_next(message, max_gas_limit);
 
-    let Storage {
-        mut message_queue,
-        log,
-        ..
-    } = runner.complete();
-
-    message_queue.log = log.get().to_vec();
-
-    Ok(ExecutionReport::collect(message_queue, result))
+        Ok(result.into())
+    } else {
+        Ok(Default::default())
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -171,15 +178,7 @@ pub fn init_program<E: Environment<Ext>>(
     let mut result = RunNextResult::from_single(init_message, run_result);
     process_wait_list(&mut result);
 
-    let Storage {
-        mut message_queue,
-        log,
-        ..
-    } = runner.complete();
-
-    message_queue.log = log.get().to_vec();
-
-    Ok(ExecutionReport::collect(message_queue, result))
+    Ok(result.into())
 }
 
 pub fn gas_spent<E: Environment<Ext>>(
@@ -189,21 +188,24 @@ pub fn gas_spent<E: Environment<Ext>>(
 ) -> Result<u64, Error> {
     let mut runner = ExtRunner::<E>::default();
 
-    runner.queue_message(MessageDispatch {
-        source_id: ProgramId::from(1),
-        destination_id: ProgramId::from_slice(&program_id[..]),
-        data: ExtMessage {
-            id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
-            gas_limit: u64::MAX,
-            payload,
-            value,
-        },
-    });
+    let message = Message {
+        id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
+        source: ProgramId::from(1),
+        dest: ProgramId::from_slice(&program_id[..]),
+        gas_limit: u64::MAX,
+        payload: payload.into(),
+        value,
+        reply: None,
+    };
+    let mut messages = VecDeque::from([message]);
 
     let mut total_gas_spent = 0;
 
-    loop {
-        let run_result = runner.run_next(u64::MAX);
+    while let Some(message) = messages.pop_front() {
+        let mut run_result = runner.run_next(message, u64::MAX);
+        for new_message in run_result.messages.drain(..) {
+            messages.push_back(new_message);
+        }
 
         if let Some(gas_spent) = run_result.gas_spent.first() {
             total_gas_spent += gas_spent.1;
@@ -212,10 +214,6 @@ pub fn gas_spent<E: Environment<Ext>>(
         if run_result.any_traps() {
             log::error!("gas_spent: Empty run result");
             return Err(Error::Runner);
-        }
-
-        if run_result.handled == 0 {
-            break;
         }
     }
 

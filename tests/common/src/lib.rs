@@ -18,11 +18,12 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use gear_backend_wasmtime::WasmtimeEnvironment;
-use gear_core::storage::InMemoryStorage;
-use gear_core::{message::MessageId, program::ProgramId};
+use gear_core::{
+    message::{Message, MessageId},
+    program::ProgramId,
+};
 use gear_core_runner::{
     Config, ExecutionOutcome, Ext, ExtMessage, InMemoryRunner, InitializeProgramInfo,
-    MessageDispatch,
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -150,11 +151,16 @@ impl MessageDispatchBuilder {
         self
     }
 
-    fn into_message_dispatch(self, runner: &mut RunnerContext) -> MessageDispatch {
-        MessageDispatch {
-            source_id: self.source.unwrap_or_else(ProgramId::system),
-            destination_id: self.destination.unwrap_or_else(|| 1.into()),
-            data: self.message.into_ext(runner),
+    fn into_message(self, runner: &mut RunnerContext) -> Message {
+        let ext_message = self.message.into_ext(runner);
+        Message {
+            id: ext_message.id,
+            source: self.source.unwrap_or_else(ProgramId::system),
+            dest: self.destination.unwrap_or_else(|| 1.into()),
+            payload: ext_message.payload.into(),
+            gas_limit: ext_message.gas_limit,
+            value: ext_message.value,
+            reply: None,
         }
     }
 }
@@ -210,22 +216,30 @@ pub enum Error {
 }
 
 pub struct RunnerContext {
-    runner_state: RunnerState,
+    runner: InMemoryWasmRunner,
     program_id: u64,
     used_program_ids: HashSet<ProgramId>,
     message_id: u64,
     used_message_ids: HashSet<MessageId>,
+    message_queue: Vec<Message>,
+    log: Vec<Message>,
+    outcomes: BTreeMap<MessageId, ExecutionOutcome>,
+    gas_left: BTreeMap<ProgramId, u64>,
+    gas_spent: BTreeMap<ProgramId, u64>,
 }
 
 impl RunnerContext {
     pub fn new(runner: InMemoryWasmRunner) -> Self {
         Self {
-            runner_state: RunnerState::Runner(runner),
+            runner,
             program_id: 1,
-            used_program_ids: HashSet::new(),
             message_id: 1,
-            used_message_ids: HashSet::new(),
+            ..Default::default()
         }
+    }
+
+    pub fn log(&self) -> &[Message] {
+        &self.log
     }
 
     pub fn with_config(config: &Config) -> Self {
@@ -246,6 +260,9 @@ impl RunnerContext {
         self.runner()
             .init_program(info)
             .expect("Failed to init program");
+
+        let mut log = self.runner().log().get().to_vec();
+        self.log.append(&mut log);
     }
 
     pub fn init_program_with_reply<P, D>(&mut self, init_data: P) -> D
@@ -259,6 +276,9 @@ impl RunnerContext {
         self.runner()
             .init_program(info)
             .expect("Failed to init program");
+
+        let mut log = self.runner().log().get().to_vec();
+        self.log.append(&mut log);
 
         reply_or_panic(self.get_response_to(message_id))
     }
@@ -276,6 +296,9 @@ impl RunnerContext {
             .init_program(info)
             .expect("Failed to init program");
 
+        let mut log = self.runner().log().get().to_vec();
+        self.log.append(&mut log);
+
         let response = self.get_response_to(message_id);
 
         RunReport {
@@ -291,13 +314,10 @@ impl RunnerContext {
         Msg: Into<MessageDispatchBuilder>,
         D: Decode,
     {
-        let message_dispatch = message.into().into_message_dispatch(self);
-        let message_id = message_dispatch.data.id;
+        let message = message.into().into_message(self);
+        let message_id = message.id;
 
-        let runner = self.runner();
-        runner.queue_message(message_dispatch);
-
-        self.run();
+        self.run(message);
         self.get_response_to(message_id)
     }
 
@@ -306,36 +326,25 @@ impl RunnerContext {
         Msg: Into<MessageDispatchBuilder>,
         D: Decode,
     {
-        let message_dispatch = message.into().into_message_dispatch(self);
-        let message_id = message_dispatch.data.id;
-        let program_id = message_dispatch.source_id;
+        let message = message.into().into_message(self);
+        let message_id = message.id;
+        let program_id = message.source;
 
-        let runner = self.runner();
+        self.run(message);
 
-        runner.queue_message(message_dispatch);
-
-        let mut result = loop {
-            let result = runner.run_next(u64::MAX);
-            if result.handled > 0 {
-                break result;
-            }
-        };
-
-        let outcome = result
+        let outcome = self
             .outcomes
             .remove(&message_id)
             .expect("Unable to get message outcome");
 
-        let gas_left = result
+        let gas_left = self
             .gas_left
-            .into_iter()
-            .find_map(|(id, left)| if id == program_id { Some(left) } else { None })
+            .remove(&program_id)
             .expect("Unable to get remaining gas for program");
 
-        let gas_spent = result
+        let gas_spent = self
             .gas_spent
-            .into_iter()
-            .find_map(|(id, spent)| if id == program_id { Some(spent) } else { None })
+            .remove(&program_id)
             .expect("Unable to get spent gas for program");
 
         let response = self.get_response_to(message_id);
@@ -365,14 +374,13 @@ impl RunnerContext {
         let mut message_ids: Vec<MessageId> = Vec::new();
 
         for request in requests {
-            let request = request.into().into_message_dispatch(self);
-            let message_id = request.data.id;
+            let request = request.into().into_message(self);
+            let message_id = request.id;
 
             message_ids.push(message_id);
-            self.runner().queue_message(request);
-        }
 
-        self.run();
+            self.run(request);
+        }
 
         message_ids
             .into_iter()
@@ -398,9 +406,8 @@ impl RunnerContext {
         D: Decode,
     {
         let id = id.into();
-        self.storage()
-            .log
-            .get()
+
+        self.log
             .iter()
             .find(|message| message.reply.map(|(to, _)| to == id).unwrap_or(false))
             .map(|message| {
@@ -416,12 +423,8 @@ impl RunnerContext {
             })
     }
 
-    pub fn storage(&mut self) -> &InMemoryStorage {
-        self.runner_state.convert_to_storage()
-    }
-
     fn runner(&mut self) -> &mut InMemoryWasmRunner {
-        self.runner_state.convert_to_runner()
+        &mut self.runner //_state.convert_to_runner()
     }
 
     fn next_message_id(&mut self) -> MessageId {
@@ -442,14 +445,44 @@ impl RunnerContext {
         program_id
     }
 
-    fn run(&mut self) {
+    fn run(&mut self, message: Message) {
+        let mut messages: Vec<_> = self.message_queue.drain(..).collect();
+        messages.push(message);
+        let mut outcomes = BTreeMap::new();
+        let mut gas_left = BTreeMap::new();
+        let mut gas_spent = BTreeMap::new();
+
         let runner = self.runner();
-        loop {
-            let mut result = runner.run_next(u64::MAX);
-            runner.process_wait_list(&mut result);
-            if result.handled == 0 {
-                break;
+        while let Some(message) = messages.pop() {
+            let mut run_result = runner.run_next(message, u64::MAX);
+            runner.process_wait_list(&mut run_result);
+            for new_message in run_result.messages.drain(..) {
+                messages.push(new_message);
             }
+            for (id, outcome) in run_result.outcomes {
+                outcomes.insert(id, outcome);
+            }
+            for (id, gas) in run_result.gas_left {
+                gas_left.insert(id, gas);
+            }
+            for (id, gas) in run_result.gas_spent {
+                gas_spent.insert(id, gas);
+            }
+        }
+
+        let mut log = runner.log().get().to_vec();
+        self.log.append(&mut log);
+
+        self.message_queue.append(&mut messages);
+
+        for (id, outcome) in outcomes {
+            self.outcomes.insert(id, outcome);
+        }
+        for (id, gas) in gas_left {
+            self.gas_left.insert(id, gas);
+        }
+        for (id, gas) in gas_spent {
+            self.gas_spent.insert(id, gas);
         }
     }
 }
@@ -465,74 +498,16 @@ fn reply_or_panic<D: Decode>(response: Option<Result<D, Error>>) -> D {
 impl Default for RunnerContext {
     fn default() -> Self {
         Self {
-            runner_state: RunnerState::Uninitialzied,
+            runner: Default::default(),
             program_id: 1,
             used_program_ids: HashSet::new(),
             message_id: 1,
             used_message_ids: HashSet::new(),
+            message_queue: Vec::new(),
+            log: Vec::new(),
+            outcomes: BTreeMap::new(),
+            gas_left: BTreeMap::new(),
+            gas_spent: BTreeMap::new(),
         }
-    }
-}
-
-type WaitList = BTreeMap<(ProgramId, MessageId), MessageDispatch>;
-enum RunnerState {
-    Runner(InMemoryWasmRunner),
-    Storage(InMemoryStorage, Config, WaitList),
-    Uninitialzied,
-}
-
-impl RunnerState {
-    fn convert_to_runner(&mut self) -> &mut InMemoryWasmRunner {
-        if let Self::Runner(runner) = self {
-            runner
-        } else {
-            *self = match std::mem::take(self) {
-                Self::Storage(storage, config, wait_list) => Self::Runner(
-                    InMemoryWasmRunner::new(
-                        &config,
-                        storage,
-                        Default::default(),
-                        WasmtimeEnvironment::default(),
-                    )
-                    .with_wait_list(wait_list),
-                ),
-                _ => Self::Runner(InMemoryWasmRunner::default()),
-            };
-
-            self.convert_to_runner()
-        }
-    }
-
-    fn convert_to_storage(&mut self) -> &InMemoryStorage {
-        if let Self::Storage(storage, ..) = self {
-            storage
-        } else {
-            *self = if let Self::Runner(runner) = std::mem::take(self) {
-                let config = Config {
-                    max_pages: runner.max_pages(),
-                    alloc_cost: runner.alloc_cost(),
-                    mem_grow_cost: runner.mem_grow_cost(),
-                    init_cost: runner.init_cost(),
-                    load_page_cost: runner.load_page_cost(),
-                };
-                let wait_list = runner.wait_list().clone();
-                let storage = runner.complete();
-                Self::Storage(storage, config, wait_list)
-            } else {
-                Self::Storage(
-                    InMemoryStorage::default(),
-                    Config::default(),
-                    WaitList::default(),
-                )
-            };
-
-            self.convert_to_storage()
-        }
-    }
-}
-
-impl Default for RunnerState {
-    fn default() -> Self {
-        Self::Uninitialzied
     }
 }

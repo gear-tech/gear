@@ -94,7 +94,7 @@ mod wasm {
                 let reply_bytes = msg::send_bytes_and_wait_for_reply(
                     program_handle,
                     &encoded_request[..],
-                    exec::gas_available() - 50_000_000,
+                    exec::gas_available() - 60_000_000,
                     0,
                 )
                 .await
@@ -140,7 +140,7 @@ mod wasm {
             };
 
             debug!("Handle request finished");
-            msg::reply(reply, exec::gas_available() - 50_000_000, 0);
+            msg::reply(reply, exec::gas_available() - 60_000_000, 0);
         }
 
         async fn handle_receive(amount: u64) -> Reply {
@@ -305,7 +305,7 @@ mod tests {
         assert_eq!(reply, Reply::Amount(11));
     }
 
-    // This test show how RefCell will prevent to do conficting changes (prevent multi-aliasing of the program state)
+    // This test show how RefCell will prevent to do conflicting changes (prevent multi-aliasing of the program state)
     #[test]
     fn conflicting_nodes() {
         env_logger::Builder::from_env(env_logger::Env::default()).init();

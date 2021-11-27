@@ -28,7 +28,7 @@ impl State {
 }
 
 static mut STATE: State = State { user_id: None };
-const GAS_RESERVE: u64 = 100_000_000;
+const GAS_RESERVE: u64 = 20_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
