@@ -692,8 +692,8 @@ fn block_gas_limit_works() {
         // | 2 |        |   |
         // |   |  ===>  |   |
         //
-        //System::assert_last_event(crate::Event::MessagesDequeued(1).into()); // FIXME: !!!
-        //assert_eq!(Gear::gas_allowance(), 11_000); // FIXME: !!!
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+        assert_eq!(Gear::gas_allowance(), 11_000);
     });
 }
 

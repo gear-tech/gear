@@ -84,8 +84,6 @@ impl Config {
 /// Result of one or more message handling.
 #[derive(Debug, Default, Clone)]
 pub struct RunNextResult {
-    /// How many messages were handled.
-    pub handled: u32,
     /// List of resulting messages.
     pub messages: Vec<Message>,
     /// List of resulting log messages.
@@ -105,25 +103,13 @@ pub struct RunNextResult {
 }
 
 impl RunNextResult {
-    /// Result that notes that some log message had been handled, otherwise empty.
-    pub(crate) fn log() -> Self {
-        RunNextResult {
-            handled: 1,
-            ..Default::default()
-        }
-    }
-
-    /// Result that notes that some failed program has been tried to run but nothing really happened.
-    pub(crate) fn trap() -> Self {
-        RunNextResult {
-            handled: 1,
-            ..Default::default()
-        }
+    /// Create an empty `RunNextResult`
+    pub(crate) fn new() -> Self {
+        Default::default()
     }
 
     /// Accrue one run of the message hadling.
     pub fn accrue(&mut self, message_id: MessageId, caller_id: ProgramId, result: RunResult) {
-        self.handled += 1;
         self.outcomes.insert(message_id, result.outcome);
         // Report caller's left and spent gas
         self.gas_left.push((caller_id, result.gas_left));
@@ -131,14 +117,9 @@ impl RunNextResult {
         self.awakening = result.awakening;
     }
 
-    /// Empty run result.
-    pub fn empty() -> Self {
-        Default::default()
-    }
-
     /// From one single run.
     pub fn from_single(message: Message, run_result: RunResult) -> Self {
-        let mut result = Self::empty();
+        let mut result = Self::new();
         result.prog_id = message.dest;
         let message_id = message.id;
         let source_id = message.source;
@@ -277,7 +258,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     ///
     /// Runner will return actual number of messages that was handled.
     /// Messages with no destination won't be handled.
-    pub fn run_next(&mut self, message: Message, max_gas_limit: u64) -> RunNextResult {
+    pub fn run_next(&mut self, message: Message) -> RunNextResult {
         let gas_limit = message.gas_limit();
         let message_source = message.source();
         let message_dest = message.dest();
@@ -286,26 +267,15 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             Some(program) => program,
             None => {
                 self.log.put(message);
-                return RunNextResult::log();
+                return RunNextResult::new();
             }
         };
-
-        if gas_limit > max_gas_limit {
-            // Re-queue the message to be processed in one of the following blocks
-            log::info!(
-                "Message gas limit of {} exceeds the remaining block gas allowance of {}",
-                gas_limit,
-                max_gas_limit
-            );
-            self.message_queue.push(message);
-            return RunNextResult::empty();
-        }
 
         let instrumented_code = match gas::instrument(program.code()) {
             Ok(code) => code,
             Err(err) => {
                 log::debug!("Instrumentation error: {:?}", err);
-                return RunNextResult::trap();
+                return RunNextResult::new();
             }
         };
 
@@ -386,10 +356,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     ///
     /// Use it only for in-memory storage (i.e. for testing purposes).
     pub fn process_wait_list(&mut self, result: &mut RunNextResult) {
-        if result.handled == 0 {
-            return;
-        }
-
         let prog_id = result.prog_id;
 
         result.wait_list.drain(..).for_each(|msg| {
@@ -415,7 +381,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
     /// Drop this runner.
     ///
-    /// This will return underlyign storage and memory state.
+    /// This will return underlying storage and memory state.
     pub fn complete(self) -> Storage<SC::PS> {
         let Runner {
             program_storage,
@@ -426,6 +392,16 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         Storage {
             program_storage,
             log,
+        }
+    }
+
+    /// Storage of this runner.
+    ///
+    /// This will return underlying storage and memory state.
+    pub fn storage(&self) -> Storage<SC::PS> {
+        Storage {
+            program_storage: self.program_storage.clone(),
+            log: self.log.clone(),
         }
     }
 
@@ -936,7 +912,7 @@ mod tests {
             reply: None,
         };
 
-        assert!(runner.run_next(message, u64::MAX).any_traps());
+        assert!(runner.run_next(message).any_traps());
 
         let msg = vec![
             1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 2, 4, 6, 8, 10, 12, 14, 16,
@@ -953,7 +929,7 @@ mod tests {
             reply: Some((MessageId::from_slice(&msg), 0)),
         };
 
-        assert!(!runner.run_next(message, u64::MAX).any_traps()); // this is handling of automatic reply when first message was trapped; it will also fail
+        assert!(!runner.run_next(message).any_traps()); // this is handling of automatic reply when first message was trapped; it will also fail
 
         let InMemoryStorage {
             program_storage, ..
@@ -1050,7 +1026,7 @@ mod tests {
             reply: None,
         };
 
-        let run_result = runner.run_next(message, u64::MAX);
+        let run_result = runner.run_next(message);
 
         assert_eq!(
             run_result
@@ -1136,7 +1112,7 @@ mod tests {
             reply: None,
         };
 
-        let run_result = runner.run_next(message, u64::MAX);
+        let run_result = runner.run_next(message);
 
         assert_eq!(
             run_result
@@ -1192,7 +1168,7 @@ mod tests {
             reply: None,
         };
 
-        let mut result = runner.run_next(message, u64::MAX);
+        let mut result = runner.run_next(message);
 
         let InMemoryStorage {
             program_storage: _,
@@ -1255,7 +1231,7 @@ mod tests {
             reply: None,
         };
 
-        let result = runner.run_next(message, u64::MAX);
+        let result = runner.run_next(message);
         assert_eq!(result.gas_spent.len(), 1);
         assert_eq!(result.gas_left.len(), 1);
 
@@ -1325,7 +1301,7 @@ mod tests {
         // Charge 1000 of gas for initial memory.
         assert_eq!(init_result.gas_spent, runner.init_cost() * 1);
 
-        let result = runner.run_next(message, u64::MAX);
+        let result = runner.run_next(message);
 
         assert_eq!(
             result.gas_spent[0].1,
@@ -1371,7 +1347,7 @@ mod tests {
             reply: None,
         };
 
-        let run_result = runner.run_next(message, u64::MAX);
+        let run_result = runner.run_next(message);
 
         assert_eq!(run_result.gas_spent[0].1, 10_000);
     }

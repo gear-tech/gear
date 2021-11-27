@@ -26,6 +26,8 @@ sp-keyring = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substr
 sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 gear-backend-common = { path = "../core-backend/common" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+rayon = "1.5"
 
 [[bin]]
 name = "gtest"
