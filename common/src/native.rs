@@ -61,17 +61,7 @@ pub fn queue_message(message: CoreMessage) {
 }
 
 pub fn dequeue_message() -> Option<CoreMessage> {
-    crate::dequeue_message().map(|msg| CoreMessage {
-        id: MessageId::from_slice(&msg.id[..]),
-        source: ProgramId::from_slice(&msg.source[..]),
-        dest: ProgramId::from_slice(&msg.dest[..]),
-        payload: msg.payload.into(),
-        gas_limit: msg.gas_limit,
-        value: msg.value,
-        reply: msg
-            .reply
-            .map(|(message_id, exit_code)| (MessageId::from_slice(&message_id[..]), exit_code)),
-    })
+    crate::dequeue_message().map(Into::into)
 }
 
 pub fn get_program(id: ProgramId) -> Option<Program> {

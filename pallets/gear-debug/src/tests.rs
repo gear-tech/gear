@@ -209,7 +209,7 @@ fn debug_mode_works() {
 
         // Process messages
         assert_ok!(runner::process::<Ext>(
-            u64::MAX,
+            common::dequeue_message().expect("the queue should have the message; qed"),
             BlockInfo {
                 height: 2_u32,
                 timestamp: 1_000_001_000_u64,
@@ -250,7 +250,7 @@ fn debug_mode_works() {
         );
 
         assert_ok!(runner::process::<Ext>(
-            u64::MAX,
+            common::dequeue_message().expect("the queue should have the message; qed"),
             BlockInfo {
                 height: 2_u32,
                 timestamp: 1_000_001_200_u64,

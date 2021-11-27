@@ -286,7 +286,7 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     original_nonce
 }
 
-pub(crate) fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message) {
+pub fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message) {
     sp_io::storage::set(&wait_key(prog_id, msg_id), &message.encode());
 }
 
@@ -297,7 +297,7 @@ pub(crate) fn get_waiting_message(prog_id: H256, msg_id: H256) -> Option<Message
         .flatten()
 }
 
-pub(crate) fn remove_waiting_message(prog_id: H256, msg_id: H256) -> Option<Message> {
+pub fn remove_waiting_message(prog_id: H256, msg_id: H256) -> Option<Message> {
     let id = wait_key(prog_id, msg_id);
     let msg: Option<Message> = sp_io::storage::get(&id)
         .map(|val| Message::decode(&mut &val[..]).expect("message encoded correctly"));

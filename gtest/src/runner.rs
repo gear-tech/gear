@@ -286,7 +286,7 @@ where
             runner.set_block_timestamp(timestamp as _);
             let do_run = step_no < messages.len();
             if step_no < messages.len() {
-                let mut run_result = runner.run_next(messages[step_no].clone(), u64::MAX);
+                let mut run_result = runner.run_next(messages[step_no].clone());
                 runner.process_wait_list(&mut run_result);
 
                 log::info!("step: {}", step_no + 1);
@@ -318,7 +318,7 @@ where
     } else {
         let mut step_no = 0;
         while step_no < messages.len() {
-            let mut run_result = runner.run_next(messages[step_no].clone(), u64::MAX);
+            let mut run_result = runner.run_next(messages[step_no].clone());
             runner.process_wait_list(&mut run_result);
 
             {

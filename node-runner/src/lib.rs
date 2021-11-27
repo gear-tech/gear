@@ -24,7 +24,6 @@ use alloc::collections::VecDeque;
 use codec::{Decode, Encode};
 use sp_core::H256;
 
-use gear_common::native;
 use gear_core::{
     message::{Message, MessageId},
     program::ProgramId,
@@ -52,35 +51,40 @@ pub enum Error {
 
 #[derive(Debug, Encode, Decode, Default)]
 pub struct ExecutionReport {
-    pub handled: u32,
     pub messages: Vec<gear_common::Message>,
+    pub program_id: H256,
     pub log: Vec<gear_common::Message>,
     pub gas_refunds: Vec<(H256, u64)>,
     pub gas_charges: Vec<(H256, u64)>,
     pub outcomes: Vec<(H256, Result<(), Vec<u8>>)>,
     pub wait_list: Vec<gear_common::Message>,
+    pub awakening: Vec<(H256, u64)>,
 }
 
-impl ExecutionReport {
-    fn collect(result: RunNextResult) -> Self {
+impl From<RunNextResult> for ExecutionReport {
+    fn from(result: RunNextResult) -> Self {
         let RunNextResult {
-            handled,
             messages,
+            prog_id,
             log,
             gas_left,
             gas_spent,
             outcomes,
             wait_list,
-            ..
+            awakening,
         } = result;
 
         let messages = messages.into_iter().map(Into::into).collect();
         let log = log.into_iter().map(Into::into).collect();
         let wait_list = wait_list.into_iter().map(Into::into).collect();
+        let awakening = awakening
+            .into_iter()
+            .map(|(msg_id, gas_limit)| (H256::from_slice(msg_id.as_slice()), gas_limit))
+            .collect();
 
         ExecutionReport {
             messages,
-            handled: handled as _,
+            program_id: H256::from_slice(prog_id.as_slice()),
             log,
             gas_refunds: gas_left
                 .into_iter()
@@ -106,26 +110,18 @@ impl ExecutionReport {
                 })
                 .collect(),
             wait_list,
+            awakening,
         }
     }
 }
 
 pub fn process<E: Environment<Ext>>(
-    max_gas_limit: u64,
+    message: gear_common::Message,
     block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
     let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
-    if let Some(message) = native::dequeue_message() {
-        let mut result = runner.run_next(message, max_gas_limit);
-        for message in result.messages.drain(..) {
-            native::queue_message(message)
-        }
-        process_wait_list(&mut result);
 
-        Ok(ExecutionReport::collect(result))
-    } else {
-        Ok(Default::default())
-    }
+    Ok(runner.run_next(message.into()).into())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -170,10 +166,9 @@ pub fn init_program<E: Environment<Ext>>(
         value,
         reply: None,
     };
-    let mut result = RunNextResult::from_single(init_message, run_result);
-    process_wait_list(&mut result);
+    let result = RunNextResult::from_single(init_message, run_result);
 
-    Ok(ExecutionReport::collect(result))
+    Ok(result.into())
 }
 
 pub fn gas_spent<E: Environment<Ext>>(
@@ -197,7 +192,7 @@ pub fn gas_spent<E: Environment<Ext>>(
     let mut total_gas_spent = 0;
 
     while let Some(message) = messages.pop_front() {
-        let mut run_result = runner.run_next(message, u64::MAX);
+        let mut run_result = runner.run_next(message);
         for new_message in run_result.messages.drain(..) {
             messages.push_back(new_message);
         }
@@ -215,30 +210,4 @@ pub fn gas_spent<E: Environment<Ext>>(
     runner.complete();
 
     Ok(total_gas_spent)
-}
-
-fn process_wait_list(result: &mut RunNextResult) {
-    let wait_list = &mut result.wait_list;
-    while let Some(msg) = wait_list.pop() {
-        let actor_id = msg.dest;
-        let msg_id = msg.id;
-        native::insert_waiting_message(actor_id, msg_id, msg);
-    }
-
-    let awakening = &mut result.awakening;
-    while let Some((msg_id, gas)) = awakening.pop() {
-        if let Some(mut msg) = native::remove_waiting_message(result.prog_id, msg_id) {
-            // Increase gas available to the message
-            if u64::max_value() - gas < msg.gas_limit() {
-                // TODO: issue #323
-                log::debug!(
-                    "Gas limit ({}) after wake (+{}) exceeded u64::max() and will be burned",
-                    msg.gas_limit,
-                    gas
-                );
-            }
-            msg.gas_limit = msg.gas_limit.saturating_add(gas);
-            native::queue_message(msg);
-        }
-    }
 }
