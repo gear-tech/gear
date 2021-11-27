@@ -65,6 +65,9 @@ jobs:
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
 
+      - name: "Install: Build deps"
+        run: sudo apt install -y git clang curl libssl-dev llvm libudev-dev
+
       - name: "ACTIONS: Artifact cache"
         uses: Swatinem/rust-cache@v1
 
