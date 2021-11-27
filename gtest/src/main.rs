@@ -24,7 +24,6 @@ mod sample;
 
 use clap::Parser;
 use gear_core::storage::InMemoryStorage;
-use std::io::Write;
 
 #[derive(Parser)]
 struct Opts {
@@ -39,37 +38,16 @@ struct Opts {
     pub skip_memory: bool,
     /// JSON sample file(s) or dir
     pub input: Vec<std::path::PathBuf>,
-    /// A level of verbosity, and can be used multiple times
-    #[clap(short, long, parse(from_occurrences))]
-    verbose: i32,
 }
 
 pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
-    match opts.verbose {
-        0 => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
-            "gtest=warn,gear_core=warn,gear_core_backend=warn,gear_core_runner=warn,gwasm=debug",
-        ))
-        .format(|buf, record| writeln!(buf, "{}", record.args()))
-        .init(),
-        1 => env_logger::Builder::from_env(
-            env_logger::Env::default().default_filter_or("gtest=info"),
-        )
-        .init(),
-        2 => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
-            "gtest=info,gear_core=debug,gear_core_backend=debug,gwasm=debug,gtest=debug",
-        ))
-        .init(),
-
-        _ => env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug"))
-            .init(),
-    }
-
     check::check_main::<InMemoryStorage, _>(
         opts.input.to_vec(),
         opts.skip_messages,
         opts.skip_allocations,
         opts.skip_memory,
         InMemoryStorage::default,
+        None,
     )
 }

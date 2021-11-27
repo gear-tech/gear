@@ -23,7 +23,7 @@ use gear_core::{
 };
 use sp_std::prelude::*;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ExtProgramStorage;
 
 impl ProgramStorage for ExtProgramStorage {

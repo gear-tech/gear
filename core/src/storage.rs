@@ -30,13 +30,13 @@ use crate::{
 ///
 /// Mainly used for readability in order to keep readable definitions of types that
 /// manage different storage domains (for example, the [`Storage`]).
-pub trait StorageCarrier: Default {
+pub trait StorageCarrier: Default + Clone {
     /// Program storage type used by storage manager
     type PS: ProgramStorage;
 }
 
 /// Abstraction over program storage.
-pub trait ProgramStorage: Default {
+pub trait ProgramStorage: Default + Clone {
     /// Get the program from the storage.
     fn get(&self, id: ProgramId) -> Option<Program>;
 
@@ -51,7 +51,7 @@ pub trait ProgramStorage: Default {
 }
 
 /// In-memory program storage (for tests).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct InMemoryProgramStorage {
     inner: HashMap<ProgramId, Program>,
 }
@@ -100,7 +100,7 @@ impl From<InMemoryProgramStorage> for Vec<Program> {
 }
 
 /// Log.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Log {
     inner: Vec<Message>,
 }
@@ -118,7 +118,7 @@ impl Log {
 }
 
 /// Storage.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Storage<PS: ProgramStorage> {
     /// Program storage.
     pub program_storage: PS,
