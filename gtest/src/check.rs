@@ -81,11 +81,11 @@ impl Log for FixtureLogger {
     fn log(&self, record: &Record) {
         // Check if the record is matched by the logger before logging
         if self.inner.matches(record) {
-            let mut map = self.map.write().expect("RwLock poisoned");
-
-            map.entry(thread::current().id())
-                .or_default()
-                .push(record.args().to_string());
+            if let Ok(mut map) = self.map.try_write() {
+                map.entry(thread::current().id())
+                    .or_default()
+                    .push(record.args().to_string());
+            }
         }
     }
 
