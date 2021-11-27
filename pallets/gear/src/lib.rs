@@ -349,7 +349,7 @@ pub mod pallet {
                                 );
 
                                 // Handle the stuff that should be taken care of regardless of the execution outcome
-                                total_handled += execution_report.handled;
+                                total_handled += 1;
 
                                 // handle refunds
                                 for (destination, gas_charge) in execution_report.gas_charges {
@@ -463,17 +463,18 @@ pub mod pallet {
                 }
             }
 
-            loop {
+            while let Some(message) = common::dequeue_message() {
+                // Check whether we have enough of gas allowed for message processing
+                if message.gas_limit > GasAllowance::<T>::get() {
+                    common::queue_message(message);
+                    break;
+                }
+
                 match runner::process::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
-                    GasAllowance::<T>::get(),
-                    block_info,
+                    message, block_info,
                 ) {
                     Ok(execution_report) => {
-                        if execution_report.handled == 0 {
-                            break;
-                        }
-
-                        total_handled += execution_report.handled;
+                        total_handled += 1;
 
                         for (destination, gas_left) in execution_report.gas_refunds {
                             let refund = Self::gas_to_fee(gas_left);

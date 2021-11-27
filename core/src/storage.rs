@@ -99,20 +99,6 @@ impl From<InMemoryProgramStorage> for Vec<Program> {
     }
 }
 
-/// Message queue storage.
-pub trait MessageQueue: Default {
-    /// Dequeue next message.
-    fn dequeue(&mut self) -> Option<Message>;
-
-    /// Queue message.
-    fn queue(&mut self, message: Message);
-
-    /// Queue many messages.
-    fn queue_many(&mut self, messages: Vec<Message>) {
-        messages.into_iter().for_each(|m| self.queue(m));
-    }
-}
-
 /// Log.
 #[derive(Default, Debug)]
 pub struct Log {
