@@ -342,8 +342,6 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 
     const meta = message.payload.kind === 'custom' ? metadata[message.destination] : { handle_input: 'Bytes' };
 
-    // console.log(message);
-
     txs.push(
       api.message.submit(
         {
@@ -370,18 +368,13 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
         ({ event }) => api.events.gear.MessagesDequeued.is(event),
       )
       .forEach(({ event }) => {
-
-        // console.log(event.data[0].eq(api.createType('u32', 0)))
         if (event.data[0].eq(api.createType('u32', 0))) {
           if (non_zero) {
-
             s_promise_resolve();
-
           }
         } else {
           non_zero = true;
         }
-        // console.log(event.data[0]);
       });
   });
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
