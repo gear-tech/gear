@@ -143,7 +143,7 @@ async function checkLog(api, exp) {
   let messagesOpt = await mailbox.readMailbox('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
-    // console.log(messages.toHuman());
+    console.log(messages.toHuman());
 
 
     for (const log of exp.log) {
@@ -169,7 +169,7 @@ async function checkLog(api, exp) {
 
             if (encoded.toHex() === message.payload.toHex()) {
               found = true;
-
+              console.log(found)
               return;
             }
           });
@@ -354,6 +354,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
       ),
     );
   }
+  let messagesProccessed = 0;
   let s_promise_resolve = () => { };
   let s_promise = new Promise<void>((resolve, reject) => {
     s_promise_resolve = resolve;
@@ -373,6 +374,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
             s_promise_resolve();
           }
         } else {
+          messagesProccessed += Number(event.data[0].toHuman());
           non_zero = true;
         }
       });
@@ -380,8 +382,16 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
 
   await s_promise;
+
+  while (snapshots.length < messagesProccessed) {
+    await sleep(1000);
+  }
   unsub();
   unsubMProccessed();
+  // await sleep(5000);
+  // console.log(snapshots.length);
+  // console.log(messagesProccessed);
+
 
   return processExpected(api, sudoPair, fixture, snapshots);
 }
