@@ -165,7 +165,7 @@ async function checkLog(api, exp) {
             // console.log(message.payload);
             // console.log(encoded);
             // console.log(encoded.toHex() === message.payload.toHex());
-            
+
 
             if (encoded.toHex() === message.payload.toHex()) {
               found = true;
@@ -356,16 +356,39 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
       ),
     );
   }
-
-
-  const unsub = await debugMode.snapshots(async ({ data }) => {
+  let s_promise_resolve = () => { };
+  let s_promise = new Promise<void>((resolve, reject) => {
+    s_promise_resolve = resolve;
+  })
+  const unsub = await debugMode.snapshots(({ data }) => {
     snapshots.push(data)
   });
+  let non_zero = false;
+  const unsubMProccessed = await api.query.system.events((events) => {
+    events
+      .filter(
+        ({ event }) => api.events.gear.MessagesDequeued.is(event),
+      )
+      .forEach(({ event }) => {
 
+        // console.log(event.data[0].eq(api.createType('u32', 0)))
+        if (event.data[0].eq(api.createType('u32', 0))) {
+          if (non_zero) {
+
+            s_promise_resolve();
+
+          }
+        } else {
+          non_zero = true;
+        }
+        // console.log(event.data[0]);
+      });
+  });
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
 
-  await sleep(10000);
+  await s_promise;
   unsub();
+  unsubMProccessed();
 
   return processExpected(api, sudoPair, fixture, snapshots);
 }
