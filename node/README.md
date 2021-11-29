@@ -23,6 +23,11 @@ brew update
 brew install openssl
 ```
 
+Additionally, if you use Apple Silicon (M1/M1 Pro/M1 Max), install Rosetta:
+```
+/usr/sbin/softwareupdate --install-rosetta --agree-to-license
+```
+
 #### Windows
 
 Windows 10 is supported with WSL!
