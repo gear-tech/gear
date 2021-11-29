@@ -58,8 +58,7 @@ pub enum Reply {
 mod wasm {
     extern crate alloc;
 
-    use alloc::collections::{BTreeMap, BTreeSet};
-    use codec::{Decode, Encode};
+    use alloc::collections::BTreeSet;
     use gstd::{debug, exec, msg, prelude::*, ActorId, MessageId};
 
     use super::{Initialization, Operation, Reply, Request};
@@ -279,12 +278,12 @@ mod wasm {
                     } else {
                         transition.state = TransitionState::Failed;
                     }
-                    exec::wake(transition.message_id.into(), exec::gas_available());
+                    exec::wake(transition.message_id.into());
                 }
                 Err(e) => {
                     transition.state = TransitionState::Failed;
                     debug!("Error processing reply: {:?}", e);
-                    exec::wake(transition.message_id.into(), exec::gas_available());
+                    exec::wake(transition.message_id.into());
                 }
             }
         } else {

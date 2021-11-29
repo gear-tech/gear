@@ -325,7 +325,6 @@ impl RunnerContext {
     {
         let message = message.into().into_message(self);
         let message_id = message.id;
-        let program_id = message.source;
 
         self.run(message);
 

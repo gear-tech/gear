@@ -628,7 +628,7 @@ pub struct RunResult {
     pub reply: Option<ReplyMessage>,
     /// Messages to be woken.
     pub awakening: Vec<MessageId>,
-    /// Gas that was spen.
+    /// Gas that was spent.
     ///
     /// This actually was is charged for computations/memory costs/etc and will never get refunded.
     pub gas_spent: u64,
