@@ -139,7 +139,7 @@ pub fn wait() -> ! {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     exec::wake(MessageId::default(), exec::gas_available());
+///     exec::wake(MessageId::default());
 /// }
 /// ```
 pub fn wake(waker_id: MessageId) {
