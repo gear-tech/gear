@@ -155,7 +155,6 @@ impl RunNextResult {
 #[derive(Default)]
 pub struct Runner<SC: StorageCarrier, E: Environment<Ext>> {
     pub(crate) program_storage: SC::PS,
-    pub(crate) message_queue: Vec<Message>,
     pub(crate) log: Log,
     pub(crate) config: Config,
     env: E,
@@ -240,7 +239,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
         Self {
             program_storage,
-            message_queue: Vec::new(),
             log,
             config: config.clone(),
             env,
@@ -313,6 +311,8 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             self.block_info,
         );
 
+        let mut messages = vec![];
+
         if run_result.outcome.was_trap() && generate_reply_on_trap {
             // In case of trap, we generate trap reply message
             let program_id = program.id();
@@ -329,7 +329,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             };
 
             if self.program_storage.exists(message_source) {
-                self.message_queue.push(trap_message);
+                messages.push(trap_message)
             } else {
                 self.log.put(trap_message)
             }
@@ -339,14 +339,14 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
         for message in context.message_buf.drain(..) {
             if self.program_storage.exists(message.dest()) {
-                self.message_queue.push(message);
+                messages.push(message);
             } else {
                 self.log.put(message);
             }
         }
 
         self.program_storage.set(program);
-        result.messages.append(&mut self.message_queue);
+        result.messages.append(&mut messages);
         result.log.append(&mut self.log.get().to_vec());
 
         result
@@ -513,9 +513,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         );
 
         for message in context.message_buf.drain(..) {
-            if self.program_storage.exists(message.dest()) {
-                self.message_queue.push(message);
-            } else {
+            if !self.program_storage.exists(message.dest()) {
                 self.log.put(message);
             }
         }
