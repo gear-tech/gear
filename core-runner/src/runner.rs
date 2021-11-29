@@ -249,7 +249,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         }
     }
 
-    /// Create an empty [`RunnerBuilder`].
+    /// Create an empty runner builder.
     pub fn builder() -> RunnerBuilder<SC, E> {
         crate::runner::RunnerBuilder::new()
     }
@@ -456,8 +456,9 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// updated pages data. An update actually can happen while running the *init* function.
     ///
     /// # Errors
+    ///
     /// Function returns an error in several situations:
-    /// 1. Creating, setting and resetting a [Program](../..gear_core/program/struct.Program.html) ended up with an error.
+    /// 1. Creating, setting and resetting a [`Program`] ended up with an error.
     /// 2. If needed static pages amount is more then the maximum set in the runner config, function returns with an error.
     /// 3. If code instrumentation with gas instructions ended up with an error.
     pub fn init_program(
@@ -648,7 +649,7 @@ pub struct RunResult {
 ///
 /// Actual function run is performed in the virtual machine (VM). Programs, which are run in the VM, import functions from some environment
 /// that Gear provides. These functions (so called sys-calls), are provided by sandbox or wasmtime backends (see core-backend crates),
-/// which implement [Environment](../../gear_backend_common/trait.Environment.html) trait.
+/// which implement [`Environment`] trait.
 /// This trait provides us an ability to setup all the needed settings for the run and actually run the desired function, providing program (wasm module) with
 /// sys-calls.
 /// A crucial dependency for the actual run in the VM is `Ext`, which is created in the function's body.

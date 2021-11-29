@@ -18,7 +18,7 @@
 
 #![no_std]
 #![cfg_attr(feature = "strict", deny(warnings))]
-#![doc(html_logo_url = "https://gear-tech.io/images/logo-black.svg")]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
 #[global_allocator]
 pub static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;

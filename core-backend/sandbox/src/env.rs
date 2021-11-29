@@ -664,7 +664,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
 }
 
 impl<E: Ext + 'static> Default for SandboxEnvironment<E> {
-    /// Creates a default environment.
+    /// Create a default environment.
     fn default() -> Self {
         Self::new()
     }
