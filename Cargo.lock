@@ -1276,12 +1276,9 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=a981bb84ed1e6edcceb4db6f93450551353c31dc#a981bb84ed1e6edcceb4db6f93450551353c31dc"
+source = "git+https://github.com/nikvolf/dlmalloc-rs#74ecb8165d45f2a3d2ef7921c7371014911e9815"
 dependencies = [
  "libc",
- "libc_print",
- "static_assertions",
- "str-buf",
 ]
 
 [[package]]
@@ -2919,14 +2916,6 @@ name = "libc"
 version = "0.2.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b2f96d100e1cf1929e7719b7edb3b90ab5298072638fccd77be9ce942ecdfce"
-
-[[package]]
-name = "libc_print"
-version = "0.1.16"
-source = "git+https://github.com/grishasobol/rust-libc-print.git#b300804809e7a5f1c8fab4d2d11bcea29217bc70"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "libloading"
@@ -7177,12 +7166,6 @@ dependencies = [
  "num-traits",
  "rand 0.8.4",
 ]
-
-[[package]]
-name = "str-buf"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5273f1a92cb22cb10c25f1f6d7b7f7db8d9836f219947040842a37252326f64"
 
 [[package]]
 name = "strsim"

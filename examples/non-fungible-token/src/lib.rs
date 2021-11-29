@@ -70,26 +70,24 @@ impl NonFungibleToken {
       account == self.token_owner.get(&token_id).unwrap_or(&zero)
     }
 
-    fn mint(&mut self, account: &ActorId, token_id: U256) {
+    fn mint(&mut self, account: &ActorId) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
         if account == &zero {
             panic!("NonFungibleToken: Mint to zero address.");
         }
-        if self.exists(token_id) {
-          panic!("NonFungibleToken: Token already exists");
-        }
-        self.token_owner.insert(token_id, *account);
+
+        self.token_owner.insert(self.token_id, *account);
         let balance = *self.owned_tokens_count.get(account).unwrap_or(&0);
         self.owned_tokens_count.insert(*account, balance.saturating_add(1));
-        self.token_id = self.token_id.saturating_add(U256::one());
-        // unsafe {
 
-        // }
         let transfer_token = Transfer {
             from: H256::zero(),
             to: H256::from_slice(account.as_ref()),
-            token_id,
+            token_id: self.token_id,
         };
+
+        self.token_id = self.token_id.saturating_add(U256::one());
+
         msg::reply(
             Event::Transfer(transfer_token),
             exec::gas_available() - GAS_RESERVE,
@@ -100,7 +98,7 @@ impl NonFungibleToken {
     fn burn(&mut self, account: &ActorId, token_id: U256) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
         if account == &zero {
-            panic!("NonFungibleToken: Burn from zero address.");
+          panic!("NonFungibleToken: Burn from zero address.");
         }
         if !self.exists(token_id) {
           panic!("NonFungibleToken: Token does not exist");
@@ -113,9 +111,7 @@ impl NonFungibleToken {
         self.token_owner.remove(&token_id);
         let balance = *self.owned_tokens_count.get(account).unwrap_or(&0);
         self.owned_tokens_count.insert(*account, balance.saturating_sub(1));
-        // unsafe {
 
-        // }
         let transfer_token = Transfer {
             from: H256::from_slice(account.as_ref()),
             to: H256::zero(),
@@ -288,7 +284,7 @@ pub unsafe extern "C" fn handle() {
     match action {
         Action::Mint(mint_input) => {
             let to = ActorId::new(mint_input.account.to_fixed_bytes());
-            NON_FUNGIBLE_TOKEN.mint(&to, mint_input.token_id);
+            NON_FUNGIBLE_TOKEN.mint(&to);
         }
         Action::Burn(burn_input) => {
             let from = ActorId::new(burn_input.account.to_fixed_bytes());
