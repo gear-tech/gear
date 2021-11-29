@@ -155,7 +155,6 @@ impl RunNextResult {
 #[derive(Default)]
 pub struct Runner<SC: StorageCarrier, E: Environment<Ext>> {
     pub(crate) program_storage: SC::PS,
-    pub(crate) message_queue: Vec<Message>,
     pub(crate) log: Log,
     pub(crate) config: Config,
     env: E,
@@ -240,7 +239,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
         Self {
             program_storage,
-            message_queue: Vec::new(),
             log,
             config: config.clone(),
             env,
@@ -249,7 +247,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         }
     }
 
-    /// Create an empty [`RunnerBuilder`].
+    /// Create an empty runner builder.
     pub fn builder() -> RunnerBuilder<SC, E> {
         crate::runner::RunnerBuilder::new()
     }
@@ -313,6 +311,8 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             self.block_info,
         );
 
+        let mut messages = vec![];
+
         if run_result.outcome.was_trap() && generate_reply_on_trap {
             // In case of trap, we generate trap reply message
             let program_id = program.id();
@@ -329,7 +329,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             };
 
             if self.program_storage.exists(message_source) {
-                self.message_queue.push(trap_message);
+                messages.push(trap_message)
             } else {
                 self.log.put(trap_message)
             }
@@ -339,14 +339,14 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
         for message in context.message_buf.drain(..) {
             if self.program_storage.exists(message.dest()) {
-                self.message_queue.push(message);
+                messages.push(message);
             } else {
                 self.log.put(message);
             }
         }
 
         self.program_storage.set(program);
-        result.messages.append(&mut self.message_queue);
+        result.messages.append(&mut messages);
         result.log.append(&mut self.log.get().to_vec());
 
         result
@@ -456,8 +456,9 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// updated pages data. An update actually can happen while running the *init* function.
     ///
     /// # Errors
+    ///
     /// Function returns an error in several situations:
-    /// 1. Creating, setting and resetting a [Program](../..gear_core/program/struct.Program.html) ended up with an error.
+    /// 1. Creating, setting and resetting a [`Program`] ended up with an error.
     /// 2. If needed static pages amount is more then the maximum set in the runner config, function returns with an error.
     /// 3. If code instrumentation with gas instructions ended up with an error.
     pub fn init_program(
@@ -513,9 +514,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         );
 
         for message in context.message_buf.drain(..) {
-            if self.program_storage.exists(message.dest()) {
-                self.message_queue.push(message);
-            } else {
+            if !self.program_storage.exists(message.dest()) {
                 self.log.put(message);
             }
         }
@@ -648,7 +647,7 @@ pub struct RunResult {
 ///
 /// Actual function run is performed in the virtual machine (VM). Programs, which are run in the VM, import functions from some environment
 /// that Gear provides. These functions (so called sys-calls), are provided by sandbox or wasmtime backends (see core-backend crates),
-/// which implement [Environment](../../gear_backend_common/trait.Environment.html) trait.
+/// which implement [`Environment`] trait.
 /// This trait provides us an ability to setup all the needed settings for the run and actually run the desired function, providing program (wasm module) with
 /// sys-calls.
 /// A crucial dependency for the actual run in the VM is `Ext`, which is created in the function's body.
@@ -899,7 +898,9 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner: TestRunner = new_test_builder().program(parse_wat(wat)).build();
+        let (mut runner, results): (TestRunner, _) =
+            new_test_builder().program(parse_wat(wat)).build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let message = Message {
             id: 1000002.into(),
@@ -998,7 +999,7 @@ mod tests {
               )
           )"#;
 
-        let mut runner = new_test_builder()
+        let (mut runner, mut results) = new_test_builder()
             .program(parse_wat(wat))
             .with_init_message(ExtMessage {
                 id: 1000001.into(),
@@ -1009,11 +1010,15 @@ mod tests {
             .build();
 
         assert_eq!(
-            runner
-                .message_queue
+            results
                 .pop()
-                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
-            Some((b"ok".to_vec(), 1.into(), 1.into()))
+                .and_then(|r| r.ok())
+                .and_then(|mut r| r.messages.pop())
+                .map(|m| {
+                    let m = m.into_message(1.into());
+                    (m.payload().to_vec(), m.dest())
+                }),
+            Some((b"ok".to_vec(), 1.into()))
         );
 
         let message = Message {
@@ -1091,14 +1096,18 @@ mod tests {
             )
           )"#;
 
-        let mut runner = new_test_builder().program(parse_wat(wat)).build();
+        let (mut runner, mut results) = new_test_builder().program(parse_wat(wat)).build();
 
         assert_eq!(
-            runner
-                .message_queue
+            results
                 .pop()
-                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
-            Some((b"ok".to_vec(), 1.into(), 1.into()))
+                .and_then(|r| r.ok())
+                .and_then(|mut r| r.messages.pop())
+                .map(|m| {
+                    let m = m.into_message(1.into());
+                    (m.payload().to_vec(), m.dest())
+                }),
+            Some((b"ok".to_vec(), 1.into()))
         );
 
         // send page num to be freed
@@ -1144,7 +1153,7 @@ mod tests {
         let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
-        let mut runner = new_test_builder()
+        let (mut runner, results) = new_test_builder()
             .program(parse_wat(wat))
             .with_source_id(source_id)
             .with_program_id(dest_id)
@@ -1155,6 +1164,7 @@ mod tests {
                 value: 0,
             })
             .build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let payload = b"Test Wait";
 
@@ -1208,7 +1218,7 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = new_test_builder()
+        let (mut runner, results) = new_test_builder()
             .program(parse_wat(wat))
             .with_init_message(ExtMessage {
                 id: 1000001.into(),
@@ -1217,6 +1227,7 @@ mod tests {
                 value: 0,
             })
             .build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let gas_limit = 1000_000;
         let caller_id = 1001.into();
@@ -1325,7 +1336,7 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner: TestRunner = new_test_builder()
+        let (mut runner, results): (TestRunner, _) = new_test_builder()
             .program(parse_wat(wat))
             .with_source_id(1001)
             .with_program_id(1)
@@ -1336,6 +1347,7 @@ mod tests {
                 value: 0,
             })
             .build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let message = Message {
             id: 1000001.into(),

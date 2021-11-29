@@ -20,7 +20,7 @@
 //!
 //! You have several ways to test smart contracts. This crate provides developers with an opportunity
 //! to define test strategies in some *test.yaml* file. Crate's test runner will run all the tests and return found errors in case they
-//! occurred. One of the main usages of the current crate is done by gear [node](../gear_node/index.html): when running node executable you can define run
+//! occurred. One of the main usages of the current crate is done by Gear [node](../gear_node/index.html): when running node executable you can define run
 //! options and one of them is to run tests. One of the main features of such run is that node's key-value storage will be used.
 
 pub mod address;

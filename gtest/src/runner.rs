@@ -119,7 +119,7 @@ impl CollectState for ExtStorage {
 
 /// Initializes programs defined in `test.programs` and queues all the messages from `test.fixtures[fixture_no]`.
 ///
-/// Program initialization and queueing messages is performed by [Runner](../../gear_core_runner/runner/struct.Runner.html),
+/// Program initialization and queueing messages is performed by [`Runner`],
 /// which uses `storage` as a storage manager. This storage is actually returned to the function caller to be later used to run queued messages.
 pub fn init_fixture<SC: StorageCarrier>(
     storage: Storage<SC::PS>,

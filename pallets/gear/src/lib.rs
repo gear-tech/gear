@@ -569,7 +569,7 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        /// Creates a `Program` from wasm code and runs its init function.
+        /// Create a `Program` from wasm code and runs its init function.
         ///
         /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.

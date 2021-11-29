@@ -29,7 +29,7 @@ fixtures:
           value: "0x002c707269766174655f6d7367"
         destination: 2
     expected:
-      - step: 6
+      - step: 4
         messages:
           - payload:
               kind: bytes

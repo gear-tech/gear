@@ -3,7 +3,7 @@
 use gstd::{debug, exec, msg, prelude::*, ActorId};
 
 gstd::metadata! {
-    title: "GEAR Workshop Contract Example",
+    title: "Gear Workshop Contract Example",
     init:
         output: String,
     handle:
