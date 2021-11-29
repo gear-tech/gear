@@ -24,7 +24,7 @@ use gear_core::{
     program::{Program, ProgramId},
     storage::{InMemoryStorage, Storage, StorageCarrier},
 };
-use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
+use gear_core_runner::{Config, ExecutionOutcome, ExtMessage, InitializeProgramInfo, Runner};
 use gear_node_runner::{Ext, ExtStorage};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
@@ -175,6 +175,10 @@ pub fn init_fixture<SC: StorageCarrier>(
                 value: program.init_value.unwrap_or(0) as _,
             },
         })?;
+
+        if let ExecutionOutcome::Trap(explanation) = result.outcome {
+            return Err(anyhow::anyhow!("Trap during `init`: {:?}", explanation));
+        }
 
         messages.append(
             &mut result
