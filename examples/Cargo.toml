@@ -16,6 +16,7 @@ members = [
     "exit-code",
     "fib",
     "fungible-token",
+    "non-fungible-token",
     "futures-unordered",
     "mem",
     "guestbook",

@@ -1,0 +1,24 @@
+title: gui test
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/non_fungible_token.wasm
+    init_message:
+      kind: custom
+      value:
+        name: "foo"
+        symbol: "FOO"
+
+fixtures:
+  - title: non-fungible-token
+
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            mint:
+              account: 0x0300000000000000000000000000000000000000000000000000000000000000
+              token_id: 0x0100000000000000000000000000000000000000000000000000000000000000
+    expected:
+      - log: []
