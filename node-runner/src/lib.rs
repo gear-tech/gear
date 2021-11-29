@@ -119,7 +119,10 @@ pub fn process<E: Environment<Ext>>(
     message: gear_common::Message,
     block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
-    let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
+    // TODO: it's not required to process possible errors since
+    // builder doesn't contain any program here. Check `program` method
+    // for details
+    let (mut runner, _) = ExtRunner::<E>::builder().block_info(block_info).build();
 
     Ok(runner.run_next(message.into()).into())
 }
@@ -135,7 +138,10 @@ pub fn init_program<E: Environment<Ext>>(
     value: u128,
     block_info: BlockInfo,
 ) -> Result<ExecutionReport, Error> {
-    let mut runner = ExtRunner::<E>::builder().block_info(block_info).build();
+    // TODO: it's not required to process possible errors since
+    // builder doesn't contain any program here. Check `program` method
+    // for details
+    let (mut runner, _) = ExtRunner::<E>::builder().block_info(block_info).build();
 
     let init_message_id = MessageId::from_slice(&init_message_id[..]);
     let program_id = ProgramId::from_slice(&program_id[..]);
