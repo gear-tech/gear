@@ -897,7 +897,9 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner: TestRunner = new_test_builder().program(parse_wat(wat)).build();
+        let (mut runner, results): (TestRunner, _) =
+            new_test_builder().program(parse_wat(wat)).build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let message = Message {
             id: 1000002.into(),
@@ -996,7 +998,7 @@ mod tests {
               )
           )"#;
 
-        let mut runner = new_test_builder()
+        let (mut runner, mut results) = new_test_builder()
             .program(parse_wat(wat))
             .with_init_message(ExtMessage {
                 id: 1000001.into(),
@@ -1007,11 +1009,15 @@ mod tests {
             .build();
 
         assert_eq!(
-            runner
-                .message_queue
+            results
                 .pop()
-                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
-            Some((b"ok".to_vec(), 1.into(), 1.into()))
+                .and_then(|r| r.ok())
+                .and_then(|mut r| r.messages.pop())
+                .map(|m| {
+                    let m = m.into_message(1.into());
+                    (m.payload().to_vec(), m.dest())
+                }),
+            Some((b"ok".to_vec(), 1.into()))
         );
 
         let message = Message {
@@ -1089,14 +1095,18 @@ mod tests {
             )
           )"#;
 
-        let mut runner = new_test_builder().program(parse_wat(wat)).build();
+        let (mut runner, mut results) = new_test_builder().program(parse_wat(wat)).build();
 
         assert_eq!(
-            runner
-                .message_queue
+            results
                 .pop()
-                .map(|m| (m.payload().to_vec(), m.source(), m.dest())),
-            Some((b"ok".to_vec(), 1.into(), 1.into()))
+                .and_then(|r| r.ok())
+                .and_then(|mut r| r.messages.pop())
+                .map(|m| {
+                    let m = m.into_message(1.into());
+                    (m.payload().to_vec(), m.dest())
+                }),
+            Some((b"ok".to_vec(), 1.into()))
         );
 
         // send page num to be freed
@@ -1142,7 +1152,7 @@ mod tests {
         let gas_limit = 1_000_000;
         let msg_id: MessageId = 1000001.into();
 
-        let mut runner = new_test_builder()
+        let (mut runner, results) = new_test_builder()
             .program(parse_wat(wat))
             .with_source_id(source_id)
             .with_program_id(dest_id)
@@ -1153,6 +1163,7 @@ mod tests {
                 value: 0,
             })
             .build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let payload = b"Test Wait";
 
@@ -1206,7 +1217,7 @@ mod tests {
             (func $init)
         )"#;
 
-        let mut runner = new_test_builder()
+        let (mut runner, results) = new_test_builder()
             .program(parse_wat(wat))
             .with_init_message(ExtMessage {
                 id: 1000001.into(),
@@ -1215,6 +1226,7 @@ mod tests {
                 value: 0,
             })
             .build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let gas_limit = 1000_000;
         let caller_id = 1001.into();
@@ -1323,7 +1335,7 @@ mod tests {
                 (func $init)
             )"#;
 
-        let mut runner: TestRunner = new_test_builder()
+        let (mut runner, results): (TestRunner, _) = new_test_builder()
             .program(parse_wat(wat))
             .with_source_id(1001)
             .with_program_id(1)
@@ -1334,6 +1346,7 @@ mod tests {
                 value: 0,
             })
             .build();
+        assert!(results.iter().all(|r| r.is_ok()));
 
         let message = Message {
             id: 1000001.into(),
