@@ -22,6 +22,7 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
+use core::ops::{Deref, DerefMut};
 use core::{cmp, fmt};
 
 use crate::memory::{PageBuf, PageNumber};
@@ -88,9 +89,9 @@ impl ProgramId {
     }
 }
 
-/// Program.
+/// The structure contains various data for some Program.
 #[derive(Clone, Debug, Decode, Encode)]
-pub struct Program {
+pub struct Data {
     id: ProgramId,
     code: Vec<u8>,
     /// Initial memory export size.
@@ -101,7 +102,7 @@ pub struct Program {
     message_nonce: u64,
 }
 
-impl Program {
+impl Data {
     /// New program with specific `id`, `code` and `persistent_memory`.
     pub fn new(id: ProgramId, code: Vec<u8>, pages: BTreeMap<u32, Vec<u8>>) -> Result<Self> {
         // get initial memory size from memory import.
@@ -134,7 +135,7 @@ impl Program {
             );
         }
 
-        Ok(Program {
+        Ok(Data {
             id,
             code,
             static_pages,
@@ -251,11 +252,116 @@ impl Program {
     }
 }
 
+/// The enumeration represents program in a state.
+#[derive(Clone, Debug)]
+pub enum Program {
+    /// Check [`UninitializedProgram`] for details.
+    Uninitialized(UninitializedProgram),
+    /// Check [`InitializedProgram`] for details.
+    Initialized(InitializedProgram),
+}
+
+impl Deref for Program {
+    type Target = Data;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Program::Uninitialized(p) => p,
+            Program::Initialized(p) => p,
+        }
+    }
+}
+
+/// The structure represents a program that has not been fully initialized,
+/// i.e. its `init` method doesn't finish successfully yet.
+#[derive(Clone, Debug)]
+pub struct UninitializedProgram(Data);
+
+impl UninitializedProgram {
+    /// Construct new program from [`Data`] in the uninitialized state.
+    pub fn new(data: Data) -> Self {
+        Self(data)
+    }
+}
+
+impl Deref for UninitializedProgram {
+    type Target = Data;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for UninitializedProgram {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<UninitializedProgram> for Program {
+    fn from(p: UninitializedProgram) -> Self {
+        Program::Uninitialized(p)
+    }
+}
+
+impl TryFrom<Program> for UninitializedProgram {
+    type Error = ();
+
+    fn try_from(program: Program) -> Result<Self, Self::Error> {
+        match program {
+            Program::Uninitialized(p) => Ok(p),
+            _ => Err(()),
+        }
+    }
+}
+
+/// The structure represents the fully initialized program.
+/// It can be created only from [`UninitializedProgram`].
+#[derive(Clone, Debug)]
+pub struct InitializedProgram(Data);
+
+impl Deref for InitializedProgram {
+    type Target = Data;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for InitializedProgram {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<InitializedProgram> for Program {
+    fn from(p: InitializedProgram) -> Self {
+        Program::Initialized(p)
+    }
+}
+
+impl TryFrom<Program> for InitializedProgram {
+    type Error = ();
+
+    fn try_from(program: Program) -> Result<Self, Self::Error> {
+        match program {
+            Program::Initialized(p) => Ok(p),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<UninitializedProgram> for InitializedProgram {
+    fn from(p: UninitializedProgram) -> Self {
+        Self(p.0)
+    }
+}
+
 #[cfg(test)]
 /// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
-    use super::{Program, ProgramId};
+    use super::{Data, ProgramId};
     use crate::util::encode_hex;
     use alloc::collections::BTreeMap;
     use alloc::{vec, vec::Vec};
@@ -315,13 +421,13 @@ mod tests {
         // invalid PageBuf
         pages.insert(1, vec![]);
 
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages.clone()).is_err());
+        assert!(Data::new(ProgramId::from(1), binary.clone(), pages.clone()).is_err());
 
         pages.insert(1, vec![0; 65537]);
 
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages).is_err());
+        assert!(Data::new(ProgramId::from(1), binary.clone(), pages).is_err());
 
-        let mut program = Program::new(ProgramId::from(1), binary, BTreeMap::default()).unwrap();
+        let mut program = Data::new(ProgramId::from(1), binary, BTreeMap::default()).unwrap();
 
         // 2 initial pages
         assert_eq!(program.static_pages(), 2);

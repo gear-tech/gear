@@ -26,6 +26,9 @@ use crate::{
     program::{Program, ProgramId},
 };
 
+#[cfg(test)]
+use crate::program::{Data, UninitializedProgram};
+
 /// General trait, which informs what exact storage types are used by a storage manager ("carrier").
 ///
 /// Mainly used for readability in order to keep readable definitions of types that
@@ -198,8 +201,14 @@ mod tests {
 
         // Initialization of InMemoryProgramStorage with our custom vec<Program>
         let mut program_storage: InMemoryProgramStorage = vec![
-            Program::new(id1, binary.clone(), Default::default()).expect("err create program"),
-            Program::new(id2, binary.clone(), Default::default()).expect("err create program"),
+            UninitializedProgram::new(
+                Data::new(id1, binary.clone(), Default::default()).expect("err create program"),
+            )
+            .into(),
+            UninitializedProgram::new(
+                Data::new(id2, binary.clone(), Default::default()).expect("err create program"),
+            )
+            .into(),
         ]
         .into();
 
@@ -218,8 +227,12 @@ mod tests {
 
         // Сhecking that we are able to correctly set
         // the new Program with id3 in storage
-        program_storage
-            .set(Program::new(id3, binary, Default::default()).expect("err create program"));
+        program_storage.set(
+            UninitializedProgram::new(
+                Data::new(id3, binary, Default::default()).expect("err create program"),
+            )
+            .into(),
+        );
         assert!(program_storage.get(id3).is_some());
 
         // Сhecking that the storage after all our interactions

@@ -18,7 +18,7 @@
 
 use gear_core::{
     message::{Message as CoreMessage, MessageId},
-    program::{Program, ProgramId},
+    program::{Data, InitializedProgram, Program, ProgramId, UninitializedProgram},
 };
 
 use primitive_types::H256;
@@ -68,12 +68,19 @@ pub fn get_program(id: ProgramId) -> Option<Program> {
     let id_h256 = H256::from_slice(id.as_slice());
     crate::get_program(id_h256).map(|prog| {
         let persistent_pages = crate::get_program_pages(id_h256, prog.persistent_pages);
-        if let Some(code) = crate::get_code(prog.code_hash) {
-            let mut program = Program::new(id, code, persistent_pages).unwrap();
-            program.set_message_nonce(prog.nonce);
-            program
+        let data = if let Some(code) = crate::get_code(prog.code_hash) {
+            let mut data = Data::new(id, code, persistent_pages).unwrap();
+            data.set_message_nonce(prog.nonce);
+            data
         } else {
-            Program::new(id, Vec::new(), persistent_pages).unwrap()
+            Data::new(id, Vec::new(), persistent_pages).unwrap()
+        };
+
+        let p = UninitializedProgram::new(data);
+        if prog.inited {
+            InitializedProgram::from(p).into()
+        } else {
+            p.into()
         }
     })
 }
@@ -92,6 +99,7 @@ pub fn set_program(program: Program) {
                 .collect(),
             code_hash,
             nonce: program.message_nonce(),
+            inited: matches!(program, Program::Initialized(_)),
         },
         program
             .get_pages()

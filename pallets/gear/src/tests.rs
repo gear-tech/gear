@@ -22,7 +22,7 @@ use codec::Encode;
 use common::{self, IntermediateMessage, Origin as _};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_support::{assert_noop, assert_ok};
-use gear_core::program::{Program, ProgramId};
+use gear_core::program::{Data, InitializedProgram, ProgramId, UninitializedProgram};
 use hex_literal::hex;
 use sp_core::H256;
 
@@ -179,18 +179,21 @@ fn send_message_works() {
     new_test_ext().execute_with(|| {
         // Make sure we have a program in the program storage
         let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let program = InitializedProgram::from(UninitializedProgram::new(
+            Data::new(
+                ProgramId::from_slice(&program_id[..]),
+                parse_wat(
+                    r#"(module
                     (import "env" "memory" (memory 1))
                     (export "handle" (func $handle))
                     (func $handle)
                 )"#,
-            ),
-            Default::default(),
-        )
-        .unwrap();
+                ),
+                Default::default(),
+            )
+            .unwrap(),
+        ))
+        .into();
         common::native::set_program(program);
 
         let messages: Option<Vec<IntermediateMessage>> = Gear::message_queue();
@@ -265,16 +268,19 @@ fn send_message_expected_failure() {
 
         // This time the programs has made it to the storage
         ProgramsLimbo::<Test>::remove(program_id);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let program = InitializedProgram::from(UninitializedProgram::new(
+            Data::new(
+                ProgramId::from_slice(&program_id[..]),
+                parse_wat(
+                    r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
-            ),
-            Default::default(),
-        )
-        .expect("Program failed to instantiate");
+                ),
+                Default::default(),
+            )
+            .expect("Program failed to instantiate"),
+        ))
+        .into();
         common::native::set_program(program);
 
         assert_noop!(
@@ -1280,18 +1286,21 @@ fn send_reply_works() {
     new_test_ext().execute_with(|| {
         // Make sure we have a program in the program storage
         let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let program = InitializedProgram::from(UninitializedProgram::new(
+            Data::new(
+                ProgramId::from_slice(&program_id[..]),
+                parse_wat(
+                    r#"(module
                     (import "env" "memory" (memory 1))
                     (export "handle" (func $handle))
                     (func $handle)
                 )"#,
-            ),
-            Default::default(),
-        )
-        .unwrap();
+                ),
+                Default::default(),
+            )
+            .unwrap(),
+        ))
+        .into();
         common::native::set_program(program);
 
         let original_message_id = H256::from_low_u64_be(2002);
@@ -1338,16 +1347,19 @@ fn send_reply_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let program = UninitializedProgram::new(
+            Data::new(
+                ProgramId::from_slice(&program_id[..]),
+                parse_wat(
+                    r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
-            ),
-            Default::default(),
+                ),
+                Default::default(),
+            )
+            .expect("Program failed to instantiate"),
         )
-        .expect("Program failed to instantiate");
+        .into();
         common::native::set_program(program);
 
         let original_message_id = H256::from_low_u64_be(2002);
@@ -1419,16 +1431,19 @@ fn send_reply_value_offset_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let program = UninitializedProgram::new(
+            Data::new(
+                ProgramId::from_slice(&program_id[..]),
+                parse_wat(
+                    r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
-            ),
-            Default::default(),
+                ),
+                Default::default(),
+            )
+            .expect("Program failed to instantiate"),
         )
-        .expect("Program failed to instantiate");
+        .into();
         common::native::set_program(program);
 
         let original_message_id = H256::from_low_u64_be(2002);
@@ -1511,16 +1526,19 @@ fn claim_value_from_mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let program = UninitializedProgram::new(
+            Data::new(
+                ProgramId::from_slice(&program_id[..]),
+                parse_wat(
+                    r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
-            ),
-            Default::default(),
+                ),
+                Default::default(),
+            )
+            .expect("Program failed to instantiate"),
         )
-        .expect("Program failed to instantiate");
+        .into();
         common::native::set_program(program);
 
         let original_message_id = H256::from_low_u64_be(2002);

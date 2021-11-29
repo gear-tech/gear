@@ -18,6 +18,9 @@
 
 //! Module for running programs.
 
+mod detail;
+use detail::{run_init, run_next, run_reply};
+
 use alloc::collections::{BTreeMap, BTreeSet};
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
@@ -31,7 +34,7 @@ use gear_core::{
         ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
         MessageState, OutgoingMessage, ReplyMessage,
     },
-    program::{Program, ProgramId},
+    program::{Data, InitializedProgram, Program, ProgramId, UninitializedProgram},
     storage::{InMemoryStorage, Log, ProgramStorage, Storage, StorageCarrier},
 };
 
@@ -251,9 +254,8 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     pub fn run_next(&mut self, message: Message) -> RunNextResult {
         let gas_limit = message.gas_limit();
         let message_source = message.source();
-        let message_dest = message.dest();
 
-        let mut program = match self.program_storage.get(message_dest) {
+        let mut program = match self.program_storage.get(message.dest()) {
             Some(program) => program,
             None => {
                 self.log.put(message);
@@ -261,64 +263,110 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             }
         };
 
-        let instrumented_code = match gas::instrument(program.code()) {
-            Ok(code) => code,
-            Err(err) => {
-                log::debug!("Instrumentation error: {:?}", err);
-                return RunNextResult::new();
-            }
+        let init = |program: &Data, message: &Message| {
+            let allocations: BTreeSet<PageNumber> = program
+                .get_pages()
+                .iter()
+                .map(|(page_num, _)| *page_num)
+                .collect();
+
+            let context = self.create_context(allocations);
+
+            // We don't generate reply on trap, if we already processing trap message
+            let generate_reply_on_trap = if let Some((_, exit_code)) = message.reply() {
+                // reply case. generate if not a trap message
+                exit_code == 0
+            } else {
+                // none-reply case. always generate
+                true
+            };
+
+            (context, generate_reply_on_trap)
         };
 
-        let allocations: BTreeSet<PageNumber> = program
-            .get_pages()
-            .iter()
-            .map(|(page_num, _)| *page_num)
-            .collect();
-
-        let mut context = self.create_context(allocations);
         let next_message_id = message.id();
 
-        // We don't generate reply on trap, if we already processing trap message
-        let generate_reply_on_trap = if let Some((_, exit_code)) = message.reply() {
-            // reply case. generate if not a trap message
-            exit_code == 0
-        } else {
-            // none-reply case. always generate
-            true
-        };
+        let (run_result, mut context, trap_nonce) = match program {
+            Program::Initialized(ref mut p) => {
+                let instrumented_code = match gas::instrument(p.code()) {
+                    Ok(code) => code,
+                    Err(err) => {
+                        log::debug!("Instrumentation error: {:?}", err);
+                        return RunNextResult::new();
+                    }
+                };
 
-        let incoming_message: IncomingMessage = message.clone().into();
-        let run_result = run(
-            &mut self.env,
-            &mut context,
-            &instrumented_code,
-            &mut program,
-            if message.reply().is_some() {
-                EntryPoint::HandleReply
-            } else {
-                EntryPoint::Handle
-            },
-            &incoming_message,
-            gas_limit,
-            self.block_info,
-        );
+                let (mut context, generate_reply_on_trap) = init(p, &message);
+                let result = run_next(
+                    &mut self.env,
+                    &mut context,
+                    &instrumented_code,
+                    p,
+                    message.clone(),
+                    gas_limit,
+                    self.block_info,
+                );
+
+                let trap_nonce = if result.outcome.was_trap() && generate_reply_on_trap {
+                    Some(p.fetch_inc_message_nonce())
+                } else {
+                    None
+                };
+
+                (result, context, trap_nonce)
+            }
+            Program::Uninitialized(ref mut p) => {
+                // TODO: introduce InitMessage and process it accordingly
+                if message.reply().is_none() {
+                    let mut result = RunNextResult::new();
+                    result.log.push(message);
+                    return result;
+                }
+
+                let instrumented_code = match gas::instrument(p.code()) {
+                    Ok(code) => code,
+                    Err(err) => {
+                        log::debug!("Instrumentation error: {:?}", err);
+                        return RunNextResult::new();
+                    }
+                };
+
+                let (mut context, generate_reply_on_trap) = init(p, &message);
+                let result = run_reply(
+                    &mut self.env,
+                    &mut context,
+                    &instrumented_code,
+                    p,
+                    message.clone().into(),
+                    gas_limit,
+                    self.block_info,
+                );
+
+                let trap_nonce = if result.outcome.was_trap() && generate_reply_on_trap {
+                    Some(p.fetch_inc_message_nonce())
+                } else {
+                    None
+                };
+
+                (result, context, trap_nonce)
+            }
+        };
 
         let outgoing_messages = context.message_buf.drain(..).collect::<Vec<_>>();
         let mut messages = vec![];
 
-        if run_result.outcome.was_trap() && generate_reply_on_trap {
+        if let Some(nonce) = trap_nonce {
             let gas_spent_for_outgoing: u64 =
                 outgoing_messages.iter().map(|msg| msg.gas_limit).sum();
             let burned_gas = run_result.gas_spent;
 
-            let trap_gas = incoming_message
+            let trap_gas = message
                 .gas_limit()
                 .saturating_sub(gas_spent_for_outgoing)
                 .saturating_sub(burned_gas);
 
             // In case of trap, we generate trap reply message
             let program_id = program.id();
-            let nonce = program.fetch_inc_message_nonce();
             let trap_message_id = self.next_message_id(program_id, nonce);
             let trap_message = Message {
                 id: trap_message_id,
@@ -462,21 +510,22 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         &mut self,
         initialization: InitializeProgramInfo,
     ) -> anyhow::Result<RunResult> {
-        if let Some(mut program) = self.program_storage.get(initialization.new_program_id) {
-            program.reset(initialization.code)?;
-            self.program_storage.set(program);
-        } else {
-            self.program_storage.set(Program::new(
-                initialization.new_program_id,
-                initialization.code,
-                Default::default(),
-            )?);
-        }
-
-        let mut program = self
+        if self
             .program_storage
             .get(initialization.new_program_id)
-            .expect("Added above; cannot fail");
+            .is_some()
+        {
+            return Err(anyhow::anyhow!(
+                "Failed to init: there is already program with such id = {}",
+                initialization.new_program_id
+            ));
+        }
+
+        let mut program = UninitializedProgram::new(Data::new(
+            initialization.new_program_id,
+            initialization.code,
+            Default::default(),
+        )?);
 
         if program.static_pages() > self.max_pages().raw() {
             return Err(anyhow::anyhow!(
@@ -498,13 +547,12 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             initialization.message.value,
         );
 
-        let res = run(
+        let res = run_init(
             &mut self.env,
             &mut context,
             &gas::instrument(program.code())
                 .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
             &mut program,
-            EntryPoint::Init,
             &msg,
             initialization.message.gas_limit,
             self.block_info,
@@ -516,7 +564,10 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             }
         }
 
-        self.program_storage.set(program);
+        self.program_storage.set(match res.outcome {
+            ExecutionOutcome::Normal => InitializedProgram::from(program).into(),
+            _ => program.into(),
+        });
 
         Ok(res)
     }
@@ -636,194 +687,6 @@ pub struct RunResult {
     pub gas_spent: u64,
     /// Run outcome (trap/success/waiting).
     pub outcome: ExecutionOutcome,
-}
-
-/// Performs run of the `entry_point` function in the `program`.
-///
-/// The function is needed to abstract common procedures of different program function calls.
-///
-/// Actual function run is performed in the virtual machine (VM). Programs, which are run in the VM, import functions from some environment
-/// that Gear provides. These functions (so called sys-calls), are provided by sandbox or wasmtime backends (see core-backend crates),
-/// which implement [`Environment`] trait.
-/// This trait provides us an ability to setup all the needed settings for the run and actually run the desired function, providing program (wasm module) with
-/// sys-calls.
-/// A crucial dependency for the actual run in the VM is `Ext`, which is created in the function's body.
-///
-/// By the end of the run all the side effects (changes in memory, newly generated messages) are handled.
-///
-/// The function doesn't return an error, although the run can end up with a trap. However,
-/// in the `RunResult.outcome` field we state, that the trap occurred. So the trap occurs in several situations:
-/// 1. Gas charge for initial or loaded pages failed;
-/// 2. There weren't enough gas for future memory grow;
-/// 3. Program function execution ended up with an error.
-#[allow(clippy::too_many_arguments)]
-fn run<E: Environment<Ext>>(
-    env: &mut E,
-    context: &mut RunningContext,
-    binary: &[u8],
-    program: &mut Program,
-    entry_point: EntryPoint,
-    message: &IncomingMessage,
-    gas_limit: u64,
-    block_info: BlockInfo,
-) -> RunResult {
-    let mut gas_counter = GasCounter::new(gas_limit);
-
-    let id_generator = BlakeMessageIdGenerator {
-        program_id: program.id(),
-        nonce: program.message_nonce(),
-    };
-
-    let (left_before, burned_before) = (gas_counter.left(), gas_counter.burned());
-
-    // Charge gas for initial or loaded pages.
-    match entry_point {
-        EntryPoint::Init => {
-            if gas_counter.charge(context.config.init_cost * program.static_pages() as u64)
-                == gas::ChargeResult::NotEnough
-            {
-                return RunResult {
-                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for initial memory.")),
-                    ..Default::default()
-                };
-            }
-        }
-        _ => {
-            if gas_counter.charge(context.config.load_page_cost * program.get_pages().len() as u64)
-                == gas::ChargeResult::NotEnough
-            {
-                return RunResult {
-                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for loading memory.")),
-                    ..Default::default()
-                };
-            }
-        }
-    };
-
-    let memory = env.create_memory(program.static_pages());
-
-    // Charge gas for feature memory grows.
-    let max_page = program.get_pages().iter().next_back();
-    if let Some(max_page) = max_page {
-        let max_page_num = *max_page.0;
-        let mem_size = memory.size();
-        if max_page_num >= mem_size {
-            let amount =
-                context.config.mem_grow_cost * ((max_page_num - mem_size).raw() as u64 + 1);
-            let res = gas_counter.charge(amount);
-            if res != gas::ChargeResult::Enough {
-                return RunResult {
-                    outcome: ExecutionOutcome::Trap(Some("Not enough gas for grow memory size.")),
-                    ..Default::default()
-                };
-            }
-        } else {
-            assert!(max_page_num.raw() == mem_size.raw() - 1);
-        }
-    }
-
-    let ext = Ext {
-        memory_context: MemoryContext::new(
-            program.id(),
-            memory.clone(),
-            context.allocations.clone(),
-            program.static_pages().into(),
-            context.max_pages(),
-        ),
-        messages: MessageContext::new(message.clone(), id_generator),
-        gas_counter,
-        alloc_cost: context.alloc_cost(),
-        mem_grow_cost: context.mem_grow_cost(),
-        last_error_returned: None,
-        wait_flag: false,
-        block_info,
-    };
-
-    // Actually runs the `entry_point` function in `binary`. Because of the fact
-    // that contracts can use host functions, that are exported to the module (i.e. important by module),
-    // these functions can need some data to operate on. This data along with some internal procedures
-    // implementing host functions are provided with `ext`.
-    let (res, mut ext) = env.setup_and_run(
-        ext,
-        binary,
-        program.get_pages(),
-        &*memory,
-        entry_point.into(),
-    );
-
-    let outcome = match res {
-        Ok(_) => {
-            if ext.wait_flag {
-                ExecutionOutcome::Waiting
-            } else {
-                ExecutionOutcome::Normal
-            }
-        }
-        Err(e) => {
-            let explanation = ext.last_error_returned.take();
-            log::debug!(
-                "Trap during execution: {}, explanation: {}",
-                e,
-                explanation.unwrap_or("N/A")
-            );
-            ExecutionOutcome::Trap(explanation)
-        }
-    };
-
-    // Handling side effects after running program, which requires:
-    // 1. setting newest memory pages for a program
-    // 2. Gathering newly generated messages ("outgoing" and reply messages). They are later
-    // set to the storage.
-    // 3. Transferring remain gas after current run to woken messages.
-
-    // get allocated pages
-    for page in ext.memory_context.allocations().clone() {
-        let mut buf = vec![0u8; PageNumber::size()];
-        ext.get_mem(page.offset(), &mut buf);
-        let _ = program.set_page(page, &buf);
-    }
-
-    let mut messages = vec![];
-
-    program.set_message_nonce(ext.messages.nonce());
-    let MessageState {
-        outgoing,
-        reply,
-        awakening,
-    } = ext.messages.into_state();
-
-    for outgoing_msg in outgoing {
-        messages.push(outgoing_msg.clone());
-        context.push_message(outgoing_msg.into_message(program.id()));
-    }
-
-    if let Some(reply_message) = &reply {
-        context.push_message(reply_message.clone().into_message(
-            message.id(),
-            program.id(),
-            message.source(),
-        ));
-    }
-
-    let gas_spent = ext.gas_counter.burned();
-
-    let (left_after, burned_after) = (ext.gas_counter.left(), ext.gas_counter.burned());
-    assert!(left_before >= left_after);
-    assert!(burned_after >= burned_before);
-    log::debug!(
-        "({}) Gas burned: {}; Gas used {}",
-        program.id(),
-        burned_after - burned_before,
-        left_before - left_after
-    );
-
-    RunResult {
-        messages,
-        reply,
-        awakening,
-        gas_spent,
-        outcome,
-    }
 }
 
 #[cfg(test)]

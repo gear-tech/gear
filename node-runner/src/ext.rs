@@ -23,6 +23,9 @@ use gear_core::{
 };
 use sp_std::prelude::*;
 
+#[cfg(test)]
+use gear_core::program::{Data, UninitializedProgram};
+
 #[derive(Default, Clone)]
 pub struct ExtProgramStorage;
 
@@ -118,8 +121,10 @@ mod tests {
             let code = parse_wat(wat);
 
             for id in 1..=10 {
-                let program =
-                    Program::new(ProgramId::from(id), code.clone(), Default::default()).unwrap();
+                let program = UninitializedProgram::new(
+                    Data::new(ProgramId::from(id), code.clone(), Default::default()).unwrap(),
+                )
+                .into();
                 storage.program_storage.set(program);
             }
 

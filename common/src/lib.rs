@@ -59,6 +59,7 @@ pub struct Program {
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub nonce: u64,
+    pub inited: bool,
 }
 
 pub trait Origin: Sized {
@@ -332,6 +333,7 @@ mod tests {
                 persistent_pages: Default::default(),
                 code_hash,
                 nonce: 0,
+                inited: false,
             };
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
@@ -358,6 +360,7 @@ mod tests {
                     persistent_pages: Default::default(),
                     code_hash,
                     nonce: 0,
+                    inited: false,
                 },
                 Default::default(),
             );
@@ -370,6 +373,7 @@ mod tests {
                     persistent_pages: Default::default(),
                     code_hash,
                     nonce: 1,
+                    inited: false,
                 },
                 Default::default(),
             );
