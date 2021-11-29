@@ -311,7 +311,11 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             let gas_spent_for_outgoing: u64 =
                 outgoing_messages.iter().map(|msg| msg.gas_limit).sum();
             let burned_gas = run_result.gas_spent;
-            let trap_gas = incoming_message.gas_limit() - gas_spent_for_outgoing - burned_gas;
+
+            let trap_gas = incoming_message
+                .gas_limit()
+                .saturating_sub(gas_spent_for_outgoing)
+                .saturating_sub(burned_gas);
 
             // In case of trap, we generate trap reply message
             let program_id = program.id();
