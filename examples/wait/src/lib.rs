@@ -24,8 +24,8 @@ pub unsafe extern "C" fn handle() {
         }
         2 => {
             STATE = 3;
-            exec::wake(MSG_ID_1, exec::gas_available() / 2);
-            exec::wake(MSG_ID_2, exec::gas_available() / 2);
+            exec::wake(MSG_ID_1);
+            exec::wake(MSG_ID_2);
         }
         _ => {
             msg::send(msg::source(), b"WAITED", 1_000_000, 0);

@@ -205,7 +205,6 @@ impl From<ExecutionOutcome> for RunResult {
 pub struct RunReport<D> {
     pub result: RunResult,
     pub response: Option<Result<D, Error>>,
-    pub gas_left: u64,
     pub gas_spent: u64,
 }
 
@@ -224,8 +223,7 @@ pub struct RunnerContext {
     message_queue: Vec<Message>,
     log: Vec<Message>,
     outcomes: BTreeMap<MessageId, ExecutionOutcome>,
-    gas_left: BTreeMap<ProgramId, u64>,
-    gas_spent: BTreeMap<ProgramId, u64>,
+    gas_spent: BTreeMap<MessageId, u64>,
 }
 
 impl RunnerContext {
@@ -304,7 +302,6 @@ impl RunnerContext {
         RunReport {
             result: result.outcome.into(),
             response,
-            gas_left: result.gas_left,
             gas_spent: result.gas_spent,
         }
     }
@@ -328,7 +325,6 @@ impl RunnerContext {
     {
         let message = message.into().into_message(self);
         let message_id = message.id;
-        let program_id = message.source;
 
         self.run(message);
 
@@ -337,14 +333,9 @@ impl RunnerContext {
             .remove(&message_id)
             .expect("Unable to get message outcome");
 
-        let gas_left = self
-            .gas_left
-            .remove(&program_id)
-            .expect("Unable to get remaining gas for program");
-
         let gas_spent = self
             .gas_spent
-            .remove(&program_id)
+            .remove(&message_id)
             .expect("Unable to get spent gas for program");
 
         let response = self.get_response_to(message_id);
@@ -352,7 +343,6 @@ impl RunnerContext {
         RunReport {
             response,
             result: outcome.into(),
-            gas_left,
             gas_spent,
         }
     }
@@ -449,7 +439,6 @@ impl RunnerContext {
         let mut messages: Vec<_> = self.message_queue.drain(..).collect();
         messages.push(message);
         let mut outcomes = BTreeMap::new();
-        let mut gas_left = BTreeMap::new();
         let mut gas_spent = BTreeMap::new();
 
         let runner = self.runner();
@@ -461,9 +450,6 @@ impl RunnerContext {
             }
             for (id, outcome) in run_result.outcomes {
                 outcomes.insert(id, outcome);
-            }
-            for (id, gas) in run_result.gas_left {
-                gas_left.insert(id, gas);
             }
             for (id, gas) in run_result.gas_spent {
                 gas_spent.insert(id, gas);
@@ -477,9 +463,6 @@ impl RunnerContext {
 
         for (id, outcome) in outcomes {
             self.outcomes.insert(id, outcome);
-        }
-        for (id, gas) in gas_left {
-            self.gas_left.insert(id, gas);
         }
         for (id, gas) in gas_spent {
             self.gas_spent.insert(id, gas);
@@ -506,7 +489,6 @@ impl Default for RunnerContext {
             message_queue: Vec::new(),
             log: Vec::new(),
             outcomes: BTreeMap::new(),
-            gas_left: BTreeMap::new(),
             gas_spent: BTreeMap::new(),
         }
     }

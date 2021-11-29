@@ -203,7 +203,6 @@ mod tests {
                 MessageBuilder::from(Request::Allocate(allocation_size)).gas_limit(gas_limit),
             ));
         assert_eq!(report.result, RunResult::Normal);
-        assert_eq!(report.gas_left, 0);
 
         // Check gas limit exceeded
         let mut runner = RunnerContext::with_config(&config);
@@ -314,7 +313,6 @@ mod tests {
             MessageBuilder::from(Request::Allocate(allocation_size)).gas_limit(gas_limit),
         );
         assert_eq!(report.result, RunResult::Normal);
-        assert_eq!(report.gas_left, 0);
 
         // Check gas limit exceeded
         let mut runner = RunnerContext::with_config(&config);
@@ -398,7 +396,6 @@ mod tests {
         let report: RunReport<Reply> =
             runner.request_report(MessageBuilder::from(Request::Empty).gas_limit(gas_limit));
         assert_eq!(report.result, RunResult::Normal);
-        assert_eq!(report.gas_left, 0);
 
         // Check gas limit exceeded
         let mut runner = RunnerContext::with_config(&config);

@@ -265,11 +265,11 @@ pub fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
     }
 }
 
-pub fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i64) -> Result<(), &'static str> {
-    move |waker_id_ptr, gas_limit| {
+pub fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |waker_id_ptr| {
         ext.with(|ext: &mut E| {
             let waker_id: MessageId = get_id(ext, waker_id_ptr).into();
-            ext.wake(waker_id, gas_limit as _)
+            ext.wake(waker_id)
         })?
     }
 }
