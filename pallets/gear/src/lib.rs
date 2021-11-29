@@ -35,7 +35,7 @@ mod tests;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
-const GAS_VALUE_PREFIX: &'static [u8] = b"g::gas_tree";
+const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
 #[frame_support::pallet]
 pub mod pallet {
