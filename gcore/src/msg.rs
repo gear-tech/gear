@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Messaging API for GEAR programs.
+//! Messaging API for Gear programs.
 //!
 //! This module contains sys calls API for incoming message processing and
 //! synchronous message sending. Messages are the main interface for
-//! communications between actors (users and programs). Every GEAR program
+//! communications between actors (users and programs). Every Gear program
 //! contains code for processing an incoming message. During a message
 //! processing a program can send messages to other programs and users including
 //! reply to the initial message.
@@ -138,7 +138,7 @@ pub fn load(buffer: &mut [u8]) {
 /// This function allows sending such replies, which are similar to standard
 /// messages in terms of payload and different only in the way the message
 /// processing is handled by a separate program function called
-/// [`handle_reply`].
+/// `handle_reply`.
 ///
 /// First argument is the reply message payload in bytes. Second argument is
 /// `gas_limit`
@@ -246,8 +246,8 @@ pub fn reply_push(payload: &[u8]) {
 /// Get an identifier of the initial message which the current handle_reply
 /// function is called on.
 ///
-/// Processing the reply to the message in GEAR program is performed using
-/// [`handle_reply`] function. In order to obtain the original message id on
+/// Processing the reply to the message in Gear program is performed using
+/// `handle_reply` function. In order to obtain the original message id on
 /// which reply has been posted, a program should call this function.
 ///
 /// # Examples
@@ -272,7 +272,7 @@ pub fn reply_to() -> MessageId {
 
 /// Send a new message to the program or user.
 ///
-/// GEAR allows programs to communicate to each other and users via messages.
+/// Gear allows programs to communicate to each other and users via messages.
 /// [`send`] function allows sending such messages.
 ///
 /// First argument is the address of the target account.
@@ -321,7 +321,7 @@ pub fn send(program: ActorId, payload: &[u8], gas_limit: u64, value: u128) -> Me
 
 /// Finalize and send message formed in parts.
 ///
-/// GEAR allows programs to work with messages that consist of several parts.
+/// Gear allows programs to work with messages that consist of several parts.
 /// This function finalizes the message built in parts and sends it.
 ///
 /// First argument is the message handle [MessageHandle] which specifies a
@@ -374,7 +374,7 @@ pub fn send_commit(
 
 /// Initialize a message to send formed in parts.
 ///
-/// GEAR allows programs to work with messages that consist of several parts.
+/// Gear allows programs to work with messages that consist of several parts.
 /// This function initializes a message built in parts and returns corresponding
 /// message `handle`.
 ///
@@ -402,7 +402,7 @@ pub fn send_init() -> MessageHandle {
 
 /// Push a payload part of the message to be sent in parts.
 ///
-/// GEAR allows programs to work with messages in parts.
+/// Gear allows programs to work with messages in parts.
 /// This function adds a `payload` part to the message specified by message
 /// `handle`.
 ///
