@@ -23,7 +23,7 @@ use gear_core::storage::{Storage, StorageCarrier};
 
 use super::{
     ext::{BlockInfo, Ext},
-    runner::{Config, ExtMessage, InitializeProgramInfo, Runner},
+    runner::{Config, ExtMessage, InitializeProgramInfo, RunResult, Runner},
 };
 
 /// Builder for [`Runner`].
@@ -107,13 +107,12 @@ impl<SC: StorageCarrier, E: Environment<Ext>> RunnerBuilder<SC, E> {
     }
 
     /// Initialize all programs and return [`Runner`].
-    pub fn build(self) -> Runner<SC, E> {
+    pub fn build(self) -> (Runner<SC, E>, Vec<anyhow::Result<RunResult>>) {
         let mut runner = Runner::new(&self.config, self.storage, self.block_info, E::default());
+        let mut result = Vec::with_capacity(self.programs.len());
         for program in self.programs {
-            runner
-                .init_program(program)
-                .expect("failed to init program");
+            result.push(runner.init_program(program));
         }
-        runner
+        (runner, result)
     }
 }

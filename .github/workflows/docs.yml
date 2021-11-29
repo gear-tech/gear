@@ -15,10 +15,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Build Docs
+      - name: Build docs
         run: |
           cargo doc -p gear-core -p galloc -p gcore -p gstd --no-deps
           echo "<html><head><meta http-equiv=\"refresh\" content=\"0; url=/galloc/index.html\" /></head><body></body></html>" > ./target/doc/index.html
+
+      - name: Copy logo image
+        run: cp ./images/logo.svg ./target/doc/
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3

@@ -28,6 +28,7 @@ use gear_core_runner::{Config, ExtMessage, InitializeProgramInfo, Runner};
 use gear_node_runner::{Ext, ExtStorage};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
+use std::collections::VecDeque;
 use std::fmt::Write;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -119,7 +120,7 @@ impl CollectState for ExtStorage {
 
 /// Initializes programs defined in `test.programs` and queues all the messages from `test.fixtures[fixture_no]`.
 ///
-/// Program initialization and queueing messages is performed by [Runner](../../gear_core_runner/runner/struct.Runner.html),
+/// Program initialization and queueing messages is performed by [`Runner`],
 /// which uses `storage` as a storage manager. This storage is actually returned to the function caller to be later used to run queued messages.
 pub fn init_fixture<SC: StorageCarrier>(
     storage: Storage<SC::PS>,
@@ -257,21 +258,20 @@ pub struct FinalState {
 /// If `steps` is `None`, then all the messages in the queue will be processed.
 pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
     mut runner: Runner<SC, E>,
-    messages: Vec<Message>,
+    mut messages: VecDeque<Message>,
     steps: Option<usize>,
 ) -> Vec<(FinalState, anyhow::Result<()>)>
 where
     Storage<SC::PS>: CollectState,
 {
     let mut results = Vec::new();
-    let mut messages = messages;
 
     let log = runner.log().get().to_vec();
     let storage = runner.storage();
 
     let mut final_state = storage.collect();
 
-    final_state.messages = messages.clone();
+    final_state.messages = messages.clone().into();
 
     final_state.log = log;
     results.push((final_state, Ok(())));
@@ -284,9 +284,9 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0);
             runner.set_block_timestamp(timestamp as _);
-            let do_run = step_no < messages.len();
-            if step_no < messages.len() {
-                let mut run_result = runner.run_next(messages[step_no].clone());
+
+            if let Some(m) = messages.pop_front() {
+                let mut run_result = runner.run_next(m);
                 runner.process_wait_list(&mut run_result);
 
                 log::info!("step: {}", step_no + 1);
@@ -295,43 +295,32 @@ where
                     _result = Err(anyhow::anyhow!("Runner resulted in a trap"));
                 }
 
-                {
-                    let messages = &mut messages;
-                    messages.append(&mut run_result.messages);
-                }
+                messages.append(&mut run_result.messages.into());
             }
+
             let log = runner.log().get().to_vec();
             let storage = runner.storage();
 
             let mut final_state = storage.collect();
 
-            final_state.messages = messages.clone();
-
-            if do_run {
-                final_state.messages.drain(0..step_no + 1);
-            }
+            final_state.messages = messages.clone().into();
 
             final_state.log = log.clone();
 
             results.push((final_state, Ok(())));
         }
     } else {
-        let mut step_no = 0;
-        while step_no < messages.len() {
-            let mut run_result = runner.run_next(messages[step_no].clone());
+        while let Some(m) = messages.pop_front() {
+            let mut run_result = runner.run_next(m);
             runner.process_wait_list(&mut run_result);
 
-            {
-                let messages = &mut messages;
-                messages.append(&mut run_result.messages);
-            }
-            step_no += 1;
+            messages.append(&mut run_result.messages.into());
+
             let log = runner.log().get().to_vec();
             let storage = runner.storage();
 
             let mut final_state = storage.collect();
-            final_state.messages = messages.clone();
-            final_state.messages.drain(0..step_no);
+            final_state.messages = messages.clone().into();
 
             final_state.log = log.clone();
 

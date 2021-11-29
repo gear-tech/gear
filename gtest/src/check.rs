@@ -432,7 +432,7 @@ where
     match runner::init_fixture::<SC>(storage, test, fixture_no) {
         Ok((runner, messages)) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = runner::run(runner, messages, last_exp_steps);
+            let results = runner::run(runner, messages.into(), last_exp_steps);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {

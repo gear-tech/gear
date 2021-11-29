@@ -332,7 +332,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
 }
 
 impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
-    /// Creates a default environment.
+    /// Create a default environment.
     fn default() -> Self {
         Self::new()
     }

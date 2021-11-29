@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Common structures used in GEAR programs.
+//! Common structures used in Gear programs.
 //!
 //! This module contains definitions of common structures that are used to work
-//! with GEAR api.
+//! with Gear api.
 
 /// Message handle.
 ///
 ///
-/// GEAR allows users and programs to interact with other users and programs via
+/// Gear allows users and programs to interact with other users and programs via
 /// messages. Message creation consists of the following parts - message
 /// initialisation, filling the message with payload (can be gradual), message
 /// sending.
@@ -53,7 +53,7 @@ pub struct MessageHandle(pub u32);
 
 /// Message identifier.
 ///
-/// GEAR allows users and programs to interact with other users and programs via
+/// Gear allows users and programs to interact with other users and programs via
 /// messages. Each message has its own unique 256-bit id. This id is represented
 /// via the `MessageId` struct. Message identifier can be obtained for the
 /// currently processed message using the [`msg::id`](crate::msg::id) function.
@@ -96,7 +96,7 @@ impl MessageId {
 
 /// Program identifier.
 ///
-/// GEAR allows users and programs to interact with other users and programs via
+/// Gear allows users and programs to interact with other users and programs via
 /// messages. Source and target program as well as user are represented by
 /// 256-bit identifier `ActorId` struct. The source `ActorId` for a message
 /// being processed can be obtained using [`msg::source`](crate::msg::source)

@@ -1,7 +1,7 @@
 
 <p align="center">
   <a href="https://gear-tech.io">
-    <img src="images/title.png" width="700" alt="GEAR">
+    <img src="images/title.png" width="700" alt="Gear">
   </a>
 </p>
 
@@ -9,15 +9,15 @@
 Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in a few minutes.
 </h4>
 
-# 
+#
 
 <div align="center">
 
 [![CI][c1]][c2]
-[![GitHubStars][g1]][g2] 
-[![Discord][d1]][d2] 
-[![Twitter][t1]][t2] 
-[![License][l1]][l2] 
+[![GitHubStars][g1]][g2]
+[![Discord][d1]][d2]
+[![Twitter][t1]][t2]
+[![License][l1]][l2]
 
 [c1]: https://github.com/gear-tech/gear/workflows/CI/badge.svg
 [c2]: https://github.com/gear-tech/gear/actions/workflows/CI.yaml
@@ -47,9 +47,9 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 4. :computer: Also you can download and run your Gear node locally or create your own multi-node local testnet.
 
-5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/get-started/smart-contracts/gear-program) of the GEAR Wiki for more details.
+5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/get-started/smart-contracts/gear-program) of the Gear Wiki for more details.
 
-## :computer: Run Gear Node  
+## :computer: Run Gear Node
 
 Gear node can run in a single Dev Net mode or you can create a Multi-Node local testnet or make your own build of Gear node.
 
@@ -66,7 +66,13 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
     gear-node
     ```
 
-3. Get more info about usage details, flags, available options and subcommands:
+3. One may run a local node in development mode for testing purposes. This node will not be connected to any external network. Use `--dev` argument for running the node locally and `--tmp` for storing the state in temporary storage:
+
+    ```bash
+    gear-node --dev --tmp
+    ```
+
+4. Get more info about usage details, flags, available options and subcommands:
 
     ```bash
     gear-node --help
@@ -82,6 +88,8 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 * [examples](https://github.com/gear-tech/gear/tree/master/examples) - Gear smart contract examples.
 
+Go to https://docs.gear.rs to dive into the documentation on Gear crates.
+
 # ⚙️About: what does Gear do?
 
 <p align="center">
@@ -94,7 +102,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 <img src="images/state.png" height="64"><br>Smart Contracts are stored in the blockchain’s state <br>and are invoked preserving their state upon request.
 </p>
 <p align="center">
-<img src="images/apps.png" height="64"><br>GEAR enables a seamless transition to Web3, <br>enabling the running of dApps, microservices, middleware and open APIs.
+<img src="images/apps.png" height="64"><br>Gear enables a seamless transition to Web3, <br>enabling the running of dApps, microservices, middleware and open APIs.
 </p>
 
 ### :fire: Key features
@@ -102,7 +110,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
  - Programs run in WASM WM (near-native code execution speed)
  - **Unique** :crown: : Parallelizable architecture (even greater speed)
  - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
- - dApp in minutes using GEAR libraries
+ - dApp in minutes using Gear libraries
  - Based on Substrate
 
 ### :bulb: Main capabilities
@@ -112,10 +120,10 @@ Gear enables anyone to create and run any custom-logic dApp and is a go-to solut
   - Being a **Polkadot parachain**, Gear establishes cross-chain communications between other blockchains, allowing anyone to run a dApp in the Polkadot network in a very **cost-less** manner.
   - Join Substrate-supported blockchains in any other platform outside Polkadot.
   - A standalone instance running microservices, middleware, open API and more
-  
+
   # 🧐 Why?
 
-The blockchain technology launched a rapid transition from centralized, server-based internet (Web2) to decentralized, distributed one (Web3). 
+The blockchain technology launched a rapid transition from centralized, server-based internet (Web2) to decentralized, distributed one (Web3).
 
 Web3 introduces a new type of decentralized applications (dApps) that enable the existence of DeFi, DEX, Decentralized marketplaces, NFTs, Creators and Social Tokens.
 
@@ -131,7 +139,7 @@ But still have room for improvements due to:
  - Fixated, rigid native consensus protocols
  - Lack of interoperability with other networks
 
-To resolve the interoperability issue, Parity technologies focused on creating a technology that connects every other blockchain: 
+To resolve the interoperability issue, Parity technologies focused on creating a technology that connects every other blockchain:
   - Polkadot - a blockchain of blockchains. Provides a “relay chain” (the primary blockchain) that enables “parachains” (functional blockchains) to be deployed on top of it. All parachains are interconnected, creating a massive network of multifunctional blockchain services.
   - Substrate - a modular framework that allows to create custom-built blockchains with consensus mechanism, core functionality and security out of the box.
 
@@ -148,7 +156,7 @@ Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TE
 
 # :family: Contribution
 
-You can request a new feature by creating a new Issue or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9). 
+You can request a new feature by creating a new Issue or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).
 Here are some features in-prog or planned: https://github.com/gear-tech/gear/issues
 
 # :key: License
@@ -161,13 +169,13 @@ Gear is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
 <p align="left" nowrap>
     <a href="https://twitter.com/gear_techs">
         <img src="https://gear-tech.io/images/footer-social-icon-1.svg" alt="twit" style="vertical-align:middle" >
-    </a> 
+    </a>
     <a href="https://github.com/gear-tech">
         <img src="https://gear-tech.io/images/footer-social-icon-2.svg" alt="github" style="vertical-align:middle" >
-    </a> 
+    </a>
     <a href="https://discord.gg/7BQznC9uD9">
         <img src="https://gear-tech.io/images/footer-social-icon-3.svg" alt="discord" style="vertical-align:middle" >
-    </a> 
+    </a>
     <a href="https://medium.com/@gear_techs">
         <img src="https://gear-tech.io/images/footer-social-icon-4.svg" alt="medium" style="vertical-align:middle" >
     </a>
@@ -186,4 +194,3 @@ Gear is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
     </a>
 </p>
 </h4>
-
