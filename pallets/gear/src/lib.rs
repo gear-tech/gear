@@ -520,13 +520,15 @@ pub mod pallet {
                     Ok(execution_report) => {
                         total_handled += 1;
 
-                        for (destination, gas_charge) in execution_report.gas_charges {
+                        let origin = gas_tree.origin();
+
+                        for (_, gas_charge) in execution_report.gas_charges {
                             gas_tree.spend(gas_charge);
 
                             let charge = Self::gas_to_fee(gas_charge);
 
                             let _ = T::Currency::repatriate_reserved(
-                                &<T::AccountId as Origin>::from_origin(destination),
+                                &<T::AccountId as Origin>::from_origin(origin),
                                 &Authorship::<T>::author(),
                                 charge,
                                 BalanceStatus::Free,
