@@ -23,10 +23,12 @@ use codec::{Decode, Encode};
 use gstd::prelude::*;
 
 #[cfg(feature = "std")]
-#[cfg(test)]
 mod native {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
+
+#[cfg(feature = "std")]
+pub use native::{WASM_BINARY, WASM_BINARY_BLOATY};
 
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Request {

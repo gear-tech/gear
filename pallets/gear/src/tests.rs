@@ -238,6 +238,7 @@ fn send_message_works() {
         run_to_block(2, Some(100_000));
 
         assert_eq!(Balances::free_balance(2), 20_002);
+
         // original sender gets back whatever gas_limit he used to send a message.
         assert_eq!(Balances::free_balance(1), 99_970_000);
     })
@@ -391,7 +392,8 @@ fn messages_processing_works() {
             },
         ]);
         crate::Pallet::<Test>::process_queue();
-        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+        // message with log destination should never get processed
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
     })
 }
 
@@ -422,11 +424,12 @@ fn spent_gas_to_reward_block_author_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
+        let init_message_id = H256::from_low_u64_be(1000001);
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
             program_id,
-            init_message_id: H256::from_low_u64_be(1000001),
+            init_message_id,
             payload: "init".as_bytes().to_vec(),
             gas_limit: 10000,
             value: 0,
@@ -1521,6 +1524,12 @@ fn claim_value_from_mailbox_works() {
         common::native::set_program(program);
 
         let original_message_id = H256::from_low_u64_be(2002);
+        common::value_tree::ValueView::get_or_create(
+            GAS_VALUE_PREFIX,
+            1.into_origin(),
+            original_message_id.clone(),
+            10_000_000,
+        );
 
         Gear::insert_to_mailbox(
             1.into_origin(),
@@ -1564,11 +1573,77 @@ fn claim_value_from_mailbox_works() {
             Origin::signed(1).into(),
             original_message_id,
         ));
-        assert_eq!(Balances::free_balance(1), 90_001_000);
+        assert_eq!(Balances::free_balance(1), 80_001_000);
         assert_eq!(Balances::reserved_balance(1), 0);
 
         System::assert_last_event(
             crate::Event::ClaimedValueFromMailbox(original_message_id).into(),
         );
     })
+}
+
+pub fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
+    let mut data = Vec::new();
+    code.encode_to(&mut data);
+    salt.encode_to(&mut data);
+
+    sp_io::hashing::blake2_256(&data[..]).into()
+}
+
+#[test]
+fn distributor_initialize() {
+    use tests_distributor::WASM_BINARY_BLOATY;
+
+    new_test_ext().execute_with(|| {
+        Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            vec![],
+            10_000_000_u64,
+            0_u128,
+        )
+        .expect("Submit program failed");
+
+        run_to_block(3, None);
+
+        assert_eq!(Balances::free_balance(1), 95_021_000,);
+
+        assert_eq!(Balances::free_balance(255), 4_979_001,);
+    });
+}
+
+#[test]
+fn distributor_distribute() {
+    use tests_distributor::{Request, WASM_BINARY_BLOATY};
+
+    new_test_ext().execute_with(|| {
+        let program_id =
+            generate_program_id(WASM_BINARY_BLOATY.expect("Wasm binary missing!"), &[]);
+
+        Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            vec![],
+            10_000_000_u64,
+            0_u128,
+        )
+        .expect("Submit program failed");
+
+        Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id,
+            Request::Receive(10).encode(),
+            10_000_000_u64,
+            0_u128,
+        )
+        .expect("Send message failed");
+
+        run_to_block(3, None);
+
+        assert_eq!(Balances::free_balance(1), 85_027_000,);
+
+        assert_eq!(Balances::free_balance(255), 4_979_001,);
+    });
 }

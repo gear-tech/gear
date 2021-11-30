@@ -18,8 +18,12 @@ fixtures:
 
     expected:
       - step: 1
+        messages: []
         log:
           - destination: 1000001
             payload:
               kind: utf-8
               value: PONG
+
+      - step: 2
+        messages: []

@@ -558,14 +558,10 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 Value::I32(val) => val,
                 _ => return Err(HostError),
             };
-            let gas_limit: i64 = match args[1] {
-                Value::I64(val) => val,
-                _ => return Err(HostError),
-            };
             ctx.ext
                 .with(|ext: &mut E| {
                     let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
-                    ext.wake(waker_id, gas_limit as _)
+                    ext.wake(waker_id)
                 })
                 .map(|_| Ok(ReturnValue::Unit))
                 .map_err(|err| {

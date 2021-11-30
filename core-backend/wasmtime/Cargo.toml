@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = { version = "1.0.48", default-features = false }
+anyhow = { version = "1.0.51", default-features = false }
 cfg-if = "1.0.0"
 gear-core = { path = "../../core" }
 log = { version = "0.4.14", default-features = false }

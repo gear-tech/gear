@@ -107,7 +107,7 @@ Go to https://docs.gear.rs to dive into the documentation on Gear crates.
 
 ### :fire: Key features
 
- - Programs run in WASM WM (near-native code execution speed)
+ - Programs run in WASM VM (near-native code execution speed)
  - **Unique** :crown: : Parallelizable architecture (even greater speed)
  - **Unique** :crown: : Actor model for message-passing communications - secure, effective, clear
  - dApp in minutes using Gear libraries

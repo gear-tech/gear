@@ -432,7 +432,7 @@ where
     match runner::init_fixture::<SC>(storage, test, fixture_no) {
         Ok((runner, messages)) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = runner::run(runner, messages, last_exp_steps);
+            let results = runner::run(runner, messages.into(), last_exp_steps);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {
@@ -510,11 +510,13 @@ where
 /// To understand how tests are structured see [sample](../sample/index.html) module.
 /// For each fixture in the test file from `files` the function setups (initializes) it and then performs all the checks
 /// by first running messages defined in the fixture section and then checking (if required) message state, allocations and memory.
+#[allow(clippy::too_many_arguments)]
 pub fn check_main<SC, F>(
     files: Vec<std::path::PathBuf>,
     skip_messages: bool,
     skip_allocations: bool,
     skip_memory: bool,
+    print_logs: bool,
     storage_factory: F,
     ext: Option<Box<dyn Fn() -> sp_io::TestExternalities + Send + Sync + 'static>>,
 ) -> anyhow::Result<()>
@@ -585,11 +587,6 @@ where
                         skip_memory,
                     )
                 };
-                println!(
-                    "Fixture {}: {}",
-                    test.fixtures[fixture_no].title.bold(),
-                    output
-                );
                 if output != "Ok".bright_green() {
                     map.read()
                         .unwrap()
@@ -599,7 +596,21 @@ where
                         .for_each(|line| {
                             eprintln!("{}", line.bright_red());
                         });
+                } else if print_logs {
+                    map.read()
+                        .unwrap()
+                        .get(&thread::current().id())
+                        .unwrap()
+                        .iter()
+                        .for_each(|line| {
+                            println!("{}", line);
+                        });
                 }
+                println!(
+                    "Fixture {}: {}",
+                    test.fixtures[fixture_no].title.bold(),
+                    output
+                );
             });
     });
 

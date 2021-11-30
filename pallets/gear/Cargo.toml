@@ -44,6 +44,7 @@ env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
 hex-literal = "0.3.4"
+tests-distributor = { path = "../../tests/distributor" }
 
 [features]
 default = ['std']
