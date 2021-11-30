@@ -93,7 +93,6 @@ mod tests {
         sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
         gear_core::storage::Storage {
             program_storage: ExtProgramStorage,
-            log: Default::default(),
         }
     }
 

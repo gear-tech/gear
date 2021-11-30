@@ -32,7 +32,7 @@ use gear_core::{
         MessageState, OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
-    storage::{InMemoryStorage, Log, ProgramStorage, Storage, StorageCarrier},
+    storage::{InMemoryStorage, ProgramStorage, Storage, StorageCarrier},
 };
 
 use crate::builder::RunnerBuilder;
@@ -147,7 +147,6 @@ impl RunNextResult {
 #[derive(Default)]
 pub struct Runner<SC: StorageCarrier, E: Environment<Ext>> {
     pub(crate) program_storage: SC::PS,
-    pub(crate) log: Log,
     pub(crate) config: Config,
     env: E,
     block_info: BlockInfo,
@@ -224,14 +223,10 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     ///
     /// Provide configuration, storage.
     pub fn new(config: &Config, storage: Storage<SC::PS>, block_info: BlockInfo, env: E) -> Self {
-        let Storage {
-            program_storage,
-            log,
-        } = storage;
+        let Storage { program_storage } = storage;
 
         Self {
             program_storage,
-            log,
             config: config.clone(),
             env,
             block_info,
@@ -256,8 +251,9 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         let mut program = match self.program_storage.get(message_dest) {
             Some(program) => program,
             None => {
-                self.log.put(message);
-                return RunNextResult::new();
+                let mut r = RunNextResult::new();
+                r.log.push(message);
+                return r;
             }
         };
 
@@ -305,6 +301,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
 
         let outgoing_messages = context.message_buf.drain(..).collect::<Vec<_>>();
         let mut messages = vec![];
+        let mut log = vec![];
 
         if run_result.outcome.was_trap() && generate_reply_on_trap {
             let gas_spent_for_outgoing: u64 =
@@ -333,7 +330,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             if self.program_storage.exists(message_source) {
                 messages.push(trap_message)
             } else {
-                self.log.put(trap_message)
+                log.push(trap_message)
             }
         }
 
@@ -343,13 +340,13 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             if self.program_storage.exists(message.dest()) {
                 messages.push(message);
             } else {
-                self.log.put(message);
+                log.push(message);
             }
         }
 
         self.program_storage.set(program);
         result.messages.append(&mut messages);
-        result.log.append(&mut self.log.get().to_vec());
+        result.log.append(&mut log);
 
         result
     }
@@ -381,15 +378,10 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     /// This will return underlying storage and memory state.
     pub fn complete(self) -> Storage<SC::PS> {
         let Runner {
-            program_storage,
-            log,
-            ..
+            program_storage, ..
         } = self;
 
-        Storage {
-            program_storage,
-            log,
-        }
+        Storage { program_storage }
     }
 
     /// Storage of this runner.
@@ -398,13 +390,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
     pub fn storage(&self) -> Storage<SC::PS> {
         Storage {
             program_storage: self.program_storage.clone(),
-            log: self.log.clone(),
         }
-    }
-
-    /// Return the log messages list.
-    pub fn log(&self) -> &Log {
-        &self.log
     }
 
     /// Max pages configuration of this runner.
@@ -509,12 +495,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             initialization.message.gas_limit,
             self.block_info,
         );
-
-        for message in context.message_buf.drain(..) {
-            if !self.program_storage.exists(message.dest()) {
-                self.log.put(message);
-            }
-        }
 
         self.program_storage.set(program);
 
@@ -1161,10 +1141,7 @@ mod tests {
 
         let mut result = runner.run_next(message);
 
-        let InMemoryStorage {
-            program_storage: _,
-            log: _,
-        } = runner.complete();
+        let InMemoryStorage { program_storage: _ } = runner.complete();
 
         let msg = result.wait_list.pop().unwrap();
         assert_eq!(msg.source, source_id.into());
@@ -1225,9 +1202,8 @@ mod tests {
         let result = runner.run_next(message);
         assert_eq!(result.gas_spent.len(), 1);
 
-        let (gas_available, ..) = runner
+        let (gas_available, ..) = result
             .log
-            .get()
             .first()
             .map(|m| (m.payload().to_vec(), m.source(), m.dest()))
             .unwrap();

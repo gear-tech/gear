@@ -18,6 +18,7 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_core::storage::ProgramStorage;
 use gear_core::{
     message::{Message, MessageId},
     program::ProgramId,
@@ -254,12 +255,21 @@ impl RunnerContext {
         P: Into<InitProgram>,
     {
         let info = init_data.into().into_init_program_info(self);
+        let program_id = info.new_program_id;
 
-        self.runner()
+        let result = self
+            .runner()
             .init_program(info)
             .expect("Failed to init program");
 
-        let mut log = self.runner().log().get().to_vec();
+        let mut log = vec![];
+        result.messages.into_iter().for_each(|m| {
+            let m = m.into_message(program_id);
+            if !self.runner().storage().program_storage.exists(m.dest()) {
+                log.push(m);
+            }
+        });
+
         self.log.append(&mut log);
     }
 
@@ -270,12 +280,25 @@ impl RunnerContext {
     {
         let info = init_data.into().into_init_program_info(self);
         let message_id = info.message.id;
+        let program_id = info.new_program_id;
 
-        self.runner()
+        let result = self
+            .runner()
             .init_program(info)
             .expect("Failed to init program");
 
-        let mut log = self.runner().log().get().to_vec();
+        let mut log = vec![];
+        result.messages.into_iter().for_each(|m| {
+            let m = m.into_message(program_id);
+            if !self.runner().storage().program_storage.exists(m.dest()) {
+                log.push(m);
+            }
+        });
+
+        if let Some(m) = result.reply {
+            log.push(m.into_message(message_id, program_id, 0.into()));
+        }
+
         self.log.append(&mut log);
 
         reply_or_panic(self.get_response_to(message_id))
@@ -287,6 +310,7 @@ impl RunnerContext {
         D: Decode,
     {
         let info = init_data.into().into_init_program_info(self);
+        let program_id = info.new_program_id;
         let message_id = info.message.id;
 
         let result = self
@@ -294,7 +318,14 @@ impl RunnerContext {
             .init_program(info)
             .expect("Failed to init program");
 
-        let mut log = self.runner().log().get().to_vec();
+        let mut log = vec![];
+        result.messages.into_iter().for_each(|m| {
+            let m = m.into_message(program_id);
+            if !self.runner().storage().program_storage.exists(m.dest()) {
+                log.push(m);
+            }
+        });
+
         self.log.append(&mut log);
 
         let response = self.get_response_to(message_id);
@@ -441,6 +472,7 @@ impl RunnerContext {
         let mut outcomes = BTreeMap::new();
         let mut gas_spent = BTreeMap::new();
 
+        let mut log = vec![];
         let runner = self.runner();
         while let Some(message) = messages.pop() {
             let mut run_result = runner.run_next(message);
@@ -454,9 +486,10 @@ impl RunnerContext {
             for (id, gas) in run_result.gas_spent {
                 gas_spent.insert(id, gas);
             }
+
+            log.append(&mut run_result.log);
         }
 
-        let mut log = runner.log().get().to_vec();
         self.log.append(&mut log);
 
         self.message_queue.append(&mut messages);
