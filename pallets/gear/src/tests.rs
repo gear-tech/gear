@@ -1623,7 +1623,6 @@ fn distributor_distribute() {
     use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
     new_test_ext().execute_with(|| {
-
         let balance_initial = Balances::free_balance(1) + Balances::free_balance(255);
 
         let program_id =

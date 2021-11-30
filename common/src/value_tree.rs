@@ -252,9 +252,9 @@ impl ValueView {
     pub fn origin(&self) -> H256 {
         match self.node.origin {
             ValueOrigin::External(external_origin) => external_origin,
-            ValueOrigin::Local(parent) => {
-                ValueView::get(self.prefix.clone(), parent).expect("Parent should exist").origin()
-            }
+            ValueOrigin::Local(parent) => ValueView::get(self.prefix.clone(), parent)
+                .expect("Parent should exist")
+                .origin(),
         }
     }
 
