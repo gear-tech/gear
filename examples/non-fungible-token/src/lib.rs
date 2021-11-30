@@ -20,7 +20,7 @@ struct NonFungibleToken {
     token_id: U256,
     token_owner: BTreeMap<U256, ActorId>,
     token_approvals: BTreeMap<U256, ActorId>,
-    owned_tokens_count: BTreeMap<ActorId, u128>,
+    owned_tokens_count: BTreeMap<ActorId, U256>,
     operator_approval: BTreeMap<ActorId, BTreeMap<ActorId, bool>>,
 }
 
@@ -77,10 +77,12 @@ impl NonFungibleToken {
         }
 
         self.token_owner.insert(self.token_id, *account);
-        let balance = *self.owned_tokens_count.get(account).unwrap_or(&0);
-        self.owned_tokens_count.insert(*account, balance.saturating_add(1));
 
-        let transfer_token = Transfer {
+        let zero = U256::zero();
+        let balance = *self.owned_tokens_count.get(account).unwrap_or(&zero);
+        self.owned_tokens_count.insert(*account, balance.saturating_add(U256::one()));
+
+        let transfer_token = TransferInput {
             from: H256::zero(),
             to: H256::from_slice(account.as_ref()),
             token_id: self.token_id,
@@ -109,10 +111,10 @@ impl NonFungibleToken {
 
         self.token_approvals.remove(&token_id);
         self.token_owner.remove(&token_id);
-        let balance = *self.owned_tokens_count.get(account).unwrap_or(&0);
-        self.owned_tokens_count.insert(*account, balance.saturating_sub(1));
+        let balance = *self.owned_tokens_count.get(account).unwrap_or(&U256::zero());
+        self.owned_tokens_count.insert(*account, balance.saturating_sub(U256::one()));
 
-        let transfer_token = Transfer {
+        let transfer_token = TransferInput {
             from: H256::from_slice(account.as_ref()),
             to: H256::zero(),
             token_id,
@@ -136,12 +138,12 @@ impl NonFungibleToken {
           panic!("NonFungibleToken: from is not owner");
         }
         self.token_approvals.remove(&token_id);
-        let from_balance = *self.owned_tokens_count.get(from).unwrap_or(&0);
-        let to_balance = *self.owned_tokens_count.get(to).unwrap_or(&0);
-        self.owned_tokens_count.insert(*from, from_balance.saturating_sub(1));
-        self.owned_tokens_count.insert(*to, to_balance.saturating_add(1));
+        let from_balance = *self.owned_tokens_count.get(from).unwrap_or(&U256::zero());
+        let to_balance = *self.owned_tokens_count.get(to).unwrap_or(&U256::zero());
+        self.owned_tokens_count.insert(*from, from_balance.saturating_sub(U256::one()));
+        self.owned_tokens_count.insert(*to, to_balance.saturating_add(U256::one()));
         self.token_owner.insert(token_id, *to);
-        let transfer_token = Transfer {
+        let transfer_token = TransferInput {
             from: H256::from_slice(from.as_ref()),
             to: H256::from_slice(to.as_ref()),
             token_id,
@@ -170,7 +172,7 @@ impl NonFungibleToken {
         }
         self.token_approvals.insert(token_id, *spender);
 
-        let approve_token = Approve {
+        let approve_token = ApproveInput {
             owner: H256::from_slice(owner.as_ref()),
             spender: H256::from_slice(spender.as_ref()),
             token_id,
@@ -211,6 +213,28 @@ impl NonFungibleToken {
         self.transfer(from, to, token_id);
         self.token_approvals.remove(&token_id);
     }
+
+    fn owner_of(&mut self, token_id: U256) {
+      if !self.token_owner.contains_key(&token_id) {
+        panic!("NonFungibleToken: token doesn't exist");
+      }
+
+      let owner = self.token_owner.get(&token_id).unwrap();
+
+      msg::reply(Event::Owner(H256::from_slice(owner.as_ref())), exec::gas_available() - GAS_RESERVE, 0);
+    }
+
+    fn balance_of(&mut self, account_id: ActorId) {
+      if account_id == ActorId::new(H256::zero().to_fixed_bytes()) {
+        panic!("NonFungibleToken: requesting balance of zero address");
+      }
+
+      let zero = U256::zero();
+
+      let balance = self.owned_tokens_count.get(&account_id).unwrap_or(&zero);
+
+      msg::reply(Event::Balance(*balance), exec::gas_available() - GAS_RESERVE, 0);
+    }
 }
 
 #[derive(Debug, Decode, TypeInfo)]
@@ -232,21 +256,21 @@ struct BurnInput {
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
-struct Approve {
+struct ApproveInput {
     owner: H256,
     spender: H256,
     token_id: U256,
 }
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
-struct Transfer {
+struct TransferInput {
     from: H256,
     to: H256,
     token_id: U256,
 }
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
-struct TransferFrom {
+struct TransferFromInput {
     owner: H256,
     from: H256,
     to: H256,
@@ -257,24 +281,28 @@ struct TransferFrom {
 enum Action {
     Mint(MintInput),
     Burn(BurnInput),
-    Transfer(Transfer),
-    TransferFrom(TransferFrom),
-    Approve(Approve),
+    Transfer(TransferInput),
+    TransferFrom(TransferFromInput),
+    Approve(ApproveInput),
+    OwnerOf(U256),
+    BalanceOf(H256),
 }
 
 #[derive(Debug, Encode, TypeInfo)]
 enum Event {
-    Transfer(Transfer),
-    Approval(Approve),
+    Transfer(TransferInput),
+    Approval(ApproveInput),
+    Owner(H256),
+    Balance(U256),
 }
 
 gstd::metadata! {
     title: "NonFungibleToken",
         init:
-            input : InitConfig,
+            input: InitConfig,
         handle:
-            input : Action,
-            output : Event,
+            input: Action,
+            output: Event,
 }
 
 #[no_mangle]
@@ -305,6 +333,13 @@ pub unsafe extern "C" fn handle() {
             let from = ActorId::new(transfer.from.to_fixed_bytes());
             let to = ActorId::new(transfer.to.to_fixed_bytes());
             NON_FUNGIBLE_TOKEN.transfer_from(&owner, &from, &to, transfer.token_id);
+        }
+        Action::OwnerOf(token_id) => {
+          NON_FUNGIBLE_TOKEN.owner_of(token_id);
+        }
+        Action::BalanceOf(account) => {
+          let account_id = ActorId::new(account.to_fixed_bytes());
+          NON_FUNGIBLE_TOKEN.balance_of(account_id);
         }
     }
 }
