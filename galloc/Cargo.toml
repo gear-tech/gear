@@ -6,7 +6,7 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "a981bb84ed1e6edcceb4db6f93450551353c31dc" }
+dlmalloc = { git = "https://github.com/gear-tech/dlmalloc-rust.git", rev = "1674c2c0d027e057ef85ce27e9b452363207266f" }
 
 [features]
 debug = ["dlmalloc/debug"]
