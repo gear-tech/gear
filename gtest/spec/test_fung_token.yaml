@@ -78,5 +78,62 @@ fixtures:
         - destination: 0
           exitCode: 1
 
-  - title: 
+  - title: transfer/approve
 
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            mint:
+              account: 0x0500000000000000000000000000000000000000000000000000000000000000
+      - destination: 1
+        source:
+          kind: id
+          value: 5
+        payload:
+          kind: custom
+          value:
+            transferFrom:
+              from: 0x0500000000000000000000000000000000000000000000000000000000000000
+              to: 0x0200000000000000000000000000000000000000000000000000000000000000
+              token_id: 0
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            balanceOf: 0x0500000000000000000000000000000000000000000000000000000000000000
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            ownerOf: 0
+
+    expected:
+      - log:
+        - payload:
+            kind: custom
+            value:
+              transfer:
+                from: 0x0000000000000000000000000000000000000000000000000000000000000000
+                to: 0x0500000000000000000000000000000000000000000000000000000000000000
+                token_id: 0
+          destination: 0
+        - destination: 5
+          payload:
+            kind: custom
+            value:
+              transfer:
+                from: 0x0500000000000000000000000000000000000000000000000000000000000000
+                to: 0x0200000000000000000000000000000000000000000000000000000000000000
+                token_id: 0
+        - payload:
+            kind: custom
+            value:
+              balance: 0
+          destination: 0
+        - payload:
+            kind: custom
+            value:
+              owner: 0x0200000000000000000000000000000000000000000000000000000000000000
+          destination: 0

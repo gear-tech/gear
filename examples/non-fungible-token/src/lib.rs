@@ -70,6 +70,26 @@ impl NonFungibleToken {
       account == self.token_owner.get(&token_id).unwrap_or(&zero)
     }
 
+    fn is_authorized_source(&self, token_id: U256, account: &ActorId) -> bool {
+      let zero = ActorId::new(H256::zero().to_fixed_bytes());
+
+      let owner = self.token_owner.get(&token_id).unwrap_or(&zero);
+
+      if owner == account {
+        return true;
+      }
+
+      if self.token_approvals.get(&token_id).unwrap() == account {
+        return true;
+      }
+
+      if *self.operator_approval.get(owner).unwrap().get(account).unwrap() {
+        return true;
+      }
+
+      return false;
+    }
+
     fn mint(&mut self, account: &ActorId) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
         if account == &zero {
@@ -134,20 +154,26 @@ impl NonFungibleToken {
         if to == &zero {
             panic!("NonFungibleToken: Transfer to zero address.");
         }
-        if !self.is_token_owner(token_id, from) {
+        if !self.is_token_owner(token_id, &msg::source()) {
           panic!("NonFungibleToken: from is not owner");
         }
+
         self.token_approvals.remove(&token_id);
+
         let from_balance = *self.owned_tokens_count.get(from).unwrap_or(&U256::zero());
         let to_balance = *self.owned_tokens_count.get(to).unwrap_or(&U256::zero());
+
         self.owned_tokens_count.insert(*from, from_balance.saturating_sub(U256::one()));
         self.owned_tokens_count.insert(*to, to_balance.saturating_add(U256::one()));
+
         self.token_owner.insert(token_id, *to);
+
         let transfer_token = TransferInput {
             from: H256::from_slice(from.as_ref()),
             to: H256::from_slice(to.as_ref()),
             token_id,
         };
+
         msg::reply(
             Event::Transfer(transfer_token),
             exec::gas_available() - GAS_RESERVE,
@@ -184,32 +210,22 @@ impl NonFungibleToken {
         );
     }
 
-    fn get_approved(&self,  token_id: U256) -> ActorId {
-        if !self.exists(token_id) {
-          panic!("NonFungibleToken: approved query for nonexistent token");
-        }
-        let zero = ActorId::new(H256::zero().to_fixed_bytes());
-        *self
-            .token_approvals
-            .get(&token_id)
-            .unwrap_or(&zero)
-    }
-
     fn transfer_from(
         &mut self,
-        owner: &ActorId,
         from: &ActorId,
         to: &ActorId,
         token_id: U256,
     ) {
-        if !self.is_token_owner(token_id, owner) {
-          panic!("NonFungibleToken: is not owner");
+        if !self.exists(token_id) {
+          panic!("NonFungibleToken: token does not exist");
         }
-        let zero = ActorId::new(H256::zero().to_fixed_bytes());
-        let approved = self.get_approved(token_id);
-        if approved == zero {
-          panic!("NonFungibleToken: transfer caller is not approved");
+
+        let source = msg::source();
+
+        if !self.is_authorized_source(token_id, from) {
+          panic!("NonFungibleToken: is not an authorized source");
         }
+
         self.transfer(from, to, token_id);
         self.token_approvals.remove(&token_id);
     }
@@ -246,7 +262,6 @@ struct InitConfig {
 #[derive(Debug, Decode, TypeInfo)]
 struct MintInput {
     account: H256,
-    token_id: U256,
 }
 
 #[derive(Debug, Decode, TypeInfo)]
@@ -269,20 +284,11 @@ struct TransferInput {
     token_id: U256,
 }
 
-#[derive(Debug, Decode, Encode, TypeInfo)]
-struct TransferFromInput {
-    owner: H256,
-    from: H256,
-    to: H256,
-    token_id: U256,
-}
-
 #[derive(Debug, Decode, TypeInfo)]
 enum Action {
     Mint(MintInput),
     Burn(BurnInput),
-    Transfer(TransferInput),
-    TransferFrom(TransferFromInput),
+    TransferFrom(TransferInput),
     Approve(ApproveInput),
     OwnerOf(U256),
     BalanceOf(H256),
@@ -318,21 +324,15 @@ pub unsafe extern "C" fn handle() {
             let from = ActorId::new(burn_input.account.to_fixed_bytes());
             NON_FUNGIBLE_TOKEN.burn(&from, burn_input.token_id);
         }
-        Action::Transfer(transfer) => {
-            let from = ActorId::new(transfer.from.to_fixed_bytes());
-            let to = ActorId::new(transfer.to.to_fixed_bytes());
-            NON_FUNGIBLE_TOKEN.transfer(&from, &to, transfer.token_id);
-        }
         Action::Approve(approve) => {
             let owner = ActorId::new(approve.owner.to_fixed_bytes());
             let spender = ActorId::new(approve.spender.to_fixed_bytes());
             NON_FUNGIBLE_TOKEN.approve(&owner, &spender, approve.token_id);
         }
         Action::TransferFrom(transfer) => {
-            let owner = ActorId::new(transfer.owner.to_fixed_bytes());
             let from = ActorId::new(transfer.from.to_fixed_bytes());
             let to = ActorId::new(transfer.to.to_fixed_bytes());
-            NON_FUNGIBLE_TOKEN.transfer_from(&owner, &from, &to, transfer.token_id);
+            NON_FUNGIBLE_TOKEN.transfer_from(&from, &to, transfer.token_id);
         }
         Action::OwnerOf(token_id) => {
           NON_FUNGIBLE_TOKEN.owner_of(token_id);
