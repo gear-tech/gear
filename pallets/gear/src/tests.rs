@@ -1581,3 +1581,69 @@ fn claim_value_from_mailbox_works() {
         );
     })
 }
+
+pub fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
+    let mut data = Vec::new();
+    code.encode_to(&mut data);
+    salt.encode_to(&mut data);
+
+    sp_io::hashing::blake2_256(&data[..]).into()
+}
+
+#[test]
+fn distributor_initialize() {
+    use tests_distributor::WASM_BINARY_BLOATY;
+
+    new_test_ext().execute_with(|| {
+        Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            vec![],
+            10_000_000_u64,
+            0_u128,
+        )
+        .expect("Submit program failed");
+
+        run_to_block(3, None);
+
+        assert_eq!(Balances::free_balance(1), 95_021_000,);
+
+        assert_eq!(Balances::free_balance(255), 4_979_001,);
+    });
+}
+
+#[test]
+fn distributor_distribute() {
+    use tests_distributor::{Request, WASM_BINARY_BLOATY};
+
+    new_test_ext().execute_with(|| {
+        let program_id =
+            generate_program_id(WASM_BINARY_BLOATY.expect("Wasm binary missing!"), &[]);
+
+        Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            vec![],
+            10_000_000_u64,
+            0_u128,
+        )
+        .expect("Submit program failed");
+
+        Pallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id,
+            Request::Receive(10).encode(),
+            10_000_000_u64,
+            0_u128,
+        )
+        .expect("Send message failed");
+
+        run_to_block(3, None);
+
+        assert_eq!(Balances::free_balance(1), 85_027_000,);
+
+        assert_eq!(Balances::free_balance(255), 4_979_001,);
+    });
+}

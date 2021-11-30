@@ -4173,6 +4173,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tests-distributor",
  "wabt",
 ]
 
