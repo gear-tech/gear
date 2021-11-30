@@ -21,10 +21,7 @@
 use alloc::vec::Vec;
 use hashbrown::HashMap;
 
-use crate::{
-    message::Message,
-    program::{Program, ProgramId},
-};
+use crate::program::{Program, ProgramId};
 
 /// General trait, which informs what exact storage types are used by a storage manager ("carrier").
 ///
@@ -99,24 +96,6 @@ impl From<InMemoryProgramStorage> for Vec<Program> {
     }
 }
 
-/// Log.
-#[derive(Default, Debug, Clone)]
-pub struct Log {
-    inner: Vec<Message>,
-}
-
-impl Log {
-    /// Put message to log.
-    pub fn put(&mut self, message: Message) {
-        self.inner.push(message)
-    }
-
-    /// Get all messages in log.
-    pub fn get(&self) -> &[Message] {
-        &self.inner
-    }
-}
-
 /// Storage.
 #[derive(Default, Clone)]
 pub struct Storage<PS: ProgramStorage> {
@@ -132,11 +111,6 @@ impl<PS: ProgramStorage> Storage<PS> {
     /// Create an empty storage.
     pub fn new() -> Self {
         Default::default()
-    }
-
-    /// Create a storage from messages queue, programs storage and wait list.
-    pub fn from_components(program_storage: PS) -> Self {
-        Self { program_storage }
     }
 }
 
