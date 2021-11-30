@@ -19,6 +19,7 @@
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use gear_backend_common::Environment;
+use gear_core::storage::ProgramStorage;
 use gear_core::{
     message::Message,
     program::{Program, ProgramId},
@@ -91,7 +92,7 @@ pub trait CollectState {
 impl CollectState for InMemoryStorage {
     fn collect(self) -> FinalState {
         FinalState {
-            log: self.log.get().to_vec(),
+            log: vec![],
             messages: Vec::new(),
             program_storage: self.program_storage.into(),
         }
@@ -100,7 +101,6 @@ impl CollectState for InMemoryStorage {
 
 impl CollectState for ExtStorage {
     fn collect(self) -> FinalState {
-        let log = self.log.get();
         let program_storage = self.program_storage;
 
         let mut messages = Vec::new();
@@ -111,7 +111,7 @@ impl CollectState for ExtStorage {
         }
 
         FinalState {
-            log: log.to_vec(),
+            log: vec![],
             messages,
             program_storage: program_storage.iter().collect(),
         }
@@ -126,7 +126,8 @@ pub fn init_fixture<SC: StorageCarrier>(
     storage: Storage<SC::PS>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<(WasmRunner<SC>, Vec<Message>)> {
+) -> anyhow::Result<(WasmRunner<SC>, Vec<Message>, Vec<Message>)> {
+    let storage2 = storage.clone();
     let mut runner = Runner::new(
         &Config::default(),
         storage,
@@ -134,6 +135,7 @@ pub fn init_fixture<SC: StorageCarrier>(
         gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::default(),
     );
     let mut messages = Vec::new();
+    let mut log = vec![];
     let mut nonce = 0;
     for program in test.programs.iter() {
         let program_path = program.path.clone();
@@ -163,13 +165,15 @@ pub fn init_fixture<SC: StorageCarrier>(
         if let Some(source) = &program.source {
             init_source = source.to_program_id();
         }
+
+        let message_id = nonce.into();
         let program_id = program.id.to_program_id();
         let result = runner.init_program(InitializeProgramInfo {
             new_program_id: program_id,
             source_id: init_source,
             code,
             message: ExtMessage {
-                id: nonce.into(),
+                id: message_id,
                 payload: init_message,
                 gas_limit: program.init_gas_limit.unwrap_or(u64::MAX),
                 value: program.init_value.unwrap_or(0) as _,
@@ -180,13 +184,20 @@ pub fn init_fixture<SC: StorageCarrier>(
             return Err(anyhow::anyhow!("Trap during `init`: {:?}", explanation));
         }
 
-        messages.append(
-            &mut result
-                .messages
-                .into_iter()
-                .map(|msg| msg.into_message(program_id))
-                .collect(),
-        );
+        result.messages.into_iter().for_each(|m| {
+            let m = m.into_message(program_id);
+            if !storage2.program_storage.exists(m.dest()) {
+                log.push(m.clone());
+            }
+
+            messages.push(m);
+        });
+
+        if let Some(m) = result.reply {
+            if !storage2.program_storage.exists(init_source) {
+                log.push(m.into_message(message_id, program_id, init_source));
+            }
+        }
 
         nonce += 1;
     }
@@ -243,7 +254,7 @@ pub fn init_fixture<SC: StorageCarrier>(
         nonce += 1;
     }
 
-    Ok((runner, messages))
+    Ok((runner, messages, log))
 }
 
 #[derive(Clone, Debug)]
@@ -263,6 +274,7 @@ pub struct FinalState {
 pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
     mut runner: Runner<SC, E>,
     mut messages: VecDeque<Message>,
+    mut log: Vec<Message>,
     steps: Option<usize>,
 ) -> Vec<(FinalState, anyhow::Result<()>)>
 where
@@ -270,14 +282,13 @@ where
 {
     let mut results = Vec::new();
 
-    let log = runner.log().get().to_vec();
     let storage = runner.storage();
 
     let mut final_state = storage.collect();
 
     final_state.messages = messages.clone().into();
 
-    final_state.log = log;
+    final_state.log = log.clone();
     results.push((final_state, Ok(())));
     let mut _result = Ok(());
     if let Some(steps) = steps {
@@ -300,9 +311,9 @@ where
                 }
 
                 messages.append(&mut run_result.messages.into());
+                log.append(&mut run_result.log);
             }
 
-            let log = runner.log().get().to_vec();
             let storage = runner.storage();
 
             let mut final_state = storage.collect();
@@ -319,8 +330,8 @@ where
             runner.process_wait_list(&mut run_result);
 
             messages.append(&mut run_result.messages.into());
+            log.append(&mut run_result.log);
 
-            let log = runner.log().get().to_vec();
             let storage = runner.storage();
 
             let mut final_state = storage.collect();

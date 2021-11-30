@@ -122,8 +122,6 @@ impl Log {
 pub struct Storage<PS: ProgramStorage> {
     /// Program storage.
     pub program_storage: PS,
-    /// Log.
-    pub log: Log,
 }
 
 impl<PS: ProgramStorage> StorageCarrier for Storage<PS> {
@@ -137,11 +135,8 @@ impl<PS: ProgramStorage> Storage<PS> {
     }
 
     /// Create a storage from messages queue, programs storage and wait list.
-    pub fn from_components(program_storage: PS, log: Log) -> Self {
-        Self {
-            program_storage,
-            log,
-        }
+    pub fn from_components(program_storage: PS) -> Self {
+        Self { program_storage }
     }
 }
 
@@ -230,21 +225,5 @@ mod tests {
         for program in remaining_programs {
             assert!(program.id() == id1 || program.id() == id3);
         }
-    }
-
-    #[test]
-    /// Test that log works correctly.
-    fn log_interaction() {
-        // Initialization of InMemoryStorage.
-        let mut storage: InMemoryStorage = InMemoryStorage::default();
-
-        // Сhecking that log is empty.
-        assert!(storage.log.get().is_empty());
-
-        let message = Message::new_system(0.into(), ProgramId::from(1), vec![1].into(), 128, 512);
-
-        storage.log.put(message.clone());
-
-        assert_eq!(storage.log.get(), [message])
     }
 }
