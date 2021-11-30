@@ -1609,10 +1609,6 @@ fn distributor_initialize() {
 
         run_to_block(3, None);
 
-        assert_eq!(Balances::free_balance(1), 95_021_000,);
-
-        assert_eq!(Balances::free_balance(255), 4_979_001,);
-
         let final_balance = Balances::free_balance(1) + Balances::free_balance(255);
         assert_eq!(initial_balance, final_balance);
     });
