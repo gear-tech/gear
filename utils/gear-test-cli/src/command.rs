@@ -40,6 +40,7 @@ impl GearTestCmd {
                     false,
                     false,
                     false,
+                    false,
                     || {
                         sp_io::storage::clear_prefix(gear_common::STORAGE_CODE_PREFIX, None);
                         sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX, None);
