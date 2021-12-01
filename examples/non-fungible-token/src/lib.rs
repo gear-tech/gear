@@ -102,7 +102,7 @@ impl NonFungibleToken {
         let balance = *self.owned_tokens_count.get(account).unwrap_or(&zero);
         self.owned_tokens_count.insert(*account, balance.saturating_add(U256::one()));
 
-        let transfer_token = TransferInput {
+        let transfer_token = Transfer {
             from: H256::zero(),
             to: H256::from_slice(account.as_ref()),
             token_id: self.token_id,
@@ -134,7 +134,7 @@ impl NonFungibleToken {
         let balance = *self.owned_tokens_count.get(account).unwrap_or(&U256::zero());
         self.owned_tokens_count.insert(*account, balance.saturating_sub(U256::one()));
 
-        let transfer_token = TransferInput {
+        let transfer_token = Transfer {
             from: H256::from_slice(account.as_ref()),
             to: H256::zero(),
             token_id,
@@ -148,14 +148,13 @@ impl NonFungibleToken {
 
     fn transfer(&mut self, from: &ActorId, to: &ActorId, token_id: U256) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
+
         if from == &zero {
             panic!("NonFungibleToken: Transfer from zero address.");
         }
+
         if to == &zero {
             panic!("NonFungibleToken: Transfer to zero address.");
-        }
-        if !self.is_token_owner(token_id, &msg::source()) {
-          panic!("NonFungibleToken: from is not owner");
         }
 
         self.token_approvals.remove(&token_id);
@@ -168,7 +167,7 @@ impl NonFungibleToken {
 
         self.token_owner.insert(token_id, *to);
 
-        let transfer_token = TransferInput {
+        let transfer_token = Transfer {
             from: H256::from_slice(from.as_ref()),
             to: H256::from_slice(to.as_ref()),
             token_id,
@@ -181,24 +180,45 @@ impl NonFungibleToken {
         );
     }
 
-    fn approve(&mut self, owner: &ActorId, spender: &ActorId, token_id: U256) {
-        let zero = ActorId::new(H256::zero().to_fixed_bytes());
-
-        if owner == &zero {
-            panic!("NonFungibleToken: Approval from zero address.");
+    fn transfer_from(
+      &mut self,
+      from: &ActorId,
+      to: &ActorId,
+      token_id: U256,
+    ) {
+        if !self.exists(token_id) {
+          panic!("NonFungibleToken: token does not exist");
         }
+
+        let source = msg::source();
+
+        if !self.is_authorized_source(token_id, &source) {
+          panic!("NonFungibleToken: is not an authorized source");
+        }
+
+        self.transfer(from, to, token_id);
+        self.token_approvals.remove(&token_id);
+    }
+
+    fn approve(&mut self, spender: &ActorId, token_id: U256) {
+        let zero = ActorId::new(H256::zero().to_fixed_bytes());
+        let owner = msg::source();
+
         if spender == &zero {
             panic!("NonFungibleToken: Approval to zero address.");
         }
-        if spender == owner {
+
+        if spender == &owner {
           panic!("NonFungibleToken: Approval to current owner");
         }
-        if !self.is_token_owner(token_id, owner) {
+
+        if !self.is_token_owner(token_id, &owner) {
           panic!("NonFungibleToken: is not owner");
         }
+
         self.token_approvals.insert(token_id, *spender);
 
-        let approve_token = ApproveInput {
+        let approve_token = Approve {
             owner: H256::from_slice(owner.as_ref()),
             spender: H256::from_slice(spender.as_ref()),
             token_id,
@@ -210,24 +230,53 @@ impl NonFungibleToken {
         );
     }
 
-    fn transfer_from(
-        &mut self,
-        from: &ActorId,
-        to: &ActorId,
-        token_id: U256,
-    ) {
-        if !self.exists(token_id) {
-          panic!("NonFungibleToken: token does not exist");
-        }
+    fn approve_for_all(&mut self, operator: &ActorId, approved: bool) {
+      let zero = ActorId::new(H256::zero().to_fixed_bytes());
+      let owner = msg::source();
 
-        let source = msg::source();
+      if operator == &zero {
+        panic!("NonFungibleToken: Approval for a zero address");
+      }
 
-        if !self.is_authorized_source(token_id, from) {
-          panic!("NonFungibleToken: is not an authorized source");
-        }
+      self.operator_approval.get_mut(&owner).unwrap().insert(*operator, approved);
 
-        self.transfer(from, to, token_id);
-        self.token_approvals.remove(&token_id);
+      let approve_operator = ApproveForAll {
+        owner: H256::from_slice(owner.as_ref()),
+        operator: H256::from_slice(operator.as_ref()),
+        approved,
+      };
+
+      msg::reply(
+        Event::ApprovalForAll(approve_operator),
+        exec::gas_available() - GAS_RESERVE,
+        0,
+      );
+    }
+
+    fn is_approved_for_all(&mut self, owner: &ActorId, operator: &ActorId) {
+      let approved = self.operator_approval.get(owner).unwrap().get(operator).unwrap_or(&false);
+
+      msg::reply(
+        Event::IsApproved(*approved),
+        exec::gas_available() - GAS_RESERVE,
+        0,
+      );
+    }
+
+    fn get_approved(&mut self, token_id: U256) {
+      if !self.exists(token_id) {
+        panic!("NonFungibleToken: Token does not exist");
+      }
+
+      let zero = ActorId::new(H256::zero().to_fixed_bytes());
+
+      let approved_address = self.token_approvals.get(&token_id).unwrap_or(&zero);
+
+      msg::reply(
+        Event::ApprovedAddress(H256.from_slice(approved_address.as_ref())),
+        exec::gas_available() - GAS_RESERVE,
+        0
+      );
     }
 
     fn owner_of(&mut self, token_id: U256) {
@@ -257,6 +306,7 @@ impl NonFungibleToken {
 struct InitConfig {
     name: String,
     symbol: String,
+    base_uri: String,
 }
 
 #[derive(Debug, Decode, TypeInfo)]
@@ -272,13 +322,45 @@ struct BurnInput {
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
 struct ApproveInput {
+    spender: H256,
+    token_id: U256,
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo)]
+struct Approve {
     owner: H256,
     spender: H256,
     token_id: U256,
 }
 
+#[derive(Debug, Encode, Decode, TypeInfo)]
+struct ApproveForAllInput {
+    operator: H256,
+    approved: bool,
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo)]
+struct ApproveForAll {
+    owner: H256,
+    operator: H256,
+    approved: bool,
+}
+
+#[derive(Debug, Encode, Decode, TypeInfo)]
+struct IsApprovedForAllInput {
+  owner: H256,
+  operator: H256,
+}
+
 #[derive(Debug, Decode, Encode, TypeInfo)]
 struct TransferInput {
+    from: H256,
+    to: H256,
+    token_id: U256,
+}
+
+#[derive(Debug, Decode, Encode, TypeInfo)]
+struct Transfer {
     from: H256,
     to: H256,
     token_id: U256,
@@ -289,17 +371,23 @@ enum Action {
     Mint(MintInput),
     Burn(BurnInput),
     TransferFrom(TransferInput),
-    Approve(ApproveInput),
+    Approval(ApproveInput),
+    SetApprovalForAll(ApproveForAllInput),
+    GetApproved(U256),
+    IsApprovedForAll(IsApprovedForAllInput),
     OwnerOf(U256),
     BalanceOf(H256),
 }
 
 #[derive(Debug, Encode, TypeInfo)]
 enum Event {
-    Transfer(TransferInput),
-    Approval(ApproveInput),
+    Transfer(Transfer),
+    Approval(Approve),
+    ApprovalForAll(ApproveForAll),
     Owner(H256),
     Balance(U256),
+    IsApproved(bool),
+    ApprovedAddress(H256),
 }
 
 gstd::metadata! {
@@ -324,10 +412,21 @@ pub unsafe extern "C" fn handle() {
             let from = ActorId::new(burn_input.account.to_fixed_bytes());
             NON_FUNGIBLE_TOKEN.burn(&from, burn_input.token_id);
         }
-        Action::Approve(approve) => {
-            let owner = ActorId::new(approve.owner.to_fixed_bytes());
+        Action::Approval(approve) => {
             let spender = ActorId::new(approve.spender.to_fixed_bytes());
-            NON_FUNGIBLE_TOKEN.approve(&owner, &spender, approve.token_id);
+            NON_FUNGIBLE_TOKEN.approve(&spender, approve.token_id);
+        }
+        Action::SetApprovalForAll(approve) => {
+            let operator = ActorId::new(approve.operator.to_fixed_bytes());
+            NON_FUNGIBLE_TOKEN.approve_for_all(&operator, approve.approved);
+        }
+        Action::IsApprovedForAll(is_approved) => {
+          let owner = ActorId::new(is_approved.owner.to_fixed_bytes());
+          let operator = ActorId::new(is_approved.operator.to_fixed_bytes());
+          NON_FUNGIBLE_TOKEN.is_approved_for_all(&owner, &operator);
+        }
+        Action::GetApproved(token_id) => {
+          NON_FUNGIBLE_TOKEN.get_approved(token_id);
         }
         Action::TransferFrom(transfer) => {
             let from = ActorId::new(transfer.from.to_fixed_bytes());
@@ -350,9 +449,11 @@ pub unsafe extern "C" fn init() {
     debug!("NON_FUNGIBLE_TOKEN {:?}", config);
     NON_FUNGIBLE_TOKEN.set_name(config.name);
     NON_FUNGIBLE_TOKEN.set_symbol(config.symbol);
+    NON_FUNGIBLE_TOKEN.set_base_uri(config.base_uri);
     debug!(
-        "NON_FUNGIBLE_TOKEN {} SYMBOL {} created",
+        "NON_FUNGIBLE_TOKEN {} SYMBOL {} BASE_URI {} created",
         NON_FUNGIBLE_TOKEN.name(),
-        NON_FUNGIBLE_TOKEN.symbol()
+        NON_FUNGIBLE_TOKEN.symbol(),
+        NON_FUNGIBLE_TOKEN.base_uri()
     );
 }
