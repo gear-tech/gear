@@ -78,7 +78,7 @@ fixtures:
         - destination: 0
           exitCode: 1
 
-  - title: transfer/approve
+  - title: transfer/approval
 
     messages:
       - destination: 1
@@ -115,7 +115,7 @@ fixtures:
         payload:
           kind: custom
           value:
-            approve:
+            approval:
               spender: 0x0800000000000000000000000000000000000000000000000000000000000000
               token_id: 0
       - destination: 1
@@ -130,7 +130,6 @@ fixtures:
               to: 0x0500000000000000000000000000000000000000000000000000000000000000
               token_id: 0
 
-
     expected:
       - log:
         - payload:
@@ -176,70 +175,69 @@ fixtures:
                 to: 0x0500000000000000000000000000000000000000000000000000000000000000
                 token_id: 0
 
-  - title: approve_for_all
+  # - title: approve_for_all
 
-    messages:
-      - destination: 1
-        payload:
-          kind: custom
-          value:
-            mint:
-              account: 0x0500000000000000000000000000000000000000000000000000000000000000
-      - destination: 1
-        payload:
-          kind: custom
-          value:
-            mint:
-              account: 0x0500000000000000000000000000000000000000000000000000000000000000
-      - destination: 1
-        payload:
-          kind: custom
-          value:
-            approvalForAll:
-              
+  #   messages:
+  #     - destination: 1
+  #       payload:
+  #         kind: custom
+  #         value:
+  #           mint:
+  #             account: 0x0500000000000000000000000000000000000000000000000000000000000000
+  #     - destination: 1
+  #       payload:
+  #         kind: custom
+  #         value:
+  #           mint:
+  #             account: 0x0500000000000000000000000000000000000000000000000000000000000000
+  #     - destination: 1
+  #       payload:
+  #         kind: custom
+  #         value:
+  #           approvalForAll:
 
 
-    expected:
-      - log:
-        - payload:
-            kind: custom
-            value:
-              transfer:
-                from: 0x0000000000000000000000000000000000000000000000000000000000000000
-                to: 0x0500000000000000000000000000000000000000000000000000000000000000
-                token_id: 0
-          destination: 0
-        - destination: 5
-          payload:
-            kind: custom
-            value:
-              transfer:
-                from: 0x0500000000000000000000000000000000000000000000000000000000000000
-                to: 0x0200000000000000000000000000000000000000000000000000000000000000
-                token_id: 0
-        - payload:
-            kind: custom
-            value:
-              balance: 0
-          destination: 0
-        - payload:
-            kind: custom
-            value:
-              owner: 0x0200000000000000000000000000000000000000000000000000000000000000
-          destination: 0
-        - destination: 2
-          payload:
-            kind: custom
-            value:
-              approval:
-                owner: 0x0200000000000000000000000000000000000000000000000000000000000000
-                spender: 0x0800000000000000000000000000000000000000000000000000000000000000
-                token_id: 0
-        - destination: 8
-          payload:
-            kind: custom
-            value:
-              transfer:
-                from: 0x0200000000000000000000000000000000000000000000000000000000000000
-                to: 0x0500000000000000000000000000000000000000000000000000000000000000
-                token_id: 0
+  #   expected:
+  #     - log:
+  #       - payload:
+  #           kind: custom
+  #           value:
+  #             transfer:
+  #               from: 0x0000000000000000000000000000000000000000000000000000000000000000
+  #               to: 0x0500000000000000000000000000000000000000000000000000000000000000
+  #               token_id: 0
+  #         destination: 0
+  #       - destination: 5
+  #         payload:
+  #           kind: custom
+  #           value:
+  #             transfer:
+  #               from: 0x0500000000000000000000000000000000000000000000000000000000000000
+  #               to: 0x0200000000000000000000000000000000000000000000000000000000000000
+  #               token_id: 0
+  #       - payload:
+  #           kind: custom
+  #           value:
+  #             balance: 0
+  #         destination: 0
+  #       - payload:
+  #           kind: custom
+  #           value:
+  #             owner: 0x0200000000000000000000000000000000000000000000000000000000000000
+  #         destination: 0
+  #       - destination: 2
+  #         payload:
+  #           kind: custom
+  #           value:
+  #             approval:
+  #               owner: 0x0200000000000000000000000000000000000000000000000000000000000000
+  #               spender: 0x0800000000000000000000000000000000000000000000000000000000000000
+  #               token_id: 0
+  #       - destination: 8
+  #         payload:
+  #           kind: custom
+  #           value:
+  #             transfer:
+  #               from: 0x0200000000000000000000000000000000000000000000000000000000000000
+  #               to: 0x0500000000000000000000000000000000000000000000000000000000000000
+  #               token_id: 0
