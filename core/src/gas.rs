@@ -32,23 +32,23 @@ pub enum ChargeResult {
 /// Instrumentation error.
 #[derive(Debug)]
 pub enum InstrumentError {
-    /// Error occured during decoding original program code.
+    /// Error occurred during decoding original program code.
     ///
     /// The provided code was a malformed Wasm bytecode or contained unsupported features
     /// (atomics, simd instructions, etc.).
     Decode,
-    /// Error occured during injecting gas metering instructions.
+    /// Error occurred during injecting gas metering instructions.
     ///
     /// This might be due to program contained unsupported/non-deterministic instructions
     /// (floats, manual memory grow, etc.).
     GasInjection,
-    /// Error occured during encoding instrumented program.
+    /// Error occurred during encoding instrumented program.
     ///
     /// The only possible reason for that might be OOM.
     Encode,
 }
 
-/// Gas counter with some predifined maximum gas.
+/// Gas counter with some predefined maximum gas.
 #[derive(Debug)]
 pub struct GasCounter {
     left: u64,
