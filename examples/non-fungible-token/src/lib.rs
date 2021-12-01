@@ -273,7 +273,7 @@ impl NonFungibleToken {
       let approved_address = self.token_approvals.get(&token_id).unwrap_or(&zero);
 
       msg::reply(
-        Event::ApprovedAddress(H256.from_slice(approved_address.as_ref())),
+        Event::ApprovedAddress(H256::from_slice(approved_address.as_ref())),
         exec::gas_available() - GAS_RESERVE,
         0
       );
@@ -371,6 +371,7 @@ enum Action {
     Mint(MintInput),
     Burn(BurnInput),
     TransferFrom(TransferInput),
+    // SafeTransferFrom
     Approval(ApproveInput),
     SetApprovalForAll(ApproveForAllInput),
     GetApproved(U256),
