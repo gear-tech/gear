@@ -43,11 +43,6 @@ fixtures:
             payload:
               kind: custom
               value:
-                res: null
-          - destination: 0
-            payload:
-              kind: custom
-              value:
                 res:
                     id:
                       decimal: 1
@@ -55,3 +50,8 @@ fixtures:
                     person:
                       name: SomeName
                       surname: SomeSurname
+          - destination: 1000001
+            payload:
+              kind: custom
+              value:
+                res: null

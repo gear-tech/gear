@@ -188,9 +188,10 @@ pub fn init_fixture<SC: StorageCarrier>(
             let m = m.into_message(program_id);
             if !storage2.program_storage.exists(m.dest()) {
                 log.push(m.clone());
+            } else {
+                messages.push(m);
             }
 
-            messages.push(m);
         });
 
         if let Some(m) = result.reply {

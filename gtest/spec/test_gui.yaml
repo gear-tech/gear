@@ -37,12 +37,6 @@ fixtures:
             payload:
               kind: custom
               value:
-                field: null
-
-          - destination: 1000001
-            payload:
-              kind: custom
-              value:
                 field:
                   - 3
                   - 128
