@@ -305,7 +305,6 @@ dependencies = [
 name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
- "gcore",
  "gstd",
 ]
 
