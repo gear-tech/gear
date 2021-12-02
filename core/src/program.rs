@@ -234,7 +234,7 @@ impl Program {
         self.message_nonce = val;
     }
 
-    /// Fetch and incremet message nonce
+    /// Fetch and increment message nonce
     pub fn fetch_inc_message_nonce(&mut self) -> u64 {
         let nonce = self.message_nonce;
         self.message_nonce += 1;

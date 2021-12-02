@@ -172,20 +172,20 @@ mod tests {
         ]
         .into();
 
-        // Сhecking that the Program with id2 exists in the storage
+        // Checking that the Program with id2 exists in the storage
         // and it is the one that we put
         assert!(program_storage.get(id2).is_some());
         assert_eq!(program_storage.get(id2).unwrap().code(), binary);
 
-        // Сhecking that the Program with id3 does not exist in the storage
+        // Checking that the Program with id3 does not exist in the storage
         assert!(program_storage.get(id3).is_none());
 
-        // Сhecking that we are able to correctly remove
+        // Checking that we are able to correctly remove
         // the Program with id2 from storage
         program_storage.remove(id2);
         assert!(program_storage.get(id2).is_none());
 
-        // Сhecking that we are able to correctly set
+        // Checking that we are able to correctly set
         // the new Program with id3 in storage
         program_storage
             .set(Program::new(id3, binary, Default::default()).expect("err create program"));

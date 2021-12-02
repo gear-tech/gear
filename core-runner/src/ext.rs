@@ -45,7 +45,7 @@ pub struct Ext {
     pub gas_counter: GasCounter,
     /// Cost per allocation.
     pub alloc_cost: u64,
-    /// Cost per gmemory grow.
+    /// Cost per memory page grow.
     pub mem_grow_cost: u64,
     /// Any guest code panic explanation, if available.
     pub last_error_returned: Option<&'static str>,
@@ -88,12 +88,12 @@ impl EnvExt for Ext {
             return self.return_with_tracing(result);
         }
 
-        // Returns back greedly used gas for grow
+        // Returns back greedily used gas for grow
         let new_mem_size = self.memory_context.memory().size().raw();
         let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back = self.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
 
-        // Returns back greedly used gas for allocations
+        // Returns back greedily used gas for allocations
         let first_page = result.unwrap().raw();
         let last_page = first_page + pages_num.raw() - 1;
         let mut new_alloced_pages_num = 0;
@@ -132,15 +132,6 @@ impl EnvExt for Ext {
         self.return_with_tracing(result)
     }
 
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
-        let result = self
-            .messages
-            .reply_push(buffer)
-            .map_err(|_e| "Reply payload push error");
-
-        self.return_with_tracing(result)
-    }
-
     fn send_commit(
         &mut self,
         handle: usize,
@@ -155,6 +146,15 @@ impl EnvExt for Ext {
             .messages
             .send_commit(handle, msg)
             .map_err(|_e| "Message commit error");
+
+        self.return_with_tracing(result)
+    }
+
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
+        let result = self
+            .messages
+            .reply_push(buffer)
+            .map_err(|_e| "Reply payload push error");
 
         self.return_with_tracing(result)
     }
@@ -244,8 +244,8 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
             .messages
-            .check_uncommited()
-            .map_err(|_| "There are uncommited messages when passing to waiting state")
+            .check_uncommitted()
+            .map_err(|_| "There are uncommitted messages when passing to waiting state")
             .and_then(|_| {
                 if self.wait_flag {
                     Err("Cannot pass to the waiting state twice")

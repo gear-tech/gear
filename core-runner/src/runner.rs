@@ -210,7 +210,7 @@ pub struct ReplyDispatch {
     pub source_id: ProgramId,
     /// Identity of the destination.
     pub destination_id: ProgramId,
-    /// Id of the referrenced message,
+    /// Id of the referenced message,
     pub original_message_id: MessageId,
     /// Dispatch result of the referenced message.
     pub original_exit_code: ExitCode,
@@ -578,7 +578,7 @@ impl RunningContext {
 
 /// Execution outcome.
 ///
-/// If trap occured, possible explanation can be attached
+/// If trap occurred, possible explanation can be attached
 #[derive(Clone, Debug)]
 pub enum ExecutionOutcome {
     /// Outcome was fine.

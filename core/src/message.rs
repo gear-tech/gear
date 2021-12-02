@@ -117,12 +117,12 @@ pub enum Error {
     DuplicateWaiting,
     /// An attempt to commit or to push a payload into an already formed message.
     LateAccess,
-    /// No message found with given handle, or handle exceedes the maximum messages amount.
+    /// No message found with given handle, or handle exceeds the maximum messages amount.
     OutOfBounds,
     /// An attempt to push a payload into reply that was not set
     NoReplyFound,
     /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
-    UncommitedPayloads,
+    UncommittedPayloads,
 }
 
 /// Incoming message.
@@ -455,7 +455,7 @@ impl Message {
         self.reply
     }
 
-    /// Message idetifier.
+    /// Message identifier.
     pub fn id(&self) -> MessageId {
         self.id
     }
@@ -647,7 +647,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
     /// Initialize a new message with `NotFormed` formation status and return its handle.
     ///
-    /// Messages created this way should be commited with `commit(handle)` to be sent.
+    /// Messages created this way should be committed with `commit(handle)` to be sent.
     pub fn send_init(&mut self) -> Result<usize, Error> {
         let state = self.state.borrow();
 
@@ -711,15 +711,15 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Ok(())
     }
 
-    /// Check whether there are uncommited messages.
-    pub fn check_uncommited(&self) -> Result<(), Error> {
+    /// Check whether there are uncommitted messages.
+    pub fn check_uncommitted(&self) -> Result<(), Error> {
         if self.reply_payload.is_some() {
-            return Err(Error::UncommitedPayloads);
+            return Err(Error::UncommittedPayloads);
         }
 
         for outgoing_payload in self.outgoing_payloads.iter() {
             if outgoing_payload.is_some() {
-                return Err(Error::UncommitedPayloads);
+                return Err(Error::UncommittedPayloads);
             }
         }
         Ok(())
@@ -809,7 +809,7 @@ mod tests {
         // Creating a message context
         let mut context = MessageContext::new(incoming_message, id_generator);
 
-        // Сhecking that the initial parameters of the context match the passed constants
+        // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
         assert_eq!(context.nonce(), DEFAULT_NONCE);
         assert!(context.reply_payload.is_none());
@@ -827,7 +827,7 @@ mod tests {
         // After every successful generation of `Message`, `nonse` increases by one
         assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
 
-        // Checking that the `ReplyMessage` mathes the passed one
+        // Checking that the `ReplyMessage` matches the passed one
         assert_eq!(
             context.state.borrow().reply.as_ref().unwrap().payload,
             vec![1, 2, 3, 0, 0].into()
@@ -841,7 +841,7 @@ mod tests {
         );
 
         // Checking that repeated call `reply_commit(...)` returns error and does not
-        // increase nonse, because `ReplyMessage` is not generated
+        // increase nonce, because `ReplyMessage` is not generated
         assert!(context.reply_commit(reply_packet.clone()).is_err());
         assert_eq!(context.nonce(), DEFAULT_NONCE + 1);
 
@@ -861,7 +861,7 @@ mod tests {
         assert!(context.outgoing_payloads[expected_handle].is_some());
 
         // Checking that we are able to push payload for the
-        // message that we have not commited yet
+        // message that we have not committed yet
         assert!(context.send_push(expected_handle, &[5, 7]).is_ok());
         assert!(context.send_push(expected_handle, &[9]).is_ok());
 
@@ -877,7 +877,7 @@ mod tests {
         assert!(context.send_commit(expected_handle, commit_packet).is_ok());
 
         // Checking that we are **NOT** able to push payload for the message or
-        // commit it if we already commited it or directly pushed before
+        // commit it if we already committed it or directly pushed before
         assert!(context.send_push(0, &[5, 7]).is_err());
         assert!(context.send_push(expected_handle, &[5, 7]).is_err());
         assert!(context.send_commit(0, OutgoingPacket::default()).is_err());
@@ -907,7 +907,7 @@ mod tests {
             vec![1, 2, 3, 0, 0]
         );
 
-        // Checking that on drain we get only messages that were fully formed (directly sent or commited)
+        // Checking that on drain we get only messages that were fully formed (directly sent or committed)
         let expected_result = context.into_state();
         assert_eq!(expected_result.outgoing.len(), 1);
         assert_eq!(expected_result.outgoing[0].payload.0, vec![5, 7, 9]);
