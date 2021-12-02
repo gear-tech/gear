@@ -16,7 +16,6 @@ struct NonFungibleToken {
     name: String,
     symbol: String,
     base_uri: String,
-    token_uri: String,
     token_id: U256,
     token_owner: BTreeMap<U256, ActorId>,
     token_approvals: BTreeMap<U256, ActorId>,
@@ -28,7 +27,6 @@ static mut NON_FUNGIBLE_TOKEN: NonFungibleToken = NonFungibleToken {
     name: String::new(),
     symbol: String::new(),
     base_uri: String::new(),
-    token_uri: String::new(),
     token_id: U256::zero(),
     token_owner: BTreeMap::new(),
     token_approvals: BTreeMap::new(),
@@ -40,25 +38,25 @@ impl NonFungibleToken {
     fn set_name(&mut self, name: String) {
         self.name = name;
     }
+
     fn name(&self) -> &str {
         &self.name
     }
+
     fn set_symbol(&mut self, symbol: String) {
         self.symbol = symbol;
     }
+
     fn symbol(&self) -> &str {
         &self.symbol
     }
+
     fn set_base_uri(&mut self, base_uri: String) {
       self.base_uri = base_uri;
     }
+
     fn base_uri(&self) -> &str {
       &self.base_uri
-    }
-    fn token_uri(&self, token_id: U256) -> String {
-      let mut temp =  self.base_uri.clone();
-      temp.push_str(&token_id.to_string());
-      return temp;
     }
 
     fn exists(&self, token_id: U256) -> bool {
@@ -144,6 +142,16 @@ impl NonFungibleToken {
             exec::gas_available() - GAS_RESERVE,
             0,
         );
+    }
+
+    fn token_uri(&self, token_id: U256) {
+      let token_uri = format!("{}/{}", self.base_uri, token_id.to_string());
+
+      msg::reply(
+        Event::TokenURI(token_uri),
+        exec::gas_available() - GAS_RESERVE,
+        0,
+      );
     }
 
     fn transfer(&mut self, from: &ActorId, to: &ActorId, token_id: U256) {
@@ -238,7 +246,7 @@ impl NonFungibleToken {
         panic!("NonFungibleToken: Approval for a zero address");
       }
 
-      self.operator_approval.get_mut(&owner).unwrap().insert(*operator, approved);
+      self.operator_approval.entry(owner).or_default().insert(*operator, approved);
 
       let approve_operator = ApproveForAll {
         owner: H256::from_slice(owner.as_ref()),
@@ -254,7 +262,7 @@ impl NonFungibleToken {
     }
 
     fn is_approved_for_all(&mut self, owner: &ActorId, operator: &ActorId) {
-      let approved = self.operator_approval.get(owner).unwrap().get(operator).unwrap_or(&false);
+      let approved = self.operator_approval.get(owner).and_then(|o| o.get(operator)).unwrap_or(&false);
 
       msg::reply(
         Event::IsApproved(*approved),
@@ -370,6 +378,7 @@ struct Transfer {
 enum Action {
     Mint(MintInput),
     Burn(BurnInput),
+    TokenURI(U256),
     TransferFrom(TransferInput),
     // SafeTransferFrom
     Approval(ApproveInput),
@@ -387,6 +396,7 @@ enum Event {
     ApprovalForAll(ApproveForAll),
     Owner(H256),
     Balance(U256),
+    TokenURI(String),
     IsApproved(bool),
     ApprovedAddress(H256),
 }
@@ -412,6 +422,9 @@ pub unsafe extern "C" fn handle() {
         Action::Burn(burn_input) => {
             let from = ActorId::new(burn_input.account.to_fixed_bytes());
             NON_FUNGIBLE_TOKEN.burn(&from, burn_input.token_id);
+        }
+        Action::TokenURI(token_id) => {
+          NON_FUNGIBLE_TOKEN.token_uri(token_id);
         }
         Action::Approval(approve) => {
             let spender = ActorId::new(approve.spender.to_fixed_bytes());

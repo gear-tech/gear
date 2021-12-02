@@ -8,6 +8,7 @@ programs:
       value:
         name: "foo"
         symbol: "FOO"
+        base_uri: "foo.com"
 
 fixtures:
   - title: mint/burn
@@ -25,6 +26,11 @@ fixtures:
           value:
             mint:
               account: 0x0300000000000000000000000000000000000000000000000000000000000000
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            tokenURI: 1
       - destination: 1
         payload:
           kind: custom
@@ -64,6 +70,11 @@ fixtures:
                 from: 0x0000000000000000000000000000000000000000000000000000000000000000
                 to: 0x0300000000000000000000000000000000000000000000000000000000000000
                 token_id: 1
+          destination: 0
+        - payload:
+            kind: custom
+            value:
+              tokenURI: "foo.com/1"
           destination: 0
         - payload:
             kind: custom
@@ -175,69 +186,67 @@ fixtures:
                 to: 0x0500000000000000000000000000000000000000000000000000000000000000
                 token_id: 0
 
-  # - title: approve_for_all
+  - title: operator
 
-  #   messages:
-  #     - destination: 1
-  #       payload:
-  #         kind: custom
-  #         value:
-  #           mint:
-  #             account: 0x0500000000000000000000000000000000000000000000000000000000000000
-  #     - destination: 1
-  #       payload:
-  #         kind: custom
-  #         value:
-  #           mint:
-  #             account: 0x0500000000000000000000000000000000000000000000000000000000000000
-  #     - destination: 1
-  #       payload:
-  #         kind: custom
-  #         value:
-  #           approvalForAll:
+    messages:
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            mint:
+              account: 0x0500000000000000000000000000000000000000000000000000000000000000
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            mint:
+              account: 0x0500000000000000000000000000000000000000000000000000000000000000
+      - destination: 1
+        source:
+          kind: id
+          value: 5
+        payload:
+          kind: custom
+          value:
+            setApprovalForAll:
+              operator: 0x0900000000000000000000000000000000000000000000000000000000000000
+              approved: true
+      - destination: 1
+        payload:
+          kind: custom
+          value:
+            isApprovedForAll:
+              owner: 0x0500000000000000000000000000000000000000000000000000000000000000
+              operator: 0x0900000000000000000000000000000000000000000000000000000000000000
 
-
-  #   expected:
-  #     - log:
-  #       - payload:
-  #           kind: custom
-  #           value:
-  #             transfer:
-  #               from: 0x0000000000000000000000000000000000000000000000000000000000000000
-  #               to: 0x0500000000000000000000000000000000000000000000000000000000000000
-  #               token_id: 0
-  #         destination: 0
-  #       - destination: 5
-  #         payload:
-  #           kind: custom
-  #           value:
-  #             transfer:
-  #               from: 0x0500000000000000000000000000000000000000000000000000000000000000
-  #               to: 0x0200000000000000000000000000000000000000000000000000000000000000
-  #               token_id: 0
-  #       - payload:
-  #           kind: custom
-  #           value:
-  #             balance: 0
-  #         destination: 0
-  #       - payload:
-  #           kind: custom
-  #           value:
-  #             owner: 0x0200000000000000000000000000000000000000000000000000000000000000
-  #         destination: 0
-  #       - destination: 2
-  #         payload:
-  #           kind: custom
-  #           value:
-  #             approval:
-  #               owner: 0x0200000000000000000000000000000000000000000000000000000000000000
-  #               spender: 0x0800000000000000000000000000000000000000000000000000000000000000
-  #               token_id: 0
-  #       - destination: 8
-  #         payload:
-  #           kind: custom
-  #           value:
-  #             transfer:
-  #               from: 0x0200000000000000000000000000000000000000000000000000000000000000
-  #               to: 0x0500000000000000000000000000000000000000000000000000000000000000
-  #               token_id: 0
+    expected:
+      - log:
+        - payload:
+            kind: custom
+            value:
+              transfer:
+                from: 0x0000000000000000000000000000000000000000000000000000000000000000
+                to: 0x0500000000000000000000000000000000000000000000000000000000000000
+                token_id: 0
+          destination: 0
+        - payload:
+            kind: custom
+            value:
+              transfer:
+                from: 0x0000000000000000000000000000000000000000000000000000000000000000
+                to: 0x0500000000000000000000000000000000000000000000000000000000000000
+                token_id: 1
+          destination: 0
+        - payload:
+            kind: custom
+            value:
+              ApprovalForAll:
+                owner: 0x0500000000000000000000000000000000000000000000000000000000000000
+                operator: 0x0900000000000000000000000000000000000000000000000000000000000000
+                approved: true
+          destination: 5
+        - payload:
+            kind: custom
+            value:
+              isApproved: true
+          destination: 0
