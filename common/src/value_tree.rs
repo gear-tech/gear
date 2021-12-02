@@ -249,6 +249,15 @@ impl ValueView {
         }
     }
 
+    pub fn origin(&self) -> H256 {
+        match self.node.origin {
+            ValueOrigin::External(external_origin) => external_origin,
+            ValueOrigin::Local(parent) => ValueView::get(self.prefix.clone(), parent)
+                .expect("Parent should exist")
+                .origin(),
+        }
+    }
+
     fn load_node(&self, id: H256) -> Option<ValueNode> {
         let node_key = node_key(self.prefix.as_ref(), &id);
         sp_io::storage::get(&node_key).map(|v| {

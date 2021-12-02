@@ -166,7 +166,15 @@ pub fn init_program<E: Environment<Ext>>(
         value,
         reply: None,
     };
-    let result = RunNextResult::from_single(init_message, run_result);
+    let mut result = RunNextResult::from_single(init_message, run_result.clone());
+
+    result.messages.append(
+        &mut run_result
+            .messages
+            .into_iter()
+            .map(|msg| msg.into_message(program_id))
+            .collect(),
+    );
 
     Ok(result.into())
 }
