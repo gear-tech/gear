@@ -302,6 +302,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-init-wait"
+version = "0.1.0"
+dependencies = [
+ "gcore",
+ "gstd",
+]
+
+[[package]]
 name = "demo-mem"
 version = "0.1.0"
 dependencies = [

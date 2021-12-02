@@ -1,0 +1,13 @@
+[package]
+name = "demo-init-wait"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gcore = { path = "../../gcore", features = ["debug"] }
+gstd = { path = "../../gstd", features = ["debug"] }
