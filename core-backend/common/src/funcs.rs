@@ -253,6 +253,15 @@ pub fn source<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static s
     }
 }
 
+pub fn actor_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |source_ptr: i32| {
+        ext.with(|ext: &mut E| {
+            let actor_id = ext.program_id();
+            ext.set_mem(source_ptr as isize as _, actor_id.as_slice());
+        })
+    }
+}
+
 pub fn value<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |value_ptr: i32| ext.with(|ext: &mut E| set_u128(ext, value_ptr, ext.value()))
 }

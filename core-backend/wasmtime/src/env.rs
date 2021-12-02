@@ -70,6 +70,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32_i32_i32("gr_send_push", funcs::send_push);
         result.add_func_into_i32("gr_size", funcs::size);
         result.add_func_i32("gr_source", funcs::source);
+        result.add_func_i32("gr_actor_id", funcs::actor_id);
         result.add_func_i32("gr_value", funcs::value);
         result.add_func("gr_wait", funcs::wait);
         result.add_func_i32("gr_wake", funcs::wake);

@@ -523,6 +523,27 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 })
         }
 
+        fn actor_id<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let source_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            ctx.ext
+                .with(|ext: &mut E| {
+                    let source = ext.program_id();
+                    ext.set_mem(source_ptr as isize as _, source.as_slice());
+                    Ok(())
+                })
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
+                .map_err(|err| {
+                    ctx.trap_reason = Some(err);
+                    HostError
+                })
+        }
+
         fn value<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
             let value_ptr: i32 = match args[0] {
                 Value::I32(val) => val,
@@ -591,6 +612,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_read", read);
         env_builder.add_host_func("env", "gr_size", size);
         env_builder.add_host_func("env", "gr_source", source);
+        env_builder.add_host_func("env", "gr_actor_id", actor_id);
         env_builder.add_host_func("env", "gr_value", value);
         env_builder.add_host_func("env", "gr_reply", reply);
         env_builder.add_host_func("env", "gr_reply_commit", reply_commit);

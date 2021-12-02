@@ -18,7 +18,7 @@
 
 //! Program execution regulation module.
 
-use crate::MessageId;
+use crate::{ActorId, MessageId};
 pub use gcore::exec::{block_height, block_timestamp, gas_available};
 
 pub fn wait() -> ! {
@@ -27,4 +27,8 @@ pub fn wait() -> ! {
 
 pub fn wake(waker_id: MessageId) {
     gcore::exec::wake(waker_id.into())
+}
+
+pub fn actor_id() -> ActorId {
+    gcore::exec::actor_id().into()
 }

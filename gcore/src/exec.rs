@@ -20,6 +20,7 @@
 //!
 //! Provides API for low-level async implementation.
 
+use crate::ActorId;
 use crate::MessageId;
 
 mod sys {
@@ -29,6 +30,7 @@ mod sys {
         pub fn gr_gas_available() -> u64;
         pub fn gr_wait() -> !;
         pub fn gr_wake(waker_id_ptr: *const u8);
+        pub fn gr_actor_id(val: *mut u8);
     }
 }
 
@@ -146,4 +148,22 @@ pub fn wake(waker_id: MessageId) {
     unsafe {
         sys::gr_wake(waker_id.as_slice().as_ptr());
     }
+}
+
+/// Return program id of the program.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, ActorId};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     exec::actor_id();
+/// }
+/// ```
+pub fn actor_id() -> ActorId {
+    let mut actor_id = ActorId::default();
+    unsafe { sys::gr_actor_id(actor_id.as_mut_slice().as_mut_ptr()) }
+    actor_id
 }
