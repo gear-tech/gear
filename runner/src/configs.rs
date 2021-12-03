@@ -34,12 +34,6 @@ pub struct BlockInfo {
     pub timestamp: u64,
 }
 
-impl BlockInfo {
-    pub fn new(height: u32, timestamp: u64) -> Self {
-        Self { height, timestamp }
-    }
-}
-
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct AllocationsConfig {

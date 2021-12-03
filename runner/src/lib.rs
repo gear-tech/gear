@@ -22,10 +22,11 @@
 
 extern crate alloc;
 
-pub mod configs;
-pub mod ext;
-pub mod ids;
-pub mod runner;
+mod configs;
+mod ext;
+mod ids;
+mod runner;
 
-// pub use ext::{BlockInfo, Ext};
-// pub use runner::*;
+pub use configs::{BlockInfo, EntryPoint};
+pub use ext::Ext;
+pub use runner::*;
