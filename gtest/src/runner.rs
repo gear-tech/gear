@@ -127,7 +127,7 @@ pub fn init_fixture<SC: StorageCarrier>(
     test: &Test,
     fixture_no: usize,
 ) -> anyhow::Result<(WasmRunner<SC>, Vec<Message>, Vec<Message>)> {
-    let storage2 = storage.clone();
+    let mut storage2 = storage.clone();
     let mut runner = Runner::new(
         &Config::default(),
         storage,
@@ -202,6 +202,7 @@ pub fn init_fixture<SC: StorageCarrier>(
         }
 
         nonce += 1;
+        storage2 = runner.storage();
     }
 
     let fixture = &test.fixtures[fixture_no];
