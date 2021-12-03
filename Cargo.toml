@@ -29,6 +29,7 @@ members = [
     "node",
     "node-runner",
     "pallets/*",
+    "runner",
     "runtime",
     "tests/*",
     "utils/gear-test-cli",

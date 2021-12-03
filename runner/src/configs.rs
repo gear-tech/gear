@@ -18,9 +18,7 @@
 
 use codec::{Decode, Encode};
 
-use gear_core::{gas::GasCounter, memory::PageNumber};
-
-use alloc::collections::BTreeSet;
+use gear_core::memory::PageNumber;
 
 const MAX_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;
@@ -34,37 +32,31 @@ pub struct BlockInfo {
     pub height: u32,
     /// Current block timestamp in msecs since tne Unix epoch.
     pub timestamp: u64,
-    /// Current block gas limit.
-    pub gas_limit: u64,
 }
 
 impl BlockInfo {
-    pub fn new(height: u32, timestamp: u64, gas_limit: u64) -> Self {
-        Self {
-            height,
-            timestamp,
-            gas_limit,
-        }
+    pub fn new(height: u32, timestamp: u64) -> Self {
+        Self { height, timestamp }
     }
 }
 
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
-struct AllocationsConfig {
+pub struct AllocationsConfig {
     /// Total memory pages count.
-    max_pages: PageNumber,
+    pub max_pages: PageNumber,
     /// Gas cost for init memory page.
-    init_cost: u64,
+    pub init_cost: u64,
     /// Gas cost for memory page allocation.
-    alloc_cost: u64,
+    pub alloc_cost: u64,
     /// Gas cost for memory grow
-    mem_grow_cost: u64,
+    pub mem_grow_cost: u64,
     /// Gas cost for loading memory page from program state.
-    load_page_cost: u64,
+    pub load_page_cost: u64,
 }
 
 impl AllocationsConfig {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             max_pages: MAX_PAGES.into(),
             init_cost: INIT_COST,
@@ -89,55 +81,5 @@ impl From<EntryPoint> for &'static str {
             EntryPoint::Handle => "handle",
             EntryPoint::HandleReply => "handle_reply",
         }
-    }
-}
-
-pub struct RunningContext {
-    block_info: BlockInfo,
-    gas_counter: GasCounter,
-    config: AllocationsConfig,
-    allocations: BTreeSet<PageNumber>,
-}
-
-impl RunningContext {
-    pub fn new(block_info: BlockInfo, allocations: BTreeSet<PageNumber>) -> Self {
-        Self {
-            block_info,
-            allocations,
-            config: AllocationsConfig::new(),
-            gas_counter: GasCounter::new(block_info.gas_limit),
-        }
-    }
-
-    pub fn allocations(&self) -> BTreeSet<PageNumber> {
-        self.allocations.clone()
-    }
-
-    pub fn block_info(&self) -> BlockInfo {
-        self.block_info
-    }
-
-    pub fn gas_counter(&mut self) -> &mut GasCounter {
-        &mut self.gas_counter
-    }
-
-    pub fn max_pages(&self) -> PageNumber {
-        self.config.max_pages
-    }
-
-    pub fn init_cost(&self) -> u64 {
-        self.config.init_cost
-    }
-
-    pub fn alloc_cost(&self) -> u64 {
-        self.config.alloc_cost
-    }
-
-    pub fn mem_grow_cost(&self) -> u64 {
-        self.config.mem_grow_cost
-    }
-
-    pub fn load_page_cost(&self) -> u64 {
-        self.config.load_page_cost
     }
 }

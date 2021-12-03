@@ -18,23 +18,27 @@
 
 use gear_core::{
     env::Ext as EnvExt,
-    gas::ChargeResult,
+    gas::{ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{ExitCode, MessageContext, MessageId, OutgoingPacket, ReplyPacket},
     program::ProgramId,
 };
 
-use crate::configs::RunningContext;
+use crate::configs::{AllocationsConfig, BlockInfo};
 use crate::ids::BlakeMessageIdGenerator;
 
 /// Structure providing externalities for running host functions.
 pub struct Ext {
-    /// Running context.
-    pub running_context: RunningContext,
+    /// Gas counter.
+    pub gas_counter: GasCounter,
     /// Memory context.
     pub memory_context: MemoryContext,
     /// Message context.
     pub message_context: MessageContext<BlakeMessageIdGenerator>,
+    // Block info.
+    pub block_info: BlockInfo,
+    /// Allocations config.
+    pub config: AllocationsConfig,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
     /// Flag signaling whether the execution interrupts and goes to the waiting state.
@@ -56,9 +60,9 @@ impl Ext {
 impl EnvExt for Ext {
     fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
         // Greedily charge gas for allocations
-        self.charge_gas(pages_num.raw() * self.running_context.alloc_cost() as u32)?;
+        self.charge_gas(pages_num.raw() * self.config.alloc_cost as u32)?;
         // Greedily charge gas for grow
-        self.charge_gas(pages_num.raw() * self.running_context.mem_grow_cost() as u32)?;
+        self.charge_gas(pages_num.raw() * self.config.mem_grow_cost as u32)?;
 
         let old_mem_size = self.memory_context.memory().size().raw();
 
@@ -75,7 +79,7 @@ impl EnvExt for Ext {
         let new_mem_size = self.memory_context.memory().size().raw();
         let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back =
-            self.running_context.mem_grow_cost() * (pages_num.raw() - grow_pages_num) as u64;
+            self.config.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
 
         // Returns back greedly used gas for allocations
         let first_page = result.unwrap().raw();
@@ -87,7 +91,7 @@ impl EnvExt for Ext {
             }
         }
         gas_to_return_back +=
-            self.running_context.alloc_cost() * (pages_num.raw() - new_alloced_pages_num) as u64;
+            self.config.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
 
         self.refund_gas(gas_to_return_back as u32)?;
 
@@ -95,11 +99,11 @@ impl EnvExt for Ext {
     }
 
     fn block_height(&self) -> u32 {
-        self.running_context.block_info().height
+        self.block_info.height
     }
 
     fn block_timestamp(&self) -> u64 {
-        self.running_context.block_info().timestamp
+        self.block_info.timestamp
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {
@@ -134,7 +138,7 @@ impl EnvExt for Ext {
         handle: usize,
         msg: OutgoingPacket,
     ) -> Result<MessageId, &'static str> {
-        if self.running_context.gas_counter().reduce(msg.gas_limit()) != ChargeResult::Enough {
+        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self
                 .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
         };
@@ -148,7 +152,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
-        if self.running_context.gas_counter().reduce(msg.gas_limit()) != ChargeResult::Enough {
+        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self.return_and_store_err(Err("Gas limit exceeded while trying to reply"));
         };
 
@@ -177,7 +181,7 @@ impl EnvExt for Ext {
 
         // Returns back gas for allocated page if it's new
         if !self.memory_context.is_init_page(ptr) {
-            self.refund_gas(self.running_context.alloc_cost() as u32)?;
+            self.refund_gas(self.config.alloc_cost as u32)?;
         }
 
         self.return_and_store_err(result)
@@ -206,7 +210,7 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
-        if self.running_context.gas_counter().charge(val as u64) == ChargeResult::Enough {
+        if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
             Ok(())
         } else {
             self.return_and_store_err(Err("Gas limit exceeded"))
@@ -214,7 +218,7 @@ impl EnvExt for Ext {
     }
 
     fn refund_gas(&mut self, val: u32) -> Result<(), &'static str> {
-        if self.running_context.gas_counter().refund(val as u64) == ChargeResult::Enough {
+        if self.gas_counter.refund(val as u64) == ChargeResult::Enough {
             Ok(())
         } else {
             self.return_and_store_err(Err("Too many gas added"))
@@ -222,7 +226,7 @@ impl EnvExt for Ext {
     }
 
     fn gas_available(&mut self) -> u64 {
-        self.running_context.gas_counter().left()
+        self.gas_counter.left()
     }
 
     fn value(&self) -> u128 {

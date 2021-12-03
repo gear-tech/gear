@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alloc::collections::BTreeSet;
 use alloc::vec;
 use alloc::vec::Vec;
 
 use gear_backend_common::{funcs::EXIT_TRAP_STR, Environment};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::ChargeResult,
+    gas::{ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{IncomingMessage, Message, MessageContext, MessageId, MessageState},
     program::{Program, ProgramId},
@@ -52,17 +53,19 @@ impl ExecutionOutcome {
 
 pub struct RunResult {
     pub outcome: ExecutionOutcome,
+    pub program: Program,
     pub messages: Vec<Message>,
     pub gas_spent: u64,
     pub awakening: Vec<MessageId>,
 }
 
 impl RunResult {
-    pub fn fast_drop(trap_explanation: &'static str) -> Self {
+    pub fn trap_with(trap_explanation: &'static str, program: Program, gas_spent: u64) -> Self {
         Self {
             outcome: ExecutionOutcome::Trap(trap_explanation),
+            program,
+            gas_spent,
             messages: Vec::new(),
-            gas_spent: 0,
             awakening: Vec::new(),
         }
     }
@@ -74,104 +77,127 @@ pub struct InitMessage {
     pub message: IncomingMessage,
 }
 
-pub struct ActorProcessor;
+pub struct CoreRunner;
 
-use crate::configs::{EntryPoint, RunningContext};
+use crate::configs::{AllocationsConfig, BlockInfo, EntryPoint};
 use crate::ids::BlakeMessageIdGenerator;
 
 pub struct ExecutionSettings {
-    entry: EntryPoint,
-    running_context: RunningContext,
-    memory_context: MemoryContext,
+    pub entry: EntryPoint,
+    pub block_info: BlockInfo,
+    pub config: AllocationsConfig,
 }
 
-impl ExecutionSettings {
-    pub fn new(
-        entry: EntryPoint,
-        running_context: RunningContext,
-        memory_context: MemoryContext,
-    ) -> Self {
-        Self {
-            entry,
-            running_context,
-            memory_context,
-        }
-    }
-}
-
-impl ActorProcessor {
+impl CoreRunner {
     pub fn run<E>(
         env: &mut E,
-        program: &mut Program,
+        mut program: Program,
         message: IncomingMessage,
-        mut settings: ExecutionSettings,
+        instrumented_code: &[u8],
+        settings: ExecutionSettings,
     ) -> RunResult
     where
         E: Environment<Ext>,
     {
-        let (left_before, burned_before) = (
-            settings.running_context.gas_counter().left(),
-            settings.running_context.gas_counter().burned(),
-        );
+        // Creating gas counter.
+        let mut gas_counter = GasCounter::new(message.gas_limit());
 
-        let (charge_amount, trap_explanation) = if settings.entry == EntryPoint::Init {
-            (
-                settings.running_context.init_cost() * program.static_pages() as u64,
-                "Not enough gas for initial memory.",
-            )
+        // Storing gas values.
+        let left_before = gas_counter.left();
+        let burned_before = gas_counter.burned();
+
+        // Charging for initial or loaded pages.
+        if settings.entry == EntryPoint::Init {
+            if gas_counter.charge(settings.config.init_cost * program.static_pages() as u64)
+                != ChargeResult::Enough
+            {
+                return RunResult::trap_with(
+                    "Not enough gas for initial memory.",
+                    program,
+                    gas_counter.burned(),
+                );
+            };
         } else {
-            (
-                settings.running_context.load_page_cost() * program.get_pages().len() as u64,
-                "Not enough gas for loading memory.",
-            )
-        };
+            if gas_counter.charge(settings.config.load_page_cost * program.get_pages().len() as u64)
+                != ChargeResult::Enough
+            {
+                return RunResult::trap_with(
+                    "Not enough gas for loading memory.",
+                    program,
+                    gas_counter.burned(),
+                );
+            };
+        }
 
-        if settings.running_context.gas_counter().charge(charge_amount) != ChargeResult::Enough {
-            return RunResult::fast_drop(trap_explanation);
-        };
-
+        // Creating memory.
         let memory = env.create_memory(program.static_pages());
 
-        let max_page = program.get_pages().iter().next_back();
-
-        if let Some(max_page) = max_page {
+        // Charging gas for future growths.
+        if let Some(max_page) = program.get_pages().iter().next_back() {
             let max_page_num = *max_page.0;
             let mem_size = memory.size();
             if max_page_num >= mem_size {
-                let amount = settings.running_context.mem_grow_cost()
-                    * ((max_page_num - mem_size).raw() as u64 + 1);
+                let amount =
+                    settings.config.mem_grow_cost * ((max_page_num - mem_size).raw() as u64 + 1);
 
-                if settings.running_context.gas_counter().charge(amount) != ChargeResult::Enough {
-                    return RunResult::fast_drop("Not enough gas for grow memory size.");
+                if gas_counter.charge(amount) != ChargeResult::Enough {
+                    return RunResult::trap_with(
+                        "Not enough gas for grow memory size.",
+                        program,
+                        gas_counter.burned(),
+                    );
                 }
             } else {
-                // wtf ?
                 assert!(max_page_num.raw() == mem_size.raw() - 1);
             }
         }
 
+        // Getting allocations.
+        let allocations: BTreeSet<PageNumber> = program
+            .get_pages()
+            .iter()
+            .map(|(page_num, _)| *page_num)
+            .collect();
+
+        // Creating memory context.
+        let memory_context = MemoryContext::new(
+            program.id(),
+            memory.clone(),
+            allocations,
+            program.static_pages().into(),
+            settings.config.max_pages,
+        );
+
+        // Creating message context.
+        let message_context = MessageContext::new(
+            message.clone(),
+            BlakeMessageIdGenerator {
+                program_id: program.id(),
+                nonce: program.message_nonce(),
+            },
+        );
+
+        // Creating externalities.
         let ext = Ext {
-            running_context: settings.running_context,
-            memory_context: settings.memory_context,
-            message_context: MessageContext::new(
-                message.clone(),
-                BlakeMessageIdGenerator {
-                    program_id: program.id(),
-                    nonce: program.message_nonce(),
-                },
-            ),
+            gas_counter,
+            memory_context,
+            message_context,
+            block_info: settings.block_info,
+            config: settings.config,
             error_explanation: None,
             waited: false,
         };
 
+        // Running backend.
         let (res, mut ext) = env.setup_and_run(
             ext,
-            program.code(),
+            instrumented_code,
             program.get_pages(),
             &*memory,
             settings.entry.into(),
         );
 
+        // Parsing outcome.
         let outcome = if let Err(e) = res {
             let explanation = ext.error_explanation.take().unwrap_or("N/A");
             log::debug!("Trap during execution: {}, explanation: {}", e, explanation);
@@ -184,21 +210,25 @@ impl ActorProcessor {
             }
         };
 
+        // Updating program memory
         for page in ext.memory_context.allocations().clone() {
             let mut buf = vec![0u8; PageNumber::size()];
             ext.get_mem(page.offset(), &mut buf);
             let _ = program.set_page(page, &buf);
         }
 
-        let mut messages = vec![];
-
+        // Updating program's message nonce
         program.set_message_nonce(ext.message_context.nonce());
 
+        // Storing messages state
         let MessageState {
             outgoing,
             reply,
             awakening,
         } = ext.message_context.into_state();
+
+        // Storing outgoing messages from message state.
+        let mut messages = Vec::new();
 
         for outgoing_msg in outgoing {
             messages.push(outgoing_msg.into_message(program.id()));
@@ -208,13 +238,18 @@ impl ActorProcessor {
             messages.push(reply_message.into_message(message.id(), program.id(), message.source()));
         }
 
-        let gas_spent = ext.running_context.gas_counter().burned();
+        // Checking gas that was spent.
+        let gas_spent = ext.gas_counter.burned();
 
-        let (left_after, burned_after) = (ext.running_context.gas_counter().left(), gas_spent);
+        // Storing gas values after execution.
+        let left_after = ext.gas_counter.left();
+        let burned_after = gas_spent;
 
+        // Checking abnormal cases.
         assert!(left_before >= left_after);
         assert!(burned_after >= burned_before);
 
+        // Debug message with gas.
         log::debug!(
             "({}) Gas burned: {}; Gas used {}",
             program.id(),
@@ -222,8 +257,10 @@ impl ActorProcessor {
             left_before - left_after
         );
 
+        // Output.
         RunResult {
             messages,
+            program,
             awakening,
             gas_spent,
             outcome,
