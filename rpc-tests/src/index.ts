@@ -76,9 +76,6 @@ function findMessage(api, expMessage, snapshots, start) {
 
       for (const message of snapshot.messageQueue) {
 
-        // console.log('exp - ', expMessage);
-
-        // console.log(message.toHuman());
         if (message.dest.eq(programs[expMessage.destination])) {
           let match = true;
 
@@ -143,7 +140,6 @@ async function checkLog(api, exp) {
   let messagesOpt = await mailbox.readMailbox('5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY');
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
-    console.log(messages.toHuman());
 
 
     for (const log of exp.log) {
@@ -153,7 +149,6 @@ async function checkLog(api, exp) {
         for (const index of Object.keys(metadata)) {
 
           let encoded = encodePayload(api, log, programs[index]);
-          // encoded = api.createType('Bytes', encoded.toU8a());
 
           if (!encoded) {
             console.log('Skip: Cannot construct unknown type');
@@ -162,9 +157,6 @@ async function checkLog(api, exp) {
           }
 
           messages.forEach((message, _id) => {
-            // console.log(message.payload);
-            // console.log(encoded);
-            // console.log(encoded.toHex() === message.payload.toHex());
 
 
             if (encoded.toHex() === message.payload.toHex()) {
@@ -200,7 +192,6 @@ async function checkMessages(api, exp, snapshots) {
       );
       break;
     }
-    // console.log('msg:', message.toHuman(), 'exp:', expMessage)
   }
   snapshots.shift(found);
 
@@ -208,7 +199,7 @@ async function checkMessages(api, exp, snapshots) {
   return errors;
 }
 
-async function checkMemory(api: GearApi, exp) {
+async function checkMemory(api: GearApi, exp, snapshots, programs) {
   const errors = [];
 
   for (const mem of exp.memory) {
@@ -275,8 +266,9 @@ async function processExpected(api, sudoPair, fixture, snapshots) {
       }
     }
 
+    // TODO
     // if ('memory' in exp) {
-    //   const res = await checkMemory(api, exp, programs);
+    //   const res = await checkMemory(api, exp, snapshots, programs);
     //   if (res.length === 0) {
     //     output.push('MEMORY: OK');
     //   } else {
@@ -388,9 +380,6 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   }
   unsub();
   unsubMProccessed();
-  // await sleep(5000);
-  // console.log(snapshots.length);
-  // console.log(messagesProccessed);
 
 
   return processExpected(api, sudoPair, fixture, snapshots);
