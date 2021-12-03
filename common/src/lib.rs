@@ -117,7 +117,7 @@ pub trait GasToFeeConverter {
 }
 
 pub trait PaymentProvider<AccountId> {
-    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
+    type Balance;
 
     fn withhold_reserved(
         source: H256,

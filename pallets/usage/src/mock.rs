@@ -121,6 +121,7 @@ parameter_types! {
     pub const ExpirationDuration: u64 = 3000;
     pub const TrapReplyExistentialGasLimit: u64 = 1000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
+    pub const WaitListFeePerBlock: u64 = 100;
 }
 
 impl pallet_usage::Config for Test {
@@ -134,6 +135,7 @@ impl pallet_usage::Config for Test {
     type MaxBatchSize = MaxBatchSize;
     type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 pub struct FixedBlockAuthor;

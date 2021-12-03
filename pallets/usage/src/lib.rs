@@ -38,8 +38,6 @@ mod offchain;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
-pub const WAITLIST_FEE_PER_BLOCK: u64 = 100;
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::offchain::PayeeInfo;
@@ -103,6 +101,10 @@ pub mod pallet {
         /// The fraction of the collected wait list rent an external submitter will get as a reward
         #[pallet::constant]
         type ExternalSubmitterRewardFraction: Get<Perbill>;
+
+        /// The cost for a message to spend one block in the wait list
+        #[pallet::constant]
+        type WaitListFeePerBlock: Get<u64>;
     }
 
     type BalanceOf<T> =
@@ -268,7 +270,7 @@ pub mod pallet {
                     let mut gas_tree = ValueView::get(GAS_VALUE_PREFIX, msg.id)
                         .expect("A message in wait list must have an associated value tree");
                     let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
-                    let full_fee: u64 = (duration as u64).saturating_mul(WAITLIST_FEE_PER_BLOCK);
+                    let full_fee = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
                     // Taking the amount locked in the respective value tree as the ground truth
                     // of the amount of gas a message has at its disposal to account for and correct

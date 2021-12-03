@@ -125,7 +125,7 @@ fn ocw_interval_maintained() {
 
         run_to_block_with_ocw(17);
         assert_eq!(pool.read().transactions.len(), 5);
-        // The wait list should have been completely exhauseted at this moment,
+        // The wait list should have been completely exhausted at this moment,
         // the last key points at the wait list storage prefix
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_LAST_KEY),

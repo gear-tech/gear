@@ -342,6 +342,7 @@ parameter_types! {
     pub const MaxBatchSize: u32 = 100;
     pub const TrapReplyExistentialGasLimit: u64 = 1000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
+    pub const WaitListFeePerBlock: u64 = 100;
 }
 
 impl pallet_gear::Config for Runtime {
@@ -371,6 +372,7 @@ impl pallet_usage::Config for Runtime {
     type MaxBatchSize = MaxBatchSize;
     type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
