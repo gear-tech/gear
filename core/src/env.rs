@@ -55,20 +55,8 @@ pub trait Ext {
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
 
-    /// Send message to another program.
-    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
-        let handle = self.send_init()?;
-        self.send_commit(handle, msg)
-    }
-
     /// Push an extra buffer into message payload by handle.
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
-
-    /// Complete reply message and send it to source program.
-    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str>;
-
-    /// Push an extra buffer into reply message.
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
     fn send_commit(
@@ -76,6 +64,18 @@ pub trait Ext {
         handle: usize,
         msg: OutgoingPacket,
     ) -> Result<MessageId, &'static str>;
+
+    /// Send message to another program.
+    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
+        let handle = self.send_init()?;
+        self.send_commit(handle, msg)
+    }
+
+    /// Push an extra buffer into reply message.
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str>;
+
+    /// Complete reply message and send it to source program.
+    fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str>;
 
     /// Produce reply to the current message.
     fn reply(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {

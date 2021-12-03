@@ -34,7 +34,7 @@ fixtures:
 
     expected:
       - log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: custom
               value:

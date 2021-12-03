@@ -1595,6 +1595,8 @@ fn distributor_initialize() {
     use tests_distributor::WASM_BINARY_BLOATY;
 
     new_test_ext().execute_with(|| {
+        let initial_balance = Balances::free_balance(1) + Balances::free_balance(255);
+
         Pallet::<Test>::submit_program(
             Origin::signed(1).into(),
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
@@ -1607,9 +1609,8 @@ fn distributor_initialize() {
 
         run_to_block(3, None);
 
-        assert_eq!(Balances::free_balance(1), 95_021_000,);
-
-        assert_eq!(Balances::free_balance(255), 4_979_001,);
+        let final_balance = Balances::free_balance(1) + Balances::free_balance(255);
+        assert_eq!(initial_balance, final_balance);
     });
 }
 
@@ -1618,6 +1619,8 @@ fn distributor_distribute() {
     use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
     new_test_ext().execute_with(|| {
+        let balance_initial = Balances::free_balance(1) + Balances::free_balance(255);
+
         let program_id =
             generate_program_id(WASM_BINARY_BLOATY.expect("Wasm binary missing!"), &[]);
 
@@ -1635,15 +1638,15 @@ fn distributor_distribute() {
             Origin::signed(1).into(),
             program_id,
             Request::Receive(10).encode(),
-            10_000_000_u64,
+            20_000_000_u64,
             0_u128,
         )
         .expect("Send message failed");
 
         run_to_block(3, None);
 
-        assert_eq!(Balances::free_balance(1), 85_027_000,);
+        let final_balance = Balances::free_balance(1) + Balances::free_balance(255);
 
-        assert_eq!(Balances::free_balance(255), 4_979_001,);
+        assert_eq!(balance_initial, final_balance);
     });
 }

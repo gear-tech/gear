@@ -430,9 +430,9 @@ where
     storage::Storage<SC::PS>: CollectState,
 {
     match runner::init_fixture::<SC>(storage, test, fixture_no) {
-        Ok((runner, messages)) => {
+        Ok((runner, messages, log)) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = runner::run(runner, messages.into(), last_exp_steps);
+            let results = runner::run(runner, messages.into(), log, last_exp_steps);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {
@@ -457,7 +457,7 @@ where
                 if let Some(log) = &exp.log {
                     for message in &final_state.log {
                         if let Ok(utf8) = std::str::from_utf8(message.payload()) {
-                            log::info!("log({})", utf8)
+                            log::debug!("log({})", utf8)
                         }
                     }
 

@@ -46,7 +46,7 @@ fixtures:
           - payload:
               kind: utf-8
               value: "Discharged: 202"
-            destination: 0
+            destination: 1000001
         allocations:
           - program_id: 1
             contains_pages: []

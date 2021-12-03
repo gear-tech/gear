@@ -24,4 +24,4 @@ fixtures:
           - payload:
               kind: utf-8
               value: "1: hey;2: hop;"
-            destination: 0
+            destination: 1000001

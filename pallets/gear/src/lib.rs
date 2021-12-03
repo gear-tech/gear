@@ -520,13 +520,15 @@ pub mod pallet {
                     Ok(execution_report) => {
                         total_handled += 1;
 
-                        for (destination, gas_charge) in execution_report.gas_charges {
+                        let origin = gas_tree.origin();
+
+                        for (_, gas_charge) in execution_report.gas_charges {
                             gas_tree.spend(gas_charge);
 
                             let charge = Self::gas_to_fee(gas_charge);
 
                             let _ = T::Currency::repatriate_reserved(
-                                &<T::AccountId as Origin>::from_origin(destination),
+                                &<T::AccountId as Origin>::from_origin(origin),
                                 &Authorship::<T>::author(),
                                 charge,
                                 BalanceStatus::Free,
@@ -634,7 +636,7 @@ pub mod pallet {
         /// Erroneous outcomes can be of two kinds:
         /// - program creation failed, that is there is no program in storage corresponding
         ///   to this `ProgramId`;
-        /// - program was created but the initalization code resulted in a trap.
+        /// - program was created but the initialization code resulted in a trap.
         ///
         /// Either of this cases indicates a program is in an undefined state:
         /// it either doesn't exist or is faulty (uninitialized).
@@ -726,7 +728,7 @@ pub mod pallet {
         ///
         /// To avoid an undefined behavior a check is made that the destination address
         /// is not a program in uninitialized state. If the opposite holds true,
-        /// the messsage is not enqueued for processing.
+        /// the message is not enqueued for processing.
         ///
         /// Parameters:
         /// - `destination`: the message destination.
@@ -904,7 +906,7 @@ pub mod pallet {
         /// - `program_id`: the id of the program being removed.
         ///
         /// Emits the following events:
-        /// - `ProgramRemoved(id)` when succesful.
+        /// - `ProgramRemoved(id)` when successful.
         #[pallet::weight(<T as Config>::WeightInfo::remove_stale_program())]
         pub fn remove_stale_program(
             origin: OriginFor<T>,

@@ -30,7 +30,7 @@ fixtures:
       - step: 1
         log:
           - &zero
-            destination: 0
+            destination: 1000001
             payload:
               kind: utf-8
               value: zero_0
@@ -39,7 +39,7 @@ fixtures:
         log:
           - *zero
           - &one
-            destination: 0
+            destination: 1000001
             payload:
               kind: utf-8
               value: one_1
@@ -48,7 +48,7 @@ fixtures:
         log:
           - *zero
           - *one
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: two_2

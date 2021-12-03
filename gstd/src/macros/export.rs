@@ -23,7 +23,10 @@ macro_rules! export {
     ($f:ident -> $val:expr) => {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
-            gstd::macros::util::to_wasm_ptr($val)
+            let buffer = $val.to_string();
+            let result = gstd::macros::util::to_wasm_ptr(buffer.as_bytes());
+            core::mem::forget(buffer);
+            result
         }
     };
 }
