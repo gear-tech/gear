@@ -1,24 +1,36 @@
-import { CreateType, DebugMode, GearApi, GearKeyring, ProgramDetails, GearMailbox, getWasmMetadata } from '@gear-js/api';
+import {
+  CreateType,
+  DebugMode,
+  GearApi,
+  GearKeyring,
+  ProgramDetails,
+  GearMailbox,
+  getWasmMetadata,
+  Metadata,
+  DebugData,
+} from '@gear-js/api';
 import { xxhashAsHex, blake2AsHex, randomAsHex } from '@polkadot/util-crypto';
 import { Option } from '@polkadot/types';
+import { H256 } from '@polkadot/types/interfaces';
 import { Codec } from '@polkadot/types/types';
 import YAML from 'yaml';
 import * as fs from 'fs';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { WsTestProvider } from './ws-test';
+import { IExpected, IExpMessage, IFixtures, ITestData, ITestMetadata, ITestPrograms } from './interfaces';
 
-var metadata: any = {};
-var programs: any = {};
+var metadata: ITestMetadata = {};
+var programs: ITestPrograms = {};
 
-function sleep(ms) {
+function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function xxKey(module, key) {
+function xxKey(module: string, key: string) {
   return xxhashAsHex(module, 128) + xxhashAsHex(key, 128).slice(2);
 }
 
-function replaceRegex(input) {
+function replaceRegex(input: string): string {
   input = String(input);
   if (input.search(/\{([0-9]+)\}/g) !== -1) {
     const res = input.match(/\{([0-9]+)\}/g);
@@ -33,8 +45,8 @@ function replaceRegex(input) {
   return input;
 }
 
-function encodePayload(api, expMessage, source) {
-  let payload: any;
+function encodePayload(api: GearApi, expMessage: IExpMessage, source: string | H256) {
+  let payload: Codec;
   if (expMessage.payload.kind === 'bytes') {
     payload = api.createType('Bytes', expMessage.payload.value);
   } else if (expMessage.payload.kind === 'i32') {
@@ -46,15 +58,12 @@ function encodePayload(api, expMessage, source) {
   } else if (expMessage.payload.kind === 'f64') {
     payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
   } else if (expMessage.payload.kind === 'utf-8') {
-    payload = replaceRegex(expMessage.payload.value);
-    payload = api.createType('Bytes', payload);
+    payload = api.createType('Bytes', replaceRegex(expMessage.payload.value));
   } else if (expMessage.payload.kind === 'custom') {
-
     expMessage.payload.value = JSON.stringify(expMessage.payload.value);
     expMessage.payload.value = replaceRegex(expMessage.payload.value);
-    let pid = Object.keys(programs).find(key => programs[key] === source);
+    let pid = Object.keys(programs).find((key) => programs[key] === source);
     try {
-
       if (expMessage.init) {
         payload = CreateType.encode(metadata[pid].init_output, expMessage.payload.value, metadata[pid]);
       } else {
@@ -65,22 +74,18 @@ function encodePayload(api, expMessage, source) {
       return null;
     }
   }
-  return payload
+  return payload;
 }
 
-function findMessage(api, expMessage, snapshots, start) {
-
+function findMessage(api: GearApi, expMessage: IExpMessage, snapshots: DebugData[], start: number) {
   for (let index = start; index < snapshots.length; index++) {
     const snapshot = snapshots[index];
     if (snapshot.messageQueue) {
-
       for (const message of snapshot.messageQueue) {
-
         if (message.dest.eq(programs[expMessage.destination])) {
           let match = true;
 
           if (expMessage.payload) {
-
             let payload = encodePayload(api, expMessage, message.source);
 
             if (payload && !payload.eq(message.payload)) {
@@ -89,14 +94,12 @@ function findMessage(api, expMessage, snapshots, start) {
           }
 
           if (expMessage.gas_limit) {
-
             if (!expMessage.gas_limit.eq(message.gas_limit)) {
               match = false;
             }
           }
 
           if (expMessage.value) {
-
             if (!expMessage.value.eq(message.value)) {
               match = false;
             }
@@ -119,7 +122,9 @@ async function resetStorage(api: GearApi, sudoPair: KeyringPair) {
   let hash = xxKey('Gear', 'MessageQueue');
   keys.push(hash);
 
-  hash = xxKey('Gear', 'Mailbox') + 'de1e86a9a8c739864cf3cc5ec2bea59fd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d';
+  hash =
+    xxKey('Gear', 'Mailbox') +
+    'de1e86a9a8c739864cf3cc5ec2bea59fd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d';
   keys.push(hash);
 
   txs.push(api.tx.sudo.sudo(api.tx.system.killStorage(keys)));
@@ -132,7 +137,7 @@ async function resetStorage(api: GearApi, sudoPair: KeyringPair) {
   }
 }
 
-async function checkLog(api, exp) {
+async function checkLog(api: GearApi, exp: IExpected) {
   const errors = [];
 
   let mailbox = new GearMailbox(api);
@@ -141,13 +146,10 @@ async function checkLog(api, exp) {
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
 
-
     for (const log of exp.log) {
-
       if ('payload' in log) {
         let found = false;
         for (const index of Object.keys(metadata)) {
-
           let encoded = encodePayload(api, log, programs[index]);
 
           if (!encoded) {
@@ -157,14 +159,11 @@ async function checkLog(api, exp) {
           }
 
           messages.forEach((message, _id) => {
-
-
             if (encoded.toHex() === message.payload.toHex()) {
               found = true;
               return;
             }
           });
-
         }
 
         if (!found) {
@@ -179,25 +178,22 @@ async function checkLog(api, exp) {
   return errors;
 }
 
-async function checkMessages(api, exp, snapshots) {
+async function checkMessages(api: GearApi, exp: IExpected, snapshots: DebugData[]) {
   const errors = [];
   let found = 0;
   for (let index = 0; index < exp.messages.length; index++) {
     const expMessage = exp.messages[index];
     found = findMessage(api, expMessage, snapshots, found);
     if (found === -1) {
-      errors.push(
-        `Message not found (expected: ${JSON.stringify(expMessage, null, 2)})`,
-      );
+      errors.push(`Message not found (expected: ${JSON.stringify(expMessage, null, 2)})`);
       break;
     }
   }
 
-
   return errors;
 }
 
-async function checkMemory(api: GearApi, exp, snapshots, programs) {
+async function checkMemory(api: GearApi, exp: IExpected, snapshots: DebugData[], programs: ITestPrograms) {
   const errors = [];
 
   for (const mem of exp.memory) {
@@ -234,7 +230,7 @@ async function checkMemory(api: GearApi, exp, snapshots, programs) {
   return errors;
 }
 
-async function processExpected(api, sudoPair, fixture, snapshots) {
+async function processExpected(api: GearApi, sudoPair: KeyringPair, fixture: IFixtures, snapshots: DebugData[]) {
   const output = [];
   const errors = [];
 
@@ -253,7 +249,6 @@ async function processExpected(api, sudoPair, fixture, snapshots) {
         errors.push(`MSG ERR: ${res}`);
       }
     }
-
 
     if ('log' in exp) {
       const res = await checkLog(api, exp);
@@ -284,7 +279,7 @@ async function processExpected(api, sudoPair, fixture, snapshots) {
   return output;
 }
 
-async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair, fixture: any) {
+async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair, fixture: IFixtures) {
   const txs = [];
   const snapshots = [];
   let res = [];
@@ -319,7 +314,6 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     } else if (message.payload.kind === 'f64') {
       payload = api.createType('f64', message.payload.value).toU8a();
     } else if (message.payload.kind === 'utf-8') {
-
       payload = replaceRegex(message.payload.value);
       payload = api.createType('Bytes', message.payload.value);
     } else if (message.payload.kind === 'custom') {
@@ -345,19 +339,17 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     );
   }
   let messagesProccessed = 0;
-  let s_promise_resolve = () => { };
+  let s_promise_resolve = () => {};
   let s_promise = new Promise<void>((resolve, reject) => {
     s_promise_resolve = resolve;
-  })
+  });
   const unsub = await debugMode.snapshots(({ data }) => {
-    snapshots.push(data)
+    snapshots.push(data);
   });
   let non_zero = false;
   const unsubMProccessed = await api.query.system.events((events) => {
     events
-      .filter(
-        ({ event }) => api.events.gear.MessagesDequeued.is(event),
-      )
+      .filter(({ event }) => api.events.gear.MessagesDequeued.is(event))
       .forEach(({ event }) => {
         if (event.data[0].eq(api.createType('u32', 0))) {
           if (non_zero) {
@@ -379,13 +371,11 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   unsub();
   unsubMProccessed();
 
-
   return processExpected(api, sudoPair, fixture, snapshots);
 }
 
-async function processTest(testData: any, api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair) {
-  fixtureLoop:
-  for (const fixture of testData.fixtures) {
+async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair) {
+  fixtureLoop: for (const fixture of testData.fixtures) {
     const reset = await resetStorage(api, sudoPair);
 
     const salt = {};
@@ -401,8 +391,7 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
     }
 
     for (const program of testData.programs) {
-
-      if (typeof (program.id) === 'object') {
+      if (typeof program.id === 'object') {
         console.log('Skipped');
 
         break fixtureLoop;
@@ -459,7 +448,7 @@ async function processTest(testData: any, api: GearApi, debugMode: DebugMode, su
 }
 
 async function main() {
-  const tests = [];
+  const tests: ITestData[] = [];
 
   // Load yaml files
   process.argv.slice(2).forEach((path) => {
