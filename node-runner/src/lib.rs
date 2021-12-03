@@ -27,7 +27,7 @@ use sp_core::H256;
 use gear_core::{
     message::{Message, MessageId},
     program::ProgramId,
-    storage::Storage,
+    storage::{ProgramStorage, Storage},
 };
 
 use gear_backend_common::Environment;
@@ -168,13 +168,23 @@ pub fn init_program<E: Environment<Ext>>(
     };
     let mut result = RunNextResult::from_single(init_message, run_result.clone());
 
-    result.messages.append(
-        &mut run_result
-            .messages
-            .into_iter()
-            .map(|msg| msg.into_message(program_id))
-            .collect(),
-    );
+    for message in run_result.messages {
+        let m = message.into_message(program_id);
+        if runner.storage().program_storage.exists(m.dest()) {
+            result.messages.push(m);
+        } else {
+            result.log.push(m);
+        }
+    }
+
+    if let Some(m) = run_result.reply {
+        let m = m.into_message(init_message_id, program_id, source_id);
+        if runner.storage().program_storage.exists(m.dest()) {
+            result.messages.push(m);
+        } else {
+            result.log.push(m);
+        }
+    }
 
     Ok(result.into())
 }

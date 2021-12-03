@@ -41,17 +41,17 @@ fixtures:
 
     expected:
       - log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: i32
               value: 0
 
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: i32
               value: 1
 
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: i32
               value: 2
@@ -102,7 +102,7 @@ fixtures:
             payload: *get # from waitlist
       - step: 6
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: i32
               value: 1
@@ -146,7 +146,7 @@ fixtures:
             payload: *ping
       - step: 2
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: i32
               value: 0
@@ -173,11 +173,11 @@ fixtures:
       
       - step: 6
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: i32
               value: 0
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: i32
               value: 0 # should be 0
@@ -208,7 +208,7 @@ fixtures:
     
     expected:
       - log:
-        - destination: 0
+        - destination: 1000001
           payload:
             kind: i32
             value: 0

@@ -20,7 +20,7 @@ fixtures:
       - step: 1
         messages: []
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: PONG

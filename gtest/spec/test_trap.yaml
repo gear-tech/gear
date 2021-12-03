@@ -15,5 +15,5 @@ fixtures:
       - step: 1
         allowError: true
         log:
-          - destination: 0
+          - destination: 1000001
             exitCode: 1

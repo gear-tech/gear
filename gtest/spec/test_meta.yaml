@@ -31,7 +31,7 @@ fixtures:
     expected:
       - step: 2
         log:
-          - destination: 0
+          - destination: 1000001
             init: true
             payload:
               kind: custom
@@ -39,12 +39,7 @@ fixtures:
                 exchange_rate:
                   ok: 2
                 sum: 24
-          - destination: 0
-            payload:
-              kind: custom
-              value:
-                res: null
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: custom
               value:
@@ -55,3 +50,8 @@ fixtures:
                     person:
                       name: SomeName
                       surname: SomeSurname
+          - destination: 1000001
+            payload:
+              kind: custom
+              value:
+                res: null
