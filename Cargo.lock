@@ -5298,6 +5298,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "runner"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake2-rfc",
+ "env_logger 0.9.0",
+ "gear-backend-common",
+ "gear-backend-wasmtime",
+ "gear-core",
+ "log",
+ "parity-scale-codec",
+ "wabt",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
