@@ -71,9 +71,6 @@ jobs:
       - name: "Install: Build deps"
         run: sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
-      - name: "ACTIONS: Artifact cache"
-        uses: Swatinem/rust-cache@v1
-
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked
 
@@ -120,9 +117,6 @@ jobs:
         
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
-
-      - name: "ACTIONS: Artifact cache"
-        uses: Swatinem/rust-cache@v1
 
       - name: "Build: Split examples by .opt and .meta"
         run: ./scripts/gear.sh build wasm-proc
