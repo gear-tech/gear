@@ -24,7 +24,7 @@ macro_rules! export {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
             let result = gstd::macros::util::to_wasm_ptr($val);
-            core::mem::forget(result);
+            core::mem::forget($val);
             result
         }
     };
