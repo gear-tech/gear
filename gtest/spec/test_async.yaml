@@ -89,7 +89,7 @@ fixtures:
 
       - step: 10
         log:
-          - destination: 0
+          - destination: 1000001
             payload: &success
               kind: utf-8
               value: SUCCESS

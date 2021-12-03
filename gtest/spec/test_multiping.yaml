@@ -20,17 +20,17 @@ fixtures:
     expected:
       - step: 1
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: PONG
       - step: 2
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: PONG
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: PONG1PONG2PONG3

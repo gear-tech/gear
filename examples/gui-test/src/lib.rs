@@ -56,7 +56,7 @@ pub unsafe extern "C" fn init() {
         }
     };
 
-    msg::send(0.into(), outgoing, 10_000_000, 555);
+    msg::reply(outgoing, 10_000_000, 555);
 }
 
 type HandleIncoming = (BTreeMap<String, u8>, Option<(Option<u8>, u128, [u8; 3])>);

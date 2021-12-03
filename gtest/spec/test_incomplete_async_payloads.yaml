@@ -31,15 +31,15 @@ fixtures:
     expected:
       - allowErrors: true
         log:
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: OK PING
-          - destination: 0
+          - destination: 1000001
             payload:
               kind: utf-8
               value: OK REPLY
-          - destination: 0
+          - destination: 1000001
             exitCode: 1
-          - destination: 0
+          - destination: 1000001
             exitCode: 1
