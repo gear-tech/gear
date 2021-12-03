@@ -29,7 +29,9 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 
+use crate::configs::{AllocationsConfig, BlockInfo, EntryPoint};
 use crate::ext::Ext;
+use crate::ids::BlakeMessageIdGenerator;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutionOutcome {
@@ -77,16 +79,23 @@ pub struct InitMessage {
     pub message: IncomingMessage,
 }
 
-pub struct CoreRunner;
-
-use crate::configs::{AllocationsConfig, BlockInfo, EntryPoint};
-use crate::ids::BlakeMessageIdGenerator;
-
 pub struct ExecutionSettings {
     pub entry: EntryPoint,
     pub block_info: BlockInfo,
     pub config: AllocationsConfig,
 }
+
+impl ExecutionSettings {
+    pub fn new(entry: EntryPoint, block_info: BlockInfo) -> Self {
+        Self {
+            entry,
+            block_info,
+            config: AllocationsConfig::new(),
+        }
+    }
+}
+
+pub struct CoreRunner;
 
 impl CoreRunner {
     pub fn run<E>(
