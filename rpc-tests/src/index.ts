@@ -51,7 +51,7 @@ function encodePayload(api, expMessage, source) {
   } else if (expMessage.payload.kind === 'custom') {
 
     expMessage.payload.value = JSON.stringify(expMessage.payload.value);
-    payload = replaceRegex(expMessage.payload.value);
+    expMessage.payload.value = replaceRegex(expMessage.payload.value);
     let pid = Object.keys(programs).find(key => programs[key] === source);
     try {
 
