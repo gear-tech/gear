@@ -27,6 +27,6 @@ mod ext;
 mod ids;
 mod runner;
 
+pub use crate::runner::*;
 pub use configs::{BlockInfo, EntryPoint};
 pub use ext::Ext;
-pub use runner::*;
