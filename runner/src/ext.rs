@@ -50,9 +50,9 @@ impl Ext {
         &mut self,
         result: Result<T, &'static str>,
     ) -> Result<T, &'static str> {
-        result.or_else(|err| {
+        result.map_err(|err| {
             self.error_explanation = Some(err);
-            Err(err)
+            err
         })
     }
 }
@@ -236,7 +236,7 @@ impl EnvExt for Ext {
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
             .message_context
-            .check_uncommited()
+            .check_uncommitted()
             .map_err(|_| "There are uncommited messages when passing to waiting state")
             .and_then(|_| {
                 if self.waited {

@@ -126,17 +126,16 @@ impl CoreRunner {
                     gas_counter.burned(),
                 );
             };
-        } else {
-            if gas_counter.charge(settings.config.load_page_cost * program.get_pages().len() as u64)
-                != ChargeResult::Enough
-            {
-                return RunResult::trap_with(
-                    "Not enough gas for loading memory.",
-                    program,
-                    gas_counter.burned(),
-                );
-            };
-        }
+        } else if gas_counter
+            .charge(settings.config.load_page_cost * program.get_pages().len() as u64)
+            != ChargeResult::Enough
+        {
+            return RunResult::trap_with(
+                "Not enough gas for loading memory.",
+                program,
+                gas_counter.burned(),
+            );
+        };
 
         // Creating memory.
         let memory = env.create_memory(program.static_pages());
@@ -211,12 +210,10 @@ impl CoreRunner {
             let explanation = ext.error_explanation.take().unwrap_or("N/A");
             log::debug!("Trap during execution: {}, explanation: {}", e, explanation);
             ExecutionOutcome::Trap(explanation)
+        } else if ext.waited {
+            ExecutionOutcome::Trap(EXIT_TRAP_STR)
         } else {
-            if ext.waited {
-                ExecutionOutcome::Trap(EXIT_TRAP_STR)
-            } else {
-                ExecutionOutcome::Done
-            }
+            ExecutionOutcome::Done
         };
 
         // Updating program memory

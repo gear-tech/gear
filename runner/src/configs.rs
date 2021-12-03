@@ -61,6 +61,12 @@ impl AllocationsConfig {
     }
 }
 
+impl Default for AllocationsConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EntryPoint {
     Init,
