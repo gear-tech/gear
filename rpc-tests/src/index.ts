@@ -326,7 +326,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
       payload = api.createType('Bytes', message.payload.value);
     } else if (message.payload.kind === 'custom') {
       message.payload.value = JSON.stringify(message.payload.value);
-      payload = replaceRegex(message.value);
+      payload = replaceRegex(message.payload.value);
       payload = message.payload.value;
     } else {
       payload = message.payload.value;
