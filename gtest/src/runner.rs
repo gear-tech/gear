@@ -306,7 +306,7 @@ where
                 let mut run_result = runner.run_next(m);
                 runner.process_wait_list(&mut run_result);
 
-                log::info!("step: {}", step_no + 1);
+                log::debug!("step: {}", step_no + 1);
 
                 if run_result.any_traps() && step_no + 1 == steps {
                     _result = Err(anyhow::anyhow!("Runner resulted in a trap"));
