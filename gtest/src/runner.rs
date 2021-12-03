@@ -127,7 +127,6 @@ pub fn init_fixture<SC: StorageCarrier>(
     test: &Test,
     fixture_no: usize,
 ) -> anyhow::Result<(WasmRunner<SC>, Vec<Message>, Vec<Message>)> {
-    let storage2 = storage.clone();
     let mut runner = Runner::new(
         &Config::default(),
         storage,
@@ -184,19 +183,21 @@ pub fn init_fixture<SC: StorageCarrier>(
             return Err(anyhow::anyhow!("Trap during `init`: {:?}", explanation));
         }
 
+        let storage: Storage<SC::PS> = runner.storage();
         result.messages.into_iter().for_each(|m| {
             let m = m.into_message(program_id);
-            if !storage2.program_storage.exists(m.dest()) {
-                log.push(m.clone());
+            if !storage.program_storage.exists(m.dest()) {
+                log.push(m);
             } else {
                 messages.push(m);
             }
-
         });
 
         if let Some(m) = result.reply {
-            if !storage2.program_storage.exists(init_source) {
+            if !storage.program_storage.exists(init_source) {
                 log.push(m.into_message(message_id, program_id, init_source));
+            } else {
+                messages.push(m.into_message(message_id, program_id, init_source));
             }
         }
 
