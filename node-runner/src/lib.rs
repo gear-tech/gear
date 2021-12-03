@@ -176,6 +176,10 @@ pub fn init_program<E: Environment<Ext>>(
             .collect(),
     );
 
+    if let Some(m) = run_result.reply {
+        result.log.push(m.into_message(init_message_id, program_id, source_id));
+    }
+
     Ok(result.into())
 }
 
