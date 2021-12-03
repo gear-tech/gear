@@ -94,6 +94,15 @@ jobs:
 
       - name: "Test: Process node testsuite"
         run: ./scripts/gear.sh test ntest
+        
+      - name: "Test: Run RPC tests"
+        run: |
+          cargo build -p gear-node --release --features debug-mode
+          cd rpc-tests
+          npm run build
+          cd ..
+          RUST_LOG=gwasm=debug,gear_core_runner=debug ./target/release/gear-node --dev --ws-max-out-buffer-capacity 500 --rpc-max-payload 500 -l 0 & sleep 10
+          node rpc-tests/dist/index.js ./gtest/spec/*.yaml
 
   gtest:
     runs-on: self-hosted
@@ -135,3 +144,4 @@ jobs:
 
       - name: "Test: Process gear-test"
         run: ./scripts/gear.sh test gtest
+

@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{debug, msg, prelude::*};
+use gstd::{debug, exec, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -17,11 +17,12 @@ fn make_fib(n: usize) -> Vec<i32> {
 pub unsafe extern "C" fn handle() {
     let new_msg: i32 = msg::load().expect("Should be i32");
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
+    debug!("fib gas_available: {}", exec::gas_available());
 
     msg::send(
         msg::source(),
         make_fib(new_msg as usize)[new_msg as usize - 1],
-        10_000_000,
+        exec::gas_available() - 1_000_000_000,
         0,
     );
 
