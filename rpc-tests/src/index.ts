@@ -161,7 +161,6 @@ async function checkLog(api, exp) {
 
             if (encoded.toHex() === message.payload.toHex()) {
               found = true;
-              console.log(found)
               return;
             }
           });
@@ -193,7 +192,6 @@ async function checkMessages(api, exp, snapshots) {
       break;
     }
   }
-  snapshots.shift(found);
 
 
   return errors;
