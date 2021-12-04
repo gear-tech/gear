@@ -340,9 +340,9 @@ parameter_types! {
     pub const WaitListTraversalInterval: u32 = 10;
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
     pub const MaxBatchSize: u32 = 100;
-    pub const TrapReplyExistentialGasLimit: u64 = 1000;
+    pub const TrapReplyExistentialGasLimit: u64 = 6000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
-    pub const WaitListFeePerBlock: u64 = 100;
+    pub const WaitListFeePerBlock: u64 = 1000;
 }
 
 impl pallet_gear::Config for Runtime {

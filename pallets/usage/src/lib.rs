@@ -76,7 +76,7 @@ pub mod pallet {
         /// Gas to Currency converter
         type GasConverter: GasToFeeConverter<Balance = BalanceOf<Self>>;
 
-        /// Type providing interface to make payment in currency units
+        /// Type providing interface for making payment in currency units
         type PaymentProvider: PaymentProvider<Self::AccountId, Balance = BalanceOf<Self>>;
 
         /// Weight information for extrinsics in this pallet.
@@ -90,7 +90,7 @@ pub mod pallet {
         #[pallet::constant]
         type ExpirationDuration: Get<u64>;
 
-        /// The desired interval between offchain worker invocations.
+        /// The maximum number of waitlisted messages to be processed on-chain in one go.
         #[pallet::constant]
         type MaxBatchSize: Get<u32>;
 
@@ -127,17 +127,15 @@ pub mod pallet {
         FailedToGetValueFromStorage,
     }
 
-    /// Methods for the `ValidateUnsigned` implementation:
-    /// Restricts calls to `collect_waitlist_rent_unsigned` to local calls
-    /// (i.e. extrinsics generated on this node) or those already in a block
-    /// therefore ruling out any origin other than block authors.
+    /// Accepting the unsigned `collect_waitlist_rent` extrinsic either if it originated on the
+    /// the local node or if it has already been included in a block.
     #[pallet::validate_unsigned]
     impl<T: Config> ValidateUnsigned for Pallet<T> {
         type Call = Call<T>;
         fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
             match call {
-                Call::collect_waitlist_rent { payees_list: _ } => {
-                    // Only accept transactions from a trusted source: local OCW or those already in block.
+                Call::collect_waitlist_rent { payees_list } => {
+                    // Only accept transactions from a trusted source
                     if !matches!(
                         source,
                         TransactionSource::Local | TransactionSource::InBlock
@@ -145,7 +143,13 @@ pub mod pallet {
                         return InvalidTransaction::Call.into();
                     }
 
-                    // TODO: ensure necessary validity checks hold
+                    // Check the payload size (a precaution against a malicious validator)
+                    if payees_list.len() > T::MaxBatchSize::get() as usize {
+                        return InvalidTransaction::ExhaustsResources.into();
+                    }
+
+                    // TODO: apply other necessary validity checks
+                    // https://github.com/gear-tech/gear/issues/506
 
                     let current_block = <frame_system::Pallet<T>>::block_number();
                     ValidTransaction::with_tag_prefix("gear")
@@ -172,13 +176,14 @@ pub mod pallet {
 
         /// Offchain worker
         ///
-        /// Makes necessary actions to maintain data needed for charging programs
-        /// for keeping messages in the wait list
+        /// Scans the wait list portion by portion and sends a transaction back on-chain
+        /// to charge messages' authors for "renting" a slot in the list.
+        /// Maintains a minimum interval between full scans, idling in between if necessary
         fn offchain_worker(now: BlockNumberFor<T>) {
-            // Only do something if we are a potential validator.
+            // Only do something if we are a validator
             if !sp_io::offchain::is_validator() {
                 log::debug!(
-                    target: "gear-support",
+                    target: "runtime::usage",
                     "Skipping offchain worker at {:?}: not a validator.",
                     now,
                 );
@@ -193,7 +198,7 @@ pub mod pallet {
                     Ok(maybe_round_started_at) => maybe_round_started_at.unwrap_or_default(),
                     _ => {
                         log::debug!(
-                            target: "gear-support",
+                            target: "runtime::usage",
                             "Failed to get a value from storage at block {:?}",
                             now,
                         );
@@ -204,7 +209,7 @@ pub mod pallet {
                 Ok(x) => x,
                 _ => {
                     log::debug!(
-                        target: "gear-support",
+                        target: "runtime::usage",
                         "Failed to get a value from storage at block {:?}",
                         now,
                     );
@@ -218,7 +223,7 @@ pub mod pallet {
                 // We have either finished the previous round or never started one, and the number of
                 // elapsed blocks since last traversal is less than the expected minimum interval
                 log::debug!(
-                    target: "gear-support",
+                    target: "runtime::usage",
                     "Block {:?} offchain worker. Not starting next wait list traversal until block {:?}",
                     now,
                     current_round_started_at.saturating_add(T::WaitListTraversalInterval::get()),
@@ -241,7 +246,7 @@ pub mod pallet {
             let res = Self::waitlist_usage(now);
             if let Err(e) = res {
                 log::error!(
-                    target: "gear-support",
+                    target: "runtime::usage",
                     "Error in offchain worker at {:?}: {:?}", now, e,
                 )
             }
@@ -292,56 +297,74 @@ pub mod pallet {
                             let user_reward =
                                 T::ExternalSubmitterRewardFraction::get() * total_reward;
                             let validator_reward = total_reward.saturating_sub(user_reward);
-                            let _ = T::PaymentProvider::withhold_reserved(
+                            if let Err(e) = T::PaymentProvider::withhold_reserved(
                                 gas_tree.origin(),
                                 who,
                                 user_reward,
-                            );
-                            let _ = T::PaymentProvider::withhold_reserved(
+                            ) {
+                                log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                            }
+                            if let Err(e) = T::PaymentProvider::withhold_reserved(
                                 gas_tree.origin(),
                                 &Authorship::<T>::author(),
                                 validator_reward,
-                            );
+                            ) {
+                                log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                            }
                         }
                         _ => {
-                            let _ = T::PaymentProvider::withhold_reserved(
+                            if let Err(e) = T::PaymentProvider::withhold_reserved(
                                 gas_tree.origin(),
                                 &Authorship::<T>::author(),
                                 T::GasConverter::gas_to_fee(actual_fee),
-                            );
+                            ) {
+                                log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                            }
                         }
                     };
 
                     if new_free_gas_limit == 0 {
-                        // Generate trap reply
+                        match common::get_program(program_id) {
+                            Some(mut program) => {
+                                // Generate trap reply
 
-                        // Account for the fact that original gas balance of the message could have
-                        // already been lower than the required "existential" gas limit
-                        let trap_gas = actual_gas_limit.min(T::TrapReplyExistentialGasLimit::get());
+                                // Account for the fact that original gas balance of the message could have
+                                // already been lower than the required "existential" gas limit
+                                let trap_gas =
+                                    actual_gas_limit.min(T::TrapReplyExistentialGasLimit::get());
 
-                        let mut program = common::get_program(program_id).expect(
-                            "There is always an associated program for a message in wait list",
-                        );
-                        program.nonce += 1;
+                                program.nonce += 1;
 
-                        let trap_message_id =
-                            runner::generate_message_id(program_id.as_ref().into(), program.nonce);
-                        let trap_message = Message {
-                            id: H256::from_slice(trap_message_id.as_slice()),
-                            source: program_id,
-                            dest: msg.source,
-                            payload: vec![],
-                            gas_limit: trap_gas,
-                            value: 0,
-                            reply: Some((msg.id, runner::EXIT_CODE_PANIC)),
-                        };
+                                let trap_message_id = runner::generate_message_id(
+                                    program_id.as_ref().into(),
+                                    program.nonce,
+                                );
+                                let trap_message = Message {
+                                    id: H256::from_slice(trap_message_id.as_slice()),
+                                    source: program_id,
+                                    dest: msg.source,
+                                    payload: vec![],
+                                    gas_limit: trap_gas,
+                                    value: 0,
+                                    reply: Some((msg.id, runner::EXIT_CODE_PANIC)),
+                                };
 
-                        // Enqueue the trap reply message
-                        gas_tree.split_off(trap_message.id, trap_gas);
-                        common::queue_message(trap_message);
+                                // Enqueue the trap reply message
+                                gas_tree.split_off(trap_message.id, trap_gas);
+                                common::queue_message(trap_message);
 
-                        // Save back the program with incremented nonce
-                        common::set_program(program_id, program, Default::default());
+                                // Save back the program with incremented nonce
+                                common::set_program(program_id, program, Default::default());
+                            }
+                            _ => {
+                                // Must be unreachable: there shouldn't be dangling messages in the WL
+                                // if the associated program has been killed.
+                                // TODO: ensure the above statement always holds:
+                                // https://github.com/gear-tech/gear/issues/507
+                                log::warn!("Failed to find a program with ID: {:?}", program_id);
+                            }
+                        }
+                        // "There is always an associated program for a message in wait list",
                     } else {
                         common::insert_waiting_message(
                             program_id,
@@ -372,13 +395,7 @@ pub mod pallet {
                 _ => Err(DispatchError::BadOrigin),
             }?;
 
-            log::debug!(
-                target: "runtime::gear",
-                "[collect_waitlist_rent_unsigned] payload: {:?}",
-                payees_list,
-            );
-
-            let _charged = Self::do_rent_collection(payees_list, who.as_ref());
+            Self::do_rent_collection(payees_list, who.as_ref());
 
             Self::deposit_event(Event::WaitListRentCollected);
 

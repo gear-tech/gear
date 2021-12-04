@@ -17,17 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::*;
-use common::{self, Message, Origin as _};
+use crate::{mock::*, offchain::PayeeInfo};
+use codec::Decode;
+use common::{self, value_tree::ValueView, Message, Origin as _, GAS_VALUE_PREFIX};
 use core::convert::TryInto;
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_ok, traits::ReservableCurrency};
 use hex_literal::hex;
-use sp_runtime::{
-    offchain::{
-        storage_lock::{StorageLock, Time},
-        Duration,
-    },
-    traits::SaturatedConversion,
+use sp_runtime::offchain::{
+    storage_lock::{StorageLock, Time},
+    Duration,
 };
 
 pub(crate) fn init_logger() {
@@ -37,26 +35,41 @@ pub(crate) fn init_logger() {
         .try_init();
 }
 
-fn populate_wait_list(n: u64, bn: u32) {
-    for i in 1_u64..=n {
-        let prog_id = i.into_origin();
-        let msg_id = (100_u64 * n + i).into_origin();
-        let blk_num = (i - 1) % (bn as u64) + 1;
+fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
+    for i in 0_u64..n {
+        let prog_id = (i + 1).into_origin();
+        let msg_id = (100_u64 * n + i + 1).into_origin();
+        let blk_num = i % (bn as u64) + 1;
+        let user_id = i % num_users + 1;
+        let gas_limit = gas_limits[i as usize];
         common::insert_waiting_message(
             prog_id.clone(),
             msg_id.clone(),
             Message {
                 id: msg_id,
-                source: 0_u64.into_origin(),
+                source: user_id.into_origin(),
                 dest: prog_id,
                 payload: vec![],
-                gas_limit: 10_000_000_u64,
+                gas_limit: gas_limit,
                 value: 0_u128,
                 reply: None,
             },
             blk_num.try_into().unwrap(),
         );
+        ValueView::get_or_create(GAS_VALUE_PREFIX, user_id.into_origin(), msg_id, gas_limit);
     }
+}
+
+fn wait_list_contents() -> Vec<(Message, u32)> {
+    frame_support::storage::PrefixIterator::<(Message, u32)>::new(
+        common::STORAGE_WAITLIST_PREFIX.to_vec(),
+        common::STORAGE_WAITLIST_PREFIX.to_vec(),
+        |_, mut value| {
+            let decoded = <(Message, u32)>::decode(&mut value)?;
+            Ok(decoded)
+        },
+    )
+    .collect()
 }
 
 #[test]
@@ -78,7 +91,7 @@ fn ocw_interval_maintained() {
             .saturating_mul(num_batches)
             .saturating_sub(1) as u64;
         assert_eq!(num_entries, 29);
-        populate_wait_list(num_entries, 10_u32);
+        populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
 
         // Assert the tx pool has exactly 2 extrinsics (one in each 5 blocks)
         assert_eq!(pool.read().transactions.len(), 2);
@@ -196,7 +209,7 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
         let num_entries = <Test as Config>::MaxBatchSize::get().saturating_mul(num_batches) as u64;
         assert_eq!(num_entries, 70);
-        populate_wait_list(num_entries, 10_u32);
+        populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
 
         // Assert the tx pool has exactly 2 extrinsics (after each 5 blocks)
         assert_eq!(pool.read().transactions.len(), 2);
@@ -287,4 +300,217 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // Another transaction added to the pool
         assert_eq!(pool.read().transactions.len(), 11);
     })
+}
+
+#[test]
+fn rent_charge_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Reserve some currency on users' accounts
+        for i in 1_u64..=10 {
+            assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&i, 10_000));
+        }
+
+        run_to_block(10);
+
+        // Populate wait list
+        // We have 10 messages in the wait list submitted one at a time by different users
+        populate_wait_list(10, 10, 10, vec![10_000; 10]);
+
+        let wl = wait_list_contents();
+        assert_eq!(wl.len(), 10);
+        assert_eq!(wl[0].0.id, 1001.into_origin());
+        assert_eq!(wl[9].0.id, 1010.into_origin());
+
+        run_to_block(15);
+
+        // Calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::none(),
+            vec![
+                PayeeInfo {
+                    program_id: 1.into_origin(),
+                    message_id: 1001.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 2.into_origin(),
+                    message_id: 1002.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 3.into_origin(),
+                    message_id: 1003.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 4.into_origin(),
+                    message_id: 1004.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 5.into_origin(),
+                    message_id: 1005.into_origin()
+                },
+            ],
+        ));
+        // The i-th message was placed in the wait list at i-th block. Therefore at block 15
+        // the 1st message has stayed in the wait list for 14 blocks whereas the 5th message -
+        // for 10 blocks. The rent is 100 units of gas per block. Expect the sender of the
+        // 1st message to have paid 1400 gas (converted to currency units in 1:1 ratio
+        // through to the sender of the 5th message who should have paid 1000 gas only.
+        assert_eq!(Balances::reserved_balance(&1), 8_600);
+        assert_eq!(Balances::reserved_balance(&2), 8_700);
+        assert_eq!(Balances::reserved_balance(&3), 8_800);
+        assert_eq!(Balances::reserved_balance(&4), 8_900);
+        assert_eq!(Balances::reserved_balance(&5), 9_000);
+
+        // The insertion block number has been reset for the first 5 messages
+        let wl = wait_list_contents();
+        // current block number
+        assert_eq!(wl[0].1, 15);
+        assert_eq!(wl[4].1, 15);
+        // initial block number
+        assert_eq!(wl[5].1, 6);
+        assert_eq!(wl[9].1, 10);
+
+        // Check that the collected rent adds up
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 6001);
+    });
+}
+
+#[test]
+fn trap_reply_message_is_sent() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // 1st user has just above `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&1, 1_100));
+        // 2nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&2, 500));
+
+        run_to_block(10);
+
+        // Populate wait list with 2 messages
+        populate_wait_list(2, 10, 2, vec![1_100, 500]);
+
+        let wl = wait_list_contents();
+        assert_eq!(wl.len(), 2);
+        assert_eq!(wl[0].0.gas_limit, 1_100_u64);
+        assert_eq!(wl[1].0.gas_limit, 500_u64);
+
+        // Insert respective programs to the program storage
+        let program_1 = gear_core::program::Program::new(
+            1.into(),
+            hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+            Default::default(),
+        )
+        .unwrap();
+        common::native::set_program(program_1);
+        let program_2 = gear_core::program::Program::new(
+            2.into(),
+            hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
+            Default::default(),
+        )
+        .unwrap();
+        common::native::set_program(program_2);
+
+        run_to_block(15);
+
+        // Calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::none(),
+            vec![
+                PayeeInfo {
+                    program_id: 1.into_origin(),
+                    message_id: 201.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 2.into_origin(),
+                    message_id: 202.into_origin()
+                },
+            ],
+        ));
+
+        // The first message still was charge the amount in excess
+        assert_eq!(Balances::reserved_balance(&1), 1_000);
+
+        // The second message wasn't charged at all before emitting trap reply
+        assert_eq!(Balances::reserved_balance(&2), 500);
+
+        // Ensure there are two trap reply messages in the message queue
+        let msg = common::dequeue_message().unwrap();
+        assert_eq!(msg.source, 1.into_origin());
+        assert_eq!(msg.dest, 1.into_origin());
+        assert_eq!(msg.gas_limit, 1000);
+        assert_eq!(
+            msg.reply,
+            Some((201.into_origin(), runner::EXIT_CODE_PANIC))
+        );
+        // Check that respective `ValueNode` have been created by splitting the parent node
+        assert_eq!(
+            ValueView::get(GAS_VALUE_PREFIX, msg.id).unwrap().value(),
+            1000
+        );
+
+        // Second trap reply message
+        let msg = common::dequeue_message().unwrap();
+        assert_eq!(msg.source, 2.into_origin());
+        assert_eq!(msg.dest, 2.into_origin());
+        assert_eq!(msg.gas_limit, 500);
+        assert_eq!(
+            msg.reply,
+            Some((202.into_origin(), runner::EXIT_CODE_PANIC))
+        );
+
+        assert_eq!(
+            ValueView::get(GAS_VALUE_PREFIX, msg.id).unwrap().value(),
+            500
+        );
+    });
+}
+
+#[test]
+fn external_submitter_gets_rewarded() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Reserve some currency on users' accounts
+        for i in 1_u64..=5 {
+            assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&i, 10_000));
+        }
+
+        run_to_block(10);
+
+        // Populate wait list
+        populate_wait_list(5, 10, 5, vec![10_000; 10]);
+
+        run_to_block(15);
+
+        // Calling the signed extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::signed(10),
+            vec![
+                PayeeInfo {
+                    program_id: 1.into_origin(),
+                    message_id: 501.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 2.into_origin(),
+                    message_id: 502.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 3.into_origin(),
+                    message_id: 503.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 4.into_origin(),
+                    message_id: 504.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 5.into_origin(),
+                    message_id: 505.into_origin()
+                },
+            ],
+        ));
+
+        // Check that the collected rent adds up:
+        // 10% goes to the external user, the rest - to a validator
+        assert_eq!(Balances::free_balance(&10), 1_000_600);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 5401);
+    });
 }

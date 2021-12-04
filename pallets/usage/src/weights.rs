@@ -49,7 +49,6 @@ use sp_std::marker::PhantomData;
 /// Weight functions for pallet_gear.
 pub trait WeightInfo {
     fn collect_waitlist_rent(p: u32) -> Weight;
-    fn collect_waitlist_rent_unsigned(p: u32) -> Weight;
 }
 
 pub struct GearSupportWeight<T>(PhantomData<T>);
@@ -59,22 +58,10 @@ impl<T: frame_system::Config> WeightInfo for GearSupportWeight<T> {
             .saturating_add(T::DbWeight::get().reads(1_u64))
             .saturating_add(T::DbWeight::get().writes(1_u64))
     }
-
-    fn collect_waitlist_rent_unsigned(_p: u32) -> Weight {
-        (1_000_000_u64)
-            .saturating_add(T::DbWeight::get().reads(1_u64))
-            .saturating_add(T::DbWeight::get().writes(1_u64))
-    }
 }
 
 impl WeightInfo for () {
     fn collect_waitlist_rent(_p: u32) -> Weight {
-        (1_000_000_u64)
-            .saturating_add(RocksDbWeight::get().reads(1_u64))
-            .saturating_add(RocksDbWeight::get().writes(1_u64))
-    }
-
-    fn collect_waitlist_rent_unsigned(_p: u32) -> Weight {
         (1_000_000_u64)
             .saturating_add(RocksDbWeight::get().reads(1_u64))
             .saturating_add(RocksDbWeight::get().writes(1_u64))

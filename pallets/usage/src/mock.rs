@@ -18,7 +18,6 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use common::PaymentProvider;
 use frame_support::traits::{FindAuthor, OffchainWorker, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
@@ -180,7 +179,19 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(1, 100_000_000_u128), (2, 2_u128), (BLOCK_AUTHOR, 1_u128)],
+        balances: vec![
+            (1, 1_000_000_u128),
+            (2, 1_000_000_u128),
+            (3, 1_000_000_u128),
+            (4, 1_000_000_u128),
+            (5, 1_000_000_u128),
+            (6, 1_000_000_u128),
+            (7, 1_000_000_u128),
+            (8, 1_000_000_u128),
+            (9, 1_000_000_u128),
+            (10, 1_000_000_u128),
+            (BLOCK_AUTHOR, 1_u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -202,7 +213,6 @@ pub fn with_offchain_ext() -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>)
     (ext, pool_state)
 }
 
-#[allow(unused)]
 pub(crate) fn run_to_block(n: u64) {
     let now = System::block_number();
     for i in now + 1..=n {

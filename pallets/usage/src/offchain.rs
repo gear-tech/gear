@@ -30,20 +30,18 @@
 //!
 //! As a fallback mechanism, the OCW is run once at least every `T::WaitListTraversalInterval`
 //! blocks. It scans the wait list storage top to bottom, keeping track of the latest checked
-//! message and sendы an unsigned version of the earlier discussed transacton back on-chain
-//! with at most `T::MaxBatchSize` message ID's in it, thus making sure the extrinsic doesn't
-//! take too much of the block weight.
+//! message and sends a transacton back on-chai with at most `T::MaxBatchSize` message ID's,
+//! thus making sure the extrinsic doesn't take too much of the block weight.
 //!
-//! In case the wait list contains a lot of messages so that not all of them are scanned within
-//! the `T::WaitListTraversalInterval` blocks, the scanning cycle duration naturally streches
-//! until the whole wait list has been scanned. New scanning round will start immediately
-//! thereafter.
+//! In case the wait list contains a lot of messages so that not all of them are visited within
+//! the `T::WaitListTraversalInterval` blocks timespan, the scanning cycle duration naturally
+//! streches until the entire list has been scanned. A new round will start immediately thereafter.
 //!
 //! An ordinary ("unstretched") timeline is as follows:
 //!
 //! ```ignore
 //!
-//!     block 0  |     1    |     2    |    3     |    4     |    5     |
+//!   block 0    |     1    |     2    |    3     |    4     |    5     |    6
 //!   +----------+----------+----------+----------+----------+----------+-------
 //!
 //!              <---------- Min wait list traversal interval ---------->
@@ -161,8 +159,8 @@ impl<T: Config> Pallet<T> {
         }
 
         log::debug!(
-            target: "gear-support",
-            "[waitlist_usage] Sending {:?} invoices to {:?} at block {:?}. Last visited key is {:?}.",
+            target: "runtime::usage",
+            "Sending {:?} invoices to {:?} at block {:?}. Last visited key is {:?}.",
             counter, entries, now, new_last_key,
         );
 
@@ -175,7 +173,9 @@ impl<T: Config> Pallet<T> {
         let call = Call::collect_waitlist_rent { payees_list: data };
 
         SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()).map_err(|_| {
-            log::debug!("Failed sending unsigned transaction");
+            log::debug!(
+                target: "runtime::usage",
+                "Failure sending unsigned transaction");
             OffchainError::SubmitTransaction
         })
     }
