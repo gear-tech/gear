@@ -173,11 +173,16 @@ impl CoreRunner {
         }
 
         // Getting allocations.
-        let allocations: BTreeSet<PageNumber> = program
-            .get_pages()
-            .iter()
-            .map(|(page_num, _)| *page_num)
-            .collect();
+        let allocations: BTreeSet<PageNumber> = match settings.entry {
+            EntryPoint::Init => (0..program.static_pages())
+                .map(|page| page.into())
+                .collect(),
+            _ => program
+                .get_pages()
+                .iter()
+                .map(|(page_num, _)| *page_num)
+                .collect(),
+        };
 
         // Creating memory context.
         let memory_context = MemoryContext::new(
