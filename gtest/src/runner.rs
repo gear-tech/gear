@@ -18,20 +18,23 @@
 
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
+use core_runner::{
+    AllocationsConfig, BlockInfo, CoreRunner, EntryPoint, ExecutionOutcome, ExecutionSettings, Ext,
+    RunResult,
+};
 use gear_core::storage::ProgramStorage;
 use gear_core::{
-    message::{Message, IncomingMessage, MessageId},
+    message::{IncomingMessage, Message, MessageId},
     program::{Program, ProgramId},
     storage::{InMemoryStorage, Storage, StorageCarrier},
 };
-use core_runner::{ExecutionOutcome, CoreRunner, RunResult, AllocationsConfig, Ext, ExecutionSettings, BlockInfo, EntryPoint};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
+use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::collections::BTreeMap;
 
 use regex::Regex;
 
@@ -115,6 +118,7 @@ fn parse_payload(payload: String) -> String {
 
 const SOME_FIXED_USER: u64 = 1000001;
 
+#[derive(Clone, Debug)]
 pub struct InitMessage {
     pub program_id: ProgramId,
     pub program_code: Vec<u8>,
@@ -124,7 +128,7 @@ pub struct InitMessage {
 pub fn init_program(message: InitMessage) -> anyhow::Result<RunResult> {
     let program = Program::new(message.program_id, message.program_code, Default::default())?;
 
-    if program.static_pages() >  AllocationsConfig::new().max_pages.raw() {
+    if program.static_pages() > AllocationsConfig::new().max_pages.raw() {
         return Err(anyhow::anyhow!(
             "Error initialisation: memory limit exceeded"
         ));
@@ -136,17 +140,24 @@ pub fn init_program(message: InitMessage) -> anyhow::Result<RunResult> {
 
     let prog = program.clone();
 
+    println!("EXECUTE THIS INIT: {:?}", message.message.clone());
+
     let result = CoreRunner::run(
         &mut env,
         prog,
         message.message,
         &gear_core::gas::instrument(code)
-                .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
-        ExecutionSettings::new(EntryPoint::Init, BlockInfo {
-            height: 0,
-            timestamp: 0,
-        })
+            .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
+        ExecutionSettings::new(
+            EntryPoint::Init,
+            BlockInfo {
+                height: 0,
+                timestamp: 0,
+            },
+        ),
     );
+
+    println!("{:?}\n", result);
 
     Ok(result)
 }
@@ -155,7 +166,10 @@ pub fn init_fixture<SC: StorageCarrier>(
     mut storage: Storage<SC::PS>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<(Storage<SC::PS>, Vec<Message>, Vec<Message>)> {
+) -> anyhow::Result<(Storage<SC::PS>, Vec<Message>, Vec<Message>)>
+where
+    Storage<SC::PS>: CollectState,
+{
     let mut messages = Vec::new();
     let mut log = vec![];
     let mut nonce = 0;
@@ -195,7 +209,13 @@ pub fn init_fixture<SC: StorageCarrier>(
         let result = init_program(InitMessage {
             program_id: program_id,
             program_code: code,
-            message: IncomingMessage::new(message_id, init_source, init_message.into(), program.init_gas_limit.unwrap_or(u64::MAX), program.init_value.unwrap_or(0) as u128),
+            message: IncomingMessage::new(
+                message_id,
+                init_source,
+                init_message.into(),
+                program.init_gas_limit.unwrap_or(u64::MAX),
+                program.init_value.unwrap_or(0) as u128,
+            ),
         })?;
 
         let _ = storage.program_storage.set(result.program);
@@ -279,9 +299,16 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
-pub fn process_wait_list(wait_list: &mut BTreeMap<(ProgramId, MessageId), Message>, msg: IncomingMessage, result: &mut RunResult) {
+pub fn process_wait_list(
+    wait_list: &mut BTreeMap<(ProgramId, MessageId), Message>,
+    msg: IncomingMessage,
+    result: &mut RunResult,
+) {
     if result.outcome.wait_interrupt() {
-        wait_list.insert((result.program.id(), msg.id()), msg.into_message(result.program.id()));
+        wait_list.insert(
+            (result.program.id(), msg.id()),
+            msg.into_message(result.program.id()),
+        );
     }
 
     // Messages to be added back to the queue
@@ -330,26 +357,40 @@ where
                 .unwrap_or(0) as u64;
 
             if let Some(m) = messages.pop_front() {
-                let program = storage.program_storage.get(m.dest()).expect("Can't find program");
+                let program = storage
+                    .program_storage
+                    .get(m.dest())
+                    .expect("Can't find program");
                 let code = gear_core::gas::instrument(program.code())
-                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e)).expect("Can't instrument code");
+                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))
+                    .expect("Can't instrument code");
                 let entry = if let Some(_) = m.reply() {
                     EntryPoint::HandleReply
                 } else {
                     EntryPoint::Handle
                 };
+
+                println!("EXECUTE THIS MESSAGE: {:?}", m);
+
                 let message: IncomingMessage = m.into();
 
-                let settings = ExecutionSettings::new(entry, BlockInfo {
-                    height: block_height,
-                    timestamp: block_timestamp,
-                });
+                let settings = ExecutionSettings::new(
+                    entry,
+                    BlockInfo {
+                        height: block_height,
+                        timestamp: block_timestamp,
+                    },
+                );
 
-                let prog = program.clone();
+                let mut result =
+                    CoreRunner::run(&mut env, program, message.clone(), &code, settings);
 
-                let mut result = CoreRunner::run(
-                    &mut env,
-                    prog, message.clone(), &code, settings);
+                println!("{:?}\n", result);
+
+                storage
+                    .program_storage
+                    .set(result.program.clone())
+                    .expect("Can't find program");
 
                 process_wait_list(wait_list, message, &mut result);
 
@@ -377,51 +418,61 @@ where
     } else {
         let mut counter = 0;
         while let Some(m) = messages.pop_front() {
-            let program = storage.program_storage.get(m.dest()).expect("Can't find program");
-                let code = gear_core::gas::instrument(program.code())
-                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e)).expect("Can't instrument code");
+            let program = storage
+                .program_storage
+                .get(m.dest())
+                .expect("Can't find program");
+            let code = gear_core::gas::instrument(program.code())
+                .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))
+                .expect("Can't instrument code");
 
-                let entry = if let Some(_) = m.reply() {
-                    EntryPoint::HandleReply
-                } else {
-                    EntryPoint::Handle
-                };
+            let entry = if let Some(_) = m.reply() {
+                EntryPoint::HandleReply
+            } else {
+                EntryPoint::Handle
+            };
 
-                let message: IncomingMessage = m.into();
+            let message: IncomingMessage = m.into();
 
-                let block_timestamp = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_millis())
-                    .unwrap_or(0) as u64;
+            let block_timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0) as u64;
 
-                let settings = ExecutionSettings::new(entry, BlockInfo {
+            let settings = ExecutionSettings::new(
+                entry,
+                BlockInfo {
                     height: counter,
                     timestamp: block_timestamp,
-                });
+                },
+            );
 
-                counter += 1;
+            counter += 1;
 
-                let mut result = CoreRunner::run(
-                    &mut env,
-                    program, message.clone(), &code, settings);
+            let mut result = CoreRunner::run(&mut env, program, message.clone(), &code, settings);
 
-                process_wait_list(wait_list, message, &mut result);
+            storage
+                .program_storage
+                .set(result.program.clone())
+                .expect("Can't find program");
 
-                for m in result.messages {
-                    if !storage.program_storage.exists(m.dest()) {
-                        log.push(m);
-                    } else {
-                        messages.push_back(m);
-                    }
+            process_wait_list(wait_list, message, &mut result);
+
+            for m in result.messages {
+                if !storage.program_storage.exists(m.dest()) {
+                    log.push(m);
+                } else {
+                    messages.push_back(m);
                 }
+            }
 
-                // let mut final_state = storage.clone().collect();
+            // let mut final_state = storage.clone().collect();
 
-                final_state.messages = messages.clone().into();
+            final_state.messages = messages.clone().into();
 
-                final_state.log = log.clone();
+            final_state.log = log.clone();
 
-                results.push((final_state.clone(), Ok(())));
+            results.push((final_state.clone(), Ok(())));
         }
     }
 

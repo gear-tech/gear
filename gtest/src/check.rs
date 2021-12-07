@@ -31,7 +31,7 @@ use gear_core::{
     storage,
 };
 use rayon::prelude::*;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::{self, ThreadId};
@@ -435,7 +435,13 @@ where
         Ok((mut storage, messages, log)) => {
             let mut wait_list = BTreeMap::<(ProgramId, MessageId), Message>::new();
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = runner::run::<SC>(&mut storage, messages.into(), log, &mut wait_list, last_exp_steps);
+            let results = runner::run::<SC>(
+                &mut storage,
+                messages.into(),
+                log,
+                &mut wait_list,
+                last_exp_steps,
+            );
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {

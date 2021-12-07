@@ -61,6 +61,18 @@ pub struct RunResult {
     pub awakening: Vec<MessageId>,
 }
 
+impl core::fmt::Debug for RunResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RunResult")
+            .field("outcome", &self.outcome)
+            .field("program_executor", &self.program.id())
+            .field("messages", &self.messages)
+            .field("gas_spent", &self.gas_spent)
+            .field("awakening", &self.awakening)
+            .finish()
+    }
+}
+
 impl RunResult {
     pub fn trap_with(trap_explanation: &'static str, program: Program, gas_spent: u64) -> Self {
         Self {
