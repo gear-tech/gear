@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{debug, exec, msg, prelude::*};
+use gstd::{debug, msg, prelude::*};
 
 static mut MESSAGE_LOG: Vec<String> = vec![];
 
@@ -9,7 +9,7 @@ pub unsafe extern "C" fn handle() {
     let new_msg = String::from_utf8(msg::load_bytes()).expect("Invalid message");
 
     if new_msg == "PING" {
-        msg::reply_bytes("PONG", exec::gas_available() - 2_000_000, 0);
+        msg::reply_bytes("PONG", 12_000_000, 0);
     }
 
     MESSAGE_LOG.push(new_msg);

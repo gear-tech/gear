@@ -140,8 +140,6 @@ pub fn init_program(message: InitMessage) -> anyhow::Result<RunResult> {
 
     let prog = program.clone();
 
-    println!("EXECUTE THIS INIT: {:?}", message.message.clone());
-
     let result = CoreRunner::run(
         &mut env,
         prog,
@@ -156,8 +154,6 @@ pub fn init_program(message: InitMessage) -> anyhow::Result<RunResult> {
             },
         ),
     );
-
-    println!("{:?}\n", result);
 
     Ok(result)
 }
@@ -370,8 +366,6 @@ where
                     EntryPoint::Handle
                 };
 
-                println!("EXECUTE THIS MESSAGE: {:?}", m);
-
                 let message: IncomingMessage = m.into();
 
                 let settings = ExecutionSettings::new(
@@ -384,8 +378,6 @@ where
 
                 let mut result =
                     CoreRunner::run(&mut env, program, message.clone(), &code, settings);
-
-                println!("{:?}\n", result);
 
                 storage
                     .program_storage

@@ -7,7 +7,7 @@ static mut DEST_0: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_1: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_2: ActorId = ActorId::new([0u8; 32]);
 
-const GAS_LIMIT: u64 = 500_000_000;
+const GAS_LIMIT: u64 = 50_000_000;
 
 gstd::metadata! {
     title: "demo async",
@@ -38,8 +38,6 @@ pub unsafe extern "C" fn init() {
         &decode_hex(dests[2]).expect("INTIALIZATION FAILED: INVALID PROGRAM ID"),
     )
     .expect("Unable to create ActorId");
-
-    msg::reply(DEST_0, 0, 0);
 }
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
