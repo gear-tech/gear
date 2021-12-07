@@ -25,13 +25,17 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
-    message::{IncomingMessage, Message, MessageContext, MessageId, MessageState},
+    message::{
+        IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator, MessageState,
+    },
     program::{Program, ProgramId},
 };
 
 use crate::configs::{AllocationsConfig, BlockInfo, EntryPoint};
 use crate::ext::Ext;
 use crate::ids::BlakeMessageIdGenerator;
+
+const EXIT_CODE_PANIC: i32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutionOutcome {
@@ -240,8 +244,45 @@ impl CoreRunner {
             let _ = program.set_page(page, &buf);
         }
 
+        // Storing outgoing messages from message state.
+        let mut messages = Vec::new();
+
+        // We don't generate reply on trap, if we already processing trap message
+        let generate_reply_on_trap = if let Some((_, exit_code)) = message.reply() {
+            // reply case. generate if not a trap message
+            exit_code == 0
+        } else {
+            // none-reply case. always generate
+            true
+        };
+
+        let mut nonce = ext.message_context.nonce();
+
+        if outcome.was_trap() && generate_reply_on_trap {
+            let program_id = program.id();
+            let trap_gas = ext.gas_counter.left();
+
+            let mut id_generator = BlakeMessageIdGenerator { program_id, nonce };
+
+            nonce += 1;
+
+            let trap_message_id = id_generator.next();
+
+            let trap_message = Message {
+                id: trap_message_id,
+                source: program_id,
+                dest: message.source(),
+                payload: vec![].into(),
+                gas_limit: trap_gas,
+                value: 0,
+                reply: Some((message.id(), EXIT_CODE_PANIC)),
+            };
+
+            messages.push(trap_message);
+        }
+
         // Updating program's message nonce
-        program.set_message_nonce(ext.message_context.nonce());
+        program.set_message_nonce(nonce);
 
         // Storing messages state
         let MessageState {
@@ -249,9 +290,6 @@ impl CoreRunner {
             reply,
             awakening,
         } = ext.message_context.into_state();
-
-        // Storing outgoing messages from message state.
-        let mut messages = Vec::new();
 
         for outgoing_msg in outgoing {
             messages.push(outgoing_msg.into_message(program.id()));
