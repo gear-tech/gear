@@ -158,11 +158,13 @@ pub fn init_program(message: InitMessage) -> anyhow::Result<RunResult> {
     Ok(result)
 }
 
+pub type Messages = Vec<Message>;
+
 pub fn init_fixture<SC: StorageCarrier>(
     mut storage: Storage<SC::PS>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<(Storage<SC::PS>, Vec<Message>, Vec<Message>)>
+) -> anyhow::Result<(Storage<SC::PS>, Messages, Messages)>
 where
     Storage<SC::PS>: CollectState,
 {
@@ -172,7 +174,7 @@ where
 
     for program in test.programs.iter() {
         let program_path = program.path.clone();
-        let code = std::fs::read(&program_path)?;
+        let program_code = std::fs::read(&program_path)?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
@@ -203,8 +205,8 @@ where
         let program_id = program.id.to_program_id();
 
         let result = init_program(InitMessage {
-            program_id: program_id,
-            program_code: code,
+            program_id,
+            program_code,
             message: IncomingMessage::new(
                 message_id,
                 init_source,
@@ -340,7 +342,7 @@ where
     final_state.messages = messages.clone().into();
     final_state.log = log.clone();
 
-    results.push((final_state.clone(), Ok(())));
+    results.push((final_state, Ok(())));
 
     let mut _result = Ok(());
 
@@ -360,7 +362,7 @@ where
                 let code = gear_core::gas::instrument(program.code())
                     .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))
                     .expect("Can't instrument code");
-                let entry = if let Some(_) = m.reply() {
+                let entry = if m.reply().is_some() {
                     EntryPoint::HandleReply
                 } else {
                     EntryPoint::Handle
@@ -401,11 +403,13 @@ where
                 }
             }
 
+            let mut final_state = storage.clone().collect();
+
             final_state.messages = messages.clone().into();
 
             final_state.log = log.clone();
 
-            results.push((final_state.clone(), Ok(())));
+            results.push((final_state, Ok(())));
         }
     } else {
         let mut counter = 0;
@@ -418,7 +422,7 @@ where
                 .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))
                 .expect("Can't instrument code");
 
-            let entry = if let Some(_) = m.reply() {
+            let entry = if m.reply().is_some() {
                 EntryPoint::HandleReply
             } else {
                 EntryPoint::Handle
@@ -458,13 +462,13 @@ where
                 }
             }
 
-            // let mut final_state = storage.clone().collect();
+            let mut final_state = storage.clone().collect();
 
             final_state.messages = messages.clone().into();
 
             final_state.log = log.clone();
 
-            results.push((final_state.clone(), Ok(())));
+            results.push((final_state, Ok(())));
         }
     }
 
