@@ -18,25 +18,55 @@
 
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
-use gear_backend_common::Environment;
 use gear_core::storage::ProgramStorage;
 use gear_core::{
-    message::Message,
+    message::{Message, IncomingMessage, MessageId},
     program::{Program, ProgramId},
     storage::{InMemoryStorage, Storage, StorageCarrier},
 };
-use gear_core_runner::{Config, ExecutionOutcome, ExtMessage, InitializeProgramInfo, Runner};
-use gear_node_runner::{Ext, ExtStorage};
+use core_runner::{ExecutionOutcome, CoreRunner, RunResult, AllocationsConfig, Ext, ExecutionSettings, BlockInfo, EntryPoint};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::collections::VecDeque;
 use std::fmt::Write;
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::BTreeMap;
 
 use regex::Regex;
 
-type WasmRunner<SC> = Runner<SC, gear_backend_wasmtime::WasmtimeEnvironment<Ext>>;
+pub trait CollectState {
+    fn collect(self) -> FinalState;
+}
+
+impl CollectState for InMemoryStorage {
+    fn collect(self) -> FinalState {
+        FinalState {
+            log: vec![],
+            messages: Vec::new(),
+            program_storage: self.program_storage.into(),
+        }
+    }
+}
+
+impl CollectState for gear_node_runner::ExtStorage {
+    fn collect(self) -> FinalState {
+        let program_storage = self.program_storage;
+
+        let mut messages = Vec::new();
+        let mut message_queue =
+            common::storage_queue::StorageQueue::get(common::STORAGE_MESSAGE_PREFIX);
+        while let Some(message) = message_queue.dequeue() {
+            messages.push(message);
+        }
+
+        FinalState {
+            log: vec![],
+            messages,
+            program_storage: program_storage.iter().collect(),
+        }
+    }
+}
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
@@ -85,57 +115,51 @@ fn parse_payload(payload: String) -> String {
 
 const SOME_FIXED_USER: u64 = 1000001;
 
-pub trait CollectState {
-    fn collect(self) -> FinalState;
+pub struct InitMessage {
+    pub program_id: ProgramId,
+    pub program_code: Vec<u8>,
+    pub message: IncomingMessage,
 }
 
-impl CollectState for InMemoryStorage {
-    fn collect(self) -> FinalState {
-        FinalState {
-            log: vec![],
-            messages: Vec::new(),
-            program_storage: self.program_storage.into(),
-        }
+pub fn init_program(message: InitMessage) -> anyhow::Result<RunResult> {
+    let program = Program::new(message.program_id, message.program_code, Default::default())?;
+
+    if program.static_pages() >  AllocationsConfig::new().max_pages.raw() {
+        return Err(anyhow::anyhow!(
+            "Error initialisation: memory limit exceeded"
+        ));
     }
+
+    let mut env = gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::new();
+
+    let code = program.code();
+
+    let prog = program.clone();
+
+    let result = CoreRunner::run(
+        &mut env,
+        prog,
+        message.message,
+        &gear_core::gas::instrument(code)
+                .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))?,
+        ExecutionSettings::new(EntryPoint::Init, BlockInfo {
+            height: 0,
+            timestamp: 0,
+        })
+    );
+
+    Ok(result)
 }
 
-impl CollectState for ExtStorage {
-    fn collect(self) -> FinalState {
-        let program_storage = self.program_storage;
-
-        let mut messages = Vec::new();
-        let mut message_queue =
-            common::storage_queue::StorageQueue::get(common::STORAGE_MESSAGE_PREFIX);
-        while let Some(message) = message_queue.dequeue() {
-            messages.push(message);
-        }
-
-        FinalState {
-            log: vec![],
-            messages,
-            program_storage: program_storage.iter().collect(),
-        }
-    }
-}
-
-/// Initializes programs defined in `test.programs` and queues all the messages from `test.fixtures[fixture_no]`.
-///
-/// Program initialization and queueing messages is performed by [`Runner`],
-/// which uses `storage` as a storage manager. This storage is actually returned to the function caller to be later used to run queued messages.
 pub fn init_fixture<SC: StorageCarrier>(
-    storage: Storage<SC::PS>,
+    mut storage: Storage<SC::PS>,
     test: &Test,
     fixture_no: usize,
-) -> anyhow::Result<(WasmRunner<SC>, Vec<Message>, Vec<Message>)> {
-    let mut runner = Runner::new(
-        &Config::default(),
-        storage,
-        Default::default(),
-        gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::default(),
-    );
+) -> anyhow::Result<(Storage<SC::PS>, Vec<Message>, Vec<Message>)> {
     let mut messages = Vec::new();
     let mut log = vec![];
     let mut nonce = 0;
+
     for program in test.programs.iter() {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path)?;
@@ -167,39 +191,28 @@ pub fn init_fixture<SC: StorageCarrier>(
 
         let message_id = nonce.into();
         let program_id = program.id.to_program_id();
-        let result = runner.init_program(InitializeProgramInfo {
-            new_program_id: program_id,
-            source_id: init_source,
-            code,
-            message: ExtMessage {
-                id: message_id,
-                payload: init_message,
-                gas_limit: program.init_gas_limit.unwrap_or(u64::MAX),
-                value: program.init_value.unwrap_or(0) as _,
-            },
+
+        let result = init_program(InitMessage {
+            program_id: program_id,
+            program_code: code,
+            message: IncomingMessage::new(message_id, init_source, init_message.into(), program.init_gas_limit.unwrap_or(u64::MAX), program.init_value.unwrap_or(0) as u128),
         })?;
 
-        if let ExecutionOutcome::Trap(explanation) = result.outcome {
-            return Err(anyhow::anyhow!("Trap during `init`: {:?}", explanation));
+        let _ = storage.program_storage.set(result.program);
+
+        if result.outcome.was_trap() {
+            if let ExecutionOutcome::Trap(explanation) = result.outcome {
+                return Err(anyhow::anyhow!("Trap during `init`: {:?}", explanation));
+            }
         }
 
-        let storage: Storage<SC::PS> = runner.storage();
         result.messages.into_iter().for_each(|m| {
-            let m = m.into_message(program_id);
             if !storage.program_storage.exists(m.dest()) {
                 log.push(m);
             } else {
                 messages.push(m);
             }
         });
-
-        if let Some(m) = result.reply {
-            if !storage.program_storage.exists(init_source) {
-                log.push(m.into_message(message_id, program_id, init_source));
-            } else {
-                messages.push(m.into_message(message_id, program_id, init_source));
-            }
-        }
 
         nonce += 1;
     }
@@ -256,7 +269,7 @@ pub fn init_fixture<SC: StorageCarrier>(
         nonce += 1;
     }
 
-    Ok((runner, messages, log))
+    Ok((storage, messages, log))
 }
 
 #[derive(Clone, Debug)]
@@ -266,82 +279,149 @@ pub struct FinalState {
     pub program_storage: Vec<Program>,
 }
 
-/// Runs queued messages using `runner`.
-///
-/// Param `steps` is needed to control an amount of message processes. This is actually needed
-/// to check the interim state during tests. For example, a user could want to check the state
-/// after processing 2 out of 10 messages in the message queue.
-///
-/// If `steps` is `None`, then all the messages in the queue will be processed.
-pub fn run<SC: StorageCarrier, E: Environment<Ext>>(
-    mut runner: Runner<SC, E>,
-    mut messages: VecDeque<Message>,
-    mut log: Vec<Message>,
+pub fn process_wait_list(wait_list: &mut BTreeMap<(ProgramId, MessageId), Message>, msg: IncomingMessage, result: &mut RunResult) {
+    if result.outcome.wait_interrupt() {
+        wait_list.insert((result.program.id(), msg.id()), msg.into_message(result.program.id()));
+    }
+
+    // Messages to be added back to the queue
+    let msgs: Vec<_> = result
+        .awakening
+        .iter()
+        .filter_map(|msg_id| wait_list.remove(&(result.program.id(), *msg_id)))
+        .collect();
+
+    for msg in msgs {
+        result.messages.push(msg);
+    }
+}
+
+pub fn run<SC: StorageCarrier>(
+    storage: &mut Storage<SC::PS>,
+    messages: VecDeque<Message>,
+    log: Vec<Message>,
+    wait_list: &mut BTreeMap<(ProgramId, MessageId), Message>,
     steps: Option<usize>,
 ) -> Vec<(FinalState, anyhow::Result<()>)>
 where
     Storage<SC::PS>: CollectState,
 {
+    let mut env = gear_backend_wasmtime::WasmtimeEnvironment::<Ext>::new();
     let mut results = Vec::new();
 
-    let storage = runner.storage();
+    let mut messages = messages;
+    let mut log = log;
 
-    let mut final_state = storage.collect();
+    let mut final_state = storage.clone().collect();
 
     final_state.messages = messages.clone().into();
-
     final_state.log = log.clone();
-    results.push((final_state, Ok(())));
+
+    results.push((final_state.clone(), Ok(())));
+
     let mut _result = Ok(());
+
     if let Some(steps) = steps {
         for step_no in 0..steps {
-            runner.set_block_height(step_no as _);
-            let timestamp = SystemTime::now()
+            let block_height = step_no as u32;
+            let block_timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
-                .unwrap_or(0);
-            runner.set_block_timestamp(timestamp as _);
+                .unwrap_or(0) as u64;
 
             if let Some(m) = messages.pop_front() {
-                let mut run_result = runner.run_next(m);
-                runner.process_wait_list(&mut run_result);
+                let program = storage.program_storage.get(m.dest()).expect("Can't find program");
+                let code = gear_core::gas::instrument(program.code())
+                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e)).expect("Can't instrument code");
+                let entry = if let Some(_) = m.reply() {
+                    EntryPoint::HandleReply
+                } else {
+                    EntryPoint::Handle
+                };
+                let message: IncomingMessage = m.into();
+
+                let settings = ExecutionSettings::new(entry, BlockInfo {
+                    height: block_height,
+                    timestamp: block_timestamp,
+                });
+
+                let prog = program.clone();
+
+                let mut result = CoreRunner::run(
+                    &mut env,
+                    prog, message.clone(), &code, settings);
+
+                process_wait_list(wait_list, message, &mut result);
 
                 log::debug!("step: {}", step_no + 1);
 
-                if run_result.any_traps() && step_no + 1 == steps {
+                if result.outcome.was_trap() && step_no + 1 == steps {
                     _result = Err(anyhow::anyhow!("Runner resulted in a trap"));
                 }
 
-                messages.append(&mut run_result.messages.into());
-                log.append(&mut run_result.log);
+                for m in result.messages {
+                    if !storage.program_storage.exists(m.dest()) {
+                        log.push(m);
+                    } else {
+                        messages.push_back(m);
+                    }
+                }
             }
 
-            let storage = runner.storage();
-
-            let mut final_state = storage.collect();
-
             final_state.messages = messages.clone().into();
 
             final_state.log = log.clone();
 
-            results.push((final_state, Ok(())));
+            results.push((final_state.clone(), Ok(())));
         }
     } else {
+        let mut counter = 0;
         while let Some(m) = messages.pop_front() {
-            let mut run_result = runner.run_next(m);
-            runner.process_wait_list(&mut run_result);
+            let program = storage.program_storage.get(m.dest()).expect("Can't find program");
+                let code = gear_core::gas::instrument(program.code())
+                    .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e)).expect("Can't instrument code");
 
-            messages.append(&mut run_result.messages.into());
-            log.append(&mut run_result.log);
+                let entry = if let Some(_) = m.reply() {
+                    EntryPoint::HandleReply
+                } else {
+                    EntryPoint::Handle
+                };
 
-            let storage = runner.storage();
+                let message: IncomingMessage = m.into();
 
-            let mut final_state = storage.collect();
-            final_state.messages = messages.clone().into();
+                let block_timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0) as u64;
 
-            final_state.log = log.clone();
+                let settings = ExecutionSettings::new(entry, BlockInfo {
+                    height: counter,
+                    timestamp: block_timestamp,
+                });
 
-            results.push((final_state, Ok(())));
+                counter += 1;
+
+                let mut result = CoreRunner::run(
+                    &mut env,
+                    program, message.clone(), &code, settings);
+
+                process_wait_list(wait_list, message, &mut result);
+
+                for m in result.messages {
+                    if !storage.program_storage.exists(m.dest()) {
+                        log.push(m);
+                    } else {
+                        messages.push_back(m);
+                    }
+                }
+
+                // let mut final_state = storage.clone().collect();
+
+                final_state.messages = messages.clone().into();
+
+                final_state.log = log.clone();
+
+                results.push((final_state.clone(), Ok(())));
         }
     }
 
