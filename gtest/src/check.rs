@@ -26,12 +26,12 @@ use env_logger::filter::{Builder, Filter};
 use gear_core::storage::Storage;
 use gear_core::{
     memory::PAGE_SIZE,
-    message::Message,
+    message::{Message, MessageId},
     program::{Program, ProgramId},
     storage,
 };
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::{self, ThreadId};
@@ -418,7 +418,7 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 
 #[allow(clippy::too_many_arguments)]
 fn run_fixture<SC>(
-    storage: Storage<<SC as storage::StorageCarrier>::PS>,
+    storage: Storage<SC::PS>,
     test: &Test,
     fixture_no: usize,
     progs_n_paths: &[(&str, ProgramId)],
@@ -432,9 +432,10 @@ where
     storage::Storage<SC::PS>: CollectState,
 {
     match runner::init_fixture::<SC>(storage, test, fixture_no) {
-        Ok((runner, messages, log)) => {
+        Ok((mut storage, messages, log)) => {
+            let mut wait_list = BTreeMap::<(ProgramId, MessageId), Message>::new();
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = runner::run(runner, messages.into(), log, last_exp_steps);
+            let results = runner::run::<SC>(&mut storage, messages.into(), log, &mut wait_list, last_exp_steps);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {
