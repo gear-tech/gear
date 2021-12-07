@@ -902,6 +902,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
+name = "core-processor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gear-core",
+ "log",
+ "wabt",
+]
+
+[[package]]
 name = "cpp_demangle"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
