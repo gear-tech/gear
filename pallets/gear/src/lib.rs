@@ -106,6 +106,8 @@ pub mod pallet {
         AddedToWaitList(common::Message),
         /// A message has been removed from the wait list
         RemovedFromWaitList(H256),
+        /// Program code with a calculated code hash is saved to the storage
+        CodeSaved(H256),
     }
 
     // Gear pallet error.
@@ -135,6 +137,10 @@ pub mod pallet {
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
         NoMessageTree,
+        /// Code already exists
+        ///
+        /// Occurs when trying to save to storage a program code, that has been saved there.
+        CodeAlreadyExists,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -627,6 +633,42 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        // todo [sab]
+        // todo 1) if call fails, will the fee be taken (to check if user has spending on the same call. Maybe better in case code in storage to emit event too).
+        // todo 2) code get/set used consistently (code not set twice)
+        // todo discuss: 3) storage with ttl (or down the storage or change submit model) - state an idea in issue, 4) externalities
+        /// Saves program `code` in storage.
+        ///
+        /// The extrinsic was created to provide _deploy program from program_ functionality.
+        /// Anyone who wants to define a "factory" logic in program should first store the code for the "child"
+        /// program in storage.
+        ///
+        /// More precisely, code hash is actually saved in the storage. The code hash is computed as Blake256
+        /// hash. At the time of the call the `code` hash should not be in the storage. If it was stored previously,
+        /// call will end up with an `CodeAlreadyExists` error. In this case user can be sure, that he can
+        /// actually use the hash of his program's code bytes to define "program factory" logic in his program.
+        ///
+        /// Emits the following events:
+        /// - `SavedCode(H256)` - when the code is saved in storage.
+        #[pallet::weight(
+            <T as Config>::WeightInfo::submit_code(code.len() as u32)
+        )]
+        pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+            ensure_signed(origin)?; // todo do we really need it?
+
+            let code_hash = sp_io::hashing::blake2_256(&code).into();
+
+            ensure!(
+                !common::code_exists(code_hash),
+                Error::<T>::CodeAlreadyExists
+            );
+            common::set_code(code_hash, &code);
+
+            Self::deposit_event(Event::CodeSaved(code_hash));
+
+            Ok(().into())
+        }
+
         /// Create a `Program` from wasm code and runs its init function.
         ///
         /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
@@ -681,6 +723,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             let mut data = Vec::new();
+            // TODO #512
             code.encode_to(&mut data);
             salt.encode_to(&mut data);
 

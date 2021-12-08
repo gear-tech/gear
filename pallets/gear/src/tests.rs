@@ -1583,6 +1583,7 @@ fn claim_value_from_mailbox_works() {
 }
 
 pub fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
+    // TODO #512
     let mut data = Vec::new();
     code.encode_to(&mut data);
     salt.encode_to(&mut data);
@@ -1649,4 +1650,48 @@ fn distributor_distribute() {
 
         assert_eq!(balance_initial, final_balance);
     });
+}
+
+#[test]
+fn code_submission_works() {
+    let wat = r#"
+    (module
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let code_hash = Pallet::<Test>::compute_code_hash(&code);
+
+        assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
+
+        let saved_code = common::get_code(code_hash);
+        assert_eq!(saved_code, Some(code));
+
+        System::assert_last_event(crate::Event::CodeSaved(code_hash).into());
+    })
+}
+
+#[test]
+fn same_code_submission_fails() {
+    let wat = r#"
+    (module
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+
+        assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()),);
+        // Trying to set the same code twice.
+        assert_noop!(
+            Pallet::<Test>::submit_code(Origin::signed(1), code.clone()),
+            Error::<Test>::CodeAlreadyExists,
+        );
+        // Trying the same from another origin
+        assert_noop!(
+            Pallet::<Test>::submit_code(Origin::signed(2), code.clone()),
+            Error::<Test>::CodeAlreadyExists,
+        );
+    })
 }

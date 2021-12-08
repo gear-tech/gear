@@ -326,6 +326,11 @@ pub fn remove_waiting_message(prog_id: H256, msg_id: H256) -> Option<(Message, u
     msg
 }
 
+pub fn code_exists(code_hash: H256) -> bool {
+    let (code_key, _) = code_key(code_hash);
+    sp_io::storage::exists(&code_key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
