@@ -322,7 +322,7 @@ pub fn process_wait_list(
 }
 
 pub fn run<SC: StorageCarrier>(
-    storage: &mut Storage<SC::PS>,
+    mut storage: Storage<SC::PS>,
     messages: VecDeque<Message>,
     log: Vec<Message>,
     wait_list: &mut BTreeMap<(ProgramId, MessageId), Message>,
@@ -359,9 +359,11 @@ where
                     .program_storage
                     .get(m.dest())
                     .expect("Can't find program");
+
                 let code = gear_core::gas::instrument(program.code())
                     .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))
                     .expect("Can't instrument code");
+
                 let entry = if m.reply().is_some() {
                     EntryPoint::HandleReply
                 } else {
@@ -381,11 +383,7 @@ where
                 let mut result =
                     CoreRunner::run(&mut env, program, message.clone(), &code, settings);
 
-                if let Some(_) = storage
-                    .program_storage
-                    .set(result.program.clone()) {
-                        panic!("Program set twice")
-                    };
+                let _ = storage.program_storage.set(result.program.clone());
 
                 process_wait_list(wait_list, message, &mut result);
 
@@ -419,6 +417,7 @@ where
                 .program_storage
                 .get(m.dest())
                 .expect("Can't find program");
+
             let code = gear_core::gas::instrument(program.code())
                 .map_err(|e| anyhow::anyhow!("Error instrumenting: {:?}", e))
                 .expect("Can't instrument code");
@@ -448,11 +447,7 @@ where
 
             let mut result = CoreRunner::run(&mut env, program, message.clone(), &code, settings);
 
-            if let Some(_) = storage
-                .program_storage
-                .set(result.program.clone()) {
-                    panic!("Program set twice")
-                };
+            let _ = storage.program_storage.set(result.program.clone());
 
             process_wait_list(wait_list, message, &mut result);
 
