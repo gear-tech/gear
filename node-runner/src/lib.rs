@@ -22,7 +22,7 @@ pub mod ext;
 
 use alloc::collections::VecDeque;
 use codec::{Decode, Encode};
-use sp_core::H256;
+use primitive_types::H256;
 
 use gear_core::{
     message::{Message, MessageId},

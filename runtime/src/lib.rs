@@ -35,7 +35,7 @@ use sp_runtime::traits::{
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
     transaction_validity::{TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, MultiSignature,
+    ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -58,11 +58,10 @@ use pallet_transaction_payment::CurrencyAdapter;
 use primitive_types::H256;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use sp_runtime::{Perbill, Percent, Permill};
 
-pub use pallet_gear;
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
+pub use {pallet_gear, pallet_usage};
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -330,15 +329,26 @@ impl pallet_utility::Config for Runtime {
     type WeightInfo = ();
 }
 
+pub struct GasConverter;
+impl gear_common::GasToFeeConverter for GasConverter {
+    type Balance = Balance;
+}
+
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
-    pub const OCWInterval: u32 = 10;
+    pub const WaitListTraversalInterval: u32 = 10;
+    pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
     pub const MaxBatchSize: u32 = 100;
+    pub const TrapReplyExistentialGasLimit: u64 = 6000;
+    pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
+    pub const WaitListFeePerBlock: u64 = 1000;
 }
+
 impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
+    type GasConverter = GasConverter;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type BlockGasLimit = BlockGasLimit;
     #[cfg(feature = "debug-mode")]
@@ -349,6 +359,20 @@ impl pallet_gear::Config for Runtime {
 impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
+}
+
+impl pallet_usage::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type GasConverter = GasConverter;
+    type PaymentProvider = Gear;
+    type WeightInfo = pallet_usage::weights::GearSupportWeight<Runtime>;
+    type WaitListTraversalInterval = WaitListTraversalInterval;
+    type ExpirationDuration = ExpirationDuration;
+    type MaxBatchSize = MaxBatchSize;
+    type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
+    type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -378,6 +402,7 @@ construct_runtime!(
         Utility: pallet_utility::{Pallet, Call, Storage, Event},
         Authorship: pallet_authorship::{Pallet, Storage},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
@@ -402,6 +427,7 @@ construct_runtime!(
         Utility: pallet_utility::{Pallet, Call, Storage, Event},
         Authorship: pallet_authorship::{Pallet, Storage},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
     }
 );
 

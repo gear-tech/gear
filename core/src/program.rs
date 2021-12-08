@@ -59,6 +59,12 @@ impl From<u64> for ProgramId {
     }
 }
 
+impl From<&[u8]> for ProgramId {
+    fn from(s: &[u8]) -> Self {
+        Self::from_slice(s)
+    }
+}
+
 impl ProgramId {
     /// Create new program id from bytes.
     ///

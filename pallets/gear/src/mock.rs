@@ -109,15 +109,19 @@ impl system::Config for Test {
     type OnSetCode = ();
 }
 
+pub struct GasConverter;
+impl common::GasToFeeConverter for GasConverter {
+    type Balance = u128;
+}
+
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000;
-    pub const OCWInterval: u32 = 5;
-    pub const MaxBatchSize: u32 = 10;
 }
 
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
+    type GasConverter = GasConverter;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
 }

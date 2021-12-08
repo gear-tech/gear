@@ -1,5 +1,5 @@
 [package]
-name = "pallet-gear"
+name = "pallet-usage"
 version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2018'
@@ -21,9 +21,7 @@ primitive-types = { version = "0.10.1", default-features = false, features = ["s
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-runner = { package = "gear-node-runner", path = "../../node-runner", default-features = false }
-gear-backend-sandbox = { path = "../../core-backend/sandbox" }
-pallet-gear-debug = { package = "pallet-gear-debug", path = "../gear-debug", default-features = false, optional = true }
+runner = { package = "gear-core-runner", path = "../../core-runner", default-features = false }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -34,18 +32,18 @@ sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/subs
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-arithmetic = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
+parking_lot = "0.11.0"
 serde = "1.0.101"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-hex-literal = "0.3.4"
-tests-distributor = { path = "../../tests/distributor" }
+pallet-gear = { path = "../gear" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+hex-literal = "0.3.3"
 
 [features]
 default = ['std']
@@ -53,7 +51,6 @@ std = [
 	"codec/std",
 	"log/std",
 	"common/std",
-	"runner/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -71,7 +68,4 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
-]
-debug-mode = [
-	"pallet-gear-debug"
 ]
