@@ -2081,11 +2081,12 @@ dependencies = [
 name = "gear-node-runner"
 version = "0.1.0"
 dependencies = [
+ "core-runner",
  "frame-system",
  "gear-backend-common",
+ "gear-backend-sandbox",
  "gear-common",
  "gear-core",
- "gear-core-runner",
  "gear-runtime",
  "log",
  "parity-scale-codec",

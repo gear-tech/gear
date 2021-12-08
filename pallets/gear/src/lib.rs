@@ -243,12 +243,12 @@ pub mod pallet {
         }
 
         pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
-            runner::gas_spent::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
-                destination,
-                payload,
-                0,
-            )
-            .ok()
+            let block_info = BlockInfo {
+                height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+                timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+            };
+
+            runner::gas_spent(destination, payload, block_info).ok()
         }
 
         /// Returns true if a program resulted in an error during initialization
@@ -310,18 +310,17 @@ pub mod pallet {
                             gas_limit,
                         );
 
-                        match runner::init_program::<
-                            gear_backend_sandbox::SandboxEnvironment<runner::Ext>,
-                        >(
-                            origin,
-                            program_id,
-                            code.to_vec(),
-                            init_message_id,
-                            payload.to_vec(),
+                        let init_message = common::Message {
+                            id: init_message_id,
+                            source: origin,
+                            dest: program_id,
+                            payload: payload.to_vec(),
                             gas_limit,
                             value,
-                            block_info,
-                        ) {
+                            reply: None,
+                        };
+
+                        match runner::init_program(code.to_vec(), init_message, block_info) {
                             Err(_) => {
                                 // `init_program` in Runner can only return Err(_) in two cases:
                                 // - failure to write program to Program Storage
@@ -364,30 +363,27 @@ pub mod pallet {
                                 total_handled += 1;
 
                                 // handle gas charge
-                                for (_, gas_charge) in execution_report.gas_charges {
-                                    // Adjust block gas allowance
-                                    GasAllowance::<T>::mutate(|x| {
-                                        *x = x.saturating_sub(gas_charge)
-                                    });
+                                let (_, gas_charge) = execution_report.gas_charge;
+                                // Adjust block gas allowance
+                                GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
 
-                                    // TODO: weight to fee calculator might not be identity fee
-                                    let charge = T::GasConverter::gas_to_fee(gas_charge);
+                                // TODO: weight to fee calculator might not be identity fee
+                                let charge = T::GasConverter::gas_to_fee(gas_charge);
 
-                                    gas_tree.spend(gas_charge);
-                                    if let Err(e) = T::Currency::transfer(
-                                        &<T::AccountId as Origin>::from_origin(origin),
-                                        &Authorship::<T>::author(),
-                                        charge,
-                                        ExistenceRequirement::AllowDeath,
-                                    ) {
-                                        // should not be possible since there should've been reserved enough for
-                                        // the transfer
-                                        // TODO: audit this
-                                        log::warn!(
-                                            "Could not transfer enough gas to block producer: {:?}",
-                                            e
-                                        );
-                                    }
+                                gas_tree.spend(gas_charge);
+                                if let Err(e) = T::Currency::transfer(
+                                    &<T::AccountId as Origin>::from_origin(origin),
+                                    &Authorship::<T>::author(),
+                                    charge,
+                                    ExistenceRequirement::AllowDeath,
+                                ) {
+                                    // should not be possible since there should've been reserved enough for
+                                    // the transfer
+                                    // TODO: audit this
+                                    log::warn!(
+                                        "Could not transfer enough gas to block producer: {:?}",
+                                        e
+                                    );
                                 }
 
                                 for message in execution_report.log {
@@ -404,11 +400,9 @@ pub mod pallet {
                                 // Now, find out if the init message processing outcome is actually an error
                                 let mut is_err = false;
                                 let mut reason = Reason::Error;
-                                for (_, exec_outcome) in execution_report.outcomes {
-                                    if let Err(v) = exec_outcome {
-                                        is_err = true;
-                                        reason = Reason::Dispatch(v);
-                                    }
+                                if let Err(v) = execution_report.outcome {
+                                    is_err = true;
+                                    reason = Reason::Dispatch(v);
                                 }
 
                                 if is_err
@@ -512,29 +506,26 @@ pub mod pallet {
                         }
                     };
 
-                match runner::process::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
-                    message, block_info,
-                ) {
+                match runner::process(message.clone(), block_info) {
                     Ok(execution_report) => {
                         total_handled += 1;
 
                         let origin = gas_tree.origin();
 
-                        for (_, gas_charge) in execution_report.gas_charges {
-                            gas_tree.spend(gas_charge);
+                        let (_, gas_charge) = execution_report.gas_charge;
+                        gas_tree.spend(gas_charge);
 
-                            let charge = T::GasConverter::gas_to_fee(gas_charge);
+                        let charge = T::GasConverter::gas_to_fee(gas_charge);
 
-                            let _ = T::Currency::repatriate_reserved(
-                                &<T::AccountId as Origin>::from_origin(origin),
-                                &Authorship::<T>::author(),
-                                charge,
-                                BalanceStatus::Free,
-                            );
+                        let _ = T::Currency::repatriate_reserved(
+                            &<T::AccountId as Origin>::from_origin(origin),
+                            &Authorship::<T>::author(),
+                            charge,
+                            BalanceStatus::Free,
+                        );
 
-                            // Decrease block gas allowance
-                            GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
-                        }
+                        // Decrease block gas allowance
+                        GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
 
                         for message in execution_report.log {
                             Self::insert_to_mailbox(message.dest, message.clone());
@@ -550,12 +541,12 @@ pub mod pallet {
                         }
 
                         let mut waited = false;
-                        for msg in execution_report.wait_list {
-                            Self::deposit_event(Event::AddedToWaitList(msg.clone()));
+                        if execution_report.wait_interrupt {
+                            Self::deposit_event(Event::AddedToWaitList(message.clone()));
                             common::insert_waiting_message(
-                                msg.dest,
-                                msg.id,
-                                msg,
+                                message.dest,
+                                message.id,
+                                message.clone(),
                                 block_info.height,
                             );
                             waited = true;
@@ -578,7 +569,7 @@ pub mod pallet {
 
                         for msg_id in execution_report.awakening {
                             if let Some((msg, _)) =
-                                common::remove_waiting_message(execution_report.program_id, msg_id)
+                                common::remove_waiting_message(message.dest, msg_id)
                             {
                                 common::queue_message(msg);
                                 Self::deposit_event(Event::RemovedFromWaitList(msg_id));
@@ -587,15 +578,13 @@ pub mod pallet {
                             }
                         }
 
-                        for (message_id, outcome) in execution_report.outcomes {
-                            Self::deposit_event(Event::MessageDispatched(DispatchOutcome {
-                                message_id,
-                                outcome: match outcome {
-                                    Ok(_) => ExecutionResult::Success,
-                                    Err(v) => ExecutionResult::Failure(v),
-                                },
-                            }));
-                        }
+                        Self::deposit_event(Event::MessageDispatched(DispatchOutcome {
+                            message_id: message.id,
+                            outcome: match execution_report.outcome {
+                                Ok(_) => ExecutionResult::Success,
+                                Err(v) => ExecutionResult::Failure(v),
+                            },
+                        }));
                     }
                     Err(e) => {
                         log::warn!(
