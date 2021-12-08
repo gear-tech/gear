@@ -36,7 +36,7 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
-parking_lot = "0.11.0"
+parking_lot = "0.11.2"
 serde = "1.0.101"
 env_logger = "0.9"
 wabt = "0.10"
