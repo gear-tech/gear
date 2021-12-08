@@ -68,6 +68,8 @@ pub fn set_program(program: gear_core::program::Program) {
 
     let code_hash: H256 = sp_io::hashing::blake2_256(program.code()).into();
 
+    gear_common::set_code(code_hash, program.code());
+
     let program = gear_common::Program {
         static_pages: program.static_pages(),
         nonce: program.message_nonce(),
@@ -90,7 +92,10 @@ pub fn process(
         EntryPoint::Handle
     };
 
-    let program = get_program(message.dest)?;
+    let program = match get_program(message.dest) {
+        Ok(a) => a,
+        _ => panic!("ASD"),
+    };
 
     let program_code = gear_core::gas::instrument(program.code()).map_err(|_| Error::Runner)?;
 

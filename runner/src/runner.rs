@@ -20,7 +20,7 @@ use alloc::collections::BTreeSet;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use gear_backend_common::{funcs::EXIT_TRAP_STR, Environment};
+use gear_backend_common::Environment;
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasCounter},
@@ -39,21 +39,21 @@ const EXIT_CODE_PANIC: i32 = 1;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExecutionOutcome {
-    Done,
-    Trap(&'static str),
+    Done { wait: bool },
+    Trap(Option<&'static str>),
 }
 
 impl ExecutionOutcome {
     pub fn was_trap(&self) -> bool {
         if let Self::Trap(_) = *self {
-            return !self.wait_interrupt();
+            return true;
         }
 
         false
     }
 
     pub fn wait_interrupt(&self) -> bool {
-        *self == Self::Trap(EXIT_TRAP_STR)
+        *self == Self::Done { wait: true }
     }
 }
 
@@ -80,7 +80,7 @@ impl core::fmt::Debug for RunResult {
 impl RunResult {
     pub fn trap_with(trap_explanation: &'static str, program: Program, gas_spent: u64) -> Self {
         Self {
-            outcome: ExecutionOutcome::Trap(trap_explanation),
+            outcome: ExecutionOutcome::Trap(Some(trap_explanation)),
             program,
             gas_spent,
             messages: Vec::new(),
@@ -228,13 +228,17 @@ impl CoreRunner {
 
         // Parsing outcome.
         let outcome = if let Err(e) = res {
-            let explanation = ext.error_explanation.take().unwrap_or("N/A");
-            log::debug!("Trap during execution: {}, explanation: {}", e, explanation);
+            let explanation = ext.error_explanation.take();
+            log::debug!(
+                "Trap during execution: {}, explanation: {}",
+                e,
+                explanation.unwrap_or("None")
+            );
             ExecutionOutcome::Trap(explanation)
         } else if ext.waited {
-            ExecutionOutcome::Trap(EXIT_TRAP_STR)
+            ExecutionOutcome::Done { wait: true }
         } else {
-            ExecutionOutcome::Done
+            ExecutionOutcome::Done { wait: false }
         };
 
         // Updating program memory
