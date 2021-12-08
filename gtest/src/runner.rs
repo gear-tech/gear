@@ -381,10 +381,11 @@ where
                 let mut result =
                     CoreRunner::run(&mut env, program, message.clone(), &code, settings);
 
-                storage
+                if let Some(_) = storage
                     .program_storage
-                    .set(result.program.clone())
-                    .expect("Can't set program");
+                    .set(result.program.clone()) {
+                        panic!("Program set twice")
+                    };
 
                 process_wait_list(wait_list, message, &mut result);
 
@@ -447,10 +448,11 @@ where
 
             let mut result = CoreRunner::run(&mut env, program, message.clone(), &code, settings);
 
-            storage
+            if let Some(_) = storage
                 .program_storage
-                .set(result.program.clone())
-                .expect("Can't find program");
+                .set(result.program.clone()) {
+                    panic!("Program set twice")
+                };
 
             process_wait_list(wait_list, message, &mut result);
 
