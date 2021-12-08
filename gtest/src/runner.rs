@@ -384,7 +384,7 @@ where
                 storage
                     .program_storage
                     .set(result.program.clone())
-                    .expect("Can't find program");
+                    .expect("Can't set program");
 
                 process_wait_list(wait_list, message, &mut result);
 

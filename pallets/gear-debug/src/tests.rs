@@ -25,7 +25,7 @@ use sp_core::H256;
 
 type Ext = gear_backend_sandbox::SandboxEnvironment<runner::Ext>;
 
-fn init_logger() {
+pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
         .format_level(true)
@@ -70,19 +70,23 @@ fn debug_mode_works() {
         let code_1 = parse_wat(wat_1);
         let code_2 = parse_wat(wat_2);
 
+        let init_message_1 = common::Message {
+            id: 201.into_origin(),
+            source: 1.into_origin(),
+            dest: 101.into_origin(),
+            payload: vec![],
+            gas_limit: 1_000_000_u64,
+            value: 0_u128,
+            reply: None,
+        };
+
         // Enable debug-mode
         DebugMode::<Test>::put(true);
 
         // Submit programs
-        // TODO #524
-        assert_ok!(runner::init_program::<Ext>(
-            1.into_origin(),
-            101.into_origin(),
+        assert_ok!(runner::init_program(
             code_1.to_vec(),
-            201.into_origin(),
-            vec![],
-            1_000_000_u64,
-            0_u128,
+            init_message_1,
             BlockInfo {
                 height: 1_u32,
                 timestamp: 1_000_000_000_u64,
@@ -105,15 +109,19 @@ fn debug_mode_works() {
             .into(),
         );
 
-        // TODO #524
-        assert_ok!(runner::init_program::<Ext>(
-            1.into_origin(),
-            102.into_origin(),
+        let init_message_2 = common::Message {
+            id: 202.into_origin(),
+            source: 1.into_origin(),
+            dest: 102.into_origin(),
+            payload: vec![],
+            gas_limit: 1_000_000_u64,
+            value: 0_u128,
+            reply: None,
+        };
+
+        assert_ok!(runner::init_program(
             code_2.to_vec(),
-            202.into_origin(),
-            vec![],
-            1_000_000_u64,
-            0_u128,
+            init_message_2,
             BlockInfo {
                 height: 1_u32,
                 timestamp: 1_000_000_100_u64,
@@ -210,7 +218,7 @@ fn debug_mode_works() {
         );
 
         // Process messages
-        assert_ok!(runner::process::<Ext>(
+        assert_ok!(runner::process(
             common::dequeue_message().expect("the queue should have the message; qed"),
             BlockInfo {
                 height: 2_u32,
@@ -251,7 +259,7 @@ fn debug_mode_works() {
             .into(),
         );
 
-        assert_ok!(runner::process::<Ext>(
+        assert_ok!(runner::process(
             common::dequeue_message().expect("the queue should have the message; qed"),
             BlockInfo {
                 height: 2_u32,
