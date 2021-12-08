@@ -349,9 +349,9 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
 
   let count = 0;
   let lastDequeAt = count;
-  
+  let isProcessing = false;
   const unsubscribeNewHeads = await api.rpc.chain.subscribeNewHeads((header) => {
-    if (count - lastDequeAt > 1) {
+    if (count - lastDequeAt > 1 && isProcessing) {
       s_promise_resolve();
       unsubscribeNewHeads();
     }
@@ -361,6 +361,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     events
       .filter(({ event }) => api.events.gear.MessagesDequeued.is(event))
       .forEach(({ event }) => {
+        isProcessing = true;
         lastDequeAt = count;
       });
   });
