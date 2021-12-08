@@ -432,11 +432,11 @@ where
     storage::Storage<SC::PS>: CollectState,
 {
     match runner::init_fixture::<SC>(storage, test, fixture_no) {
-        Ok((mut storage, messages, log)) => {
+        Ok((storage, messages, log)) => {
             let mut wait_list = BTreeMap::<(ProgramId, MessageId), Message>::new();
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
             let results = runner::run::<SC>(
-                &mut storage,
+                storage,
                 messages.into(),
                 log,
                 &mut wait_list,
