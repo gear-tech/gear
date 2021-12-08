@@ -51,11 +51,12 @@ impl ExecutionReport {
         let wait_interrupt = outcome.wait_interrupt();
 
         let outcome = if let ExecutionOutcome::Trap(expl) = outcome {
-            if !outcome.wait_interrupt() {
-                Err(alloc::string::String::from(expl).encode())
-            } else {
-                Ok(())
-            }
+            let mut bytes = vec![];
+            if let Some(expl) = expl {
+                bytes = alloc::string::String::from(expl).encode()
+            };
+
+            Err(bytes)
         } else {
             Ok(())
         };
