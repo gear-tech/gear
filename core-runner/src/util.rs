@@ -16,13 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::message::MessageId;
-use gear_core::program::ProgramId;
+use gear_core::{
+    message::{MessageId, MessageIdGenerator},
+    program::ProgramId,
+};
 
 /// Blake2 Message Id Generator
 pub struct BlakeMessageIdGenerator {
-    pub program_id: ProgramId,
-    pub nonce: u64,
+    program_id: ProgramId,
+    nonce: u64,
+}
+
+impl BlakeMessageIdGenerator {
+    /// Create an instance of the BlakeMessageIdGenerator from program ID and nonce
+    pub fn from_program_id_and_nonce(program_id: ProgramId, nonce: u64) -> Self {
+        Self { program_id, nonce }
+    }
 }
 
 impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
@@ -38,4 +47,15 @@ impl gear_core::message::MessageIdGenerator for BlakeMessageIdGenerator {
     fn current(&self) -> u64 {
         self.nonce
     }
+}
+
+/// Function that generates a message ID on behalf of a program
+/// at the same time incrementing the program nonce
+pub fn generate_message_id(source: ProgramId, nonce: u64) -> MessageId {
+    let mut id_generator = BlakeMessageIdGenerator {
+        program_id: source,
+        nonce,
+    };
+
+    id_generator.next()
 }

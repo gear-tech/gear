@@ -1993,10 +1993,12 @@ dependencies = [
 name = "gear-common"
 version = "0.1.0"
 dependencies = [
+ "frame-support",
  "gear-core",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
+ "sp-arithmetic",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -2087,6 +2089,7 @@ dependencies = [
  "gear-runtime",
  "log",
  "parity-scale-codec",
+ "primitive-types",
  "sp-core",
  "sp-io",
  "sp-std",
@@ -2104,7 +2107,9 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
+ "gear-common",
  "hex-literal",
+ "log",
  "pallet-aura",
  "pallet-authorship",
  "pallet-balances",
@@ -2117,6 +2122,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
+ "pallet-usage",
  "pallet-utility",
  "parity-scale-codec",
  "primitive-types",
@@ -4183,6 +4189,7 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
+ "sp-arithmetic",
  "sp-core",
  "sp-inherents",
  "sp-io",
@@ -4382,6 +4389,37 @@ dependencies = [
  "parity-scale-codec",
  "sp-api",
  "sp-runtime",
+]
+
+[[package]]
+name = "pallet-usage"
+version = "2.0.0"
+dependencies = [
+ "env_logger 0.9.0",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "gear-core-runner",
+ "hex-literal",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "parking_lot 0.11.1",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "wabt",
 ]
 
 [[package]]

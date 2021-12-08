@@ -109,26 +109,24 @@ pub fn program_exists(id: ProgramId) -> bool {
     crate::program_exists(H256::from_slice(id.as_slice()))
 }
 
-pub fn insert_waiting_message(prog_id: ProgramId, msg_id: MessageId, message: CoreMessage) {
+pub fn insert_waiting_message(
+    prog_id: ProgramId,
+    msg_id: MessageId,
+    message: CoreMessage,
+    bn: u32,
+) {
     crate::insert_waiting_message(
         H256::from_slice(prog_id.as_slice()),
         H256::from_slice(msg_id.as_slice()),
         message.into(),
+        bn,
     );
 }
 
-pub fn get_waiting_message(prog_id: ProgramId, msg_id: MessageId) -> Option<CoreMessage> {
-    crate::get_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
-    )
-    .map(|msg| msg.into())
-}
-
-pub fn remove_waiting_message(prog_id: ProgramId, msg_id: MessageId) -> Option<CoreMessage> {
+pub fn remove_waiting_message(prog_id: ProgramId, msg_id: MessageId) -> Option<(CoreMessage, u32)> {
     crate::remove_waiting_message(
         H256::from_slice(prog_id.as_slice()),
         H256::from_slice(msg_id.as_slice()),
     )
-    .map(|msg| msg.into())
+    .map(|(msg, bn)| (msg.into(), bn))
 }

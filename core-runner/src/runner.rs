@@ -28,8 +28,8 @@ use gear_core::{
     gas::{self, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{
-        ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageIdGenerator,
-        MessageState, OutgoingMessage, ReplyMessage,
+        ExitCode, IncomingMessage, Message, MessageContext, MessageId, MessageState,
+        OutgoingMessage, ReplyMessage,
     },
     program::{Program, ProgramId},
     storage::{InMemoryStorage, ProgramStorage, Storage, StorageCarrier},
@@ -37,7 +37,7 @@ use gear_core::{
 
 use crate::builder::RunnerBuilder;
 use crate::ext::{BlockInfo, Ext};
-use crate::util::BlakeMessageIdGenerator;
+use crate::util::{generate_message_id, BlakeMessageIdGenerator};
 
 /// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
@@ -54,7 +54,8 @@ pub struct Config {
     pub load_page_cost: u64,
 }
 
-const EXIT_CODE_PANIC: i32 = 1;
+/// Exit code indicating a trap has occurred during program execution
+pub const EXIT_CODE_PANIC: i32 = 1;
 
 impl Default for Config {
     fn default() -> Self {
@@ -316,7 +317,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
             // In case of trap, we generate trap reply message
             let program_id = program.id();
             let nonce = program.fetch_inc_message_nonce();
-            let trap_message_id = self.next_message_id(program_id, nonce);
+            let trap_message_id = generate_message_id(program_id, nonce);
             let trap_message = Message {
                 id: trap_message_id,
                 source: program_id,
@@ -501,15 +502,6 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         Ok(res)
     }
 
-    fn next_message_id(&mut self, source: ProgramId, nonce: u64) -> MessageId {
-        let mut id_generator = BlakeMessageIdGenerator {
-            program_id: source,
-            nonce,
-        };
-
-        id_generator.next()
-    }
-
     /// Set the block height value.
     pub fn set_block_height(&mut self, value: u32) {
         self.block_info.height = value;
@@ -649,10 +641,8 @@ fn run<E: Environment<Ext>>(
 ) -> RunResult {
     let mut gas_counter = GasCounter::new(gas_limit);
 
-    let id_generator = BlakeMessageIdGenerator {
-        program_id: program.id(),
-        nonce: program.message_nonce(),
-    };
+    let id_generator =
+        BlakeMessageIdGenerator::from_program_id_and_nonce(program.id(), program.message_nonce());
 
     let (left_before, burned_before) = (gas_counter.left(), gas_counter.burned());
 
