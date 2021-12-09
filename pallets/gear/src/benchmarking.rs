@@ -153,7 +153,7 @@ benchmarks! {
         let c in 0 .. MAX_CODE_LEN;
         let caller: T::AccountId = account("caller", 0, 0);
         let code = vec![0u8; c as usize];
-        let code_hash = Gear::<T>::compute_code_hash(&code);
+        let code_hash: H256 = sp_io::hashing::blake2_256(code).into();
     }: _(RawOrigin::Signed(caller), code)
     verify {
         assert!(common::code_exists(code_hash));
