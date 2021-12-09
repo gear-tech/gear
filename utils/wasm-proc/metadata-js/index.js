@@ -12,7 +12,9 @@ exports.getWasmMetadata = async (wasmBytes) => {
             STACK_MAX: memory.buffer.byteLength,
             alloc: (pages) => { return memory.grow(pages) },
             free: (_pages) => { },
-            gr_debug: (msg) => { console.log(msg) },
+            gr_debug: (string_ptr, len) => {
+                console.log('GR_DEBUG', len, ab2str(memory.buffer.slice(string_ptr, string_ptr + len)));
+            },
             gr_msg_id: () => { },
             gr_size: () => { },
             gr_read: () => { },

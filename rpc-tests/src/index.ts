@@ -346,19 +346,23 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
   const unsub = await debugMode.snapshots(({ data }) => {
     snapshots.push(data);
   });
-  let non_zero = false;
+
+  let count = 0;
+  let lastDequeAt = count;
+  let isProcessing = false;
+  const unsubscribeNewHeads = await api.rpc.chain.subscribeNewHeads((header) => {
+    if (count - lastDequeAt > 1 && isProcessing) {
+      s_promise_resolve();
+      unsubscribeNewHeads();
+    }
+    count++;
+  });
   const unsubMProccessed = await api.query.system.events((events) => {
     events
       .filter(({ event }) => api.events.gear.MessagesDequeued.is(event))
       .forEach(({ event }) => {
-        if (event.data[0].eq(api.createType('u32', 0))) {
-          if (non_zero) {
-            s_promise_resolve();
-          }
-        } else {
-          messagesProccessed += Number(event.data[0].toHuman());
-          non_zero = true;
-        }
+        isProcessing = true;
+        lastDequeAt = count;
       });
   });
   await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });

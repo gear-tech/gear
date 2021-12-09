@@ -602,7 +602,9 @@ pub mod pallet {
                 }
             }
 
-            Self::deposit_event(Event::MessagesDequeued(total_handled));
+            if total_handled > 0 {
+                Self::deposit_event(Event::MessagesDequeued(total_handled));
+            }
 
             weight = weight.saturating_sub(Self::gas_allowance());
             weight

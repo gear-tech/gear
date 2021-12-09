@@ -117,7 +117,7 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        WaitListRentCollected,
+        WaitListRentCollected(u32),
     }
 
     // Gear pallet error.
@@ -257,8 +257,9 @@ pub mod pallet {
         fn do_rent_collection(
             payees_list: Vec<PayeeInfo>,
             external_account: Option<&T::AccountId>,
-        ) {
+        ) -> u32 {
             let current_block = <frame_system::Pallet<T>>::block_number();
+            let mut total_collected = 0;
             payees_list
                 .into_iter()
                 .filter_map(
@@ -373,7 +374,10 @@ pub mod pallet {
                             current_block.saturated_into(),
                         );
                     }
+
+                    total_collected += 1;
                 });
+            total_collected
         }
     }
 
@@ -395,9 +399,11 @@ pub mod pallet {
                 _ => Err(DispatchError::BadOrigin),
             }?;
 
-            Self::do_rent_collection(payees_list, who.as_ref());
+            let total_collected = Self::do_rent_collection(payees_list, who.as_ref());
 
-            Self::deposit_event(Event::WaitListRentCollected);
+            if total_collected > 0 {
+                Self::deposit_event(Event::WaitListRentCollected(total_collected));
+            }
 
             Ok(().into())
         }
