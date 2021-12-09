@@ -82,9 +82,11 @@ impl Log for FixtureLogger {
         // Check if the record is matched by the logger before logging
         if self.inner.matches(record) {
             if let Ok(mut map) = self.map.try_write() {
-                map.entry(thread::current().id())
-                    .or_default()
-                    .push(format!("[{}] {}", record.target().green(), record.args().to_string()));
+                map.entry(thread::current().id()).or_default().push(format!(
+                    "[{}] {}",
+                    record.target().green(),
+                    record.args().to_string()
+                ));
             }
         }
     }
