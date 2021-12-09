@@ -133,6 +133,7 @@ fn submit_program_expected_failure() {
         );
     })
 }
+
 #[test]
 fn submit_program_fails_on_duplicate_id() {
     let wat = r#"(module
@@ -509,9 +510,7 @@ fn unused_gas_released_back_works() {
     })
 }
 
-pub fn init_test_program(origin: H256, program_id: H256, wat: &str) {
-    let code = parse_wat(wat);
-
+pub fn init_test_program(origin: H256, program_id: H256, code: Vec<u8>) {
     MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
         origin,
         code,
@@ -727,9 +726,10 @@ fn mailbox_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
-        init_test_program(1.into_origin(), program_id, wat);
+        init_test_program(1.into_origin(), program_id, code);
 
         assert_ok!(Pallet::<Test>::send_message(
             Origin::signed(1).into(),
@@ -1652,8 +1652,12 @@ fn distributor_distribute() {
     });
 }
 
+fn compute_code_hash(code: &[u8]) -> H256 {
+    sp_io::hashing::blake2_256(code).into()
+}
+
 #[test]
-fn code_submission_works() {
+fn test_code_submission_pass() {
     let wat = r#"
     (module
     )"#;
@@ -1661,7 +1665,7 @@ fn code_submission_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
-        let code_hash = Pallet::<Test>::compute_code_hash(&code);
+        let code_hash = compute_code_hash(&code);
 
         assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
 
@@ -1673,7 +1677,7 @@ fn code_submission_works() {
 }
 
 #[test]
-fn same_code_submission_fails() {
+fn test_same_code_submission_fails() {
     let wat = r#"
     (module
     )"#;
@@ -1693,5 +1697,31 @@ fn same_code_submission_fails() {
             Pallet::<Test>::submit_code(Origin::signed(2), code.clone()),
             Error::<Test>::CodeAlreadyExists,
         );
+    })
+}
+
+#[test]
+fn test_code_is_not_submitted_twice_after_after_init() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let code_hash = compute_code_hash(&code);
+
+        // First run init message, which sets the code
+        let program_id = generate_program_id(&code, &[]);
+        init_test_program(1.into_origin(), program_id, code.clone());
+        assert!(common::code_exists(code_hash));
+
+        // Trying to set the same code twice.
+        assert_noop!(
+            Pallet::<Test>::submit_code(Origin::signed(1), code),
+            Error::<Test>::CodeAlreadyExists,
+        );
+
     })
 }

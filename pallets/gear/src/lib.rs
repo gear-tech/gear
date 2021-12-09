@@ -635,8 +635,7 @@ pub mod pallet {
     {
         // todo [sab]
         // todo 1) if call fails, will the fee be taken (to check if user has spending on the same call. Maybe better in case code in storage to emit event too).
-        // todo 2) code get/set used consistently (code not set twice)
-        // todo discuss: 3) storage with ttl (or down the storage or change submit model) - state an idea in issue, 4) externalities
+        // 2) purpose of origin check?
         /// Saves program `code` in storage.
         ///
         /// The extrinsic was created to provide _deploy program from program_ functionality.
@@ -654,7 +653,7 @@ pub mod pallet {
             <T as Config>::WeightInfo::submit_code(code.len() as u32)
         )]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
-            ensure_signed(origin)?; // todo do we really need it?
+            ensure_signed(origin)?;
 
             let code_hash = sp_io::hashing::blake2_256(&code).into();
 
