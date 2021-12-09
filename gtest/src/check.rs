@@ -85,7 +85,7 @@ impl Log for FixtureLogger {
                 map.entry(thread::current().id()).or_default().push(format!(
                     "[{}] {}",
                     record.target().green(),
-                    record.args().to_string()
+                    record.args()
                 ));
             }
         }
