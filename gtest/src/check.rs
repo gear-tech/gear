@@ -50,7 +50,7 @@ impl FixtureLogger {
     fn new(map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>) -> FixtureLogger {
         let mut builder = Builder::from_env(FILTER_ENV);
         builder.parse(
-            "gtest=debug,gear_core=debug,gear_core_backend=debug,gear_core_runner=debug,gwasm=debug",
+            "gtest=debug,gear_core=debug,gear_backend_common=debug,gear_backend_wasmtime=debug,gear_backend_sandbox=debug,gear_core_runner=debug,gwasm=debug",
         );
 
         FixtureLogger {
@@ -84,7 +84,7 @@ impl Log for FixtureLogger {
             if let Ok(mut map) = self.map.try_write() {
                 map.entry(thread::current().id())
                     .or_default()
-                    .push(record.args().to_string());
+                    .push(format!("[{}] {}", record.target().green(), record.args().to_string()));
             }
         }
     }
