@@ -22,7 +22,7 @@ use codec::Encode;
 use common::{self, IntermediateMessage, Origin as _, GAS_VALUE_PREFIX};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_support::{assert_noop, assert_ok};
-use gear_core::program::{Program, ProgramId};
+use gear_core::program::{CodeWithMetadata, Program, ProgramId};
 use hex_literal::hex;
 use sp_core::H256;
 
@@ -31,6 +31,15 @@ pub(crate) fn init_logger() {
         .format_module_path(false)
         .format_level(true)
         .try_init();
+}
+
+fn create_code_with_default_meta(source: &str) -> CodeWithMetadata {
+    let code = parse_wat(source);
+    CodeWithMetadata {
+        code,
+        author: Default::default(),
+        block_number: 0,
+    }
 }
 
 fn parse_wat(source: &str) -> Vec<u8> {
@@ -182,7 +191,7 @@ fn send_message_works() {
         let program_id = H256::from_low_u64_be(1001);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
-            parse_wat(
+            create_code_with_default_meta(
                 r#"(module
                     (import "env" "memory" (memory 1))
                     (export "handle" (func $handle))
@@ -268,7 +277,7 @@ fn send_message_expected_failure() {
         ProgramsLimbo::<Test>::remove(program_id);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
-            parse_wat(
+            create_code_with_default_meta(
                 r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
@@ -1282,7 +1291,7 @@ fn send_reply_works() {
         let program_id = H256::from_low_u64_be(1001);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
-            parse_wat(
+            create_code_with_default_meta(
                 r#"(module
                     (import "env" "memory" (memory 1))
                     (export "handle" (func $handle))
@@ -1340,7 +1349,7 @@ fn send_reply_expected_failure() {
         let program_id = H256::from_low_u64_be(1001);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
-            parse_wat(
+            create_code_with_default_meta(
                 r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
@@ -1421,7 +1430,7 @@ fn send_reply_value_offset_works() {
         let program_id = H256::from_low_u64_be(1001);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
-            parse_wat(
+            create_code_with_default_meta(
                 r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
@@ -1513,7 +1522,7 @@ fn claim_value_from_mailbox_works() {
         let program_id = H256::from_low_u64_be(1001);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
-            parse_wat(
+            create_code_with_default_meta(
                 r#"(module
                     (import "env" "memory" (memory 1))
                 )"#,
@@ -1670,7 +1679,10 @@ fn test_code_submission_pass() {
         assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
 
         let saved_code = common::get_code(code_hash);
-        assert_eq!(saved_code, Some(code));
+        assert_eq!(
+            saved_code.map(|code_with_meta| code_with_meta.code),
+            Some(code)
+        );
 
         System::assert_last_event(crate::Event::CodeSaved(code_hash).into());
     })
@@ -1722,6 +1734,5 @@ fn test_code_is_not_submitted_twice_after_after_init() {
             Pallet::<Test>::submit_code(Origin::signed(1), code),
             Error::<Test>::CodeAlreadyExists,
         );
-
     })
 }

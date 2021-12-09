@@ -129,9 +129,9 @@ fn generate_wasm2(num_pages: i32) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
-fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
+fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64, caller: H256) {
     let code_hash = sp_io::hashing::blake2_256(&code).into();
-    common::set_code(code_hash, &code);
+    common::set_code(code_hash, (code, caller, 1).into());
     common::set_program(
         program_id,
         common::Program {
@@ -214,7 +214,7 @@ benchmarks! {
         T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = generate_wasm2(16_i32).unwrap();
         let program_id = account::<T::AccountId>("program", 16, 0).into_origin();
-        set_program(program_id, code, 1_u32, 0_u64);
+        set_program(program_id, code, 1_u32, 0_u64, caller.clone().into_origin());
         ProgramsLimbo::<T>::insert(program_id, caller.clone().into_origin());
     }: _(RawOrigin::Signed(caller), program_id)
     verify {
@@ -250,7 +250,7 @@ benchmarks! {
         T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = generate_wasm2(q as i32).unwrap();
         let program_id = account::<T::AccountId>("program", q, 0).into_origin();
-        set_program(program_id, code, 1_u32, q as u64);
+        set_program(program_id, code, 1_u32, q as u64, caller.clone().into_origin());
         MessageQueue::<T>::append(
             IntermediateMessage::DispatchMessage {
                 id: account::<T::AccountId>("message", q, 100).into_origin(),

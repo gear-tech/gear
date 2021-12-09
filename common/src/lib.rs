@@ -68,6 +68,31 @@ pub struct Program {
     pub nonce: u64,
 }
 
+/// Code with metadata
+///
+/// Storing a code with `submit_code` extrinsic violates code invariant: we no longer
+/// have any guarantees that saved code has an initialized program referencing it (no matter
+/// initialization failed or not). We decided to store `author` and `block_number` as metadata
+/// to the storage for a future opportunity to invalidate some `code` in storage data using either
+/// TTL with `block_number` check or collecting taxes from `author` for storing uninitialized code.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub struct CodeWithMetadata {
+    pub author: H256,
+    pub block_number: u32,
+    pub code: Vec<u8>,
+}
+
+impl From<(Vec<u8>, H256, u32)> for CodeWithMetadata {
+    fn from(data: (Vec<u8>, H256, u32)) -> Self {
+        let (code, author, block_number) = data;
+        CodeWithMetadata {
+            code,
+            author,
+            block_number,
+        }
+    }
+}
+
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
@@ -182,12 +207,31 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     key
 }
 
-pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_hash).0)
+// TODO [SAB] refactor to write all the struct somehow? Maybe separate 1) Metadata from 2) code and write each...
+
+pub fn get_code(code_hash: H256) -> Option<CodeWithMetadata> {
+    sp_io::storage::get(&code_key(code_hash).0).map(|data| {
+        let author = H256::from_slice(&data[..32]);
+        let block_number = {
+            let mut bytes = [0u8; 4];
+            bytes.copy_from_slice(&data[32..36]);
+            u32::from_le_bytes(bytes)
+        };
+        let code = (&data[36..]).to_vec();
+        CodeWithMetadata {
+            code,
+            author,
+            block_number,
+        }
+    })
 }
 
-pub fn set_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash).0, code)
+pub fn set_code(code_hash: H256, code: CodeWithMetadata) {
+    let mut data = Vec::new();
+    code.author.encode_to(&mut data);
+    code.block_number.encode_to(&mut data);
+    data.extend_from_slice(&code.code);
+    sp_io::storage::set(&code_key(code_hash).0, &data)
 }
 
 fn get_code_refs(code_hash: H256) -> u32 {
@@ -335,6 +379,10 @@ pub fn code_exists(code_hash: H256) -> bool {
 mod tests {
     use super::*;
 
+    fn create_code_with_meta(code: Vec<u8>) -> CodeWithMetadata {
+        (code, H256::from([0; 32]), 1).into()
+    }
+
     #[test]
     fn nonce_incremented() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
@@ -347,8 +395,9 @@ mod tests {
     #[test]
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            let wasm_code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&wasm_code[..]).into();
+            let code = create_code_with_meta(wasm_code);
             let program_id = H256::from_low_u64_be(1);
             let program = Program {
                 static_pages: 256,
@@ -356,7 +405,7 @@ mod tests {
                 code_hash,
                 nonce: 0,
             };
-            set_code(code_hash, &code);
+            set_code(code_hash, code.clone());
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_program(program_id).unwrap(), program);
@@ -367,9 +416,10 @@ mod tests {
     #[test]
     fn unused_code_removal_works() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
-            set_code(code_hash, &code);
+            let wasm_code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&wasm_code[..]).into();
+            let code = create_code_with_meta(wasm_code);
+            set_code(code_hash, code);
 
             // At first no program references the code
             assert_eq!(get_code_refs(code_hash), 0u32);

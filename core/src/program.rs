@@ -98,7 +98,7 @@ impl ProgramId {
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
-    code: Vec<u8>,
+    code_with_meta: CodeWithMetadata,
     /// Initial memory export size.
     static_pages: u32,
     /// Saved state of memory pages.
@@ -109,10 +109,14 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: Vec<u8>, pages: BTreeMap<u32, Vec<u8>>) -> Result<Self> {
+    pub fn new(
+        id: ProgramId,
+        code_with_meta: CodeWithMetadata,
+        pages: BTreeMap<u32, Vec<u8>>,
+    ) -> Result<Self> {
         // get initial memory size from memory import.
         let static_pages: u32 = {
-            parity_wasm::elements::Module::from_bytes(&code)
+            parity_wasm::elements::Module::from_bytes(&code_with_meta.code)
                 .map_err(|e| anyhow::anyhow!("Error loading program: {}", e))?
                 .import_section()
                 .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find import section"))?
@@ -142,7 +146,7 @@ impl Program {
 
         Ok(Program {
             id,
-            code,
+            code_with_meta,
             static_pages,
             persistent_pages,
             message_nonce: 0,
@@ -151,7 +155,16 @@ impl Program {
 
     /// Reference to code of this program.
     pub fn code(&self) -> &[u8] {
-        &self.code[..]
+        &self.code_with_meta.code[..]
+    }
+
+    /// Return to code and its metadata (author and block height)
+    pub fn code_with_meta_data(&self) -> (&[u8], ProgramId, u32) {
+        (
+            &self.code_with_meta.code,
+            self.code_with_meta.author,
+            self.code_with_meta.block_number,
+        )
     }
 
     /// Get the id of this program.
@@ -181,7 +194,7 @@ impl Program {
                 })
                 .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
         };
-        self.code = code;
+        self.code_with_meta.code = code;
 
         Ok(())
     }
@@ -257,11 +270,35 @@ impl Program {
     }
 }
 
+/// Code with metadata
+#[derive(Clone, Debug, Default, Decode, Encode)]
+pub struct CodeWithMetadata {
+    /// Program blob
+    pub code: Vec<u8>,
+    /// User id
+    pub author: ProgramId,
+    /// Block number
+    pub block_number: u32,
+}
+
+impl From<(Vec<u8>, ProgramId, u32)> for CodeWithMetadata {
+    fn from(data: (Vec<u8>, ProgramId, u32)) -> Self {
+        let (code, author, block_number) = data;
+        CodeWithMetadata {
+            code,
+            author,
+            block_number,
+        }
+    }
+}
+
+// TODO [sab] create_code_* functions are pasted everywhere. Maybe should create a public one here under #[cfg(tests)] attribute?
+
 #[cfg(test)]
 /// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
-    use super::{Program, ProgramId};
+    use super::{CodeWithMetadata, Program, ProgramId};
     use crate::util::encode_hex;
     use alloc::collections::BTreeMap;
     use alloc::{vec, vec::Vec};
@@ -274,6 +311,14 @@ mod tests {
             .as_ref()
             .to_vec();
         module_bytes
+    }
+
+    fn create_code_with_default_meta(code: Vec<u8>) -> CodeWithMetadata {
+        CodeWithMetadata {
+            code,
+            author: Default::default(),
+            block_number: 0,
+        }
     }
 
     #[test]
@@ -321,13 +366,28 @@ mod tests {
         // invalid PageBuf
         pages.insert(1, vec![]);
 
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages.clone()).is_err());
+        assert!(Program::new(
+            ProgramId::from(1),
+            create_code_with_default_meta(binary.clone()),
+            pages.clone()
+        )
+        .is_err());
 
         pages.insert(1, vec![0; 65537]);
 
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages).is_err());
+        assert!(Program::new(
+            ProgramId::from(1),
+            create_code_with_default_meta(binary.clone()),
+            pages
+        )
+        .is_err());
 
-        let mut program = Program::new(ProgramId::from(1), binary, BTreeMap::default()).unwrap();
+        let mut program = Program::new(
+            ProgramId::from(1),
+            create_code_with_default_meta(binary),
+            BTreeMap::default(),
+        )
+        .unwrap();
 
         // 2 initial pages
         assert_eq!(program.static_pages(), 2);

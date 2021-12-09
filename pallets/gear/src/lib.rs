@@ -633,9 +633,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        // todo [sab]
-        // todo 1) if call fails, will the fee be taken (to check if user has spending on the same call. Maybe better in case code in storage to emit event too).
-        // 2) purpose of origin check?
         /// Saves program `code` in storage.
         ///
         /// The extrinsic was created to provide _deploy program from program_ functionality.
@@ -653,7 +650,7 @@ pub mod pallet {
             <T as Config>::WeightInfo::submit_code(code.len() as u32)
         )]
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
-            ensure_signed(origin)?;
+            let who = ensure_signed(origin)?;
 
             let code_hash = sp_io::hashing::blake2_256(&code).into();
 
@@ -661,7 +658,14 @@ pub mod pallet {
                 !common::code_exists(code_hash),
                 Error::<T>::CodeAlreadyExists
             );
-            common::set_code(code_hash, &code);
+
+            let code_with_meta = (
+                code,
+                who.into_origin(),
+                <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+            )
+                .into();
+            common::set_code(code_hash, code_with_meta);
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 

@@ -79,6 +79,14 @@ mod tests {
 
     use gear_common::{STORAGE_CODE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_WAITLIST_PREFIX};
 
+    fn create_code_with_default_meta(code: Vec<u8>) -> gear_core::program::CodeWithMetadata {
+        gear_core::program::CodeWithMetadata {
+            code,
+            author: Default::default(),
+            block_number: 0,
+        }
+    }
+
     fn new_test_ext() -> sp_io::TestExternalities {
         frame_system::GenesisConfig::default()
             .build_storage::<gear_runtime::Runtime>()
@@ -117,8 +125,12 @@ mod tests {
             let code = parse_wat(wat);
 
             for id in 1..=10 {
-                let program =
-                    Program::new(ProgramId::from(id), code.clone(), Default::default()).unwrap();
+                let program = Program::new(
+                    ProgramId::from(id),
+                    create_code_with_default_meta(code.clone()),
+                    Default::default(),
+                )
+                .unwrap();
                 storage.program_storage.set(program);
             }
 
