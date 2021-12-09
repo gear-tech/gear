@@ -271,6 +271,11 @@ impl Program {
 }
 
 /// Code with metadata
+///
+/// # Note
+/// At the moment of todo [sab] <commit hash> this data is only utilized by [`Runner`],
+/// which sets the `code` of a new program along with `author` and `block_number`
+/// metadata from init method.
 #[derive(Clone, Debug, Default, Decode, Encode)]
 pub struct CodeWithMetadata {
     /// Program blob
