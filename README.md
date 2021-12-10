@@ -39,15 +39,15 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 # Getting Started
 
-1. :open_hands: To start familiarity with Gear, you can bring your own smart-contract program or take one from the [examples](https://github.com/gear-tech/gear/tree/master/examples). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
+1. :open_hands: The easiest way to get started with Gear is to use a demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io). 
 
-2. :wrench: Compile your smart-contract into WASM. Follow the instructions from [Gear Wiki](https://wiki.gear-tech.io/get-started/getting-started-in-5-minutes) to compile the Rust to WebAssembly program.
+2. :wrench: Follow the instructions from [Gear Wiki](https://wiki.gear-tech.io/get-started/getting-started-in-5-minutes) to compile the Rust test smart-contract to WebAssembly. :running: Upload and run smart-contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going. 
 
-3. :running: Deploy and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going. Detailed instruction is also available in [Gear Wiki](https://wiki.gear-tech.io/get-started/getting-started-in-5-minutes).
+3. :scroll: Write your own smart-contract program or take one from the [examples](https://github.com/gear-tech/gear/tree/master/examples). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
 
-4. :computer: Also you can download and run your Gear node locally or create your own multi-node local testnet.
+4. :computer: Download and run your Gear node locally or create your own multi-node local testnet.
 
-5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/get-started/smart-contracts/gear-program) of the Gear Wiki for more details.
+5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/get-started/smart-contracts/gear-program) of the Gear Wiki for more details about how to implement and run your blockchain App in Gear.
 
 ## Run Gear Node
 
@@ -77,6 +77,15 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
     ```bash
     gear-node --help
     ```
+    
+## Implement and run your own blockchain application
+
+1. Write your own application or take one from the available templates. Adapt a template in accordance to your business needs. Gear provides templates for many application types - DeFi, DAO, NFT, Wallet, Staking, Oracle and more. [Application templates](https://github.com/gear-tech/apps).
+
+2. Test your application off-chain, test it on-chain using a local node, then upload to Gear network.
+
+3. Implement an interface for your application for interaction Gear network using [JS API](https://github.com/gear-tech/gear-js/tree/master/website/backend) or use provided by Gear on [https://idea.gear-tech.io](https://idea.gear-tech.io).
+
 
 # Gear components
 
@@ -85,6 +94,8 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 * [node](https://github.com/gear-tech/gear/tree/master/node) - Gear substrate-based node, ready for hacking :rocket:.
 
 * [gstd](https://github.com/gear-tech/gear/tree/master/gstd) - Standard library for Gear smart contracts.
+
+* [gear-js](https://github.com/gear-tech/gear-js/tree/master/website/backend) - jsonrpc API of Gear backend.
 
 * [examples](https://github.com/gear-tech/gear/tree/master/examples) - Gear smart contract examples.
 
