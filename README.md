@@ -37,19 +37,19 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 <p align="center">Hit the <a href="https://github.com/gear-tech/gear">:star:</a> button to keep up with our daily progress!</p>
 
-# :open_hands: Getting Started
+# Getting Started
 
-1. :scroll: To start familiarity with Gear, you can bring your own smart-contract program or take one from the [examples](https://github.com/gear-tech/gear/tree/master/examples). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
+1. :open_hands: To start familiarity with Gear, you can bring your own smart-contract program or take one from the [examples](https://github.com/gear-tech/gear/tree/master/examples). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
 
 2. :wrench: Compile your smart-contract into WASM. Follow the instructions from [Gear Wiki](https://wiki.gear-tech.io/get-started/getting-started-in-5-minutes) to compile the Rust to WebAssembly program.
 
-3. :running: Deploy and test smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going. Detailed instruction is also available in [Gear Wiki](https://wiki.gear-tech.io/get-started/getting-started-in-5-minutes).
+3. :running: Deploy and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going. Detailed instruction is also available in [Gear Wiki](https://wiki.gear-tech.io/get-started/getting-started-in-5-minutes).
 
 4. :computer: Also you can download and run your Gear node locally or create your own multi-node local testnet.
 
 5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/get-started/smart-contracts/gear-program) of the Gear Wiki for more details.
 
-## :computer: Run Gear Node
+## Run Gear Node
 
 Gear node can run in a single Dev Net mode or you can create a Multi-Node local testnet or make your own build of Gear node.
 
@@ -78,7 +78,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
     gear-node --help
     ```
 
-# :books: Gear components
+# Gear components
 
 * [core](https://github.com/gear-tech/gear/tree/master/core) - Gear engine for distributed computing core components.
 
@@ -90,7 +90,7 @@ Gear node can run in a single Dev Net mode or you can create a Multi-Node local 
 
 Go to https://docs.gear.rs to dive into the documentation on Gear crates.
 
-# ⚙️About: what does Gear do?
+# What does Gear do?
 
 <p align="center">
 <img src="images/rust.png" height="64"><br>Gear provides the easiest and most cost-effective way <br>to run WebAssembly programs (smart-contracts) compiled from <br>many popular languages, such as Rust, C/C++ and more.
@@ -113,7 +113,7 @@ Go to https://docs.gear.rs to dive into the documentation on Gear crates.
  - dApp in minutes using Gear libraries
  - Based on Substrate
 
-### :bulb: Main capabilities
+### Main capabilities
 
 Gear enables anyone to create and run any custom-logic dApp and is a go-to solution for the following types of applications:
   - **Run dApps** that support business logic of any project in the **decentralized Gear network** (very fast). Upload programs to the network and interact with them.
@@ -121,7 +121,7 @@ Gear enables anyone to create and run any custom-logic dApp and is a go-to solut
   - Join Substrate-supported blockchains in any other platform outside Polkadot.
   - A standalone instance running microservices, middleware, open API and more
 
-  # 🧐 Why?
+  # Why?
 
 The blockchain technology launched a rapid transition from centralized, server-based internet (Web2) to decentralized, distributed one (Web3).
 
@@ -146,7 +146,7 @@ To resolve the interoperability issue, Parity technologies focused on creating a
 Building a blockchain with Substrate allows it to be deployed on any compatible relay chain such as Polkadot and Kusama
 Substrate serves as a layer of communication between the relay chain and the parachain
 
-# :factory: How does it work?
+# How does it work?
 
 The internal flow of Gear:
 
@@ -154,12 +154,12 @@ The internal flow of Gear:
 
 Refer to the <a href="https://github.com/gear-tech/gear-technical/blob/master/TECHNICAL.pdf">technical paper</a> for some insights about how Gear works internally.
 
-# :family: Contribution
+# Contribution
 
 You can request a new feature by creating a new Issue or discuss it with us on [Discord](https://discord.gg/7BQznC9uD9).
 Here are some features in-prog or planned: https://github.com/gear-tech/gear/issues
 
-# :key: License
+# License
 
 Gear is licensed under [GPL v3.0 with a classpath linking exception](LICENSE).
 
