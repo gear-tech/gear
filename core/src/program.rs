@@ -109,11 +109,7 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(
-        id: ProgramId,
-        code: Vec<u8>,
-        pages: BTreeMap<u32, Vec<u8>>,
-    ) -> Result<Self> {
+    pub fn new(id: ProgramId, code: Vec<u8>, pages: BTreeMap<u32, Vec<u8>>) -> Result<Self> {
         // get initial memory size from memory import.
         let static_pages: u32 = {
             parity_wasm::elements::Module::from_bytes(&code)
@@ -325,28 +321,13 @@ mod tests {
         // invalid PageBuf
         pages.insert(1, vec![]);
 
-        assert!(Program::new(
-            ProgramId::from(1),
-            binary.clone(),
-            pages.clone()
-        )
-        .is_err());
+        assert!(Program::new(ProgramId::from(1), binary.clone(), pages.clone()).is_err());
 
         pages.insert(1, vec![0; 65537]);
 
-        assert!(Program::new(
-            ProgramId::from(1),
-            binary.clone(),
-            pages
-        )
-        .is_err());
+        assert!(Program::new(ProgramId::from(1), binary.clone(), pages).is_err());
 
-        let mut program = Program::new(
-            ProgramId::from(1),
-            binary,
-            BTreeMap::default(),
-        )
-        .unwrap();
+        let mut program = Program::new(ProgramId::from(1), binary, BTreeMap::default()).unwrap();
 
         // 2 initial pages
         assert_eq!(program.static_pages(), 2);

@@ -167,18 +167,8 @@ mod tests {
 
         // Initialization of InMemoryProgramStorage with our custom vec<Program>
         let mut program_storage: InMemoryProgramStorage = vec![
-            Program::new(
-                id1,
-                binary.clone(),
-                Default::default(),
-            )
-            .expect("err create program"),
-            Program::new(
-                id2,
-                binary.clone(),
-                Default::default(),
-            )
-            .expect("err create program"),
+            Program::new(id1, binary.clone(), Default::default()).expect("err create program"),
+            Program::new(id2, binary.clone(), Default::default()).expect("err create program"),
         ]
         .into();
 
@@ -197,14 +187,8 @@ mod tests {
 
         // Checking that we are able to correctly set
         // the new Program with id3 in storage
-        program_storage.set(
-            Program::new(
-                id3,
-                binary,
-                Default::default(),
-            )
-            .expect("err create program"),
-        );
+        program_storage
+            .set(Program::new(id3, binary, Default::default()).expect("err create program"));
         assert!(program_storage.get(id3).is_some());
 
         // Сhecking that the storage after all our interactions

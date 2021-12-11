@@ -117,12 +117,8 @@ mod tests {
             let code = parse_wat(wat);
 
             for id in 1..=10 {
-                let program = Program::new(
-                    ProgramId::from(id),
-                    code.clone(),
-                    Default::default(),
-                )
-                .unwrap();
+                let program =
+                    Program::new(ProgramId::from(id), code.clone(), Default::default()).unwrap();
                 storage.program_storage.set(program);
             }
 
