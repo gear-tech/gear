@@ -1670,10 +1670,7 @@ fn test_code_submission_pass() {
         assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
 
         let saved_code = common::get_code(code_hash);
-        assert_eq!(
-            saved_code.map(|code_with_meta| code_with_meta.code),
-            Some(code)
-        );
+        assert_eq!(saved_code, Some(code));
 
         System::assert_last_event(crate::Event::CodeSaved(code_hash).into());
     })
@@ -1717,7 +1714,7 @@ fn test_code_is_not_submitted_twice_after_after_init() {
 
         // First run init message, which sets the code
         let program_id = generate_program_id(&code, &[]);
-        init_test_program(1.into_origin(), program_id, code.clone());
+        init_test_program(1.into_origin(), program_id, wat);
         assert!(common::code_exists(code_hash));
 
         // Trying to set the same code twice.

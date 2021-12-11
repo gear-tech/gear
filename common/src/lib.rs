@@ -42,8 +42,8 @@ pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
-pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata";
-pub const STORAGE_CODE_REFS_PREFIX: &[u8] = b"g::code::refs";
+pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
+pub const STORAGE_CODE_REFS_PREFIX: &[u8] = b"g::code::refs::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
 pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
@@ -67,6 +67,12 @@ pub struct Program {
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub nonce: u64,
+}
+
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub struct CodeMetadata {
+    pub author: H256,
+    pub block_number: u32,
 }
 
 pub trait Origin: Sized {
@@ -149,6 +155,16 @@ pub enum IntermediateMessage {
     },
 }
 
+// Inner enum used to "generalise" get of data under "g::code::*" prefixes
+enum CodePrefixKind {
+    // "g::code::"
+    RawCodeKey,
+    // "g::code::refs::"
+    CodeRefKey,
+    // "g::code::metadata::"
+    CodeMetadataKey,
+}
+
 fn program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PREFIX);
@@ -156,13 +172,20 @@ fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
-fn code_key(code_hash: H256) -> (Vec<u8>, Vec<u8>) {
-    let (mut key, mut ref_counter) = (Vec::new(), Vec::new());
-    key.extend(STORAGE_CODE_PREFIX);
-    code_hash.encode_to(&mut key);
-    ref_counter.extend(STORAGE_CODE_REFS_PREFIX);
-    code_hash.encode_to(&mut ref_counter);
-    (key, ref_counter)
+fn code_key(code_hash: H256, kind: CodePrefixKind) -> Vec<u8> {
+    let code_key_impl = |prefix: &[u8]| {
+        // key's length is 32 bytes of code hash + N bytes of prefix
+        let mut key = Vec::with_capacity(prefix.len() + code_hash.as_bytes().len());
+        key.extend(prefix);
+        code_hash.encode_to(&mut key);
+        key
+    };
+    let prefix = match kind {
+        CodePrefixKind::RawCodeKey => STORAGE_CODE_PREFIX,
+        CodePrefixKind::CodeRefKey => STORAGE_CODE_REFS_PREFIX,
+        CodePrefixKind::CodeMetadataKey => STORAGE_CODE_METADATA_PREFIX,
+    };
+    code_key_impl(prefix)
 }
 
 fn page_key(id: H256, page: u32) -> Vec<u8> {
@@ -184,15 +207,23 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
 }
 
 pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_hash).0)
+    sp_io::storage::get(&code_key(code_hash, CodePrefixKind::RawCodeKey))
 }
 
 pub fn set_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash).0, code)
+    sp_io::storage::set(&code_key(code_hash, CodePrefixKind::RawCodeKey), code)
+}
+
+pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
+    todo!()
+}
+
+pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
+    todo!()
 }
 
 fn get_code_refs(code_hash: H256) -> u32 {
-    sp_io::storage::get(&code_key(code_hash).1)
+    sp_io::storage::get(&code_key(code_hash, CodePrefixKind::CodeRefKey))
         .map(|val| {
             let mut v = [0u8; 4];
             if val.len() == 4 {
@@ -204,7 +235,10 @@ fn get_code_refs(code_hash: H256) -> u32 {
 }
 
 fn set_code_refs(code_hash: H256, value: u32) {
-    sp_io::storage::set(&code_key(code_hash).1, &value.to_le_bytes())
+    sp_io::storage::set(
+        &code_key(code_hash, CodePrefixKind::CodeRefKey),
+        &value.to_le_bytes(),
+    )
 }
 
 fn add_code_ref(code_hash: H256) {
@@ -215,8 +249,8 @@ fn release_code(code_hash: H256) {
     let new_refs = get_code_refs(code_hash).saturating_sub(1);
     if new_refs == 0 {
         // Clearing storage for both code itself and its reference counter
-        sp_io::storage::clear(&code_key(code_hash).1);
-        sp_io::storage::clear(&code_key(code_hash).0);
+        sp_io::storage::clear(&code_key(code_hash, CodePrefixKind::CodeRefKey));
+        sp_io::storage::clear(&code_key(code_hash, CodePrefixKind::RawCodeKey));
         return;
     }
     set_code_refs(code_hash, new_refs)
@@ -328,8 +362,7 @@ pub fn remove_waiting_message(prog_id: H256, msg_id: H256) -> Option<(Message, u
 }
 
 pub fn code_exists(code_hash: H256) -> bool {
-    let (code_key, _) = code_key(code_hash);
-    sp_io::storage::exists(&code_key)
+    sp_io::storage::exists(&code_key(code_hash, CodePrefixKind::RawCodeKey))
 }
 
 #[cfg(test)]
