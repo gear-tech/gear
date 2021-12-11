@@ -19,7 +19,7 @@
 use super::*;
 use crate::mock::*;
 use codec::Encode;
-use common::{self, IntermediateMessage, Origin as _, GAS_VALUE_PREFIX};
+use common::{self, IntermediateMessage, Origin as _, GAS_VALUE_PREFIX, CodeMetadata};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::program::{Program, ProgramId};
@@ -1671,6 +1671,10 @@ fn test_code_submission_pass() {
 
         let saved_code = common::get_code(code_hash);
         assert_eq!(saved_code, Some(code));
+
+        let expected_meta = Some(CodeMetadata::new(1.into_origin(), 1));
+        let actual_meta = common::get_code_metadata(code_hash);
+        assert_eq!(expected_meta, actual_meta);
 
         System::assert_last_event(crate::Event::CodeSaved(code_hash).into());
     })

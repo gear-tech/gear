@@ -75,6 +75,12 @@ pub struct CodeMetadata {
     pub block_number: u32,
 }
 
+impl CodeMetadata {
+    pub fn new(author: H256, block_number: u32) -> Self {
+        CodeMetadata { author, block_number}
+    }
+}
+
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
@@ -215,11 +221,13 @@ pub fn set_code(code_hash: H256, code: &[u8]) {
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
-    todo!()
+    sp_io::storage::set(&code_key(code_hash, CodePrefixKind::CodeMetadataKey), &metadata.encode())
 }
 
+#[allow(unused)]
 pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
-    todo!()
+    sp_io::storage::get(&code_key(code_hash, CodePrefixKind::CodeMetadataKey))
+        .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
 }
 
 fn get_code_refs(code_hash: H256) -> u32 {

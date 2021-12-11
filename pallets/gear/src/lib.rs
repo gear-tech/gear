@@ -38,7 +38,7 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, GasToFeeConverter, IntermediateMessage, Message, Origin, GAS_VALUE_PREFIX};
+    use common::{self, GasToFeeConverter, IntermediateMessage, Message, Origin, GAS_VALUE_PREFIX, CodeMetadata};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -626,6 +626,24 @@ pub mod pallet {
             weight = weight.saturating_sub(Self::gas_allowance());
             weight
         }
+
+        /// Sets `code` and metadata, if code doesn't exist in storage.
+        ///
+        /// Returns Blake256 hash of the `code`
+        fn set_code_with_metadata(code: &[u8], who: H256) -> Result<H256, ()> {
+            let code_hash = sp_io::hashing::blake2_256(code).into();
+            if common::code_exists(code_hash) {
+                return Err(())
+            }
+            let metadata = {
+                let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+                CodeMetadata::new(who, block_number)
+            };
+            common::set_code_metadata(code_hash, metadata);
+            common::set_code(code_hash, code);
+
+            Ok(code_hash)
+        }
     }
 
     #[pallet::call]
@@ -636,13 +654,13 @@ pub mod pallet {
         /// Saves program `code` in storage.
         ///
         /// The extrinsic was created to provide _deploy program from program_ functionality.
-        /// Anyone who wants to define a "factory" logic in program should first store the code for the "child"
-        /// program in storage.
+        /// Anyone who wants to define a "factory" logic in program should first store the code and metadata for the "child"
+        /// program in storage. So the code for child will be initialised by program initialization request only if it exists in storage.
         ///
-        /// More precisely, code hash is actually saved in the storage. The code hash is computed as Blake256
-        /// hash. At the time of the call the `code` hash should not be in the storage. If it was stored previously,
-        /// call will end up with an `CodeAlreadyExists` error. In this case user can be sure, that he can
-        /// actually use the hash of his program's code bytes to define "program factory" logic in his program.
+        /// More precisely, the code and its metadata are actually saved in the storage under the hash of the `code`. The code hash is computed
+        /// as Blake256 hash. At the time of the call the `code` hash should not be in the storage. If it was stored previously, call will end up
+        /// with an `CodeAlreadyExists` error. In this case user can be sure, that he can actually use the hash of his program's code bytes to define
+        /// "program factory" logic in his program.
         ///
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
@@ -652,21 +670,14 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let code_hash = sp_io::hashing::blake2_256(&code).into();
-
-            ensure!(
-                !common::code_exists(code_hash),
-                Error::<T>::CodeAlreadyExists
-            );
-
-            // todo set_code_metadata
-            common::set_code(code_hash, &code);
+            let code_hash = Self::set_code_with_metadata(&code, who.into_origin()).map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 
             Ok(().into())
         }
 
+        // TODO [sab] add docs about metadata set
         /// Create a `Program` from wasm code and runs its init function.
         ///
         /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
@@ -745,6 +756,13 @@ pub mod pallet {
             // and to transfer declared value.
             T::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+            // By that call we follow the same invariants as we have in `Self::submit_code`:
+            // 1) if there's code in storage, there's metadata for it;
+            // 2) the code and metadata are always stored before program, which "initialises" the code.
+            if let Some(code_hash) = Self::set_code_with_metadata(&code, who.clone().into_origin()).ok() {
+                Self::deposit_event(Event::CodeSaved(code_hash))
+            };
 
             let init_message_id = common::next_message_id(&init_payload);
             let origin = who.into_origin();

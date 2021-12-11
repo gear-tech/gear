@@ -80,8 +80,10 @@ pub fn get_program(id: ProgramId) -> Option<Program> {
 
 pub fn set_program(program: Program) {
     let code_hash = sp_io::hashing::blake2_256(program.code()).into();
-    // don't do multiple sets of the same code
     if !crate::code_exists(code_hash) {
+        // In accordance to extrinsics logic, this "code set" is redundant, because we have a guarantee,
+        // that code exists in storage before program is set. But some tests do not follow pallet logic,
+        // so the guarantee can be compromised. TODO [sab] refactor tests to remove set_code.
         crate::set_code(code_hash, program.code());
     }
     crate::set_program(
