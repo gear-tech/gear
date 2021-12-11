@@ -28,14 +28,6 @@ use sp_runtime::offchain::{
     Duration,
 };
 
-fn create_code_with_default_meta(code: Vec<u8>) -> gear_core::program::CodeWithMetadata {
-    gear_core::program::CodeWithMetadata {
-        code,
-        author: Default::default(),
-        block_number: 0,
-    }
-}
-
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)

@@ -69,31 +69,6 @@ pub struct Program {
     pub nonce: u64,
 }
 
-/// Code with metadata
-///
-/// Storing a code with `submit_code` extrinsic violates code invariant: we no longer
-/// have any guarantees that saved code has an initialized program referencing it (no matter
-/// initialization failed or not). We decided to store `author` and `block_number` as metadata
-/// to the storage for a future opportunity to invalidate some `code` in storage data using either
-/// TTL with `block_number` check or collecting taxes from `author` for storing uninitialized code.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct CodeWithMetadata {
-    pub author: H256,
-    pub block_number: u32,
-    pub code: Vec<u8>,
-}
-
-impl From<(Vec<u8>, H256, u32)> for CodeWithMetadata {
-    fn from(data: (Vec<u8>, H256, u32)) -> Self {
-        let (code, author, block_number) = data;
-        CodeWithMetadata {
-            code,
-            author,
-            block_number,
-        }
-    }
-}
-
 pub trait Origin: Sized {
     fn into_origin(self) -> H256;
     fn from_origin(val: H256) -> Self;
@@ -360,10 +335,6 @@ pub fn code_exists(code_hash: H256) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn create_code_with_meta(code: Vec<u8>) -> CodeWithMetadata {
-        (code, H256::from([0; 32]), 1).into()
-    }
 
     #[test]
     fn nonce_incremented() {
