@@ -455,12 +455,7 @@ impl<SC: StorageCarrier, E: Environment<Ext>> Runner<SC, E> {
         } else {
             self.program_storage.set(Program::new(
                 initialization.new_program_id,
-                (
-                    initialization.code,
-                    initialization.source_id,
-                    self.block_info.height,
-                )
-                    .into(),
+                initialization.code,
                 Default::default(),
             )?);
         }

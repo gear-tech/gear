@@ -125,14 +125,6 @@ mod tests {
     use super::*;
     use alloc::vec;
 
-    fn create_code_with_default_meta(code: Vec<u8>) -> crate::program::CodeWithMetadata {
-        crate::program::CodeWithMetadata {
-            code,
-            author: Default::default(),
-            block_number: 0,
-        }
-    }
-
     fn parse_wat(source: &str) -> Vec<u8> {
         let module_bytes = wabt::Wat2Wasm::new()
             .validate(false)
@@ -177,13 +169,13 @@ mod tests {
         let mut program_storage: InMemoryProgramStorage = vec![
             Program::new(
                 id1,
-                create_code_with_default_meta(binary.clone()),
+                binary.clone(),
                 Default::default(),
             )
             .expect("err create program"),
             Program::new(
                 id2,
-                create_code_with_default_meta(binary.clone()),
+                binary.clone(),
                 Default::default(),
             )
             .expect("err create program"),
@@ -208,7 +200,7 @@ mod tests {
         program_storage.set(
             Program::new(
                 id3,
-                create_code_with_default_meta(binary),
+                binary,
                 Default::default(),
             )
             .expect("err create program"),

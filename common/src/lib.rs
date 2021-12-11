@@ -42,6 +42,7 @@ pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
+pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata";
 pub const STORAGE_CODE_REFS_PREFIX: &[u8] = b"g::code::refs";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
@@ -207,31 +208,12 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     key
 }
 
-// TODO [SAB] refactor to write all the struct somehow? Maybe separate 1) Metadata from 2) code and write each...
-
-pub fn get_code(code_hash: H256) -> Option<CodeWithMetadata> {
-    sp_io::storage::get(&code_key(code_hash).0).map(|data| {
-        let author = H256::from_slice(&data[..32]);
-        let block_number = {
-            let mut bytes = [0u8; 4];
-            bytes.copy_from_slice(&data[32..36]);
-            u32::from_le_bytes(bytes)
-        };
-        let code = (&data[36..]).to_vec();
-        CodeWithMetadata {
-            code,
-            author,
-            block_number,
-        }
-    })
+pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
+    sp_io::storage::get(&code_key(code_hash).0)
 }
 
-pub fn set_code(code_hash: H256, code: CodeWithMetadata) {
-    let mut data = Vec::new();
-    code.author.encode_to(&mut data);
-    code.block_number.encode_to(&mut data);
-    data.extend_from_slice(&code.code);
-    sp_io::storage::set(&code_key(code_hash).0, &data)
+pub fn set_code(code_hash: H256, code: &[u8]) {
+    sp_io::storage::set(&code_key(code_hash).0, code)
 }
 
 fn get_code_refs(code_hash: H256) -> u32 {
@@ -395,9 +377,8 @@ mod tests {
     #[test]
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let wasm_code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&wasm_code[..]).into();
-            let code = create_code_with_meta(wasm_code);
+            let code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
             let program_id = H256::from_low_u64_be(1);
             let program = Program {
                 static_pages: 256,
@@ -405,7 +386,7 @@ mod tests {
                 code_hash,
                 nonce: 0,
             };
-            set_code(code_hash, code.clone());
+            set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_program(program_id).unwrap(), program);
@@ -416,10 +397,9 @@ mod tests {
     #[test]
     fn unused_code_removal_works() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let wasm_code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&wasm_code[..]).into();
-            let code = create_code_with_meta(wasm_code);
-            set_code(code_hash, code);
+            let code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            set_code(code_hash, &code);
 
             // At first no program references the code
             assert_eq!(get_code_refs(code_hash), 0u32);

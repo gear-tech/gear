@@ -659,13 +659,8 @@ pub mod pallet {
                 Error::<T>::CodeAlreadyExists
             );
 
-            let code_with_meta = (
-                code,
-                who.into_origin(),
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
-            )
-                .into();
-            common::set_code(code_hash, code_with_meta);
+            // todo set_code_metadata
+            common::set_code(code_hash, &code);
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 

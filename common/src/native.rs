@@ -18,10 +18,11 @@
 
 use gear_core::{
     message::{Message as CoreMessage, MessageId},
-    program::{CodeWithMetadata, Program, ProgramId},
+    program::{Program, ProgramId},
 };
 
 use primitive_types::H256;
+use sp_std::vec::Vec;
 
 impl From<CoreMessage> for crate::Message {
     fn from(message: CoreMessage) -> crate::Message {
@@ -55,21 +56,6 @@ impl From<crate::Message> for CoreMessage {
     }
 }
 
-impl From<crate::CodeWithMetadata> for CodeWithMetadata {
-    fn from(code_with_meta: crate::CodeWithMetadata) -> Self {
-        let crate::CodeWithMetadata {
-            code,
-            author,
-            block_number,
-        } = code_with_meta;
-        CodeWithMetadata {
-            author: ProgramId::from_slice(author.as_bytes()),
-            code,
-            block_number,
-        }
-    }
-}
-
 pub fn queue_message(message: CoreMessage) {
     crate::queue_message(message.into())
 }
@@ -82,12 +68,12 @@ pub fn get_program(id: ProgramId) -> Option<Program> {
     let id_h256 = H256::from_slice(id.as_slice());
     crate::get_program(id_h256).map(|prog| {
         let persistent_pages = crate::get_program_pages(id_h256, prog.persistent_pages);
-        if let Some(code_with_meta) = crate::get_code(prog.code_hash) {
-            let mut program = Program::new(id, code_with_meta.into(), persistent_pages).unwrap();
+        if let Some(code) = crate::get_code(prog.code_hash) {
+            let mut program = Program::new(id, code, persistent_pages).unwrap();
             program.set_message_nonce(prog.nonce);
             program
         } else {
-            Program::new(id, Default::default(), persistent_pages).unwrap()
+            Program::new(id, Vec::new(), persistent_pages).unwrap()
         }
     })
 }
@@ -96,9 +82,7 @@ pub fn set_program(program: Program) {
     let code_hash = sp_io::hashing::blake2_256(program.code()).into();
     // don't do multiple sets of the same code
     if !crate::code_exists(code_hash) {
-        let (code, author, block_number) = program.code_with_meta_data();
-        let author = H256::from_slice(author.as_slice());
-        crate::set_code(code_hash, (code.to_vec(), author, block_number).into());
+        crate::set_code(code_hash, program.code());
     }
     crate::set_program(
         H256::from_slice(program.id().as_slice()),
