@@ -32,6 +32,11 @@ use gear_core::{
     program::ProgramId,
 };
 
+mod code;
+mod configs;
+mod ext;
+mod ids;
+
 pub enum DispatchKind {
     Init,
     Handle,

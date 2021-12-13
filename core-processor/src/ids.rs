@@ -16,31 +16,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Crate provides support for wasm runtime.
+use blake2_rfc::blake2b;
+use gear_core::message::{MessageId, MessageIdGenerator};
+use gear_core::program::ProgramId;
 
-#![no_std]
+/// Blake2 Message Id Generator
+pub struct BlakeMessageIdGenerator {
+    pub program_id: ProgramId,
+    pub nonce: u64,
+}
 
-extern crate alloc;
+impl MessageIdGenerator for BlakeMessageIdGenerator {
+    fn next(&mut self) -> MessageId {
+        let mut data = self.program_id.as_slice().to_vec();
+        data.extend(&self.nonce.to_le_bytes());
 
-pub mod funcs;
+        self.nonce += 1;
 
-use alloc::{boxed::Box, collections::BTreeMap};
-use gear_core::{
-    env::Ext,
-    memory::{Memory, PageBuf, PageNumber},
-};
+        MessageId::from_slice(blake2b::blake2b(32, &[], &data).as_bytes())
+    }
 
-pub trait Environment<E: Ext>: Default + Sized {
-    fn new() -> Self;
-
-    fn setup_and_run(
-        &mut self,
-        ext: E,
-        binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        memory: &dyn gear_core::memory::Memory,
-        entry_point: &str,
-    ) -> (anyhow::Result<()>, E);
-
-    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory>;
+    fn current(&self) -> u64 {
+        self.nonce
+    }
 }
