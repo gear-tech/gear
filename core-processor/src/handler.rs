@@ -25,6 +25,9 @@ pub fn handle_journal(
     for note in journal.into_iter() {
         match note {
             JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
+            JournalNote::SubmitProgram { origin, program } => {
+                handler.submit_program(origin, program)
+            }
             JournalNote::ExecutionFail {
                 origin,
                 program_id,
