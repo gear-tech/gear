@@ -104,23 +104,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .required(true)
         .takes_value(true)
         .multiple_values(true)
-        .about("Specifies path to .wasm file(-s)");
+        .help("Specifies path to .wasm file(-s)");
 
     let skip_meta = Arg::new("skip-meta")
         .long("skip-meta")
         .takes_value(false)
-        .about("Skips metadata optimization");
+        .help("Skips metadata optimization");
 
     let skip_opt = Arg::new("skip-opt")
         .long("skip-opt")
         .takes_value(false)
-        .about("Skips chain optimization");
+        .help("Skips chain optimization");
 
     let verbose = Arg::new("verbose")
         .short('v')
         .long("verbose")
         .takes_value(false)
-        .about("Provides debug logging info");
+        .help("Provides debug logging info");
 
     let app = App::new("wasm-proc").args(&[path, skip_meta, skip_opt, verbose]);
 
