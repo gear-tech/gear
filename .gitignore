@@ -1,4 +1,5 @@
 node_modules/
+rpc-tests/dist
 target/
 .vscode
 .DS_Store

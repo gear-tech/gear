@@ -35,17 +35,14 @@ mod tests;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
-const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, IntermediateMessage, Message, Origin};
+    use common::{self, GasToFeeConverter, IntermediateMessage, Message, Origin, GAS_VALUE_PREFIX};
     use frame_support::{
-        dispatch::DispatchResultWithPostInfo,
+        dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
         traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
-        weights::{IdentityFee, WeightToFeePolynomial},
     };
     use frame_system::pallet_prelude::*;
     use primitive_types::H256;
@@ -63,6 +60,9 @@ pub mod pallet {
 
         /// Gas and value transfer currency
         type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
+
+        /// Gas to Currency converter
+        type GasConverter: GasToFeeConverter<Balance = BalanceOf<Self>>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -221,10 +221,6 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        fn gas_to_fee(gas: u64) -> BalanceOf<T> {
-            IdentityFee::<BalanceOf<T>>::calc(&gas)
-        }
-
         pub fn insert_to_mailbox(user: H256, message: common::Message) {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
@@ -336,7 +332,8 @@ pub mod pallet {
                                 // No code has run hense unreserving everything
                                 T::Currency::unreserve(
                                     &<T::AccountId as Origin>::from_origin(origin),
-                                    Self::gas_to_fee(gas_limit) + value.unique_saturated_into(),
+                                    T::GasConverter::gas_to_fee(gas_limit)
+                                        + value.unique_saturated_into(),
                                 );
 
                                 // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
@@ -359,7 +356,8 @@ pub mod pallet {
                                 // In case of init, we can unreserve everything right away.
                                 T::Currency::unreserve(
                                     &<T::AccountId as Origin>::from_origin(origin),
-                                    Self::gas_to_fee(gas_limit) + value.unique_saturated_into(),
+                                    T::GasConverter::gas_to_fee(gas_limit)
+                                        + value.unique_saturated_into(),
                                 );
 
                                 // Handle the stuff that should be taken care of regardless of the execution outcome
@@ -373,7 +371,7 @@ pub mod pallet {
                                     });
 
                                     // TODO: weight to fee calculator might not be identity fee
-                                    let charge = Self::gas_to_fee(gas_charge);
+                                    let charge = T::GasConverter::gas_to_fee(gas_charge);
 
                                     gas_tree.spend(gas_charge);
                                     if let Err(e) = T::Currency::transfer(
@@ -525,7 +523,7 @@ pub mod pallet {
                         for (_, gas_charge) in execution_report.gas_charges {
                             gas_tree.spend(gas_charge);
 
-                            let charge = Self::gas_to_fee(gas_charge);
+                            let charge = T::GasConverter::gas_to_fee(gas_charge);
 
                             let _ = T::Currency::repatriate_reserved(
                                 &<T::AccountId as Origin>::from_origin(origin),
@@ -554,7 +552,12 @@ pub mod pallet {
                         let mut waited = false;
                         for msg in execution_report.wait_list {
                             Self::deposit_event(Event::AddedToWaitList(msg.clone()));
-                            common::insert_waiting_message(msg.dest, msg.id, msg);
+                            common::insert_waiting_message(
+                                msg.dest,
+                                msg.id,
+                                msg,
+                                block_info.height,
+                            );
                             waited = true;
                         }
 
@@ -564,7 +567,7 @@ pub mod pallet {
                                 gas_left,
                             ) = gas_tree.consume()
                             {
-                                let refund = Self::gas_to_fee(gas_left);
+                                let refund = T::GasConverter::gas_to_fee(gas_left);
 
                                 let _ = T::Currency::unreserve(
                                     &<T::AccountId as Origin>::from_origin(external),
@@ -574,7 +577,7 @@ pub mod pallet {
                         }
 
                         for msg_id in execution_report.awakening {
-                            if let Some(msg) =
+                            if let Some((msg, _)) =
                                 common::remove_waiting_message(execution_report.program_id, msg_id)
                             {
                                 common::queue_message(msg);
@@ -610,7 +613,9 @@ pub mod pallet {
                 }
             }
 
-            Self::deposit_event(Event::MessagesDequeued(total_handled));
+            if total_handled > 0 {
+                Self::deposit_event(Event::MessagesDequeued(total_handled));
+            }
 
             weight = weight.saturating_sub(Self::gas_allowance());
             weight
@@ -693,7 +698,7 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let reserve_fee = Self::gas_to_fee(gas_limit);
+            let reserve_fee = T::GasConverter::gas_to_fee(gas_limit);
 
             // First we reserve enough funds on the account to pay for 'gas_limit'
             // and to transfer declared value.
@@ -761,7 +766,7 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let gas_limit_reserve = Self::gas_to_fee(gas_limit);
+            let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
 
             // First we reserve enough funds on the account to pay for 'gas_limit'
             T::Currency::reserve(&who, gas_limit_reserve)
@@ -833,7 +838,8 @@ pub mod pallet {
 
             let locked_gas = original_message.gas_limit;
             // Offset the gas_limit against the gas passed to us in the original message
-            let gas_limit_reserve = Self::gas_to_fee(gas_limit.saturating_sub(locked_gas));
+            let gas_limit_reserve =
+                T::GasConverter::gas_to_fee(gas_limit.saturating_sub(locked_gas));
 
             if gas_limit_reserve > 0_u32.into() {
                 // First we reserve enough funds on the account to pay for 'gas_limit'
@@ -845,7 +851,7 @@ pub mod pallet {
                 T::Currency::transfer(
                     &<T::AccountId as Origin>::from_origin(destination),
                     &who,
-                    Self::gas_to_fee(locked_gas.saturating_sub(gas_limit)),
+                    T::GasConverter::gas_to_fee(locked_gas.saturating_sub(gas_limit)),
                     ExistenceRequirement::AllowDeath,
                 )?;
             }
@@ -964,7 +970,7 @@ pub mod pallet {
             if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
                 gas_tree.consume()
             {
-                let refund = Self::gas_to_fee(gas_left);
+                let refund = T::GasConverter::gas_to_fee(gas_left);
 
                 let _ = T::Currency::unreserve(
                     &<T::AccountId as Origin>::from_origin(external),
@@ -975,6 +981,28 @@ pub mod pallet {
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 
             Ok(().into())
+        }
+    }
+
+    impl<T: Config> common::PaymentProvider<T::AccountId> for Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
+        type Balance = BalanceOf<T>;
+
+        fn withhold_reserved(
+            source: H256,
+            dest: &T::AccountId,
+            amount: Self::Balance,
+        ) -> Result<(), DispatchError> {
+            let _ = T::Currency::repatriate_reserved(
+                &<T::AccountId as Origin>::from_origin(source),
+                dest,
+                amount,
+                BalanceStatus::Free,
+            )?;
+
+            Ok(())
         }
     }
 }

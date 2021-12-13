@@ -92,6 +92,65 @@ jobs:
       - name: "Test: Process node testsuite"
         run: ./scripts/gear.sh test ntest
 
+      - name: "Test: Run RPC tests"
+        run: |
+          cargo build -p gear-node --release --features debug-mode
+          cd rpc-tests
+          npm run build
+          cd ..
+          RUST_LOG=gwasm=debug,gear_core_runner=debug ./target/release/gear-node --dev --ws-max-out-buffer-capacity 500 --rpc-max-payload 500 -l 0 & sleep 10
+          node rpc-tests/dist/index.js ./gtest/spec/*.yaml
+
+      - name: Prepare artifacts
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p artifact
+          cd target/wasm32-unknown-unknown/release
+          tar czvf ../../../artifact/examples.tar.gz *.wasm
+          cd ../../..
+          cp target/release/wbuild/gear-runtime/gear_runtime.wasm artifact/
+          cp target/release/gear-node artifact/
+          cp target/release/gtest artifact/
+          cp target/release/wasm-proc artifact/
+          strip artifact/gear-node || true
+          strip artifact/gtest || true
+          strip artifact/wasm-proc || true
+
+      - name: Upload artifacts
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v2
+        with:
+          path: artifact
+
+  upload:
+    if: github.event_name == 'push'
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+
+      - name: Delete previous release
+        uses: dev-drprasad/delete-tag-and-release@v0.1.3
+        with:
+          delete_release: true
+          tag_name: build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sleep
+        run: sleep 10
+
+      - name: Upload
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: true
+          tag_name: build
+          draft: false
+          fail_on_unmatched_files: true
+          files: artifact/*
+
   gtest:
     runs-on: [self-hosted, cachepot]
     steps:
@@ -114,7 +173,7 @@ jobs:
 
       - name: "Install: Build deps"
         run: sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
-        
+
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
 

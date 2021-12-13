@@ -133,7 +133,7 @@ impl ValueView {
                         .expect("Parent exist as link and should be loaded");
 
                     assert!(
-                        !(parent_node.refs == 0),
+                        parent_node.refs != 0,
                         "parent node does not contain ref for the node that was created from it"
                     );
 
@@ -169,7 +169,7 @@ impl ValueView {
                     .expect("Parent exist as link and should be loaded");
 
                 assert!(
-                    !(parent_node.refs == 0),
+                    parent_node.refs != 0,
                     "parent node does not contain ref for the node that was created from it"
                 );
 
@@ -212,6 +212,10 @@ impl ValueView {
                 }
             }
         }
+    }
+
+    pub fn value(&self) -> u64 {
+        self.node.inner
     }
 
     pub fn spend(&mut self, amount: u64) {

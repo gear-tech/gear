@@ -31,3 +31,4 @@ pub mod runner;
 mod util;
 pub use ext::{BlockInfo, Ext};
 pub use runner::*;
+pub use util::*;
