@@ -902,19 +902,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
-name = "core-processor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "blake2-rfc",
- "gear-backend-common",
- "gear-core",
- "log",
- "parity-scale-codec",
- "wabt",
-]
-
-[[package]]
 name = "core-runner"
 version = "0.1.0"
 dependencies = [
@@ -2030,6 +2017,17 @@ dependencies = [
  "parity-wasm 0.42.2",
  "pwasm-utils",
  "wabt",
+]
+
+[[package]]
+name = "gear-core-processor"
+version = "0.1.0"
+dependencies = [
+ "blake2-rfc",
+ "gear-backend-common",
+ "gear-core",
+ "log",
+ "parity-scale-codec",
 ]
 
 [[package]]

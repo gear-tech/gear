@@ -1,20 +1,17 @@
 [package]
-name = "core-processor"
+name = "gear-core-processor"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-anyhow = { version = "1.0.51", default-features = false }
-log = { version = "0.4.14", default-features = false }
 gear-core = { path = "../core" }
 gear-backend-common = { path = "../core-backend/common" }
-codec = { package = "parity-scale-codec", version = "2", features = ["derive"], default-features = false }
-blake2-rfc = { version = "0.2.16", default-features = false }
 
-[dev-dependencies]
-wabt = "0.10.0"
+blake2-rfc = { version = "0.2.16", default-features = false }
+codec = { package = "parity-scale-codec", version = "2", features = ["derive"], default-features = false }
+log = { version = "0.4.14", default-features = false }
 
 [features]
 default = []
