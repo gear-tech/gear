@@ -38,7 +38,10 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, GasToFeeConverter, IntermediateMessage, Message, Origin, GAS_VALUE_PREFIX, CodeMetadata};
+    use common::{
+        self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin,
+        GAS_VALUE_PREFIX,
+    };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -638,10 +641,11 @@ pub mod pallet {
             let code_hash = sp_io::hashing::blake2_256(code).into();
             // *Important*: checks before storage mutations!
             if common::code_exists(code_hash) {
-                return Err(())
+                return Err(());
             }
             let metadata = {
-                let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+                let block_number =
+                    <frame_system::Pallet<T>>::block_number().unique_saturated_into();
                 CodeMetadata::new(who, block_number)
             };
             common::set_code_metadata(code_hash, metadata);
@@ -675,7 +679,8 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let code_hash = Self::set_code_with_metadata(&code, who.into_origin()).map_err(|_| Error::<T>::CodeAlreadyExists)?;
+            let code_hash = Self::set_code_with_metadata(&code, who.into_origin())
+                .map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 
@@ -767,7 +772,9 @@ pub mod pallet {
             // By that call we follow the same invariants as we have in `Self::submit_code`:
             // 1) if there's code in storage, there's also metadata for it;
             // 2) the code and metadata are always stored before message, which "initialises" the code.
-            if let Some(code_hash) = Self::set_code_with_metadata(&code, who.clone().into_origin()).ok() {
+            if let Some(code_hash) =
+                Self::set_code_with_metadata(&code, who.clone().into_origin()).ok()
+            {
                 Self::deposit_event(Event::CodeSaved(code_hash))
             };
 

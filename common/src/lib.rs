@@ -77,7 +77,10 @@ pub struct CodeMetadata {
 
 impl CodeMetadata {
     pub fn new(author: H256, block_number: u32) -> Self {
-        CodeMetadata { author, block_number}
+        CodeMetadata {
+            author,
+            block_number,
+        }
     }
 }
 
@@ -222,7 +225,10 @@ pub fn set_code(code_hash: H256, code: &[u8]) {
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
-    sp_io::storage::set(&code_key(code_hash, CodePrefixKind::CodeMetadataKey), &metadata.encode())
+    sp_io::storage::set(
+        &code_key(code_hash, CodePrefixKind::CodeMetadataKey),
+        &metadata.encode(),
+    )
 }
 
 pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
