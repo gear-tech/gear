@@ -667,6 +667,10 @@ impl<E: Ext + 'static> Default for SandboxEnvironment<E> {
 }
 
 impl<E: Ext> gear_backend_common::Environment<E> for SandboxEnvironment<E> {
+    fn new() -> Self {
+        Self::new()
+    }
+
     fn setup_and_run(
         &mut self,
         ext: E,

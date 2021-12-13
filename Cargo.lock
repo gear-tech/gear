@@ -906,8 +906,11 @@ name = "core-processor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blake2-rfc",
+ "gear-backend-common",
  "gear-core",
  "log",
+ "parity-scale-codec",
  "wabt",
 ]
 
