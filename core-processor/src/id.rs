@@ -17,8 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use blake2_rfc::blake2b;
-use gear_core::message::{MessageId, MessageIdGenerator};
-use gear_core::program::{Program, ProgramId};
+
+use gear_core::{
+    message::{MessageId, MessageIdGenerator},
+    program::{Program, ProgramId},
+};
 
 pub struct BlakeMessageIdGenerator {
     pub program_id: ProgramId,
