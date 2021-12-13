@@ -629,9 +629,14 @@ pub mod pallet {
 
         /// Sets `code` and metadata, if code doesn't exist in storage.
         ///
-        /// Returns Blake256 hash of the `code`
+        /// On success returns Blake256 hash of the `code`. If code already
+        /// exists (*so, metadata exists as well*), returns unit type as error.
+        ///
+        /// # Note
+        /// Code existence in storage means that metadata is there too.
         fn set_code_with_metadata(code: &[u8], who: H256) -> Result<H256, ()> {
             let code_hash = sp_io::hashing::blake2_256(code).into();
+            // *Important*: checks before storage mutations!
             if common::code_exists(code_hash) {
                 return Err(())
             }
@@ -677,11 +682,13 @@ pub mod pallet {
             Ok(().into())
         }
 
-        // TODO [sab] add docs about metadata set
         /// Create a `Program` from wasm code and runs its init function.
         ///
         /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
+        ///
+        /// There is an invariant here that is followed by `submit_code` as well. That is, future
+        /// program's `code` and metadata are stored before message was added to the queue and processed.
         ///
         /// The origin must be Signed and the sender must have sufficient funds to pay
         /// for `gas` and `value` (in case the latter is being transferred).
@@ -758,8 +765,8 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             // By that call we follow the same invariants as we have in `Self::submit_code`:
-            // 1) if there's code in storage, there's metadata for it;
-            // 2) the code and metadata are always stored before program, which "initialises" the code.
+            // 1) if there's code in storage, there's also metadata for it;
+            // 2) the code and metadata are always stored before message, which "initialises" the code.
             if let Some(code_hash) = Self::set_code_with_metadata(&code, who.clone().into_origin()).ok() {
                 Self::deposit_event(Event::CodeSaved(code_hash))
             };
