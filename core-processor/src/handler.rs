@@ -25,24 +25,29 @@ pub fn handle_journal(
     handler: &mut dyn JournalHandler,
 ) {
     let mut page_updates = BTreeMap::new();
+    let mut nonces = BTreeMap::new();
 
     for note in journal.into_iter() {
         match note {
-            JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
-            JournalNote::SubmitProgram { origin, program } => {
-                handler.submit_program(origin, program)
-            }
             JournalNote::ExecutionFail {
                 origin,
                 program_id,
                 reason,
             } => handler.execution_fail(origin, program_id, reason),
-            JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
-            JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
-            JournalNote::NotProcessed(dispatches) => handler.not_processed(dispatches),
             JournalNote::GasBurned { origin, amount } => handler.gas_burned(origin, amount),
+            JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
+            JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
+            JournalNote::SubmitProgram { owner, program } => handler.submit_program(owner, program),
+            JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
             JournalNote::WakeMessage { origin, message_id } => {
                 handler.wake_message(origin, message_id)
+            }
+            JournalNote::UpdateNonce {
+                origin: _origin,
+                program_id,
+                nonce,
+            } => {
+                let _ = nonces.insert(program_id, nonce);
             }
             JournalNote::UpdatePage {
                 origin: _origin,
@@ -60,5 +65,9 @@ pub fn handle_journal(
         for (page_number, data) in pages {
             handler.update_page(program_id, page_number, data);
         }
+    }
+
+    for (program_id, nonce) in nonces {
+        handler.update_nonce(program_id, nonce);
     }
 }

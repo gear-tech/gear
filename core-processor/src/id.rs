@@ -20,7 +20,7 @@ use blake2_rfc::blake2b;
 
 use gear_core::{
     message::{MessageId, MessageIdGenerator},
-    program::{Program, ProgramId},
+    program::ProgramId,
 };
 
 pub struct BlakeMessageIdGenerator {
@@ -43,10 +43,6 @@ impl MessageIdGenerator for BlakeMessageIdGenerator {
     }
 }
 
-pub fn next_message_id(program: &mut Program) -> MessageId {
-    BlakeMessageIdGenerator {
-        program_id: program.id(),
-        nonce: program.fetch_inc_message_nonce(),
-    }
-    .next()
+pub fn next_message_id(program_id: ProgramId, nonce: u64) -> MessageId {
+    BlakeMessageIdGenerator { program_id, nonce }.next()
 }
