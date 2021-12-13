@@ -15,7 +15,7 @@ gear-core-runner = { path = "../core-runner", default-features = false }
 colored = "2.0.0"
 common = { package = "gear-common", path = "../common" }
 regex = "^1.5"
-serde_yaml = "0.8.21"
+serde_yaml = "0.8.23"
 gear-node-runner = { path = "../node-runner" }
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
