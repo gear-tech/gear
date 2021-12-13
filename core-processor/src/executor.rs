@@ -94,14 +94,18 @@ pub fn execute_wasm<E: Environment<Ext>>(
         let max_page_num = *max_page.0;
         let mem_size = memory.size();
 
-        let amount = settings.mem_grow_cost() * ((max_page_num - mem_size).raw() as u64 + 1);
+        if max_page_num >= mem_size {
+            let amount = settings.mem_grow_cost() * ((max_page_num - mem_size).raw() as u64 + 1);
 
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionError {
-                program,
-                gas_burned: gas_counter.burned(),
-                reason: "Not enough gas for grow memory size.",
-            });
+            if gas_counter.charge(amount) != ChargeResult::Enough {
+                return Err(ExecutionError {
+                    program,
+                    gas_burned: gas_counter.burned(),
+                    reason: "Not enough gas for grow memory size.",
+                });
+            }
+        } else {
+            assert!(max_page_num.raw() == mem_size.raw() - 1);
         }
     }
 

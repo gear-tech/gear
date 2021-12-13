@@ -58,6 +58,11 @@ pub fn handle_journal(
                 let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
                 let _ = entry.insert(page_number, data);
             }
+            JournalNote::MessageTrap {
+                message_id, trap,
+            } => {
+                handler.message_trap(message_id, trap);
+            }
         }
     }
 
