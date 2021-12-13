@@ -9,8 +9,9 @@ use gear_core::{env::Ext as EnvExt, gas::*, memory::*, message::*, program::*, s
 
 use gear_backend_common::Environment;
 
+use crate::configs::{BlockInfo, ExecutionSettings};
 use crate::ext::Ext;
-use crate::ids::BlakeMessageIdGenerator;
+use crate::id;
 
 #[derive(Clone)]
 enum DispatchKind {
@@ -102,14 +103,8 @@ impl DispatchResult {
             }
         };
 
-        let trap_message_id = BlakeMessageIdGenerator {
-            program_id: self.program.id(),
-            nonce: self.program.fetch_inc_message_nonce(),
-        }
-        .next();
-
         Some(Message::new_reply(
-            trap_message_id,
+            id::next_message_id(&mut self.program),
             self.program_id(),
             self.dispatch.message.source(),
             Default::default(),
@@ -118,23 +113,6 @@ impl DispatchResult {
             self.message_id(),
             ERR_EXIT_CODE,
         ))
-    }
-}
-
-struct AllocationConfig;
-#[derive(Clone, Copy)]
-struct BlockInfo;
-struct ExecutionSettings {
-    allocation_config: AllocationConfig,
-    block_info: BlockInfo,
-}
-
-impl ExecutionSettings {
-    fn new(block_info: BlockInfo) -> Self {
-        Self {
-            allocation_config: AllocationConfig,
-            block_info,
-        }
     }
 }
 
@@ -178,6 +156,8 @@ fn execute_wasm<E: Environment<Ext>>(
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
     let mut env = E::new();
+
+    let Dispatch { kind, message } = dispatch;
 
     // env calls and gas consuming
 
@@ -271,9 +251,9 @@ fn process_many<E: Environment<Ext>>(
 ) -> Vec<JournalNote> {
     let mut dispatches = dispatches.into_iter();
     let mut not_processed = Vec::new();
-    let mut journal = Vec::new();
+    let mut process_journal = Vec::new();
 
-    while let Some(dispatch) = dispatches.next() {
+    for dispatch in dispatches.by_ref() {
         if !resource_limiter.can_process(&dispatch) {
             not_processed.push(dispatch);
             break;
@@ -285,15 +265,30 @@ fn process_many<E: Environment<Ext>>(
             .remove(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let mut process_result = process::<E>(program, dispatch, block_info);
+        let ProcessResult {
+            mut program,
+            journal,
+        } = process::<E>(program, dispatch, block_info);
 
-        programs.insert(process_result.program.id(), process_result.program);
+        for note in &journal {
+            if let JournalNote::UpdatePage {
+                origin,
+                program_id,
+                page_number,
+                data,
+            } = note
+            {
+                program.set_page(*page_number, data).expect("Can't fail");
+            }
+        }
 
-        journal.extend(process_result.journal);
+        programs.insert(program.id(), program);
+
+        process_journal.extend(journal);
     }
 
     not_processed.extend(dispatches);
-    journal.push(JournalNote::NotProcessed(not_processed));
+    process_journal.push(JournalNote::NotProcessed(not_processed));
 
-    journal
+    process_journal
 }
