@@ -72,8 +72,8 @@ pub struct DispatchResult {
 }
 
 impl DispatchResult {
-    pub fn program(self) -> Program {
-        self.program
+    pub fn program(&self) -> Program {
+        self.program.clone()
     }
 
     pub fn program_id(&self) -> ProgramId {
@@ -137,6 +137,10 @@ pub enum JournalNote {
         origin: MessageId,
         message: Message,
     },
+    SubmitProgram {
+        origin: MessageId,
+        program: Program,
+    },
     ExecutionFail {
         origin: MessageId,
         program_id: ProgramId,
@@ -176,6 +180,7 @@ pub trait JournalHandler {
         page_number: PageNumber,
         data: Vec<u8>,
     );
+    fn submit_program(&mut self, origin: MessageId, program: Program);
 }
 
 pub trait ResourceLimiter {

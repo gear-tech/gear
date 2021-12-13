@@ -19,7 +19,9 @@
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 
 use crate::{
-    common::{Dispatch, DispatchResultKind, JournalNote, ProcessResult, ResourceLimiter},
+    common::{
+        Dispatch, DispatchKind, DispatchResultKind, JournalNote, ProcessResult, ResourceLimiter,
+    },
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
@@ -84,7 +86,15 @@ pub fn process<E: Environment<Ext>>(
     }
 
     match dispatch_result.kind() {
-        DispatchResultKind::Success => journal.push(JournalNote::MessageConsumed(origin)),
+        DispatchResultKind::Success => {
+            journal.push(JournalNote::MessageConsumed(origin));
+            if let DispatchKind::Init = dispatch_result.dispatch().kind {
+                journal.push(JournalNote::SubmitProgram {
+                    origin,
+                    program: dispatch_result.program(),
+                })
+            }
+        }
         DispatchResultKind::Trap(_) => {
             if let Some(message) = dispatch_result.trap_reply() {
                 journal.push(JournalNote::SendMessage { origin, message })
@@ -97,9 +107,10 @@ pub fn process<E: Environment<Ext>>(
         }
     }
 
-    let program = dispatch_result.program();
-
-    ProcessResult { program, journal }
+    ProcessResult {
+        program: dispatch_result.program(),
+        journal,
+    }
 }
 
 pub fn process_many<E: Environment<Ext>>(
