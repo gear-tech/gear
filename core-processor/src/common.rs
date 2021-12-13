@@ -69,11 +69,30 @@ pub struct DispatchResult {
     pub gas_burned: u64,
 
     pub page_update: BTreeMap<PageNumber, Vec<u8>>,
+    pub nonce: u64,
 }
 
 impl DispatchResult {
     pub fn program(&self) -> Program {
         self.program.clone()
+    }
+
+    pub fn message_source(&self) -> ProgramId {
+        self.dispatch.message.source()
+    }
+
+    pub fn message_nonce(&self) -> u64 {
+        self.nonce
+    }
+
+    pub fn fetch_inc_message_nonce(&mut self) -> u64 {
+        let nonce = self.nonce;
+        self.nonce += 1;
+        nonce
+    }
+
+    pub fn apply_nonce(&mut self) {
+        self.program.set_message_nonce(self.nonce)
     }
 
     pub fn program_id(&self) -> ProgramId {
@@ -120,7 +139,7 @@ impl DispatchResult {
         };
 
         Some(Message::new_reply(
-            id::next_message_id(&mut self.program),
+            id::next_message_id(self.program_id(), self.fetch_inc_message_nonce()),
             self.program_id(),
             self.dispatch.message.source(),
             Default::default(),
@@ -133,29 +152,33 @@ impl DispatchResult {
 }
 
 pub enum JournalNote {
-    SendMessage {
-        origin: MessageId,
-        message: Message,
-    },
-    SubmitProgram {
-        origin: MessageId,
-        program: Program,
-    },
     ExecutionFail {
         origin: MessageId,
         program_id: ProgramId,
         reason: &'static str,
     },
-    WaitDispatch(Dispatch),
-    MessageConsumed(MessageId),
-    NotProcessed(Vec<Dispatch>),
     GasBurned {
         origin: MessageId,
         amount: u64,
     },
+    MessageConsumed(MessageId),
+    SendMessage {
+        origin: MessageId,
+        message: Message,
+    },
+    SubmitProgram {
+        owner: ProgramId,
+        program: Program,
+    },
+    WaitDispatch(Dispatch),
     WakeMessage {
         origin: MessageId,
         message_id: MessageId,
+    },
+    UpdateNonce {
+        origin: MessageId,
+        program_id: ProgramId,
+        nonce: u64,
     },
     UpdatePage {
         origin: MessageId,
@@ -166,29 +189,15 @@ pub enum JournalNote {
 }
 
 pub trait JournalHandler {
-    fn send_message(&mut self, origin: MessageId, message: Message);
     fn execution_fail(&mut self, origin: MessageId, program_id: ProgramId, reason: &'static str);
-    fn wait_dispatch(&mut self, dispatch: Dispatch);
-    fn message_consumed(&mut self, message_id: MessageId);
-    fn not_processed(&mut self, dispatches: Vec<Dispatch>);
     fn gas_burned(&mut self, origin: MessageId, amount: u64);
+    fn message_consumed(&mut self, message_id: MessageId);
+    fn send_message(&mut self, origin: MessageId, message: Message);
+    fn submit_program(&mut self, owner: ProgramId, program: Program);
+    fn wait_dispatch(&mut self, dispatch: Dispatch);
     fn wake_message(&mut self, origin: MessageId, message_id: MessageId);
+    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
-    fn submit_program(&mut self, origin: MessageId, program: Program);
-}
-
-pub trait ResourceLimiter {
-    fn can_process(&self, dispatch: &Dispatch) -> bool;
-    fn pay_for(&mut self, dispatch: &Dispatch);
-}
-
-pub struct InfinityLimiter;
-
-impl ResourceLimiter for InfinityLimiter {
-    fn can_process(&self, _dispatch: &Dispatch) -> bool {
-        true
-    }
-    fn pay_for(&mut self, _dispatch: &Dispatch) {}
 }
 
 pub struct ProcessResult {

@@ -42,7 +42,7 @@ use gear_core::{
 pub const ERR_EXIT_CODE: i32 = 1;
 
 pub fn execute_wasm<E: Environment<Ext>>(
-    mut program: Program,
+    program: Program,
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
@@ -182,8 +182,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
     // Storing outgoing messages from message state.
     let mut messages = Vec::new();
 
-    // Updating program's message nonce
-    program.set_message_nonce(ext.message_context.nonce());
+    // Getting message nonce for program
+    let nonce = ext.message_context.nonce();
 
     // Storing messages state
     let MessageState {
@@ -216,5 +216,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
         gas_left,
         gas_burned,
         page_update,
+        nonce,
     })
 }

@@ -19,9 +19,7 @@
 use alloc::{collections::BTreeMap, vec, vec::Vec};
 
 use crate::{
-    common::{
-        Dispatch, DispatchKind, DispatchResultKind, JournalNote, ProcessResult, ResourceLimiter,
-    },
+    common::{Dispatch, DispatchKind, DispatchResultKind, JournalNote, ProcessResult},
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
@@ -63,6 +61,8 @@ pub fn process<E: Environment<Ext>>(
             }
         };
 
+    dispatch_result.apply_nonce();
+
     journal.push(JournalNote::GasBurned {
         origin,
         amount: dispatch_result.gas_burned(),
@@ -88,9 +88,10 @@ pub fn process<E: Environment<Ext>>(
     match dispatch_result.kind() {
         DispatchResultKind::Success => {
             journal.push(JournalNote::MessageConsumed(origin));
+
             if let DispatchKind::Init = dispatch_result.dispatch().kind {
                 journal.push(JournalNote::SubmitProgram {
-                    origin,
+                    owner: dispatch_result.message_source(),
                     program: dispatch_result.program(),
                 })
             }
@@ -103,9 +104,15 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::MessageConsumed(origin))
         }
         DispatchResultKind::Wait => {
-            journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch()))
+            journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch()));
         }
     }
+
+    journal.push(JournalNote::UpdateNonce {
+        origin,
+        program_id: dispatch_result.program_id(),
+        nonce: dispatch_result.message_nonce(),
+    });
 
     ProcessResult {
         program: dispatch_result.program(),
@@ -116,21 +123,11 @@ pub fn process<E: Environment<Ext>>(
 pub fn process_many<E: Environment<Ext>>(
     mut programs: BTreeMap<ProgramId, Program>,
     dispatches: Vec<Dispatch>,
-    resource_limiter: &mut dyn ResourceLimiter,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
-    let mut dispatches = dispatches.into_iter();
-    let mut not_processed = Vec::new();
     let mut journal = Vec::new();
 
-    for dispatch in dispatches.by_ref() {
-        if !resource_limiter.can_process(&dispatch) {
-            not_processed.push(dispatch);
-            break;
-        }
-
-        resource_limiter.pay_for(&dispatch);
-
+    for dispatch in dispatches {
         let program = programs
             .remove(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
@@ -141,7 +138,14 @@ pub fn process_many<E: Environment<Ext>>(
         } = process::<E>(program, dispatch, block_info);
 
         for note in &current_journal {
-            if let JournalNote::UpdatePage {
+            if let JournalNote::UpdateNonce {
+                origin: _origin,
+                program_id: _program_id,
+                nonce,
+            } = note
+            {
+                program.set_message_nonce(*nonce);
+            } else if let JournalNote::UpdatePage {
                 origin: _origin,
                 program_id: _program_id,
                 page_number,
@@ -156,9 +160,6 @@ pub fn process_many<E: Environment<Ext>>(
 
         journal.extend(current_journal);
     }
-
-    not_processed.extend(dispatches);
-    journal.push(JournalNote::NotProcessed(not_processed));
 
     journal
 }
