@@ -96,10 +96,14 @@ pub fn process<E: Environment<Ext>>(
                 })
             }
         }
-        DispatchResultKind::Trap(_) => {
+        DispatchResultKind::Trap(trap) => {
             if let Some(message) = dispatch_result.trap_reply() {
                 journal.push(JournalNote::SendMessage { origin, message })
             }
+
+            journal.push(
+                JournalNote::MessageTrap { message_id: dispatch_result.message_id(), trap }
+            );
 
             journal.push(JournalNote::MessageConsumed(origin))
         }

@@ -7480,6 +7480,7 @@ dependencies = [
 name = "tests-common"
 version = "0.1.0"
 dependencies = [
+ "core-processor",
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-runner",

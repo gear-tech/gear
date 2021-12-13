@@ -188,6 +188,10 @@ pub enum JournalNote {
         page_number: PageNumber,
         data: Vec<u8>,
     },
+    MessageTrap {
+        message_id: MessageId,
+        trap: Option<&'static str>,
+    },
 }
 
 pub trait JournalHandler {
@@ -200,6 +204,7 @@ pub trait JournalHandler {
     fn wake_message(&mut self, origin: MessageId, program_id: ProgramId, message_id: MessageId);
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
+    fn message_trap(&mut self, origin: MessageId, trap: Option<&'static str>);
 }
 
 pub struct ProcessResult {
