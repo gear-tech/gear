@@ -26,7 +26,7 @@ const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
 const LOAD_PAGE_COST: u64 = 3000;
 
-#[derive(Clone, Copy, Debug, Encode, Decode)]
+#[derive(Clone, Copy, Debug, Encode, Decode, Default)]
 pub struct BlockInfo {
     pub height: u32,
     pub timestamp: u64,
