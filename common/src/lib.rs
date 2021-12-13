@@ -182,20 +182,17 @@ fn program_key(id: H256) -> Vec<u8> {
 }
 
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
-    let code_key_impl = |prefix: &[u8]| {
-        // key's length is N bytes of code hash + M bytes of prefix
-        // currently code hash is 32 bytes
-        let mut key = Vec::with_capacity(prefix.len() + code_hash.as_bytes().len());
-        key.extend(prefix);
-        code_hash.encode_to(&mut key);
-        key
-    };
     let prefix = match kind {
         CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
         CodeKeyPrefixKind::CodeRef => STORAGE_CODE_REFS_PREFIX,
         CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
     };
-    code_key_impl(prefix)
+    // key's length is N bytes of code hash + M bytes of prefix
+    // currently code hash is 32 bytes
+    let mut key = Vec::with_capacity(prefix.len() + code_hash.as_bytes().len());
+    key.extend(prefix);
+    code_hash.encode_to(&mut key);
+    key
 }
 
 fn page_key(id: H256, page: u32) -> Vec<u8> {

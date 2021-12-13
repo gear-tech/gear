@@ -666,7 +666,7 @@ pub mod pallet {
         ///
         /// The extrinsic was created to provide _deploy program from program_ functionality.
         /// Anyone who wants to define a "factory" logic in program should first store the code and metadata for the "child"
-        /// program in storage. So the code for child will be initialised by program initialization request only if it exists in storage.
+        /// program in storage. So the code for the child will be initialized by program initialization request only if it exists in storage.
         ///
         /// More precisely, the code and its metadata are actually saved in the storage under the hash of the `code`. The code hash is computed
         /// as Blake256 hash. At the time of the call the `code` hash should not be in the storage. If it was stored previously, call will end up
