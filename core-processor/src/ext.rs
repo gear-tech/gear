@@ -25,7 +25,7 @@ use gear_core::{
 };
 
 use crate::configs::{AllocationsConfig, BlockInfo};
-use crate::ids::BlakeMessageIdGenerator;
+use crate::id::BlakeMessageIdGenerator;
 
 /// Structure providing externalities for running host functions.
 pub struct Ext {

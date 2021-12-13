@@ -26,31 +26,23 @@ const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
 const LOAD_PAGE_COST: u64 = 3000;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Encode, Decode)]
 pub struct BlockInfo {
-    /// Current block height.
     pub height: u32,
-    /// Current block timestamp in msecs since tne Unix epoch.
     pub timestamp: u64,
 }
 
-/// Runner configuration.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct AllocationsConfig {
-    /// Total memory pages count.
     pub max_pages: PageNumber,
-    /// Gas cost for init memory page.
     pub init_cost: u64,
-    /// Gas cost for memory page allocation.
     pub alloc_cost: u64,
-    /// Gas cost for memory grow
     pub mem_grow_cost: u64,
-    /// Gas cost for loading memory page from program state.
     pub load_page_cost: u64,
 }
 
-impl AllocationsConfig {
-    pub fn new() -> Self {
+impl Default for AllocationsConfig {
+    fn default() -> Self {
         Self {
             max_pages: MAX_PAGES.into(),
             init_cost: INIT_COST,
@@ -61,25 +53,36 @@ impl AllocationsConfig {
     }
 }
 
-impl Default for AllocationsConfig {
-    fn default() -> Self {
-        Self::new()
-    }
+pub struct ExecutionSettings {
+    pub block_info: BlockInfo,
+    pub config: AllocationsConfig,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum EntryPoint {
-    Init,
-    Handle,
-    HandleReply,
-}
-
-impl From<EntryPoint> for &'static str {
-    fn from(entry_point: EntryPoint) -> &'static str {
-        match entry_point {
-            EntryPoint::Init => "init",
-            EntryPoint::Handle => "handle",
-            EntryPoint::HandleReply => "handle_reply",
+impl ExecutionSettings {
+    pub fn new(block_info: BlockInfo) -> Self {
+        Self {
+            block_info,
+            config: Default::default(),
         }
+    }
+
+    pub fn max_pages(&self) -> PageNumber {
+        self.config.max_pages
+    }
+
+    pub fn init_cost(&self) -> u64 {
+        self.config.init_cost
+    }
+
+    pub fn alloc_cost(&self) -> u64 {
+        self.config.alloc_cost
+    }
+
+    pub fn mem_grow_cost(&self) -> u64 {
+        self.config.mem_grow_cost
+    }
+
+    pub fn load_page_cost(&self) -> u64 {
+        self.config.load_page_cost
     }
 }
