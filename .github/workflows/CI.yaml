@@ -12,7 +12,7 @@ env:
 
 jobs:
   check:
-    runs-on: self-hosted
+    runs-on: [self-hosted, cachepot]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
@@ -46,7 +46,7 @@ jobs:
         run: ./scripts/gear.sh check benchmark
 
   build:
-    runs-on: self-hosted
+    runs-on: [self-hosted, cachepot]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
@@ -93,7 +93,7 @@ jobs:
         run: ./scripts/gear.sh test ntest
 
   gtest:
-    runs-on: self-hosted
+    runs-on: [self-hosted, cachepot]
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
