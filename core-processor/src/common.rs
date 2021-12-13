@@ -173,13 +173,7 @@ pub trait JournalHandler {
     fn not_processed(&mut self, dispatches: Vec<Dispatch>);
     fn gas_burned(&mut self, origin: MessageId, amount: u64);
     fn wake_message(&mut self, origin: MessageId, message_id: MessageId);
-    fn update_page(
-        &mut self,
-        origin: MessageId,
-        program_id: ProgramId,
-        page_number: PageNumber,
-        data: Vec<u8>,
-    );
+    fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
     fn submit_program(&mut self, origin: MessageId, program: Program);
 }
 

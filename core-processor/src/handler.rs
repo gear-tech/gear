@@ -16,12 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use alloc::collections::BTreeMap;
+
 use crate::common::{JournalHandler, JournalNote};
 
 pub fn handle_journal(
     journal: impl IntoIterator<Item = JournalNote>,
     handler: &mut dyn JournalHandler,
 ) {
+    let mut page_updates = BTreeMap::new();
+
     for note in journal.into_iter() {
         match note {
             JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
@@ -41,11 +45,20 @@ pub fn handle_journal(
                 handler.wake_message(origin, message_id)
             }
             JournalNote::UpdatePage {
-                origin,
+                origin: _origin,
                 program_id,
                 page_number,
                 data,
-            } => handler.update_page(origin, program_id, page_number, data),
+            } => {
+                let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
+                let _ = entry.insert(page_number, data);
+            }
+        }
+    }
+
+    for (program_id, pages) in page_updates {
+        for (page_number, data) in pages {
+            handler.update_page(program_id, page_number, data);
         }
     }
 }
