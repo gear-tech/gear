@@ -167,7 +167,7 @@ pub fn init_fixture<SC: StorageCarrier>(
 
         let message_id = nonce.into();
         let program_id = program.id.to_program_id();
-        // TODO Refactor this set: related to #524
+        // TODO #524
         let result = runner.init_program(InitializeProgramInfo {
             new_program_id: program_id,
             source_id: init_source,

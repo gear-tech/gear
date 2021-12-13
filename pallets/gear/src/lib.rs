@@ -702,8 +702,8 @@ pub mod pallet {
         /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
         ///
-        /// There is an invariant here that is followed by `submit_code` as well. That is, future
-        /// program's `code` and metadata are stored before message was added to the queue and processed.
+        /// There is the same guarantee here as in `submit_code`. That is, future program's
+        /// `code` and metadata are stored before message was added to the queue and processed.
         ///
         /// The origin must be Signed and the sender must have sufficient funds to pay
         /// for `gas` and `value` (in case the latter is being transferred).
@@ -769,9 +769,8 @@ pub mod pallet {
             T::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            // By that call we follow the same invariants as we have in `Self::submit_code`:
-            // 1) if there's code in storage, there's also metadata for it;
-            // 2) the code and metadata are always stored before message, which "initialises" the code.
+            // By that call we follow the guarantee that we have in `Self::submit_code` -
+            // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) = Self::set_code_with_metadata(&code, who.clone().into_origin()) {
                 Self::deposit_event(Event::CodeSaved(code_hash))
             };

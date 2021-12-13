@@ -119,8 +119,7 @@ mod tests {
             for id in 1..=10 {
                 let program =
                     Program::new(ProgramId::from(id), code.clone(), Default::default()).unwrap();
-                let code_hash = sp_io::hashing::blake2_256(&code).into();
-                gear_common::set_code(code_hash, &code);
+                // TODO #524
                 storage.program_storage.set(program);
             }
 

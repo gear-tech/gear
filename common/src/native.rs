@@ -80,6 +80,11 @@ pub fn get_program(id: ProgramId) -> Option<Program> {
 
 pub fn set_program(program: Program) {
     let code_hash = sp_io::hashing::blake2_256(program.code()).into();
+    // This code is only used in tests and is redundant for
+    // production. TODO to be fixed in #524
+    if !crate::code_exists(code_hash) {
+        crate::set_code(code_hash, program.code());
+    }
     crate::set_program(
         H256::from_slice(program.id().as_slice()),
         crate::Program {

@@ -42,11 +42,6 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .to_vec()
 }
 
-fn set_code(code: &[u8]) {
-    let code_hash = sp_io::hashing::blake2_256(&code).into();
-    common::set_code(code_hash, &code);
-}
-
 #[test]
 fn submit_program_works() {
     let wat = r#"
@@ -191,7 +186,7 @@ fn send_message_works() {
                     (func $handle)
                 )"#,
         );
-        set_code(&code);
+        // TODO #524
         let program_id = H256::from_low_u64_be(1001);
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
@@ -347,8 +342,7 @@ fn messages_processing_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
-        // Important to properly repeat extrinsic's storage mutation logic
-        set_code(&code);
+        // TODO #524
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),
@@ -435,7 +429,7 @@ fn spent_gas_to_reward_block_author_works() {
         let program_id = H256::from_low_u64_be(1001);
 
         let init_message_id = H256::from_low_u64_be(1000001);
-        set_code(&code);
+        // TODO #524
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
@@ -485,7 +479,7 @@ fn unused_gas_released_back_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
-        set_code(&code);
+        // TODO #524
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
@@ -521,15 +515,9 @@ fn unused_gas_released_back_works() {
     })
 }
 
-// Minimal copy of `submit_program` logic, that saves the code to the storage
-// along with message, which will initialize it (`IntermediateMessage::InitProgram` message).
-// Also runs message processing after that.
 fn init_test_program(origin: H256, program_id: H256, wat: &str) {
     let code = parse_wat(wat);
-    {
-        let code_hash = sp_io::hashing::blake2_256(&code).into();
-        common::set_code(code_hash, &code);
-    }
+    // TODO #524
     MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
         origin,
         code,
@@ -601,8 +589,7 @@ fn block_gas_limit_works() {
         let pid1 = H256::from_low_u64_be(1001);
         let pid2 = H256::from_low_u64_be(1002);
 
-        set_code(&code1);
-        set_code(&code2);
+        // TODO #524
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),

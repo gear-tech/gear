@@ -131,7 +131,7 @@ fn generate_wasm2(num_pages: i32) -> Result<Vec<u8>, &'static str> {
 
 fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
     let code_hash = sp_io::hashing::blake2_256(&code).into();
-    common::set_code(code_hash, &code);
+    // TODO #524
     common::set_program(
         program_id,
         common::Program {
