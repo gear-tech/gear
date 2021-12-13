@@ -772,9 +772,7 @@ pub mod pallet {
             // By that call we follow the same invariants as we have in `Self::submit_code`:
             // 1) if there's code in storage, there's also metadata for it;
             // 2) the code and metadata are always stored before message, which "initialises" the code.
-            if let Some(code_hash) =
-                Self::set_code_with_metadata(&code, who.clone().into_origin()).ok()
-            {
+            if let Ok(code_hash) = Self::set_code_with_metadata(&code, who.clone().into_origin()) {
                 Self::deposit_event(Event::CodeSaved(code_hash))
             };
 
