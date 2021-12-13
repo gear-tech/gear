@@ -319,6 +319,8 @@ pub mod pallet {
                             gas_limit,
                         );
 
+                        // Successful outcome assumes a programs has been created and initialized so that
+                        // messages sent to this `ProgramId` will be enqueued for processing.
                         match runner::init_program::<
                             gear_backend_sandbox::SandboxEnvironment<runner::Ext>,
                         >(
@@ -671,6 +673,9 @@ pub mod pallet {
         /// with an `CodeAlreadyExists` error. In this case user can be sure, that he can actually use the hash of his program's code bytes to define
         /// "program factory" logic in his program.
         ///
+        /// Parameters
+        /// - `code`: wasm code of a program as a byte vector.
+        ///
         /// Emits the following events:
         /// - `SavedCode(H256)` - when the code is saved in storage.
         #[pallet::weight(
@@ -687,9 +692,14 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Create a `Program` from wasm code and runs its init function.
+        /// Creates program initialization request (message), that is scheduled to be run in the same block.
         ///
-        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
+        /// There are no guarantees that initialization message will be run in the same block due to block
+        /// gas limit restrictions. For example, when it will be the message's turn, required gas limit for it
+        /// could be more than remaining block gas limit. Therefore, the message processing will be postponed
+        /// until the next block.
+        ///
+        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
         ///
         /// There is an invariant here that is followed by `submit_code` as well. That is, future
@@ -697,28 +707,6 @@ pub mod pallet {
         ///
         /// The origin must be Signed and the sender must have sufficient funds to pay
         /// for `gas` and `value` (in case the latter is being transferred).
-        ///
-        /// Successful outcome assumes a programs has been created and initialized so that
-        /// messages sent to this `ProgramId` will be enqueued for processing.
-        ///
-        /// Erroneous outcomes can be of two kinds:
-        /// - program creation failed, that is there is no program in storage corresponding
-        ///   to this `ProgramId`;
-        /// - program was created but the initialization code resulted in a trap.
-        ///
-        /// Either of this cases indicates a program is in an undefined state:
-        /// it either doesn't exist or is faulty (uninitialized).
-        ///
-        /// However, messages sent to such an address might still linger in the queue because
-        /// the program id can deterministically be derived on the caller's side upfront.
-        ///
-        /// In order to mitigate the risk of users' funds being sent to an address,
-        /// where a valid program should have resided, while it's not,
-        /// such "failed-to-initialize" programs are not silently deleted from the
-        /// program storage but rather marked as "ghost" programs.
-        /// Ghost program can be removed by their original author via an explicit call.
-        /// The funds stored by a ghost program will be release to the author once the program
-        /// has been removed.
         ///
         /// Parameters:
         /// - `code`: wasm code of a program as a byte vector.
@@ -730,6 +718,18 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
+        ///
+        /// # Note
+        /// Faulty (uninitialized) programs still have a valid addresses (program ids) that can deterministically be derived on the
+        /// caller's side upfront. It means that if messages are sent to such an address, they might still linger in the queue.
+        ///
+        /// In order to mitigate the risk of users' funds being sent to an address,
+        /// where a valid program should have resided, while it's not,
+        /// such "failed-to-initialize" programs are not silently deleted from the
+        /// program storage but rather marked as "ghost" programs.
+        /// Ghost program can be removed by their original author via an explicit call.
+        /// The funds stored by a ghost program will be release to the author once the program
+        /// has been removed.
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
         )]

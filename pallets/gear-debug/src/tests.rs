@@ -25,7 +25,7 @@ use sp_core::H256;
 
 type Ext = gear_backend_sandbox::SandboxEnvironment<runner::Ext>;
 
-pub(crate) fn init_logger() {
+fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
         .format_level(true)
@@ -39,6 +39,11 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .expect("failed to parse module")
         .as_ref()
         .to_vec()
+}
+
+fn set_code(code: &[u8]) {
+    let code_hash = sp_io::hashing::blake2_256(&code).into();
+    common::set_code(code_hash, &code);
 }
 
 #[test]
@@ -74,6 +79,7 @@ fn debug_mode_works() {
         DebugMode::<Test>::put(true);
 
         // Submit programs
+        set_code(&code_1);
         assert_ok!(runner::init_program::<Ext>(
             1.into_origin(),
             101.into_origin(),
@@ -104,6 +110,8 @@ fn debug_mode_works() {
             .into(),
         );
 
+        // Submit programs
+        set_code(&code_2);
         assert_ok!(runner::init_program::<Ext>(
             1.into_origin(),
             102.into_origin(),

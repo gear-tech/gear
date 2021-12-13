@@ -26,7 +26,7 @@ use gear_core::program::{Program, ProgramId};
 use hex_literal::hex;
 use sp_core::H256;
 
-pub(crate) fn init_logger() {
+fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
         .format_level(true)
@@ -40,6 +40,11 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .expect("failed to parse module")
         .as_ref()
         .to_vec()
+}
+
+fn set_code(code: &[u8]) {
+    let code_hash = sp_io::hashing::blake2_256(&code).into();
+    common::set_code(code_hash, &code);
 }
 
 #[test]
@@ -179,16 +184,18 @@ fn send_message_works() {
 
     new_test_ext().execute_with(|| {
         // Make sure we have a program in the program storage
-        let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let code = parse_wat(
+            r#"(module
                     (import "env" "memory" (memory 1))
                     (export "handle" (func $handle))
                     (func $handle)
                 )"#,
-            ),
+        );
+        set_code(&code);
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            code,
             Default::default(),
         )
         .unwrap();
@@ -340,6 +347,8 @@ fn messages_processing_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
+        // Important to properly repeat extrinsic's storage mutation logic
+        set_code(&code);
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),
@@ -426,6 +435,7 @@ fn spent_gas_to_reward_block_author_works() {
         let program_id = H256::from_low_u64_be(1001);
 
         let init_message_id = H256::from_low_u64_be(1000001);
+        set_code(&code);
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
@@ -475,6 +485,7 @@ fn unused_gas_released_back_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
+        set_code(&code);
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
@@ -510,8 +521,15 @@ fn unused_gas_released_back_works() {
     })
 }
 
-pub fn init_test_program(origin: H256, program_id: H256, wat: &str) {
+// Minimal copy of `submit_program` logic, that saves the code to the storage
+// along with message, which will initialize it (`IntermediateMessage::InitProgram` message).
+// Also runs message processing after that.
+fn init_test_program(origin: H256, program_id: H256, wat: &str) {
     let code = parse_wat(wat);
+    {
+        let code_hash = sp_io::hashing::blake2_256(&code).into();
+        common::set_code(code_hash, &code);
+    }
     MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
         origin,
         code,
@@ -521,6 +539,7 @@ pub fn init_test_program(origin: H256, program_id: H256, wat: &str) {
         gas_limit: 10_000_000_u64,
         value: 0_u128,
     }]);
+
     crate::Pallet::<Test>::process_queue();
 }
 
@@ -582,6 +601,8 @@ fn block_gas_limit_works() {
         let pid1 = H256::from_low_u64_be(1001);
         let pid2 = H256::from_low_u64_be(1002);
 
+        set_code(&code1);
+        set_code(&code2);
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),
