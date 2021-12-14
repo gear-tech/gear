@@ -38,20 +38,25 @@ impl JournalHandler for InMemoryHandler {
         panic!("Execution fail: {}", reason);
     }
     fn gas_burned(&mut self, _origin: MessageId, _amount: u64) {}
-    fn message_consumed(&mut self, _message_id: MessageId) {
-        let _ = self.message_queue.pop_front();
+    fn message_consumed(&mut self, message_id: MessageId) {
+        if let Some(index) = self
+            .message_queue
+            .iter()
+            .position(|msg| msg.id() == message_id)
+        {
+            self.message_queue.remove(index);
+        }
     }
+    fn message_trap(&mut self, _origin: MessageId, _trap: Option<&'static str>) {}
     fn send_message(&mut self, _origin: MessageId, message: Message) {
-        if let Some(_) = self.programs.get(&message.dest()) {
-            self.message_queue.push_back(message.clone());
-            println!("to {:?}", message.dest());
+        if self.programs.contains_key(&message.dest()) {
+            self.message_queue.push_back(message);
         } else {
             self.log.push(message);
         }
     }
     fn submit_program(&mut self, _owner: ProgramId, program: Program) {
         let _ = self.programs.insert(program.id(), program.clone());
-        println!("{:?}", program.id());
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         let _ = self.message_queue.pop_front();
