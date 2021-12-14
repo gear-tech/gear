@@ -138,16 +138,21 @@ impl DispatchResult {
             }
         };
 
-        Some(Message::new_reply(
+        let message = Message::new_reply(
             id::next_message_id(self.program_id(), self.fetch_inc_message_nonce()),
             self.program_id(),
             self.dispatch.message.source(),
             Default::default(),
-            0,
+            self.gas_left(),
             0,
             self.message_id(),
             ERR_EXIT_CODE,
-        ))
+        );
+
+        self.gas_burned += self.gas_left();
+        self.gas_left = 0;
+
+        Some(message)
     }
 }
 

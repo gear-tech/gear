@@ -62,11 +62,6 @@ pub fn process<E: Environment<Ext>>(
 
     dispatch_result.apply_nonce();
 
-    journal.push(JournalNote::GasBurned {
-        origin,
-        amount: dispatch_result.gas_burned(),
-    });
-
     for (page_number, data) in dispatch_result.page_update() {
         journal.push(JournalNote::UpdatePage {
             origin,
@@ -117,6 +112,11 @@ pub fn process<E: Environment<Ext>>(
         origin,
         program_id: dispatch_result.program_id(),
         nonce: dispatch_result.message_nonce(),
+    });
+
+    journal.push(JournalNote::GasBurned {
+        origin,
+        amount: dispatch_result.gas_burned(),
     });
 
     ProcessResult {

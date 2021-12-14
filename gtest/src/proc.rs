@@ -21,6 +21,7 @@ pub struct State {
     pub message_queue: VecDeque<Message>,
     pub log: Vec<Message>,
     pub programs: BTreeMap<ProgramId, Program>,
+    pub current_failed: bool,
 }
 
 impl std::fmt::Debug for State {
@@ -29,6 +30,7 @@ impl std::fmt::Debug for State {
             .field("message_queue", &self.message_queue)
             .field("log", &self.log)
             .field("programs", &self.programs.keys())
+            .field("current_failed", &self.current_failed)
             .finish()
     }
 }
