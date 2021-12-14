@@ -14,6 +14,7 @@ pub struct InMemoryHandler {
     log: Vec<Message>,
     programs: BTreeMap<ProgramId, Program>,
     wait_list: BTreeMap<(ProgramId, MessageId), Message>,
+    current_failed: bool
 }
 
 impl CollectState for InMemoryHandler {
@@ -22,23 +23,27 @@ impl CollectState for InMemoryHandler {
             message_queue,
             log,
             programs,
-            wait_list: _wait_list,
+            current_failed,
+            ..
         } = self.clone();
 
         State {
             message_queue,
             log,
             programs,
+            current_failed
         }
     }
 }
 
 impl JournalHandler for InMemoryHandler {
-    fn execution_fail(&mut self, _origin: MessageId, _program_id: ProgramId, reason: &'static str) {
-        panic!("Execution fail: {}", reason);
+    fn execution_fail(&mut self, origin: MessageId, _program_id: ProgramId, _reason: &'static str) {
+        self.message_consumed(origin);
+        self.current_failed = true;
     }
     fn gas_burned(&mut self, _origin: MessageId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {
+        self.current_failed = false;
         if let Some(index) = self
             .message_queue
             .iter()
