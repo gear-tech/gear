@@ -143,18 +143,10 @@ pub fn process_many<E: Environment<Ext>>(
         } = process::<E>(program, dispatch, block_info);
 
         for note in &current_journal {
-            if let JournalNote::UpdateNonce {
-                origin: _origin,
-                program_id: _program_id,
-                nonce,
-            } = note
-            {
+            if let JournalNote::UpdateNonce { nonce, .. } = note {
                 program.set_message_nonce(*nonce);
             } else if let JournalNote::UpdatePage {
-                origin: _origin,
-                program_id: _program_id,
-                page_number,
-                data,
+                page_number, data, ..
             } = note
             {
                 program.set_page(*page_number, data).expect("Can't fail");

@@ -14,7 +14,7 @@ pub struct InMemoryHandler {
     log: Vec<Message>,
     programs: BTreeMap<ProgramId, Program>,
     wait_list: BTreeMap<(ProgramId, MessageId), Message>,
-    current_failed: bool
+    current_failed: bool,
 }
 
 impl CollectState for InMemoryHandler {
@@ -31,7 +31,7 @@ impl CollectState for InMemoryHandler {
             message_queue,
             log,
             programs,
-            current_failed
+            current_failed,
         }
     }
 }
@@ -62,7 +62,7 @@ impl JournalHandler for InMemoryHandler {
 
     }
     fn submit_program(&mut self, _owner: ProgramId, program: Program) {
-        let _ = self.programs.insert(program.id(), program.clone());
+        let _ = self.programs.insert(program.id(), program);
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         let _ = self.message_queue.pop_front();
