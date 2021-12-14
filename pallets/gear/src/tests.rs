@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::*;
+use super::Pallet as GearPallet;
+use frame_system::Pallet as SystemPallet;
+use crate::mock::{Test, Origin, System, Balances, run_to_block, new_test_ext, Gear, BLOCK_AUTHOR};
 use codec::Encode;
 use common::{self, CodeMetadata, IntermediateMessage, Origin as _, GAS_VALUE_PREFIX};
 use frame_support::traits::{Currency, ExistenceRequirement};
@@ -55,6 +57,12 @@ fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
     sp_io::hashing::blake2_256(&data[..]).into()
 }
 
+// TODO
+// 1. init logger and execute with is a copy_paste - get rid of it.
+// 2. origins?
+// 3. 1.into_origin()?
+// 4. block_number controller, in order not to set multiple times block number in "run_to_block(Num, ..)
+
 #[test]
 fn submit_program_works() {
     let wat = r#"
@@ -65,10 +73,8 @@ fn submit_program_works() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
 
-        let messages: Option<Vec<IntermediateMessage>> = Gear::message_queue();
-        assert!(messages.is_none());
-
-        assert_ok!(Pallet::<Test>::submit_program(
+        assert!(GearPallet::<Test>::message_queue().is_none());
+        assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(1).into(),
             code.clone(),
             b"salt".to_vec(),
@@ -77,35 +83,29 @@ fn submit_program_works() {
             0_u128
         ));
 
-        let messages: Vec<IntermediateMessage> =
-            Gear::message_queue().expect("There should be a message in the queue");
+        let messages: Vec<IntermediateMessage> = GearPallet::<Test>::message_queue().expect("There should be a message in the queue");
         assert_eq!(messages.len(), 1);
 
-        let (msg_origin, msg_code, program_id, message_id) = match &messages[0] {
-            IntermediateMessage::InitProgram {
+        let (msg_origin, msg_code, program_id, message_id) = match messages.into_iter().next() {
+            Some(IntermediateMessage::InitProgram {
                 origin,
                 code,
                 program_id,
                 init_message_id,
                 ..
-            } => (*origin, code.to_vec(), *program_id, *init_message_id),
-            _ => (
-                Default::default(),
-                Vec::new(),
-                Default::default(),
-                Default::default(),
-            ),
+            }) => (origin, code, program_id, init_message_id),
+            _ => unreachable!(),
         };
-        assert_eq!(msg_origin, 1_u64.into_origin());
+        assert_eq!(msg_origin, 1.into_origin());
         assert_eq!(msg_code, code);
-        System::assert_last_event(
-            crate::Event::InitMessageEnqueued(crate::MessageInfo {
+        SystemPallet::<Test>::assert_last_event(
+            Event::InitMessageEnqueued(MessageInfo {
                 message_id,
                 program_id,
                 origin: 1.into_origin(),
             })
             .into(),
-        );
+        )
     })
 }
 
@@ -121,7 +121,7 @@ fn submit_program_expected_failure() {
 
         // Insufficient account balance to reserve gas
         assert_noop!(
-            Pallet::<Test>::submit_program(
+            GearPallet::<Test>::submit_program(
                 Origin::signed(2),
                 code.clone(),
                 b"salt".to_vec(),
@@ -134,7 +134,7 @@ fn submit_program_expected_failure() {
 
         // Gas limit is too high
         assert_noop!(
-            Pallet::<Test>::submit_program(
+            GearPallet::<Test>::submit_program(
                 Origin::signed(1),
                 code.clone(),
                 b"salt".to_vec(),
@@ -159,7 +159,7 @@ fn submit_program_fails_on_duplicate_id() {
     new_test_ext().execute_with(|| {
         let code = parse_wat(wat);
 
-        assert_ok!(Pallet::<Test>::submit_program(
+        assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(1).into(),
             code.clone(),
             b"salt".to_vec(),
@@ -173,7 +173,7 @@ fn submit_program_fails_on_duplicate_id() {
 
         // By now this program id is already in the storage
         assert_noop!(
-            Pallet::<Test>::submit_program(
+            GearPallet::<Test>::submit_program(
                 Origin::signed(1),
                 code.clone(),
                 b"salt".to_vec(),
