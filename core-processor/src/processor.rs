@@ -70,7 +70,7 @@ pub fn process<E: Environment<Ext>>(
     for (page_number, data) in dispatch_result.page_update() {
         journal.push(JournalNote::UpdatePage {
             origin,
-            program_id: dispatch_result.program_id(),
+            program_id,
             page_number,
             data,
         })
@@ -80,8 +80,12 @@ pub fn process<E: Environment<Ext>>(
         journal.push(JournalNote::SendMessage { origin, message });
     }
 
-    for message_id in dispatch_result.awakening() {<<<<<<< HEAD
-        journal.push(JournalNote::WakeMessage { origin, program_id: dispatch_result.program_id(), message_id });
+    for message_id in dispatch_result.awakening() {
+        journal.push(JournalNote::WakeMessage {
+            origin,
+            program_id,
+            message_id,
+        });
     }
 
     match dispatch_result.kind() {
@@ -100,10 +104,7 @@ pub fn process<E: Environment<Ext>>(
                 journal.push(JournalNote::SendMessage { origin, message })
             }
 
-            journal.push(JournalNote::MessageTrap {
-                message_id: dispatch_result.message_id(),
-                trap,
-            });
+            journal.push(JournalNote::MessageTrap { origin, trap });
 
             journal.push(JournalNote::MessageConsumed(origin))
         }

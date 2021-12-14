@@ -173,7 +173,6 @@ pub enum JournalNote {
     },
     WaitDispatch(Dispatch),
     WakeMessage {
-        program_id: ProgramId,
         origin: MessageId,
         program_id: ProgramId,
         message_id: MessageId,
@@ -190,7 +189,7 @@ pub enum JournalNote {
         data: Vec<u8>,
     },
     MessageTrap {
-        message_id: MessageId,
+        origin: MessageId,
         trap: Option<&'static str>,
     },
 }
