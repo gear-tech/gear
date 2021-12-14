@@ -26,7 +26,7 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum DispatchKind {
     Init,
     Handle,
@@ -43,7 +43,7 @@ impl DispatchKind {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Dispatch {
     pub kind: DispatchKind,
     pub message: Message,
@@ -151,6 +151,7 @@ impl DispatchResult {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum JournalNote {
     ExecutionFail {
         origin: MessageId,
@@ -173,6 +174,7 @@ pub enum JournalNote {
     WaitDispatch(Dispatch),
     WakeMessage {
         origin: MessageId,
+        program_id: ProgramId,
         message_id: MessageId,
     },
     UpdateNonce {
@@ -195,7 +197,7 @@ pub trait JournalHandler {
     fn send_message(&mut self, origin: MessageId, message: Message);
     fn submit_program(&mut self, owner: ProgramId, program: Program);
     fn wait_dispatch(&mut self, dispatch: Dispatch);
-    fn wake_message(&mut self, origin: MessageId, message_id: MessageId);
+    fn wake_message(&mut self, origin: MessageId, program_id: ProgramId, message_id: MessageId);
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
 }
