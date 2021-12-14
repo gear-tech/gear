@@ -18,15 +18,12 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use gear_backend_wasmtime::WasmtimeEnvironment;
-use gear_core::storage::ProgramStorage;
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
     program::{Program, ProgramId},
 };
-use gear_core_runner::{
-    Config, Ext, ExtMessage, InMemoryRunner,
-};
+use gear_core_runner::{Ext, ExtMessage, InMemoryRunner};
 use std::collections::{BTreeMap, HashSet};
 
 pub type InMemoryWasmRunner = InMemoryRunner<WasmtimeEnvironment<Ext>>;
@@ -88,7 +85,7 @@ impl InitProgram {
                 gas_limit: message.gas_limit,
                 value: message.value,
                 reply: None,
-            }
+            },
         }
     }
 }
@@ -249,15 +246,18 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
         self.context.gas_spent.insert(origin, amount);
     }
 
-    fn message_consumed(&mut self, message_id: MessageId) {
-        //log::debug("Message consumed: {:?}", message_id);
-    }
+    fn message_consumed(&mut self, _message_id: MessageId) {}
 
     fn send_message(&mut self, _origin: MessageId, message: Message) {
-
         match message.reply {
-            Some((message_id, 0)) => { self.context.outcomes.insert(message_id, RunResult::Normal); }
-            Some((message_id, _)) => { self.context.outcomes.insert(message_id, RunResult::Trap(String::new())); }
+            Some((message_id, 0)) => {
+                self.context.outcomes.insert(message_id, RunResult::Normal);
+            }
+            Some((message_id, _)) => {
+                self.context
+                    .outcomes
+                    .insert(message_id, RunResult::Trap(String::new()));
+            }
             _ => {}
         }
 
@@ -270,13 +270,11 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
                 .message_queue
                 .push(core_processor::Dispatch { kind, message });
         } else {
-            println!("log msg: {:?}", message);
-
             self.context.log.push(message);
         }
     }
 
-    fn submit_program(&mut self, owner: ProgramId, program: Program) {
+    fn submit_program(&mut self, _owner: ProgramId, program: Program) {
         self.context.programs.insert(program.id(), program);
     }
 
@@ -284,13 +282,19 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
         self.context.wait_list.insert(dispatch.message.id, dispatch);
     }
 
-    fn wake_message(&mut self, origin: MessageId, message_id: MessageId) {
-        let msg = self
+    fn wake_message(&mut self, program_id: ProgramId, _origin: MessageId, message_id: MessageId) {
+        let dispatch = self
             .context
             .wait_list
             .remove(&message_id)
             .expect("wait list entry not found");
-        self.context.message_queue.push(msg);
+
+        // only wake messages from program that owns them
+        if program_id == dispatch.message.dest {
+            self.context.message_queue.push(dispatch);
+        } else {
+            self.context.wait_list.insert(message_id, dispatch);
+        }
     }
 
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
@@ -311,7 +315,10 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
     }
 
     fn message_trap(&mut self, message_id: MessageId, trap: Option<&'static str>) {
-        self.context.outcomes.insert(message_id, RunResult::Trap(trap.unwrap_or("No message").to_string()));
+        self.context.outcomes.insert(
+            message_id,
+            RunResult::Trap(trap.unwrap_or("No message").to_string()),
+        );
     }
 }
 
@@ -328,24 +335,21 @@ impl RunnerContext {
         &self.log
     }
 
-    // pub fn with_config(config: &Config) -> Self {
-    //     Self::new(InMemoryWasmRunner::new(
-    //         config,
-    //         Default::default(),
-    //         Default::default(),
-    //         WasmtimeEnvironment::default(),
-    //     ))
-    // }
-
     pub fn init_program<P>(&mut self, init_data: P) -> MessageId
     where
         P: Into<InitProgram>,
     {
         // get init info
-        let InitializeProgramInfo { new_program_id, source_id, message, code } = init_data.into().into_init_program_info(self);
+        let InitializeProgramInfo {
+            new_program_id,
+            message,
+            code,
+            ..
+        } = init_data.into().into_init_program_info(self);
 
         // store program
-        let program = Program::new(new_program_id, code, BTreeMap::new()).expect("Failed to create program");
+        let program =
+            Program::new(new_program_id, code, BTreeMap::new()).expect("Failed to create program");
         self.programs.insert(new_program_id, program);
 
         // generate disspatch
@@ -354,11 +358,6 @@ impl RunnerContext {
             message,
         };
         let message_id = dispatch.message.id;
-
-        // let result = self
-        //     .runner()
-        //     .init_program(info)
-        //     .expect("Failed to init program");
 
         let journal = {
             let program = self
@@ -391,39 +390,6 @@ impl RunnerContext {
         let message_id = self.init_program(init_data);
         reply_or_panic(self.get_response_to(message_id))
     }
-
-    // pub fn init_program_with_report<P, D>(&mut self, init_data: P) -> RunReport<D>
-    // where
-    //     P: Into<InitProgram>,
-    //     D: Decode,
-    // {
-    //     let info = init_data.into().into_init_program_info(self);
-    //     let program_id = info.new_program_id;
-    //     let message_id = info.message.id;
-
-    //     let result = self
-    //         .runner()
-    //         .init_program(info)
-    //         .expect("Failed to init program");
-
-    //     let mut log = vec![];
-    //     result.messages.into_iter().for_each(|m| {
-    //         let m = m.into_message(program_id);
-    //         if !self.runner().storage().program_storage.exists(m.dest()) {
-    //             log.push(m);
-    //         }
-    //     });
-
-    //     self.log.append(&mut log);
-
-    //     let response = self.get_response_to(message_id);
-
-    //     RunReport {
-    //         result: result.outcome.into(),
-    //         response,
-    //         gas_spent: result.gas_spent,
-    //     }
-    // }
 
     pub fn try_request<Msg, D>(&mut self, message: Msg) -> Option<Result<D, Error>>
     where
@@ -551,14 +517,19 @@ impl RunnerContext {
     }
 
     fn run(&mut self, message: Message) {
-        self.message_queue.push(core_processor::Dispatch { message, kind: core_processor::DispatchKind::Handle });
+        self.message_queue.push(core_processor::Dispatch {
+            message,
+            kind: core_processor::DispatchKind::Handle,
+        });
 
         while !self.message_queue.is_empty() {
             let journal = {
                 let messages = std::mem::replace(&mut self.message_queue, Vec::new());
                 let programs = self.programs.clone();
 
-                core_processor::processor::process_many::<WasmtimeEnvironment<core_processor::ext::Ext>>(
+                core_processor::processor::process_many::<
+                    WasmtimeEnvironment<core_processor::ext::Ext>,
+                >(
                     programs,
                     messages,
                     core_processor::configs::BlockInfo {

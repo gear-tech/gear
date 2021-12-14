@@ -173,6 +173,7 @@ pub enum JournalNote {
     },
     WaitDispatch(Dispatch),
     WakeMessage {
+        program_id: ProgramId,
         origin: MessageId,
         message_id: MessageId,
     },
@@ -200,7 +201,7 @@ pub trait JournalHandler {
     fn send_message(&mut self, origin: MessageId, message: Message);
     fn submit_program(&mut self, owner: ProgramId, program: Program);
     fn wait_dispatch(&mut self, dispatch: Dispatch);
-    fn wake_message(&mut self, origin: MessageId, message_id: MessageId);
+    fn wake_message(&mut self, program_id: ProgramId, origin: MessageId, message_id: MessageId);
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
     fn message_trap(&mut self, origin: MessageId, trap: Option<&'static str>);
