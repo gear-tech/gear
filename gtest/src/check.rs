@@ -438,12 +438,11 @@ where
                 if let Some(step) = exp.step {
                     final_state = results[step].0.clone();
                 }
-                if !exp.allow_error.unwrap_or(false) {
-                    if final_state.current_failed {
-                        errors.push(format!("step: {:?}", exp.step));
-                        errors.extend(["Failed, but wasn't allowed to".to_string()]);
-                    }
+                if !exp.allow_error.unwrap_or(false) && final_state.current_failed {
+                    errors.push(format!("step: {:?}", exp.step));
+                    errors.extend(["Failed, but wasn't allowed to".to_string()]);
                 }
+
                 if !skip_messages {
                     if let Some(messages) = &exp.messages {
                         let msgs: Vec<Message> = final_state.message_queue.into_iter().collect();

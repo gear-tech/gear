@@ -38,7 +38,6 @@ pub struct InitProgram {
 struct InitializeProgramInfo {
     new_program_id: ProgramId,
     code: Vec<u8>,
-    source_id: ProgramId,
     message: Message,
 }
 
@@ -75,7 +74,6 @@ impl InitProgram {
 
         InitializeProgramInfo {
             new_program_id: self.program_id.unwrap_or_else(|| context.next_program_id()),
-            source_id: self.source_id.unwrap_or_else(ProgramId::system),
             code: self.code,
             message: Message {
                 id: message.id,
@@ -282,7 +280,7 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
         self.context.wait_list.insert(dispatch.message.id, dispatch);
     }
 
-    fn wake_message(&mut self, program_id: ProgramId, _origin: MessageId, message_id: MessageId) {
+    fn wake_message(&mut self, _origin: MessageId, program_id: ProgramId, message_id: MessageId) {
         let dispatch = self
             .context
             .wait_list
@@ -413,7 +411,7 @@ impl RunnerContext {
 
         self.run(message);
 
-        let outcome = self
+        let result = self
             .outcomes
             .remove(&message_id)
             .expect("Unable to get message outcome");
@@ -427,7 +425,7 @@ impl RunnerContext {
 
         RunReport {
             response,
-            result: outcome.into(),
+            result,
             gas_spent,
         }
     }
@@ -524,7 +522,7 @@ impl RunnerContext {
 
         while !self.message_queue.is_empty() {
             let journal = {
-                let messages = std::mem::replace(&mut self.message_queue, Vec::new());
+                let messages = std::mem::take(&mut self.message_queue);
                 let programs = self.programs.clone();
 
                 core_processor::processor::process_many::<
