@@ -173,6 +173,7 @@ pub enum JournalNote {
     },
     WaitDispatch(Dispatch),
     WakeMessage {
+        program_id: ProgramId,
         origin: MessageId,
         program_id: ProgramId,
         message_id: MessageId,
