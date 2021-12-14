@@ -1,27 +1,20 @@
-
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use gear_core::{
     message::{IncomingMessage, Message},
     program::{Program, ProgramId},
 };
-use std::collections::{VecDeque, BTreeMap};
+use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::fmt::Write;
 use std::str::FromStr;
-use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 
 use regex::Regex;
 
-use gear_core_processor::{
-    configs::*,
-    common::*,
-    ext::Ext,
-    handler,
-    processor,
-};
+use gear_core_processor::{common::*, configs::*, ext::Ext, handler, processor};
 
 #[derive(Clone)]
 pub struct State {
@@ -33,10 +26,10 @@ pub struct State {
 impl std::fmt::Debug for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("State")
-         .field("message_queue", &self.message_queue)
-         .field("log", &self.log)
-         .field("programs", &self.programs.keys())
-         .finish()
+            .field("message_queue", &self.message_queue)
+            .field("log", &self.log)
+            .field("programs", &self.programs.keys())
+            .finish()
     }
 }
 
@@ -121,15 +114,21 @@ pub fn message_to_dispatch(message: Message) -> Dispatch {
 pub fn init_program(
     message: InitMessage,
     block_info: BlockInfo,
-    journal_handler: &mut dyn JournalHandler
+    journal_handler: &mut dyn JournalHandler,
 ) -> anyhow::Result<()> {
     let program = Program::new(message.id, message.code.clone(), Default::default())?;
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
-        return Err(anyhow::anyhow!("Error initialisation: memory limit exceeded"));
+        return Err(anyhow::anyhow!(
+            "Error initialisation: memory limit exceeded"
+        ));
     }
 
-    let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment::<Ext>>(program, message.into(), block_info);
+    let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>(
+        program,
+        message.into(),
+        block_info,
+    );
 
     handler::handle_journal(res.journal, journal_handler);
 
@@ -188,7 +187,7 @@ pub fn init_fixture(
                 ),
             },
             Default::default(),
-            journal_handler
+            journal_handler,
         )?;
 
         nonce += 1;
@@ -243,7 +242,7 @@ pub fn init_fixture(
                 gas_limit: message.gas_limit.unwrap_or(u64::MAX),
                 value: message.value.unwrap_or_default() as _,
                 reply: None,
-            }
+            },
         );
 
         nonce += 1;
@@ -252,11 +251,10 @@ pub fn init_fixture(
     Ok(())
 }
 
-pub fn run<JH>(
-    steps: Option<usize>,
-    journal_handler: &mut JH,
-) -> Vec<(State, anyhow::Result<()>)>
-where JH: JournalHandler + CollectState {
+pub fn run<JH>(steps: Option<usize>, journal_handler: &mut JH) -> Vec<(State, anyhow::Result<()>)>
+where
+    JH: JournalHandler + CollectState,
+{
     let mut results = Vec::new();
     let mut state = journal_handler.collect();
     results.push((state.clone(), Ok(())));
@@ -270,11 +268,13 @@ where JH: JournalHandler + CollectState {
                 .unwrap_or(0) as u64;
 
             if let Some(m) = state.message_queue.pop_front() {
-                let program = state.programs
-                    .get(&m.dest())
-                    .expect("Can't find program");
+                let program = state.programs.get(&m.dest()).expect("Can't find program");
 
-                let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment::<Ext>>(program.clone(), message_to_dispatch(m), BlockInfo { height, timestamp });
+                let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>(
+                    program.clone(),
+                    message_to_dispatch(m),
+                    BlockInfo { height, timestamp },
+                );
 
                 handler::handle_journal(res.journal, journal_handler);
 
@@ -287,16 +287,21 @@ where JH: JournalHandler + CollectState {
     } else {
         let mut counter = 0;
         while let Some(m) = state.message_queue.pop_front() {
-            let program = state.programs
-                    .get(&m.dest())
-                    .expect("Can't find program");
+            let program = state.programs.get(&m.dest()).expect("Can't find program");
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment::<Ext>>(program.clone(), message_to_dispatch(m), BlockInfo { height: counter, timestamp });
+            let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>(
+                program.clone(),
+                message_to_dispatch(m),
+                BlockInfo {
+                    height: counter,
+                    timestamp,
+                },
+            );
             counter += 1;
 
             handler::handle_journal(res.journal.clone(), journal_handler);

@@ -104,6 +104,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
                     reason: "Not enough gas for grow memory size.",
                 });
             }
+        } else {
+            assert!(max_page_num.raw() == mem_size.raw() - 1);
         }
     }
 

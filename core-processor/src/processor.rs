@@ -35,10 +35,9 @@ pub fn process<E: Environment<Ext>>(
     block_info: BlockInfo,
 ) -> ProcessResult {
     let mut journal = Vec::new();
-
     let execution_settings = ExecutionSettings::new(block_info);
-
     let origin = dispatch.message.id();
+    let program_id = program.id();
 
     let mut dispatch_result =
         match executor::execute_wasm::<E>(program, dispatch, execution_settings) {
@@ -82,7 +81,11 @@ pub fn process<E: Environment<Ext>>(
     }
 
     for message_id in dispatch_result.awakening() {
-        journal.push(JournalNote::WakeMessage { origin, program_id: dispatch_result.program_id(), message_id });
+        journal.push(JournalNote::WakeMessage {
+            origin,
+            program_id: dispatch_result.program_id(),
+            message_id,
+        });
     }
 
     match dispatch_result.kind() {
@@ -96,10 +99,15 @@ pub fn process<E: Environment<Ext>>(
                 })
             }
         }
-        DispatchResultKind::Trap(_) => {
+        DispatchResultKind::Trap(trap) => {
             if let Some(message) = dispatch_result.trap_reply() {
                 journal.push(JournalNote::SendMessage { origin, message })
             }
+
+            journal.push(JournalNote::MessageTrap {
+                message_id: dispatch_result.message_id(),
+                trap,
+            });
 
             journal.push(JournalNote::MessageConsumed(origin))
         }

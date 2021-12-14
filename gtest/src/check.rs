@@ -430,10 +430,7 @@ where
     match proc::init_fixture(test, fixture_no, &mut journal_handler) {
         Ok(()) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = proc::run(
-                last_exp_steps,
-                &mut journal_handler,
-            );
+            let results = proc::run(last_exp_steps, &mut journal_handler);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {
@@ -444,9 +441,7 @@ where
                 if !skip_messages {
                     if let Some(messages) = &exp.messages {
                         let msgs: Vec<Message> = final_state.message_queue.into_iter().collect();
-                        if let Err(msg_errors) =
-                            check_messages(progs_n_paths, &msgs, messages)
-                        {
+                        if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(
                                 msg_errors
@@ -474,10 +469,13 @@ where
                 }
                 if !skip_allocations {
                     if let Some(alloc) = &exp.allocations {
-                        let progs: Vec<Program> = final_state.programs.clone().into_iter().map(|(_, v)| v).collect();
-                        if let Err(alloc_errors) =
-                            check_allocations(&progs, alloc)
-                        {
+                        let progs: Vec<Program> = final_state
+                            .programs
+                            .clone()
+                            .into_iter()
+                            .map(|(_, v)| v)
+                            .collect();
+                        if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(alloc_errors);
                         }
@@ -485,9 +483,9 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        let mut progs: Vec<Program> = final_state.programs.into_iter().map(|(_, v)| v).collect();
-                        if let Err(mem_errors) = check_memory(&mut progs, mem)
-                        {
+                        let mut progs: Vec<Program> =
+                            final_state.programs.into_iter().map(|(_, v)| v).collect();
+                        if let Err(mem_errors) = check_memory(&mut progs, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);
                         }

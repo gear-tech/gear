@@ -7482,6 +7482,7 @@ version = "0.1.0"
 dependencies = [
  "gear-backend-wasmtime",
  "gear-core",
+ "gear-core-processor",
  "gear-core-runner",
  "gstd",
  "parity-scale-codec",
@@ -7489,19 +7490,6 @@ dependencies = [
 
 [[package]]
 name = "tests-distributor"
-version = "0.1.0"
-dependencies = [
- "env_logger 0.9.0",
- "gear-core",
- "gear-core-runner",
- "gstd",
- "parity-scale-codec",
- "substrate-wasm-builder",
- "tests-common",
-]
-
-[[package]]
-name = "tests-gas-limit"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",

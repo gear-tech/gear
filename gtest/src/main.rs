@@ -18,13 +18,13 @@
 
 mod address;
 mod check;
-mod js;
-mod sample;
 mod handler;
+mod js;
 mod proc;
+mod sample;
 
-use clap::Parser;
 use crate::handler::InMemoryHandler;
+use clap::Parser;
 
 #[derive(Parser)]
 struct Opts {
