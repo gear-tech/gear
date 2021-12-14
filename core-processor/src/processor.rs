@@ -82,7 +82,7 @@ pub fn process<E: Environment<Ext>>(
     }
 
     for message_id in dispatch_result.awakening() {
-        journal.push(JournalNote::WakeMessage { origin, message_id });
+        journal.push(JournalNote::WakeMessage { origin, program_id: dispatch_result.program_id(), message_id });
     }
 
     match dispatch_result.kind() {

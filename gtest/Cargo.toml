@@ -11,7 +11,7 @@ clap = { version = "3.0.0-rc.4", features = ["derive"] }
 derive_more = "0.99"
 env_logger = "0.9"
 gear-core = { path = "../core" }
-core-runner = { path = "../runner", default-features = false }
+gear-core-processor = { path = "../core-processor", default-features = false }
 colored = "2.0.0"
 common = { package = "gear-common", path = "../common" }
 regex = "^1.5"

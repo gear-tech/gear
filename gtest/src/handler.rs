@@ -1,0 +1,81 @@
+use gear_core_processor::common::*;
+use std::collections::{VecDeque, BTreeMap};
+use gear_core::{
+    message::{Message, MessageId},
+    program::{Program, ProgramId},
+    memory::PageNumber,
+};
+
+use crate::proc::{CollectState, State};
+
+#[derive(Clone, Default)]
+pub struct InMemoryHandler {
+    message_queue: VecDeque<Message>,
+    log: Vec<Message>,
+    programs: BTreeMap<ProgramId, Program>,
+    wait_list: BTreeMap<(ProgramId, MessageId), Message>,
+}
+
+impl CollectState for InMemoryHandler {
+    fn collect(&self) -> State {
+        let InMemoryHandler {
+            message_queue,
+            log,
+            programs,
+            wait_list: _wait_list,
+        } = self.clone();
+
+        State {
+            message_queue,
+            log,
+            programs,
+        }
+    }
+}
+
+impl JournalHandler for InMemoryHandler {
+    fn execution_fail(&mut self, _origin: MessageId, _program_id: ProgramId, reason: &'static str) {
+        panic!("Execution fail: {}", reason);
+    }
+    fn gas_burned(&mut self, _origin: MessageId, _amount: u64) {}
+    fn message_consumed(&mut self, _message_id: MessageId) {
+        let _ = self.message_queue.pop_front();
+    }
+    fn send_message(&mut self, _origin: MessageId, message: Message) {
+        if let Some(_) = self.programs.get(&message.dest()) {
+            self.message_queue.push_back(message.clone());
+            println!("to {:?}", message.dest());
+        } else {
+            self.log.push(message);
+        }
+
+    }
+    fn submit_program(&mut self, _owner: ProgramId, program: Program) {
+        let _ = self.programs.insert(program.id(), program.clone());
+        println!("{:?}", program.id());
+    }
+    fn wait_dispatch(&mut self, dispatch: Dispatch) {
+        let _ = self.message_queue.pop_front();
+        let _ = self.wait_list.insert((dispatch.message.dest(), dispatch.message.id()), dispatch.message);
+    }
+    fn wake_message(&mut self, _origin: MessageId, program_id: ProgramId, message_id: MessageId) {
+        if let Some(msg) = self.wait_list.remove(&(program_id, message_id)) {
+            self.message_queue.push_back(msg);
+        }
+    }
+    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
+        if let Some(prog) = self.programs.get_mut(&program_id) {
+            prog.set_message_nonce(nonce);
+        } else {
+            panic!("Program not found in storage");
+        }
+    }
+    fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>) {
+        if let Some(prog) = self.programs.get_mut(&program_id) {
+            let _ = prog.set_page(page_number, &data);
+        } else {
+            panic!("Program not found in storage");
+        }
+    }
+
+}

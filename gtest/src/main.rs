@@ -19,11 +19,12 @@
 mod address;
 mod check;
 mod js;
-mod runner;
 mod sample;
+mod handler;
+mod proc;
 
 use clap::Parser;
-use gear_core::storage::InMemoryStorage;
+use crate::handler::InMemoryHandler;
 
 #[derive(Parser)]
 struct Opts {
@@ -46,13 +47,13 @@ struct Opts {
 pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
     let print_logs = !matches!(opts.verbose, 0);
-    check::check_main::<InMemoryStorage, _>(
+    check::check_main::<InMemoryHandler, _>(
         opts.input.to_vec(),
         opts.skip_messages,
         opts.skip_allocations,
         opts.skip_memory,
         print_logs,
-        InMemoryStorage::default,
+        InMemoryHandler::default,
         None,
     )
 }

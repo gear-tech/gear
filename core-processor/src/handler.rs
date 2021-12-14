@@ -39,8 +39,8 @@ pub fn handle_journal(
             JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
             JournalNote::SubmitProgram { owner, program } => handler.submit_program(owner, program),
             JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
-            JournalNote::WakeMessage { origin, message_id } => {
-                handler.wake_message(origin, message_id)
+            JournalNote::WakeMessage { origin, program_id, message_id } => {
+                handler.wake_message(origin, program_id, message_id)
             }
             JournalNote::UpdateNonce {
                 origin: _origin,

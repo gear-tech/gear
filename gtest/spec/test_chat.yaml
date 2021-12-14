@@ -40,4 +40,3 @@ fixtures:
               value: "0x012c746573743a2068656c6c6f"
             destination: 3
       - messages: []
-
