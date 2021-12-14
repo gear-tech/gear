@@ -42,6 +42,19 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .to_vec()
 }
 
+fn compute_code_hash(code: &[u8]) -> H256 {
+    sp_io::hashing::blake2_256(code).into()
+}
+
+fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
+    // TODO #512
+    let mut data = Vec::new();
+    code.encode_to(&mut data);
+    salt.encode_to(&mut data);
+
+    sp_io::hashing::blake2_256(&data[..]).into()
+}
+
 #[test]
 fn submit_program_works() {
     let wat = r#"
@@ -1590,15 +1603,6 @@ fn claim_value_from_mailbox_works() {
     })
 }
 
-pub fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-    // TODO #512
-    let mut data = Vec::new();
-    code.encode_to(&mut data);
-    salt.encode_to(&mut data);
-
-    sp_io::hashing::blake2_256(&data[..]).into()
-}
-
 #[test]
 fn distributor_initialize() {
     use tests_distributor::WASM_BINARY_BLOATY;
@@ -1658,10 +1662,6 @@ fn distributor_distribute() {
 
         assert_eq!(balance_initial, final_balance);
     });
-}
-
-fn compute_code_hash(code: &[u8]) -> H256 {
-    sp_io::hashing::blake2_256(code).into()
 }
 
 #[test]
