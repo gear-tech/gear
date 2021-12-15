@@ -24,7 +24,7 @@ use primitive_types::H256;
 use sp_std::borrow::Cow;
 use sp_std::prelude::*;
 
-#[derive(Decode, Debug, Encode)]
+#[derive(Clone, Decode, Debug, Encode)]
 enum ValueOrigin {
     External(H256),
     Local(H256),
@@ -38,7 +38,7 @@ impl Default for ValueOrigin {
     }
 }
 
-#[derive(Default, Decode, Debug, Encode)]
+#[derive(Clone, Default, Decode, Debug, Encode)]
 pub struct ValueNode {
     origin: ValueOrigin,
     refs: u32,
@@ -52,7 +52,7 @@ pub enum ConsumeResult {
     RefundExternal(H256, u64),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ValueView {
     prefix: Cow<'static, [u8]>,
     key: H256,

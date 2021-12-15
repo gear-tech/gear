@@ -37,7 +37,14 @@ impl CollectState for InMemoryHandler {
 }
 
 impl JournalHandler for InMemoryHandler {
-    fn execution_fail(&mut self, origin: MessageId, _program_id: ProgramId, _reason: &'static str) {
+    fn execution_fail(
+        &mut self,
+        origin: MessageId,
+        _initiator: ProgramId,
+        _program_id: ProgramId,
+        _reason: &'static str,
+        _entry: DispatchKind,
+    ) {
         self.message_consumed(origin);
         self.current_failed = true;
     }
@@ -60,7 +67,7 @@ impl JournalHandler for InMemoryHandler {
             self.log.push(message);
         }
     }
-    fn submit_program(&mut self, _owner: ProgramId, program: Program) {
+    fn submit_program(&mut self, _origin: MessageId, _owner: ProgramId, program: Program) {
         let _ = self.programs.insert(program.id(), program);
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {

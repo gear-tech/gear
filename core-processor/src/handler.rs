@@ -31,13 +31,19 @@ pub fn handle_journal(
         match note {
             JournalNote::ExecutionFail {
                 origin,
+                initiator,
                 program_id,
                 reason,
-            } => handler.execution_fail(origin, program_id, reason),
+                entry,
+            } => handler.execution_fail(origin, initiator, program_id, reason, entry),
             JournalNote::GasBurned { origin, amount } => handler.gas_burned(origin, amount),
             JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
             JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
-            JournalNote::SubmitProgram { owner, program } => handler.submit_program(owner, program),
+            JournalNote::SubmitProgram {
+                origin,
+                owner,
+                program,
+            } => handler.submit_program(origin, owner, program),
             JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
             JournalNote::WakeMessage {
                 origin,
