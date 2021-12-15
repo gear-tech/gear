@@ -29,6 +29,6 @@ pub fn wake(waker_id: MessageId) {
     gcore::exec::wake(waker_id.into())
 }
 
-pub fn actor_id() -> ActorId {
-    gcore::exec::actor_id().into()
+pub fn program_id() -> ActorId {
+    gcore::exec::program_id().into()
 }

@@ -28,9 +28,9 @@ mod sys {
         pub fn gr_block_height() -> u32;
         pub fn gr_block_timestamp() -> u64;
         pub fn gr_gas_available() -> u64;
+        pub fn gr_program_id(val: *mut u8);
         pub fn gr_wait() -> !;
         pub fn gr_wake(waker_id_ptr: *const u8);
-        pub fn gr_actor_id(val: *mut u8);
     }
 }
 
@@ -150,7 +150,7 @@ pub fn wake(waker_id: MessageId) {
     }
 }
 
-/// Return program id of the program.
+/// Return ID of the current program.
 ///
 /// # Examples
 ///
@@ -159,11 +159,11 @@ pub fn wake(waker_id: MessageId) {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     exec::actor_id();
+///     let me = exec::program_id();
 /// }
 /// ```
-pub fn actor_id() -> ActorId {
+pub fn program_id() -> ActorId {
     let mut actor_id = ActorId::default();
-    unsafe { sys::gr_actor_id(actor_id.as_mut_slice().as_mut_ptr()) }
+    unsafe { sys::gr_program_id(actor_id.as_mut_slice().as_mut_ptr()) }
     actor_id
 }

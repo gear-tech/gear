@@ -59,6 +59,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
+        result.add_func_i32("gr_program_id", funcs::program_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
         result.add_func_i32_i32_i64_i32_i32("gr_reply", funcs::reply);
         result.add_func_i32_i64_i32("gr_reply_commit", funcs::reply_commit);
@@ -70,7 +71,6 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32_i32_i32("gr_send_push", funcs::send_push);
         result.add_func_into_i32("gr_size", funcs::size);
         result.add_func_i32("gr_source", funcs::source);
-        result.add_func_i32("gr_actor_id", funcs::actor_id);
         result.add_func_i32("gr_value", funcs::value);
         result.add_func("gr_wait", funcs::wait);
         result.add_func_i32("gr_wake", funcs::wake);
