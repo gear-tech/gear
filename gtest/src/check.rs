@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::js::{MetaData, MetaType};
-use crate::proc::{self, CollectState};
+use crate::proc;
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
@@ -28,7 +28,7 @@ use gear_core::{
     message::Message,
     program::{Program, ProgramId},
 };
-use gear_core_processor::common::JournalHandler;
+use gear_core_processor::common::{CollectState, JournalHandler};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};

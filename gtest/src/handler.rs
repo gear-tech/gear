@@ -6,8 +6,6 @@ use gear_core::{
 use gear_core_processor::common::*;
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::proc::{CollectState, State};
-
 #[derive(Clone, Default)]
 pub struct InMemoryHandler {
     message_queue: VecDeque<Message>,

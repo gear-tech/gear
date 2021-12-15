@@ -4,7 +4,6 @@ use gear_core::{
     message::{IncomingMessage, Message},
     program::{Program, ProgramId},
 };
-use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
@@ -15,29 +14,6 @@ use std::str::FromStr;
 use regex::Regex;
 
 use gear_core_processor::{common::*, configs::*, ext::Ext, handler, processor};
-
-#[derive(Clone)]
-pub struct State {
-    pub message_queue: VecDeque<Message>,
-    pub log: Vec<Message>,
-    pub programs: BTreeMap<ProgramId, Program>,
-    pub current_failed: bool,
-}
-
-impl std::fmt::Debug for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("State")
-            .field("message_queue", &self.message_queue)
-            .field("log", &self.log)
-            .field("programs", &self.programs.keys())
-            .field("current_failed", &self.current_failed)
-            .finish()
-    }
-}
-
-pub trait CollectState {
-    fn collect(&self) -> State;
-}
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);

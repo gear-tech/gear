@@ -35,24 +35,21 @@ impl GearTestCmd {
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         new_test_ext()
             .execute_with(|| {
-                Err(anyhow::anyhow!("Unimplemented"))
-                // gear_test::check::check_main::<runner::ExtStorage, _>(
-                //     self.input.to_vec(),
-                //     false,
-                //     false,
-                //     false,
-                //     false,
-                //     || {
-                //         sp_io::storage::clear_prefix(gear_common::STORAGE_CODE_PREFIX, None);
-                //         sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX, None);
-                //         sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX, None);
-                //         sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX, None);
-                //         gear_core::storage::Storage {
-                //             program_storage: runner::ext::ExtProgramStorage,
-                //         }
-                //     },
-                //     Some(Box::new(&new_test_ext)),
-                // )
+                gear_test::check::check_main::<gear_runtime::ExtManager<gear_runtime::Runtime>, _>(
+                    self.input.to_vec(),
+                    false,
+                    false,
+                    false,
+                    false,
+                    || {
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_CODE_PREFIX, None);
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX, None);
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX, None);
+                        sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX, None);
+                        Default::default()
+                    },
+                    Some(Box::new(&new_test_ext)),
+                )
             })
             .map_err(|e: anyhow::Error| sc_cli::Error::Application(e.into()))
     }

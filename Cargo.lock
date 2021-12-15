@@ -2089,26 +2089,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-node-runner"
-version = "0.1.0"
-dependencies = [
- "core-runner",
- "frame-system",
- "gear-backend-common",
- "gear-backend-sandbox",
- "gear-common",
- "gear-core",
- "gear-runtime",
- "log",
- "parity-scale-codec",
- "primitive-types",
- "sp-core",
- "sp-io",
- "sp-std",
- "wabt",
-]
-
-[[package]]
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [
@@ -2170,7 +2150,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-processor",
- "gear-node-runner",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2193,7 +2172,7 @@ dependencies = [
  "gear-backend-wasmtime",
  "gear-common",
  "gear-core",
- "gear-node-runner",
+ "gear-core-processor",
  "gear-runtime",
  "gear-test",
  "parity-scale-codec",
@@ -4222,7 +4201,6 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
- "gear-node-runner",
  "hex-literal",
  "log",
  "pallet-authorship",

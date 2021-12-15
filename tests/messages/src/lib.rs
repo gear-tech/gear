@@ -107,8 +107,7 @@ mod wasm {
 mod tests {
     use super::{native, Request};
 
-    use codec::Encode;
-    use common::{Error::Panic, RunResult, RunnerContext};
+    use common::{RunResult, RunnerContext};
 
     #[test]
     fn binary_available() {

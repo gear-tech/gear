@@ -28,7 +28,6 @@ members = [
     "gstd",
     "gtest",
     "node",
-    "node-runner",
     "pallets/*",
     "runner",
     "runtime",

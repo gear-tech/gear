@@ -6,7 +6,7 @@ use common::GasToFeeConverter;
 use common::Origin;
 use common::GAS_VALUE_PREFIX;
 use core::marker::PhantomData;
-use core_processor::common::{Dispatch, DispatchKind, JournalHandler};
+use core_processor::common::{CollectState, Dispatch, DispatchKind, JournalHandler, State};
 use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
 use gear_core::{
     memory::PageNumber,
@@ -16,11 +16,25 @@ use gear_core::{
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{
+    collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+    prelude::*,
+};
 
 pub struct ExtManager<T: Config> {
     gas_tree: Option<common::value_tree::ValueView>,
     _phantom: PhantomData<T>,
+}
+
+impl<T: Config> CollectState for ExtManager<T> {
+    fn collect(&self) -> State {
+        State {
+            message_queue: VecDeque::new(),
+            log: Vec::new(),
+            programs: BTreeMap::new(),
+            current_failed: false,
+        }
+    }
 }
 
 impl<T> Default for ExtManager<T>

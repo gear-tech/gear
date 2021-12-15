@@ -28,11 +28,10 @@
 extern crate alloc;
 
 pub mod env;
+pub mod gas;
 pub mod memory;
 pub mod message;
 pub mod program;
 pub mod storage;
-
-pub mod gas;
 
 mod util;
