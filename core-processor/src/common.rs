@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, VecDeque},
+    vec::Vec,
+};
 
 use crate::{executor::ERR_EXIT_CODE, id};
 
@@ -231,4 +234,27 @@ pub struct ExecutionError {
     pub program: Program,
     pub gas_burned: u64,
     pub reason: &'static str,
+}
+
+#[derive(Clone)]
+pub struct State {
+    pub message_queue: VecDeque<Message>,
+    pub log: Vec<Message>,
+    pub programs: BTreeMap<ProgramId, Program>,
+    pub current_failed: bool,
+}
+
+impl alloc::fmt::Debug for State {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
+        f.debug_struct("State")
+            .field("message_queue", &self.message_queue)
+            .field("log", &self.log)
+            .field("programs", &self.programs.keys())
+            .field("current_failed", &self.current_failed)
+            .finish()
+    }
+}
+
+pub trait CollectState {
+    fn collect(&self) -> State;
 }

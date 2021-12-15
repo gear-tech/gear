@@ -20,7 +20,7 @@ sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.g
 # Internal deps
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
+gear-core-processor = { path = "../../core-processor" }
 gear-runtime = { path = "../../runtime" }
-runner = { package = "gear-node-runner", path = "../../node-runner" }
 gear-test = { path = "../../gtest" }
 gear-backend-wasmtime = { path = "../../core-backend/wasmtime" }

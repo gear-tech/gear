@@ -6,8 +6,6 @@ use gear_core::{
     memory::PageNumber,
 };
 
-use crate::proc::{CollectState, State};
-
 #[derive(Clone, Default)]
 pub struct InMemoryHandler {
     message_queue: VecDeque<Message>,

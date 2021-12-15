@@ -125,6 +125,7 @@ impl pallet_timestamp::Config for Test {
 }
 
 // Build genesis storage according to the mock runtime.
+#[allow(unused)]
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()

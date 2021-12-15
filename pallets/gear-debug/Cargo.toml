@@ -39,7 +39,6 @@ serde = "1.0.131"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-runner = { package = "gear-node-runner", path = "../../node-runner" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox" }
 hex-literal = "0.3.3"
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
