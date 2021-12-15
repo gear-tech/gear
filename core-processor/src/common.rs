@@ -160,8 +160,10 @@ impl DispatchResult {
 pub enum JournalNote {
     ExecutionFail {
         origin: MessageId,
+        initiator: ProgramId,
         program_id: ProgramId,
         reason: &'static str,
+        entry: DispatchKind,
     },
     GasBurned {
         origin: MessageId,
@@ -173,6 +175,7 @@ pub enum JournalNote {
         message: Message,
     },
     SubmitProgram {
+        origin: MessageId,
         owner: ProgramId,
         program: Program,
     },
@@ -200,16 +203,23 @@ pub enum JournalNote {
 }
 
 pub trait JournalHandler {
-    fn execution_fail(&mut self, origin: MessageId, program_id: ProgramId, reason: &'static str);
+    fn execution_fail(
+        &mut self,
+        origin: MessageId,
+        initiator: ProgramId,
+        program_id: ProgramId,
+        reason: &'static str,
+        entry: DispatchKind,
+    );
     fn gas_burned(&mut self, origin: MessageId, amount: u64);
     fn message_consumed(&mut self, message_id: MessageId);
+    fn message_trap(&mut self, origin: MessageId, trap: Option<&'static str>);
     fn send_message(&mut self, origin: MessageId, message: Message);
-    fn submit_program(&mut self, owner: ProgramId, program: Program);
+    fn submit_program(&mut self, origin: MessageId, owner: ProgramId, program: Program);
     fn wait_dispatch(&mut self, dispatch: Dispatch);
     fn wake_message(&mut self, origin: MessageId, program_id: ProgramId, message_id: MessageId);
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
-    fn message_trap(&mut self, origin: MessageId, trap: Option<&'static str>);
 }
 
 pub struct ProcessResult {

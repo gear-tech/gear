@@ -233,7 +233,14 @@ struct Journal<'a> {
 }
 
 impl<'a> core_processor::JournalHandler for Journal<'a> {
-    fn execution_fail(&mut self, origin: MessageId, program_id: ProgramId, reason: &'static str) {
+    fn execution_fail(
+        &mut self,
+        origin: MessageId,
+        _initiator: ProgramId,
+        program_id: ProgramId,
+        reason: &'static str,
+        _entry: core_processor::common::DispatchKind,
+    ) {
         panic!(
             "Execution failed (pid: {:?}, mid: {:?}): {}",
             program_id, origin, reason
@@ -272,7 +279,7 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
         }
     }
 
-    fn submit_program(&mut self, _owner: ProgramId, program: Program) {
+    fn submit_program(&mut self, _origin: MessageId, _owner: ProgramId, program: Program) {
         self.context.programs.insert(program.id(), program);
     }
 

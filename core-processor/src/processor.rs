@@ -38,6 +38,8 @@ pub fn process<E: Environment<Ext>>(
     let execution_settings = ExecutionSettings::new(block_info);
     let origin = dispatch.message.id();
     let program_id = program.id();
+    let kind = dispatch.kind.clone();
+    let initiator = dispatch.message.source();
 
     let mut dispatch_result =
         match executor::execute_wasm::<E>(program, dispatch, execution_settings) {
@@ -51,8 +53,10 @@ pub fn process<E: Environment<Ext>>(
                         },
                         JournalNote::ExecutionFail {
                             origin,
+                            initiator,
                             program_id: e.program.id(),
                             reason: e.reason,
+                            entry: kind,
                         },
                     ],
                     program: e.program,
@@ -89,6 +93,7 @@ pub fn process<E: Environment<Ext>>(
 
             if let DispatchKind::Init = dispatch_result.dispatch().kind {
                 journal.push(JournalNote::SubmitProgram {
+                    origin,
                     owner: dispatch_result.message_source(),
                     program: dispatch_result.program(),
                 })

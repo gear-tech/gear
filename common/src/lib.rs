@@ -296,6 +296,10 @@ pub fn set_program(id: H256, program: Program, persistent_pages: BTreeMap<u32, V
     sp_io::storage::set(&program_key(id), &program.encode())
 }
 
+pub fn set_program_page(program_id: H256, page_num: u32, page_buf: Vec<u8>) {
+    sp_io::storage::set(&page_key(program_id, page_num), &page_buf);
+}
+
 pub fn remove_program(id: H256) {
     if let Some(program) = get_program(id) {
         release_code(program.code_hash);
@@ -355,6 +359,13 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     sp_io::storage::set(&key_id, &new_nonce.encode());
 
     original_nonce
+}
+
+pub fn set_nonce(id: H256, nonce: u64) {
+    let mut key_id = STORAGE_MESSAGE_USER_NONCE_KEY.to_vec();
+    key_id.extend(&id[..]);
+
+    sp_io::storage::set(&key_id, &nonce.encode());
 }
 
 pub fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message, bn: u32) {
