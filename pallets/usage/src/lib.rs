@@ -336,7 +336,7 @@ pub mod pallet {
 
                                 program.nonce += 1;
 
-                                let trap_message_id = runner::generate_message_id(
+                                let trap_message_id = core_processor::id::next_message_id(
                                     program_id.as_ref().into(),
                                     program.nonce,
                                 );
@@ -347,7 +347,7 @@ pub mod pallet {
                                     payload: vec![],
                                     gas_limit: trap_gas,
                                     value: 0,
-                                    reply: Some((msg.id, runner::EXIT_CODE_PANIC)),
+                                    reply: Some((msg.id, core_processor::executor::ERR_EXIT_CODE)),
                                 };
 
                                 // Enqueue the trap reply message

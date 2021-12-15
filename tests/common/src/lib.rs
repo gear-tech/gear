@@ -23,16 +23,26 @@ use gear_core::{
     message::{Message, MessageId},
     program::{Program, ProgramId},
 };
-use gear_core_runner::{Ext, ExtMessage, InMemoryRunner};
 use std::collections::{BTreeMap, HashSet};
-
-pub type InMemoryWasmRunner = InMemoryRunner<WasmtimeEnvironment<Ext>>;
 
 pub struct InitProgram {
     pub program_id: Option<ProgramId>,
     pub source_id: Option<ProgramId>,
     pub code: Vec<u8>,
     pub message: Option<MessageBuilder>,
+}
+
+/// Message payload with pre-generated identifier and economic data.
+#[derive(Clone)]
+pub struct ExtMessage {
+    /// Id of the message.
+    pub id: MessageId,
+    /// Message payload.
+    pub payload: Vec<u8>,
+    /// Gas limit for the message dispatch.
+    pub gas_limit: u64,
+    /// Value associated with the message.
+    pub value: u128,
 }
 
 struct InitializeProgramInfo {
