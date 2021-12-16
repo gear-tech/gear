@@ -16,16 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use pallet_balances;
 use frame_support::{assert_ok, assert_noop};
 use frame_system::Pallet as SystemPallet;
 
 use common::{self, IntermediateMessage, Origin as _};
 
-use super::mock::{
-    new_test_ext, Test, LOW_BALANCE_USER, USER_1, USER_2,
-};
-
-use super::{Error, Event, MessageInfo};
+use super::{pallet, Error, Event, MessageInfo, mock::{
+    new_test_ext, Test, LOW_BALANCE_USER, USER_1, USER_2,}};
 
 use utils::*;
 
@@ -83,12 +81,13 @@ fn submit_program_expected_failure() {
             Error::<Test>::NotEnoughBalanceForReserve
         );
         // Gas limit is too high
+        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
         assert_noop!(
             tm.submit_prog_call(
                 USER_1,
                 ProgramCodeKind::Trapping,
                 None,
-                Some(100_000_001),
+                Some(block_gas_limit + 1),
                 None
             ),
             Error::<Test>::GasLimitTooHigh
@@ -118,7 +117,7 @@ fn submit_program_fails_on_duplicate_id() {
 fn send_message_works() {
     new_test_ext().execute_with(|| {
         let mut tm = TestManager::new(Some(100_000));
-        let prog_id = tm.submit_default_prog(USER_1);
+        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
         let payload = b"payload".to_vec();
         let expected_msg_id = tm.compute_message_id(&payload);
 
@@ -159,6 +158,154 @@ fn send_message_works() {
             tm.get_expected_balance(USER_2).expect("USER_2 has balance")
         );
     });
+}
+
+#[test]
+fn send_message_expected_failure() {
+    new_test_ext().execute_with(|| {
+        let mut tm = TestManager::new(None);
+
+        // Submitting failing program and check message is failed to be sent to it
+        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Trapping);
+        tm.run_to_block(2);
+
+        assert_noop!(
+            tm.send_msg_to_program(LOW_BALANCE_USER, prog_id, b"payload".to_vec(), None, None),
+            Error::<Test>::ProgramIsNotInitialized
+        );
+
+        // Submit valid program and test failing actions on it
+        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
+
+        assert_noop!(
+            tm.send_msg_to_program(LOW_BALANCE_USER, prog_id, b"payload".to_vec(), None, None),
+            Error::<Test>::NotEnoughBalanceForReserve
+        );
+
+        // Value tansfer is attempted if `value` field is greater than 0
+        assert_noop!(
+            tm.send_msg_to_user(
+                LOW_BALANCE_USER,
+                USER_1,
+                b"payload".to_vec(),
+                Some(1), // gas limit must be greater than 0 to have changed the state during reserve()
+                Some(100)
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        // Gas limit too high
+        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
+        assert_noop!(
+            tm.send_msg_to_program(
+                USER_1,
+                prog_id,
+                b"payload".to_vec(),
+                Some(block_gas_limit + 1),
+                None
+            ),
+            Error::<Test>::GasLimitTooHigh
+        );
+    })
+}
+
+#[test]
+fn messages_processing_works() {
+    new_test_ext().execute_with(|| {
+        let mut tm = TestManager::new(None);
+        let wat = r#"
+            (module
+                (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+                (import "env" "memory" (memory 1))
+                (export "handle" (func $handle))
+                (export "init" (func $init))
+                (func $handle
+                    i32.const 0
+                    i32.const 32
+                    i32.const 32
+                    i64.const 1000000000
+                    i32.const 1024
+                    i32.const 40000
+                    call $send
+                )
+                (func $init)
+        )"#;
+
+        // Submit some messages to message queue
+        // todo[sab] clumsy, rewrite submit_prog stuff
+        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Custom(wat));
+        assert_ok!(
+            tm.send_msg_to_program(
+                USER_1,
+                prog_id
+                Vec::new(),
+                None,
+                None,
+            )
+        );
+    });
+
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let program_id = H256::from_low_u64_be(1001);
+
+        // TODO #524
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::InitProgram {
+                origin: 1.into_origin(),
+                code,
+                program_id,
+                init_message_id: H256::from_low_u64_be(1000001),
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(102),
+                origin: 1.into_origin(),
+                destination: program_id,
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+                reply: None,
+            },
+        ]);
+        assert_eq!(
+            Gear::message_queue()
+                .expect("Failed to get messages from queue")
+                .len(),
+            2
+        );
+
+        crate::Pallet::<Test>::process_queue();
+        System::assert_last_event(crate::Event::MessagesDequeued(2).into());
+
+        // First message is sent to a non-existing program - and should get into log.
+        // Second message still gets processed thereby adding 1 to the total processed messages counter.
+        MessageQueue::<Test>::put(vec![
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(102),
+                origin: 1.into_origin(),
+                destination: LOW_BALANCE_USER.into_origin(),
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 100,
+                reply: None,
+            },
+            IntermediateMessage::DispatchMessage {
+                id: H256::from_low_u64_be(103),
+                origin: 1.into_origin(),
+                destination: program_id,
+                payload: Vec::new(),
+                gas_limit: 10000,
+                value: 0,
+                reply: None,
+            },
+        ]);
+        crate::Pallet::<Test>::process_queue();
+        // message with log destination should never get processed
+        System::assert_last_event(crate::Event::MessagesDequeued(1).into());
+    })
 }
 
 // TODO [SAB]
@@ -250,8 +397,9 @@ mod utils {
                 .update_msg_gas_reserve(gas_spent as u128);
         }
 
-        pub(super) fn submit_default_prog(&mut self, user: u64) -> H256 {
-            assert_ok!(self.submit_prog_call(user, ProgramCodeKind::Default, None, None, None));
+        // todo [sab] change to be sent by user 1
+        pub(super) fn submit_prog_default_data(&mut self, user: u64, kind: ProgramCodeKind) -> H256 {
+            assert_ok!(self.submit_prog_call(user, kind, None, None, None));
             match self
                 .get_last_event()
                 .expect("message was submitted previously")
@@ -470,16 +618,18 @@ mod utils {
     impl<'a> ProgramCodeKind<'a> {
         pub(super) fn to_bytes(self) -> Vec<u8> {
             let source = match self {
-                ProgramCodeKind::Default => {
+                ProgramCodeKind::Default =>
+                        r#"(module
+                            (import "env" "memory" (memory 1))
+                            (export "handle" (func $handle))
+                            (export "init" (func $init))
+                            (func $handle)
+                            (func $init)
+                        )"#,
+                ProgramCodeKind::Trapping =>
                     r#"(module
-                (import "env" "memory" (memory 1))
-                (export "handle" (func $handle))
-                (export "init" (func $init))
-                (func $handle)
-                (func $init)
-            )"#
-                }
-                ProgramCodeKind::Trapping => r#"(module)"#,
+                        (import "env" "memory" (memory 1))
+                    )"#,
                 ProgramCodeKind::Custom(code) => code,
             };
 
@@ -514,160 +664,7 @@ mod utils {
 //
 //     sp_io::hashing::blake2_256(&data[..]).into()
 // }
-
-// #[test]
-// fn send_message_expected_failure() {
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let program_id = H256::from_low_u64_be(1001);
 //
-//         // First, pretending the program panicked in init()
-//         ProgramsLimbo::<Test>::insert(program_id, LOW_BALANCE_USER.into_origin());
-//         assert_noop!(
-//             Pallet::<Test>::send_message(
-//                 Origin::signed(LOW_BALANCE_USER).into(),
-//                 program_id,
-//                 b"payload".to_vec(),
-//                 10_000_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::ProgramIsNotInitialized
-//         );
-//
-//         // This time the programs has made it to the storage
-//         ProgramsLimbo::<Test>::remove(program_id);
-//         let program = Program::new(
-//             ProgramId::from_slice(&program_id[..]),
-//             parse_wat(
-//                 r#"(module
-//                     (import "env" "memory" (memory 1))
-//                 )"#,
-//             ),
-//             Default::default(),
-//         )
-//         .expect("Program failed to instantiate");
-//         common::native::set_program(program);
-//
-//         assert_noop!(
-//             Pallet::<Test>::send_message(
-//                 Origin::signed(LOW_BALANCE_USER).into(),
-//                 program_id,
-//                 b"payload".to_vec(),
-//                 10_000_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::NotEnoughBalanceForReserve
-//         );
-//
-//         // Value tansfer is attempted if `value` field is greater than 0
-//         assert_noop!(
-//             Pallet::<Test>::send_message(
-//                 Origin::signed(LOW_BALANCE_USER).into(),
-//                 H256::from_low_u64_be(1002),
-//                 b"payload".to_vec(),
-//                 1_u64, // Must be greater than 0 to have changed the state during reserve()
-//                 100_u128
-//             ),
-//             pallet_balances::Error::<Test>::InsufficientBalance
-//         );
-//
-//         // Gas limit too high
-//         assert_noop!(
-//             Pallet::<Test>::send_message(
-//                 Origin::signed(1).into(),
-//                 program_id,
-//                 b"payload".to_vec(),
-//                 100_000_001_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::GasLimitTooHigh
-//         );
-//     })
-// }
-//
-// #[test]
-// fn messages_processing_works() {
-//     let wat = r#"
-//     (module
-//         (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-//         (import "env" "memory" (memory 1))
-//         (export "handle" (func $handle))
-//         (export "init" (func $init))
-//         (func $handle
-//             i32.const 0
-//             i32.const 32
-//             i32.const 32
-//             i64.const 1000000000
-//             i32.const 1024
-//             i32.const 40000
-//             call $send
-//         )
-//         (func $init)
-//     )"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat);
-//         let program_id = H256::from_low_u64_be(1001);
-//
-//         // TODO #524
-//         MessageQueue::<Test>::put(vec![
-//             IntermediateMessage::InitProgram {
-//                 origin: 1.into_origin(),
-//                 code,
-//                 program_id,
-//                 init_message_id: H256::from_low_u64_be(1000001),
-//                 payload: Vec::new(),
-//                 gas_limit: 10000,
-//                 value: 0,
-//             },
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(102),
-//                 origin: 1.into_origin(),
-//                 destination: program_id,
-//                 payload: Vec::new(),
-//                 gas_limit: 10000,
-//                 value: 0,
-//                 reply: None,
-//             },
-//         ]);
-//         assert_eq!(
-//             Gear::message_queue()
-//                 .expect("Failed to get messages from queue")
-//                 .len(),
-//             2
-//         );
-//
-//         crate::Pallet::<Test>::process_queue();
-//         System::assert_last_event(crate::Event::MessagesDequeued(2).into());
-//
-//         // First message is sent to a non-existing program - and should get into log.
-//         // Second message still gets processed thereby adding 1 to the total processed messages counter.
-//         MessageQueue::<Test>::put(vec![
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(102),
-//                 origin: 1.into_origin(),
-//                 destination: LOW_BALANCE_USER.into_origin(),
-//                 payload: Vec::new(),
-//                 gas_limit: 10000,
-//                 value: 100,
-//                 reply: None,
-//             },
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(103),
-//                 origin: 1.into_origin(),
-//                 destination: program_id,
-//                 payload: Vec::new(),
-//                 gas_limit: 10000,
-//                 value: 0,
-//                 reply: None,
-//             },
-//         ]);
-//         crate::Pallet::<Test>::process_queue();
-//         // message with log destination should never get processed
-//         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-//     })
-// }
 //
 // #[test]
 // fn spent_gas_to_reward_block_author_works() {

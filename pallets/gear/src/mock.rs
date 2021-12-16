@@ -31,7 +31,7 @@ type Block = frame_system::mocking::MockBlock<Test>;
 
 pub(crate) const BLOCK_AUTHOR: u64 = 255;
 pub(crate) const USER_1: u64 = 1;
-// todo [sab] change accounts order
+// todo [sab] change accounts order + change names to MSG_SENDER and etc.
 pub(crate) const LOW_BALANCE_USER: u64 = 2;
 pub(crate) const USER_2: u64 = 3;
 
