@@ -30,7 +30,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake lz4
 
       - name: "Cache: Unpack"
         run: |
@@ -211,7 +211,7 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake lz4
 
       - name: "Cache: Unpack"
         run: |
