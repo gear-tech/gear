@@ -17,6 +17,9 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
+      - name: "Install: Set cargo path"
+        run: export PATH="tmp/cargo/bin:$PATH"
+
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
@@ -64,6 +67,9 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
+
+      - name: "Install: Set cargo path"
+        run: export PATH="tmp/cargo/bin:$PATH"
 
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
@@ -185,6 +191,9 @@ jobs:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
+      - name: "Install: Set cargo path"
+        run: export PATH="tmp/cargo/bin:$PATH"
+        
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
