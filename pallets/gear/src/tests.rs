@@ -23,7 +23,7 @@ use frame_system::Pallet as SystemPallet;
 use common::{self, IntermediateMessage, Origin as _};
 
 use super::{pallet, Error, Event, MessageInfo, mock::{
-    new_test_ext, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,}};
+    self, new_test_ext, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,}};
 
 use utils::*;
 
@@ -248,6 +248,28 @@ fn messages_processing_works() {
 
 #[test]
 fn spent_gas_to_reward_block_author_works() {
+    new_test_ext().execute_with(|| {
+        let mut tm = TestManager::new(None);
+
+        tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
+        tm.run_to_block(2);
+
+        SystemPallet::<Test>::assert_last_event(
+            Event::MessagesDequeued(1).into()
+        );
+
+        // The block author should be paid the amount of Currency equal to
+        // the `gas_charge` incurred while processing the `InitProgram` message
+        assert_eq!(
+            tm.get_expected_balance(BLOCK_AUTHOR).expect("Block author processed block"),
+            tm.get_actual_balance(BLOCK_AUTHOR)
+        );
+    })
+}
+
+// todo [sab] - rewrite test to control balances
+#[test]
+fn unused_gas_released_back_works() {
     let wat = r#"
     (module
         (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
@@ -263,25 +285,46 @@ fn spent_gas_to_reward_block_author_works() {
             i32.const 40000
             call $send
         )
-        (func $init
-            call $handle
-        )
+        (func $init)
     )"#;
+
     new_test_ext().execute_with(|| {
         let mut tm = TestManager::new(None);
 
-        tm.submit_prog_default_data(USER_1, ProgramCodeKind::Custom(wat));
+        // todo [sab] that's why need to rewrite submit prog
+        assert_ok!(tm.submit_prog_call(
+            USER_1,
+            ProgramCodeKind::Custom(wat),
+            Some(b"init".to_vec()),
+            Some(5000),
+            None
+        ));
+
+        let prog_id = match tm.get_last_event().expect("message was submitted previously") {
+            mock::Event::Gear(pallet::Event::InitMessageEnqueued(msg_info)) => {
+                msg_info.program_id
+            }
+            _ => unreachable!(),
+        };
+
         tm.run_to_block(2);
 
-        SystemPallet::<Test>::assert_last_event(
-            Event::MessagesDequeued(1).into()
-        );
+        assert_ok!(tm.send_msg_to_program(
+            USER_1,
+            prog_id,
+            Vec::new(),
+            None,
+            None
+        ));
 
-        // The block author should be paid the amount of Currency equal to
-        // the `gas_charge` incurred while processing the `InitProgram` message
         assert_eq!(
-            tm.get_expected_balance(BLOCK_AUTHOR).expect("Block author processed block"),
-            tm.get_actual_balance(BLOCK_AUTHOR)
+            tm.get_actual_balance(USER_1),
+            tm.get_expected_balance(USER_1).expect("USER_1 has balance")
+        );
+        tm.run_to_block(3);
+        assert_eq!(
+            tm.get_actual_balance(USER_1),
+            tm.get_expected_balance(USER_1).expect("USER_1 has balance")
         );
     })
 }
@@ -316,6 +359,7 @@ mod utils {
     // Program init and sending messages to programs is allowed only to USER_1
     pub(super) struct TestManager {
         global_nonce: u128,
+        pub cumulative_gas_for_msgs: u64,
         block_gas_limit: Option<u64>,
         balance_manager: TestBalancesManager,
     }
@@ -358,12 +402,14 @@ mod utils {
 
             TestManager {
                 block_gas_limit,
+                cumulative_gas_for_msgs: 0,
                 global_nonce: 0,
                 balance_manager: TestBalancesManager::default(),
             }
         }
 
         // todo [sab] what about weight?
+        // todo refactor
         pub(super) fn run_to_block(&mut self, block_number: u64) {
             run_to_block(block_number, self.block_gas_limit);
             // Count actually spent gas by message sender
@@ -371,8 +417,11 @@ mod utils {
                 .block_gas_limit
                 .unwrap_or(<Test as pallet::Config>::BlockGasLimit::get());
             let gas_spent = block_gas_limit - GasAllowance::<Test>::get();
-            self.balance_manager
-                .update_msg_gas_reserve(gas_spent as u128);
+            if self.cumulative_gas_for_msgs != gas_spent {
+                self.balance_manager
+                    .update_msg_gas_reserve((self.cumulative_gas_for_msgs - gas_spent) as u128);
+            }
+            self.cumulative_gas_for_msgs = 0;
             // Count reward for block_author todo [sab] refactor
             self.balance_manager.mail_receive
                 .entry(BLOCK_AUTHOR)
@@ -412,6 +461,7 @@ mod utils {
                 gas_limit,
                 value,
             );
+            self.cumulative_gas_for_msgs += gas_limit;
             self.global_nonce += 1;
             self.balance_manager
                 .reserve_for_message(user, gas_limit as u128, value);
@@ -463,6 +513,7 @@ mod utils {
                 self.balance_manager
                     .reserve_for_mail(from, to, gas_limit as u128, value);
             } else {
+                self.cumulative_gas_for_msgs += gas_limit;
                 self.balance_manager
                     .reserve_for_message(from, gas_limit as u128, value);
             }
@@ -487,7 +538,7 @@ mod utils {
             sp_io::hashing::blake2_256(&id).into()
         }
 
-        fn get_last_event(&self) -> Option<mock::Event> {
+        pub(super) fn get_last_event(&self) -> Option<mock::Event> {
             SystemPallet::<Test>::events()
                 .last()
                 .cloned()
@@ -542,9 +593,9 @@ mod utils {
             };
             user_reserve
                 .entry(user)
-                .and_modify(|(reserve_for_gas, reserve_value)| {
-                    *reserve_for_gas = *reserve_for_gas + reserve_gas;
-                    *reserve_value += *reserve_value;
+                .and_modify(|(reserve_for_gas, reserve_for_value)| {
+                    *reserve_for_gas += reserve_gas;
+                    *reserve_for_value += reserve_value;
                 })
                 .or_insert((reserve_gas, reserve_value));
         }
@@ -559,7 +610,7 @@ mod utils {
         fn update_msg_gas_reserve(&mut self, gas_amount: Balance) {
             let msg_reserve = self.msg_reserve.get_mut(&USER_1);
             if let Some((gas_reserve, _)) = msg_reserve {
-                *gas_reserve = gas_amount;
+                *gas_reserve -= gas_amount;
             }
         }
 
@@ -648,66 +699,6 @@ mod utils {
 //     sp_io::hashing::blake2_256(&data[..]).into()
 // }
 //
-// #[test]
-// fn unused_gas_released_back_works() {
-//     let wat = r#"
-//     (module
-//         (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-//         (import "env" "memory" (memory 1))
-//         (export "handle" (func $handle))
-//         (export "init" (func $init))
-//         (func $handle
-//             i32.const 0
-//             i32.const 32
-//             i32.const 32
-//             i64.const 1000000000
-//             i32.const 1024
-//             i32.const 40000
-//             call $send
-//         )
-//         (func $init)
-//     )"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat);
-//         let program_id = H256::from_low_u64_be(1001);
-//
-//         // TODO #524
-//         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
-//             origin: 1.into_origin(),
-//             code,
-//             program_id,
-//             init_message_id: H256::from_low_u64_be(1000001),
-//             payload: "init".as_bytes().to_vec(),
-//             gas_limit: 5000_u64,
-//             value: 0_u128,
-//         }]);
-//         crate::Pallet::<Test>::process_queue();
-//
-//         let external_origin_initial_balance = Balances::free_balance(1);
-//         assert_ok!(Pallet::<Test>::send_message(
-//             Origin::signed(1).into(),
-//             program_id,
-//             Vec::new(),
-//             20_000_u64,
-//             0_u128,
-//         ));
-//         // send_message reserves balance on the sender's account
-//         assert_eq!(
-//             Balances::free_balance(1),
-//             external_origin_initial_balance.saturating_sub(20_000)
-//         );
-//
-//         crate::Pallet::<Test>::process_queue();
-//
-//         // Unused gas should be converted back to currency and released to the external origin
-//         assert_eq!(
-//             Balances::free_balance(1),
-//             external_origin_initial_balance.saturating_sub(10_000)
-//         );
-//     })
-// }
 //
 // fn init_test_program(origin: H256, program_id: H256, wat: &str) {
 //     let code = parse_wat(wat);
