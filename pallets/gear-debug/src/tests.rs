@@ -25,7 +25,7 @@ use sp_core::H256;
 
 type Ext = gear_backend_sandbox::SandboxEnvironment<runner::Ext>;
 
-pub(crate) fn init_logger() {
+fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
         .format_level(true)
@@ -74,6 +74,7 @@ fn debug_mode_works() {
         DebugMode::<Test>::put(true);
 
         // Submit programs
+        // TODO #524
         assert_ok!(runner::init_program::<Ext>(
             1.into_origin(),
             101.into_origin(),
@@ -104,6 +105,7 @@ fn debug_mode_works() {
             .into(),
         );
 
+        // TODO #524
         assert_ok!(runner::init_program::<Ext>(
             1.into_origin(),
             102.into_origin(),

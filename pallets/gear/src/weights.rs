@@ -29,7 +29,7 @@
 // --execution=wasm
 // --wasm-execution=compiled
 // --pallet=pallet_gear
-// --extrinsic=*
+// --extrinsic='*'
 // --steps
 // 50
 // --repeat
@@ -48,6 +48,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for pallet_gear.
 pub trait WeightInfo {
+    fn submit_code(c: u32) -> Weight;
     fn submit_program(c: u32, p: u32) -> Weight;
     fn send_message(p: u32) -> Weight;
     fn send_reply(p: u32) -> Weight;
@@ -56,6 +57,13 @@ pub trait WeightInfo {
 
 pub struct GearWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
+    fn submit_code(c: u32) -> Weight {
+        (17_289_000_u64)
+            .saturating_add((1_000_u64).saturating_mul(c as Weight))
+            .saturating_add(T::DbWeight::get().reads(1_u64))
+            .saturating_add(T::DbWeight::get().writes(1_u64))
+    }
+
     fn submit_program(c: u32, p: u32) -> Weight {
         (200_000_000_u64)
             .saturating_add((5_000_u64).saturating_mul(c as Weight))
@@ -89,6 +97,12 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 const SUBMIT_WEIGHT_PER_BYTE: u64 = 1_000_000;
 const MESSAGE_PER_BYTE: u64 = 100_000;
 impl WeightInfo for () {
+    fn submit_code(c: u32) -> Weight {
+        (0_u64)
+            .saturating_add(RocksDbWeight::get().writes(1_u64))
+            .saturating_add(SUBMIT_WEIGHT_PER_BYTE.saturating_mul(c as Weight))
+    }
+
     fn submit_program(c: u32, p: u32) -> Weight {
         (0_u64)
             .saturating_add(RocksDbWeight::get().writes(4_u64))
