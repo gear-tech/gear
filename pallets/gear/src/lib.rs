@@ -323,8 +323,6 @@ pub mod pallet {
                             continue;
                         }
 
-                        ext_manager.set_or_create_gas_tree(origin, init_message_id, gas_limit);
-
                         // Successful outcome assumes a programs has been created and initialized so that
                         // messages sent to this `ProgramId` will be enqueued for processing.
                         let init_message = common::Message {
@@ -419,14 +417,6 @@ pub mod pallet {
                 if message.gas_limit > GasAllowance::<T>::get() {
                     common::queue_message(message);
                     break;
-                }
-
-                if ext_manager.set_gas_tree(message.id).is_err() {
-                    log::warn!(
-                        "Message does not have associated gas and will be skipped: {:?}",
-                        message.id
-                    );
-                    continue;
                 }
 
                 if let Ok(program) = ext_manager.get_program(message.dest) {
