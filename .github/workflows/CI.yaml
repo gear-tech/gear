@@ -34,9 +34,9 @@ jobs:
 
       - name: "Cache: Unpack"
         run: |
-          lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /root/cache/target.tar.lz4 | tar xf -
+          lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/target.tar.lz4 | tar xf - || true
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -95,9 +95,9 @@ jobs:
 
       - name: "Cache: Unpack"
         run: |
-          lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /root/cache/target.tar.lz4 | tar xf -
+          lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/target.tar.lz4 | tar xf - || true
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked
@@ -215,9 +215,9 @@ jobs:
 
       - name: "Cache: Unpack"
         run: |
-          lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /root/cache/target.tar.lz4 | tar xf -
+          lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/target.tar.lz4 | tar xf - || true
 
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
