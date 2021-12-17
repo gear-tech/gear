@@ -90,7 +90,7 @@ jobs:
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
 
-      - *&build-deps
+      - *build-deps
 
       - *cache-unpack
 
