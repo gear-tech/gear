@@ -248,7 +248,16 @@ pub fn source<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static s
     move |source_ptr: i32| {
         ext.with(|ext: &mut E| {
             let source = ext.source();
-            ext.set_mem(source_ptr as isize as _, source.as_slice());
+            ext.set_mem(source_ptr as _, source.as_slice());
+        })
+    }
+}
+
+pub fn program_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |source_ptr: i32| {
+        ext.with(|ext: &mut E| {
+            let actor_id = ext.program_id();
+            ext.set_mem(source_ptr as _, actor_id.as_slice());
         })
     }
 }

@@ -184,6 +184,10 @@ impl EnvExt for Ext {
         self.messages.current().id()
     }
 
+    fn program_id(&mut self) -> ProgramId {
+        self.memory_context.program_id()
+    }
+
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
         let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
 
