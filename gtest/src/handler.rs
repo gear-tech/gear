@@ -1,10 +1,10 @@
-use gear_core_processor::common::*;
-use std::collections::{VecDeque, BTreeMap};
 use gear_core::{
+    memory::PageNumber,
     message::{Message, MessageId},
     program::{Program, ProgramId},
-    memory::PageNumber,
 };
+use gear_core_processor::common::*;
+use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Clone, Default)]
 pub struct InMemoryHandler {
@@ -64,14 +64,16 @@ impl JournalHandler for InMemoryHandler {
         } else {
             self.log.push(message);
         }
-
     }
     fn submit_program(&mut self, _origin: MessageId, _owner: ProgramId, program: Program) {
         let _ = self.programs.insert(program.id(), program);
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         let _ = self.message_queue.pop_front();
-        let _ = self.wait_list.insert((dispatch.message.dest(), dispatch.message.id()), dispatch.message);
+        let _ = self.wait_list.insert(
+            (dispatch.message.dest(), dispatch.message.id()),
+            dispatch.message,
+        );
     }
     fn wake_message(&mut self, _origin: MessageId, program_id: ProgramId, message_id: MessageId) {
         if let Some(msg) = self.wait_list.remove(&(program_id, message_id)) {
@@ -92,5 +94,4 @@ impl JournalHandler for InMemoryHandler {
             panic!("Program not found in storage");
         }
     }
-
 }

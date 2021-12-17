@@ -40,7 +40,10 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub mod pallet {
     use super::*;
 
-    use common::{self, GasToFeeConverter, IntermediateMessage, Message, Origin, GAS_VALUE_PREFIX};
+    use common::{
+        self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin,
+        GAS_VALUE_PREFIX,
+    };
     use core_processor::{
         common::{Dispatch, DispatchKind},
         configs::BlockInfo,

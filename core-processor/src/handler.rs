@@ -49,7 +49,7 @@ pub fn handle_journal(
                 program_id,
                 origin,
                 message_id,
-            } => handler.wake_message(program_id, origin, message_id),
+            } => handler.wake_message(origin, program_id, message_id),
             JournalNote::UpdateNonce {
                 origin: _origin,
                 program_id,
