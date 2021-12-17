@@ -22,7 +22,6 @@ use sp_std::{
 };
 
 pub struct ExtManager<T: Config> {
-    gas_tree: Option<common::value_tree::ValueView>,
     _phantom: PhantomData<T>,
 }
 
@@ -43,7 +42,9 @@ where
     T::AccountId: Origin,
 {
     fn default() -> Self {
-        Self::new()
+        ExtManager {
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -54,25 +55,6 @@ where
 {
     pub fn new() -> Self {
         Default::default()
-    }
-
-    pub fn set_gas_tree(&mut self, id: H256) -> Result<(), u8> {
-        self.gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, id);
-
-        if self.gas_tree.is_none() {
-            return Err(1);
-        }
-
-        Ok(())
-    }
-
-    pub fn set_or_create_gas_tree(&mut self, origin: H256, id: H256, gas_limit: u64) {
-        self.gas_tree = Some(common::value_tree::ValueView::get_or_create(
-            GAS_VALUE_PREFIX,
-            origin,
-            id,
-            gas_limit,
-        ));
     }
 
     pub fn get_program(&self, id: H256) -> Result<gear_core::program::Program, u8> {
@@ -146,19 +128,22 @@ where
                 Reason::Dispatch(reason.as_bytes().to_vec()),
             ));
         } else {
-            if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) = self
-                .gas_tree
-                .as_mut()
-                .expect("Can't fail")
-                .clone()
-                .consume()
-            {
-                let refund = T::GasConverter::gas_to_fee(gas_left);
+            match common::value_tree::ValueView::get(GAS_VALUE_PREFIX, origin) {
+                Some(gas_tree) => {
+                    if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
+                        gas_tree.consume()
+                    {
+                        let refund = T::GasConverter::gas_to_fee(gas_left);
 
-                let _ = T::Currency::unreserve(
-                    &<T::AccountId as Origin>::from_origin(external),
-                    refund,
-                );
+                        let _ = T::Currency::unreserve(
+                            &<T::AccountId as Origin>::from_origin(external),
+                            refund,
+                        );
+                    }
+                }
+                None => {
+                    log::error!("Message does not have associated gas tree: {:?}", origin);
+                }
             }
 
             Pallet::<T>::deposit_event(Event::MessageDispatched(DispatchOutcome {
@@ -174,7 +159,17 @@ where
         // TODO: weight to fee calculator might not be identity fee
         let charge = T::GasConverter::gas_to_fee(amount);
 
-        self.gas_tree.as_mut().expect("Can't fail").spend(amount);
+        match common::value_tree::ValueView::get(
+            GAS_VALUE_PREFIX,
+            H256::from_slice(origin.as_slice()),
+        ) {
+            Some(mut gas_tree) => {
+                gas_tree.spend(amount);
+            }
+            None => {
+                log::error!("Message does not have associated gas tree: {:?}", origin);
+            }
+        }
 
         if let Err(e) = T::Currency::transfer(
             &<T::AccountId as Origin>::from_origin(H256::from_slice(origin.as_slice())),
@@ -185,21 +180,33 @@ where
             // should not be possible since there should've been reserved enough for
             // the transfer
             // TODO: audit this
-            log::warn!("Could not transfer enough gas to block producer: {:?}", e);
+            log::error!("Could not transfer enough gas to block producer: {:?}", e);
         }
     }
-    fn message_consumed(&mut self, message_id: MessageId) {
-        if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) = self
-            .gas_tree
-            .as_mut()
-            .expect("Can't fail")
-            .clone()
-            .consume()
-        {
-            let refund = T::GasConverter::gas_to_fee(gas_left);
 
-            let _ =
-                T::Currency::unreserve(&<T::AccountId as Origin>::from_origin(external), refund);
+    fn message_consumed(&mut self, message_id: MessageId) {
+        match common::value_tree::ValueView::get(
+            GAS_VALUE_PREFIX,
+            H256::from_slice(message_id.as_slice()),
+        ) {
+            Some(gas_tree) => {
+                if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
+                    gas_tree.consume()
+                {
+                    let refund = T::GasConverter::gas_to_fee(gas_left);
+
+                    let _ = T::Currency::unreserve(
+                        &<T::AccountId as Origin>::from_origin(external),
+                        refund,
+                    );
+                }
+            }
+            None => {
+                log::error!(
+                    "Message does not have associated gas tree: {:?}",
+                    message_id
+                );
+            }
         }
 
         Pallet::<T>::deposit_event(Event::MessageDispatched(DispatchOutcome {
@@ -207,15 +214,25 @@ where
             outcome: ExecutionResult::Success,
         }));
     }
+
     fn message_trap(&mut self, _origin: MessageId, _trap: Option<&'static str>) {}
-    fn send_message(&mut self, _origin: MessageId, message: Message) {
+
+    fn send_message(&mut self, origin: MessageId, message: Message) {
         let dest = H256::from_slice(message.dest().as_slice());
         let message: common::Message = message.into();
+
         if common::program_exists(dest) {
-            self.gas_tree
-                .as_mut()
-                .expect("Can't fail")
-                .split_off(message.id, message.gas_limit);
+            match common::value_tree::ValueView::get(
+                GAS_VALUE_PREFIX,
+                H256::from_slice(origin.as_slice()),
+            ) {
+                Some(mut gas_tree) => {
+                    gas_tree.split_off(message.id, message.gas_limit);
+                }
+                None => {
+                    log::error!("Message does not have associated gas tree: {:?}", origin);
+                }
+            }
             common::queue_message(message);
         } else {
             Pallet::<T>::insert_to_mailbox(dest, message.clone());

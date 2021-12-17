@@ -19,14 +19,14 @@
 use super::*;
 use crate::mock::*;
 use codec::Encode;
-use common::{self, IntermediateMessage, Origin as _, GAS_VALUE_PREFIX};
+use common::{self, CodeMetadata, IntermediateMessage, Origin as _, GAS_VALUE_PREFIX};
 use frame_support::traits::{Currency, ExistenceRequirement};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::program::{Program, ProgramId};
 use hex_literal::hex;
 use sp_core::H256;
 
-pub(crate) fn init_logger() {
+fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
         .format_level(true)
@@ -133,6 +133,7 @@ fn submit_program_expected_failure() {
         );
     })
 }
+
 #[test]
 fn submit_program_fails_on_duplicate_id() {
     let wat = r#"(module
@@ -178,16 +179,18 @@ fn send_message_works() {
 
     new_test_ext().execute_with(|| {
         // Make sure we have a program in the program storage
-        let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            parse_wat(
-                r#"(module
+        let code = parse_wat(
+            r#"(module
                     (import "env" "memory" (memory 1))
                     (export "handle" (func $handle))
                     (func $handle)
                 )"#,
-            ),
+        );
+        // TODO #524
+        let program_id = H256::from_low_u64_be(1001);
+        let program = Program::new(
+            ProgramId::from_slice(&program_id[..]),
+            code,
             Default::default(),
         )
         .unwrap();
@@ -339,6 +342,7 @@ fn messages_processing_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
+        // TODO #524
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),
@@ -425,6 +429,7 @@ fn spent_gas_to_reward_block_author_works() {
         let program_id = H256::from_low_u64_be(1001);
 
         let init_message_id = H256::from_low_u64_be(1000001);
+        // TODO #524
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
@@ -474,6 +479,7 @@ fn unused_gas_released_back_works() {
         let code = parse_wat(wat);
         let program_id = H256::from_low_u64_be(1001);
 
+        // TODO #524
         MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
             origin: 1.into_origin(),
             code,
@@ -509,9 +515,9 @@ fn unused_gas_released_back_works() {
     })
 }
 
-pub fn init_test_program(origin: H256, program_id: H256, wat: &str) {
+fn init_test_program(origin: H256, program_id: H256, wat: &str) {
     let code = parse_wat(wat);
-
+    // TODO #524
     MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
         origin,
         code,
@@ -521,6 +527,7 @@ pub fn init_test_program(origin: H256, program_id: H256, wat: &str) {
         gas_limit: 10_000_000_u64,
         value: 0_u128,
     }]);
+
     crate::Pallet::<Test>::process_queue();
 }
 
@@ -582,6 +589,7 @@ fn block_gas_limit_works() {
         let pid1 = H256::from_low_u64_be(1001);
         let pid2 = H256::from_low_u64_be(1002);
 
+        // TODO #524
         MessageQueue::<Test>::put(vec![
             IntermediateMessage::InitProgram {
                 origin: 1.into_origin(),
@@ -1583,6 +1591,7 @@ fn claim_value_from_mailbox_works() {
 }
 
 pub fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
+    // TODO #512
     let mut data = Vec::new();
     code.encode_to(&mut data);
     salt.encode_to(&mut data);
@@ -1649,4 +1658,124 @@ fn distributor_distribute() {
 
         assert_eq!(balance_initial, final_balance);
     });
+}
+
+fn compute_code_hash(code: &[u8]) -> H256 {
+    sp_io::hashing::blake2_256(code).into()
+}
+
+#[test]
+fn test_code_submission_pass() {
+    let wat = r#"
+    (module
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let code_hash = compute_code_hash(&code);
+
+        assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
+
+        let saved_code = common::get_code(code_hash);
+        assert_eq!(saved_code, Some(code));
+
+        let expected_meta = Some(CodeMetadata::new(1.into_origin(), 1));
+        let actual_meta = common::get_code_metadata(code_hash);
+        assert_eq!(expected_meta, actual_meta);
+
+        System::assert_last_event(crate::Event::CodeSaved(code_hash).into());
+    })
+}
+
+#[test]
+fn test_same_code_submission_fails() {
+    let wat = r#"
+    (module
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+
+        assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()),);
+        // Trying to set the same code twice.
+        assert_noop!(
+            Pallet::<Test>::submit_code(Origin::signed(1), code.clone()),
+            Error::<Test>::CodeAlreadyExists,
+        );
+        // Trying the same from another origin
+        assert_noop!(
+            Pallet::<Test>::submit_code(Origin::signed(3), code.clone()),
+            Error::<Test>::CodeAlreadyExists,
+        );
+    })
+}
+
+#[test]
+fn test_code_is_not_submitted_twice_after_program_submission() {
+    let wat = r#"
+    (module
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let code_hash = compute_code_hash(&code);
+
+        // First submit program, which will set code and metadata
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(3).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+        System::assert_has_event(crate::Event::CodeSaved(code_hash).into());
+        assert!(common::code_exists(code_hash));
+
+        // Trying to set the same code twice.
+        assert_noop!(
+            Pallet::<Test>::submit_code(Origin::signed(3), code),
+            Error::<Test>::CodeAlreadyExists,
+        );
+    })
+}
+
+#[test]
+fn test_code_is_not_resetted_within_program_submission() {
+    let wat = r#"
+    (module
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat);
+        let code_hash = compute_code_hash(&code);
+
+        // First submit code
+        assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
+        let expected_code_saved_events = 1;
+        let expected_meta = common::get_code_metadata(code_hash);
+        assert!(expected_meta.is_some());
+
+        // Submit program from another origin. Should not change meta or code.
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(3).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+        let actual_meta = common::get_code_metadata(code_hash);
+        let actual_code_saved_events = System::events()
+            .iter()
+            .filter(|e| matches!(e.event, mock::Event::Gear(pallet::Event::CodeSaved(_))))
+            .count();
+
+        assert_eq!(expected_meta, actual_meta);
+        assert_eq!(expected_code_saved_events, actual_code_saved_events);
+    })
 }

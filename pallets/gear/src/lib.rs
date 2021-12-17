@@ -39,7 +39,11 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, GasToFeeConverter, IntermediateMessage, Message, Origin, GAS_VALUE_PREFIX};
+
+    use common::{
+        self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin,
+        GAS_VALUE_PREFIX,
+    };
     use core_processor::{
         common::{Dispatch, DispatchKind},
         configs::BlockInfo,
@@ -113,6 +117,8 @@ pub mod pallet {
         AddedToWaitList(common::Message),
         /// A message has been removed from the wait list
         RemovedFromWaitList(H256),
+        /// Program code with a calculated code hash is saved to the storage
+        CodeSaved(H256),
     }
 
     // Gear pallet error.
@@ -142,6 +148,10 @@ pub mod pallet {
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
         NoMessageTree,
+        /// Code already exists
+        ///
+        /// Occurs when trying to save to storage a program code, that has been saved there.
+        CodeAlreadyExists,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -313,8 +323,15 @@ pub mod pallet {
                             continue;
                         }
 
-                        ext_manager.set_or_create_gas_tree(origin, init_message_id, gas_limit);
+                        common::value_tree::ValueView::get_or_create(
+                            GAS_VALUE_PREFIX,
+                            origin,
+                            init_message_id,
+                            gas_limit,
+                        );
 
+                        // Successful outcome assumes a programs has been created and initialized so that
+                        // messages sent to this `ProgramId` will be enqueued for processing.
                         let init_message = common::Message {
                             id: init_message_id,
                             source: origin,
@@ -393,6 +410,13 @@ pub mod pallet {
                         };
 
                         if common::program_exists(destination) {
+                            common::value_tree::ValueView::get_or_create(
+                                GAS_VALUE_PREFIX,
+                                origin,
+                                id,
+                                gas_limit,
+                            );
+
                             common::queue_message(message);
                         } else {
                             Self::insert_to_mailbox(destination, message.clone());
@@ -407,14 +431,6 @@ pub mod pallet {
                 if message.gas_limit > GasAllowance::<T>::get() {
                     common::queue_message(message);
                     break;
-                }
-
-                if ext_manager.set_gas_tree(message.id).is_err() {
-                    log::warn!(
-                        "Message does not have associated gas and will be skipped: {:?}",
-                        message.id
-                    );
-                    continue;
                 }
 
                 if let Ok(program) = ext_manager.get_program(message.dest) {
@@ -461,6 +477,30 @@ pub mod pallet {
             weight = weight.saturating_sub(Self::gas_allowance());
             weight
         }
+
+        /// Sets `code` and metadata, if code doesn't exist in storage.
+        ///
+        /// On success returns Blake256 hash of the `code`. If code already
+        /// exists (*so, metadata exists as well*), returns unit type as error.
+        ///
+        /// # Note
+        /// Code existence in storage means that metadata is there too.
+        fn set_code_with_metadata(code: &[u8], who: H256) -> Result<H256, ()> {
+            let code_hash = sp_io::hashing::blake2_256(code).into();
+            // *Important*: checks before storage mutations!
+            if common::code_exists(code_hash) {
+                return Err(());
+            }
+            let metadata = {
+                let block_number =
+                    <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+                CodeMetadata::new(who, block_number)
+            };
+            common::set_code_metadata(code_hash, metadata);
+            common::set_code(code_hash, code);
+
+            Ok(code_hash)
+        }
     }
 
     #[pallet::call]
@@ -468,35 +508,51 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        /// Create a `Program` from wasm code and runs its init function.
+        /// Saves program `code` in storage.
         ///
-        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`.
+        /// The extrinsic was created to provide _deploy program from program_ functionality.
+        /// Anyone who wants to define a "factory" logic in program should first store the code and metadata for the "child"
+        /// program in storage. So the code for the child will be initialized by program initialization request only if it exists in storage.
+        ///
+        /// More precisely, the code and its metadata are actually saved in the storage under the hash of the `code`. The code hash is computed
+        /// as Blake256 hash. At the time of the call the `code` hash should not be in the storage. If it was stored previously, call will end up
+        /// with an `CodeAlreadyExists` error. In this case user can be sure, that he can actually use the hash of his program's code bytes to define
+        /// "program factory" logic in his program.
+        ///
+        /// Parameters
+        /// - `code`: wasm code of a program as a byte vector.
+        ///
+        /// Emits the following events:
+        /// - `SavedCode(H256)` - when the code is saved in storage.
+        #[pallet::weight(
+            <T as Config>::WeightInfo::submit_code(code.len() as u32)
+        )]
+        pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
+            let who = ensure_signed(origin)?;
+
+            let code_hash = Self::set_code_with_metadata(&code, who.into_origin())
+                .map_err(|_| Error::<T>::CodeAlreadyExists)?;
+
+            Self::deposit_event(Event::CodeSaved(code_hash));
+
+            Ok(().into())
+        }
+
+        /// Creates program initialization request (message), that is scheduled to be run in the same block.
+        ///
+        /// There are no guarantees that initialization message will be run in the same block due to block
+        /// gas limit restrictions. For example, when it will be the message's turn, required gas limit for it
+        /// could be more than remaining block gas limit. Therefore, the message processing will be postponed
+        /// until the next block.
+        ///
+        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
+        ///
+        /// There is the same guarantee here as in `submit_code`. That is, future program's
+        /// `code` and metadata are stored before message was added to the queue and processed.
         ///
         /// The origin must be Signed and the sender must have sufficient funds to pay
         /// for `gas` and `value` (in case the latter is being transferred).
-        ///
-        /// Successful outcome assumes a programs has been created and initialized so that
-        /// messages sent to this `ProgramId` will be enqueued for processing.
-        ///
-        /// Erroneous outcomes can be of two kinds:
-        /// - program creation failed, that is there is no program in storage corresponding
-        ///   to this `ProgramId`;
-        /// - program was created but the initialization code resulted in a trap.
-        ///
-        /// Either of this cases indicates a program is in an undefined state:
-        /// it either doesn't exist or is faulty (uninitialized).
-        ///
-        /// However, messages sent to such an address might still linger in the queue because
-        /// the program id can deterministically be derived on the caller's side upfront.
-        ///
-        /// In order to mitigate the risk of users' funds being sent to an address,
-        /// where a valid program should have resided, while it's not,
-        /// such "failed-to-initialize" programs are not silently deleted from the
-        /// program storage but rather marked as "ghost" programs.
-        /// Ghost program can be removed by their original author via an explicit call.
-        /// The funds stored by a ghost program will be release to the author once the program
-        /// has been removed.
         ///
         /// Parameters:
         /// - `code`: wasm code of a program as a byte vector.
@@ -508,6 +564,18 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
+        ///
+        /// # Note
+        /// Faulty (uninitialized) programs still have a valid addresses (program ids) that can deterministically be derived on the
+        /// caller's side upfront. It means that if messages are sent to such an address, they might still linger in the queue.
+        ///
+        /// In order to mitigate the risk of users' funds being sent to an address,
+        /// where a valid program should have resided, while it's not,
+        /// such "failed-to-initialize" programs are not silently deleted from the
+        /// program storage but rather marked as "ghost" programs.
+        /// Ghost program can be removed by their original author via an explicit call.
+        /// The funds stored by a ghost program will be release to the author once the program
+        /// has been removed.
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
         )]
@@ -522,6 +590,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             let mut data = Vec::new();
+            // TODO #512
             code.encode_to(&mut data);
             salt.encode_to(&mut data);
 
@@ -548,6 +617,13 @@ pub mod pallet {
 
             let init_message_id = common::next_message_id(&init_payload);
             let origin = who.into_origin();
+
+            // By that call we follow the guarantee that we have in `Self::submit_code` -
+            // if there's code in storage, there's also metadata for it.
+            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
+                Self::deposit_event(Event::CodeSaved(code_hash))
+            };
+
             <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
                 origin,
                 code,
@@ -613,6 +689,8 @@ pub mod pallet {
             T::Currency::reserve(&who, gas_limit_reserve)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            let message_id = common::next_message_id(&payload);
+
             // Since messages a guaranteed to be dispatched, we transfer value immediately
             T::Currency::transfer(
                 &who,
@@ -622,7 +700,6 @@ pub mod pallet {
             )?;
 
             // Only after reservation the message is actually put in the queue.
-            let message_id = common::next_message_id(&payload);
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
                 id: message_id,
                 origin: who.clone().into_origin(),
