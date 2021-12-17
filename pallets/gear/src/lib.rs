@@ -323,6 +323,8 @@ pub mod pallet {
                             continue;
                         }
 
+                        common::value_tree::ValueView::get_or_create(GAS_VALUE_PREFIX, origin, init_message_id, gas_limit);
+
                         // Successful outcome assumes a programs has been created and initialized so that
                         // messages sent to this `ProgramId` will be enqueued for processing.
                         let init_message = common::Message {
@@ -403,6 +405,9 @@ pub mod pallet {
                         };
 
                         if common::program_exists(destination) {
+
+                            common::value_tree::ValueView::get_or_create(GAS_VALUE_PREFIX, origin, id, gas_limit);
+
                             common::queue_message(message);
                         } else {
                             Self::insert_to_mailbox(destination, message.clone());
@@ -601,14 +606,15 @@ pub mod pallet {
             T::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            let init_message_id = common::next_message_id(&init_payload);
+            let origin = who.into_origin();
+
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(&code, who.clone().into_origin()) {
+            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
                 Self::deposit_event(Event::CodeSaved(code_hash))
             };
 
-            let init_message_id = common::next_message_id(&init_payload);
-            let origin = who.into_origin();
             <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
                 origin,
                 code,
@@ -674,6 +680,8 @@ pub mod pallet {
             T::Currency::reserve(&who, gas_limit_reserve)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            let message_id = common::next_message_id(&payload);
+
             // Since messages a guaranteed to be dispatched, we transfer value immediately
             T::Currency::transfer(
                 &who,
@@ -683,7 +691,6 @@ pub mod pallet {
             )?;
 
             // Only after reservation the message is actually put in the queue.
-            let message_id = common::next_message_id(&payload);
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
                 id: message_id,
                 origin: who.clone().into_origin(),
