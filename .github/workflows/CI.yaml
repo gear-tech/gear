@@ -27,14 +27,12 @@ jobs:
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
 
-      - &build-deps
-        name: "Install: Build deps"
+      - name: "Install: Build deps"
         run: |
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake lz4
 
-      - &cache-unpack
-        name: "Cache: Unpack"
+      - name: "Cache: Unpack"
         run: |
           lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C / || true
           lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C / || true
@@ -90,9 +88,16 @@ jobs:
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
 
-      - *build-deps
+      - name: "Install: Build deps"
+        run: |
+          sudo apt update
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake lz4
 
-      - *cache-unpack
+      - name: "Cache: Unpack"
+        run: |
+          lz4 -dc --no-sparse /root/cache/cache.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/cargo_registry.tar.lz4 | tar xf - -C / || true
+          lz4 -dc --no-sparse /root/cache/target.tar.lz4 | tar xf - || true
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked
