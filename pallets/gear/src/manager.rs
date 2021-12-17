@@ -43,7 +43,10 @@ where
     T::AccountId: Origin,
 {
     fn default() -> Self {
-        Self::new()
+        ExtManager {
+            gas_tree: None,
+            _phantom: PhantomData,
+        }
     }
 }
 
