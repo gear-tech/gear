@@ -17,15 +17,32 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use pallet_balances;
-use frame_support::{assert_ok, assert_noop};
-use frame_system::Pallet as SystemPallet;
+use frame_support::{assert_ok, assert_noop, dispatch::DispatchResultWithPostInfo};
+use frame_system::{Origin, Pallet as SystemPallet};
 
 use common::{self, IntermediateMessage, Origin as _};
 
-use super::{pallet, Error, Event, MessageInfo, mock::{
+use super::{pallet, pallet::Pallet as GearPallet, Error, Event, MessageInfo, mock::{
     self, new_test_ext, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,}};
 
 use utils::*;
+
+type AccountId = <Test as frame_system::Config>::AccountId;
+
+const DEFAULT_GAS_LIMIT: u64 = 10_000;
+
+fn submit_default_program(user: AccountId) -> DispatchResultWithPostInfo {
+    let res = GearPallet::<Test>::submit_program(
+        Origin::signed(user).into(),
+        ProgramCodeKind::Default.to_bytes(),
+        b"salt".to_vec(),
+        Vec::new(),
+        DEFAULT_GAS_LIMIT,
+        0
+    )
+    res
+}
+
 
 #[test]
 fn submit_program_works() {
@@ -697,23 +714,6 @@ mod utils {
 //     salt.encode_to(&mut data);
 //
 //     sp_io::hashing::blake2_256(&data[..]).into()
-// }
-//
-//
-// fn init_test_program(origin: H256, program_id: H256, wat: &str) {
-//     let code = parse_wat(wat);
-//     // TODO #524
-//     MessageQueue::<Test>::put(vec![IntermediateMessage::InitProgram {
-//         origin,
-//         code,
-//         program_id,
-//         init_message_id: H256::from_low_u64_be(1000001),
-//         payload: "init".as_bytes().to_vec(),
-//         gas_limit: 10_000_000_u64,
-//         value: 0_u128,
-//     }]);
-//
-//     crate::Pallet::<Test>::process_queue();
 // }
 //
 // #[test]
