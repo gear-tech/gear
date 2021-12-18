@@ -1177,7 +1177,7 @@ fn events_logging_works() {
                     program_id: init_msg[1].1,
                     origin: 1.into_origin(),
                 },
-                crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
+                crate::Reason::Dispatch(hex!("476173206c696d6974206578636565646564").into()),
             )
             .into(),
         );

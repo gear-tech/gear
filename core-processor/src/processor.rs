@@ -50,6 +50,7 @@ pub fn process<E: Environment<Ext>>(
                         JournalNote::GasBurned {
                             origin,
                             amount: e.gas_burned,
+                            entry: kind.clone(),
                         },
                         JournalNote::ExecutionFail {
                             origin,
@@ -89,7 +90,11 @@ pub fn process<E: Environment<Ext>>(
 
     match dispatch_result.kind() {
         DispatchResultKind::Success => {
-            journal.push(JournalNote::MessageConsumed(origin));
+            journal.push(JournalNote::GasBurned {
+                origin,
+                amount: dispatch_result.gas_burned(),
+                entry: kind,
+            });
 
             if let DispatchKind::Init = dispatch_result.dispatch().kind {
                 journal.push(JournalNote::SubmitProgram {
@@ -98,6 +103,8 @@ pub fn process<E: Environment<Ext>>(
                     program: dispatch_result.program(),
                 })
             }
+
+            journal.push(JournalNote::MessageConsumed(origin));
         }
         DispatchResultKind::Trap(trap) => {
             if let Some(message) = dispatch_result.trap_reply() {
@@ -106,9 +113,27 @@ pub fn process<E: Environment<Ext>>(
 
             journal.push(JournalNote::MessageTrap { origin, trap });
 
-            journal.push(JournalNote::MessageConsumed(origin))
+            journal.push(JournalNote::GasBurned {
+                origin,
+                amount: dispatch_result.gas_burned(),
+                entry: kind.clone(),
+            });
+
+            journal.push(JournalNote::ExecutionFail {
+                origin,
+                initiator,
+                program_id,
+                reason: trap.unwrap_or(""),
+                entry: kind,
+            });
         }
         DispatchResultKind::Wait => {
+            journal.push(JournalNote::GasBurned {
+                origin,
+                amount: dispatch_result.gas_burned(),
+                entry: kind,
+            });
+
             journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch()));
         }
     }
@@ -117,11 +142,6 @@ pub fn process<E: Environment<Ext>>(
         origin,
         program_id: dispatch_result.program_id(),
         nonce: dispatch_result.message_nonce(),
-    });
-
-    journal.push(JournalNote::GasBurned {
-        origin,
-        amount: dispatch_result.gas_burned(),
     });
 
     ProcessResult {

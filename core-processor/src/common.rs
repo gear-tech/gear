@@ -171,6 +171,7 @@ pub enum JournalNote {
     GasBurned {
         origin: MessageId,
         amount: u64,
+        entry: DispatchKind,
     },
     MessageConsumed(MessageId),
     SendMessage {
@@ -214,7 +215,7 @@ pub trait JournalHandler {
         reason: &'static str,
         entry: DispatchKind,
     );
-    fn gas_burned(&mut self, origin: MessageId, amount: u64);
+    fn gas_burned(&mut self, origin: MessageId, amount: u64, entry: DispatchKind);
     fn message_consumed(&mut self, message_id: MessageId);
     fn message_trap(&mut self, origin: MessageId, trap: Option<&'static str>);
     fn send_message(&mut self, origin: MessageId, message: Message);

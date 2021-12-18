@@ -7,7 +7,7 @@ use common::Origin;
 use common::GAS_VALUE_PREFIX;
 use core::marker::PhantomData;
 use core_processor::common::{CollectState, Dispatch, DispatchKind, JournalHandler, State};
-use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency};
+use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency, BalanceStatus};
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
@@ -152,35 +152,49 @@ where
             }));
         }
     }
-    fn gas_burned(&mut self, origin: MessageId, amount: u64) {
+    fn gas_burned(&mut self, origin: MessageId, amount: u64, entry: DispatchKind) {
         // Adjust block gas allowance
         GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));
 
         // TODO: weight to fee calculator might not be identity fee
         let charge = T::GasConverter::gas_to_fee(amount);
 
-        match common::value_tree::ValueView::get(
+        let origin = match common::value_tree::ValueView::get(
             GAS_VALUE_PREFIX,
             H256::from_slice(origin.as_slice()),
         ) {
             Some(mut gas_tree) => {
                 gas_tree.spend(amount);
+                gas_tree.origin()
             }
             None => {
                 log::error!("Message does not have associated gas tree: {:?}", origin);
+                Default::default()
             }
-        }
+        };
 
-        if let Err(e) = T::Currency::transfer(
-            &<T::AccountId as Origin>::from_origin(H256::from_slice(origin.as_slice())),
-            &Authorship::<T>::author(),
-            charge,
-            ExistenceRequirement::AllowDeath,
-        ) {
-            // should not be possible since there should've been reserved enough for
-            // the transfer
-            // TODO: audit this
-            log::error!("Could not transfer enough gas to block producer: {:?}", e);
+        if let DispatchKind::Init = entry {
+            if let Err(e) = T::Currency::transfer(
+                &<T::AccountId as Origin>::from_origin(origin),
+                &Authorship::<T>::author(),
+                charge,
+                ExistenceRequirement::AllowDeath,
+            ) {
+                // should not be possible since there should've been reserved enough for
+                // the transfer
+                // TODO: audit this
+                log::warn!(
+                    "Could not transfer enough gas to block producer: {:?}",
+                    e
+                );
+            }
+        } else {
+            let _ = T::Currency::repatriate_reserved(
+                &<T::AccountId as Origin>::from_origin(origin),
+                &Authorship::<T>::author(),
+                charge,
+                BalanceStatus::Free,
+            );
         }
     }
 

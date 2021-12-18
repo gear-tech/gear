@@ -46,7 +46,7 @@ impl JournalHandler for InMemoryHandler {
         self.message_consumed(origin);
         self.current_failed = true;
     }
-    fn gas_burned(&mut self, _origin: MessageId, _amount: u64) {}
+    fn gas_burned(&mut self, _origin: MessageId, _amount: u64, _entry: DispatchKind) {}
     fn message_consumed(&mut self, message_id: MessageId) {
         self.current_failed = false;
         if let Some(index) = self

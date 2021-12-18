@@ -410,13 +410,6 @@ pub mod pallet {
                         };
 
                         if common::program_exists(destination) {
-                            common::value_tree::ValueView::get_or_create(
-                                GAS_VALUE_PREFIX,
-                                origin,
-                                id,
-                                gas_limit,
-                            );
-
                             common::queue_message(message);
                         } else {
                             Self::insert_to_mailbox(destination, message.clone());
