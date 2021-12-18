@@ -7,7 +7,7 @@ use common::Origin;
 use common::GAS_VALUE_PREFIX;
 use core::marker::PhantomData;
 use core_processor::common::{CollectState, Dispatch, DispatchKind, JournalHandler, State};
-use frame_support::traits::{Currency, ExistenceRequirement, ReservableCurrency, BalanceStatus};
+use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
@@ -183,10 +183,7 @@ where
                 // should not be possible since there should've been reserved enough for
                 // the transfer
                 // TODO: audit this
-                log::warn!(
-                    "Could not transfer enough gas to block producer: {:?}",
-                    e
-                );
+                log::warn!("Could not transfer enough gas to block producer: {:?}", e);
             }
         } else {
             let _ = T::Currency::repatriate_reserved(

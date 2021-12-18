@@ -36,7 +36,11 @@ pub fn handle_journal(
                 reason,
                 entry,
             } => handler.execution_fail(origin, initiator, program_id, reason, entry),
-            JournalNote::GasBurned { origin, amount, entry } => handler.gas_burned(origin, amount, entry),
+            JournalNote::GasBurned {
+                origin,
+                amount,
+                entry,
+            } => handler.gas_burned(origin, amount, entry),
             JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
             JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
             JournalNote::SubmitProgram {

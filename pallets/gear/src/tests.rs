@@ -890,7 +890,7 @@ fn init_message_logging_works() {
                     program_id,
                     origin: 1.into_origin(),
                 },
-                crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
+                crate::Reason::Dispatch(hex!("476173206c696d6974206578636565646564").into()),
             )
             .into(),
         );

@@ -257,7 +257,12 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
         );
     }
 
-    fn gas_burned(&mut self, origin: MessageId, amount: u64, _entry: core_processor::common::DispatchKind) {
+    fn gas_burned(
+        &mut self,
+        origin: MessageId,
+        amount: u64,
+        _entry: core_processor::common::DispatchKind,
+    ) {
         self.context.gas_spent.insert(origin, amount);
     }
 

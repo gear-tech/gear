@@ -152,7 +152,6 @@ impl DispatchResult {
             ERR_EXIT_CODE,
         );
 
-        self.gas_burned += self.gas_left();
         self.gas_left = 0;
 
         Some(message)
