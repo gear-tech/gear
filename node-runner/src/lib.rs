@@ -197,6 +197,7 @@ pub fn gas_spent<E: Environment<Ext>>(
     let mut runner = ExtRunner::<E>::default();
 
     let message = Message {
+        // TODO [sab] - discuss to changes
         id: MessageId::from_slice(&gear_common::next_message_id(&payload)[..]),
         source: ProgramId::from(1),
         dest: ProgramId::from_slice(&program_id[..]),

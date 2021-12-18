@@ -16,76 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::Encode;
-use frame_support::{
-    assert_noop, assert_ok,
-    dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
-};
-use frame_system::{Pallet as SystemPallet};
+use frame_support::{assert_noop, assert_ok};
+use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
-use sp_core::H256;
 
 use common::{self, IntermediateMessage, Origin as _};
 
 use super::{
-    mock::{self, new_test_ext, Test, Origin, run_to_block, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2},
+    mock::{
+        new_test_ext, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
+    },
     pallet,
     pallet::Pallet as GearPallet,
-    Error, Event, MessageInfo,
+    Error, Event, GasAllowance, MessageInfo,
 };
 
 use utils::*;
 
-type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
-type AccountId = <Test as frame_system::Config>::AccountId;
-
-const DEFAULT_GAS_LIMIT: u64 = 10_000;
-const DEFAULT_SALT: &'static [u8; 4] = b"salt";
-const DEFAULT_PAYLOAD: &'static [u8; 7] = b"payload";
-
-fn submit_default_program(user: AccountId) -> DispatchCustomResult<H256> {
-    let code = ProgramCodeKind::Default.to_bytes();
-    // alternatively, get from last event
-    let prog_id = generate_program_id(&code, DEFAULT_SALT);
-    GearPallet::<Test>::submit_program(
-        Origin::signed(user).into(),
-        code,
-        DEFAULT_SALT.to_vec(),
-        DEFAULT_PAYLOAD.to_vec(),
-        DEFAULT_GAS_LIMIT,
-        0,
-    )
-    .map(|_| prog_id)
-}
-
-// todo [sab] maybe remove, because if changed can be unsafe.
-fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-    // TODO #512
-    let mut data = Vec::new();
-    code.encode_to(&mut data);
-    salt.encode_to(&mut data);
-
-    sp_io::hashing::blake2_256(&data[..]).into()
-}
-
-fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {
-    GearPallet::<Test>::send_message(
-        Origin::signed(from).into(),
-        to,
-        DEFAULT_PAYLOAD.to_vec(),
-        DEFAULT_GAS_LIMIT,
-        0,
-    )
-}
-
-fn compute_message_id(payload: &[u8], global_nonce: u128) -> H256 {
-    let mut id = payload.encode();
-    id.extend_from_slice(&global_nonce.to_le_bytes());
-    sp_io::hashing::blake2_256(&id).into()
-}
-
 #[test]
 fn submit_program_works() {
+    init_logger();
     new_test_ext().execute_with(|| {
         // Check MQ is empty
         assert!(GearPallet::<Test>::message_queue().is_none());
@@ -123,6 +73,7 @@ fn submit_program_works() {
 
 #[test]
 fn submit_program_expected_failure() {
+    init_logger();
     new_test_ext().execute_with(|| {
         let balance = BalancesPallet::<Test>::free_balance(LOW_BALANCE_USER);
         assert_noop!(
@@ -155,6 +106,7 @@ fn submit_program_expected_failure() {
 
 #[test]
 fn submit_program_fails_on_duplicate_id() {
+    init_logger();
     new_test_ext().execute_with(|| {
         assert_ok!(submit_default_program(USER_1));
         // Finalize block to let queue processing run
@@ -167,23 +119,28 @@ fn submit_program_fails_on_duplicate_id() {
     })
 }
 
+// TODO [sab] state an issue about changing logic for gas spends checks by changing rpc call
 #[test]
 fn send_message_works() {
+    init_logger();
     new_test_ext().execute_with(|| {
-        let program_id = submit_default_program(USER_1).expect("default submission was tested");
-        // Can get by summing nonce of all accounts.
-        let current_nonce = 1;
-        let expected_msg_id = compute_message_id(DEFAULT_PAYLOAD, current_nonce);
+        let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let user2_initial_balance = BalancesPallet::<Test>::free_balance(USER_2);
+
+        let program_id = {
+            let res = submit_default_program(USER_1);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+        // After the submit program message will be sent, global nonce will be 1.
+        let expected_msg_id = compute_message_id(DEFAULT_PAYLOAD, 1);
 
         assert_ok!(send_default_message(USER_1, program_id));
 
         let mq = GearPallet::<Test>::message_queue().expect("Two messages were sent");
         assert_eq!(mq.len(), 2);
 
-        let sent_to_prog_msg = mq
-            .into_iter()
-            .next_back()
-            .expect("mq is not empty");
+        let sent_to_prog_msg = mq.into_iter().next_back().expect("mq is not empty");
         let actual_msg_id = match sent_to_prog_msg {
             IntermediateMessage::DispatchMessage { id, .. } => id,
             _ => unreachable!("Last message was dispatch message"),
@@ -191,40 +148,93 @@ fn send_message_works() {
 
         assert_eq!(expected_msg_id, actual_msg_id);
 
-        // todo continue..
+        // Balances check
+        // Gas spends on sending 2 default messages (submit program and send message to program)
+        let user1_potential_msgs_spends = 2 * DEFAULT_GAS_LIMIT as u128;
+        // User 1 has sent two messages
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user1_initial_balance - user1_potential_msgs_spends
+        );
+
+        // Sending message (mail) to user
+        let mail_value = 20_000;
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            USER_2.into_origin(),
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            mail_value,
+        ));
+        let mail_spends = DEFAULT_GAS_LIMIT as u128 + mail_value;
+
+        // "Mail" deducts from the sender's balance `value + gas_limit`
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user1_initial_balance - user1_potential_msgs_spends - mail_spends
+        );
+        // However, only `value` has been transferred to the recipient yet
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_2),
+            user2_initial_balance + mail_value
+        );
+
+        // The `gas_limit` part will be released to the sender in the next block
+        let remaining_weight = 100_000;
+        run_to_block(2, Some(remaining_weight));
+        // Messages were sent by user 1 only
+        let user1_actual_msgs_spends = (remaining_weight - GasAllowance::<Test>::get()) as u128;
+
+        // Balance of user 2 is the same
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_2),
+            user2_initial_balance + mail_value
+        );
+        // Corrected by the actual amount of spends for sending messages
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user1_initial_balance - user1_actual_msgs_spends - mail_spends
+        );
     });
 }
 
 #[test]
 fn send_message_expected_failure() {
+    init_logger();
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(None);
-
         // Submitting failing program and check message is failed to be sent to it
-        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Trapping);
-        tm.run_to_block(2);
+        let program_id = {
+            let res = submit_default_trapping_program(USER_1);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+        run_to_block(2, None);
 
         assert_noop!(
-            tm.send_msg_to_program(LOW_BALANCE_USER, prog_id, b"payload".to_vec(), None, None),
+            send_default_message(LOW_BALANCE_USER, program_id),
             Error::<Test>::ProgramIsNotInitialized
         );
 
         // Submit valid program and test failing actions on it
-        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
+        let program_id = {
+            let res = submit_default_program(USER_1);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
         assert_noop!(
-            tm.send_msg_to_program(LOW_BALANCE_USER, prog_id, b"payload".to_vec(), None, None),
+            send_default_message(LOW_BALANCE_USER, program_id),
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
-        // Value tansfer is attempted if `value` field is greater than 0
+        // Value transfer is attempted if `value` field is greater than 0
         assert_noop!(
-            tm.send_msg_to_user(
-                LOW_BALANCE_USER,
-                USER_1,
-                b"payload".to_vec(),
-                Some(1), // gas limit must be greater than 0 to have changed the state during reserve()
-                Some(100)
+            GearPallet::<Test>::send_message(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                USER_1.into_origin(),
+                DEFAULT_PAYLOAD.to_vec(),
+                1, // gas limit must be greater than 0 to have changed the state during reserve()
+                100
             ),
             pallet_balances::Error::<Test>::InsufficientBalance
         );
@@ -232,12 +242,12 @@ fn send_message_expected_failure() {
         // Gas limit too high
         let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
         assert_noop!(
-            tm.send_msg_to_program(
-                USER_1,
-                prog_id,
-                b"payload".to_vec(),
-                Some(block_gas_limit + 1),
-                None
+            GearPallet::<Test>::send_message(
+                Origin::signed(USER_1).into(),
+                program_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                block_gas_limit + 1,
+                0
             ),
             Error::<Test>::GasLimitTooHigh
         );
@@ -246,41 +256,47 @@ fn send_message_expected_failure() {
 
 #[test]
 fn messages_processing_works() {
+    init_logger();
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(None);
+        let program_id = {
+            let res = submit_default_program(USER_1);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+        assert_ok!(send_default_message(USER_1, program_id));
 
-        // Submit some messages to message queue
-        // todo[sab] clumsy, rewrite submit_prog stuff
-        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
-        assert_ok!(tm.send_msg_to_program(USER_1, prog_id, Vec::new(), None, None,));
-        tm.run_to_block(2);
-        // TODO [sab] sure it's ok?
+        run_to_block(2, None);
+
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
 
-        assert_ok!(tm.send_msg_to_user(USER_1, USER_2, Vec::new(), None, None));
-        assert_ok!(tm.send_msg_to_program(USER_1, prog_id, Vec::new(), None, None));
-        tm.run_to_block(3);
-        // TODO [sab] sure it's ok?
+        assert_ok!(send_default_message(USER_1, USER_2.into_origin()));
+        assert_ok!(send_default_message(USER_1, program_id));
+
+        run_to_block(3, None);
+
+        // "Mail" from user to user should not be processed as messages
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
     });
 }
 
 #[test]
 fn spent_gas_to_reward_block_author_works() {
+    init_logger();
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(None);
-
-        tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
-        tm.run_to_block(2);
+        let block_author_initial_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        assert_ok!(submit_default_program(USER_1));
+        run_to_block(2, None);
 
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
+        let gas_spent =
+            (<Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get()) as u128;
         assert_eq!(
-            tm.get_expected_balance(BLOCK_AUTHOR)
-                .expect("Block author processed block"),
-            tm.get_actual_balance(BLOCK_AUTHOR)
+            BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
+            // gas price = 1, so reward for block author = gas_spent * gas_price = gas_spent
+            block_author_initial_balance + gas_spent
         );
     })
 }
@@ -306,87 +322,125 @@ fn unused_gas_released_back_works() {
         (func $init)
     )"#;
 
+    init_logger();
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(None);
+        let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+        let submit_program_gas_limit = 5000;
+        let huge_send_message_gas_limit = 50_000;
 
-        // todo [sab] that's why need to rewrite submit prog
-        assert_ok!(tm.submit_prog_call(
-            USER_1,
-            ProgramCodeKind::Custom(wat),
-            Some(b"init".to_vec()),
-            Some(5000),
-            None
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let program_id = generate_program_id(&code, &salt);
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            submit_program_gas_limit,
+            0
         ));
-
-        let prog_id = match tm
-            .get_last_event()
-            .expect("message was submitted previously")
-        {
-            mock::Event::Gear(pallet::Event::InitMessageEnqueued(msg_info)) => msg_info.program_id,
-            _ => unreachable!(),
-        };
-
-        tm.run_to_block(2);
-
-        assert_ok!(tm.send_msg_to_program(USER_1, prog_id, Vec::new(), None, None));
-
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            program_id,
+            DEFAULT_PAYLOAD.to_vec(),
+            huge_send_message_gas_limit,
+            0
+        ));
+        // Spends for submit program and sending default message
+        let user1_potential_msgs_spends =
+            (submit_program_gas_limit + huge_send_message_gas_limit) as u128;
         assert_eq!(
-            tm.get_actual_balance(USER_1),
-            tm.get_expected_balance(USER_1).expect("USER_1 has balance")
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user1_initial_balance - user1_potential_msgs_spends
         );
-        tm.run_to_block(3);
+
+        run_to_block(2, None);
+        let user1_actual_msgs_spends =
+            (<Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get()) as u128;
+        assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
         assert_eq!(
-            tm.get_actual_balance(USER_1),
-            tm.get_expected_balance(USER_1).expect("USER_1 has balance")
+            BalancesPallet::<Test>::free_balance(USER_1),
+            user1_initial_balance - user1_actual_msgs_spends
         );
     })
 }
 
-// TODO [SAB]
-// 1. init logger and execute with is a copy_paste - get rid of it.
-// 2. origins?
-// 3. 1.into_origin()? Balances::free_balance(1)? -> get rid of that nums
-// 4. block_number controller, in order not to set multiple times block number in "run_to_block(Num, ..)
-// 5. rewrite to make a TestBuilder
 mod utils {
-    use std::collections::HashMap;
-
     use codec::Encode;
-    use frame_support::{assert_ok, dispatch::DispatchResultWithPostInfo};
-    use frame_system::Pallet as SystemPallet;
-    use pallet_balances::Pallet as BalancePallet;
+    use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
 
-    use common::{IntermediateMessage, Origin as _};
+    use super::{GearPallet, Origin, Test};
 
-    use crate::{
-        mock::{self, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2},
-        pallet, GasAllowance, Pallet as GearPallet,
-    };
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
+    pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
+    pub(super) const DEFAULT_PAYLOAD: &'static [u8; 7] = b"payload";
 
+    pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     type AccountId = <Test as frame_system::Config>::AccountId;
-    type Balance = <Test as pallet_balances::Config>::Balance;
 
-    // Program init and sending messages to programs is allowed only to USER_1
-    pub(super) struct TestManager {
-        global_nonce: u128,
-        pub cumulative_gas_for_msgs: u64,
-        block_gas_limit: Option<u64>,
-        balance_manager: TestBalancesManager,
+    pub(super) fn init_logger() {
+        let _ = env_logger::Builder::from_default_env()
+            .format_module_path(false)
+            .format_level(true)
+            .try_init();
     }
 
-    struct TestBalancesManager<K = AccountId, V = Balance> {
-        // map account => balance
-        init_balances: HashMap<K, V>,
-        // account => (gas, value). In other words, amount of tokens
-        // to subtract from init balance as a result of sending message
-        // to program (either init or handle)
-        msg_reserve: HashMap<K, (V, V)>,
-        // account => (gas, value). In other words, amount of tokens
-        // to subtract from init balance as a result of sending message
-        // to user from user
-        mail_reserve: HashMap<K, (V, V)>,
-        mail_receive: HashMap<K, V>,
+    pub(super) fn submit_default_program(user: AccountId) -> DispatchCustomResult<H256> {
+        let code = ProgramCodeKind::Default.to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        // alternatively, get from last event
+        let prog_id = generate_program_id(&code, &salt);
+        GearPallet::<Test>::submit_program(
+            Origin::signed(user).into(),
+            code,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        )
+        .map(|_| prog_id)
+    }
+
+    pub(super) fn submit_default_trapping_program(user: AccountId) -> DispatchCustomResult<H256> {
+        let code = ProgramCodeKind::Trapping.to_bytes();
+        // alternatively, get from last event
+        let prog_id = generate_program_id(&code, DEFAULT_SALT);
+        GearPallet::<Test>::submit_program(
+            Origin::signed(user).into(),
+            code,
+            DEFAULT_SALT.to_vec(),
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        )
+        .map(|_| prog_id)
+    }
+
+    // todo [sab] maybe remove, because if changed can be unsafe.
+    pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
+        // TODO #512
+        let mut data = Vec::new();
+        code.encode_to(&mut data);
+        salt.encode_to(&mut data);
+
+        sp_io::hashing::blake2_256(&data[..]).into()
+    }
+
+    pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {
+        GearPallet::<Test>::send_message(
+            Origin::signed(from).into(),
+            to,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        )
+    }
+
+    pub(super) fn compute_message_id(payload: &[u8], global_nonce: u64) -> H256 {
+        let mut id = payload.encode();
+        id.extend_from_slice(&(global_nonce as u128).to_le_bytes());
+        sp_io::hashing::blake2_256(&id).into()
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -394,275 +448,6 @@ mod utils {
         Default,
         Custom(&'a str),
         Trapping,
-    }
-
-    #[derive(Debug, Copy, Clone)]
-    enum Receiver {
-        Program(H256),
-        User(AccountId),
-    }
-
-    impl TestManager {
-        const DEFAULT_MSG_GAS_LIMIT: u64 = 10_000;
-
-        pub(super) fn new(block_gas_limit: Option<u64>) -> Self {
-            let _ = env_logger::Builder::from_default_env()
-                .format_module_path(false)
-                .format_level(true)
-                .try_init();
-
-            TestManager {
-                block_gas_limit,
-                cumulative_gas_for_msgs: 0,
-                global_nonce: 0,
-                balance_manager: TestBalancesManager::default(),
-            }
-        }
-
-        // todo [sab] what about weight?
-        // todo refactor
-        pub(super) fn run_to_block(&mut self, block_number: u64) {
-            run_to_block(block_number, self.block_gas_limit);
-            // Count actually spent gas by message sender
-            let block_gas_limit = self
-                .block_gas_limit
-                .unwrap_or(<Test as pallet::Config>::BlockGasLimit::get());
-            let gas_spent = block_gas_limit - GasAllowance::<Test>::get();
-            if self.cumulative_gas_for_msgs != gas_spent {
-                self.balance_manager
-                    .update_msg_gas_reserve((self.cumulative_gas_for_msgs - gas_spent) as u128);
-            }
-            self.cumulative_gas_for_msgs = 0;
-            // Count reward for block_author todo [sab] refactor
-            self.balance_manager
-                .mail_receive
-                .entry(BLOCK_AUTHOR)
-                .and_modify(|v| *v += gas_spent as u128)
-                .or_insert(gas_spent as u128);
-        }
-
-        // todo [sab] change to be sent by user 1
-        pub(super) fn submit_prog_default_data(
-            &mut self,
-            user: u64,
-            kind: ProgramCodeKind,
-        ) -> H256 {
-            assert_ok!(self.submit_prog_call(user, kind, None, None, None));
-            match self
-                .get_last_event()
-                .expect("message was submitted previously")
-            {
-                mock::Event::Gear(pallet::Event::InitMessageEnqueued(msg_info)) => {
-                    msg_info.program_id
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        pub(super) fn submit_prog_call(
-            &mut self,
-            user: u64,
-            kind: ProgramCodeKind,
-            payload: Option<Vec<u8>>,
-            gas_limit: Option<u64>,
-            value: Option<u128>,
-        ) -> DispatchResultWithPostInfo {
-            let gas_limit = gas_limit.unwrap_or(Self::DEFAULT_MSG_GAS_LIMIT);
-            let value = value.unwrap_or_default();
-            let res = GearPallet::<Test>::submit_program(
-                Origin::signed(user).into(),
-                kind.to_bytes(),
-                b"salt".to_vec(),
-                payload.unwrap_or_default(),
-                gas_limit,
-                value,
-            );
-            self.cumulative_gas_for_msgs += gas_limit;
-            self.global_nonce += 1;
-            self.balance_manager
-                .reserve_for_message(user, gas_limit as u128, value);
-            res
-        }
-
-        pub(super) fn send_msg_to_user(
-            &mut self,
-            user: u64,
-            to: u64,
-            payload: Vec<u8>,
-            gas_limit: Option<u64>,
-            value: Option<u128>,
-        ) -> DispatchResultWithPostInfo {
-            self.send_msg_call(user, Receiver::User(to), payload, gas_limit, value)
-        }
-
-        pub(super) fn send_msg_to_program(
-            &mut self,
-            user: u64,
-            to: H256,
-            payload: Vec<u8>,
-            gas_limit: Option<u64>,
-            value: Option<u128>,
-        ) -> DispatchResultWithPostInfo {
-            self.send_msg_call(user, Receiver::Program(to), payload, gas_limit, value)
-        }
-
-        // todo [sab] maybe Option<payload>
-        fn send_msg_call(
-            &mut self,
-            from: u64,
-            to: Receiver,
-            payload: Vec<u8>,
-            gas_limit: Option<u64>,
-            value: Option<u128>,
-        ) -> DispatchResultWithPostInfo {
-            let gas_limit = gas_limit.unwrap_or(Self::DEFAULT_MSG_GAS_LIMIT);
-            let value = value.unwrap_or_default();
-            let res = GearPallet::<Test>::send_message(
-                Origin::signed(from).into(),
-                to.into_origin(),
-                payload,
-                gas_limit,
-                value,
-            );
-            self.global_nonce += 1;
-            if let Receiver::User(to) = to {
-                self.balance_manager
-                    .reserve_for_mail(from, to, gas_limit as u128, value);
-            } else {
-                self.cumulative_gas_for_msgs += gas_limit;
-                self.balance_manager
-                    .reserve_for_message(from, gas_limit as u128, value);
-            }
-            res
-        }
-
-        pub(super) fn get_actual_balance(&self, user: u64) -> u128 {
-            BalancePallet::<Test>::free_balance(user)
-        }
-
-        pub(super) fn get_expected_balance(&self, user: u64) -> Option<u128> {
-            self.balance_manager.compute_balance(user)
-        }
-
-        pub(super) fn get_message_queue(&self) -> Option<Vec<IntermediateMessage>> {
-            GearPallet::<Test>::message_queue()
-        }
-
-        pub(super) fn compute_message_id(&self, payload: &[u8]) -> H256 {
-            let mut id = payload.encode();
-            id.extend_from_slice(&self.global_nonce.to_le_bytes());
-            sp_io::hashing::blake2_256(&id).into()
-        }
-
-        pub(super) fn get_last_event(&self) -> Option<mock::Event> {
-            SystemPallet::<Test>::events()
-                .last()
-                .cloned()
-                .map(|er| er.event)
-        }
-    }
-
-    impl TestBalancesManager {
-        // Cost of gas in "tokens"
-        const DEFAULT_GAS_COST: Balance = 1;
-
-        fn reserve_for_message(&mut self, user: AccountId, gas_amount: Balance, value: Balance) {
-            self.reserve_common(true, user, gas_amount * self.compute_gas_cost(), value);
-        }
-
-        // todo [sab] refactor
-        fn reserve_for_mail(
-            &mut self,
-            from: AccountId,
-            to: AccountId,
-            gas_amount: Balance,
-            value: Balance,
-        ) {
-            self.reserve_common(
-                false,
-                from,
-                gas_amount * self.compute_gas_cost(), // todo [sab] sure only for msg?
-                value,
-            );
-            self.mail_receive
-                .entry(to)
-                .and_modify(|v| *v += value)
-                .or_insert(value);
-        }
-
-        fn reserve_common(
-            &mut self,
-            is_msg_reserve: bool,
-            user: AccountId,
-            reserve_gas: Balance,
-            reserve_value: Balance,
-        ) {
-            let TestBalancesManager {
-                msg_reserve,
-                mail_reserve,
-                ..
-            } = self;
-            let user_reserve = if is_msg_reserve {
-                msg_reserve
-            } else {
-                mail_reserve
-            };
-            user_reserve
-                .entry(user)
-                .and_modify(|(reserve_for_gas, reserve_for_value)| {
-                    *reserve_for_gas += reserve_gas;
-                    *reserve_for_value += reserve_value;
-                })
-                .or_insert((reserve_gas, reserve_value));
-        }
-
-        // Should be changed when a better algorithm is provided
-        // TODO [sab] change type
-        fn compute_gas_cost(&self) -> Balance {
-            Self::DEFAULT_GAS_COST as Balance
-        }
-
-        // By default user 1 - todo [sab] state in docs and make it more explicit by the code
-        fn update_msg_gas_reserve(&mut self, gas_amount: Balance) {
-            let msg_reserve = self.msg_reserve.get_mut(&USER_1);
-            if let Some((gas_reserve, _)) = msg_reserve {
-                *gas_reserve -= gas_amount;
-            }
-        }
-
-        fn compute_balance(&self, user: AccountId) -> Option<Balance> {
-            let mut ret_balance = self.init_balances.get(&user).copied();
-            if let Some(reserve_for_msgs) = self.msg_reserve.get(&user).copied().map(|(g, v)| g + v)
-            {
-                ret_balance.as_mut().map(|b| *b -= reserve_for_msgs);
-            }
-            if let Some(reserve_for_mails) =
-                self.mail_reserve.get(&user).copied().map(|(g, v)| g + v)
-            {
-                ret_balance.as_mut().map(|b| *b -= reserve_for_mails);
-            }
-            if let Some(received_from_mails) = self.mail_receive.get(&user).copied() {
-                ret_balance.as_mut().map(|b| *b += received_from_mails);
-            }
-            ret_balance
-        }
-    }
-
-    impl Default for TestBalancesManager {
-        fn default() -> Self {
-            let mut balances = HashMap::new();
-            let users = [USER_1, USER_2, LOW_BALANCE_USER, BLOCK_AUTHOR];
-            for user in users {
-                let balance = BalancePallet::<Test>::free_balance(user);
-                balances.insert(user, balance);
-            }
-            TestBalancesManager {
-                init_balances: balances,
-                msg_reserve: HashMap::new(),
-                mail_reserve: HashMap::new(),
-                mail_receive: HashMap::new(),
-            }
-        }
     }
 
     impl<'a> ProgramCodeKind<'a> {
@@ -691,15 +476,6 @@ mod utils {
                 .expect("failed to parse module")
                 .as_ref()
                 .to_vec()
-        }
-    }
-
-    impl Receiver {
-        fn into_origin(self) -> H256 {
-            match self {
-                Receiver::Program(v) => v,
-                Receiver::User(v) => v.into_origin(),
-            }
         }
     }
 }
