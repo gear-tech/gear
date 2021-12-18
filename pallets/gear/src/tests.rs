@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use codec::Encode;
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
@@ -26,9 +27,7 @@ use super::{
     mock::{
         new_test_ext, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
     },
-    pallet,
-    pallet::Pallet as GearPallet,
-    Error, Event, GasAllowance, MessageInfo,
+    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet,
 };
 
 use utils::*;
@@ -550,6 +549,187 @@ fn block_gas_limit_works() {
     });
 }
 
+#[test]
+fn mailbox_works() {
+    let wat = r#"
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_source" (func $gr_source (param i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (export "handle_reply" (func $handle_reply))
+        (func $handle
+            i32.const 16384
+            call $gr_source
+            i32.const 16384
+            i32.const 0
+            i32.const 32
+            i64.const 1000000
+            i32.const 1024
+            i32.const 40000
+            call $send
+        )
+        (func $handle_reply)
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        ));
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            prog_id,
+            Vec::new(),
+            2_000_000, // `prog_id` program sends message in handle which sets gas limit to 1_000_000.
+            0,
+        ));
+        run_to_block(2, None);
+
+        let msg_id = {
+            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
+            // computation of message id different from the same task for user's message
+            let mut data = prog_id.as_bytes().to_vec();
+            // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+            data.extend(&0_u64.to_le_bytes());
+            sp_io::hashing::blake2_256(&data).into()
+        };
+
+        assert!(Mailbox::<Test>::contains_key(USER_1));
+        let mailbox_message = GearPallet::<Test>::remove_from_mailbox(
+            USER_1.into_origin(),
+            // this is fixed (nonce based)
+            msg_id,
+        )
+        .expect("There should be a message for user #1 in the mailbox");
+
+        assert_eq!(mailbox_message.id, msg_id,);
+        // Values were taken from the program code!
+        assert_eq!(mailbox_message.payload, vec![0u8; 32]);
+        assert_eq!(mailbox_message.gas_limit, 1000000);
+    })
+}
+
+#[test]
+fn init_message_logging_works() {
+    let wat1 = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
+
+    // Initialization function for that program requires a lot of gas.
+    // So, providing `DEFAULT_GAS_LIMIT` will end up processing with
+    // "Gas limit exceeded" execution outcome error message.
+    let wat2 = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "init" (func $init))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $init
+            i32.const 4
+            call $doWork
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let mut next_block = 2;
+        let codes = [
+            (ProgramCodeKind::Custom(wat1).to_bytes(), false, ""),
+            (
+                ProgramCodeKind::Custom(wat2).to_bytes(),
+                true,
+                "Gas limit exceeded",
+            ),
+        ];
+
+        for (code, is_failing, trap_explanation) in codes {
+            SystemPallet::<Test>::reset_events();
+
+            assert_ok!(GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                code,
+                DEFAULT_SALT.to_vec(),
+                DEFAULT_PAYLOAD.to_vec(),
+                DEFAULT_GAS_LIMIT,
+                0
+            ));
+
+            let msg: IntermediateMessage = GearPallet::<Test>::message_queue()
+                .map(|v| v.into_iter().next())
+                .flatten()
+                .expect("mq has only submit program message");
+            let (program_id, message_id, origin) = match msg {
+                IntermediateMessage::InitProgram {
+                    program_id,
+                    init_message_id,
+                    origin,
+                    ..
+                } => (program_id, init_message_id, origin),
+                _ => unreachable!("mq has only submit program message"),
+            };
+
+            SystemPallet::<Test>::assert_last_event(
+                Event::InitMessageEnqueued(MessageInfo {
+                    message_id,
+                    program_id,
+                    origin,
+                })
+                .into(),
+            );
+
+            run_to_block(next_block, None);
+
+            let msg_info = MessageInfo {
+                message_id,
+                program_id,
+                origin,
+            };
+
+            if is_failing {
+                let trap_explanation = String::from(trap_explanation).encode();
+                SystemPallet::<Test>::assert_has_event(
+                    Event::InitFailure(msg_info, crate::Reason::Dispatch(trap_explanation)).into(),
+                );
+            } else {
+                // Expecting the log to have an InitSuccess event
+                SystemPallet::<Test>::assert_has_event(Event::InitSuccess(msg_info).into());
+            }
+
+            next_block += 1;
+        }
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
@@ -665,197 +845,21 @@ mod utils {
     }
 }
 
+// use crate::mock::{Gear, System};
+// use hex_literal::hex;
+// use pallet::Pallet;
+//
+// fn parse_wat(source: &str) -> Vec<u8> {
+//     wabt::Wat2Wasm::new()
+//         .validate(false)
+//         .convert(source)
+//         .expect("failed to parse module")
+//         .as_ref()
+//         .to_vec()
+// }
+
 // fn compute_code_hash(code: &[u8]) -> H256 {
 //     sp_io::hashing::blake2_256(code).into()
-// }
-//
-// #[test]
-// fn mailbox_works() {
-//     let wat = r#"
-//     (module
-//         (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-//         (import "env" "gr_source" (func $gr_source (param i32)))
-//         (import "env" "memory" (memory 1))
-//         (export "handle" (func $handle))
-//         (export "init" (func $init))
-//         (export "handle_reply" (func $handle_reply))
-//         (func $handle
-//             i32.const 16384
-//             call $gr_source
-//             i32.const 16384
-//             i32.const 0
-//             i32.const 32
-//             i64.const 1000000
-//             i32.const 1024
-//             i32.const 40000
-//             call $send
-//         )
-//         (func $handle_reply)
-//         (func $init)
-//     )"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let program_id = H256::from_low_u64_be(1001);
-//
-//         init_test_program(1.into_origin(), program_id, wat);
-//
-//         assert_ok!(Pallet::<Test>::send_message(
-//             Origin::signed(1).into(),
-//             program_id,
-//             Vec::new(),
-//             2_000_000_u64,
-//             0_u128,
-//         ));
-//         crate::Pallet::<Test>::process_queue();
-//
-//         let mailbox_message = crate::Pallet::<Test>::remove_from_mailbox(
-//             1.into_origin(),
-//             // this is fixed (nonce based)
-//             hex!("211a310ae0d68d7a4523ccecc7e5c0fd435496008c56ba8c86c5bba45d466e3a").into(),
-//         )
-//         .expect("There should be a message for user #1 in the mailbox");
-//
-//         assert_eq!(
-//             mailbox_message.id,
-//             hex!("211a310ae0d68d7a4523ccecc7e5c0fd435496008c56ba8c86c5bba45d466e3a").into(),
-//         );
-//
-//         assert_eq!(mailbox_message.payload, vec![0u8; 32]);
-//
-//         assert_eq!(mailbox_message.gas_limit, 1000000);
-//     })
-// }
-//
-// #[test]
-// fn init_message_logging_works() {
-//     let wat1 = r#"
-//     (module
-//         (import "env" "memory" (memory 1))
-//         (export "init" (func $init))
-//         (func $init)
-//     )"#;
-//
-//     let wat2 = r#"
-// 	(module
-// 		(import "env" "memory" (memory 1))
-// 		(export "init" (func $init))
-//         (func $doWork (param $size i32)
-//             (local $counter i32)
-//             i32.const 0
-//             set_local $counter
-//             loop $while
-//                 get_local $counter
-//                 i32.const 1
-//                 i32.add
-//                 set_local $counter
-//                 get_local $counter
-//                 get_local $size
-//                 i32.lt_s
-//                 if
-//                     br $while
-//                 end
-//             end $while
-//         )
-//         (func $init
-//             i32.const 4
-//             call $doWork
-// 		)
-// 	)"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat1);
-//
-//         System::reset_events();
-//
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code.clone(),
-//             b"salt".to_vec(),
-//             Vec::new(),
-//             10_000u64,
-//             0_u128
-//         ));
-//
-//         let messages: Vec<IntermediateMessage> =
-//             Gear::message_queue().expect("There should be a message in the queue");
-//
-//         let (program_id, message_id) = match &messages[0] {
-//             IntermediateMessage::InitProgram {
-//                 program_id,
-//                 init_message_id,
-//                 ..
-//             } => (*program_id, *init_message_id),
-//             _ => Default::default(),
-//         };
-//         System::assert_last_event(
-//             crate::Event::InitMessageEnqueued(crate::MessageInfo {
-//                 message_id,
-//                 program_id,
-//                 origin: 1.into_origin(),
-//             })
-//             .into(),
-//         );
-//
-//         run_to_block(2, None);
-//
-//         // Expecting the log to have an InitSuccess event
-//         System::assert_has_event(
-//             crate::Event::InitSuccess(crate::MessageInfo {
-//                 message_id,
-//                 program_id,
-//                 origin: 1.into_origin(),
-//             })
-//             .into(),
-//         );
-//
-//         let code = parse_wat(wat2);
-//         System::reset_events();
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code.clone(),
-//             b"salt".to_vec(),
-//             Vec::new(),
-//             10_000u64,
-//             0_u128
-//         ));
-//
-//         let messages: Vec<IntermediateMessage> =
-//             Gear::message_queue().expect("There should be a message in the queue");
-//
-//         let (program_id, message_id) = match &messages[0] {
-//             IntermediateMessage::InitProgram {
-//                 program_id,
-//                 init_message_id,
-//                 ..
-//             } => (*program_id, *init_message_id),
-//             _ => Default::default(),
-//         };
-//         System::assert_last_event(
-//             crate::Event::InitMessageEnqueued(crate::MessageInfo {
-//                 message_id,
-//                 program_id,
-//                 origin: 1.into_origin(),
-//             })
-//             .into(),
-//         );
-//
-//         run_to_block(3, None);
-//
-//         // Expecting the log to have an InitFailure event (due to insufficient gas)
-//         System::assert_has_event(
-//             crate::Event::InitFailure(
-//                 crate::MessageInfo {
-//                     message_id,
-//                     program_id,
-//                     origin: 1.into_origin(),
-//                 },
-//                 crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
-//             )
-//             .into(),
-//         );
-//     })
 // }
 //
 // #[test]
