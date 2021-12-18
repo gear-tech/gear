@@ -16,96 +16,137 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use pallet_balances;
-use frame_support::{assert_ok, assert_noop, dispatch::DispatchResultWithPostInfo};
-use frame_system::{Origin, Pallet as SystemPallet};
+use codec::Encode;
+use frame_support::{
+    assert_noop, assert_ok,
+    dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo},
+};
+use frame_system::{Pallet as SystemPallet};
+use pallet_balances::{self, Pallet as BalancesPallet};
+use sp_core::H256;
 
 use common::{self, IntermediateMessage, Origin as _};
 
-use super::{pallet, pallet::Pallet as GearPallet, Error, Event, MessageInfo, mock::{
-    self, new_test_ext, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,}};
+use super::{
+    mock::{self, new_test_ext, Test, Origin, run_to_block, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2},
+    pallet,
+    pallet::Pallet as GearPallet,
+    Error, Event, MessageInfo,
+};
 
 use utils::*;
 
+type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
 type AccountId = <Test as frame_system::Config>::AccountId;
 
 const DEFAULT_GAS_LIMIT: u64 = 10_000;
+const DEFAULT_SALT: &'static [u8; 4] = b"salt";
+const DEFAULT_PAYLOAD: &'static [u8; 7] = b"payload";
 
-fn submit_default_program(user: AccountId) -> DispatchResultWithPostInfo {
-    let res = GearPallet::<Test>::submit_program(
+fn submit_default_program(user: AccountId) -> DispatchCustomResult<H256> {
+    let code = ProgramCodeKind::Default.to_bytes();
+    // alternatively, get from last event
+    let prog_id = generate_program_id(&code, DEFAULT_SALT);
+    GearPallet::<Test>::submit_program(
         Origin::signed(user).into(),
-        ProgramCodeKind::Default.to_bytes(),
-        b"salt".to_vec(),
-        Vec::new(),
+        code,
+        DEFAULT_SALT.to_vec(),
+        DEFAULT_PAYLOAD.to_vec(),
         DEFAULT_GAS_LIMIT,
-        0
+        0,
     )
-    res
+    .map(|_| prog_id)
 }
 
+// todo [sab] maybe remove, because if changed can be unsafe.
+fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
+    // TODO #512
+    let mut data = Vec::new();
+    code.encode_to(&mut data);
+    salt.encode_to(&mut data);
+
+    sp_io::hashing::blake2_256(&data[..]).into()
+}
+
+fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {
+    GearPallet::<Test>::send_message(
+        Origin::signed(from).into(),
+        to,
+        DEFAULT_PAYLOAD.to_vec(),
+        DEFAULT_GAS_LIMIT,
+        0,
+    )
+}
+
+fn compute_message_id(payload: &[u8], global_nonce: u128) -> H256 {
+    let mut id = payload.encode();
+    id.extend_from_slice(&global_nonce.to_le_bytes());
+    sp_io::hashing::blake2_256(&id).into()
+}
 
 #[test]
 fn submit_program_works() {
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(None);
-        let code_kind = ProgramCodeKind::Default;
+        // Check MQ is empty
+        assert!(GearPallet::<Test>::message_queue().is_none());
 
-        assert!(tm.get_message_queue().is_none());
-        assert_ok!(tm.submit_prog_call(USER_1, code_kind, None, None, None));
+        assert_ok!(submit_default_program(USER_1));
 
-        let messages = tm
-            .get_message_queue()
-            .expect("There should be a message in the queue");
-        assert_eq!(messages.len(), 1);
+        let mq = GearPallet::<Test>::message_queue().expect("Message was added to the queue");
+        assert_eq!(mq.len(), 1);
 
-        let (msg_origin, msg_code, program_id, message_id) = match messages.into_iter().next() {
-            Some(IntermediateMessage::InitProgram {
+        let submit_msg = mq.into_iter().next().expect("mq length is 1");
+        let (origin, code, program_id, message_id) = match submit_msg {
+            IntermediateMessage::InitProgram {
                 origin,
                 code,
                 program_id,
                 init_message_id,
                 ..
-            }) => (origin, code, program_id, init_message_id),
+            } => (origin, code, program_id, init_message_id),
             _ => unreachable!(),
         };
-        assert_eq!(msg_origin, USER_1.into_origin());
-        assert_eq!(msg_code, code_kind.to_bytes());
+        assert_eq!(origin, USER_1.into_origin());
+        // submit_program_default submits ProgramCodeKind::Default
+        assert_eq!(code, ProgramCodeKind::Default.to_bytes());
+
         SystemPallet::<Test>::assert_last_event(
             Event::InitMessageEnqueued(MessageInfo {
                 message_id,
                 program_id,
-                origin: USER_1.into_origin(),
+                origin,
             })
             .into(),
-        )
+        );
     })
 }
 
 #[test]
 fn submit_program_expected_failure() {
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(None);
-
-        // Insufficient account balance to reserve gas
+        let balance = BalancesPallet::<Test>::free_balance(LOW_BALANCE_USER);
         assert_noop!(
-            tm.submit_prog_call(
-                LOW_BALANCE_USER,
-                ProgramCodeKind::Trapping,
-                None,
-                Some(10_000),
-                Some(10)
+            GearPallet::<Test>::submit_program(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                ProgramCodeKind::Default.to_bytes(),
+                DEFAULT_SALT.to_vec(),
+                DEFAULT_PAYLOAD.to_vec(),
+                DEFAULT_GAS_LIMIT,
+                balance + 1
             ),
             Error::<Test>::NotEnoughBalanceForReserve
         );
+
         // Gas limit is too high
         let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
         assert_noop!(
-            tm.submit_prog_call(
-                USER_1,
-                ProgramCodeKind::Trapping,
-                None,
-                Some(block_gas_limit + 1),
-                None
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                ProgramCodeKind::Default.to_bytes(),
+                DEFAULT_SALT.to_vec(),
+                DEFAULT_PAYLOAD.to_vec(),
+                block_gas_limit + 1,
+                0
             ),
             Error::<Test>::GasLimitTooHigh
         );
@@ -115,16 +156,12 @@ fn submit_program_expected_failure() {
 #[test]
 fn submit_program_fails_on_duplicate_id() {
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(None);
-
-        assert_ok!(
-            tm.submit_prog_call(USER_1, ProgramCodeKind::Default, None, Some(10_000), None),
-        );
+        assert_ok!(submit_default_program(USER_1));
         // Finalize block to let queue processing run
-        tm.run_to_block(2);
+        run_to_block(2, None);
         // By now this program id is already in the storage
         assert_noop!(
-            tm.submit_prog_call(USER_1, ProgramCodeKind::Default, None, Some(10_000), None),
+            submit_default_program(USER_1),
             Error::<Test>::ProgramAlreadyExists
         );
     })
@@ -133,47 +170,28 @@ fn submit_program_fails_on_duplicate_id() {
 #[test]
 fn send_message_works() {
     new_test_ext().execute_with(|| {
-        let mut tm = TestManager::new(Some(100_000));
-        let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
-        let payload = b"payload".to_vec();
-        let expected_msg_id = tm.compute_message_id(&payload);
+        let program_id = submit_default_program(USER_1).expect("default submission was tested");
+        // Can get by summing nonce of all accounts.
+        let current_nonce = 1;
+        let expected_msg_id = compute_message_id(DEFAULT_PAYLOAD, current_nonce);
 
-        assert_ok!(tm.send_msg_to_program(USER_1, prog_id, payload, None, None));
+        assert_ok!(send_default_message(USER_1, program_id));
 
-        let messages = tm
-            .get_message_queue()
-            .expect("There should be a message in the queue");
-        assert_eq!(messages.len(), 2);
-        let actual_msg_id = match messages.into_iter().next_back() {
-            Some(IntermediateMessage::DispatchMessage { id, .. }) => id,
+        let mq = GearPallet::<Test>::message_queue().expect("Two messages were sent");
+        assert_eq!(mq.len(), 2);
+
+        let sent_to_prog_msg = mq
+            .into_iter()
+            .next_back()
+            .expect("mq is not empty");
+        let actual_msg_id = match sent_to_prog_msg {
+            IntermediateMessage::DispatchMessage { id, .. } => id,
             _ => unreachable!("Last message was dispatch message"),
         };
+
         assert_eq!(expected_msg_id, actual_msg_id);
 
-        assert_eq!(
-            tm.get_actual_balance(USER_1),
-            tm.get_expected_balance(USER_1).expect("USER_1 has balance")
-        );
-        assert_eq!(
-            tm.get_actual_balance(USER_2),
-            tm.get_expected_balance(USER_2).expect("USER_2 has balance")
-        );
-
-        assert_ok!(tm.send_msg_to_user(USER_1, USER_2, Vec::new(), None, Some(20_000)));
-
-        assert_eq!(
-            tm.get_actual_balance(USER_1),
-            tm.get_expected_balance(USER_1).expect("USER_1 has balance")
-        );
-        tm.run_to_block(2);
-        assert_eq!(
-            tm.get_actual_balance(USER_1),
-            tm.get_expected_balance(USER_1).expect("USER_1 has balance")
-        );
-        assert_eq!(
-            tm.get_actual_balance(USER_2),
-            tm.get_expected_balance(USER_2).expect("USER_2 has balance")
-        );
+        // todo continue..
     });
 }
 
@@ -234,32 +252,16 @@ fn messages_processing_works() {
         // Submit some messages to message queue
         // todo[sab] clumsy, rewrite submit_prog stuff
         let prog_id = tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
-        assert_ok!(
-            tm.send_msg_to_program(
-                USER_1,
-                prog_id,
-                Vec::new(),
-                None,
-                None,
-            )
-        );
+        assert_ok!(tm.send_msg_to_program(USER_1, prog_id, Vec::new(), None, None,));
         tm.run_to_block(2);
         // TODO [sab] sure it's ok?
-        SystemPallet::<Test>::assert_last_event(
-            Event::MessagesDequeued(2).into()
-        );
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
 
-        assert_ok!(
-            tm.send_msg_to_user(USER_1, USER_2, Vec::new(), None, None)
-        );
-        assert_ok!(
-            tm.send_msg_to_program(USER_1, prog_id, Vec::new(), None, None)
-        );
+        assert_ok!(tm.send_msg_to_user(USER_1, USER_2, Vec::new(), None, None));
+        assert_ok!(tm.send_msg_to_program(USER_1, prog_id, Vec::new(), None, None));
         tm.run_to_block(3);
         // TODO [sab] sure it's ok?
-        SystemPallet::<Test>::assert_last_event(
-            Event::MessagesDequeued(1).into()
-        );
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
     });
 }
 
@@ -271,14 +273,13 @@ fn spent_gas_to_reward_block_author_works() {
         tm.submit_prog_default_data(USER_1, ProgramCodeKind::Default);
         tm.run_to_block(2);
 
-        SystemPallet::<Test>::assert_last_event(
-            Event::MessagesDequeued(1).into()
-        );
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
         assert_eq!(
-            tm.get_expected_balance(BLOCK_AUTHOR).expect("Block author processed block"),
+            tm.get_expected_balance(BLOCK_AUTHOR)
+                .expect("Block author processed block"),
             tm.get_actual_balance(BLOCK_AUTHOR)
         );
     })
@@ -317,22 +318,17 @@ fn unused_gas_released_back_works() {
             None
         ));
 
-        let prog_id = match tm.get_last_event().expect("message was submitted previously") {
-            mock::Event::Gear(pallet::Event::InitMessageEnqueued(msg_info)) => {
-                msg_info.program_id
-            }
+        let prog_id = match tm
+            .get_last_event()
+            .expect("message was submitted previously")
+        {
+            mock::Event::Gear(pallet::Event::InitMessageEnqueued(msg_info)) => msg_info.program_id,
             _ => unreachable!(),
         };
 
         tm.run_to_block(2);
 
-        assert_ok!(tm.send_msg_to_program(
-            USER_1,
-            prog_id,
-            Vec::new(),
-            None,
-            None
-        ));
+        assert_ok!(tm.send_msg_to_program(USER_1, prog_id, Vec::new(), None, None));
 
         assert_eq!(
             tm.get_actual_balance(USER_1),
@@ -355,19 +351,17 @@ fn unused_gas_released_back_works() {
 mod utils {
     use std::collections::HashMap;
 
-    use sp_core::H256;
     use codec::Encode;
-    use frame_system::Pallet as SystemPallet;
     use frame_support::{assert_ok, dispatch::DispatchResultWithPostInfo};
+    use frame_system::Pallet as SystemPallet;
     use pallet_balances::Pallet as BalancePallet;
+    use sp_core::H256;
 
     use common::{IntermediateMessage, Origin as _};
 
     use crate::{
-        pallet,
-        Pallet as GearPallet,
-        GasAllowance,
-        mock::{self, Test, Origin, run_to_block, USER_1, USER_2, LOW_BALANCE_USER, BLOCK_AUTHOR},
+        mock::{self, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2},
+        pallet, GasAllowance, Pallet as GearPallet,
     };
 
     type AccountId = <Test as frame_system::Config>::AccountId;
@@ -440,14 +434,19 @@ mod utils {
             }
             self.cumulative_gas_for_msgs = 0;
             // Count reward for block_author todo [sab] refactor
-            self.balance_manager.mail_receive
+            self.balance_manager
+                .mail_receive
                 .entry(BLOCK_AUTHOR)
                 .and_modify(|v| *v += gas_spent as u128)
                 .or_insert(gas_spent as u128);
         }
 
         // todo [sab] change to be sent by user 1
-        pub(super) fn submit_prog_default_data(&mut self, user: u64, kind: ProgramCodeKind) -> H256 {
+        pub(super) fn submit_prog_default_data(
+            &mut self,
+            user: u64,
+            kind: ProgramCodeKind,
+        ) -> H256 {
             assert_ok!(self.submit_prog_call(user, kind, None, None, None));
             match self
                 .get_last_event()
@@ -669,18 +668,20 @@ mod utils {
     impl<'a> ProgramCodeKind<'a> {
         pub(super) fn to_bytes(self) -> Vec<u8> {
             let source = match self {
-                ProgramCodeKind::Default =>
-                        r#"(module
+                ProgramCodeKind::Default => {
+                    r#"(module
                             (import "env" "memory" (memory 1))
                             (export "handle" (func $handle))
                             (export "init" (func $init))
                             (func $handle)
                             (func $init)
-                        )"#,
-                ProgramCodeKind::Trapping =>
+                        )"#
+                }
+                ProgramCodeKind::Trapping => {
                     r#"(module
                         (import "env" "memory" (memory 1))
-                    )"#,
+                    )"#
+                }
                 ProgramCodeKind::Custom(code) => code,
             };
 
