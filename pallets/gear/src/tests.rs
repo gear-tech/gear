@@ -42,7 +42,7 @@ fn submit_program_works() {
 
         assert_ok!(submit_default_program(USER_1));
 
-        let mq = GearPallet::<Test>::message_queue().expect("Message was added to the queue");
+        let mq = GearPallet::<Test>::message_queue().expect("message was added to the queue");
         assert_eq!(mq.len(), 1);
 
         let submit_msg = mq.into_iter().next().expect("mq length is 1");
@@ -54,7 +54,7 @@ fn submit_program_works() {
                 init_message_id,
                 ..
             } => (origin, code, program_id, init_message_id),
-            _ => unreachable!(),
+            _ => unreachable!("only init program message is in the queue"),
         };
         assert_eq!(origin, USER_1.into_origin());
         // submit_program_default submits ProgramCodeKind::Default
@@ -143,7 +143,7 @@ fn send_message_works() {
         let sent_to_prog_msg = mq.into_iter().next_back().expect("mq is not empty");
         let actual_msg_id = match sent_to_prog_msg {
             IntermediateMessage::DispatchMessage { id, .. } => id,
-            _ => unreachable!("Last message was dispatch message"),
+            _ => unreachable!("last message was a dispatch message"),
         };
 
         assert_eq!(expected_msg_id, actual_msg_id);
@@ -157,7 +157,7 @@ fn send_message_works() {
             user1_initial_balance - user1_potential_msgs_spends
         );
 
-        // Sending message (mail) to user
+        // Sending message to a non-program address works as a simple value transfer
         let mail_value = 20_000;
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
@@ -365,6 +365,191 @@ fn unused_gas_released_back_works() {
     })
 }
 
+#[test]
+fn block_gas_limit_works() {
+    // This program is tricky. Whatever gas amount you sent it, it will exit with a trap.
+    // That is because it performs "send", which sets 10_000_000_000 as a gas limit. Such amount can't be provided by sender,
+    // because block gas limit is only 100_000_000 (see `mock::BlockGasLimit`). Currently don't see any reason to change that.
+    // Besides, executing handle function with payload `b"payload"` takes 10_000, except for gas needed to send message.
+    let wat1 = r#"
+	(module
+		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			i32.const 0
+			i32.const 32
+			i32.const 32
+			i64.const 10000000000
+			i32.const 1024
+			i32.const 40000
+			call $send
+		)
+		(func $init)
+	)"#;
+
+    // Executing handle function with `b"payload"` value as a payload takes 97_000 of gas.
+    let wat2 = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $init)
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $handle
+            i32.const 10
+            call $doWork
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let remaining_weight = 100_000;
+
+        let code1 = ProgramCodeKind::Custom(wat1).to_bytes();
+        let code2 = ProgramCodeKind::Custom(wat2).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+
+        let pid1 = generate_program_id(&code1, &salt);
+        let pid2 = generate_program_id(&code2, &salt);
+
+        // Submit programs
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code1,
+            salt.clone(),
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0
+        ));
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code2,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0
+        ));
+        run_to_block(2, Some(remaining_weight));
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
+
+        // Count gas needed to process programs with default payload
+        let expected_gas_msg_to_pid1 =
+            GearPallet::<Test>::get_gas_spent(pid1, DEFAULT_PAYLOAD.to_vec()).expect("has traps");
+        let expected_gas_msg_to_pid2 =
+            GearPallet::<Test>::get_gas_spent(pid2, DEFAULT_PAYLOAD.to_vec()).expect("has traps");
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            pid1,
+            DEFAULT_PAYLOAD.to_vec(),
+            expected_gas_msg_to_pid1,
+            100
+        ));
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            pid1,
+            DEFAULT_PAYLOAD.to_vec(),
+            expected_gas_msg_to_pid1,
+            100
+        ));
+
+        run_to_block(3, Some(remaining_weight));
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
+
+        // Run to the next block to reset the gas limit
+        run_to_block(4, Some(remaining_weight));
+
+        assert!(GearPallet::<Test>::message_queue().is_none());
+
+        // Add more messages to queue
+        // Total `gas_limit` of three messages (2 to pid1 and 1 to pid2) exceeds the block gas limit
+        assert!(remaining_weight < 2 * expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2);
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            pid1,
+            DEFAULT_PAYLOAD.to_vec(),
+            expected_gas_msg_to_pid1,
+            200
+        ));
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            pid2,
+            DEFAULT_PAYLOAD.to_vec(),
+            expected_gas_msg_to_pid2,
+            100
+        ));
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            pid1,
+            DEFAULT_PAYLOAD.to_vec(),
+            expected_gas_msg_to_pid1,
+            200
+        ));
+
+        // Try to process 3 messages
+        run_to_block(5, Some(remaining_weight));
+
+        // Message #2 steps beyond the block gas allowance and is re-queued
+        // Message #1 is dequeued and processed, message #3 stays in the queue:
+        //
+        // | 1 |        | 3 |
+        // | 2 |  ===>  | 2 |
+        // | 3 |        |   |
+        //
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_eq!(
+            GasAllowance::<Test>::get(),
+            remaining_weight - expected_gas_msg_to_pid1
+        );
+
+        // Try to process 2 messages
+        run_to_block(6, Some(remaining_weight));
+
+        // Message #3 get dequeued and processed
+        // Message #2 gas limit still exceeds the remaining allowance:
+        //
+        // | 3 |        | 2 |
+        // | 2 |  ===>  |   |
+        //
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_eq!(
+            GasAllowance::<Test>::get(),
+            remaining_weight - expected_gas_msg_to_pid1
+        );
+
+        run_to_block(7, Some(remaining_weight));
+
+        // This time message #2 makes it into the block:
+        //
+        // | 2 |        |   |
+        // |   |  ===>  |   |
+        //
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        assert_eq!(
+            GasAllowance::<Test>::get(),
+            remaining_weight - expected_gas_msg_to_pid2
+        );
+    });
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
@@ -482,192 +667,6 @@ mod utils {
 
 // fn compute_code_hash(code: &[u8]) -> H256 {
 //     sp_io::hashing::blake2_256(code).into()
-// }
-//
-// fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-//     // TODO #512
-//     let mut data = Vec::new();
-//     code.encode_to(&mut data);
-//     salt.encode_to(&mut data);
-//
-//     sp_io::hashing::blake2_256(&data[..]).into()
-// }
-//
-// #[test]
-// fn block_gas_limit_works() {
-//     // A module with $handle function being worth 6000 gas
-//     let wat1 = r#"
-// 	(module
-// 		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-// 		(import "env" "memory" (memory 1))
-// 		(export "handle" (func $handle))
-// 		(export "init" (func $init))
-// 		(func $handle
-// 			i32.const 0
-// 			i32.const 32
-// 			i32.const 32
-// 			i64.const 1000000000
-// 			i32.const 1024
-// 			i32.const 40000
-// 			call $send
-// 		)
-// 		(func $init)
-// 	)"#;
-//
-//     // A module with $handle function being worth 94000 gas
-//     let wat2 = r#"
-// 	(module
-// 		(import "env" "memory" (memory 1))
-// 		(export "handle" (func $handle))
-// 		(export "init" (func $init))
-// 		(func $init)
-//         (func $doWork (param $size i32)
-//             (local $counter i32)
-//             i32.const 0
-//             set_local $counter
-//             loop $while
-//                 get_local $counter
-//                 i32.const 1
-//                 i32.add
-//                 set_local $counter
-//                 get_local $counter
-//                 get_local $size
-//                 i32.lt_s
-//                 if
-//                     br $while
-//                 end
-//             end $while
-//         )
-//         (func $handle
-//             i32.const 10
-//             call $doWork
-// 		)
-// 	)"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code1 = parse_wat(wat1);
-//         let code2 = parse_wat(wat2);
-//         let pid1 = H256::from_low_u64_be(1001);
-//         let pid2 = H256::from_low_u64_be(1002);
-//
-//         // TODO #524
-//         MessageQueue::<Test>::put(vec![
-//             IntermediateMessage::InitProgram {
-//                 origin: 1.into_origin(),
-//                 code: code1,
-//                 program_id: pid1,
-//                 init_message_id: H256::from_low_u64_be(1000001),
-//                 payload: Vec::new(),
-//                 gas_limit: 10_000,
-//                 value: 0,
-//             },
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(102),
-//                 origin: 1.into_origin(),
-//                 destination: pid1,
-//                 payload: Vec::new(),
-//                 gas_limit: 10_000,
-//                 value: 0,
-//                 reply: None,
-//             },
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(103),
-//                 origin: 1.into_origin(),
-//                 destination: pid1,
-//                 payload: Vec::new(),
-//                 gas_limit: 10_000,
-//                 value: 100,
-//                 reply: None,
-//             },
-//             IntermediateMessage::InitProgram {
-//                 origin: 1.into_origin(),
-//                 code: code2,
-//                 program_id: pid2,
-//                 init_message_id: H256::from_low_u64_be(1000002),
-//                 payload: Vec::new(),
-//                 gas_limit: 10_000,
-//                 value: 0,
-//             },
-//         ]);
-//
-//         // Run to block #2 where the queue processing takes place
-//         run_to_block(2, Some(100_000));
-//         System::assert_last_event(crate::Event::MessagesDequeued(4).into());
-//
-//         // Run to the next block to reset the gas limit
-//         run_to_block(3, Some(100_000));
-//
-//         assert!(MessageQueue::<Test>::get().is_none());
-//
-//         // Add more messages to queue
-//         // Total `gas_limit` of three messages exceeds the block gas limit
-//         // Messages #1 abd #3 take 6000 gas
-//         // Message #2 takes 94000 gas
-//         MessageQueue::<Test>::put(vec![
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(104),
-//                 origin: 1.into_origin(),
-//                 destination: pid1,
-//                 payload: Vec::new(),
-//                 gas_limit: 10_000,
-//                 value: 0,
-//                 reply: None,
-//             },
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(105),
-//                 origin: 1.into_origin(),
-//                 destination: pid2,
-//                 payload: Vec::new(),
-//                 gas_limit: 95_000,
-//                 value: 100,
-//                 reply: None,
-//             },
-//             IntermediateMessage::DispatchMessage {
-//                 id: H256::from_low_u64_be(106),
-//                 origin: 1.into_origin(),
-//                 destination: pid1,
-//                 payload: Vec::new(),
-//                 gas_limit: 20_000,
-//                 value: 200,
-//                 reply: None,
-//             },
-//         ]);
-//
-//         run_to_block(4, Some(100_000));
-//
-//         // Message #2 steps beyond the block gas allowance and is requeued
-//         // Message #1 is dequeued and processed, message #3 stays in the queue:
-//         //
-//         // | 1 |        | 3 |
-//         // | 2 |  ===>  | 2 |
-//         // | 3 |        |   |
-//         //
-//         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-//         assert_eq!(Gear::gas_allowance(), 90_000);
-//
-//         // Run to the next block to reset the gas limit
-//         run_to_block(5, Some(100_000));
-//
-//         // Message #3 get dequeued and processed
-//         // Message #2 gas limit still exceeds the remaining allowance:
-//         //
-//         // | 3 |        | 2 |
-//         // | 2 |  ===>  |   |
-//         //
-//         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-//         assert_eq!(Gear::gas_allowance(), 90_000);
-//
-//         run_to_block(6, Some(100_000));
-//
-//         // This time message #2 makes it into the block:
-//         //
-//         // | 2 |        |   |
-//         // |   |  ===>  |   |
-//         //
-//         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-//         assert_eq!(Gear::gas_allowance(), 11_000);
-//     });
 // }
 //
 // #[test]
