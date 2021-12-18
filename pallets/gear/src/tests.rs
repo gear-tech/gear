@@ -367,7 +367,7 @@ fn unused_gas_released_back_works() {
 #[test]
 fn block_gas_limit_works() {
     // This program is tricky. Whatever gas amount you sent it, it will exit with a trap.
-    // That is because it performs "send", which sets 10_000_000_000 as a gas limit. Such amount can't be provided by sender,
+    // That is because it performs "send", which sets 1_000_000_000 as a gas limit. Such amount can't be provided by sender,
     // because block gas limit is only 100_000_000 (see `mock::BlockGasLimit`). Currently don't see any reason to change that.
     // Besides, executing handle function with payload `b"payload"` takes 10_000, except for gas needed to send message.
     let wat1 = r#"
@@ -380,7 +380,7 @@ fn block_gas_limit_works() {
 			i32.const 0
 			i32.const 32
 			i32.const 32
-			i64.const 10000000000
+			i64.const 1000000000
 			i32.const 1024
 			i32.const 40000
 			call $send
