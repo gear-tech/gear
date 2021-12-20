@@ -300,7 +300,7 @@ case "$COMMAND" in
 
       gtest)
         header "Running gtest"
-        gtest "$ROOT_DIR" $(echo "$ROOT_DIR/examples/**/*.yaml") "$@"; ;;
+        gtest "$ROOT_DIR" "$@"; ;;
 
       ntest)
         header "Running node testsuite"

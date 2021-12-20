@@ -40,7 +40,7 @@ examples: build-examples proc-examples
 
 .PHONY: build-examples
 build-examples:
-	@ ./scripts/gear.sh build examples
+	@ ./scripts/gear.sh build examples yamls="$(yamls)"
 
 .PHONY: wasm-proc
 wasm-proc:
@@ -214,7 +214,7 @@ test-js: init-js
 
 .PHONY: gtest
 gtest: init-js examples
-	@ ./scripts/gear.sh test gtest
+	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
 
 .PHONY: ntest
 ntest: init-js examples

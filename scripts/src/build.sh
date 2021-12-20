@@ -45,7 +45,43 @@ examples_build() {
   TARGET_DIR="$2"
   shift
   shift
-  cd "$ROOT_DIR"/examples
-  CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
-  cd "$ROOT_DIR"
+
+
+  if [ -n "$1" ]
+  then
+    has_yamls=$(echo "${1}" | grep "yamls=")
+  fi
+
+  if  [ -n "$has_yamls" ]
+  then
+    if ! command -v perl &> /dev/null
+    then
+      echo "could parse yamls only with \"perl\" installed"
+      exit 1
+    fi
+
+    YAMLS=$(echo $1 | perl -ne 'print $1 if /yamls=(.*)/s')
+    shift
+  fi
+
+  if [ -z "$YAMLS" ]
+  then
+    cd "$ROOT_DIR"/examples
+    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
+    cd "$ROOT_DIR"
+  else
+    for yaml in $YAMLS
+    do
+      names=$(cat $yaml | perl -ne 'print "$1 " if /.*path: .*\/(.*).wasm/s')
+      names=$(echo $names | tr _ -)
+      for name in $names
+      do
+        path=$(grep -rbnl --include \*.toml \"$name\" "$ROOT_DIR"/examples/)
+        path=$(echo $path | perl -ne 'print $1 if /(.*)Cargo\.toml/s')
+        cd $path
+        CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
+        cd -
+      done
+    done
+  fi
 }
