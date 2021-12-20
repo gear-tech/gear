@@ -27,7 +27,7 @@ use super::{
     mock::{
         new_test_ext, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
     },
-    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet, ProgramsLimbo
+    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet
 };
 
 use utils::*;
@@ -799,28 +799,26 @@ fn program_lifecycle_works() {
         assert!(!Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
         // while at the same time being stuck in "limbo"
         assert!(GearPallet::<Test>::is_uninitialized(program_id));
-        assert_eq!(
-            ProgramsLimbo::<Test>::get(program_id).expect("program is uninitialized"),
-            USER_1.into_origin()
-        );
+
         // Program author is allowed to remove the program and reclaim funds
-        // An attempt to remove a program on behalf of another account will fail
+        // An attempt to remove a program on behalf of another account will make no changes
         assert_ok!(GearPallet::<Test>::remove_stale_program(
             Origin::signed(LOW_BALANCE_USER).into(), // Not the author
             program_id,
         ));
-        // Program is still in the storage
-        assert!(ProgramsLimbo::<Test>::get(program_id).is_some());
+        // Program is still in the limbo
+        assert!(GearPallet::<Test>::is_uninitialized(program_id));
 
         assert_ok!(GearPallet::<Test>::remove_stale_program(
             Origin::signed(USER_1).into(),
             program_id,
         ));
-        assert!(ProgramsLimbo::<Test>::get(program_id).is_none());
+        assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
 
         // Ensure program is not in program storage by sending it a message
         assert_ok!(send_default_message(USER_1, program_id));
         run_to_block(4, None);
+        // Program doesn't exist, so message will go to mailbox.
         assert!(Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
     })
 }
