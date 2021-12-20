@@ -351,7 +351,7 @@ pub mod pallet {
                                 };
 
                                 // Enqueue the trap reply message
-                                gas_tree.split_off(trap_message.id, trap_gas);
+                                let _ = gas_tree.split_off(trap_message.id, trap_gas);
                                 common::queue_message(trap_message);
 
                                 // Save back the program with incremented nonce

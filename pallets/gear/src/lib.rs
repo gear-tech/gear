@@ -408,7 +408,7 @@ pub mod pallet {
 
                                 // Enqueuing outgoing messages
                                 for message in execution_report.messages {
-                                    gas_tree.split_off(message.id, message.gas_limit);
+                                    let _ = gas_tree.split_off(message.id, message.gas_limit);
                                     common::queue_message(message);
                                 }
 
@@ -555,7 +555,7 @@ pub mod pallet {
 
                         // Enqueuing outgoing messages
                         for message in execution_report.messages {
-                            gas_tree.split_off(message.id, message.gas_limit);
+                            let _ = gas_tree.split_off(message.id, message.gas_limit);
 
                             common::queue_message(message);
                         }
