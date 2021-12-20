@@ -27,7 +27,7 @@ use super::{
     mock::{
         new_test_ext, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
     },
-    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet,
+    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet, ProgramsLimbo
 };
 
 use utils::*;
@@ -730,6 +730,7 @@ fn init_message_logging_works() {
     })
 }
 
+// todo [sab] Maybe return back common::get_program
 #[test]
 fn program_lifecycle_works() {
     // Traps on init if provide little gas
@@ -762,68 +763,65 @@ fn program_lifecycle_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let program1_id = {
+        // Submitting first program and getting its id
+        let program_id = {
             let res = submit_default_program(USER_1);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-        let program2_id = {
-            let code = ProgramCodeKind::Custom(wat).to_bytes();
-            generate_program_id(&code, DEFAULT_SALT)
-        };
+        // The default message send is needed to check, whether message goes to mailbox (which means, that program doesn't exist).
+        assert_ok!(send_default_message(USER_1, program_id));
 
         run_to_block(2, None);
         // Expect the program to be in PS by now
-        // To check that we see whether message will be added to the mailbox if we send it to the program
-        assert_ok!(send_default_message(USER_1, program_id));
-        assert!(!Mailbox::<Test>::contains_key(program1_id));
+        // To check that we see whether the default message we sent
+        // will be added to the mailbox.
+        assert!(!Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
 
-        // Submitting another program
-        let code = parse_wat(wat);
-        System::reset_events();
-        assert_ok!(Pallet::<Test>::submit_program(
-            Origin::signed(1).into(),
-            code.clone(),
-            b"salt".to_vec(),
-            Vec::new(),
-            10_000u64,
-            0_u128
+        // Submitting second program, which fails on initialization, therefore goes to limbo.
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let program_id = generate_program_id(&code, DEFAULT_SALT);
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code,
+            DEFAULT_SALT.to_vec(),
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0
         ));
+        // The default message send is needed to check, whether message goes to mailbox (which means, that program doesn't exist).
+        assert_ok!(send_default_message(USER_1, program_id));
 
-        let messages: Vec<IntermediateMessage> =
-            Gear::message_queue().expect("There should be a message in the queue");
-        let program_id = match &messages[0] {
-            IntermediateMessage::InitProgram { program_id, .. } => *program_id,
-            _ => Default::default(),
-        };
-
-        assert!(common::get_program(program_id).is_none());
         run_to_block(3, None);
-        // Expect the program to have made it to the PS
-        assert!(common::get_program(program_id).is_some());
+        // Expect the program to be in PS by now
+        // To check that we see whether the default message we sent
+        // will be added to the mailbox.
+        assert!(!Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
         // while at the same time being stuck in "limbo"
-        assert!(crate::Pallet::<Test>::is_uninitialized(program_id));
+        assert!(GearPallet::<Test>::is_uninitialized(program_id));
         assert_eq!(
-            ProgramsLimbo::<Test>::get(program_id).unwrap(),
-            1.into_origin()
+            ProgramsLimbo::<Test>::get(program_id).expect("program is uninitialized"),
+            USER_1.into_origin()
         );
         // Program author is allowed to remove the program and reclaim funds
         // An attempt to remove a program on behalf of another account will fail
-        assert_ok!(Pallet::<Test>::remove_stale_program(
+        assert_ok!(GearPallet::<Test>::remove_stale_program(
             Origin::signed(LOW_BALANCE_USER).into(), // Not the author
             program_id,
         ));
         // Program is still in the storage
-        assert!(common::get_program(program_id).is_some());
         assert!(ProgramsLimbo::<Test>::get(program_id).is_some());
 
-        assert_ok!(Pallet::<Test>::remove_stale_program(
-            Origin::signed(1).into(),
+        assert_ok!(GearPallet::<Test>::remove_stale_program(
+            Origin::signed(USER_1).into(),
             program_id,
         ));
-        // This time the program has been removed
-        assert!(common::get_program(program_id).is_none());
         assert!(ProgramsLimbo::<Test>::get(program_id).is_none());
+
+        // Ensure program is not in program storage by sending it a message
+        assert_ok!(send_default_message(USER_1, program_id));
+        run_to_block(4, None);
+        assert!(Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
     })
 }
 
@@ -839,7 +837,7 @@ mod utils {
     pub(super) const DEFAULT_PAYLOAD: &'static [u8; 7] = b"payload";
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
-    type AccountId = <Test as frame_system::Config>::AccountId;
+    pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
 
     pub(super) fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
