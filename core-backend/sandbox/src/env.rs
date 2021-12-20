@@ -19,12 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use super::memory::MemoryWrap;
-use alloc::{
-    boxed::Box,
-    collections::BTreeMap,
-    string::{String, ToString},
-    vec,
-};
+use alloc::{boxed::Box, collections::BTreeMap, string::String, vec};
 use sp_sandbox::{EnvironmentDefinitionBuilder, HostError, Instance, ReturnValue, Value};
 
 use gear_backend_common::funcs;
@@ -637,7 +632,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                         let result = instance.invoke(entry_point, &[], &mut runtime);
                         if let Err(_e) = &result {
                             if let Some(trap) = runtime.trap_reason {
-                                if funcs::is_exit_trap(&trap.to_string()) {
+                                if funcs::is_exit_trap(trap) {
                                     // We don't propagate a trap when exit
                                     return Ok(());
                                 }
