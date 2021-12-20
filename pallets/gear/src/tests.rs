@@ -769,8 +769,6 @@ fn program_lifecycle_works() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-        // The default message send is needed to check, whether message goes to mailbox (which means, that program doesn't exist).
-        assert_ok!(send_default_message(USER_1, program_id));
 
         assert!(common::get_program(program_id).is_none());
         run_to_block(2, None);
@@ -788,8 +786,6 @@ fn program_lifecycle_works() {
             DEFAULT_GAS_LIMIT,
             0
         ));
-        // The default message send is needed to check, whether message goes to mailbox (which means, that program doesn't exist).
-        assert_ok!(send_default_message(USER_1, program_id));
 
         assert!(common::get_program(program_id).is_none());
         run_to_block(3, None);
@@ -956,6 +952,334 @@ fn events_logging_works() {
     })
 }
 
+#[test]
+fn send_reply_works() {
+    let wat = r#"
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_source" (func $gr_source (param i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (export "handle_reply" (func $handle_reply))
+        (func $handle
+            i32.const 16384
+            call $gr_source
+            i32.const 16384
+            i32.const 0
+            i32.const 32
+            i64.const 1000000
+            i32.const 1024
+            i32.const 40000
+            call $send
+        )
+        (func $handle_reply)
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Make sure we have a program in the program storage
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        ));
+
+
+        let reply_to_id = {
+            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
+            let mut data = prog_id.as_bytes().to_vec();
+            // nonce of program
+            data.extend(&0_u64.to_le_bytes());
+            sp_io::hashing::blake2_256(&data).into()
+        };
+
+        // This creates a message in mailbox for USER_1
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            prog_id,
+            DEFAULT_PAYLOAD.to_vec(),
+            2_000_000, // `prog_id` program sends message in handle which sets gas limit to 1_000_000.
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            reply_to_id,
+            DEFAULT_PAYLOAD.to_vec(),
+            10_000_000,
+            0
+        ));
+
+        // global nonce is 2 before sending reply message (`submit_program` and `send_message` messages were sent before)
+        let expected_reply_message_id = compute_message_id(DEFAULT_PAYLOAD, 2);
+        let (actual_reply_message_id, orig_id) = {
+            let intermediate_msg = GearPallet::<Test>::message_queue()
+                .map(|v| v.into_iter().next())
+                .flatten()
+                .expect("reply message was previously sent");
+            match intermediate_msg {
+                IntermediateMessage::DispatchMessage { id, reply, .. } => (id, reply.expect("was a reply message")),
+                _ => unreachable!("only reply message was in mq"),
+            }
+        };
+
+        assert_eq!(expected_reply_message_id, actual_reply_message_id);
+        assert_eq!(orig_id, reply_to_id);
+    })
+}
+
+#[test]
+fn send_reply_expected_failure() {
+    let wat = r#"
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_source" (func $gr_source (param i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (export "handle_reply" (func $handle_reply))
+        (func $handle
+            i32.const 16384
+            call $gr_source
+            i32.const 16384
+            i32.const 0
+            i32.const 32
+            i64.const 1000000
+            i32.const 1024
+            i32.const 40000
+            call $send
+        )
+        (func $handle_reply)
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Expecting error as long as the user doesn't have messages in mailbox
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                5.into_origin(), // non existent `reply_to_id`
+                DEFAULT_PAYLOAD.to_vec(),
+                DEFAULT_GAS_LIMIT,
+                0
+            ),
+            Error::<Test>::NoMessageInMailbox
+        );
+
+        // Submitting program and sending it message to invoke a message, that will be added to LOW_BALANCE_USER's sandbox
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        ));
+
+        let reply_to_id = {
+            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
+            let mut data = prog_id.as_bytes().to_vec();
+            // nonce of program
+            data.extend(&0_u64.to_le_bytes());
+            sp_io::hashing::blake2_256(&data).into()
+        };
+
+        // increase LOW_BALANCE_USER balance a bit to allow him send message
+        let reply_gas_spent = GearPallet::<Test>::get_gas_spent(prog_id, DEFAULT_PAYLOAD.to_vec())
+            .expect("program exists and not faulty");
+        BalancesPallet::<Test>::transfer(
+            Origin::signed(USER_1).into(),
+            LOW_BALANCE_USER,
+            reply_gas_spent as u128
+        ).expect("sender has enough balance to send funds to existent address");
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(LOW_BALANCE_USER).into(),
+            prog_id,
+            DEFAULT_PAYLOAD.to_vec(),
+            reply_gas_spent,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                reply_to_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                10_000_000, // Too big gas limit value
+                0
+            ),
+            Error::<Test>::NotEnoughBalanceForReserve
+        );
+
+        // Value transfer is attempted if `value` field is greater than 0
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                reply_to_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                1, // Must be greater than incoming gas_limit to have changed the state during reserve()
+                100,
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        // Gas limit too high
+        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(USER_1).into(),
+                reply_to_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                block_gas_limit + 1,
+                0
+            ),
+            Error::<Test>::GasLimitTooHigh
+        );
+    })
+}
+
+#[test]
+fn send_reply_value_offset_works() {
+    // Sending message to USER_1 is hardcoded!
+    let wat = r#"
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_source" (func $gr_source (param i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (export "handle_reply" (func $handle_reply))
+        (func $handle
+            (local $msg_source i32)
+            (local $msg_val i32)
+            (i32.store offset=2
+                (get_local $msg_source)
+                (i32.const 1)
+            )
+            (i32.store offset=10
+                (get_local $msg_val)
+                (i32.const 1000)
+            )
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+        )
+        (func $handle_reply)
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        ));
+        // Invoke handle function to make a message send to mailbox
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            prog_id,
+            Vec::new(),
+            15_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
+            0,
+        ));
+        run_to_block(2, None);
+
+        let msg_id = {
+            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
+            // computation of message id different from the same task for user's message
+            let mut data = prog_id.as_bytes().to_vec();
+            // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+            data.extend(&0_u64.to_le_bytes());
+            sp_io::hashing::blake2_256(&data).into()
+        };
+
+        // assert!(Mailbox::<Test>::contains_key(USER_1));
+        println!("{:?}", Mailbox::<Test>::get(USER_1));
+
+        // Program doesn't have enough balance - error expected
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(USER_1).into(),
+                msg_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                10_000_000,
+                0_u128
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        assert_ok!(
+            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
+                &USER_1,
+                &AccountId::from_origin(prog_id),
+                20_000_000,
+                frame_support::traits::ExistenceRequirement::AllowDeath
+            )
+        );
+        // assert_eq!(Balances::free_balance(1), 80_000_000);
+        // assert_eq!(Balances::reserved_balance(1), 0);
+        //
+        // assert_ok!(Pallet::<Test>::send_reply(
+        //     Origin::signed(1).into(),
+        //     original_message_id,
+        //     b"payload".to_vec(),
+        //     1_000_000_u64,
+        //     100_u128,
+        // ));
+        // assert_eq!(Balances::free_balance(1), 89_000_900);
+        // assert_eq!(Balances::reserved_balance(1), 0);
+        //
+        // Gear::remove_from_mailbox(1.into_origin(), original_message_id);
+        // Gear::insert_to_mailbox(
+        //     1.into_origin(),
+        //     common::Message {
+        //         id: original_message_id,
+        //         source: program_id.clone(),
+        //         dest: 1.into_origin(),
+        //         payload: vec![],
+        //         gas_limit: 10_000_000_u64,
+        //         value: 1_000_u128,
+        //         reply: None,
+        //     },
+        // );
+        // assert_ok!(Pallet::<Test>::send_reply(
+        //     Origin::signed(1).into(),
+        //     original_message_id,
+        //     b"payload".to_vec(),
+        //     20_000_000_u64,
+        //     2_000_u128,
+        // ));
+        // assert_eq!(Balances::free_balance(1), 78_999_900);
+        // assert_eq!(Balances::reserved_balance(1), 10_000_000);
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
@@ -1088,238 +1412,6 @@ mod utils {
 //     sp_io::hashing::blake2_256(code).into()
 // }
 //
-// #[test]
-// fn send_reply_works() {
-//     init_logger();
-//
-//     new_test_ext().execute_with(|| {
-//         // Make sure we have a program in the program storage
-//         let program_id = H256::from_low_u64_be(1001);
-//         let program = Program::new(
-//             ProgramId::from_slice(&program_id[..]),
-//             parse_wat(
-//                 r#"(module
-//                     (import "env" "memory" (memory 1))
-//                     (export "handle" (func $handle))
-//                     (func $handle)
-//                 )"#,
-//             ),
-//             Default::default(),
-//         )
-//         .unwrap();
-//         common::native::set_program(program);
-//
-//         let original_message_id = H256::from_low_u64_be(2002);
-//         Gear::insert_to_mailbox(
-//             1.into_origin(),
-//             common::Message {
-//                 id: original_message_id.clone(),
-//                 source: program_id.clone(),
-//                 dest: 1.into_origin(),
-//                 payload: vec![],
-//                 gas_limit: 10_000_000_u64,
-//                 value: 0_u128,
-//                 reply: None,
-//             },
-//         );
-//
-//         assert_ok!(Pallet::<Test>::send_reply(
-//             Origin::signed(1).into(),
-//             original_message_id,
-//             b"payload".to_vec(),
-//             10_000_000_u64,
-//             0_u128
-//         ));
-//
-//         let messages: Vec<IntermediateMessage> =
-//             Gear::message_queue().expect("There should be a message in the queue");
-//         assert_eq!(messages.len(), 1);
-//
-//         let mut id = b"payload".to_vec().encode();
-//         id.extend_from_slice(&0_u128.to_le_bytes());
-//         let id: H256 = sp_io::hashing::blake2_256(&id).into();
-//
-//         let (msg_id, orig_id) = match &messages[0] {
-//             IntermediateMessage::DispatchMessage { id, reply, .. } => (*id, reply.unwrap()),
-//             _ => Default::default(),
-//         };
-//         assert_eq!(msg_id, id);
-//         assert_eq!(orig_id, original_message_id);
-//     })
-// }
-//
-// #[test]
-// fn send_reply_expected_failure() {
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let program_id = H256::from_low_u64_be(1001);
-//         let program = Program::new(
-//             ProgramId::from_slice(&program_id[..]),
-//             parse_wat(
-//                 r#"(module
-//                     (import "env" "memory" (memory 1))
-//                 )"#,
-//             ),
-//             Default::default(),
-//         )
-//         .expect("Program failed to instantiate");
-//         common::native::set_program(program);
-//
-//         let original_message_id = H256::from_low_u64_be(2002);
-//
-//         // Expecting error as long as the user doesn't have messages in mailbox
-//         assert_noop!(
-//             Pallet::<Test>::send_reply(
-//                 Origin::signed(LOW_BALANCE_USER).into(),
-//                 original_message_id,
-//                 b"payload".to_vec(),
-//                 10_000_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::NoMessageInMailbox
-//         );
-//
-//         Gear::insert_to_mailbox(
-//             LOW_BALANCE_USER.into_origin(),
-//             common::Message {
-//                 id: original_message_id,
-//                 source: program_id.clone(),
-//                 dest: LOW_BALANCE_USER.into_origin(),
-//                 payload: vec![],
-//                 gas_limit: 10_000_000_u64,
-//                 value: 0_u128,
-//                 reply: None,
-//             },
-//         );
-//
-//         assert_noop!(
-//             Pallet::<Test>::send_reply(
-//                 Origin::signed(LOW_BALANCE_USER).into(),
-//                 original_message_id,
-//                 b"payload".to_vec(),
-//                 10_000_003_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::NotEnoughBalanceForReserve
-//         );
-//
-//         // Value tansfer is attempted if `value` field is greater than 0
-//         assert_noop!(
-//             Pallet::<Test>::send_reply(
-//                 Origin::signed(LOW_BALANCE_USER).into(),
-//                 original_message_id,
-//                 b"payload".to_vec(),
-//                 10_000_001_u64, // Must be greater than incoming gas_limit to have changed the state during reserve()
-//                 100_u128,
-//             ),
-//             pallet_balances::Error::<Test>::InsufficientBalance
-//         );
-//
-//         // Gas limit too high
-//         assert_noop!(
-//             Pallet::<Test>::send_reply(
-//                 Origin::signed(1).into(),
-//                 original_message_id,
-//                 b"payload".to_vec(),
-//                 100_000_001_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::GasLimitTooHigh
-//         );
-//     })
-// }
-//
-// #[test]
-// fn send_reply_value_offset_works() {
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let program_id = H256::from_low_u64_be(1001);
-//         let program = Program::new(
-//             ProgramId::from_slice(&program_id[..]),
-//             parse_wat(
-//                 r#"(module
-//                     (import "env" "memory" (memory 1))
-//                 )"#,
-//             ),
-//             Default::default(),
-//         )
-//         .expect("Program failed to instantiate");
-//         common::native::set_program(program);
-//
-//         let original_message_id = H256::from_low_u64_be(2002);
-//
-//         Gear::insert_to_mailbox(
-//             1.into_origin(),
-//             common::Message {
-//                 id: original_message_id,
-//                 source: program_id.clone(),
-//                 dest: 1.into_origin(),
-//                 payload: vec![],
-//                 gas_limit: 10_000_000_u64,
-//                 value: 1_000_u128,
-//                 reply: None,
-//             },
-//         );
-//
-//         // Program doesn't have enough balance - error expected
-//         assert_noop!(
-//             Pallet::<Test>::send_reply(
-//                 Origin::signed(1).into(),
-//                 original_message_id,
-//                 b"payload".to_vec(),
-//                 10_000_000_u64,
-//                 0_u128
-//             ),
-//             pallet_balances::Error::<Test>::InsufficientBalance
-//         );
-//
-//         assert_ok!(
-//             <<Test as crate::Config>::Currency as Currency<_>>::transfer(
-//                 &1,
-//                 &<<Test as frame_system::Config>::AccountId as common::Origin>::from_origin(
-//                     program_id
-//                 ),
-//                 20_000_000,
-//                 ExistenceRequirement::AllowDeath,
-//             )
-//         );
-//         assert_eq!(Balances::free_balance(1), 80_000_000);
-//         assert_eq!(Balances::reserved_balance(1), 0);
-//
-//         assert_ok!(Pallet::<Test>::send_reply(
-//             Origin::signed(1).into(),
-//             original_message_id,
-//             b"payload".to_vec(),
-//             1_000_000_u64,
-//             100_u128,
-//         ));
-//         assert_eq!(Balances::free_balance(1), 89_000_900);
-//         assert_eq!(Balances::reserved_balance(1), 0);
-//
-//         Gear::remove_from_mailbox(1.into_origin(), original_message_id);
-//         Gear::insert_to_mailbox(
-//             1.into_origin(),
-//             common::Message {
-//                 id: original_message_id,
-//                 source: program_id.clone(),
-//                 dest: 1.into_origin(),
-//                 payload: vec![],
-//                 gas_limit: 10_000_000_u64,
-//                 value: 1_000_u128,
-//                 reply: None,
-//             },
-//         );
-//         assert_ok!(Pallet::<Test>::send_reply(
-//             Origin::signed(1).into(),
-//             original_message_id,
-//             b"payload".to_vec(),
-//             20_000_000_u64,
-//             2_000_u128,
-//         ));
-//         assert_eq!(Balances::free_balance(1), 78_999_900);
-//         assert_eq!(Balances::reserved_balance(1), 10_000_000);
-//     })
-// }
 //
 // #[test]
 // fn claim_value_from_mailbox_works() {
