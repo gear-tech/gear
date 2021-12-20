@@ -14,7 +14,9 @@ build_usage() {
     help           show help message and exit
 
     gear           build gear workspace
-    examples       build gear program examples
+    examples       build gear program examples,
+                   you can specify yaml list to build coresponding examples
+                   using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     wasm-proc      build wasm-proc util
     examples-proc  process built examples via wasm-proc
     node           build node
@@ -56,7 +58,7 @@ examples_build() {
   then
     if ! command -v perl &> /dev/null
     then
-      echo "could parse yamls only with \"perl\" installed"
+      echo "Can not parse yamls without \"perl\" installed =("
       exit 1
     fi
 
@@ -70,6 +72,8 @@ examples_build() {
     CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
     cd "$ROOT_DIR"
   else
+    # If there is specified yaml list, then parses yaml files and build
+    # all examples which is used as deps inside yamls.
     for yaml in $YAMLS
     do
       names=$(cat $yaml | perl -ne 'print "$1 " if /.*path: .*\/(.*).wasm/s')

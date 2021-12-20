@@ -15,7 +15,8 @@ test_usage() {
 
     gear           run workspace tests
     js             run metadata js tests
-    gtest          run gtest testing tool
+    gtest          run gtest testing tool,
+                   you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     ntest          run node testsuite
     pallet         run pallet-gear tests
 
@@ -44,7 +45,7 @@ gtest() {
   then
     if ! command -v perl &> /dev/null
     then
-      echo "could parse yamls only with \"perl\" installed"
+      echo "Can not parse yamls without \"perl\" installed =("
       exit 1
     fi
 

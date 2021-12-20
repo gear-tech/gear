@@ -38,6 +38,8 @@ gear-release:
 .PHONY: examples
 examples: build-examples proc-examples
 
+# You can specify yaml list to build coresponding examples
+# using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: build-examples
 build-examples:
 	@ ./scripts/gear.sh build examples yamls="$(yamls)"
@@ -211,7 +213,8 @@ test-gear-release: init-js examples
 .PHONY: test-js
 test-js: init-js
 	@ ./scripts/gear.sh test js
-
+	
+# You can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: gtest
 gtest: init-js examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
