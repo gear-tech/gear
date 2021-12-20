@@ -51,7 +51,9 @@ examples_build() {
 
   if [ -n "$1" ]
   then
-    has_yamls=$(echo "${1}" | grep "yamls=")
+    has_yamls=$(echo "$1" | grep "yamls=" || true)
+  else
+    has_yamls=""
   fi
 
   if  [ -n "$has_yamls" ]
