@@ -718,7 +718,7 @@ fn init_message_logging_works() {
             if is_failing {
                 let trap_explanation = String::from(trap_explanation).encode();
                 SystemPallet::<Test>::assert_has_event(
-                    Event::InitFailure(msg_info, crate::Reason::Dispatch(trap_explanation)).into(),
+                    Event::InitFailure(msg_info, Reason::Dispatch(trap_explanation)).into(),
                 );
             } else {
                 // Expecting the log to have an InitSuccess event
@@ -772,11 +772,10 @@ fn program_lifecycle_works() {
         // The default message send is needed to check, whether message goes to mailbox (which means, that program doesn't exist).
         assert_ok!(send_default_message(USER_1, program_id));
 
+        assert!(common::get_program(program_id).is_none());
         run_to_block(2, None);
         // Expect the program to be in PS by now
-        // To check that we see whether the default message we sent
-        // will be added to the mailbox.
-        assert!(!Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
+        assert!(common::get_program(program_id).is_some());
 
         // Submitting second program, which fails on initialization, therefore goes to limbo.
         let code = ProgramCodeKind::Custom(wat).to_bytes();
@@ -792,11 +791,10 @@ fn program_lifecycle_works() {
         // The default message send is needed to check, whether message goes to mailbox (which means, that program doesn't exist).
         assert_ok!(send_default_message(USER_1, program_id));
 
+        assert!(common::get_program(program_id).is_none());
         run_to_block(3, None);
-        // Expect the program to be in PS by now
-        // To check that we see whether the default message we sent
-        // will be added to the mailbox.
-        assert!(!Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
+        // Expect the program to have made it to the PS
+        assert!(common::get_program(program_id).is_some());
         // while at the same time being stuck in "limbo"
         assert!(GearPallet::<Test>::is_uninitialized(program_id));
 
@@ -806,20 +804,18 @@ fn program_lifecycle_works() {
             Origin::signed(LOW_BALANCE_USER).into(), // Not the author
             program_id,
         ));
-        // Program is still in the limbo
+        // Program is still in the storage
+        assert!(common::get_program(program_id).is_some());
+        // and is still in the limbo
         assert!(GearPallet::<Test>::is_uninitialized(program_id));
 
         assert_ok!(GearPallet::<Test>::remove_stale_program(
             Origin::signed(USER_1).into(),
             program_id,
         ));
+        // This time the program has been removed
+        assert!(common::get_program(program_id).is_none());
         assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
-
-        // Ensure program is not in program storage by sending it a message
-        assert_ok!(send_default_message(USER_1, program_id));
-        run_to_block(4, None);
-        // Program doesn't exist, so message will go to mailbox.
-        assert!(Mailbox::<Test>::contains_key(AccountId::from_origin(program_id)));
     })
 }
 
