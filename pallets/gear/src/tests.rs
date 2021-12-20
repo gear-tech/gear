@@ -27,7 +27,7 @@ use super::{
     mock::{
         new_test_ext, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
     },
-    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet
+    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet, Reason, DispatchOutcome, ExecutionResult
 };
 
 use utils::*;
@@ -823,6 +823,143 @@ fn program_lifecycle_works() {
     })
 }
 
+#[test]
+fn events_logging_works() {
+    let wat_greedy_init = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "init" (func $init))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $init
+            i32.const 4
+            call $doWork
+		)
+	)"#;
+
+    let wat_trap_in_handle = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle
+			unreachable
+		)
+		(func $init)
+	)"#;
+
+    let wat_trap_in_init = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $handle)
+		(func $init
+            unreachable
+        )
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let mut nonce = 0;
+        let mut block_number = 2;
+        let tests = [
+            // Code, init failure reason, handle succeed flag
+            (ProgramCodeKind::Default, None, true),
+            (ProgramCodeKind::Custom(wat_greedy_init), Some(String::from("Gas limit exceeded").encode()), false),
+            (ProgramCodeKind::Custom(wat_trap_in_init), Some(Vec::new()), false),
+            (ProgramCodeKind::Custom(wat_trap_in_handle), None, false),
+        ]
+            .map(|test| (test.0.to_bytes(), test.1, test.2));
+        for (code, init_failure_reason, handle_succeed) in tests {
+            SystemPallet::<Test>::reset_events();
+
+            let init_msg_info = MessageInfo {
+                message_id: compute_message_id(DEFAULT_PAYLOAD, nonce),
+                program_id: generate_program_id(&code, DEFAULT_SALT),
+                origin: USER_1.into_origin(),
+            };
+            // Alias not to perform redundant clone
+            let program_id = init_msg_info.program_id;
+
+            assert_ok!(GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                code,
+                DEFAULT_SALT.to_vec(),
+                DEFAULT_PAYLOAD.to_vec(),
+                DEFAULT_GAS_LIMIT,
+                0
+            ));
+            nonce += 1;
+            SystemPallet::<Test>::assert_last_event(
+                Event::InitMessageEnqueued(init_msg_info.clone()).into()
+            );
+
+            run_to_block(block_number, None);
+            block_number += 1;
+
+            // Init failed program checks
+            if let Some(init_failure_reason) = init_failure_reason {
+                SystemPallet::<Test>::assert_has_event(
+                    Event::InitFailure(init_msg_info, Reason::Dispatch(init_failure_reason)).into()
+                );
+                // Sending messages to failed-to-init programs shouldn't be allowed
+                assert_noop!(
+                    send_default_message(USER_1, program_id),
+                    Error::<Test>::ProgramIsNotInitialized
+                );
+                continue;
+            }
+
+            SystemPallet::<Test>::assert_has_event(
+                Event::InitSuccess(init_msg_info).into()
+            );
+
+            let dispatch_msg_info = MessageInfo {
+                program_id,
+                message_id: compute_message_id(DEFAULT_PAYLOAD, nonce),
+                origin: USER_1.into_origin(),
+            };
+            // Messages to fully-initialized programs are accepted
+            assert_ok!(send_default_message(USER_1, program_id));
+            SystemPallet::<Test>::assert_last_event(
+                Event::DispatchMessageEnqueued(dispatch_msg_info.clone()).into()
+            );
+
+            run_to_block(block_number, None);
+
+            SystemPallet::<Test>::assert_has_event(
+                Event::MessageDispatched(DispatchOutcome {
+                    message_id: dispatch_msg_info.message_id,
+                    outcome: if handle_succeed {
+                        ExecutionResult::Success
+                    } else {
+                        ExecutionResult::Failure(Vec::new())
+                    }
+                }).into()
+            );
+
+            nonce += 1;
+            block_number += 1;
+        }
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
@@ -953,279 +1090,6 @@ mod utils {
 
 // fn compute_code_hash(code: &[u8]) -> H256 {
 //     sp_io::hashing::blake2_256(code).into()
-// }
-//
-// #[test]
-// fn events_logging_works() {
-//     let wat_ok = r#"
-// 	(module
-// 		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-// 		(import "env" "memory" (memory 1))
-// 		(export "handle" (func $handle))
-// 		(export "init" (func $init))
-// 		(func $handle
-// 			i32.const 0
-// 			i32.const 32
-// 			i32.const 32
-// 			i64.const 1000000
-// 			i32.const 1024
-//             i32.const 40000
-// 			call $send
-// 		)
-// 		(func $init)
-// 	)"#;
-//
-//     let wat_greedy_init = r#"
-// 	(module
-// 		(import "env" "memory" (memory 1))
-// 		(export "init" (func $init))
-//         (func $doWork (param $size i32)
-//             (local $counter i32)
-//             i32.const 0
-//             set_local $counter
-//             loop $while
-//                 get_local $counter
-//                 i32.const 1
-//                 i32.add
-//                 set_local $counter
-//                 get_local $counter
-//                 get_local $size
-//                 i32.lt_s
-//                 if
-//                     br $while
-//                 end
-//             end $while
-//         )
-//         (func $init
-//             i32.const 4
-//             call $doWork
-// 		)
-// 	)"#;
-//
-//     let wat_trap_in_handle = r#"
-// 	(module
-// 		(import "env" "memory" (memory 1))
-// 		(export "handle" (func $handle))
-// 		(export "init" (func $init))
-// 		(func $handle
-// 			unreachable
-// 		)
-// 		(func $init)
-// 	)"#;
-//
-//     let wat_trap_in_init = r#"
-// 	(module
-// 		(import "env" "memory" (memory 1))
-// 		(export "handle" (func $handle))
-// 		(export "init" (func $init))
-// 		(func $handle)
-// 		(func $init
-//             unreachable
-//         )
-// 	)"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code_ok = parse_wat(wat_ok);
-//         let code_greedy_init = parse_wat(wat_greedy_init);
-//         let code_trap_in_init = parse_wat(wat_trap_in_init);
-//         let code_trap_in_handle = parse_wat(wat_trap_in_handle);
-//
-//         System::reset_events();
-//
-//         // init ok
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code_ok.clone(),
-//             b"0001".to_vec(),
-//             vec![],
-//             10_000u64,
-//             0_u128
-//         ));
-//         // init out-of-gas
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code_greedy_init.clone(),
-//             b"0002".to_vec(),
-//             vec![],
-//             10_000u64,
-//             0_u128
-//         ));
-//         // init trapped
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code_trap_in_init.clone(),
-//             b"0003".to_vec(),
-//             vec![],
-//             10_000u64,
-//             0_u128
-//         ));
-//         // init ok
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code_trap_in_handle.clone(),
-//             b"0004".to_vec(),
-//             vec![],
-//             10_000u64,
-//             0_u128
-//         ));
-//
-//         let messages: Vec<IntermediateMessage> =
-//             Gear::message_queue().expect("There should be a message in the queue");
-//
-//         let mut init_msg = vec![];
-//         for message in messages {
-//             match message {
-//                 IntermediateMessage::InitProgram {
-//                     program_id,
-//                     init_message_id,
-//                     ..
-//                 } => {
-//                     init_msg.push((init_message_id, program_id));
-//                     System::assert_has_event(
-//                         crate::Event::InitMessageEnqueued(crate::MessageInfo {
-//                             message_id: init_message_id,
-//                             program_id,
-//                             origin: 1.into_origin(),
-//                         })
-//                         .into(),
-//                     );
-//                 }
-//                 _ => (),
-//             }
-//         }
-//         assert_eq!(init_msg.len(), 4);
-//
-//         run_to_block(2, None);
-//
-//         // Expecting programs 1 and 4 to have been inited successfully
-//         System::assert_has_event(
-//             crate::Event::InitSuccess(crate::MessageInfo {
-//                 message_id: init_msg[0].0,
-//                 program_id: init_msg[0].1,
-//                 origin: 1.into_origin(),
-//             })
-//             .into(),
-//         );
-//         System::assert_has_event(
-//             crate::Event::InitSuccess(crate::MessageInfo {
-//                 message_id: init_msg[3].0,
-//                 program_id: init_msg[3].1,
-//                 origin: 1.into_origin(),
-//             })
-//             .into(),
-//         );
-//
-//         // Expecting programs 2 and 3 to have failed to init
-//         System::assert_has_event(
-//             crate::Event::InitFailure(
-//                 crate::MessageInfo {
-//                     message_id: init_msg[1].0,
-//                     program_id: init_msg[1].1,
-//                     origin: 1.into_origin(),
-//                 },
-//                 crate::Reason::Dispatch(hex!("48476173206c696d6974206578636565646564").into()),
-//             )
-//             .into(),
-//         );
-//         System::assert_has_event(
-//             crate::Event::InitFailure(
-//                 crate::MessageInfo {
-//                     message_id: init_msg[2].0,
-//                     program_id: init_msg[2].1,
-//                     origin: 1.into_origin(),
-//                 },
-//                 crate::Reason::Dispatch(vec![]),
-//             )
-//             .into(),
-//         );
-//
-//         System::reset_events();
-//
-//         // Sending messages to failed-to-init programs shouldn't be allowed
-//         assert_noop!(
-//             Pallet::<Test>::send_message(
-//                 Origin::signed(1).into(),
-//                 init_msg[1].1,
-//                 vec![],
-//                 10_000_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::ProgramIsNotInitialized
-//         );
-//         assert_noop!(
-//             Pallet::<Test>::send_message(
-//                 Origin::signed(1).into(),
-//                 init_msg[2].1,
-//                 vec![],
-//                 10_000_u64,
-//                 0_u128
-//             ),
-//             Error::<Test>::ProgramIsNotInitialized
-//         );
-//
-//         // Messages to fully-initialized programs are accepted
-//         assert_ok!(Pallet::<Test>::send_message(
-//             Origin::signed(1).into(),
-//             init_msg[0].1,
-//             vec![],
-//             10_000_000_u64,
-//             0_u128
-//         ));
-//         assert_ok!(Pallet::<Test>::send_message(
-//             Origin::signed(1).into(),
-//             init_msg[3].1,
-//             vec![],
-//             10_000_u64,
-//             0_u128
-//         ));
-//
-//         let messages: Vec<IntermediateMessage> =
-//             Gear::message_queue().expect("There should be a message in the queue");
-//
-//         let mut dispatch_msg = vec![];
-//         for message in messages {
-//             match message {
-//                 IntermediateMessage::DispatchMessage {
-//                     id,
-//                     destination,
-//                     origin,
-//                     ..
-//                 } => {
-//                     dispatch_msg.push(id);
-//                     System::assert_has_event(
-//                         crate::Event::DispatchMessageEnqueued(crate::MessageInfo {
-//                             message_id: id,
-//                             program_id: destination,
-//                             origin,
-//                         })
-//                         .into(),
-//                     );
-//                 }
-//                 _ => (),
-//             }
-//         }
-//         assert_eq!(dispatch_msg.len(), 2);
-//
-//         run_to_block(3, None);
-//
-//         // First program completed successfully
-//         System::assert_has_event(
-//             crate::Event::MessageDispatched(DispatchOutcome {
-//                 message_id: dispatch_msg[0],
-//                 outcome: ExecutionResult::Success,
-//             })
-//             .into(),
-//         );
-//         // Fourth program failed to handle message
-//         System::assert_has_event(
-//             crate::Event::MessageDispatched(DispatchOutcome {
-//                 message_id: dispatch_msg[1],
-//                 outcome: ExecutionResult::Failure(vec![]),
-//             })
-//             .into(),
-//         );
-//     })
 // }
 //
 // #[test]
