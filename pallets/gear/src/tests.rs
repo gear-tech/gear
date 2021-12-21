@@ -869,7 +869,7 @@ fn events_logging_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let mut nonce = 0;
-        let mut block_number = 2;
+        let mut next_block = 2;
         let tests = [
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, true),
@@ -902,8 +902,8 @@ fn events_logging_works() {
                 Event::InitMessageEnqueued(init_msg_info.clone()).into()
             );
 
-            run_to_block(block_number, None);
-            block_number += 1;
+            run_to_block(next_block, None);
+            next_block += 1;
 
             // Init failed program checks
             if let Some(init_failure_reason) = init_failure_reason {
@@ -933,7 +933,7 @@ fn events_logging_works() {
                 Event::DispatchMessageEnqueued(dispatch_msg_info.clone()).into()
             );
 
-            run_to_block(block_number, None);
+            run_to_block(next_block, None);
 
             SystemPallet::<Test>::assert_has_event(
                 Event::MessageDispatched(DispatchOutcome {
@@ -947,7 +947,7 @@ fn events_logging_works() {
             );
 
             nonce += 1;
-            block_number += 1;
+            next_block += 1;
         }
     })
 }
@@ -1159,6 +1159,84 @@ fn send_reply_expected_failure() {
 }
 
 #[test]
+fn send_reply_insufficient_program_balance() {
+    // Sending message to USER_1 is hardcoded!
+    let wat = r#"
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_source" (func $gr_source (param i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (export "handle_reply" (func $handle_reply))
+        (func $handle
+            (local $msg_source i32)
+            (local $msg_val i32)
+            (i32.store offset=2
+                (get_local $msg_source)
+                (i32.const 1)
+            )
+            (i32.store offset=10
+                (get_local $msg_val)
+                (i32.const 1000)
+            )
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+        )
+        (func $handle_reply)
+        (func $init)
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Custom(wat).to_bytes();
+        let salt = DEFAULT_SALT.to_vec();
+        let prog_id = generate_program_id(&code, &salt);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code,
+            salt,
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0,
+        ));
+
+        // Invoke handle function to make a message send to mailbox
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            prog_id,
+            DEFAULT_PAYLOAD.to_vec(),
+            15_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
+            0,
+        ));
+        run_to_block(2, None);
+
+        let msg_id = {
+            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
+            // computation of message id different from the same task for user's message
+            let mut data = prog_id.as_bytes().to_vec();
+            // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+            data.extend(&0_u64.to_le_bytes());
+            sp_io::hashing::blake2_256(&data).into()
+        };
+
+        assert!(Mailbox::<Test>::contains_key(USER_1));
+
+        // Program doesn't have enough balance - error expected
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(USER_1).into(),
+                msg_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                5_000_000,
+                0
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+    })
+}
+
+#[test]
 fn send_reply_value_offset_works() {
     // Sending message to USER_1 is hardcoded!
     let wat = r#"
@@ -1200,83 +1278,71 @@ fn send_reply_value_offset_works() {
             DEFAULT_GAS_LIMIT,
             0,
         ));
-        // Invoke handle function to make a message send to mailbox
-        assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
-            prog_id,
-            Vec::new(),
-            15_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-            0,
-        ));
-        run_to_block(2, None);
 
-        let msg_id = {
-            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
-            // computation of message id different from the same task for user's message
-            let mut data = prog_id.as_bytes().to_vec();
-            // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-            data.extend(&0_u64.to_le_bytes());
-            sp_io::hashing::blake2_256(&data).into()
-        };
+        // These values are actually constants in WAT. Alternatively can be read from Mailbox.
+        let locked_gas_limit = 10_000_000;
+        let locked_value = 1000;
 
-        // assert!(Mailbox::<Test>::contains_key(USER_1));
-        println!("{:?}", Mailbox::<Test>::get(USER_1));
+        let mut next_block = 2;
+        let mut program_nonce = 0u64;
 
-        // Program doesn't have enough balance - error expected
-        assert_noop!(
-            GearPallet::<Test>::send_reply(
+        let user_messages_data = [
+            // gas limit, value
+            (1_000_000, 100),
+            (20_000_000, 2000)
+        ];
+        for (gas_limit_to_reply, value_to_reply) in user_messages_data {
+            // Message from program
+            let message_to_reply_id = {
+                // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
+                // computation of message id different from the same task for user's message
+                let mut data = prog_id.as_bytes().to_vec();
+                // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+                data.extend(&program_nonce.to_le_bytes());
+                sp_io::hashing::blake2_256(&data).into()
+            };
+
+            // Invoke handle function to make a message send to mailbox from program
+            assert_ok!(GearPallet::<Test>::send_message(
                 Origin::signed(USER_1).into(),
-                msg_id,
-                DEFAULT_PAYLOAD.to_vec(),
-                10_000_000,
-                0_u128
-            ),
-            pallet_balances::Error::<Test>::InsufficientBalance
-        );
+                prog_id,
+                Vec::new(),
+                15_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
+                0,
+            ));
+            program_nonce += 1;
 
-        assert_ok!(
-            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
-                &USER_1,
-                &AccountId::from_origin(prog_id),
-                20_000_000,
-                frame_support::traits::ExistenceRequirement::AllowDeath
-            )
-        );
-        // assert_eq!(Balances::free_balance(1), 80_000_000);
-        // assert_eq!(Balances::reserved_balance(1), 0);
-        //
-        // assert_ok!(Pallet::<Test>::send_reply(
-        //     Origin::signed(1).into(),
-        //     original_message_id,
-        //     b"payload".to_vec(),
-        //     1_000_000_u64,
-        //     100_u128,
-        // ));
-        // assert_eq!(Balances::free_balance(1), 89_000_900);
-        // assert_eq!(Balances::reserved_balance(1), 0);
-        //
-        // Gear::remove_from_mailbox(1.into_origin(), original_message_id);
-        // Gear::insert_to_mailbox(
-        //     1.into_origin(),
-        //     common::Message {
-        //         id: original_message_id,
-        //         source: program_id.clone(),
-        //         dest: 1.into_origin(),
-        //         payload: vec![],
-        //         gas_limit: 10_000_000_u64,
-        //         value: 1_000_u128,
-        //         reply: None,
-        //     },
-        // );
-        // assert_ok!(Pallet::<Test>::send_reply(
-        //     Origin::signed(1).into(),
-        //     original_message_id,
-        //     b"payload".to_vec(),
-        //     20_000_000_u64,
-        //     2_000_u128,
-        // ));
-        // assert_eq!(Balances::free_balance(1), 78_999_900);
-        // assert_eq!(Balances::reserved_balance(1), 10_000_000);
+            run_to_block(next_block, Some(100_000_000));
+            next_block += 1;
+
+            assert!(Mailbox::<Test>::contains_key(USER_1));
+
+            let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+            let send_to_program_amount = 15_000_000;
+            assert_ok!(
+                <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
+                    &USER_1,
+                    &AccountId::from_origin(prog_id),
+                    send_to_program_amount,
+                    frame_support::traits::ExistenceRequirement::AllowDeath
+                )
+            );
+            assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), user_balance - send_to_program_amount);
+            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
+            assert_ok!(GearPallet::<Test>::send_reply(
+                Origin::signed(USER_1).into(),
+                message_to_reply_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                gas_limit_to_reply,
+                value_to_reply,
+            ));
+
+            let user_expected_balance = user_balance - send_to_program_amount - value_to_reply - gas_limit_to_reply as u128 + locked_value + locked_gas_limit as u128;
+            assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), user_expected_balance);
+            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), gas_limit_to_reply.saturating_sub(locked_gas_limit) as u128);
+        }
     })
 }
 
