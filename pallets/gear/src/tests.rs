@@ -27,7 +27,8 @@ use super::{
     mock::{
         new_test_ext, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
     },
-    pallet, Error, Event, GasAllowance, Mailbox, MessageInfo, Pallet as GearPallet, Reason, DispatchOutcome, ExecutionResult
+    pallet, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox, MessageInfo,
+    Pallet as GearPallet, Reason,
 };
 
 use utils::*;
@@ -873,11 +874,19 @@ fn events_logging_works() {
         let tests = [
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, true),
-            (ProgramCodeKind::Custom(wat_greedy_init), Some(String::from("Gas limit exceeded").encode()), false),
-            (ProgramCodeKind::Custom(wat_trap_in_init), Some(Vec::new()), false),
+            (
+                ProgramCodeKind::Custom(wat_greedy_init),
+                Some(String::from("Gas limit exceeded").encode()),
+                false,
+            ),
+            (
+                ProgramCodeKind::Custom(wat_trap_in_init),
+                Some(Vec::new()),
+                false,
+            ),
             (ProgramCodeKind::Custom(wat_trap_in_handle), None, false),
         ]
-            .map(|test| (test.0.to_bytes(), test.1, test.2));
+        .map(|test| (test.0.to_bytes(), test.1, test.2));
         for (code, init_failure_reason, handle_succeed) in tests {
             SystemPallet::<Test>::reset_events();
 
@@ -899,7 +908,7 @@ fn events_logging_works() {
             ));
             nonce += 1;
             SystemPallet::<Test>::assert_last_event(
-                Event::InitMessageEnqueued(init_msg_info.clone()).into()
+                Event::InitMessageEnqueued(init_msg_info.clone()).into(),
             );
 
             run_to_block(next_block, None);
@@ -908,7 +917,7 @@ fn events_logging_works() {
             // Init failed program checks
             if let Some(init_failure_reason) = init_failure_reason {
                 SystemPallet::<Test>::assert_has_event(
-                    Event::InitFailure(init_msg_info, Reason::Dispatch(init_failure_reason)).into()
+                    Event::InitFailure(init_msg_info, Reason::Dispatch(init_failure_reason)).into(),
                 );
                 // Sending messages to failed-to-init programs shouldn't be allowed
                 assert_noop!(
@@ -918,9 +927,7 @@ fn events_logging_works() {
                 continue;
             }
 
-            SystemPallet::<Test>::assert_has_event(
-                Event::InitSuccess(init_msg_info).into()
-            );
+            SystemPallet::<Test>::assert_has_event(Event::InitSuccess(init_msg_info).into());
 
             let dispatch_msg_info = MessageInfo {
                 program_id,
@@ -930,7 +937,7 @@ fn events_logging_works() {
             // Messages to fully-initialized programs are accepted
             assert_ok!(send_default_message(USER_1, program_id));
             SystemPallet::<Test>::assert_last_event(
-                Event::DispatchMessageEnqueued(dispatch_msg_info.clone()).into()
+                Event::DispatchMessageEnqueued(dispatch_msg_info.clone()).into(),
             );
 
             run_to_block(next_block, None);
@@ -942,8 +949,9 @@ fn events_logging_works() {
                         ExecutionResult::Success
                     } else {
                         ExecutionResult::Failure(Vec::new())
-                    }
-                }).into()
+                    },
+                })
+                .into(),
             );
 
             nonce += 1;
@@ -993,7 +1001,6 @@ fn send_reply_works() {
             0,
         ));
 
-
         let reply_to_id = {
             // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
             let mut data = prog_id.as_bytes().to_vec();
@@ -1030,7 +1037,9 @@ fn send_reply_works() {
                 .flatten()
                 .expect("reply message was previously sent");
             match intermediate_msg {
-                IntermediateMessage::DispatchMessage { id, reply, .. } => (id, reply.expect("was a reply message")),
+                IntermediateMessage::DispatchMessage { id, reply, .. } => {
+                    (id, reply.expect("was a reply message"))
+                }
                 _ => unreachable!("only reply message was in mq"),
             }
         };
@@ -1107,8 +1116,9 @@ fn send_reply_expected_failure() {
         BalancesPallet::<Test>::transfer(
             Origin::signed(USER_1).into(),
             LOW_BALANCE_USER,
-            reply_gas_spent as u128
-        ).expect("sender has enough balance to send funds to existent address");
+            reply_gas_spent as u128,
+        )
+        .expect("sender has enough balance to send funds to existent address");
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER).into(),
@@ -1289,7 +1299,7 @@ fn send_reply_value_offset_works() {
         let user_messages_data = [
             // gas limit, value
             (1_000_000, 100),
-            (20_000_000, 2000)
+            (20_000_000, 2000),
         ];
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
             // Message from program
@@ -1328,7 +1338,10 @@ fn send_reply_value_offset_works() {
                     frame_support::traits::ExistenceRequirement::AllowDeath
                 )
             );
-            assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), user_balance - send_to_program_amount);
+            assert_eq!(
+                BalancesPallet::<Test>::free_balance(USER_1),
+                user_balance - send_to_program_amount
+            );
             assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
             assert_ok!(GearPallet::<Test>::send_reply(
@@ -1339,9 +1352,18 @@ fn send_reply_value_offset_works() {
                 value_to_reply,
             ));
 
-            let user_expected_balance = user_balance - send_to_program_amount - value_to_reply - gas_limit_to_reply as u128 + locked_value + locked_gas_limit as u128;
-            assert_eq!(BalancesPallet::<Test>::free_balance(USER_1), user_expected_balance);
-            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), gas_limit_to_reply.saturating_sub(locked_gas_limit) as u128);
+            let user_expected_balance =
+                user_balance - send_to_program_amount - value_to_reply - gas_limit_to_reply as u128
+                    + locked_value
+                    + locked_gas_limit as u128;
+            assert_eq!(
+                BalancesPallet::<Test>::free_balance(USER_1),
+                user_expected_balance
+            );
+            assert_eq!(
+                BalancesPallet::<Test>::reserved_balance(USER_1),
+                gas_limit_to_reply.saturating_sub(locked_gas_limit) as u128
+            );
         }
     })
 }
