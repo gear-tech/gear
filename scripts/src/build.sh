@@ -83,6 +83,7 @@ examples_build() {
       for name in $names
       do
         path=$(grep -rbnl --include \*.toml \"$name\" "$ROOT_DIR"/examples/)
+        path=$(echo "$path" | tail -1 )
         path=$(echo $path | perl -ne 'print $1 if /(.*)Cargo\.toml/s')
         cd $path
         CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
