@@ -929,115 +929,121 @@ fn init_message_logging_works() {
 }
 
 #[test]
-// fn program_lifecycle_works() {
-//     let wat1 = r#"
-//     (module
-//         (import "env" "memory" (memory 1))
-//         (export "init" (func $init))
-//         (func $init)
-//     )"#;
+fn program_lifecycle_works() {
+    let wat1 = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "init" (func $init))
+        (func $init)
+    )"#;
 
-//     let wat2 = r#"
-// 	(module
-// 		(import "env" "memory" (memory 1))
-// 		(export "init" (func $init))
-//         (func $doWork (param $size i32)
-//             (local $counter i32)
-//             i32.const 0
-//             set_local $counter
-//             loop $while
-//                 get_local $counter
-//                 i32.const 1
-//                 i32.add
-//                 set_local $counter
-//                 get_local $counter
-//                 get_local $size
-//                 i32.lt_s
-//                 if
-//                     br $while
-//                 end
-//             end $while
-//         )
-//         (func $init
-//             i32.const 4
-//             call $doWork
-// 		)
-// 	)"#;
+    let wat2 = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "init" (func $init))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $init
+            i32.const 4
+            call $doWork
+		)
+	)"#;
 
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat1);
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = parse_wat(wat1);
 
-//         System::reset_events();
+        System::reset_events();
 
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code.clone(),
-//             b"salt".to_vec(),
-//             Vec::new(),
-//             10_000u64,
-//             0_u128
-//         ));
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
 
-//         let messages: Vec<IntermediateMessage> =
-//             Gear::message_queue().expect("There should be a message in the queue");
-//         let program_id = match &messages[0] {
-//             IntermediateMessage::InitProgram { program_id, .. } => *program_id,
-//             _ => Default::default(),
-//         };
-//         assert!(common::get_program(program_id).is_none());
-//         run_to_block(2, None);
-//         // Expect the program to be in PS by now
-//         assert!(common::get_program(program_id).is_some());
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
 
-//         // Submitting another program
-//         let code = parse_wat(wat2);
-//         System::reset_events();
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             code.clone(),
-//             b"salt".to_vec(),
-//             Vec::new(),
-//             10_000u64,
-//             0_u128
-//         ));
+        let program_id = match &messages[0] {
+            IntermediateMessage::InitProgram { program_id, .. } => *program_id,
+            _ => Default::default(),
+        };
 
-//         let messages: Vec<IntermediateMessage> =
-//             Gear::message_queue().expect("There should be a message in the queue");
-//         let program_id = match &messages[0] {
-//             IntermediateMessage::InitProgram { program_id, .. } => *program_id,
-//             _ => Default::default(),
-//         };
+        assert!(common::get_program(program_id).is_none());
 
-//         assert!(common::get_program(program_id).is_none());
-//         run_to_block(3, None);
-//         // Expect the program to have made it to the PS
-//         assert!(common::get_program(program_id).is_some());
-//         // while at the same time being stuck in "limbo"
-//         assert!(crate::Pallet::<Test>::is_uninitialized(program_id));
-//         assert_eq!(
-//             ProgramsLimbo::<Test>::get(program_id).unwrap(),
-//             1.into_origin()
-//         );
-//         // Program author is allowed to remove the program and reclaim funds
-//         // An attempt to remove a program on behalf of another account will fail
-//         assert_ok!(Pallet::<Test>::remove_stale_program(
-//             Origin::signed(2).into(), // Not the author
-//             program_id,
-//         ));
-//         // Program is still in the storage
-//         assert!(common::get_program(program_id).is_some());
-//         assert!(ProgramsLimbo::<Test>::get(program_id).is_some());
+        run_to_block(2, None);
+        // Expect the program to be in PS by now
+        assert!(common::get_program(program_id).is_some());
 
-//         assert_ok!(Pallet::<Test>::remove_stale_program(
-//             Origin::signed(1).into(),
-//             program_id,
-//         ));
-//         // This time the program has been removed
-//         assert!(common::get_program(program_id).is_none());
-//         assert!(ProgramsLimbo::<Test>::get(program_id).is_none());
-//     })
-// }
+        // Submitting another program
+        let code = parse_wat(wat2);
+        System::reset_events();
+        assert_ok!(Pallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            10_000u64,
+            0_u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+
+        let program_id = match &messages[0] {
+            IntermediateMessage::InitProgram { program_id, .. } => *program_id,
+            _ => Default::default(),
+        };
+
+        assert!(common::get_program(program_id).is_none());
+
+        run_to_block(3, None);
+
+        // Expect the program to have made it to the PS, cause it failed it's init
+        assert!(common::get_program(program_id).is_none());
+        // while at the same time being stuck in "limbo"
+        assert!(crate::Pallet::<Test>::is_uninitialized(program_id));
+        assert_eq!(
+            ProgramsLimbo::<Test>::get(program_id).unwrap(),
+            1.into_origin()
+        );
+        // Program author is allowed to remove the program and reclaim funds
+        // An attempt to remove a program on behalf of another account will fail
+        assert_ok!(Pallet::<Test>::remove_stale_program(
+            Origin::signed(2).into(), // Not the author
+            program_id,
+        ));
+
+        // Program is still in "limbo"
+        assert!(ProgramsLimbo::<Test>::get(program_id).is_some());
+
+        assert_ok!(Pallet::<Test>::remove_stale_program(
+            Origin::signed(1).into(),
+            program_id,
+        ));
+
+        // This time the program has been removed and program_id freed
+        assert!(ProgramsLimbo::<Test>::get(program_id).is_none());
+    })
+}
 #[test]
 fn events_logging_works() {
     let wat_ok = r#"
