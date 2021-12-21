@@ -167,7 +167,7 @@ pub fn init_fixture<SC: StorageCarrier>(
 
         let message_id = nonce.into();
         let program_id = program.id.to_program_id();
-        // TODO #524
+        // TODO init calls `set_program`, which has redundant code set, that should be wiped off in #512
         let result = runner.init_program(InitializeProgramInfo {
             new_program_id: program_id,
             source_id: init_source,

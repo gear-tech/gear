@@ -26,7 +26,8 @@ use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
 use super::{
     mock::{
-        new_test_ext, run_to_block, Origin, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2,
+        new_test_ext, run_to_block, Event as MockEvent, Origin, Test, BLOCK_AUTHOR,
+        LOW_BALANCE_USER, USER_1, USER_2,
     },
     pallet, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox, MessageInfo,
     Pallet as GearPallet, Reason,
@@ -1540,6 +1541,117 @@ fn distributor_distribute() {
     });
 }
 
+// TODO #512 All `submit_code` tests should be changed to testing program creation from program logic.
+
+#[test]
+fn test_code_submission_pass() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_hash = sp_io::hashing::blake2_256(&code).into();
+
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            code.clone()
+        ));
+
+        let saved_code = common::get_code(code_hash);
+        assert_eq!(saved_code, Some(code));
+
+        let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
+        let actual_meta = common::get_code_metadata(code_hash);
+        assert_eq!(expected_meta, actual_meta);
+
+        SystemPallet::<Test>::assert_last_event(Event::CodeSaved(code_hash).into());
+    })
+}
+
+#[test]
+fn test_same_code_submission_fails() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Default.to_bytes();
+
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            code.clone()
+        ),);
+        // Trying to set the same code twice.
+        assert_noop!(
+            GearPallet::<Test>::submit_code(Origin::signed(USER_1), code.clone()),
+            Error::<Test>::CodeAlreadyExists,
+        );
+        // Trying the same from another origin
+        assert_noop!(
+            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code.clone()),
+            Error::<Test>::CodeAlreadyExists,
+        );
+    })
+}
+
+#[test]
+fn test_code_is_not_submitted_twice_after_program_submission() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_hash = sp_io::hashing::blake2_256(&code).into();
+
+        // First submit program, which will set code and metadata
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            DEFAULT_SALT.to_vec(),
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0
+        ));
+        SystemPallet::<Test>::assert_has_event(Event::CodeSaved(code_hash).into());
+        assert!(common::code_exists(code_hash));
+
+        // Trying to set the same code twice.
+        assert_noop!(
+            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code),
+            Error::<Test>::CodeAlreadyExists,
+        );
+    })
+}
+
+#[test]
+fn test_code_is_not_resetted_within_program_submission() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code = ProgramCodeKind::Default.to_bytes();
+        let code_hash = sp_io::hashing::blake2_256(&code).into();
+
+        // First submit code
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1),
+            code.clone()
+        ));
+        let expected_code_saved_events = 1;
+        let expected_meta = common::get_code_metadata(code_hash);
+        assert!(expected_meta.is_some());
+
+        // Submit program from another origin. Should not change meta or code.
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_2).into(),
+            code,
+            DEFAULT_SALT.to_vec(),
+            DEFAULT_PAYLOAD.to_vec(),
+            DEFAULT_GAS_LIMIT,
+            0
+        ));
+        let actual_meta = common::get_code_metadata(code_hash);
+        let actual_code_saved_events = SystemPallet::<Test>::events()
+            .iter()
+            .filter(|e| matches!(e.event, MockEvent::Gear(Event::CodeSaved(_))))
+            .count();
+
+        assert_eq!(expected_meta, actual_meta);
+        assert_eq!(expected_code_saved_events, actual_code_saved_events);
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
@@ -1654,137 +1766,3 @@ mod utils {
         }
     }
 }
-
-// use crate::mock::{Gear, System};
-// use hex_literal::hex;
-// use pallet::Pallet;
-//
-// fn parse_wat(source: &str) -> Vec<u8> {
-//     wabt::Wat2Wasm::new()
-//         .validate(false)
-//         .convert(source)
-//         .expect("failed to parse module")
-//         .as_ref()
-//         .to_vec()
-// }
-
-// fn compute_code_hash(code: &[u8]) -> H256 {
-//     sp_io::hashing::blake2_256(code).into()
-// }
-//
-//
-// #[test]
-// fn test_code_submission_pass() {
-//     let wat = r#"
-//     (module
-//     )"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat);
-//         let code_hash = compute_code_hash(&code);
-//
-//         assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
-//
-//         let saved_code = common::get_code(code_hash);
-//         assert_eq!(saved_code, Some(code));
-//
-//         let expected_meta = Some(CodeMetadata::new(1.into_origin(), 1));
-//         let actual_meta = common::get_code_metadata(code_hash);
-//         assert_eq!(expected_meta, actual_meta);
-//
-//         System::assert_last_event(crate::Event::CodeSaved(code_hash).into());
-//     })
-// }
-//
-// #[test]
-// fn test_same_code_submission_fails() {
-//     let wat = r#"
-//     (module
-//     )"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat);
-//
-//         assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()),);
-//         // Trying to set the same code twice.
-//         assert_noop!(
-//             Pallet::<Test>::submit_code(Origin::signed(1), code.clone()),
-//             Error::<Test>::CodeAlreadyExists,
-//         );
-//         // Trying the same from another origin
-//         assert_noop!(
-//             Pallet::<Test>::submit_code(Origin::signed(3), code.clone()),
-//             Error::<Test>::CodeAlreadyExists,
-//         );
-//     })
-// }
-//
-// #[test]
-// fn test_code_is_not_submitted_twice_after_program_submission() {
-//     let wat = r#"
-//     (module
-//     )"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat);
-//         let code_hash = compute_code_hash(&code);
-//
-//         // First submit program, which will set code and metadata
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(3).into(),
-//             code.clone(),
-//             b"salt".to_vec(),
-//             Vec::new(),
-//             10_000u64,
-//             0_u128
-//         ));
-//         System::assert_has_event(crate::Event::CodeSaved(code_hash).into());
-//         assert!(common::code_exists(code_hash));
-//
-//         // Trying to set the same code twice.
-//         assert_noop!(
-//             Pallet::<Test>::submit_code(Origin::signed(3), code),
-//             Error::<Test>::CodeAlreadyExists,
-//         );
-//     })
-// }
-//
-// #[test]
-// fn test_code_is_not_resetted_within_program_submission() {
-//     let wat = r#"
-//     (module
-//     )"#;
-//
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code = parse_wat(wat);
-//         let code_hash = compute_code_hash(&code);
-//
-//         // First submit code
-//         assert_ok!(Pallet::<Test>::submit_code(Origin::signed(1), code.clone()));
-//         let expected_code_saved_events = 1;
-//         let expected_meta = common::get_code_metadata(code_hash);
-//         assert!(expected_meta.is_some());
-//
-//         // Submit program from another origin. Should not change meta or code.
-//         assert_ok!(Pallet::<Test>::submit_program(
-//             Origin::signed(3).into(),
-//             code.clone(),
-//             b"salt".to_vec(),
-//             Vec::new(),
-//             10_000u64,
-//             0_u128
-//         ));
-//         let actual_meta = common::get_code_metadata(code_hash);
-//         let actual_code_saved_events = System::events()
-//             .iter()
-//             .filter(|e| matches!(e.event, mock::Event::Gear(pallet::Event::CodeSaved(_))))
-//             .count();
-//
-//         assert_eq!(expected_meta, actual_meta);
-//         assert_eq!(expected_code_saved_events, actual_code_saved_events);
-//     })
-// }
