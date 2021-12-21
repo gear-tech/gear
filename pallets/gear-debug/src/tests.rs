@@ -18,279 +18,234 @@
 
 // TODO: deal with runner usage here
 
-// use super::*;
-// use crate::mock::*;
-// use common::{self, Message, Origin as _};
-// use frame_support::assert_ok;
-// use runner::BlockInfo;
-// use sp_core::H256;
+use super::*;
+use crate::mock::*;
+use codec::Encode;
+use common::{self, Message, Origin as _};
+use pallet_gear::DebugInfo;
+use pallet_gear::Pallet as PalletGear;
+use sp_core::H256;
+use std::collections::BTreeMap;
 
-// pub(crate) fn init_logger() {
-//     let _ = env_logger::Builder::from_default_env()
-//         .format_module_path(false)
-//         .format_level(true)
-//         .try_init();
-// }
+pub(crate) fn init_logger() {
+    let _ = env_logger::Builder::from_default_env()
+        .format_module_path(false)
+        .format_level(true)
+        .try_init();
+}
 
-// fn parse_wat(source: &str) -> Vec<u8> {
-//     wabt::Wat2Wasm::new()
-//         .validate(false)
-//         .convert(source)
-//         .expect("failed to parse module")
-//         .as_ref()
-//         .to_vec()
-// }
+fn parse_wat(source: &str) -> Vec<u8> {
+    wabt::Wat2Wasm::new()
+        .validate(false)
+        .convert(source)
+        .expect("failed to parse module")
+        .as_ref()
+        .to_vec()
+}
 
-// #[test]
-// fn debug_mode_works() {
-//     let wat_1 = r#"
-//         (module
-//             (import "env" "memory" (memory 16))
-//             (export "init" (func $init))
-//             (export "handle" (func $handle))
-//             (func $init)
-//             (func $handle)
-//         )"#;
+pub fn program_id(code: &[u8]) -> H256 {
+    let mut data = Vec::new();
+    // TODO #512
+    code.encode_to(&mut data);
+    b"salt".to_vec().encode_to(&mut data);
 
-//     let wat_2 = r#"
-//         (module
-//             (import "env" "memory" (memory 16))
-//             (import "env" "alloc"  (func $alloc (param i32) (result i32)))
-//             (export "init" (func $init))
-//             (export "handle" (func $handle))
-//             (func $handle
-//               (local $pages_offset i32)
-//               (local.set $pages_offset (call $alloc (i32.const 4)))
-//             )
-//             (func $init)
-//         )"#;
+    let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
-//     init_logger();
-//     new_test_ext().execute_with(|| {
-//         let code_1 = parse_wat(wat_1);
-//         let code_2 = parse_wat(wat_2);
+    id
+}
 
-//         let init_message_1 = common::Message {
-//             id: 201.into_origin(),
-//             source: 1.into_origin(),
-//             dest: 101.into_origin(),
-//             payload: vec![],
-//             gas_limit: 1_000_000_u64,
-//             value: 0_u128,
-//             reply: None,
-//         };
+#[test]
+fn debug_mode_works() {
+    let wat_1 = r#"
+        (module
+            (import "env" "memory" (memory 16))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $init)
+            (func $handle)
+        )"#;
 
-//         // Enable debug-mode
-//         DebugMode::<Test>::put(true);
+    let wat_2 = r#"
+        (module
+            (import "env" "memory" (memory 16))
+            (import "env" "alloc"  (func $alloc (param i32) (result i32)))
+            (export "init" (func $init))
+            (export "handle" (func $handle))
+            (func $handle
+              (local $pages_offset i32)
+              (local.set $pages_offset (call $alloc (i32.const 4)))
+            )
+            (func $init)
+        )"#;
 
-//         // Submit programs
-//         assert_ok!(runner::init_program(
-//             code_1.to_vec(),
-//             init_message_1,
-//             BlockInfo {
-//                 height: 1_u32,
-//                 timestamp: 1_000_000_000_u64,
-//             },
-//         ));
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let code_1 = parse_wat(wat_1);
+        let code_2 = parse_wat(wat_2);
 
-//         Pallet::<Test>::do_snapshot();
+        let program_id_1 = program_id(&code_1);
+        let program_id_2 = program_id(&code_2);
 
-//         System::assert_last_event(
-//             crate::Event::DebugDataSnapshot(DebugData {
-//                 message_queue: vec![],
-//                 programs: vec![crate::ProgramDetails {
-//                     id: 101.into_origin(),
-//                     static_pages: 16,
-//                     persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                     code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-//                     nonce: 0u64,
-//                 }],
-//             })
-//             .into(),
-//         );
+        PalletGear::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_1.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            1_000_000_u64,
+            0_u128,
+        ).expect("Failed to submit program");
 
-//         let init_message_2 = common::Message {
-//             id: 202.into_origin(),
-//             source: 1.into_origin(),
-//             dest: 102.into_origin(),
-//             payload: vec![],
-//             gas_limit: 1_000_000_u64,
-//             value: 0_u128,
-//             reply: None,
-//         };
+        // Enable debug-mode
+        DebugMode::<Test>::put(true);
 
-//         assert_ok!(runner::init_program(
-//             code_2.to_vec(),
-//             init_message_2,
-//             BlockInfo {
-//                 height: 1_u32,
-//                 timestamp: 1_000_000_100_u64,
-//             },
-//         ));
+        run_to_block(2, None);
 
-//         Pallet::<Test>::do_snapshot();
+        Pallet::<Test>::do_snapshot();
 
-//         System::assert_last_event(
-//             crate::Event::DebugDataSnapshot(DebugData {
-//                 message_queue: vec![],
-//                 programs: vec![
-//                     crate::ProgramDetails {
-//                         id: 101.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-//                         nonce: 0u64,
-//                     },
-//                     crate::ProgramDetails {
-//                         id: 102.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
-//                         nonce: 0u64,
-//                     },
-//                 ],
-//             })
-//             .into(),
-//         );
+        System::assert_last_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        static_pages: 16,
+                        persistent_pages: BTreeMap::new(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    }
+                ],
+            })
+            .into(),
+        );
 
-//         // Enqueue messages
-//         common::queue_message(Message {
-//             id: 203.into_origin(),
-//             source: 1.into_origin(),
-//             payload: vec![],
-//             gas_limit: 1_000_000_u64,
-//             dest: 101.into_origin(), // code_1
-//             value: 0_u128,
-//             reply: None,
-//         });
-//         common::queue_message(Message {
-//             id: 204.into_origin(),
-//             source: 1.into_origin(),
-//             payload: vec![],
-//             gas_limit: 1_000_000_u64,
-//             dest: 102.into_origin(), // code_2
-//             value: 0_u128,
-//             reply: None,
-//         });
+        PalletGear::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_2.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            1_000_000_u64,
+            0_u128,
+        ).expect("Failed to submit program");
 
-//         Pallet::<Test>::do_snapshot();
+        run_to_block(3, None);
 
-//         System::assert_last_event(
-//             crate::Event::DebugDataSnapshot(DebugData {
-//                 message_queue: vec![
-//                     Message {
-//                         id: 203.into_origin(),
-//                         source: 1.into_origin(),
-//                         payload: vec![],
-//                         gas_limit: 1_000_000_u64,
-//                         dest: 101.into_origin(), // code_1
-//                         value: 0_u128,
-//                         reply: None,
-//                     },
-//                     Message {
-//                         id: 204.into_origin(),
-//                         source: 1.into_origin(),
-//                         payload: vec![],
-//                         gas_limit: 1_000_000_u64,
-//                         dest: 102.into_origin(), // code_2
-//                         value: 0_u128,
-//                         reply: None,
-//                     },
-//                 ],
-//                 programs: vec![
-//                     crate::ProgramDetails {
-//                         id: 101.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-//                         nonce: 0u64,
-//                     },
-//                     crate::ProgramDetails {
-//                         id: 102.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
-//                         nonce: 0u64,
-//                     },
-//                 ],
-//             })
-//             .into(),
-//         );
+        Pallet::<Test>::do_snapshot();
 
-//         // Process messages
-//         assert_ok!(runner::process(
-//             common::dequeue_message().expect("the queue should have the message; qed"),
-//             BlockInfo {
-//                 height: 2_u32,
-//                 timestamp: 1_000_001_000_u64,
-//             }
-//         ));
+        System::assert_last_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        static_pages: 16,
+                        persistent_pages: BTreeMap::new(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_2,
+                        static_pages: 16,
+                        persistent_pages: BTreeMap::new(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
+            .into(),
+        );
 
-//         Pallet::<Test>::do_snapshot();
+        PalletGear::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id_1,
+            vec![],
+            1_000_000_u64,
+            0_u128,
+        ).expect("Failed to send message");
 
-//         System::assert_last_event(
-//             crate::Event::DebugDataSnapshot(DebugData {
-//                 message_queue: vec![Message {
-//                     id: 204.into_origin(),
-//                     source: 1.into_origin(),
-//                     payload: vec![],
-//                     gas_limit: 1_000_000_u64,
-//                     dest: 102.into_origin(),
-//                     value: 0_u128,
-//                     reply: None,
-//                 }],
-//                 programs: vec![
-//                     crate::ProgramDetails {
-//                         id: 101.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-//                         nonce: 0u64,
-//                     },
-//                     crate::ProgramDetails {
-//                         id: 102.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
-//                         nonce: 0u64,
-//                     },
-//                 ],
-//             })
-//             .into(),
-//         );
+        let message_id_1 = common::peek_last_message_id(&[]);
 
-//         assert_ok!(runner::process(
-//             common::dequeue_message().expect("the queue should have the message; qed"),
-//             BlockInfo {
-//                 height: 2_u32,
-//                 timestamp: 1_000_001_200_u64,
-//             }
-//         ));
+        PalletGear::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id_2,
+            vec![],
+            1_000_000_u64,
+            0_u128,
+        ).expect("Failed to send message");
 
-//         Pallet::<Test>::do_snapshot();
+        let message_id_2 = common::peek_last_message_id(&[]);
 
-//         System::assert_last_event(
-//             crate::Event::DebugDataSnapshot(DebugData {
-//                 message_queue: vec![],
-//                 programs: vec![
-//                     crate::ProgramDetails {
-//                         id: 101.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-//                         nonce: 0u64,
-//                     },
-//                     // handle() has allocated another 4 memory pages, hence 20 overall, not 16
-//                     crate::ProgramDetails {
-//                         id: 102.into_origin(),
-//                         static_pages: 16,
-//                         persistent_pages: (0..20).map(|i| (i, vec![0; 65536])).collect(),
-//                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
-//                         nonce: 0u64,
-//                     },
-//                 ],
-//             })
-//             .into(),
-//         );
-//     })
-// }
+        run_to_block(4, Some(0)); // no message will get processed
+
+        Pallet::<Test>::do_snapshot();
+
+        System::assert_last_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![
+                    // message will have reverse order since the first one requeued to the end
+                    Message {
+                        id: message_id_2,
+                        source: 1.into_origin(),
+                        dest: program_id_2,
+                        payload: vec![],
+                        gas_limit: 1_000_000,
+                        value: 0,
+                        reply: None,
+                    },
+                    Message {
+                        id: message_id_1,
+                        source: 1.into_origin(),
+                        dest: program_id_1,
+                        payload: vec![],
+                        gas_limit: 1_000_000,
+                        value: 0,
+                        reply: None,
+                    },
+                ],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        static_pages: 16,
+                        persistent_pages: BTreeMap::new(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_2,
+                        static_pages: 16,
+                        persistent_pages: BTreeMap::new(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
+            .into(),
+        );
+
+        run_to_block(5, None); // no message will get processed
+        Pallet::<Test>::do_snapshot();
+
+        // only programs left!
+        System::assert_last_event(
+            crate::Event::DebugDataSnapshot(DebugData {
+                message_queue: vec![],
+                programs: vec![
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        static_pages: 16,
+                        persistent_pages: BTreeMap::new(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_2,
+                        static_pages: 16,
+                        persistent_pages: BTreeMap::new(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                ],
+            })
+            .into(),
+        );
+    })
+}

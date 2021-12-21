@@ -19,8 +19,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
-#[cfg(feature = "debug-mode")]
-pub use pallet_gear_debug::DebugInfo;
 pub use weights::WeightInfo;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -35,6 +33,12 @@ mod mock;
 mod tests;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
+
+#[cfg(feature = "debug-mode")]
+pub trait DebugInfo {
+    fn do_snapshot();
+    fn is_enabled() -> bool;
+}
 
 #[frame_support::pallet]
 pub mod pallet {

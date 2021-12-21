@@ -18,6 +18,7 @@
 
 use crate as pallet_gear_debug;
 use frame_support::traits::FindAuthor;
+use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use primitive_types::H256;
@@ -30,21 +31,6 @@ type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 pub const BLOCK_AUTHOR: u64 = 255;
-
-// Configure a mock runtime to test the pallet.
-construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
-    {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Storage},
-    }
-);
 
 impl pallet_balances::Config for Test {
     type MaxLocks = ();
@@ -115,6 +101,7 @@ impl pallet_authorship::Config for Test {
 
 parameter_types! {
     pub const MinimumPeriod: u64 = 500;
+    pub const BlockGasLimit: u64 = 100_000_000;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -123,6 +110,36 @@ impl pallet_timestamp::Config for Test {
     type MinimumPeriod = MinimumPeriod;
     type WeightInfo = ();
 }
+
+pub struct GasConverter;
+impl common::GasToFeeConverter for GasConverter {
+    type Balance = u128;
+}
+
+impl pallet_gear::Config for Test {
+    type Event = Event;
+    type Currency = Balances;
+    type GasConverter = GasConverter;
+    type WeightInfo = ();
+    type BlockGasLimit = BlockGasLimit;
+    type DebugInfo = super::Pallet<Test>;
+}
+
+// Configure a mock runtime to test the pallet.
+construct_runtime!(
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: system::{Pallet, Call, Config, Storage, Event<T>},
+        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Authorship: pallet_authorship::{Pallet, Storage},
+        Timestamp: pallet_timestamp::{Pallet, Storage},
+        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+    }
+);
 
 // Build genesis storage according to the mock runtime.
 #[allow(unused)]
@@ -140,4 +157,16 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));
     ext
+}
+
+pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
+    while System::block_number() < n {
+        System::on_finalize(System::block_number());
+        System::set_block_number(System::block_number() + 1);
+        System::on_initialize(System::block_number());
+        Gear::on_initialize(System::block_number());
+        let remaining_weight =
+            remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+        Gear::on_idle(System::block_number(), remaining_weight);
+    }
 }

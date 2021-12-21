@@ -34,11 +34,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub trait DebugInfo {
-    fn do_snapshot();
-    fn is_enabled() -> bool;
-}
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -108,7 +103,7 @@ pub mod pallet {
         fn on_finalize(_bn: BlockNumberFor<T>) {}
     }
 
-    impl<T: Config> DebugInfo for Pallet<T> {
+    impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
             #[derive(Decode)]
             struct Node {

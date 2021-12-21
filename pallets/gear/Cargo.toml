@@ -24,7 +24,7 @@ common = { package = "gear-common", path = "../../common", default-features = fa
 core-processor = { package = "gear-core-processor", path = "../../core-processor" }
 gear-core = { path = "../../core" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox" }
-pallet-gear-debug = { package = "pallet-gear-debug", path = "../gear-debug", default-features = false, optional = true }
+# pallet-gear-debug = { package = "pallet-gear-debug", path = "../gear-debug", default-features = false, optional = true }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -73,5 +73,4 @@ runtime-benchmarks = [
 	"parity-wasm",
 ]
 debug-mode = [
-	"pallet-gear-debug"
 ]
