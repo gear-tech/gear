@@ -35,6 +35,11 @@ use super::{
 
 use utils::*;
 
+// TODO [sab] before merging:
+// 1. Посмотри насколько много имплицитных расчетов газа и балансов, чтобы поменять на вызовы rpc (unused_gas_released_back_works spent_gas_to_reward_block_author_works)
+// 2. Можно ли бесшовно поменять расчет id программы?
+// 3. Использование <Test as Config>::GasConverter::gas_to_fee(gas_limit)
+
 #[test]
 fn submit_program_works() {
     init_logger();
@@ -121,7 +126,6 @@ fn submit_program_fails_on_duplicate_id() {
     })
 }
 
-// TODO [sab] state an issue about changing logic for gas spends checks by changing rpc call
 #[test]
 fn send_message_works() {
     init_logger();
@@ -135,7 +139,7 @@ fn send_message_works() {
             res.expect("submit result was asserted")
         };
         // After the submit program message will be sent, global nonce will be 1.
-        let expected_msg_id = compute_message_id(DEFAULT_PAYLOAD, 1);
+        let expected_msg_id = compute_user_message_id(DEFAULT_PAYLOAD, 1);
 
         assert_ok!(send_default_message(USER_1, program_id));
 
@@ -303,7 +307,6 @@ fn spent_gas_to_reward_block_author_works() {
     })
 }
 
-// todo [sab] - rewrite test to control balances
 #[test]
 fn unused_gas_released_back_works() {
     let wat = r#"
@@ -600,24 +603,18 @@ fn mailbox_works() {
         ));
         run_to_block(2, None);
 
-        let msg_id = {
-            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
-            // computation of message id different from the same task for user's message
-            let mut data = prog_id.as_bytes().to_vec();
-            // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-            data.extend(&0_u64.to_le_bytes());
-            sp_io::hashing::blake2_256(&data).into()
-        };
+        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
 
         assert!(Mailbox::<Test>::contains_key(USER_1));
         let mailbox_message = GearPallet::<Test>::remove_from_mailbox(
             USER_1.into_origin(),
             // this is fixed (nonce based)
-            msg_id,
+            reply_to_id,
         )
         .expect("There should be a message for user #1 in the mailbox");
 
-        assert_eq!(mailbox_message.id, msg_id,);
+        assert_eq!(mailbox_message.id, reply_to_id,);
         // Values were taken from the program code!
         assert_eq!(mailbox_message.payload, vec![0u8; 32]);
         assert_eq!(mailbox_message.gas_limit, 1000000);
@@ -733,7 +730,6 @@ fn init_message_logging_works() {
     })
 }
 
-// todo [sab] Maybe return back common::get_program
 #[test]
 fn program_lifecycle_works() {
     // Traps on init if provide little gas
@@ -893,7 +889,7 @@ fn events_logging_works() {
             SystemPallet::<Test>::reset_events();
 
             let init_msg_info = MessageInfo {
-                message_id: compute_message_id(DEFAULT_PAYLOAD, nonce),
+                message_id: compute_user_message_id(DEFAULT_PAYLOAD, nonce),
                 program_id: generate_program_id(&code, DEFAULT_SALT),
                 origin: USER_1.into_origin(),
             };
@@ -933,7 +929,7 @@ fn events_logging_works() {
 
             let dispatch_msg_info = MessageInfo {
                 program_id,
-                message_id: compute_message_id(DEFAULT_PAYLOAD, nonce),
+                message_id: compute_user_message_id(DEFAULT_PAYLOAD, nonce),
                 origin: USER_1.into_origin(),
             };
             // Messages to fully-initialized programs are accepted
@@ -1003,14 +999,6 @@ fn send_reply_works() {
             0,
         ));
 
-        let reply_to_id = {
-            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
-            let mut data = prog_id.as_bytes().to_vec();
-            // nonce of program
-            data.extend(&0_u64.to_le_bytes());
-            sp_io::hashing::blake2_256(&data).into()
-        };
-
         // This creates a message in mailbox for USER_1
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
@@ -1019,6 +1007,9 @@ fn send_reply_works() {
             2_000_000, // `prog_id` program sends message in handle which sets gas limit to 1_000_000.
             0,
         ));
+
+        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
 
         run_to_block(2, None);
 
@@ -1032,7 +1023,7 @@ fn send_reply_works() {
         ));
 
         // global nonce is 2 before sending reply message (`submit_program` and `send_message` messages were sent before)
-        let expected_reply_message_id = compute_message_id(DEFAULT_PAYLOAD, 2);
+        let expected_reply_message_id = compute_user_message_id(DEFAULT_PAYLOAD, 2);
         let (actual_reply_message_id, orig_id) = {
             let intermediate_msg = GearPallet::<Test>::message_queue()
                 .map(|v| v.into_iter().next())
@@ -1104,23 +1095,14 @@ fn send_reply_expected_failure() {
             0,
         ));
 
-        let reply_to_id = {
-            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
-            let mut data = prog_id.as_bytes().to_vec();
-            // nonce of program
-            data.extend(&0_u64.to_le_bytes());
-            sp_io::hashing::blake2_256(&data).into()
-        };
-
         // increase LOW_BALANCE_USER balance a bit to allow him send message
         let reply_gas_spent = GearPallet::<Test>::get_gas_spent(prog_id, DEFAULT_PAYLOAD.to_vec())
             .expect("program exists and not faulty");
-        BalancesPallet::<Test>::transfer(
+        assert_ok!(BalancesPallet::<Test>::transfer(
             Origin::signed(USER_1).into(),
             LOW_BALANCE_USER,
             reply_gas_spent as u128,
-        )
-        .expect("sender has enough balance to send funds to existent address");
+        ));
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER).into(),
@@ -1129,6 +1111,9 @@ fn send_reply_expected_failure() {
             reply_gas_spent,
             0,
         ));
+
+        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
 
         run_to_block(2, None);
 
@@ -1223,14 +1208,8 @@ fn send_reply_insufficient_program_balance() {
         ));
         run_to_block(2, None);
 
-        let msg_id = {
-            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
-            // computation of message id different from the same task for user's message
-            let mut data = prog_id.as_bytes().to_vec();
-            // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-            data.extend(&0_u64.to_le_bytes());
-            sp_io::hashing::blake2_256(&data).into()
-        };
+        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
 
         assert!(Mailbox::<Test>::contains_key(USER_1));
 
@@ -1238,7 +1217,7 @@ fn send_reply_insufficient_program_balance() {
         assert_noop!(
             GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1).into(),
-                msg_id,
+                reply_to_id,
                 DEFAULT_PAYLOAD.to_vec(),
                 5_000_000,
                 0
@@ -1305,13 +1284,7 @@ fn send_reply_value_offset_works() {
         ];
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
             // Message from program
-            let message_to_reply_id = {
-                // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
-                // computation of message id different from the same task for user's message
-                let mut data = prog_id.as_bytes().to_vec();
-                data.extend(&program_nonce.to_le_bytes());
-                sp_io::hashing::blake2_256(&data).into()
-            };
+            let reply_to_id = compute_program_message_id(prog_id.as_bytes(), program_nonce);
 
             // Invoke handle function to make a message send to mailbox from program
             assert_ok!(GearPallet::<Test>::send_message(
@@ -1347,7 +1320,7 @@ fn send_reply_value_offset_works() {
 
             assert_ok!(GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1).into(),
-                message_to_reply_id,
+                reply_to_id,
                 DEFAULT_PAYLOAD.to_vec(),
                 gas_limit_to_reply,
                 value_to_reply,
@@ -1403,15 +1376,6 @@ fn claim_value_from_mailbox_works() {
         let salt = DEFAULT_SALT.to_vec();
         let prog_id = generate_program_id(&code, &salt);
 
-        let message_to_reply_id = {
-            // TODO [sab] create a bug issue. MessageId for a message created by program uses nonce of type u128, which makes
-            // computation of message id different from the same task for user's message
-            let mut data = prog_id.as_bytes().to_vec();
-            // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-            data.extend(&0_u64.to_le_bytes());
-            sp_io::hashing::blake2_256(&data).into()
-        };
-
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1).into(),
             code,
@@ -1429,11 +1393,14 @@ fn claim_value_from_mailbox_works() {
             0,
         ));
 
+        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
+
         // TODO Must solve #539 to remove that clumsy creation
         common::value_tree::ValueView::get_or_create(
             common::GAS_VALUE_PREFIX,
-            1.into_origin(),
-            message_to_reply_id,
+            USER_1.into_origin(),
+            reply_to_id,
             100_000,
         );
 
@@ -1460,7 +1427,7 @@ fn claim_value_from_mailbox_works() {
 
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
             Origin::signed(USER_1).into(),
-            message_to_reply_id,
+            reply_to_id,
         ));
 
         // 1000 - is the default `value` set in WAT.
@@ -1471,9 +1438,7 @@ fn claim_value_from_mailbox_works() {
         );
         assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
-        SystemPallet::<Test>::assert_last_event(
-            Event::ClaimedValueFromMailbox(message_to_reply_id).into(),
-        );
+        SystemPallet::<Test>::assert_last_event(Event::ClaimedValueFromMailbox(reply_to_id).into());
     })
 }
 
@@ -1724,9 +1689,15 @@ mod utils {
         )
     }
 
-    pub(super) fn compute_message_id(payload: &[u8], global_nonce: u64) -> H256 {
+    pub(super) fn compute_user_message_id(payload: &[u8], global_nonce: u128) -> H256 {
         let mut id = payload.encode();
-        id.extend_from_slice(&(global_nonce as u128).to_le_bytes());
+        id.extend_from_slice(&global_nonce.to_le_bytes());
+        sp_io::hashing::blake2_256(&id).into()
+    }
+
+    pub(super) fn compute_program_message_id(program_id: &[u8], program_nonce: u64) -> H256 {
+        let mut id = program_id.to_vec();
+        id.extend_from_slice(&program_nonce.to_le_bytes());
         sp_io::hashing::blake2_256(&id).into()
     }
 
