@@ -210,7 +210,7 @@ where
 
         if common::program_exists(dest) {
             if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
-                gas_tree.split_off(message.id, message.gas_limit);
+                let _ = gas_tree.split_off(message.id, message.gas_limit);
             } else {
                 log::error!(
                     "Message does not have associated gas tree: {:?}",

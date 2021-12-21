@@ -228,6 +228,7 @@ impl ValueView {
         self.save_node(self.key, &self.node);
     }
 
+    #[must_use]
     pub fn split_off(&mut self, new_node_key: H256, new_value: u64) -> Self {
         if self.node.inner < new_value {
             panic!("The fact that amount in current node is enough to splitt off new value should be checked by caller!")

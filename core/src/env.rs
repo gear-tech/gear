@@ -91,6 +91,9 @@ pub trait Ext {
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> MessageId;
 
+    /// Get the id of program itself
+    fn program_id(&mut self) -> ProgramId;
+
     /// Free specific memory page.
     ///
     /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
@@ -233,6 +236,9 @@ mod tests {
             ProgramId::from(0)
         }
         fn message_id(&mut self) -> MessageId {
+            0.into()
+        }
+        fn program_id(&mut self) -> ProgramId {
             0.into()
         }
         fn free(&mut self, _ptr: PageNumber) -> Result<(), &'static str> {

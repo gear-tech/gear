@@ -28,6 +28,7 @@ members = [
     "mutex",
     "panicker",
     "ping",
+    "program-id",
     "rwlock",
     "rwlock_write",
     "sum",

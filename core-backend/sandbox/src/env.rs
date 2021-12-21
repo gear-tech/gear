@@ -19,12 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use super::memory::MemoryWrap;
-use alloc::{
-    boxed::Box,
-    collections::BTreeMap,
-    string::{String, ToString},
-    vec,
-};
+use alloc::{boxed::Box, collections::BTreeMap, string::String, vec};
 use sp_sandbox::{EnvironmentDefinitionBuilder, HostError, Instance, ReturnValue, Value};
 
 use gear_backend_common::funcs;
@@ -505,6 +500,27 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 })
         }
 
+        fn program_id<E: Ext>(
+            ctx: &mut Runtime<E>,
+            args: &[Value],
+        ) -> Result<ReturnValue, HostError> {
+            let source_ptr: i32 = match args[0] {
+                Value::I32(val) => val,
+                _ => return Err(HostError),
+            };
+            ctx.ext
+                .with(|ext: &mut E| {
+                    let source = ext.program_id();
+                    ext.set_mem(source_ptr as _, source.as_slice());
+                    Ok(())
+                })
+                .and_then(|res| res.map(|_| ReturnValue::Unit))
+                .map_err(|err| {
+                    ctx.trap_reason = Some(err);
+                    HostError
+                })
+        }
+
         fn source<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
             let source_ptr: i32 = match args[0] {
                 Value::I32(val) => val,
@@ -513,7 +529,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             ctx.ext
                 .with(|ext: &mut E| {
                     let source = ext.source();
-                    ext.set_mem(source_ptr as isize as _, source.as_slice());
+                    ext.set_mem(source_ptr as _, source.as_slice());
                     Ok(())
                 })
                 .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -591,6 +607,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_read", read);
         env_builder.add_host_func("env", "gr_size", size);
         env_builder.add_host_func("env", "gr_source", source);
+        env_builder.add_host_func("env", "gr_program_id", program_id);
         env_builder.add_host_func("env", "gr_value", value);
         env_builder.add_host_func("env", "gr_reply", reply);
         env_builder.add_host_func("env", "gr_reply_commit", reply_commit);
@@ -615,7 +632,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                         let result = instance.invoke(entry_point, &[], &mut runtime);
                         if let Err(_e) = &result {
                             if let Some(trap) = runtime.trap_reason {
-                                if funcs::is_exit_trap(&trap.to_string()) {
+                                if funcs::is_exit_trap(trap) {
                                     // We don't propagate a trap when exit
                                     return Ok(());
                                 }

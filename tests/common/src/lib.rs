@@ -58,16 +58,19 @@ pub enum RunResult {
 }
 
 impl InitProgram {
+    #[must_use]
     pub fn id<P: Into<ProgramId>>(mut self, id: P) -> Self {
         self.program_id = Some(id.into());
         self
     }
 
+    #[must_use]
     pub fn source_id<P: Into<ProgramId>>(mut self, id: P) -> Self {
         self.source_id = Some(id.into());
         self
     }
 
+    #[must_use]
     pub fn message<M: Into<MessageBuilder>>(mut self, message: M) -> Self {
         self.message = Some(message.into());
         self
@@ -117,16 +120,19 @@ pub struct MessageBuilder {
 }
 
 impl MessageBuilder {
+    #[must_use]
     pub fn id<T: Into<MessageId>>(mut self, id: T) -> Self {
         self.id = Some(id.into());
         self
     }
 
+    #[must_use]
     pub fn gas_limit(mut self, gas_limit: u64) -> Self {
         self.gas_limit = Some(gas_limit);
         self
     }
 
+    #[must_use]
     pub fn value(mut self, value: u128) -> Self {
         self.value = Some(value);
         self
@@ -169,11 +175,13 @@ pub struct MessageDispatchBuilder {
 }
 
 impl MessageDispatchBuilder {
+    #[must_use]
     pub fn source<P: Into<ProgramId>>(mut self, source: P) -> Self {
         self.source = Some(source.into());
         self
     }
 
+    #[must_use]
     pub fn destination<P: Into<ProgramId>>(mut self, destination: P) -> Self {
         self.destination = Some(destination.into());
         self
