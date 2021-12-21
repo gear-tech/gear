@@ -337,12 +337,23 @@ pub fn nonce_fetch_inc() -> u128 {
     original_nonce
 }
 
+pub fn peek_last_message_id(payload: &[u8]) -> H256 {
+    let nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
+        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
+        .unwrap_or(0u128);
+
+    let mut data = payload.encode();
+    data.extend_from_slice(&(nonce.wrapping_sub(1)).to_le_bytes());
+    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
+    message_id
+}
+
 // WARN: Never call that in threads
 pub fn next_message_id(payload: &[u8]) -> H256 {
     let nonce = nonce_fetch_inc();
-    let mut message_id = payload.encode();
-    message_id.extend_from_slice(&nonce.to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+    let mut data = payload.encode();
+    data.extend_from_slice(&nonce.to_le_bytes());
+    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
     message_id
 }
 
