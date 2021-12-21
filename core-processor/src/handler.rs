@@ -29,49 +29,33 @@ pub fn handle_journal(
 
     for note in journal.into_iter() {
         match note {
-            JournalNote::ExecutionFail {
-                origin,
-                initiator,
-                program_id,
-                reason,
-                entry,
-            } => handler.execution_fail(origin, initiator, program_id, reason, entry),
+            JournalNote::MessageDispatched(outcome) => handler.message_dispatched(outcome),
             JournalNote::GasBurned {
+                message_id,
                 origin,
                 amount,
-                entry,
-            } => handler.gas_burned(origin, amount, entry),
+            } => handler.gas_burned(message_id, origin, amount),
             JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
-            JournalNote::SendMessage { origin, message } => handler.send_message(origin, message),
-            JournalNote::SubmitProgram {
-                origin,
-                owner,
-                program,
-            } => handler.submit_program(origin, owner, program),
+            JournalNote::SendMessage {
+                message_id,
+                message,
+            } => handler.send_message(message_id, message),
             JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
             JournalNote::WakeMessage {
-                origin,
-                program_id,
                 message_id,
-            } => handler.wake_message(origin, program_id, message_id),
-            JournalNote::UpdateNonce {
-                origin: _origin,
                 program_id,
-                nonce,
-            } => {
+                awakening_id,
+            } => handler.wake_message(message_id, program_id, awakening_id),
+            JournalNote::UpdateNonce { program_id, nonce } => {
                 let _ = nonces.insert(program_id, nonce);
             }
             JournalNote::UpdatePage {
-                origin: _origin,
                 program_id,
                 page_number,
                 data,
             } => {
                 let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
                 let _ = entry.insert(page_number, data);
-            }
-            JournalNote::MessageTrap { origin, trap } => {
-                handler.message_trap(origin, trap);
             }
         }
     }

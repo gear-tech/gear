@@ -426,7 +426,7 @@ pub mod pallet {
                     break;
                 }
 
-                if let Ok(program) = ext_manager.get_program(message.dest) {
+                if let Some(program) = ext_manager.get_program(message.dest) {
                     let kind = if message.reply.is_none() {
                         DispatchKind::Handle
                     } else {

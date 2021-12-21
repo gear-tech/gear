@@ -29,7 +29,7 @@ fixtures:
           value: ok reply
 
     expected:
-      - allowErrors: true
+      - allowError: true
         log:
           - destination: 1000001
             payload:

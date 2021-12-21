@@ -2,12 +2,15 @@ use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GasAllowance,
     MessageInfo, Pallet, ProgramsLimbo,
 };
+use common::value_tree::{ConsumeResult, ValueView};
 use common::GasToFeeConverter;
 use common::Origin;
 use common::GAS_VALUE_PREFIX;
 use core::marker::PhantomData;
-use core_processor::common::{CollectState, Dispatch, DispatchKind, JournalHandler, State};
-use frame_support::traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency};
+use core_processor::common::{
+    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
+};
+use frame_support::traits::{BalanceStatus, ReservableCurrency};
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
@@ -57,18 +60,17 @@ where
         Default::default()
     }
 
-    pub fn get_program(&self, id: H256) -> Result<gear_core::program::Program, u8> {
+    pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
         if let Some(prog) = common::get_program(id) {
             let persistent_pages = common::get_program_pages(id, prog.persistent_pages);
-            let code = common::get_code(prog.code_hash).ok_or(1)?;
-            let id: gear_core::program::ProgramId = id.as_ref().into();
-            let mut program =
-                gear_core::program::Program::new(id, code, persistent_pages).expect("Can't fail");
+            let code = common::get_code(prog.code_hash)?;
+            let id: ProgramId = id.as_ref().into();
+            let mut program = Program::new(id, code, persistent_pages).expect("Can't fail");
             program.set_message_nonce(prog.nonce);
-            return Ok(program);
+            return Some(program);
         };
 
-        Err(1)
+        None
     }
 
     pub fn set_program(&self, program: gear_core::program::Program) {
@@ -100,193 +102,166 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    fn execution_fail(
-        &mut self,
-        origin: MessageId,
-        initiator: ProgramId,
-        program_id: ProgramId,
-        reason: &'static str,
-        entry: DispatchKind,
-    ) {
-        let origin = H256::from_slice(origin.as_slice());
-        let program_id = H256::from_slice(program_id.as_slice());
+    fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
+        let event = match outcome {
+            CoreDispatchOutcome::Success(message_id) => Event::MessageDispatched(DispatchOutcome {
+                message_id: message_id.into_origin(),
+                outcome: ExecutionResult::Success,
+            }),
+            CoreDispatchOutcome::MessageTrap { message_id, trap } => {
+                let reason = trap.map(|v| v.as_bytes().to_vec()).unwrap_or_default();
 
-        if let DispatchKind::Init = entry {
-            ProgramsLimbo::<T>::insert(program_id, origin);
-            log::info!(
-                target: "runtime::gear",
-                "👻 Program {} will stay in limbo until explicitly removed",
-                program_id
-            );
-
-            Pallet::<T>::deposit_event(Event::InitFailure(
-                MessageInfo {
-                    message_id: origin,
-                    program_id,
-                    origin: H256::from_slice(initiator.as_slice()),
-                },
-                Reason::Dispatch(reason.as_bytes().to_vec()),
-            ));
-        } else {
-            match common::value_tree::ValueView::get(GAS_VALUE_PREFIX, origin) {
-                Some(gas_tree) => {
-                    if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
-                        gas_tree.consume()
-                    {
-                        let refund = T::GasConverter::gas_to_fee(gas_left);
-
-                        let _ = T::Currency::unreserve(
-                            &<T::AccountId as Origin>::from_origin(external),
-                            refund,
-                        );
-                    }
-                }
-                None => {
-                    log::error!("Message does not have associated gas tree: {:?}", origin);
-                }
+                Event::MessageDispatched(DispatchOutcome {
+                    message_id: message_id.into_origin(),
+                    outcome: ExecutionResult::Failure(reason),
+                })
             }
+            CoreDispatchOutcome::InitSuccess {
+                message_id,
+                origin,
+                program,
+            } => {
+                let event = Event::InitSuccess(MessageInfo {
+                    message_id: message_id.into_origin(),
+                    origin: origin.into_origin(),
+                    program_id: program.id().into_origin(),
+                });
 
-            Pallet::<T>::deposit_event(Event::MessageDispatched(DispatchOutcome {
-                message_id: origin,
-                outcome: ExecutionResult::Failure(reason.as_bytes().to_vec()),
-            }));
-        }
-    }
-    fn gas_burned(&mut self, origin: MessageId, amount: u64, entry: DispatchKind) {
-        // Adjust block gas allowance
-        GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));
+                self.set_program(program);
 
-        // TODO: weight to fee calculator might not be identity fee
-        let charge = T::GasConverter::gas_to_fee(amount);
-
-        let origin = match common::value_tree::ValueView::get(
-            GAS_VALUE_PREFIX,
-            H256::from_slice(origin.as_slice()),
-        ) {
-            Some(mut gas_tree) => {
-                gas_tree.spend(amount);
-                gas_tree.origin()
+                event
             }
-            None => {
-                log::error!("Message does not have associated gas tree: {:?}", origin);
-                Default::default()
+            CoreDispatchOutcome::InitFailure {
+                message_id,
+                origin,
+                program_id,
+                reason,
+            } => {
+                let program_id = program_id.into_origin();
+                let origin = origin.into_origin();
+
+                ProgramsLimbo::<T>::insert(program_id, origin);
+                log::info!(
+                    target: "runtime::gear",
+                    "👻 Program {} will stay in limbo until explicitly removed",
+                    program_id
+                );
+
+                Event::InitFailure(
+                    MessageInfo {
+                        message_id: message_id.into_origin(),
+                        origin,
+                        program_id,
+                    },
+                    Reason::Dispatch(reason.as_bytes().to_vec()),
+                )
             }
         };
 
-        if let DispatchKind::Init = entry {
-            if let Err(e) = T::Currency::transfer(
-                &<T::AccountId as Origin>::from_origin(origin),
-                &Authorship::<T>::author(),
-                charge,
-                ExistenceRequirement::AllowDeath,
-            ) {
-                // should not be possible since there should've been reserved enough for
-                // the transfer
-                // TODO: audit this
-                log::warn!("Could not transfer enough gas to block producer: {:?}", e);
+        Pallet::<T>::deposit_event(event);
+    }
+    fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64) {
+        let message_id = message_id.into_origin();
+
+        // Adjust block gas allowance
+        GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));
+        // TODO: weight to fee calculator might not be identity fee
+        let charge = T::GasConverter::gas_to_fee(amount);
+
+        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+            gas_tree.spend(amount);
+        } else {
+            log::error!(
+                "Message does not have associated gas tree: {:?}",
+                message_id
+            );
+        }
+
+        let _ = T::Currency::repatriate_reserved(
+            &<T::AccountId as Origin>::from_origin(origin.into_origin()),
+            &Authorship::<T>::author(),
+            charge,
+            BalanceStatus::Free,
+        );
+    }
+    fn message_consumed(&mut self, message_id: MessageId) {
+        let message_id = message_id.into_origin();
+
+        if let Some(gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+            if let ConsumeResult::RefundExternal(external, gas_left) = gas_tree.consume() {
+                let refund = T::GasConverter::gas_to_fee(gas_left);
+
+                let _ = T::Currency::unreserve(
+                    &<T::AccountId as Origin>::from_origin(external),
+                    refund,
+                );
             }
         } else {
-            let _ = T::Currency::repatriate_reserved(
-                &<T::AccountId as Origin>::from_origin(origin),
-                &Authorship::<T>::author(),
-                charge,
-                BalanceStatus::Free,
+            log::error!(
+                "Message does not have associated gas tree: {:?}",
+                message_id
             );
         }
     }
+    fn send_message(&mut self, message_id: MessageId, message: Message) {
+        let message_id = message_id.into_origin();
+        let dest = message.dest().into_origin();
+        let message: common::Message = message.into();
 
-    fn message_consumed(&mut self, message_id: MessageId) {
-        match common::value_tree::ValueView::get(
-            GAS_VALUE_PREFIX,
-            H256::from_slice(message_id.as_slice()),
-        ) {
-            Some(gas_tree) => {
-                if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
-                    gas_tree.consume()
-                {
-                    let refund = T::GasConverter::gas_to_fee(gas_left);
-
-                    let _ = T::Currency::unreserve(
-                        &<T::AccountId as Origin>::from_origin(external),
-                        refund,
-                    );
-                }
-            }
-            None => {
+        if common::program_exists(dest) {
+            if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+                gas_tree.split_off(message.id, message.gas_limit);
+            } else {
                 log::error!(
                     "Message does not have associated gas tree: {:?}",
                     message_id
                 );
             }
-        }
 
-        Pallet::<T>::deposit_event(Event::MessageDispatched(DispatchOutcome {
-            message_id: H256::from_slice(message_id.as_slice()),
-            outcome: ExecutionResult::Success,
-        }));
-    }
-
-    fn message_trap(&mut self, _origin: MessageId, _trap: Option<&'static str>) {}
-
-    fn send_message(&mut self, origin: MessageId, message: Message) {
-        let dest = H256::from_slice(message.dest().as_slice());
-        let message: common::Message = message.into();
-
-        if common::program_exists(dest) {
-            match common::value_tree::ValueView::get(
-                GAS_VALUE_PREFIX,
-                H256::from_slice(origin.as_slice()),
-            ) {
-                Some(mut gas_tree) => {
-                    gas_tree.split_off(message.id, message.gas_limit);
-                }
-                None => {
-                    log::error!("Message does not have associated gas tree: {:?}", origin);
-                }
-            }
             common::queue_message(message);
         } else {
             Pallet::<T>::insert_to_mailbox(dest, message.clone());
             Pallet::<T>::deposit_event(Event::Log(message));
         }
     }
-    fn submit_program(&mut self, origin: MessageId, owner: ProgramId, program: Program) {
-        Pallet::<T>::deposit_event(Event::InitSuccess(MessageInfo {
-            message_id: H256::from_slice(origin.as_slice()),
-            program_id: H256::from_slice(program.id().as_slice()),
-            origin: H256::from_slice(owner.as_slice()),
-        }));
-        self.set_program(program);
-    }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         let message: common::Message = dispatch.message.into();
-        Pallet::<T>::deposit_event(Event::AddedToWaitList(message.clone()));
+
         common::insert_waiting_message(
             message.dest,
             message.id,
-            message,
+            message.clone(),
             <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
         );
+
+        Pallet::<T>::deposit_event(Event::AddedToWaitList(message));
     }
-    fn wake_message(&mut self, _origin: MessageId, program_id: ProgramId, message_id: MessageId) {
-        let msg_id = H256::from_slice(message_id.as_slice());
+    fn wake_message(
+        &mut self,
+        message_id: MessageId,
+        program_id: ProgramId,
+        awakening_id: MessageId,
+    ) {
+        let awakening_id = awakening_id.into_origin();
+
         if let Some((msg, _)) =
-            common::remove_waiting_message(H256::from_slice(program_id.as_slice()), msg_id)
+            common::remove_waiting_message(program_id.into_origin(), awakening_id)
         {
             common::queue_message(msg);
-            Pallet::<T>::deposit_event(Event::RemovedFromWaitList(msg_id));
+
+            Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
-            log::warn!("Unknown message awaken: {}", msg_id);
+            log::error!(
+                "Unknown message awaken: {:?} from {:?}",
+                awakening_id,
+                message_id.into_origin()
+            );
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        common::set_nonce(H256::from_slice(program_id.as_slice()), nonce);
+        common::set_nonce(program_id.into_origin(), nonce);
     }
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>) {
-        common::set_program_page(
-            H256::from_slice(program_id.as_slice()),
-            page_number.raw(),
-            data,
-        );
+        common::set_program_page(program_id.into_origin(), page_number.raw(), data);
     }
 }

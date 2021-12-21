@@ -35,20 +35,25 @@ impl CollectState for InMemoryHandler {
 }
 
 impl JournalHandler for InMemoryHandler {
-    fn execution_fail(
-        &mut self,
-        origin: MessageId,
-        _initiator: ProgramId,
-        _program_id: ProgramId,
-        _reason: &'static str,
-        _entry: DispatchKind,
-    ) {
-        self.message_consumed(origin);
-        self.current_failed = true;
+    fn message_dispatched(&mut self, outcome: DispatchOutcome) {
+        match outcome {
+            DispatchOutcome::Success(_) => {
+                self.current_failed = false;
+            }
+            DispatchOutcome::MessageTrap { .. } => {
+                self.current_failed = true;
+            }
+            DispatchOutcome::InitSuccess { program, .. } => {
+                self.current_failed = false;
+                let _ = self.programs.insert(program.id(), program);
+            }
+            DispatchOutcome::InitFailure { .. } => {
+                self.current_failed = true;
+            }
+        };
     }
-    fn gas_burned(&mut self, _origin: MessageId, _amount: u64, _entry: DispatchKind) {}
+    fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {
-        self.current_failed = false;
         if let Some(index) = self
             .message_queue
             .iter()
@@ -57,26 +62,27 @@ impl JournalHandler for InMemoryHandler {
             self.message_queue.remove(index);
         }
     }
-    fn message_trap(&mut self, _origin: MessageId, _trap: Option<&'static str>) {}
-    fn send_message(&mut self, _origin: MessageId, message: Message) {
+    fn send_message(&mut self, _message_id: MessageId, message: Message) {
         if self.programs.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
         } else {
             self.log.push(message);
         }
     }
-    fn submit_program(&mut self, _origin: MessageId, _owner: ProgramId, program: Program) {
-        let _ = self.programs.insert(program.id(), program);
-    }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        let _ = self.message_queue.pop_front();
+        self.message_consumed(dispatch.message.id());
         let _ = self.wait_list.insert(
             (dispatch.message.dest(), dispatch.message.id()),
             dispatch.message,
         );
     }
-    fn wake_message(&mut self, _origin: MessageId, program_id: ProgramId, message_id: MessageId) {
-        if let Some(msg) = self.wait_list.remove(&(program_id, message_id)) {
+    fn wake_message(
+        &mut self,
+        _message_id: MessageId,
+        program_id: ProgramId,
+        awakening_id: MessageId,
+    ) {
+        if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.message_queue.push_back(msg);
         }
     }

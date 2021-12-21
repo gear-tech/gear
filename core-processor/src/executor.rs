@@ -184,24 +184,24 @@ pub fn execute_wasm<E: Environment<Ext>>(
     }
 
     // Storing outgoing messages from message state.
-    let mut messages = Vec::new();
+    let mut outgoing = Vec::new();
 
     // Getting message nonce for program
     let nonce = ext.message_context.nonce();
 
     // Storing messages state
     let MessageState {
-        outgoing,
+        outgoing: outgoing_from_state,
         reply,
         awakening,
     } = ext.message_context.into_state();
 
-    for outgoing_msg in outgoing {
-        messages.push(outgoing_msg.into_message(program.id()));
+    for outgoing_msg in outgoing_from_state {
+        outgoing.push(outgoing_msg.into_message(program.id()));
     }
 
     if let Some(reply_message) = reply {
-        messages.push(reply_message.into_message(message.id(), program.id(), message.source()));
+        outgoing.push(reply_message.into_message(message.id(), program.id(), message.source()));
     }
 
     // Checking gas that was spent.
@@ -215,7 +215,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         kind,
         program,
         dispatch,
-        messages,
+        outgoing,
         awakening,
         gas_left,
         gas_burned,

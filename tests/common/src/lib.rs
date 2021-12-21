@@ -243,27 +243,34 @@ struct Journal<'a> {
 }
 
 impl<'a> core_processor::JournalHandler for Journal<'a> {
-    fn execution_fail(
-        &mut self,
-        origin: MessageId,
-        _initiator: ProgramId,
-        program_id: ProgramId,
-        reason: &'static str,
-        _entry: core_processor::common::DispatchKind,
-    ) {
-        panic!(
-            "Execution failed (pid: {:?}, mid: {:?}): {}",
-            program_id, origin, reason
-        );
+    fn message_dispatched(&mut self, outcome: core_processor::common::DispatchOutcome) {
+        match outcome {
+            core_processor::common::DispatchOutcome::Success(_) => {}
+            core_processor::common::DispatchOutcome::MessageTrap { message_id, trap } => {
+                self.context.outcomes.insert(
+                    message_id,
+                    RunResult::Trap(trap.unwrap_or("No message").to_string()),
+                );
+            }
+            core_processor::common::DispatchOutcome::InitSuccess { program, .. } => {
+                self.context.programs.insert(program.id(), program);
+            }
+            core_processor::common::DispatchOutcome::InitFailure {
+                program_id,
+                message_id,
+                reason,
+                ..
+            } => {
+                panic!(
+                    "Init failure (pid: {:?}, mid: {:?}): {}",
+                    program_id, message_id, reason
+                );
+            }
+        };
     }
 
-    fn gas_burned(
-        &mut self,
-        origin: MessageId,
-        amount: u64,
-        _entry: core_processor::common::DispatchKind,
-    ) {
-        self.context.gas_spent.insert(origin, amount);
+    fn gas_burned(&mut self, message_id: MessageId, _origin: ProgramId, amount: u64) {
+        self.context.gas_spent.insert(message_id, amount);
     }
 
     fn message_consumed(&mut self, _message_id: MessageId) {}
@@ -292,10 +299,6 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
         } else {
             self.context.log.push(message);
         }
-    }
-
-    fn submit_program(&mut self, _origin: MessageId, _owner: ProgramId, program: Program) {
-        self.context.programs.insert(program.id(), program);
     }
 
     fn wait_dispatch(&mut self, dispatch: core_processor::Dispatch) {
@@ -332,13 +335,6 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
             .expect("program not found")
             .set_page(page_number, data.as_ref())
             .expect("Failed to set page");
-    }
-
-    fn message_trap(&mut self, message_id: MessageId, trap: Option<&'static str>) {
-        self.context.outcomes.insert(
-            message_id,
-            RunResult::Trap(trap.unwrap_or("No message").to_string()),
-        );
     }
 }
 
