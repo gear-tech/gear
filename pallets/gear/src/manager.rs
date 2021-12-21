@@ -1,16 +1,19 @@
 use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GasAllowance,
-    MessageInfo, Pallet, ProgramsLimbo,
+    Mailbox, MessageInfo, Pallet, ProgramsLimbo,
 };
-use common::value_tree::{ConsumeResult, ValueView};
-use common::GasToFeeConverter;
-use common::Origin;
-use common::GAS_VALUE_PREFIX;
-use core::marker::PhantomData;
+use codec::Decode;
+use common::{
+    value_tree::{ConsumeResult, ValueView},
+    GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_PROGRAM_PREFIX,
+};
 use core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
-use frame_support::traits::{BalanceStatus, ReservableCurrency};
+use frame_support::{
+    storage::PrefixIterator,
+    traits::{BalanceStatus, ReservableCurrency},
+};
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
@@ -21,6 +24,7 @@ use sp_runtime::traits::UniqueSaturatedInto;
 
 use sp_std::{
     collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+    marker::PhantomData,
     prelude::*,
 };
 
@@ -28,12 +32,61 @@ pub struct ExtManager<T: Config> {
     _phantom: PhantomData<T>,
 }
 
-impl<T: Config> CollectState for ExtManager<T> {
+#[derive(Decode)]
+struct Node {
+    value: Message,
+    next: Option<H256>,
+}
+
+impl<T> CollectState for ExtManager<T>
+where
+    T: Config,
+    T::AccountId: Origin,
+{
     fn collect(&self) -> State {
+        let programs: BTreeMap<ProgramId, Program> = PrefixIterator::<H256>::new(
+            STORAGE_PROGRAM_PREFIX.to_vec(),
+            STORAGE_PROGRAM_PREFIX.to_vec(),
+            |key, _| Ok(H256::from_slice(key)),
+        )
+        .map(|k| {
+            let program = self.get_program(k).expect("Can't fail");
+            (program.id(), program)
+        })
+        .collect();
+
+        let mq_head_key = [STORAGE_MESSAGE_PREFIX, b"head"].concat();
+        let mut message_queue = VecDeque::new();
+
+        if let Some(head) = sp_io::storage::get(&mq_head_key) {
+            let mut next_id = H256::from_slice(&head[..]);
+            loop {
+                let next_node_key = [STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
+                if let Some(bytes) = sp_io::storage::get(&next_node_key) {
+                    let current_node = Node::decode(&mut &bytes[..]).unwrap();
+                    message_queue.push_back(current_node.value);
+                    match current_node.next {
+                        Some(h) => next_id = h,
+                        None => break,
+                    }
+                }
+            }
+        }
+
+        let log: Vec<Message> = <Mailbox<T>>::iter()
+            .map(|(_, map)| {
+                map.values()
+                    .cloned()
+                    .map(Into::into)
+                    .collect::<Vec<Message>>()
+            })
+            .flatten()
+            .collect();
+
         State {
-            message_queue: VecDeque::new(),
-            log: Vec::new(),
-            programs: BTreeMap::new(),
+            message_queue,
+            log,
+            programs,
             current_failed: false,
         }
     }

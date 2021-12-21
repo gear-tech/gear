@@ -116,16 +116,6 @@ impl common::GasToFeeConverter for GasConverter {
     type Balance = u128;
 }
 
-// impl pallet_gear::DebugInfo for crate::Pallet<Test> {
-//     fn do_snapshot() {
-//         crate::Pallet::<Test>::do_snapshot()
-//     }
-
-//     fn is_enabled()->bool {
-//         crate::Pallet::<Test>::is_enabled()
-//     }
-// }
-
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
