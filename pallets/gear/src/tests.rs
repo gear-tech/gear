@@ -22,6 +22,7 @@ use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
 use common::{self, IntermediateMessage, Origin as _};
+use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
 use super::{
     mock::{
@@ -1475,6 +1476,70 @@ fn claim_value_from_mailbox_works() {
     })
 }
 
+#[test]
+fn distributor_initialize() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
+            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            DEFAULT_SALT.to_vec(),
+            DEFAULT_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
+            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+        assert_eq!(initial_balance, final_balance);
+    });
+}
+
+#[test]
+fn distributor_distribute() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
+            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+
+        let program_id = generate_program_id(
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!"),
+            DEFAULT_SALT,
+        );
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            DEFAULT_SALT.to_vec(),
+            DEFAULT_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            program_id,
+            Request::Receive(10).encode(),
+            20_000_000,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
+            + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
+
+        assert_eq!(initial_balance, final_balance);
+    });
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
@@ -1607,66 +1672,6 @@ mod utils {
 //     sp_io::hashing::blake2_256(code).into()
 // }
 //
-// #[test]
-// fn distributor_initialize() {
-//     use tests_distributor::WASM_BINARY_BLOATY;
-//
-//     new_test_ext().execute_with(|| {
-//         let initial_balance = Balances::free_balance(1) + Balances::free_balance(255);
-//
-//         Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
-//             vec![],
-//             vec![],
-//             10_000_000_u64,
-//             0_u128,
-//         )
-//         .expect("Submit program failed");
-//
-//         run_to_block(3, None);
-//
-//         let final_balance = Balances::free_balance(1) + Balances::free_balance(255);
-//         assert_eq!(initial_balance, final_balance);
-//     });
-// }
-//
-// #[test]
-// fn distributor_distribute() {
-//     use tests_distributor::{Request, WASM_BINARY_BLOATY};
-//
-//     new_test_ext().execute_with(|| {
-//         let balance_initial = Balances::free_balance(1) + Balances::free_balance(255);
-//
-//         let program_id =
-//             generate_program_id(WASM_BINARY_BLOATY.expect("Wasm binary missing!"), &[]);
-//
-//         Pallet::<Test>::submit_program(
-//             Origin::signed(1).into(),
-//             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
-//             vec![],
-//             vec![],
-//             10_000_000_u64,
-//             0_u128,
-//         )
-//         .expect("Submit program failed");
-//
-//         Pallet::<Test>::send_message(
-//             Origin::signed(1).into(),
-//             program_id,
-//             Request::Receive(10).encode(),
-//             20_000_000_u64,
-//             0_u128,
-//         )
-//         .expect("Send message failed");
-//
-//         run_to_block(3, None);
-//
-//         let final_balance = Balances::free_balance(1) + Balances::free_balance(255);
-//
-//         assert_eq!(balance_initial, final_balance);
-//     });
-// }
 //
 // #[test]
 // fn test_code_submission_pass() {
