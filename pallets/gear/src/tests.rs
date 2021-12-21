@@ -21,7 +21,7 @@ use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
-use common::{self, IntermediateMessage, Origin as _};
+use common::{self, GasToFeeConverter, IntermediateMessage, Origin as _};
 use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
 use super::{
@@ -36,9 +36,8 @@ use super::{
 use utils::*;
 
 // TODO [sab] before merging:
-// 1. Посмотри насколько много имплицитных расчетов газа и балансов, чтобы поменять на вызовы rpc (unused_gas_released_back_works spent_gas_to_reward_block_author_works)
+// 1. Сделай sometime soon issue про имплицитные расчеты газа и балансов -> поменять на вызовы rpc вместо текущих расчетов через default_gas_limit и т.п.
 // 2. Можно ли бесшовно поменять расчет id программы?
-// 3. Использование <Test as Config>::GasConverter::gas_to_fee(gas_limit)
 
 #[test]
 fn submit_program_works() {
@@ -156,7 +155,7 @@ fn send_message_works() {
 
         // Balances check
         // Gas spends on sending 2 default messages (submit program and send message to program)
-        let user1_potential_msgs_spends = 2 * DEFAULT_GAS_LIMIT as u128;
+        let user1_potential_msgs_spends = GasConverter::gas_to_fee(2 * DEFAULT_GAS_LIMIT);
         // User 1 has sent two messages
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
@@ -172,7 +171,7 @@ fn send_message_works() {
             DEFAULT_GAS_LIMIT,
             mail_value,
         ));
-        let mail_spends = DEFAULT_GAS_LIMIT as u128 + mail_value;
+        let mail_spends = GasConverter::gas_to_fee(DEFAULT_GAS_LIMIT) + mail_value;
 
         // "Mail" deducts from the sender's balance `value + gas_limit`
         assert_eq!(
@@ -189,7 +188,8 @@ fn send_message_works() {
         let remaining_weight = 100_000;
         run_to_block(2, Some(remaining_weight));
         // Messages were sent by user 1 only
-        let user1_actual_msgs_spends = (remaining_weight - GasAllowance::<Test>::get()) as u128;
+        let user1_actual_msgs_spends =
+            GasConverter::gas_to_fee(remaining_weight - GasAllowance::<Test>::get());
 
         // Balance of user 2 is the same
         assert_eq!(
@@ -297,11 +297,11 @@ fn spent_gas_to_reward_block_author_works() {
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
-        let gas_spent =
-            (<Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get()) as u128;
+        let gas_spent = GasConverter::gas_to_fee(
+            <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
+        );
         assert_eq!(
             BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR),
-            // gas price = 1, so reward for block author = gas_spent * gas_price = gas_spent
             block_author_initial_balance + gas_spent
         );
     })
@@ -353,15 +353,16 @@ fn unused_gas_released_back_works() {
         ));
         // Spends for submit program and sending default message
         let user1_potential_msgs_spends =
-            (submit_program_gas_limit + huge_send_message_gas_limit) as u128;
+            GasConverter::gas_to_fee(submit_program_gas_limit + huge_send_message_gas_limit);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
             user1_initial_balance - user1_potential_msgs_spends
         );
 
         run_to_block(2, None);
-        let user1_actual_msgs_spends =
-            (<Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get()) as u128;
+        let user1_actual_msgs_spends = GasConverter::gas_to_fee(
+            <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
+        );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
@@ -623,13 +624,6 @@ fn mailbox_works() {
 
 #[test]
 fn init_message_logging_works() {
-    let wat1 = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (export "init" (func $init))
-        (func $init)
-    )"#;
-
     // Initialization function for that program requires a lot of gas.
     // So, providing `DEFAULT_GAS_LIMIT` will end up processing with
     // "Gas limit exceeded" execution outcome error message.
@@ -664,7 +658,7 @@ fn init_message_logging_works() {
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
         let codes = [
-            (ProgramCodeKind::Custom(wat1).to_bytes(), false, ""),
+            (ProgramCodeKind::Default.to_bytes(), false, ""),
             (
                 ProgramCodeKind::Custom(wat2).to_bytes(),
                 true,
@@ -1101,7 +1095,7 @@ fn send_reply_expected_failure() {
         assert_ok!(BalancesPallet::<Test>::transfer(
             Origin::signed(USER_1).into(),
             LOW_BALANCE_USER,
-            reply_gas_spent as u128,
+            GasConverter::gas_to_fee(reply_gas_spent),
         ));
 
         assert_ok!(GearPallet::<Test>::send_message(
@@ -1326,17 +1320,19 @@ fn send_reply_value_offset_works() {
                 value_to_reply,
             ));
 
-            let user_expected_balance =
-                user_balance - send_to_program_amount - value_to_reply - gas_limit_to_reply as u128
-                    + locked_value
-                    + locked_gas_limit as u128;
+            let user_expected_balance = user_balance
+                - send_to_program_amount
+                - value_to_reply
+                - GasConverter::gas_to_fee(gas_limit_to_reply)
+                + locked_value
+                + GasConverter::gas_to_fee(locked_gas_limit);
             assert_eq!(
                 BalancesPallet::<Test>::free_balance(USER_1),
                 user_expected_balance
             );
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
-                gas_limit_to_reply.saturating_sub(locked_gas_limit) as u128
+                GasConverter::gas_to_fee(gas_limit_to_reply.saturating_sub(locked_gas_limit))
             );
         }
     })
@@ -1622,7 +1618,7 @@ mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
 
-    use super::{GearPallet, Origin, Test};
+    use super::{pallet, GearPallet, Origin, Test};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
@@ -1630,6 +1626,7 @@ mod utils {
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
+    pub(super) type GasConverter = <Test as pallet::Config>::GasConverter;
 
     pub(super) fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
