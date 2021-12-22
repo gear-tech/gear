@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::collections::BTreeMap;
-
 use crate::common::{JournalHandler, JournalNote};
+use alloc::collections::BTreeMap;
 
 pub fn handle_journal(
     journal: impl IntoIterator<Item = JournalNote>,

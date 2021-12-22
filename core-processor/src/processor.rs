@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{collections::BTreeMap, vec::Vec};
-
 use crate::{
     common::{
         Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote, ProcessResult,
@@ -26,9 +24,8 @@ use crate::{
     executor,
     ext::Ext,
 };
-
+use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
-
 use gear_core::program::{Program, ProgramId};
 
 pub fn process<E: Environment<Ext>>(

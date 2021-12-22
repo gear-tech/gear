@@ -20,9 +20,6 @@ use alloc::{
     collections::{BTreeMap, VecDeque},
     vec::Vec,
 };
-
-use crate::{executor::ERR_EXIT_CODE, id};
-
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
@@ -99,14 +96,14 @@ impl DispatchResult {
         self.nonce += 1;
 
         let message = Message::new_reply(
-            id::next_message_id(self.program_id(), nonce),
+            crate::id::next_message_id(self.program_id(), nonce),
             self.program_id(),
             self.message_source(),
             Default::default(),
             self.gas_left,
             0,
             self.message_id(),
-            ERR_EXIT_CODE,
+            crate::ERR_EXIT_CODE,
         );
 
         self.gas_left = 0;
@@ -198,17 +195,6 @@ pub struct State {
     pub log: Vec<Message>,
     pub programs: BTreeMap<ProgramId, Program>,
     pub current_failed: bool,
-}
-
-impl alloc::fmt::Debug for State {
-    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
-        f.debug_struct("State")
-            .field("message_queue", &self.message_queue)
-            .field("log", &self.log)
-            .field("programs", &self.programs.keys())
-            .field("current_failed", &self.current_failed)
-            .finish()
-    }
 }
 
 pub trait CollectState {

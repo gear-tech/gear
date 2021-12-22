@@ -440,7 +440,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(msg.gas_limit, 1000);
         assert_eq!(
             msg.reply,
-            Some((201.into_origin(), core_processor::executor::ERR_EXIT_CODE))
+            Some((201.into_origin(), core_processor::ERR_EXIT_CODE))
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
@@ -455,7 +455,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(msg.gas_limit, 500);
         assert_eq!(
             msg.reply,
-            Some((202.into_origin(), core_processor::executor::ERR_EXIT_CODE))
+            Some((202.into_origin(), core_processor::ERR_EXIT_CODE))
         );
 
         assert_eq!(

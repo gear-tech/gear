@@ -17,6 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode, Error as CodecError};
+use core_processor::{
+    common::{Dispatch, DispatchKind, DispatchOutcome, JournalHandler, ProcessResult},
+    configs::BlockInfo,
+    Ext,
+};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
@@ -235,12 +240,12 @@ pub enum Error {
 
 pub struct RunnerContext {
     programs: BTreeMap<ProgramId, Program>,
-    wait_list: BTreeMap<MessageId, core_processor::Dispatch>,
+    wait_list: BTreeMap<MessageId, Dispatch>,
     program_id: u64,
     used_program_ids: HashSet<ProgramId>,
     message_id: u64,
     used_message_ids: HashSet<MessageId>,
-    message_queue: Vec<core_processor::Dispatch>,
+    message_queue: Vec<Dispatch>,
     log: Vec<Message>,
     outcomes: BTreeMap<MessageId, RunResult>,
     gas_spent: BTreeMap<MessageId, u64>,
@@ -250,20 +255,20 @@ struct Journal<'a> {
     context: &'a mut RunnerContext,
 }
 
-impl<'a> core_processor::JournalHandler for Journal<'a> {
-    fn message_dispatched(&mut self, outcome: core_processor::common::DispatchOutcome) {
+impl<'a> JournalHandler for Journal<'a> {
+    fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
-            core_processor::common::DispatchOutcome::Success(_) => {}
-            core_processor::common::DispatchOutcome::MessageTrap { message_id, trap } => {
+            DispatchOutcome::Success(_) => {}
+            DispatchOutcome::MessageTrap { message_id, trap } => {
                 self.context.outcomes.insert(
                     message_id,
                     RunResult::Trap(trap.unwrap_or("No message").to_string()),
                 );
             }
-            core_processor::common::DispatchOutcome::InitSuccess { program, .. } => {
+            DispatchOutcome::InitSuccess { program, .. } => {
                 self.context.programs.insert(program.id(), program);
             }
-            core_processor::common::DispatchOutcome::InitFailure {
+            DispatchOutcome::InitFailure {
                 program_id,
                 message_id,
                 reason,
@@ -298,18 +303,16 @@ impl<'a> core_processor::JournalHandler for Journal<'a> {
 
         if self.context.programs.contains_key(&message.dest) {
             let kind = match message.reply {
-                Some(_) => core_processor::DispatchKind::HandleReply,
-                None => core_processor::DispatchKind::Handle,
+                Some(_) => DispatchKind::HandleReply,
+                None => DispatchKind::Handle,
             };
-            self.context
-                .message_queue
-                .push(core_processor::Dispatch { kind, message });
+            self.context.message_queue.push(Dispatch { kind, message });
         } else {
             self.context.log.push(message);
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: core_processor::Dispatch) {
+    fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.context.wait_list.insert(dispatch.message.id, dispatch);
     }
 
@@ -377,8 +380,8 @@ impl RunnerContext {
         self.programs.insert(new_program_id, program);
 
         // generate disspatch
-        let dispatch = core_processor::Dispatch {
-            kind: core_processor::DispatchKind::Init,
+        let dispatch = Dispatch {
+            kind: DispatchKind::Init,
             message,
         };
         let message_id = dispatch.message.id;
@@ -388,11 +391,11 @@ impl RunnerContext {
                 .programs
                 .remove(&new_program_id)
                 .expect("Program not found");
-            let core_processor::ProcessResult { program, journal } =
-                core_processor::processor::process::<WasmtimeEnvironment<core_processor::ext::Ext>>(
+            let ProcessResult { program, journal } =
+                core_processor::process::<WasmtimeEnvironment<Ext>>(
                     program,
                     dispatch,
-                    core_processor::configs::BlockInfo {
+                    BlockInfo {
                         height: 1,
                         timestamp: 1,
                     },
@@ -401,7 +404,7 @@ impl RunnerContext {
             journal
         };
 
-        core_processor::handler::handle_journal(journal, &mut Journal { context: self });
+        core_processor::handle_journal(journal, &mut Journal { context: self });
 
         message_id
     }
@@ -541,9 +544,9 @@ impl RunnerContext {
     }
 
     fn run(&mut self, message: Message) {
-        self.message_queue.push(core_processor::Dispatch {
+        self.message_queue.push(Dispatch {
             message,
-            kind: core_processor::DispatchKind::Handle,
+            kind: DispatchKind::Handle,
         });
 
         while !self.message_queue.is_empty() {
@@ -551,19 +554,17 @@ impl RunnerContext {
                 let messages = std::mem::take(&mut self.message_queue);
                 let programs = self.programs.clone();
 
-                core_processor::processor::process_many::<
-                    WasmtimeEnvironment<core_processor::ext::Ext>,
-                >(
+                core_processor::process_many::<WasmtimeEnvironment<Ext>>(
                     programs,
                     messages,
-                    core_processor::configs::BlockInfo {
+                    BlockInfo {
                         height: 1,
                         timestamp: 1,
                     },
                 )
             };
 
-            core_processor::handler::handle_journal(journal, &mut Journal { context: self });
+            core_processor::handle_journal(journal, &mut Journal { context: self });
         }
     }
 }
