@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloc::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     vec::Vec,
 };
 use gear_core::{
@@ -202,7 +202,7 @@ impl alloc::fmt::Debug for State {
         f.debug_struct("State")
             .field("message_queue", &self.message_queue)
             .field("log", &self.log)
-            .field("programs", &self.programs.keys())
+            .field("programs", &self.programs.iter().map(|(id, prog)| (*id, prog.get_pages().keys().cloned().collect::<BTreeSet<PageNumber>>())).collect::<BTreeMap<ProgramId, BTreeSet<PageNumber>>>())
             .field("current_failed", &self.current_failed)
             .finish()
     }

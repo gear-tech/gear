@@ -275,7 +275,7 @@ impl<'a> JournalHandler for Journal<'a> {
                 ..
             } => {
                 panic!(
-                    "Init failure (pid: {:?}, mid: {:?}): {}",
+                    "Init failure (pid: {:?}, mid: {:?}): {:?}",
                     program_id, message_id, reason
                 );
             }

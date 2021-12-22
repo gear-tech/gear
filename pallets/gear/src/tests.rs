@@ -181,6 +181,7 @@ fn send_message_works() {
 
     new_test_ext().execute_with(|| {
         // Make sure we have a program in the program storage
+        // Consumes 3000 gas
         let code = parse_wat(
             r#"(module
                     (import "env" "memory" (memory 1))
@@ -225,6 +226,7 @@ fn send_message_works() {
         // Sending message to a non-program address works as a simple value transfer
         // Gas limit is not transfered and returned back to sender (since operation is no-op).
         assert_eq!(Balances::free_balance(1), 99990000);
+        assert_eq!(Balances::reserved_balance(1), 10000);
         assert_eq!(Balances::free_balance(2), 2);
         assert_ok!(Pallet::<Test>::send_message(
             Origin::signed(1).into(),
@@ -244,7 +246,7 @@ fn send_message_works() {
         assert_eq!(Balances::free_balance(2), 20_002);
 
         // original sender gets back whatever gas_limit he used to send a message.
-        assert_eq!(Balances::free_balance(1), 99_970_000);
+        assert_eq!(Balances::free_balance(1), 99_967_000);
     })
 }
 
@@ -467,6 +469,7 @@ fn spent_gas_to_reward_block_author_works() {
 
 #[test]
 fn unused_gas_released_back_works() {
+    // Consumes 10000 gas for handle and 5000 for init
     let wat = r#"
     (module
         (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
@@ -492,7 +495,7 @@ fn unused_gas_released_back_works() {
 
         let origin = 1;
         let external_origin_initial_balance = Balances::free_balance(origin);
-        let gas_limit = 10000;
+        let gas_limit = 20000;
 
         let gas_limit_reserve = <Test as Config>::GasConverter::gas_to_fee(gas_limit);
 
@@ -536,7 +539,7 @@ fn unused_gas_released_back_works() {
 
         crate::Pallet::<Test>::process_queue();
 
-        let balance_after_actions = balance_after_actions.saturating_sub(7_000);
+        let balance_after_actions = balance_after_actions.saturating_sub(10_000);
 
         // Unused gas should be converted back to currency and released to the external origin
         assert_eq!(Balances::free_balance(1), balance_after_actions,);
@@ -562,7 +565,7 @@ fn init_test_program(origin: H256, program_id: H256, wat: &str) {
 
 #[test]
 fn block_gas_limit_works() {
-    // A module with $handle function being worth 7000 gas
+    // A module with $handle function being worth 10000 gas
     let wat1 = r#"
 	(module
 		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
@@ -581,7 +584,7 @@ fn block_gas_limit_works() {
 		(func $init)
 	)"#;
 
-    // A module with $handle function being worth 94000 gas
+    // A module with $handle function being worth 89000 gas
     let wat2 = r#"
 	(module
 		(import "env" "memory" (memory 1))
@@ -634,7 +637,7 @@ fn block_gas_limit_works() {
                 origin: 1.into_origin(),
                 destination: pid1,
                 payload: Vec::new(),
-                gas_limit: 10_000,
+                gas_limit: 50_000,
                 value: 0,
                 reply: None,
             },
@@ -643,7 +646,7 @@ fn block_gas_limit_works() {
                 origin: 1.into_origin(),
                 destination: pid1,
                 payload: Vec::new(),
-                gas_limit: 10_000,
+                gas_limit: 50_000,
                 value: 100,
                 reply: None,
             },
@@ -677,7 +680,7 @@ fn block_gas_limit_works() {
                 origin: 1.into_origin(),
                 destination: pid1,
                 payload: Vec::new(),
-                gas_limit: 10_000,
+                gas_limit: 50_000,
                 value: 0,
                 reply: None,
             },
@@ -695,7 +698,7 @@ fn block_gas_limit_works() {
                 origin: 1.into_origin(),
                 destination: pid1,
                 payload: Vec::new(),
-                gas_limit: 20_000,
+                gas_limit: 60_000,
                 value: 200,
                 reply: None,
             },
@@ -711,7 +714,7 @@ fn block_gas_limit_works() {
         // | 3 |        |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 93_000);
+        assert_eq!(Gear::gas_allowance(), 90_000);
 
         // Run to the next block to reset the gas limit
         run_to_block(5, Some(100_000));
@@ -723,7 +726,7 @@ fn block_gas_limit_works() {
         // | 2 |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 93_000);
+        assert_eq!(Gear::gas_allowance(), 90_000);
 
         run_to_block(6, Some(100_000));
 
@@ -733,7 +736,7 @@ fn block_gas_limit_works() {
         // |   |  ===>  |   |
         //
         System::assert_last_event(crate::Event::MessagesDequeued(1).into());
-        assert_eq!(Gear::gas_allowance(), 6000);
+        assert_eq!(Gear::gas_allowance(), 11000);
     });
 }
 
@@ -919,7 +922,7 @@ fn init_message_logging_works() {
                     program_id,
                     origin: 1.into_origin(),
                 },
-                crate::Reason::Dispatch(hex!("476173206c696d6974206578636565646564").into()),
+                crate::Reason::Dispatch("Gas limit exceeded".as_bytes().to_vec()),
             )
             .into(),
         );
@@ -1211,7 +1214,7 @@ fn events_logging_works() {
                     program_id: init_msg[1].1,
                     origin: 1.into_origin(),
                 },
-                crate::Reason::Dispatch(hex!("476173206c696d6974206578636565646564").into()),
+                crate::Reason::Dispatch("Gas limit exceeded".as_bytes().to_vec()),
             )
             .into(),
         );
@@ -1631,6 +1634,8 @@ pub fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
 
 #[test]
 fn distributor_initialize() {
+    init_logger();
+
     use tests_distributor::WASM_BINARY_BLOATY;
 
     new_test_ext().execute_with(|| {
@@ -1655,6 +1660,8 @@ fn distributor_initialize() {
 
 #[test]
 fn distributor_distribute() {
+    init_logger();
+
     use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
     new_test_ext().execute_with(|| {
@@ -1673,6 +1680,8 @@ fn distributor_distribute() {
         )
         .expect("Submit program failed");
 
+        run_to_block(2, None);
+
         Pallet::<Test>::send_message(
             Origin::signed(1).into(),
             program_id,
@@ -1683,6 +1692,9 @@ fn distributor_distribute() {
         .expect("Send message failed");
 
         run_to_block(3, None);
+
+        assert_eq!(Balances::reserved_balance(1), 0);
+        assert_eq!(Balances::reserved_balance(255), 0);
 
         let final_balance = Balances::free_balance(1) + Balances::free_balance(255);
 
