@@ -35,10 +35,6 @@ use super::{
 
 use utils::*;
 
-// TODO [sab] before merging:
-// 1. Сделай sometime soon issue про имплицитные расчеты газа и балансов -> поменять на вызовы rpc вместо текущих расчетов через default_gas_limit и т.п.
-// 2. Можно ли бесшовно поменять расчет id программы?
-
 #[test]
 fn submit_program_works() {
     init_logger();
@@ -46,21 +42,23 @@ fn submit_program_works() {
         // Check MQ is empty
         assert!(GearPallet::<Test>::message_queue().is_none());
 
-        assert_ok!(submit_default_program(USER_1));
+        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
 
         let mq = GearPallet::<Test>::message_queue().expect("message was added to the queue");
         assert_eq!(mq.len(), 1);
 
-        let submit_msg = mq.into_iter().next().expect("mq length is 1");
-        let (origin, code, program_id, message_id) = match submit_msg {
-            IntermediateMessage::InitProgram {
-                origin,
-                code,
-                program_id,
-                init_message_id,
-                ..
-            } => (origin, code, program_id, init_message_id),
-            _ => unreachable!("only init program message is in the queue"),
+        let (origin, code, program_id, message_id) = {
+            let submit_msg = mq.into_iter().next().expect("mq length is 1");
+            match submit_msg {
+                IntermediateMessage::InitProgram {
+                    origin,
+                    code,
+                    program_id,
+                    init_message_id,
+                    ..
+                } => (origin, code, program_id, init_message_id),
+                _ => unreachable!("only init program message is in the queue"),
+            }
         };
         assert_eq!(origin, USER_1.into_origin());
         // submit_program_default submits ProgramCodeKind::Default
@@ -81,16 +79,21 @@ fn submit_program_works() {
 fn submit_program_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let balance = BalancesPallet::<Test>::free_balance(LOW_BALANCE_USER);
+        let balance = BalancesPallet::<Test>::free_balance(USER_1);
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(LOW_BALANCE_USER).into(),
+                Origin::signed(USER_1).into(),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
                 DEFAULT_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
+            Error::<Test>::NotEnoughBalanceForReserve
+        );
+
+        assert_noop!(
+            submit_program_default(LOW_BALANCE_USER, ProgramCodeKind::Default),
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
@@ -114,12 +117,12 @@ fn submit_program_expected_failure() {
 fn submit_program_fails_on_duplicate_id() {
     init_logger();
     new_test_ext().execute_with(|| {
-        assert_ok!(submit_default_program(USER_1));
+        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
         // Finalize block to let queue processing run
         run_to_block(2, None);
         // By now this program id is already in the storage
         assert_noop!(
-            submit_default_program(USER_1),
+            submit_program_default(USER_1, ProgramCodeKind::Default),
             Error::<Test>::ProgramAlreadyExists
         );
     })
@@ -133,7 +136,7 @@ fn send_message_works() {
         let user2_initial_balance = BalancesPallet::<Test>::free_balance(USER_2);
 
         let program_id = {
-            let res = submit_default_program(USER_1);
+            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -145,10 +148,12 @@ fn send_message_works() {
         let mq = GearPallet::<Test>::message_queue().expect("Two messages were sent");
         assert_eq!(mq.len(), 2);
 
-        let sent_to_prog_msg = mq.into_iter().next_back().expect("mq is not empty");
-        let actual_msg_id = match sent_to_prog_msg {
-            IntermediateMessage::DispatchMessage { id, .. } => id,
-            _ => unreachable!("last message was a dispatch message"),
+        let actual_msg_id = {
+            let sent_to_prog_msg = mq.into_iter().next_back().expect("mq is not empty");
+            match sent_to_prog_msg {
+                IntermediateMessage::DispatchMessage { id, .. } => id,
+                _ => unreachable!("last message was a dispatch message"),
+            }
         };
 
         assert_eq!(expected_msg_id, actual_msg_id);
@@ -208,9 +213,9 @@ fn send_message_works() {
 fn send_message_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
-        // Submitting failing program and check message is failed to be sent to it
+        // Submitting failing in init program and check message is failed to be sent to it
         let program_id = {
-            let res = submit_default_trapping_program(USER_1);
+            let res = submit_program_default(USER_1, ProgramCodeKind::GreedyInit);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -223,7 +228,7 @@ fn send_message_expected_failure() {
 
         // Submit valid program and test failing actions on it
         let program_id = {
-            let res = submit_default_program(USER_1);
+            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -265,7 +270,7 @@ fn messages_processing_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = {
-            let res = submit_default_program(USER_1);
+            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -290,7 +295,7 @@ fn spent_gas_to_reward_block_author_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let block_author_initial_balance = BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
-        assert_ok!(submit_default_program(USER_1));
+        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
         run_to_block(2, None);
 
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
@@ -309,41 +314,17 @@ fn spent_gas_to_reward_block_author_works() {
 
 #[test]
 fn unused_gas_released_back_works() {
-    let wat = r#"
-    (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-        (import "env" "memory" (memory 1))
-        (export "handle" (func $handle))
-        (export "init" (func $init))
-        (func $handle
-            i32.const 0
-            i32.const 32
-            i32.const 32
-            i64.const 1000000000
-            i32.const 1024
-            i32.const 40000
-            call $send
-        )
-        (func $init)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
         let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
-        let submit_program_gas_limit = 5000;
         let huge_send_message_gas_limit = 50_000;
 
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let program_id = generate_program_id(&code, &salt);
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            submit_program_gas_limit,
-            0
-        ));
+        let program_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             program_id,
@@ -351,9 +332,9 @@ fn unused_gas_released_back_works() {
             huge_send_message_gas_limit,
             0
         ));
-        // Spends for submit program and sending default message
+        // Spends for submit program with default gas limit and sending default message with a huge gas limit
         let user1_potential_msgs_spends =
-            GasConverter::gas_to_fee(submit_program_gas_limit + huge_send_message_gas_limit);
+            GasConverter::gas_to_fee(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
             user1_initial_balance - user1_potential_msgs_spends
@@ -373,29 +354,7 @@ fn unused_gas_released_back_works() {
 
 #[test]
 fn block_gas_limit_works() {
-    // This program is tricky. Whatever gas amount you sent it, it will exit with a trap.
-    // That is because it performs "send", which sets 1_000_000_000 as a gas limit. Such amount can't be provided by sender,
-    // because block gas limit is only 100_000_000 (see `mock::BlockGasLimit`). Currently don't see any reason to change that.
-    // Besides, executing handle function with payload `b"payload"` takes 10_000, except for gas needed to send message.
-    let wat1 = r#"
-	(module
-		(import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-		(import "env" "memory" (memory 1))
-		(export "handle" (func $handle))
-		(export "init" (func $init))
-		(func $handle
-			i32.const 0
-			i32.const 32
-			i32.const 32
-			i64.const 1000000000
-			i32.const 1024
-			i32.const 40000
-			call $send
-		)
-		(func $init)
-	)"#;
-
-    // Executing handle function with `b"payload"` value as a payload takes 97_000 of gas.
+    // Same as `ProgramCodeKind::GreedyInit`, but greedy handle
     let wat2 = r#"
 	(module
 		(import "env" "memory" (memory 1))
@@ -429,38 +388,32 @@ fn block_gas_limit_works() {
     new_test_ext().execute_with(|| {
         let remaining_weight = 100_000;
 
-        let code1 = ProgramCodeKind::Custom(wat1).to_bytes();
-        let code2 = ProgramCodeKind::Custom(wat2).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
+        // Submit programs and get their ids
+        let pid1 = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+        let pid2 = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat2));
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
-        let pid1 = generate_program_id(&code1, &salt);
-        let pid2 = generate_program_id(&code2, &salt);
-
-        // Submit programs
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code1,
-            salt.clone(),
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0
-        ));
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code2,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0
-        ));
         run_to_block(2, Some(remaining_weight));
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
 
         // Count gas needed to process programs with default payload
         let expected_gas_msg_to_pid1 =
-            GearPallet::<Test>::get_gas_spent(pid1, DEFAULT_PAYLOAD.to_vec()).expect("has traps");
+            GearPallet::<Test>::get_gas_spent(pid1, DEFAULT_PAYLOAD.to_vec())
+                .expect("internal error: get gas spent (pid1) failed");
         let expected_gas_msg_to_pid2 =
-            GearPallet::<Test>::get_gas_spent(pid2, DEFAULT_PAYLOAD.to_vec()).expect("has traps");
+            GearPallet::<Test>::get_gas_spent(pid2, DEFAULT_PAYLOAD.to_vec())
+                .expect("internal error: get gas spent (pid2) failed");
+
+        // TrapInHandle code kind is used because processing default payload in its
+        // context requires such an amount of gas, that the following assertion can be passed.
+        assert!(expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2 > remaining_weight);
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
@@ -558,43 +511,13 @@ fn block_gas_limit_works() {
 
 #[test]
 fn mailbox_works() {
-    let wat = r#"
-    (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-        (import "env" "gr_source" (func $gr_source (param i32)))
-        (import "env" "memory" (memory 1))
-        (export "handle" (func $handle))
-        (export "init" (func $init))
-        (export "handle_reply" (func $handle_reply))
-        (func $handle
-            i32.const 16384
-            call $gr_source
-            i32.const 16384
-            i32.const 0
-            i32.const 32
-            i64.const 1000000
-            i32.const 1024
-            i32.const 40000
-            call $send
-        )
-        (func $handle_reply)
-        (func $init)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        ));
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             prog_id,
@@ -624,72 +547,34 @@ fn mailbox_works() {
 
 #[test]
 fn init_message_logging_works() {
-    // Initialization function for that program requires a lot of gas.
-    // So, providing `DEFAULT_GAS_LIMIT` will end up processing with
-    // "Gas limit exceeded" execution outcome error message.
-    let wat2 = r#"
-	(module
-		(import "env" "memory" (memory 1))
-		(export "init" (func $init))
-        (func $doWork (param $size i32)
-            (local $counter i32)
-            i32.const 0
-            set_local $counter
-            loop $while
-                get_local $counter
-                i32.const 1
-                i32.add
-                set_local $counter
-                get_local $counter
-                get_local $size
-                i32.lt_s
-                if
-                    br $while
-                end
-            end $while
-        )
-        (func $init
-            i32.const 4
-            call $doWork
-		)
-	)"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
         let mut next_block = 2;
         let codes = [
-            (ProgramCodeKind::Default.to_bytes(), false, ""),
-            (
-                ProgramCodeKind::Custom(wat2).to_bytes(),
-                true,
-                "Gas limit exceeded",
-            ),
+            (ProgramCodeKind::Default, false, ""),
+            // Will fail, because tests use default gas limit, which is very low for successful greedy init
+            (ProgramCodeKind::GreedyInit, true, "Gas limit exceeded"),
         ];
 
-        for (code, is_failing, trap_explanation) in codes {
+        for (code_kind, is_failing, trap_explanation) in codes {
             SystemPallet::<Test>::reset_events();
 
-            assert_ok!(GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
-                code,
-                DEFAULT_SALT.to_vec(),
-                DEFAULT_PAYLOAD.to_vec(),
-                DEFAULT_GAS_LIMIT,
-                0
-            ));
+            assert_ok!(submit_program_default(USER_1, code_kind));
 
-            let msg: IntermediateMessage = GearPallet::<Test>::message_queue()
-                .map(|v| v.into_iter().next())
-                .flatten()
-                .expect("mq has only submit program message");
-            let (program_id, message_id, origin) = match msg {
-                IntermediateMessage::InitProgram {
-                    program_id,
-                    init_message_id,
-                    origin,
-                    ..
-                } => (program_id, init_message_id, origin),
-                _ => unreachable!("mq has only submit program message"),
+            let (program_id, message_id, origin) = {
+                let msg: IntermediateMessage = GearPallet::<Test>::message_queue()
+                    .map(|v| v.into_iter().next())
+                    .flatten()
+                    .expect("mq has only submit program message");
+                match msg {
+                    IntermediateMessage::InitProgram {
+                        program_id,
+                        init_message_id,
+                        origin,
+                        ..
+                    } => (program_id, init_message_id, origin),
+                    _ => unreachable!("mq has only submit program message"),
+                }
             };
 
             SystemPallet::<Test>::assert_last_event(
@@ -726,39 +611,11 @@ fn init_message_logging_works() {
 
 #[test]
 fn program_lifecycle_works() {
-    // Traps on init if provide little gas
-    let wat = r#"
-	(module
-		(import "env" "memory" (memory 1))
-		(export "init" (func $init))
-        (func $doWork (param $size i32)
-            (local $counter i32)
-            i32.const 0
-            set_local $counter
-            loop $while
-                get_local $counter
-                i32.const 1
-                i32.add
-                set_local $counter
-                get_local $counter
-                get_local $size
-                i32.lt_s
-                if
-                    br $while
-                end
-            end $while
-        )
-        (func $init
-            i32.const 4
-            call $doWork
-		)
-	)"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
         // Submitting first program and getting its id
         let program_id = {
-            let res = submit_default_program(USER_1);
+            let res = submit_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -769,16 +626,11 @@ fn program_lifecycle_works() {
         assert!(common::get_program(program_id).is_some());
 
         // Submitting second program, which fails on initialization, therefore goes to limbo.
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let program_id = generate_program_id(&code, DEFAULT_SALT);
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            DEFAULT_SALT.to_vec(),
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0
-        ));
+        let program_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::GreedyInit);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
         assert!(common::get_program(program_id).is_none());
         run_to_block(3, None);
@@ -810,33 +662,6 @@ fn program_lifecycle_works() {
 
 #[test]
 fn events_logging_works() {
-    let wat_greedy_init = r#"
-	(module
-		(import "env" "memory" (memory 1))
-		(export "init" (func $init))
-        (func $doWork (param $size i32)
-            (local $counter i32)
-            i32.const 0
-            set_local $counter
-            loop $while
-                get_local $counter
-                i32.const 1
-                i32.add
-                set_local $counter
-                get_local $counter
-                get_local $size
-                i32.lt_s
-                if
-                    br $while
-                end
-            end $while
-        )
-        (func $init
-            i32.const 4
-            call $doWork
-		)
-	)"#;
-
     let wat_trap_in_handle = r#"
 	(module
 		(import "env" "memory" (memory 1))
@@ -867,7 +692,7 @@ fn events_logging_works() {
             // Code, init failure reason, handle succeed flag
             (ProgramCodeKind::Default, None, true),
             (
-                ProgramCodeKind::Custom(wat_greedy_init),
+                ProgramCodeKind::GreedyInit,
                 Some(String::from("Gas limit exceeded").encode()),
                 false,
             ),
@@ -877,28 +702,23 @@ fn events_logging_works() {
                 false,
             ),
             (ProgramCodeKind::Custom(wat_trap_in_handle), None, false),
-        ]
-        .map(|test| (test.0.to_bytes(), test.1, test.2));
-        for (code, init_failure_reason, handle_succeed) in tests {
+        ];
+        for (code_kind, init_failure_reason, handle_succeed) in tests {
             SystemPallet::<Test>::reset_events();
 
+            let program_id = {
+                let res = submit_program_default(USER_1, code_kind);
+                assert_ok!(res);
+                res.expect("submit result was asserted")
+            };
+
             let init_msg_info = MessageInfo {
+                program_id,
                 message_id: compute_user_message_id(DEFAULT_PAYLOAD, nonce),
-                program_id: generate_program_id(&code, DEFAULT_SALT),
                 origin: USER_1.into_origin(),
             };
-            // Alias not to perform redundant clone
-            let program_id = init_msg_info.program_id;
-
-            assert_ok!(GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
-                code,
-                DEFAULT_SALT.to_vec(),
-                DEFAULT_PAYLOAD.to_vec(),
-                DEFAULT_GAS_LIMIT,
-                0
-            ));
             nonce += 1;
+
             SystemPallet::<Test>::assert_last_event(
                 Event::InitMessageEnqueued(init_msg_info.clone()).into(),
             );
@@ -954,44 +774,13 @@ fn events_logging_works() {
 
 #[test]
 fn send_reply_works() {
-    let wat = r#"
-    (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-        (import "env" "gr_source" (func $gr_source (param i32)))
-        (import "env" "memory" (memory 1))
-        (export "handle" (func $handle))
-        (export "init" (func $init))
-        (export "handle_reply" (func $handle_reply))
-        (func $handle
-            i32.const 16384
-            call $gr_source
-            i32.const 16384
-            i32.const 0
-            i32.const 32
-            i64.const 1000000
-            i32.const 1024
-            i32.const 40000
-            call $send
-        )
-        (func $handle_reply)
-        (func $init)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
-        // Make sure we have a program in the program storage
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        ));
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
         // This creates a message in mailbox for USER_1
         assert_ok!(GearPallet::<Test>::send_message(
@@ -1038,29 +827,6 @@ fn send_reply_works() {
 
 #[test]
 fn send_reply_expected_failure() {
-    let wat = r#"
-    (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-        (import "env" "gr_source" (func $gr_source (param i32)))
-        (import "env" "memory" (memory 1))
-        (export "handle" (func $handle))
-        (export "init" (func $init))
-        (export "handle_reply" (func $handle_reply))
-        (func $handle
-            i32.const 16384
-            call $gr_source
-            i32.const 16384
-            i32.const 0
-            i32.const 32
-            i64.const 1000000
-            i32.const 1024
-            i32.const 40000
-            call $send
-        )
-        (func $handle_reply)
-        (func $init)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
         // Expecting error as long as the user doesn't have messages in mailbox
@@ -1076,18 +842,11 @@ fn send_reply_expected_failure() {
         );
 
         // Submitting program and sending it message to invoke a message, that will be added to LOW_BALANCE_USER's sandbox
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        ));
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
         // increase LOW_BALANCE_USER balance a bit to allow him send message
         let reply_gas_spent = GearPallet::<Test>::get_gas_spent(prog_id, DEFAULT_PAYLOAD.to_vec())
@@ -1149,6 +908,7 @@ fn send_reply_expected_failure() {
     })
 }
 
+// todo [sab] custom to SendMsgInHandle
 #[test]
 fn send_reply_insufficient_program_balance() {
     // Sending message to USER_1 is hardcoded!
@@ -1179,18 +939,11 @@ fn send_reply_insufficient_program_balance() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        ));
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
         // Invoke handle function to make a message send to mailbox
         assert_ok!(GearPallet::<Test>::send_message(
@@ -1220,7 +973,7 @@ fn send_reply_insufficient_program_balance() {
         );
     })
 }
-
+// todo [sab] custom to SendMsgInHandle
 #[test]
 fn send_reply_value_offset_works() {
     // Sending message to USER_1 is hardcoded!
@@ -1251,18 +1004,11 @@ fn send_reply_value_offset_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
-
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        ));
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
         // These values are actually constants in WAT. Alternatively can be read from Mailbox.
         let locked_gas_limit = 10_000_000;
@@ -1337,7 +1083,7 @@ fn send_reply_value_offset_works() {
         }
     })
 }
-
+// todo [sab] custom to SendMsgInHandle
 #[test]
 fn claim_value_from_mailbox_works() {
     // Sending message to USER_1 is hardcoded!
@@ -1368,18 +1114,12 @@ fn claim_value_from_mailbox_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let code = ProgramCodeKind::Custom(wat).to_bytes();
-        let salt = DEFAULT_SALT.to_vec();
-        let prog_id = generate_program_id(&code, &salt);
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
 
-        assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code,
-            salt,
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        ));
         // Invoke handle function to make a message send to mailbox from program
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
@@ -1635,8 +1375,12 @@ mod utils {
             .try_init();
     }
 
-    pub(super) fn submit_default_program(user: AccountId) -> DispatchCustomResult<H256> {
-        let code = ProgramCodeKind::Default.to_bytes();
+    // Submits program with default options (salt, gas limit, value, payload)
+    pub(super) fn submit_program_default(
+        user: AccountId,
+        code_kind: ProgramCodeKind,
+    ) -> DispatchCustomResult<H256> {
+        let code = code_kind.to_bytes();
         let salt = DEFAULT_SALT.to_vec();
         // alternatively, get from last event
         let prog_id = generate_program_id(&code, &salt);
@@ -1651,22 +1395,6 @@ mod utils {
         .map(|_| prog_id)
     }
 
-    pub(super) fn submit_default_trapping_program(user: AccountId) -> DispatchCustomResult<H256> {
-        let code = ProgramCodeKind::Trapping.to_bytes();
-        // alternatively, get from last event
-        let prog_id = generate_program_id(&code, DEFAULT_SALT);
-        GearPallet::<Test>::submit_program(
-            Origin::signed(user).into(),
-            code,
-            DEFAULT_SALT.to_vec(),
-            DEFAULT_PAYLOAD.to_vec(),
-            DEFAULT_GAS_LIMIT,
-            0,
-        )
-        .map(|_| prog_id)
-    }
-
-    // todo [sab] maybe remove, because if changed can be unsafe.
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
         // TODO #512
         let mut data = Vec::new();
@@ -1702,24 +1430,77 @@ mod utils {
     pub(super) enum ProgramCodeKind<'a> {
         Default,
         Custom(&'a str),
-        Trapping,
+        GreedyInit,
+        SendMsgInHandle,
     }
 
     impl<'a> ProgramCodeKind<'a> {
         pub(super) fn to_bytes(self) -> Vec<u8> {
             let source = match self {
                 ProgramCodeKind::Default => {
-                    r#"(module
-                            (import "env" "memory" (memory 1))
-                            (export "handle" (func $handle))
-                            (export "init" (func $init))
-                            (func $handle)
-                            (func $init)
-                        )"#
-                }
-                ProgramCodeKind::Trapping => {
-                    r#"(module
+                    r#"
+                    (module
                         (import "env" "memory" (memory 1))
+                        (export "handle" (func $handle))
+                        (export "init" (func $init))
+                        (func $handle)
+                        (func $init)
+                    )"#
+                }
+                ProgramCodeKind::GreedyInit => {
+                    // Initialization function for that program requires a lot of gas.
+                    // So, providing `DEFAULT_GAS_LIMIT` will end up processing with
+                    // "Gas limit exceeded" execution outcome error message.
+                    r#"
+                    (module
+                        (import "env" "memory" (memory 1))
+                        (export "init" (func $init))
+                        (func $doWork (param $size i32)
+                            (local $counter i32)
+                            i32.const 0
+                            set_local $counter
+                            loop $while
+                                get_local $counter
+                                i32.const 1
+                                i32.add
+                                set_local $counter
+                                get_local $counter
+                                get_local $size
+                                i32.lt_s
+                                if
+                                    br $while
+                                end
+                            end $while
+                        )
+                        (func $init
+                            i32.const 4
+                            call $doWork
+                        )
+                    )"#
+                }
+                ProgramCodeKind::SendMsgInHandle => {
+                    // program sends message in handle which sets gas limit to 1_000_000.
+                    r#"
+                    (module
+                        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+                        (import "env" "gr_source" (func $gr_source (param i32)))
+                        (import "env" "memory" (memory 1))
+                        (export "handle" (func $handle))
+                        (export "init" (func $init))
+                        (export "handle_reply" (func $handle_reply))
+                        (func $handle
+                            i32.const 16384
+                            call $gr_source
+                            i32.const 16384
+                            i32.const 0
+                            i32.const 32
+                            i64.const 1000000
+                            i32.const 1024
+                            i32.const 40000
+                            call $send
+                        )
+                        (func $handle_reply)
+                        (func $init)
                     )"#
                 }
                 ProgramCodeKind::Custom(code) => code,
