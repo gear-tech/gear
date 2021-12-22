@@ -390,7 +390,7 @@ fn block_gas_limit_works() {
 
         // Submit programs and get their ids
         let pid1 = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -514,7 +514,7 @@ fn mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -522,7 +522,7 @@ fn mailbox_works() {
             Origin::signed(USER_1).into(),
             prog_id,
             Vec::new(),
-            2_000_000, // `prog_id` program sends message in handle which sets gas limit to 1_000_000.
+            20_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
             0,
         ));
         run_to_block(2, None);
@@ -539,9 +539,9 @@ fn mailbox_works() {
         .expect("There should be a message for user #1 in the mailbox");
 
         assert_eq!(mailbox_message.id, reply_to_id,);
-        // Values were taken from the program code!
-        assert_eq!(mailbox_message.payload, vec![0u8; 32]);
-        assert_eq!(mailbox_message.gas_limit, 1000000);
+        // Value was taken from the program code!
+        assert_eq!(mailbox_message.gas_limit, 10_000_000);
+        assert_eq!(mailbox_message.value, 1000);
     })
 }
 
@@ -777,7 +777,7 @@ fn send_reply_works() {
     init_logger();
     new_test_ext().execute_with(|| {
         let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -787,7 +787,7 @@ fn send_reply_works() {
             Origin::signed(USER_1).into(),
             prog_id,
             DEFAULT_PAYLOAD.to_vec(),
-            2_000_000, // `prog_id` program sends message in handle which sets gas limit to 1_000_000.
+            20_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
             0,
         ));
 
@@ -802,7 +802,7 @@ fn send_reply_works() {
             reply_to_id,
             DEFAULT_PAYLOAD.to_vec(),
             10_000_000,
-            0
+            1000, // `prog_id` sent message with value of 1000 (see program code)
         ));
 
         // global nonce is 2 before sending reply message (`submit_program` and `send_message` messages were sent before)
@@ -826,121 +826,11 @@ fn send_reply_works() {
 }
 
 #[test]
-fn send_reply_expected_failure() {
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // Expecting error as long as the user doesn't have messages in mailbox
-        assert_noop!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(LOW_BALANCE_USER).into(),
-                5.into_origin(), // non existent `reply_to_id`
-                DEFAULT_PAYLOAD.to_vec(),
-                DEFAULT_GAS_LIMIT,
-                0
-            ),
-            Error::<Test>::NoMessageInMailbox
-        );
-
-        // Submitting program and sending it message to invoke a message, that will be added to LOW_BALANCE_USER's sandbox
-        let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::SendMsgInHandle);
-            assert_ok!(res);
-            res.expect("submit result was asserted")
-        };
-
-        // increase LOW_BALANCE_USER balance a bit to allow him send message
-        let reply_gas_spent = GearPallet::<Test>::get_gas_spent(prog_id, DEFAULT_PAYLOAD.to_vec())
-            .expect("program exists and not faulty");
-        assert_ok!(BalancesPallet::<Test>::transfer(
-            Origin::signed(USER_1).into(),
-            LOW_BALANCE_USER,
-            GasConverter::gas_to_fee(reply_gas_spent),
-        ));
-
-        assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(LOW_BALANCE_USER).into(),
-            prog_id,
-            DEFAULT_PAYLOAD.to_vec(),
-            reply_gas_spent,
-            0,
-        ));
-
-        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
-
-        run_to_block(2, None);
-
-        assert_noop!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(LOW_BALANCE_USER).into(),
-                reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
-                10_000_000, // Too big gas limit value
-                0
-            ),
-            Error::<Test>::NotEnoughBalanceForReserve
-        );
-
-        // Value transfer is attempted if `value` field is greater than 0
-        assert_noop!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(LOW_BALANCE_USER).into(),
-                reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
-                1, // Must be greater than incoming gas_limit to have changed the state during reserve()
-                100,
-            ),
-            pallet_balances::Error::<Test>::InsufficientBalance
-        );
-
-        // Gas limit too high
-        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
-        assert_noop!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(USER_1).into(),
-                reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
-                block_gas_limit + 1,
-                0
-            ),
-            Error::<Test>::GasLimitTooHigh
-        );
-    })
-}
-
-// todo [sab] custom to SendMsgInHandle
-#[test]
 fn send_reply_insufficient_program_balance() {
-    // Sending message to USER_1 is hardcoded!
-    let wat = r#"
-    (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-        (import "env" "gr_source" (func $gr_source (param i32)))
-        (import "env" "memory" (memory 1))
-        (export "handle" (func $handle))
-        (export "init" (func $init))
-        (export "handle_reply" (func $handle_reply))
-        (func $handle
-            (local $msg_source i32)
-            (local $msg_val i32)
-            (i32.store offset=2
-                (get_local $msg_source)
-                (i32.const 1)
-            )
-            (i32.store offset=10
-                (get_local $msg_val)
-                (i32.const 1000)
-            )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
-        )
-        (func $handle_reply)
-        (func $init)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
         let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -973,39 +863,96 @@ fn send_reply_insufficient_program_balance() {
         );
     })
 }
-// todo [sab] custom to SendMsgInHandle
+
+#[test]
+fn send_reply_expected_failure() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Expecting error as long as the user doesn't have messages in mailbox
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                5.into_origin(), // non existent `reply_to_id`
+                DEFAULT_PAYLOAD.to_vec(),
+                DEFAULT_GAS_LIMIT,
+                0
+            ),
+            Error::<Test>::NoMessageInMailbox
+        );
+
+        // Submitting program and sending it message to invoke a message, that will be added to LOW_BALANCE_USER's sandbox
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        // increase LOW_BALANCE_USER balance a bit to allow him send message
+        let reply_gas_spent = GearPallet::<Test>::get_gas_spent(prog_id, DEFAULT_PAYLOAD.to_vec())
+            .expect("program exists and not faulty");
+        assert_ok!(BalancesPallet::<Test>::transfer(
+            Origin::signed(USER_1).into(),
+            LOW_BALANCE_USER,
+            GasConverter::gas_to_fee(reply_gas_spent),
+        ));
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(LOW_BALANCE_USER).into(),
+            prog_id,
+            DEFAULT_PAYLOAD.to_vec(),
+            reply_gas_spent,
+            0,
+        ));
+
+        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
+        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
+
+        run_to_block(2, None);
+
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                reply_to_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                10_000_000, // Too big gas limit value
+                1000
+            ),
+            Error::<Test>::NotEnoughBalanceForReserve
+        );
+
+        // Value transfer is attempted if `value` field is greater than 0
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(LOW_BALANCE_USER).into(),
+                reply_to_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                1, // Must be greater than incoming gas_limit to have changed the state during reserve()
+                1000,
+            ),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+
+        // Gas limit too high
+        let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
+        assert_noop!(
+            GearPallet::<Test>::send_reply(
+                Origin::signed(USER_1).into(),
+                reply_to_id,
+                DEFAULT_PAYLOAD.to_vec(),
+                block_gas_limit + 1,
+                1000
+            ),
+            Error::<Test>::GasLimitTooHigh
+        );
+    })
+}
+
 #[test]
 fn send_reply_value_offset_works() {
-    // Sending message to USER_1 is hardcoded!
-    let wat = r#"
-    (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-        (import "env" "gr_source" (func $gr_source (param i32)))
-        (import "env" "memory" (memory 1))
-        (export "handle" (func $handle))
-        (export "init" (func $init))
-        (export "handle_reply" (func $handle_reply))
-        (func $handle
-            (local $msg_source i32)
-            (local $msg_val i32)
-            (i32.store offset=2
-                (get_local $msg_source)
-                (i32.const 1)
-            )
-            (i32.store offset=10
-                (get_local $msg_val)
-                (i32.const 1000)
-            )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
-        )
-        (func $handle_reply)
-        (func $init)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
         let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1043,7 +990,7 @@ fn send_reply_value_offset_works() {
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-            let send_to_program_amount = 15_000_000;
+            let send_to_program_amount = GasConverter::gas_to_fee(locked_gas_limit) * 2;
             assert_ok!(
                 <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
                     &USER_1,
@@ -1083,39 +1030,17 @@ fn send_reply_value_offset_works() {
         }
     })
 }
-// todo [sab] custom to SendMsgInHandle
+
 #[test]
 fn claim_value_from_mailbox_works() {
-    // Sending message to USER_1 is hardcoded!
-    let wat = r#"
-    (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
-        (import "env" "gr_source" (func $gr_source (param i32)))
-        (import "env" "memory" (memory 1))
-        (export "handle" (func $handle))
-        (export "init" (func $init))
-        (export "handle_reply" (func $handle_reply))
-        (func $handle
-            (local $msg_source i32)
-            (local $msg_val i32)
-            (i32.store offset=2
-                (get_local $msg_source)
-                (i32.const 1)
-            )
-            (i32.store offset=10
-                (get_local $msg_val)
-                (i32.const 1000)
-            )
-            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 100000) (i32.const 10) (i32.const 40000))
-        )
-        (func $handle_reply)
-        (func $init)
-    )"#;
-
     init_logger();
     new_test_ext().execute_with(|| {
+        // These values are actually constants in WAT. Alternatively can be read from Mailbox.
+        let locked_gas_limit = 10_000_000;
+        let locked_value = 1000;
+
         let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -1125,7 +1050,7 @@ fn claim_value_from_mailbox_works() {
             Origin::signed(USER_1).into(),
             prog_id,
             Vec::new(),
-            2_000_000, // `prog_id` program sends message in handle which sets gas limit to 100_000.
+            20_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
             0,
         ));
 
@@ -1137,7 +1062,7 @@ fn claim_value_from_mailbox_works() {
             common::GAS_VALUE_PREFIX,
             USER_1.into_origin(),
             reply_to_id,
-            100_000,
+            locked_gas_limit,
         );
 
         run_to_block(2, None);
@@ -1146,7 +1071,7 @@ fn claim_value_from_mailbox_works() {
 
         let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-        let send_to_program_amount = 300_000;
+        let send_to_program_amount = GasConverter::gas_to_fee(locked_gas_limit) * 2;
         assert_ok!(
             <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
                 &USER_1,
@@ -1166,8 +1091,8 @@ fn claim_value_from_mailbox_works() {
             reply_to_id,
         ));
 
-        // 1000 - is the default `value` set in WAT.
-        let expected_balance = user_balance - send_to_program_amount + 1000;
+        // TODO #539 after claim some amount locked for gas in message must be returned
+        let expected_balance = user_balance - send_to_program_amount + locked_value;
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
             expected_balance
@@ -1431,7 +1356,7 @@ mod utils {
         Default,
         Custom(&'a str),
         GreedyInit,
-        SendMsgInHandle,
+        OutgoingWithValueInHandle,
     }
 
     impl<'a> ProgramCodeKind<'a> {
@@ -1478,8 +1403,10 @@ mod utils {
                         )
                     )"#
                 }
-                ProgramCodeKind::SendMsgInHandle => {
-                    // program sends message in handle which sets gas limit to 1_000_000.
+                ProgramCodeKind::OutgoingWithValueInHandle => {
+                    // Sending message to USER_1 is hardcoded!
+                    // Program sends message in handle which sets gas limit to 10_000_000 and value to 1000.
+                    // [warning] - program payload data is inaccurate, don't make assumptions about it!
                     r#"
                     (module
                         (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
@@ -1489,15 +1416,17 @@ mod utils {
                         (export "init" (func $init))
                         (export "handle_reply" (func $handle_reply))
                         (func $handle
-                            i32.const 16384
-                            call $gr_source
-                            i32.const 16384
-                            i32.const 0
-                            i32.const 32
-                            i64.const 1000000
-                            i32.const 1024
-                            i32.const 40000
-                            call $send
+                            (local $msg_source i32)
+                            (local $msg_val i32)
+                            (i32.store offset=2
+                                (get_local $msg_source)
+                                (i32.const 1)
+                            )
+                            (i32.store offset=10
+                                (get_local $msg_val)
+                                (i32.const 1000)
+                            )
+                            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
                         )
                         (func $handle_reply)
                         (func $init)
