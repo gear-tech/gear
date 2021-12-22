@@ -355,7 +355,7 @@ fn unused_gas_released_back_works() {
 #[test]
 fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::GreedyInit`, but greedy handle
-    let wat2 = r#"
+    let wat = r#"
 	(module
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
@@ -395,7 +395,7 @@ fn block_gas_limit_works() {
             res.expect("submit result was asserted")
         };
         let pid2 = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat2));
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
