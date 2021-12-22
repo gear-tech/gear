@@ -40,8 +40,7 @@ pub trait DebugInfo {
 }
 
 impl DebugInfo for () {
-    fn do_snapshot() {
-    }
+    fn do_snapshot() {}
     fn is_enabled() -> bool {
         false
     }
