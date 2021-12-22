@@ -310,8 +310,6 @@ pub mod pallet {
                     program, dispatch, block_info,
                 );
 
-                ext_manager.set_program(res.program);
-
                 for note in &res.journal {
                     match note {
                         JournalNote::GasBurned { amount, .. } => {
@@ -407,9 +405,7 @@ pub mod pallet {
 
                         let H256(bytes) = program_id;
 
-                        if let Ok(program) =
-                            Program::new(bytes.into(), code.to_vec(), Default::default())
-                        {
+                        if let Ok(program) = Program::new(bytes.into(), code.to_vec()) {
                             let dispatch = Dispatch {
                                 kind: DispatchKind::Init,
                                 message: init_message.into(),
@@ -504,8 +500,6 @@ pub mod pallet {
                     let res = core_processor::process::<SandboxEnvironment<Ext>>(
                         program, dispatch, block_info,
                     );
-
-                    ext_manager.set_program(res.program);
 
                     core_processor::handle_journal(res.journal, &mut ext_manager);
 

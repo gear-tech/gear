@@ -2138,6 +2138,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime",
  "gear-test",
+ "log",
  "parity-scale-codec",
  "regex",
  "sc-cli",

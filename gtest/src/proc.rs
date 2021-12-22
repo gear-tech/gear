@@ -1,7 +1,7 @@
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use gear_core::{
-    message::{IncomingMessage, Message, MessageId},
+    message::{IncomingMessage, Message},
     program::{Program, ProgramId},
 };
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -95,7 +95,7 @@ pub fn init_program(
     block_info: BlockInfo,
     journal_handler: &mut dyn JournalHandler,
 ) -> anyhow::Result<()> {
-    let program = Program::new(message.id, message.code.clone(), Default::default())?;
+    let program = Program::new(message.id, message.code.clone())?;
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
         return Err(anyhow::anyhow!(
@@ -230,10 +230,9 @@ pub fn init_fixture(
     Ok(())
 }
 
-pub fn run<JH, FMQ>(steps: Option<usize>, journal_handler: &mut JH, pass_message: FMQ) -> Vec<(State, anyhow::Result<()>)>
+pub fn run<JH>(steps: Option<usize>, journal_handler: &mut JH) -> Vec<(State, anyhow::Result<()>)>
 where
     JH: JournalHandler + CollectState,
-    FMQ: Fn(Option<(ProgramId, MessageId)>) -> () + Send + 'static + Copy
 {
     let mut results = Vec::new();
     let mut state = journal_handler.collect();
@@ -248,8 +247,6 @@ where
                 .unwrap_or(0) as u64;
 
             if let Some(m) = state.message_queue.pop_front() {
-                pass_message(None);
-
                 let program = state.programs.get(&m.dest()).expect("Can't find program");
 
                 let res = gear_core_processor::process::<WasmtimeEnvironment<Ext>>(
@@ -257,16 +254,6 @@ where
                     message_to_dispatch(m),
                     BlockInfo { height, timestamp },
                 );
-
-                for note in &res.journal {
-                    if let JournalNote::WakeMessage { program_id, awakening_id, .. } = note {
-                        pass_message(Some((*program_id, *awakening_id)));
-                        log::debug!("waking this {:?}", awakening_id);
-                    }
-                    if let JournalNote::UpdatePage { .. } = note {
-                    } else {
-                        log::debug!("{:?}", note);
-                }}
 
                 gear_core_processor::handle_journal(res.journal, journal_handler);
 
@@ -279,8 +266,6 @@ where
     } else {
         let mut counter = 0;
         while let Some(m) = state.message_queue.pop_front() {
-            pass_message(None);
-
             let program = state.programs.get(&m.dest()).expect("Can't find program");
 
             let timestamp = SystemTime::now()
@@ -298,15 +283,7 @@ where
             );
             counter += 1;
 
-            gear_core_processor::handle_journal(res.journal.clone(), journal_handler);
-
-            for note in &res.journal {
-                if let JournalNote::WakeMessage { program_id, awakening_id, .. } = note {
-                    pass_message(Some((*program_id, *awakening_id)));
-                    log::debug!("waking this {:?}", awakening_id);
-                }
-                log::debug!("{:?}", note);
-            }
+            gear_core_processor::handle_journal(res.journal, journal_handler);
 
             state = journal_handler.collect();
             results.push((state.clone(), Ok(())));

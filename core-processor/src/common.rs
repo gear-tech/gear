@@ -189,7 +189,7 @@ pub struct ExecutionError {
     pub reason: &'static str,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct State {
     pub message_queue: VecDeque<Message>,
     pub log: Vec<Message>,

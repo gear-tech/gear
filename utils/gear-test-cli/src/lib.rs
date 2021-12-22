@@ -19,6 +19,7 @@
 use std::fmt::Debug;
 
 mod command;
+mod manager;
 
 /// The `runtests` command used to test gear with yaml.
 #[derive(Debug, structopt::StructOpt)]

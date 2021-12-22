@@ -25,7 +25,7 @@ use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_core::{
     memory::PAGE_SIZE,
-    message::{Message, MessageId},
+    message::Message,
     program::{Program, ProgramId},
 };
 use gear_core_processor::common::{CollectState, JournalHandler};
@@ -416,7 +416,7 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_fixture<JH, FMQ>(
+fn run_fixture<JH>(
     mut journal_handler: JH,
     test: &Test,
     fixture_no: usize,
@@ -425,16 +425,14 @@ fn run_fixture<JH, FMQ>(
     skip_messages: bool,
     skip_allocations: bool,
     skip_memory: bool,
-    pass_message: FMQ,
 ) -> ColoredString
 where
     JH: JournalHandler + CollectState,
-    FMQ: Fn(Option<(ProgramId, MessageId)>) -> () + Send + 'static + Copy,
 {
     match proc::init_fixture(test, fixture_no, &mut journal_handler) {
         Ok(()) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = proc::run(last_exp_steps, &mut journal_handler, pass_message);
+            let results = proc::run(last_exp_steps, &mut journal_handler);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {
@@ -522,7 +520,7 @@ where
 /// For each fixture in the test file from `files` the function setups (initializes) it and then performs all the checks
 /// by first running messages defined in the fixture section and then checking (if required) message state, allocations and memory.
 #[allow(clippy::too_many_arguments)]
-pub fn check_main<JH, F, FMQ>(
+pub fn check_main<JH, F>(
     files: Vec<std::path::PathBuf>,
     skip_messages: bool,
     skip_allocations: bool,
@@ -530,12 +528,10 @@ pub fn check_main<JH, F, FMQ>(
     print_logs: bool,
     storage_factory: F,
     ext: Option<Box<dyn Fn() -> sp_io::TestExternalities + Send + Sync + 'static>>,
-    pass_message: FMQ,
 ) -> anyhow::Result<()>
 where
     JH: JournalHandler + CollectState,
     F: Fn() -> JH + std::marker::Sync + std::marker::Send,
-    FMQ: Fn(Option<(ProgramId, MessageId)>) -> () + Send + Sync + 'static + Copy
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
     if let Err(e) = FixtureLogger::init(Arc::clone(&map)) {
@@ -575,7 +571,7 @@ where
                 let output = if let Some(test_ext) = &ext {
                     test_ext().execute_with(|| {
                         let storage = storage_factory();
-                        run_fixture::<JH, FMQ>(
+                        run_fixture::<JH>(
                             storage,
                             test,
                             fixture_no,
@@ -584,12 +580,11 @@ where
                             skip_messages,
                             skip_allocations,
                             skip_memory,
-                            pass_message,
                         )
                     })
                 } else {
                     let storage = storage_factory();
-                    run_fixture::<JH, FMQ>(
+                    run_fixture::<JH>(
                         storage,
                         test,
                         fixture_no,
@@ -598,7 +593,6 @@ where
                         skip_messages,
                         skip_allocations,
                         skip_memory,
-                        pass_message
                     )
                 };
                 if output != "Ok".bright_green() {

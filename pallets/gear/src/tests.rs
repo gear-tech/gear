@@ -193,7 +193,6 @@ fn send_message_works() {
         let program = Program::new(
             ProgramId::from_slice(&program_id[..]),
             code,
-            Default::default(),
         )
         .unwrap();
         common::native::set_program(program);
@@ -277,7 +276,6 @@ fn send_message_expected_failure() {
                     (import "env" "memory" (memory 1))
                 )"#,
             ),
-            Default::default(),
         )
         .expect("Program failed to instantiate");
         common::native::set_program(program);
@@ -1333,7 +1331,6 @@ fn send_reply_works() {
                     (func $handle)
                 )"#,
             ),
-            Default::default(),
         )
         .unwrap();
         common::native::set_program(program);
@@ -1389,7 +1386,6 @@ fn send_reply_expected_failure() {
                     (import "env" "memory" (memory 1))
                 )"#,
             ),
-            Default::default(),
         )
         .expect("Program failed to instantiate");
         common::native::set_program(program);
@@ -1470,7 +1466,6 @@ fn send_reply_value_offset_works() {
                     (import "env" "memory" (memory 1))
                 )"#,
             ),
-            Default::default(),
         )
         .expect("Program failed to instantiate");
         common::native::set_program(program);
@@ -1562,7 +1557,6 @@ fn claim_value_from_mailbox_works() {
                     (import "env" "memory" (memory 1))
                 )"#,
             ),
-            Default::default(),
         )
         .expect("Program failed to instantiate");
         common::native::set_program(program);

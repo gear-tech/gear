@@ -375,8 +375,7 @@ impl RunnerContext {
         } = init_data.into().into_init_program_info(self);
 
         // store program
-        let program =
-            Program::new(new_program_id, code, BTreeMap::new()).expect("Failed to create program");
+        let program = Program::new(new_program_id, code).expect("Failed to create program");
         self.programs.insert(new_program_id, program);
 
         // generate disspatch

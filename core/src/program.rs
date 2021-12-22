@@ -18,7 +18,7 @@
 
 //! Module for programs.
 
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
@@ -109,7 +109,7 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: Vec<u8>, pages: BTreeMap<u32, Vec<u8>>) -> Result<Self> {
+    pub fn new(id: ProgramId, code: Vec<u8>) -> Result<Self> {
         // get initial memory size from memory import.
         let static_pages: u32 = {
             parity_wasm::elements::Module::from_bytes(&code)
@@ -129,11 +129,11 @@ impl Program {
 
         let mut persistent_pages: BTreeMap<PageNumber, Box<PageBuf>> = BTreeMap::new();
 
-        for (num, buf) in pages {
+        for i in 0..static_pages {
             persistent_pages.insert(
-                num.into(),
+                i.into(),
                 Box::new(
-                    PageBuf::try_from(buf).map_err(|_| {
+                    PageBuf::try_from(vec![0; PageNumber::size()]).map_err(|_| {
                         anyhow::anyhow!("Error loading program: invalid page buffer")
                     })?,
                 ),
@@ -147,6 +147,31 @@ impl Program {
             persistent_pages,
             message_nonce: 0,
         })
+    }
+
+    /// New program from stored data
+    pub fn from_parts(
+        id: ProgramId,
+        code: Vec<u8>,
+        static_pages: u32,
+        message_nonce: u64,
+        pages: BTreeMap<u32, Vec<u8>>,
+    ) -> Self {
+        Self {
+            id,
+            code,
+            static_pages,
+            persistent_pages: pages
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k.into(),
+                        Box::new(PageBuf::try_from(v).expect("Can't fail")),
+                    )
+                })
+                .collect(),
+            message_nonce,
+        }
     }
 
     /// Reference to code of this program.
@@ -263,7 +288,6 @@ impl Program {
 mod tests {
     use super::{Program, ProgramId};
     use crate::util::encode_hex;
-    use alloc::collections::BTreeMap;
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -316,18 +340,8 @@ mod tests {
             )"#;
 
         let binary: Vec<u8> = parse_wat(wat);
-        let mut pages = BTreeMap::new();
 
-        // invalid PageBuf
-        pages.insert(1, vec![]);
-
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages.clone()).is_err());
-
-        pages.insert(1, vec![0; 65537]);
-
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages).is_err());
-
-        let mut program = Program::new(ProgramId::from(1), binary, BTreeMap::default()).unwrap();
+        let mut program = Program::new(ProgramId::from(1), binary).unwrap();
 
         // 2 initial pages
         assert_eq!(program.static_pages(), 2);
@@ -335,6 +349,6 @@ mod tests {
         assert!(program.set_page(1.into(), &vec![0; 123]).is_err());
 
         assert!(program.set_page(1.into(), &vec![0; 65536]).is_ok());
-        assert_eq!(program.get_pages().len(), 1);
+        assert_eq!(program.get_pages().len(), 2);
     }
 }

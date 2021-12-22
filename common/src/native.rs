@@ -22,7 +22,6 @@ use gear_core::{
 };
 
 use primitive_types::H256;
-use sp_std::vec::Vec;
 
 use crate::{Message, Origin};
 
@@ -91,16 +90,16 @@ pub fn dequeue_message() -> Option<CoreMessage> {
 }
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
-    crate::get_program(id.into_origin()).map(|prog| {
+    if let Some(prog) = crate::get_program(id.into_origin()) {
         let persistent_pages = crate::get_program_pages(id.into_origin(), prog.persistent_pages);
         if let Some(code) = crate::get_code(prog.code_hash) {
-            let mut program = Program::new(id, code, persistent_pages).unwrap();
-            program.set_message_nonce(prog.nonce);
-            program
-        } else {
-            Program::new(id, Vec::new(), persistent_pages).unwrap()
+            let program =
+                Program::from_parts(id, code, prog.static_pages, prog.nonce, persistent_pages);
+            return Some(program);
         }
-    })
+    };
+
+    None
 }
 
 pub fn set_program(program: Program) {

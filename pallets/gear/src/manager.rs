@@ -1,6 +1,6 @@
 use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GasAllowance,
-    Mailbox, MessageInfo, Pallet, ProgramsLimbo,
+    MessageInfo, Pallet, ProgramsLimbo,
 };
 use codec::Decode;
 use common::{
@@ -73,26 +73,11 @@ where
             }
         }
 
-        let log: Vec<Message> = <Mailbox<T>>::iter()
-            .map(|(_, map)| {
-                map.values()
-                    .cloned()
-                    .map(Into::into)
-                    .collect::<Vec<Message>>()
-            })
-            .flatten()
-            .collect();
-
-        let state = State {
+        State {
             message_queue,
-            log,
             programs,
-            current_failed: false,
-        };
-
-        log::debug!("{:?}", state);
-
-        state
+            ..Default::default()
+        }
     }
 }
 
@@ -118,26 +103,17 @@ where
     }
 
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
-        if let Some(prog) = common::get_program(id) {
-            let persistent_pages = common::get_program_pages(id, prog.persistent_pages);
-            let code = common::get_code(prog.code_hash)?;
-            let id: ProgramId = id.as_ref().into();
-            let mut program = Program::new(id, code, persistent_pages).expect("Can't fail");
-            program.set_message_nonce(prog.nonce);
-            return Some(program);
-        };
-
-        None
+        common::native::get_program(ProgramId::from_origin(id))
     }
 
-    pub fn set_program(&self, program: gear_core::program::Program) {
+    fn set_program(&self, program: gear_core::program::Program) {
         let mut persistent_pages = BTreeMap::<u32, Vec<u8>>::new();
 
         for (key, value) in program.get_pages().iter() {
             persistent_pages.insert(key.raw(), value.to_vec());
         }
 
-        let id = H256::from_slice(program.id().as_slice());
+        let id = program.id().into_origin();
 
         let code_hash: H256 = sp_io::hashing::blake2_256(program.code()).into();
 
@@ -219,6 +195,8 @@ where
     }
     fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64) {
         let message_id = message_id.into_origin();
+
+        log::debug!("burned: {:?}", amount);
 
         // Adjust block gas allowance
         GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));

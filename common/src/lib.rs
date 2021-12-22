@@ -372,6 +372,8 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     original_nonce
 }
 
+
+// TODO: refactor this
 pub fn set_nonce(id: H256, nonce: u64) {
     let mut key_id = STORAGE_MESSAGE_USER_NONCE_KEY.to_vec();
     key_id.extend(&id[..]);
