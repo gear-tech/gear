@@ -513,7 +513,8 @@ fn block_gas_limit_works() {
 fn mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let reply_to_id = setup_mailbox_test_state(USER_1, 2);
+        // caution: runs to block 2
+        let reply_to_id = setup_mailbox_test_state(USER_1);
 
         let mailbox_message = {
             let res = GearPallet::<Test>::remove_from_mailbox(USER_1.into_origin(), reply_to_id);
@@ -759,7 +760,8 @@ fn events_logging_works() {
 fn send_reply_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let reply_to_id = setup_mailbox_test_state(USER_1, 2);
+        // caution: runs to block 2
+        let reply_to_id = setup_mailbox_test_state(USER_1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1).into(),
@@ -794,7 +796,8 @@ fn send_reply_works() {
 fn send_reply_insufficient_program_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let reply_to_id = setup_mailbox_test_state(USER_1, 2);
+        // caution: runs to block 2
+        let reply_to_id = setup_mailbox_test_state(USER_1);
 
         // Program doesn't have enough balance - error expected
         assert_noop!(
@@ -1221,14 +1224,19 @@ mod utils {
 
     // Creates a new program and puts message from program to `user` in mailbox
     // using extrinsic calls. Imitates real-world sequence of calls.
+    //
+    // *NOTE*:
+    // 1) usually called inside first block
+    // 2) runs to block 2 all the messages place to message queue/storage
+    //
     // Returns id of the message in the mailbox
-    pub(super) fn setup_mailbox_test_state(user: AccountId, run_to_block: BlockNumber) -> H256 {
+    pub(super) fn setup_mailbox_test_state(user: AccountId) -> H256 {
         let prog_id = {
             let res = submit_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-        populate_mailbox_from_program(prog_id, user, run_to_block, 0)
+        populate_mailbox_from_program(prog_id, user, 2, 0)
     }
 
     // Puts message from `prog_id` for the `user` in mailbox and returns its id
