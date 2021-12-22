@@ -47,7 +47,7 @@ struct Opts {
 pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
     let print_logs = !matches!(opts.verbose, 0);
-    check::check_main::<InMemoryHandler, _>(
+    check::check_main::<InMemoryHandler, _, _>(
         opts.input.to_vec(),
         opts.skip_messages,
         opts.skip_allocations,
@@ -55,5 +55,6 @@ pub fn main() -> anyhow::Result<()> {
         print_logs,
         InMemoryHandler::default,
         None,
+        |_| {},
     )
 }

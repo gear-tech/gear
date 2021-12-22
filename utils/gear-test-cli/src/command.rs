@@ -19,6 +19,9 @@
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 
+use gear_core::{message::MessageId, program::ProgramId};
+use gear_common::Origin;
+
 use frame_system as system;
 
 use crate::GearTestCmd;
@@ -35,7 +38,7 @@ impl GearTestCmd {
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         new_test_ext()
             .execute_with(|| {
-                gear_test::check::check_main::<gear_runtime::ExtManager<gear_runtime::Runtime>, _>(
+                gear_test::check::check_main::<gear_runtime::ExtManager<gear_runtime::Runtime>, _, _>(
                     self.input.to_vec(),
                     false,
                     false,
@@ -49,6 +52,14 @@ impl GearTestCmd {
                         Default::default()
                     },
                     Some(Box::new(&new_test_ext)),
+                    |opt: Option<(ProgramId, MessageId)>| {
+                        if let Some((prog_id, msg_id)) = opt {
+                            let (msg, _) = gear_common::remove_waiting_message(prog_id.into_origin(), msg_id.into_origin()).expect(&format!("Message not found in waitlist: {:?}", msg_id));
+                            gear_common::queue_message(msg);
+                        } else {
+                            let _ = gear_common::dequeue_message();
+                        }
+                    }
                 )
             })
             .map_err(|e: anyhow::Error| sc_cli::Error::Application(e.into()))
