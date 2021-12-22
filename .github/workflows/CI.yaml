@@ -32,12 +32,11 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
-      # - name: "Cache: Unpack"
-      #   run: |
-      #     cp /root/cache/*.lz4 /tmp/
-      #     lz4 -dc --no-sparse /tmp/cache.tar.lz4 | tar xf - -C /
-      #     lz4 -dc --no-sparse /tmp/cargo_registry.tar.lz4 | tar xf - -C /
-      #     lz4 -dc --no-sparse /tmp/target.tar.lz4 | tar xf -
+      - name: "Cache: Unpack"
+        run: |
+          tar -xf /root/cache/check_cache.tar -C /
+          tar -xf /root/cache/check_cargo_registry.tar -C /
+          tar -xf /root/cache/check_target.tar
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -94,12 +93,11 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
-      # - name: "Cache: Unpack"
-      #   run: |
-      #     cp /root/cache/*.lz4 /tmp/
-      #     lz4 -dc --no-sparse /tmp/cache.tar.lz4 | tar xf - -C /
-      #     lz4 -dc --no-sparse /tmp/cargo_registry.tar.lz4 | tar xf - -C /
-      #     lz4 -dc --no-sparse /tmp/target.tar.lz4 | tar xf -
+      - name: "Cache: Unpack"
+        run: |
+          tar -xf /root/cache/build_cache.tar -C /
+          tar -xf /root/cache/build_cargo_registry.tar -C /
+          tar -xf /root/cache/build_target.tar
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked
@@ -215,12 +213,11 @@ jobs:
           sudo apt update
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
-      # - name: "Cache: Unpack"
-      #   run: |
-      #     cp /root/cache/*.lz4 /tmp/
-      #     lz4 -dc --no-sparse /tmp/cache.tar.lz4 | tar xf - -C /
-      #     lz4 -dc --no-sparse /tmp/cargo_registry.tar.lz4 | tar xf - -C /
-      #     lz4 -dc --no-sparse /tmp/target.tar.lz4 | tar xf -
+      - name: "Cache: Unpack"
+        run: |
+          tar -xf /root/cache/gtest_cache.tar -C /
+          tar -xf /root/cache/gtest_cargo_registry.tar -C /
+          tar -xf /root/cache/gtest_target.tar
 
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
