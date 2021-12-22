@@ -513,30 +513,13 @@ fn block_gas_limit_works() {
 fn mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
-            assert_ok!(res);
-            res.expect("submit result was asserted")
+        let reply_to_id = setup_mailbox_test_state(USER_1, 2);
+
+        let mailbox_message = {
+            let res = GearPallet::<Test>::remove_from_mailbox(USER_1.into_origin(), reply_to_id);
+            assert!(res.is_some());
+            res.expect("was asserted previously")
         };
-        assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
-            prog_id,
-            Vec::new(),
-            20_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-            0,
-        ));
-        run_to_block(2, None);
-
-        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
-
-        assert!(Mailbox::<Test>::contains_key(USER_1));
-        let mailbox_message = GearPallet::<Test>::remove_from_mailbox(
-            USER_1.into_origin(),
-            // this is fixed (nonce based)
-            reply_to_id,
-        )
-        .expect("There should be a message for user #1 in the mailbox");
 
         assert_eq!(mailbox_message.id, reply_to_id,);
         // Value was taken from the program code!
@@ -776,27 +759,8 @@ fn events_logging_works() {
 fn send_reply_works() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
-            assert_ok!(res);
-            res.expect("submit result was asserted")
-        };
+        let reply_to_id = setup_mailbox_test_state(USER_1, 2);
 
-        // This creates a message in mailbox for USER_1
-        assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
-            prog_id,
-            DEFAULT_PAYLOAD.to_vec(),
-            20_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-            0,
-        ));
-
-        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
-
-        run_to_block(2, None);
-
-        assert!(Mailbox::<Test>::contains_key(USER_1));
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1).into(),
             reply_to_id,
@@ -805,7 +769,8 @@ fn send_reply_works() {
             1000, // `prog_id` sent message with value of 1000 (see program code)
         ));
 
-        // global nonce is 2 before sending reply message (`submit_program` and `send_message` messages were sent before)
+        // global nonce is 2 before sending reply message
+        // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
         let expected_reply_message_id = compute_user_message_id(DEFAULT_PAYLOAD, 2);
         let (actual_reply_message_id, orig_id) = {
             let intermediate_msg = GearPallet::<Test>::message_queue()
@@ -829,26 +794,7 @@ fn send_reply_works() {
 fn send_reply_insufficient_program_balance() {
     init_logger();
     new_test_ext().execute_with(|| {
-        let prog_id = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
-            assert_ok!(res);
-            res.expect("submit result was asserted")
-        };
-
-        // Invoke handle function to make a message send to mailbox
-        assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
-            prog_id,
-            DEFAULT_PAYLOAD.to_vec(),
-            15_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-            0,
-        ));
-        run_to_block(2, None);
-
-        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
-
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        let reply_to_id = setup_mailbox_test_state(USER_1, 2);
 
         // Program doesn't have enough balance - error expected
         assert_noop!(
@@ -970,23 +916,10 @@ fn send_reply_value_offset_works() {
             (20_000_000, 2000),
         ];
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
-            // Message from program
-            let reply_to_id = compute_program_message_id(prog_id.as_bytes(), program_nonce);
-
-            // Invoke handle function to make a message send to mailbox from program
-            assert_ok!(GearPallet::<Test>::send_message(
-                Origin::signed(USER_1).into(),
-                prog_id,
-                Vec::new(),
-                15_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-                0,
-            ));
+            let reply_to_id =
+                populate_mailbox_from_program(prog_id, USER_1, next_block, program_nonce);
             program_nonce += 1;
-
-            run_to_block(next_block, None);
             next_block += 1;
-
-            assert!(Mailbox::<Test>::contains_key(USER_1));
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
@@ -1044,18 +977,7 @@ fn claim_value_from_mailbox_works() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-
-        // Invoke handle function to make a message send to mailbox from program
-        assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
-            prog_id,
-            Vec::new(),
-            20_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-            0,
-        ));
-
-        // Newly created program, which sends message in handle, has received only one message by now => nonce is 0.
-        let reply_to_id = compute_program_message_id(prog_id.as_bytes(), 0);
+        let reply_to_id = populate_mailbox_from_program(prog_id, USER_1, 2, 0);
 
         // TODO Must solve #539 to remove that clumsy creation
         common::value_tree::ValueView::get_or_create(
@@ -1064,10 +986,6 @@ fn claim_value_from_mailbox_works() {
             reply_to_id,
             locked_gas_limit,
         );
-
-        run_to_block(2, None);
-
-        assert!(Mailbox::<Test>::contains_key(USER_1));
 
         let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
@@ -1283,7 +1201,7 @@ mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
 
-    use super::{pallet, GearPallet, Origin, Test};
+    use super::{assert_ok, pallet, run_to_block, GearPallet, Mailbox, Origin, Test};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
@@ -1292,12 +1210,57 @@ mod utils {
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
     pub(super) type GasConverter = <Test as pallet::Config>::GasConverter;
+    type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
     pub(super) fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)
             .try_init();
+    }
+
+    // Creates a new program and puts message from program to `user` in mailbox
+    // using extrinsic calls. Imitates real-world sequence of calls.
+    // Returns id of the message in the mailbox
+    pub(super) fn setup_mailbox_test_state(user: AccountId, run_to_block: BlockNumber) -> H256 {
+        let prog_id = {
+            let res = submit_program_default(user, ProgramCodeKind::OutgoingWithValueInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+        populate_mailbox_from_program(prog_id, user, run_to_block, 0)
+    }
+
+    // Puts message from `prog_id` for the `user` in mailbox and returns its id
+    pub(super) fn populate_mailbox_from_program(
+        prog_id: H256,
+        user: AccountId,
+        block_num: BlockNumber,
+        program_nonce: u64,
+    ) -> H256 {
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(user).into(),
+            prog_id,
+            Vec::new(),
+            20_000_000, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
+            0,
+        ));
+        run_to_block(block_num, None);
+
+        {
+            let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
+            assert_eq!(
+                common::get_program(prog_id)
+                    .expect("program must exist")
+                    .code_hash,
+                sp_io::hashing::blake2_256(&expected_code).into(),
+                "can invokle send to mailbox only from `ProgramCodeKind::OutgoingWithValueInHandle` program"
+            );
+        }
+
+        assert!(Mailbox::<Test>::contains_key(user));
+
+        compute_program_message_id(prog_id.as_bytes(), program_nonce)
     }
 
     // Submits program with default options (salt, gas limit, value, payload)
