@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use blake2_rfc::blake2b;
-
 use gear_core::{
     message::{MessageId, MessageIdGenerator},
     program::ProgramId,

@@ -16,17 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    configs::{AllocationsConfig, BlockInfo},
+    id::BlakeMessageIdGenerator,
+};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{ExitCode, MessageContext, MessageId, OutgoingPacket, ReplyPacket},
     program::ProgramId,
-};
-
-use crate::{
-    configs::{AllocationsConfig, BlockInfo},
-    id::BlakeMessageIdGenerator,
 };
 
 /// Structure providing externalities for running host functions.

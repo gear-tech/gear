@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Decode, Encode};
-
 use gear_core::memory::PageNumber;
 
 const MAX_PAGES: u32 = 512;

@@ -27,10 +27,16 @@ extern crate alloc;
 
 pub mod common;
 pub mod configs;
-pub mod executor;
-pub mod ext;
-pub mod handler;
-pub mod id;
-pub mod processor;
+mod executor;
+mod ext;
+mod handler;
+mod id;
+mod processor;
 
-pub use common::*;
+pub const ERR_EXIT_CODE: i32 = 1;
+
+pub use executor::execute_wasm;
+pub use ext::Ext;
+pub use handler::handle_journal;
+pub use id::next_message_id;
+pub use processor::{process, process_many};

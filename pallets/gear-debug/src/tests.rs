@@ -25,7 +25,7 @@ use common::{self, Message, Origin as _};
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
 use sp_core::H256;
-use std::collections::BTreeMap;
+use sp_std::collections::btree_map::BTreeMap;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()

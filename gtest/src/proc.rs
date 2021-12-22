@@ -13,7 +13,8 @@ use std::str::FromStr;
 
 use regex::Regex;
 
-use gear_core_processor::{common::*, configs::*, ext::Ext, handler, processor};
+use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_core_processor::{common::*, configs::*, Ext};
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
@@ -102,13 +103,13 @@ pub fn init_program(
         ));
     }
 
-    let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>(
+    let res = gear_core_processor::process::<WasmtimeEnvironment<Ext>>(
         program,
         message.into(),
         block_info,
     );
 
-    handler::handle_journal(res.journal, journal_handler);
+    gear_core_processor::handle_journal(res.journal, journal_handler);
 
     Ok(())
 }
@@ -248,13 +249,13 @@ where
             if let Some(m) = state.message_queue.pop_front() {
                 let program = state.programs.get(&m.dest()).expect("Can't find program");
 
-                let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>(
+                let res = gear_core_processor::process::<WasmtimeEnvironment<Ext>>(
                     program.clone(),
                     message_to_dispatch(m),
                     BlockInfo { height, timestamp },
                 );
 
-                handler::handle_journal(res.journal, journal_handler);
+                gear_core_processor::handle_journal(res.journal, journal_handler);
 
                 log::debug!("step: {}", step_no + 1);
             }
@@ -272,7 +273,7 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let res = processor::process::<gear_backend_wasmtime::WasmtimeEnvironment<Ext>>(
+            let res = gear_core_processor::process::<WasmtimeEnvironment<Ext>>(
                 program.clone(),
                 message_to_dispatch(m),
                 BlockInfo {
@@ -282,7 +283,7 @@ where
             );
             counter += 1;
 
-            handler::handle_journal(res.journal.clone(), journal_handler);
+            gear_core_processor::handle_journal(res.journal.clone(), journal_handler);
             state = journal_handler.collect();
             results.push((state.clone(), Ok(())));
         }

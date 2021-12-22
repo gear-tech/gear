@@ -16,21 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    vec,
-    vec::Vec,
-};
-
 use crate::{
     common::{Dispatch, DispatchResult, DispatchResultKind, ExecutionError},
     configs::ExecutionSettings,
     ext::Ext,
     id::BlakeMessageIdGenerator,
 };
-
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    vec,
+    vec::Vec,
+};
 use gear_backend_common::Environment;
-
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasCounter},
@@ -38,8 +35,6 @@ use gear_core::{
     message::{MessageContext, MessageState},
     program::Program,
 };
-
-pub const ERR_EXIT_CODE: i32 = 1;
 
 pub fn execute_wasm<E: Environment<Ext>>(
     program: Program,

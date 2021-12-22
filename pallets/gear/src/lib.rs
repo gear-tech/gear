@@ -58,7 +58,7 @@ pub mod pallet {
     use core_processor::{
         common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
         configs::BlockInfo,
-        ext::Ext,
+        Ext,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -66,6 +66,7 @@ pub mod pallet {
         traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
+    use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::program::Program;
     use manager::ExtManager;
     use primitive_types::H256;
@@ -306,9 +307,9 @@ pub mod pallet {
                     message: message.into(),
                 };
 
-                let res = core_processor::processor::process::<
-                    gear_backend_sandbox::SandboxEnvironment<Ext>,
-                >(program, dispatch, block_info);
+                let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                    program, dispatch, block_info,
+                );
 
                 ext_manager.set_program(res.program);
 
@@ -326,7 +327,7 @@ pub mod pallet {
                     }
                 }
 
-                core_processor::handler::handle_journal(res.journal, &mut ext_manager);
+                core_processor::handle_journal(res.journal, &mut ext_manager);
             }
 
             Some(gas_burned)
@@ -415,11 +416,11 @@ pub mod pallet {
                                 message: init_message.into(),
                             };
 
-                            let res = core_processor::processor::process::<
-                                gear_backend_sandbox::SandboxEnvironment<Ext>,
-                            >(program, dispatch, block_info);
+                            let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                                program, dispatch, block_info,
+                            );
 
-                            core_processor::handler::handle_journal(res.journal, &mut ext_manager);
+                            core_processor::handle_journal(res.journal, &mut ext_manager);
 
                             total_handled += 1;
                         } else {
@@ -501,13 +502,13 @@ pub mod pallet {
                         message: message.into(),
                     };
 
-                    let res = core_processor::processor::process::<
-                        gear_backend_sandbox::SandboxEnvironment<Ext>,
-                    >(program, dispatch, block_info);
+                    let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                        program, dispatch, block_info,
+                    );
 
                     ext_manager.set_program(res.program);
 
-                    core_processor::handler::handle_journal(res.journal, &mut ext_manager);
+                    core_processor::handle_journal(res.journal, &mut ext_manager);
 
                     total_handled += 1;
                 } else {
