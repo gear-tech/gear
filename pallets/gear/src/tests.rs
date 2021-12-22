@@ -578,14 +578,12 @@ fn init_message_logging_works() {
                 origin,
             };
 
-            SystemPallet::<Test>::assert_has_event(
-                if is_failing {
-                    let trap_explanation = String::from(trap_explanation).encode();
-                    Event::InitFailure(msg_info, Reason::Dispatch(trap_explanation)).into()
-                } else {
-                    Event::InitSuccess(msg_info).into()
-                }
-            );
+            SystemPallet::<Test>::assert_has_event(if is_failing {
+                let trap_explanation = String::from(trap_explanation).encode();
+                Event::InitFailure(msg_info, Reason::Dispatch(trap_explanation)).into()
+            } else {
+                Event::InitSuccess(msg_info).into()
+            });
 
             next_block += 1;
         }
