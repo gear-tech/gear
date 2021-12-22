@@ -83,12 +83,16 @@ where
             .flatten()
             .collect();
 
-        State {
+        let state = State {
             message_queue,
             log,
             programs,
             current_failed: false,
-        }
+        };
+
+        log::debug!("{:?}", state);
+
+        state
     }
 }
 

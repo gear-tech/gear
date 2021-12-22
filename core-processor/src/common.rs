@@ -197,6 +197,17 @@ pub struct State {
     pub current_failed: bool,
 }
 
+impl alloc::fmt::Debug for State {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
+        f.debug_struct("State")
+            .field("message_queue", &self.message_queue)
+            .field("log", &self.log)
+            .field("programs", &self.programs.keys())
+            .field("current_failed", &self.current_failed)
+            .finish()
+    }
+}
+
 pub trait CollectState {
     fn collect(&self) -> State;
 }
