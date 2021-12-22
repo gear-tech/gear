@@ -353,6 +353,8 @@ impl pallet_gear::Config for Runtime {
     type BlockGasLimit = BlockGasLimit;
     #[cfg(feature = "debug-mode")]
     type DebugInfo = pallet_gear_debug::Pallet<Runtime>;
+    #[cfg(not(feature = "debug-mode"))]
+    type DebugInfo = ();
 }
 
 #[cfg(feature = "debug-mode")]

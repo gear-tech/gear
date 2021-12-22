@@ -72,5 +72,3 @@ runtime-benchmarks = [
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
 ]
-debug-mode = [
-]

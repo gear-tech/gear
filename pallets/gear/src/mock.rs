@@ -32,25 +32,6 @@ type Block = frame_system::mocking::MockBlock<Test>;
 pub const BLOCK_AUTHOR: u64 = 255;
 
 // Configure a mock runtime to test the pallet.
-#[cfg(feature = "debug-mode")]
-construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
-    {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-
-        // Only available with "debug-mode" feature on
-        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
-    }
-);
-
-#[cfg(not(feature = "debug-mode"))]
 construct_runtime!(
     pub enum Test where
         Block = Block,
@@ -124,12 +105,7 @@ impl pallet_gear::Config for Test {
     type GasConverter = GasConverter;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
-}
-
-#[cfg(feature = "debug-mode")]
-impl pallet_gear_debug::Config for Test {
-    type Event = Event;
-    type WeightInfo = ();
+    type DebugInfo = ();
 }
 
 pub struct FixedBlockAuthor;

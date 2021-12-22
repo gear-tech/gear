@@ -114,6 +114,5 @@ runtime-benchmarks = [
 	"sp-runtime/runtime-benchmarks",
 ]
 debug-mode = [
-	"pallet-gear/debug-mode",
 	"pallet-gear-debug",
 ]

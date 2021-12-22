@@ -34,10 +34,17 @@ mod tests;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
-#[cfg(feature = "debug-mode")]
 pub trait DebugInfo {
     fn do_snapshot();
     fn is_enabled() -> bool;
+}
+
+impl DebugInfo for () {
+    fn do_snapshot() {
+    }
+    fn is_enabled() -> bool {
+        false
+    }
 }
 
 #[frame_support::pallet]
@@ -89,7 +96,6 @@ pub mod pallet {
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
 
-        #[cfg(feature = "debug-mode")]
         type DebugInfo: DebugInfo;
     }
 
@@ -514,7 +520,6 @@ pub mod pallet {
                     continue;
                 }
 
-                #[cfg(feature = "debug-mode")]
                 if T::DebugInfo::is_enabled() {
                     T::DebugInfo::do_snapshot();
                 }

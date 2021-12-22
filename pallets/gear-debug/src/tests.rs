@@ -93,7 +93,8 @@ fn debug_mode_works() {
             Vec::new(),
             1_000_000_u64,
             0_u128,
-        ).expect("Failed to submit program");
+        )
+        .expect("Failed to submit program");
 
         // Enable debug-mode
         DebugMode::<Test>::put(true);
@@ -105,15 +106,13 @@ fn debug_mode_works() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 message_queue: vec![],
-                programs: vec![
-                    crate::ProgramDetails {
-                        id: program_id_1,
-                        static_pages: 16,
-                        persistent_pages: BTreeMap::new(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-                        nonce: 0u64,
-                    }
-                ],
+                programs: vec![crate::ProgramDetails {
+                    id: program_id_1,
+                    static_pages: 16,
+                    persistent_pages: BTreeMap::new(),
+                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                    nonce: 0u64,
+                }],
             })
             .into(),
         );
@@ -125,7 +124,8 @@ fn debug_mode_works() {
             Vec::new(),
             1_000_000_u64,
             0_u128,
-        ).expect("Failed to submit program");
+        )
+        .expect("Failed to submit program");
 
         run_to_block(3, None);
 
@@ -160,7 +160,8 @@ fn debug_mode_works() {
             vec![],
             1_000_000_u64,
             0_u128,
-        ).expect("Failed to send message");
+        )
+        .expect("Failed to send message");
 
         let message_id_1 = common::peek_last_message_id(&[]);
 
@@ -170,7 +171,8 @@ fn debug_mode_works() {
             vec![],
             1_000_000_u64,
             0_u128,
-        ).expect("Failed to send message");
+        )
+        .expect("Failed to send message");
 
         let message_id_2 = common::peek_last_message_id(&[]);
 
