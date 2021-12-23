@@ -1,0 +1,26 @@
+name: Upgrade-runtime
+
+on: [workflow_dispatch]
+
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  upgrade-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download wasm runtime
+        run: curl https://builds.gear.rs/gear-runtime-nightly-wasm.tar.xz | tar -xz
+
+      - name: "Install: Node.js"
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+
+      - name: Install polkadot-js-api
+        run: npm install -g @polkadot/api-cli
+      
+      - name: Send setCode extrinsic
+        run: polkadot-js-api --ws wss://rpc-node.gear-tech.io:443 --sudoUncheckedWeight 1 --seed "${{ secrets.ROOT_SEED }}" tx.system.setCode @gear_runtime.wasm
+      
+
+
