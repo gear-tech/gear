@@ -240,6 +240,11 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
     }
 }
 
+// (code_hash, salt, payload (start_pointer, len), gas_limit, value) -> ActorId
+pub fn create_program<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
+    todo!()
+}
+
 pub fn size<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {
     move || ext.with(|ext: &mut E| ext.msg().len() as _).unwrap_or(0)
 }
