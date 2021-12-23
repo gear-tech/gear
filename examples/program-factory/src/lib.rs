@@ -20,7 +20,7 @@ pub unsafe extern "C" fn handle() {
     //   (func $handle)
     //   (func $init)
     // )"#
-    let submitted_code: H256 = hex_literal::hex!("").into();
+    let submitted_code: H256 = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
     let new_program_id = msg::create_program(submitted_code, b"default", b"", 10_000, 0);
     log::debug!("new program {:?}", new_program_id);
 }

@@ -241,7 +241,7 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
 }
 
 // (code_hash, salt(start_ptr, len), payload (start_ptr, len), gas_limit, value) -> ActorId
-pub fn create_program<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
+pub fn create_program<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
     move |code_hash_ptr: i32,
           salt_ptr: i32,
           salt_len: i32,

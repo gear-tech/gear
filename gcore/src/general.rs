@@ -149,6 +149,12 @@ impl ActorId {
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
 pub struct H256(pub [u8; 32]);
 
+impl From<[u8; 32]> for H256 {
+    fn from(v: [u8; 32]) -> Self {
+        H256(v)
+    }
+}
+
 impl H256 {
     /// Create a new `H256` from 32-byte slice `s`.
     ///
