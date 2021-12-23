@@ -15,7 +15,8 @@ test_usage() {
 
     gear           run workspace tests
     js             run metadata js tests
-    gtest          run gtest testing tool
+    gtest          run gtest testing tool,
+                   you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     ntest          run node testsuite
     pallet         run pallet-gear tests
 
@@ -35,7 +36,31 @@ gtest() {
   ROOT_DIR="$1"
   shift
 
-  cargo run --package gear-test --release -- "$ROOT_DIR"/gtest/spec/*.yaml "$@"
+  if [ -n "$1" ]
+  then
+    has_yamls=$(echo "$1" | grep "yamls=" || true)
+  else
+    has_yamls=""
+  fi
+
+  if  [ -n "$has_yamls" ]
+  then
+    if ! command -v perl &> /dev/null
+    then
+      echo "Can not parse yamls without \"perl\" installed =("
+      exit 1
+    fi
+
+    YAMLS=$(echo $1 | perl -ne 'print $1 if /yamls=(.*)/s')
+    shift
+  fi
+
+  if [ -z "$YAMLS" ]
+  then
+    YAMLS="$ROOT_DIR/gtest/spec/*.yaml $ROOT_DIR/gtest/spec_no_rpc/*.yaml"
+  fi
+
+  cargo run --package gear-test --release -- $YAMLS "$@"
 }
 
 # $1 - ROOT DIR
