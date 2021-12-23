@@ -85,7 +85,7 @@ fn submit_program_expected_failure() {
                 Origin::signed(USER_1).into(),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 balance + 1
             ),
@@ -104,7 +104,7 @@ fn submit_program_expected_failure() {
                 Origin::signed(USER_1).into(),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 block_gas_limit + 1,
                 0
             ),
@@ -141,7 +141,7 @@ fn send_message_works() {
             res.expect("submit result was asserted")
         };
         // After the submit program message will be sent, global nonce will be 1.
-        let expected_msg_id = compute_user_message_id(DEFAULT_PAYLOAD, 1);
+        let expected_msg_id = compute_user_message_id(EMPTY_PAYLOAD, 1);
 
         assert_ok!(send_default_message(USER_1, program_id));
 
@@ -172,7 +172,7 @@ fn send_message_works() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             USER_2.into_origin(),
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             mail_value,
         ));
@@ -243,7 +243,7 @@ fn send_message_expected_failure() {
             GearPallet::<Test>::send_message(
                 Origin::signed(LOW_BALANCE_USER).into(),
                 USER_1.into_origin(),
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 1, // gas limit must be greater than 0 to have changed the state during reserve()
                 100
             ),
@@ -256,7 +256,7 @@ fn send_message_expected_failure() {
             GearPallet::<Test>::send_message(
                 Origin::signed(USER_1).into(),
                 program_id,
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 block_gas_limit + 1,
                 0
             ),
@@ -328,7 +328,7 @@ fn unused_gas_released_back_works() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             program_id,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             huge_send_message_gas_limit,
             0
         ));
@@ -405,10 +405,10 @@ fn block_gas_limit_works() {
 
         // Count gas needed to process programs with default payload
         let expected_gas_msg_to_pid1 =
-            GearPallet::<Test>::get_gas_spent(pid1, DEFAULT_PAYLOAD.to_vec())
+            GearPallet::<Test>::get_gas_spent(pid1, EMPTY_PAYLOAD.to_vec())
                 .expect("internal error: get gas spent (pid1) failed");
         let expected_gas_msg_to_pid2 =
-            GearPallet::<Test>::get_gas_spent(pid2, DEFAULT_PAYLOAD.to_vec())
+            GearPallet::<Test>::get_gas_spent(pid2, EMPTY_PAYLOAD.to_vec())
                 .expect("internal error: get gas spent (pid2) failed");
 
         // TrapInHandle code kind is used because processing default payload in its
@@ -418,14 +418,14 @@ fn block_gas_limit_works() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             pid1,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
             100
         ));
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             pid1,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
             100
         ));
@@ -444,21 +444,21 @@ fn block_gas_limit_works() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             pid1,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
             200
         ));
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             pid2,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid2,
             100
         ));
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             pid1,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
             200
         ));
@@ -695,7 +695,7 @@ fn events_logging_works() {
 
             let init_msg_info = MessageInfo {
                 program_id,
-                message_id: compute_user_message_id(DEFAULT_PAYLOAD, nonce),
+                message_id: compute_user_message_id(EMPTY_PAYLOAD, nonce),
                 origin: USER_1.into_origin(),
             };
             nonce += 1;
@@ -724,7 +724,7 @@ fn events_logging_works() {
 
             let dispatch_msg_info = MessageInfo {
                 program_id,
-                message_id: compute_user_message_id(DEFAULT_PAYLOAD, nonce),
+                message_id: compute_user_message_id(EMPTY_PAYLOAD, nonce),
                 origin: USER_1.into_origin(),
             };
             // Messages to fully-initialized programs are accepted
@@ -763,14 +763,14 @@ fn send_reply_works() {
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1).into(),
             reply_to_id,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             10_000_000,
             1000, // `prog_id` sent message with value of 1000 (see program code)
         ));
 
         // global nonce is 2 before sending reply message
         // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
-        let expected_reply_message_id = compute_user_message_id(DEFAULT_PAYLOAD, 2);
+        let expected_reply_message_id = compute_user_message_id(EMPTY_PAYLOAD, 2);
         let (actual_reply_message_id, orig_id) = {
             let intermediate_msg = GearPallet::<Test>::message_queue()
                 .map(|v| v.into_iter().next())
@@ -801,7 +801,7 @@ fn send_reply_insufficient_program_balance() {
             GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1).into(),
                 reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 5_000_000,
                 0
             ),
@@ -819,7 +819,7 @@ fn send_reply_expected_failure() {
             GearPallet::<Test>::send_reply(
                 Origin::signed(LOW_BALANCE_USER).into(),
                 5.into_origin(), // non existent `reply_to_id`
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
                 0
             ),
@@ -834,7 +834,7 @@ fn send_reply_expected_failure() {
         };
 
         // increase LOW_BALANCE_USER balance a bit to allow him send message
-        let reply_gas_spent = GearPallet::<Test>::get_gas_spent(prog_id, DEFAULT_PAYLOAD.to_vec())
+        let reply_gas_spent = GearPallet::<Test>::get_gas_spent(prog_id, EMPTY_PAYLOAD.to_vec())
             .expect("program exists and not faulty");
         assert_ok!(BalancesPallet::<Test>::transfer(
             Origin::signed(USER_1).into(),
@@ -845,7 +845,7 @@ fn send_reply_expected_failure() {
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER).into(),
             prog_id,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             reply_gas_spent,
             0,
         ));
@@ -859,7 +859,7 @@ fn send_reply_expected_failure() {
             GearPallet::<Test>::send_reply(
                 Origin::signed(LOW_BALANCE_USER).into(),
                 reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 10_000_000, // Too big gas limit value
                 1000
             ),
@@ -871,7 +871,7 @@ fn send_reply_expected_failure() {
             GearPallet::<Test>::send_reply(
                 Origin::signed(LOW_BALANCE_USER).into(),
                 reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 1, // Must be greater than incoming gas_limit to have changed the state during reserve()
                 1000,
             ),
@@ -884,7 +884,7 @@ fn send_reply_expected_failure() {
             GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1).into(),
                 reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 block_gas_limit + 1,
                 1000
             ),
@@ -941,7 +941,7 @@ fn send_reply_value_offset_works() {
             assert_ok!(GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1).into(),
                 reply_to_id,
-                DEFAULT_PAYLOAD.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
                 gas_limit_to_reply,
                 value_to_reply,
             ));
@@ -1032,7 +1032,7 @@ fn distributor_initialize() {
             Origin::signed(USER_1).into(),
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             DEFAULT_SALT.to_vec(),
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             10_000_000,
             0,
         ));
@@ -1061,7 +1061,7 @@ fn distributor_distribute() {
             Origin::signed(USER_1).into(),
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             DEFAULT_SALT.to_vec(),
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             10_000_000,
             0,
         ));
@@ -1145,7 +1145,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             Origin::signed(USER_1).into(),
             code.clone(),
             DEFAULT_SALT.to_vec(),
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0
         ));
@@ -1181,7 +1181,7 @@ fn test_code_is_not_resetted_within_program_submission() {
             Origin::signed(USER_2).into(),
             code,
             DEFAULT_SALT.to_vec(),
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0
         ));
@@ -1205,7 +1205,7 @@ mod utils {
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
-    pub(super) const DEFAULT_PAYLOAD: &'static [u8; 7] = b"payload";
+    pub(super) const EMPTY_PAYLOAD: &'static [u8; 0] = b"";
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
@@ -1281,7 +1281,7 @@ mod utils {
             Origin::signed(user).into(),
             code,
             salt,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0,
         )
@@ -1301,7 +1301,7 @@ mod utils {
         GearPallet::<Test>::send_message(
             Origin::signed(from).into(),
             to,
-            DEFAULT_PAYLOAD.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
             0,
         )
