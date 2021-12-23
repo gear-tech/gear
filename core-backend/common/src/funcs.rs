@@ -240,9 +240,36 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
     }
 }
 
-// (code_hash, salt, payload (start_pointer, len), gas_limit, value) -> ActorId
+// (code_hash, salt(start_ptr, len), payload (start_ptr, len), gas_limit, value) -> ActorId
 pub fn create_program<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
-    todo!()
+    move |code_hash_ptr: i32,
+          salt_ptr: i32,
+          salt_len: i32,
+          payload_ptr: i32,
+          payload_len: i32,
+          gas_limit: i64,
+          value_ptr: i32,
+          actor_id_ptr: i32| {
+        let res = ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let mut code_hash = [0u8; 32];
+            ext.get_mem(code_hash_ptr as _, &mut code_hash);
+            let salt = get_vec(ext, salt_ptr, salt_len);
+            let payload = get_vec(ext, payload_ptr, payload_len);
+            let value = get_u128(ext, value_ptr);
+            log::debug!(
+                "create_program syscall received data: \
+                payload - {:?}, \
+                gas - limit - {:?}, \
+                value - {:?}, \
+                code hash - {:?}, \
+                salt - {:?}",
+                payload, gas_limit, value, code_hash, salt
+            );
+            // ext.send -> program creation message
+            todo!()
+        })?;
+        res
+    }
 }
 
 pub fn size<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i32 {

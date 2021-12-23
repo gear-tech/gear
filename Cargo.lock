@@ -1932,6 +1932,7 @@ name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blake2-rfc",
  "cfg-if 1.0.0",
  "gear-core",
  "log",
