@@ -119,7 +119,7 @@ mod tests {
             for id in 1..=10 {
                 let program =
                     Program::new(ProgramId::from(id), code.clone(), Default::default()).unwrap();
-                // TODO #524
+                // TODO depends on redundant code set in `set`, that should be wiped off in #512
                 storage.program_storage.set(program);
             }
 

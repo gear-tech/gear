@@ -74,7 +74,8 @@ fn debug_mode_works() {
         DebugMode::<Test>::put(true);
 
         // Submit programs
-        // TODO #524
+        // TODO uses set_program, that has redundant code set,
+        // that should be wiped off in #512
         assert_ok!(runner::init_program::<Ext>(
             1.into_origin(),
             101.into_origin(),
@@ -105,7 +106,8 @@ fn debug_mode_works() {
             .into(),
         );
 
-        // TODO #524
+        // TODO uses set_program, that has redundant code set,
+        // that should be wiped off in #512
         assert_ok!(runner::init_program::<Ext>(
             1.into_origin(),
             102.into_origin(),
