@@ -8,6 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 anyhow = { version = "1.0.51", default-features = false }
 cfg-if = "1.0.0"
+# remove after moving logic to core
 blake2-rfc = { version = "0.2.16", default-features = false }
 log = { version = "0.4.14", default-features = false }
 num-derive = { version = "0.3.3", optional = true }

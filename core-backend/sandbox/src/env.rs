@@ -92,7 +92,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             let result = ctx
                 .ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+                    let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
                     let payload = funcs::get_vec(ext, payload_ptr, payload_len);
                     let value = funcs::get_u128(ext, value_ptr);
                     let message_id = ext.send(OutgoingPacket::new(
@@ -139,7 +139,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
 
             ctx.ext
                 .with(|ext: &mut E| -> Result<(), &'static str> {
-                    let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+                    let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
                     let value = funcs::get_u128(ext, value_ptr);
                     let message_id = ext.send_commit(
                         handle_ptr as _,
@@ -576,7 +576,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             };
             ctx.ext
                 .with(|ext: &mut E| {
-                    let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
+                    let waker_id: MessageId = funcs::get_bytes32(ext, waker_id_ptr).into();
                     ext.wake(waker_id)
                 })
                 .map(|_| Ok(ReturnValue::Unit))

@@ -183,7 +183,7 @@ pub fn send<E: Ext>(
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr).into();
             let payload = get_vec(ext, payload_ptr, payload_len);
             let value = get_u128(ext, value_ptr);
             let message_id = ext.send(OutgoingPacket::new(
@@ -208,7 +208,7 @@ pub fn send_commit<E: Ext>(
           gas_limit: i64,
           value_ptr: i32| {
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr).into();
             let value = get_u128(ext, value_ptr);
             let message_id = ext.send_commit(
                 handle_ptr as _,
@@ -249,10 +249,9 @@ pub fn create_program<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32, i
           payload_len: i32,
           gas_limit: i64,
           value_ptr: i32,
-          actor_id_ptr: i32| {
+          program_id_ptr: i32| {
         let res = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let mut code_hash = [0u8; 32];
-            ext.get_mem(code_hash_ptr as _, &mut code_hash);
+            let code_hash = get_bytes32(ext, code_hash_ptr);
             let salt = get_vec(ext, salt_ptr, salt_len);
             let payload = get_vec(ext, payload_ptr, payload_len);
             let value = get_u128(ext, value_ptr);
@@ -265,8 +264,14 @@ pub fn create_program<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32, i
                 salt - {:?}",
                 payload, gas_limit, value, code_hash, salt
             );
-            // ext.send -> program creation message
-            todo!()
+            let new_actor_id = {
+                // todo use Codec::Encode instead
+                let mut data = code_hash.to_vec();
+                data.extend_from_slice(&salt);
+                blake2_rfc::blake2b::blake2b(32, &[], &data)
+            };
+            ext.set_mem(program_id_ptr as isize as _, new_actor_id.as_bytes());
+            Ok(())
         })?;
         res
     }
@@ -309,7 +314,7 @@ pub fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
 pub fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |waker_id_ptr| {
         ext.with(|ext: &mut E| {
-            let waker_id: MessageId = get_id(ext, waker_id_ptr).into();
+            let waker_id: MessageId = get_bytes32(ext, waker_id_ptr).into();
             ext.wake(waker_id)
         })?
     }
@@ -322,10 +327,10 @@ pub fn is_exit_trap(trap: &str) -> bool {
     trap.starts_with(EXIT_TRAP_STR)
 }
 
-pub fn get_id<E: Ext>(ext: &E, ptr: i32) -> [u8; 32] {
-    let mut id = [0u8; 32];
-    ext.get_mem(ptr as _, &mut id);
-    id
+pub fn get_bytes32<E: Ext>(ext: &E, ptr: i32) -> [u8; 32] {
+    let mut ret = [0u8; 32];
+    ext.get_mem(ptr as _, &mut ret);
+    ret
 }
 
 pub fn get_u128<E: Ext>(ext: &E, ptr: i32) -> u128 {

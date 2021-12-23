@@ -26,7 +26,7 @@
 //! reply to the initial message.
 
 use crate::MessageHandle;
-use crate::{ActorId, MessageId};
+use crate::{ActorId, MessageId, H256};
 
 mod sys {
     extern "C" {
@@ -63,6 +63,16 @@ mod sys {
         pub fn gr_size() -> u32;
         pub fn gr_source(program: *mut u8);
         pub fn gr_value(val: *mut u8);
+        pub fn gr_create_program(
+            code_hash: *const u8,
+            salt_ptr: *const u8,
+            salt_len: u32,
+            data_ptr: *const u8,
+            data_len: u32,
+            gas_limit: u64,
+            value_ptr: *const u8,
+            program_id_ptr: *mut u8,
+        );
     }
 }
 
@@ -491,3 +501,23 @@ pub fn value() -> u128 {
     }
     u128::from_le_bytes(value_data)
 }
+
+/// Docs todo
+/// Create mirror in gstd (with AsRef generic params for salt and payload)
+pub fn create_program(code_hash: H256, salt: &[u8], payload: &[u8], gas_limit: u64, value: u128) -> ActorId {
+    unsafe {
+        let mut program_id = ActorId::default();
+        sys::gr_create_program(
+            code_hash.as_slice().as_ptr(),
+            salt.as_ptr(),
+            salt.len() as _,
+            payload.as_ptr(),
+            payload.len() as _,
+            gas_limit,
+            value.to_le_bytes().as_ptr(),
+            program_id.as_mut_slice().as_mut_ptr(),
+        );
+        program_id
+    }
+}
+
