@@ -191,11 +191,7 @@ fn send_message_works() {
         );
         // TODO #524
         let program_id = H256::from_low_u64_be(1001);
-        let program = Program::new(
-            ProgramId::from_slice(&program_id[..]),
-            code,
-        )
-        .unwrap();
+        let program = Program::new(ProgramId::from_slice(&program_id[..]), code).unwrap();
         common::native::set_program(program);
 
         let messages: Option<Vec<IntermediateMessage>> = Gear::message_queue();
@@ -246,7 +242,7 @@ fn send_message_works() {
         assert_eq!(Balances::free_balance(2), 20_002);
 
         // original sender gets back whatever gas_limit he used to send a message.
-        assert_eq!(Balances::free_balance(1), 99_967_000);
+        assert_eq!(Balances::free_balance(1), 99_970_000);
     })
 }
 

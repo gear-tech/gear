@@ -37,7 +37,7 @@ use gear_core::{
 };
 
 pub fn execute_wasm<E: Environment<Ext>>(
-    program: Program,
+    mut program: Program,
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
@@ -105,7 +105,10 @@ pub fn execute_wasm<E: Environment<Ext>>(
     }
 
     // Getting allocations.
-    let allocations: BTreeSet<PageNumber> = program.get_pages().keys().cloned().collect();
+    let allocations: BTreeSet<PageNumber> = match entry {
+        "init" => (0..program.static_pages()).map(Into::into).collect(),
+        _ => program.get_pages().keys().cloned().collect(),
+    };
 
     // Creating memory context.
     let memory_context = MemoryContext::new(
@@ -166,7 +169,14 @@ pub fn execute_wasm<E: Environment<Ext>>(
     for page in ext.memory_context.allocations().clone() {
         let mut buf = vec![0u8; PageNumber::size()];
         ext.get_mem(page.offset(), &mut buf);
-        page_update.insert(page, buf);
+        match entry {
+            "init" => {
+                let _ = program.set_page(page, &buf);
+            }
+            _ => {
+                let _ = page_update.insert(page, buf);
+            }
+        }
     }
 
     // Storing outgoing messages from message state.

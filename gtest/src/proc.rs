@@ -261,6 +261,7 @@ where
             }
 
             state = journal_handler.collect();
+            log::debug!("{:?}", state);
             results.push((state.clone(), Ok(())));
         }
     } else {
@@ -286,6 +287,7 @@ where
             gear_core_processor::handle_journal(res.journal, journal_handler);
 
             state = journal_handler.collect();
+            log::debug!("{:?}", state);
             results.push((state.clone(), Ok(())));
         }
     }

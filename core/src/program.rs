@@ -18,7 +18,7 @@
 
 //! Module for programs.
 
-use alloc::{boxed::Box, collections::BTreeMap, vec, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
@@ -127,24 +127,11 @@ impl Program {
                 .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
         };
 
-        let mut persistent_pages: BTreeMap<PageNumber, Box<PageBuf>> = BTreeMap::new();
-
-        for i in 0..static_pages {
-            persistent_pages.insert(
-                i.into(),
-                Box::new(
-                    PageBuf::try_from(vec![0; PageNumber::size()]).map_err(|_| {
-                        anyhow::anyhow!("Error loading program: invalid page buffer")
-                    })?,
-                ),
-            );
-        }
-
         Ok(Program {
             id,
             code,
             static_pages,
-            persistent_pages,
+            persistent_pages: Default::default(),
             message_nonce: 0,
         })
     }
@@ -343,12 +330,12 @@ mod tests {
 
         let mut program = Program::new(ProgramId::from(1), binary).unwrap();
 
-        // 2 initial pages
+        // 2 static pages
         assert_eq!(program.static_pages(), 2);
 
         assert!(program.set_page(1.into(), &vec![0; 123]).is_err());
 
         assert!(program.set_page(1.into(), &vec![0; 65536]).is_ok());
-        assert_eq!(program.get_pages().len(), 2);
+        assert_eq!(program.get_pages().len(), 1);
     }
 }

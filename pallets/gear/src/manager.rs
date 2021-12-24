@@ -107,11 +107,11 @@ where
     }
 
     fn set_program(&self, program: gear_core::program::Program) {
-        let mut persistent_pages = BTreeMap::<u32, Vec<u8>>::new();
-
-        for (key, value) in program.get_pages().iter() {
-            persistent_pages.insert(key.raw(), value.to_vec());
-        }
+        let persistent_pages: BTreeMap<u32, Vec<u8>> = program
+            .get_pages()
+            .iter()
+            .map(|(k, v)| (k.raw(), v.to_vec()))
+            .collect();
 
         let id = program.id().into_origin();
 

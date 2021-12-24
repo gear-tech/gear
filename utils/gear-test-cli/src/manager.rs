@@ -14,6 +14,7 @@ use gear_core_processor::common::{
 pub struct RuntestsExtManager<T: Config> {
     log: Vec<Message>,
     inner: ExtManager<T>,
+    current_failed: bool,
 }
 
 impl<T> CollectState for RuntestsExtManager<T>
@@ -24,6 +25,7 @@ where
     fn collect(&self) -> State {
         let mut state = self.inner.collect();
         state.log = self.log.clone();
+        state.current_failed = self.current_failed;
 
         log::debug!("{:?}", state);
 
@@ -40,6 +42,7 @@ where
         Self {
             log: Default::default(),
             inner: ExtManager::<T>::new(),
+            current_failed: false,
         }
     }
 }
@@ -51,9 +54,18 @@ where
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         match outcome {
-            CoreDispatchOutcome::InitFailure { .. } => {}
-            CoreDispatchOutcome::InitSuccess { .. } => {}
-            _ => {
+            CoreDispatchOutcome::InitFailure { .. } => {
+                self.current_failed = true;
+            }
+            CoreDispatchOutcome::InitSuccess { .. } => {
+                self.current_failed = false;
+            }
+            CoreDispatchOutcome::Success(_) => {
+                self.current_failed = false;
+                let _ = gear_common::dequeue_message();
+            }
+            CoreDispatchOutcome::MessageTrap { .. } => {
+                self.current_failed = true;
                 let _ = gear_common::dequeue_message();
             }
         }
@@ -73,6 +85,8 @@ where
         self.inner.send_message(message_id, message);
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
+        self.current_failed = false;
+        let _ = gear_common::dequeue_message();
         self.inner.wait_dispatch(dispatch)
     }
     fn wake_message(
@@ -81,18 +95,6 @@ where
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Some((msg, _)) = gear_common::remove_waiting_message(
-            program_id.into_origin(),
-            awakening_id.into_origin(),
-        ) {
-            gear_common::queue_message(msg);
-        } else {
-            panic!(
-                "Unknown message awaken: {:?} from {:?}",
-                awakening_id,
-                message_id.into_origin()
-            );
-        }
         self.inner
             .wake_message(message_id, program_id, awakening_id)
     }

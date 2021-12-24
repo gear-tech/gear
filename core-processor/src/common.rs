@@ -202,7 +202,22 @@ impl alloc::fmt::Debug for State {
         f.debug_struct("State")
             .field("message_queue", &self.message_queue)
             .field("log", &self.log)
-            .field("programs", &self.programs.iter().map(|(id, prog)| (*id, prog.get_pages().keys().cloned().collect::<BTreeSet<PageNumber>>())).collect::<BTreeMap<ProgramId, BTreeSet<PageNumber>>>())
+            .field(
+                "programs",
+                &self
+                    .programs
+                    .iter()
+                    .map(|(id, prog)| {
+                        (
+                            *id,
+                            prog.get_pages()
+                                .keys()
+                                .cloned()
+                                .collect::<BTreeSet<PageNumber>>(),
+                        )
+                    })
+                    .collect::<BTreeMap<ProgramId, BTreeSet<PageNumber>>>(),
+            )
             .field("current_failed", &self.current_failed)
             .finish()
     }
