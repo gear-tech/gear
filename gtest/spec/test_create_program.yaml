@@ -1,0 +1,12 @@
+title: create_program sys-call test
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/program_factory.wasm 
+
+fixtures:
+  - title: create_program test
+    messages:
+      - destination: 1
+    expected:
+      - step: 1
