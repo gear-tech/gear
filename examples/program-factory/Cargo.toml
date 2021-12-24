@@ -8,7 +8,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gcore = { path = "../../gcore", features = ["debug"] }
+gstd = { path = "../../gstd", features = ["debug"] }
 hex-literal = "0.3.4"
-#todo tmp remove later
-env_logger = "0.9.0"
-log = "0.4.14"
