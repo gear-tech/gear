@@ -69,6 +69,7 @@ pub struct DispatchResult {
     pub gas_burned: u64,
 
     pub page_update: BTreeMap<PageNumber, Vec<u8>>,
+    pub persistent_pages: BTreeSet<u32>,
     pub nonce: u64,
 }
 
@@ -175,7 +176,12 @@ pub trait JournalHandler {
         program_id: ProgramId,
         awakening_id: MessageId,
     );
-    fn update_nonce_and_pages_amount(&mut self, program_id: ProgramId, persistent_pages: BTreeSet<u32>, nonce: u64);
+    fn update_nonce_and_pages_amount(
+        &mut self,
+        program_id: ProgramId,
+        persistent_pages: BTreeSet<u32>,
+        nonce: u64,
+    );
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
 }
 

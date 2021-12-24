@@ -45,7 +45,11 @@ pub fn handle_journal(
                 program_id,
                 awakening_id,
             } => handler.wake_message(message_id, program_id, awakening_id),
-            JournalNote::UpdateNonceAndPagesAmount { program_id, persistent_pages, nonce } => {
+            JournalNote::UpdateNonceAndPagesAmount {
+                program_id,
+                persistent_pages,
+                nonce,
+            } => {
                 let _ = nonces.insert(program_id, (persistent_pages, nonce));
             }
             JournalNote::UpdatePage {

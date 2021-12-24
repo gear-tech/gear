@@ -374,7 +374,8 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
 
 pub fn set_nonce_and_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>, nonce: u64) {
     if let Some(mut prog) = sp_io::storage::get(&program_key(id))
-    .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly")) {
+        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
+    {
         prog.nonce = nonce;
         prog.persistent_pages = persistent_pages;
 

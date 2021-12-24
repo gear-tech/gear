@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-use gear_runtime::{pallet_gear::Config, ExtManager};
 use gear_common::Origin;
 use gear_core::{
     memory::PageNumber,
@@ -9,6 +7,8 @@ use gear_core::{
 use gear_core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
+use gear_runtime::{pallet_gear::Config, ExtManager};
+use std::collections::BTreeSet;
 
 pub struct RuntestsExtManager<T: Config> {
     log: Vec<Message>,
@@ -97,8 +97,14 @@ where
         self.inner
             .wake_message(message_id, program_id, awakening_id)
     }
-    fn update_nonce_and_pages_amount(&mut self, program_id: ProgramId, persistent_pages: BTreeSet<u32>, nonce: u64) {
-        self.inner.update_nonce_and_pages_amount(program_id, persistent_pages, nonce)
+    fn update_nonce_and_pages_amount(
+        &mut self,
+        program_id: ProgramId,
+        persistent_pages: BTreeSet<u32>,
+        nonce: u64,
+    ) {
+        self.inner
+            .update_nonce_and_pages_amount(program_id, persistent_pages, nonce)
     }
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>) {
         self.inner.update_page(program_id, page_number, data)

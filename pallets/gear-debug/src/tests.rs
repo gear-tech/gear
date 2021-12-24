@@ -25,7 +25,6 @@ use common::{self, Message, Origin as _};
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
 use sp_core::H256;
-use sp_std::collections::btree_map::BTreeMap;
 
 pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
@@ -109,7 +108,7 @@ fn debug_mode_works() {
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
                     static_pages: 16,
-                    persistent_pages: BTreeMap::new(),
+                    persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                     code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                     nonce: 0u64,
                 }],
@@ -138,14 +137,14 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
-                        persistent_pages: BTreeMap::new(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_2,
                         static_pages: 16,
-                        persistent_pages: BTreeMap::new(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                         nonce: 0u64,
                     },
@@ -207,14 +206,14 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
-                        persistent_pages: BTreeMap::new(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_2,
                         static_pages: 16,
-                        persistent_pages: BTreeMap::new(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                         nonce: 0u64,
                     },
@@ -234,14 +233,14 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
-                        persistent_pages: BTreeMap::new(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_2,
                         static_pages: 16,
-                        persistent_pages: BTreeMap::new(),
+                        persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                         nonce: 0u64,
                     },

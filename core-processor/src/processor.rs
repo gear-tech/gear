@@ -161,7 +161,7 @@ pub fn process<E: Environment<Ext>>(
 
     journal.push(JournalNote::UpdateNonceAndPagesAmount {
         program_id,
-        persistent_pages: dispatch_result.page_update.keys().map(|v| v.raw()).collect(),
+        persistent_pages: dispatch_result.persistent_pages,
         nonce: dispatch_result.nonce,
     });
 

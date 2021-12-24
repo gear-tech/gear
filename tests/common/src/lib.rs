@@ -28,7 +28,7 @@ use gear_core::{
     message::{Message, MessageId},
     program::{Program, ProgramId},
 };
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 pub struct InitProgram {
     pub program_id: Option<ProgramId>,
@@ -331,7 +331,12 @@ impl<'a> JournalHandler for Journal<'a> {
         }
     }
 
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
+    fn update_nonce_and_pages_amount(
+        &mut self,
+        program_id: ProgramId,
+        _persistent_pages: BTreeSet<u32>,
+        nonce: u64,
+    ) {
         self.context
             .programs
             .get_mut(&program_id)

@@ -37,7 +37,7 @@ use gear_core::{
 };
 
 pub fn execute_wasm<E: Environment<Ext>>(
-    mut program: Program,
+    program: Program,
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
@@ -139,14 +139,10 @@ pub fn execute_wasm<E: Environment<Ext>>(
         waited: false,
     };
 
+    let initial_pages = program.get_pages();
+
     // Running backend.
-    let (res, mut ext) = env.setup_and_run(
-        ext,
-        &instrumented_code,
-        program.get_pages(),
-        &*memory,
-        entry,
-    );
+    let (res, mut ext) = env.setup_and_run(ext, &instrumented_code, initial_pages, &*memory, entry);
 
     // Parsing outcome.
     let kind = if let Err(e) = res {
@@ -165,19 +161,21 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
     // Updating program memory
     let mut page_update = BTreeMap::<PageNumber, Vec<u8>>::new();
+    let persistent_pages = ext.memory_context.allocations().clone();
 
-    for page in ext.memory_context.allocations().clone() {
+    for page in &persistent_pages {
         let mut buf = vec![0u8; PageNumber::size()];
         ext.get_mem(page.offset(), &mut buf);
-        match entry {
-            "init" => {
-                let _ = program.set_page(page, &buf);
-            }
-            _ => {
-                let _ = page_update.insert(page, buf);
-            }
+        let mut need_update = true;
+        if let Some(data) = initial_pages.get(page) {
+            need_update = *data.to_vec() != buf
+        };
+        if need_update {
+            let _ = page_update.insert(*page, buf);
         }
     }
+
+    let persistent_pages = persistent_pages.into_iter().map(|v| v.raw()).collect();
 
     // Storing outgoing messages from message state.
     let mut outgoing = Vec::new();
@@ -216,6 +214,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         gas_left,
         gas_burned,
         page_update,
+        persistent_pages,
         nonce,
     })
 }

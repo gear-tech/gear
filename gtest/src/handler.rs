@@ -4,7 +4,7 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 use gear_core_processor::common::*;
-use std::collections::{BTreeMap, VecDeque, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Clone, Default)]
 pub struct InMemoryHandler {
@@ -86,7 +86,12 @@ impl JournalHandler for InMemoryHandler {
             self.message_queue.push_back(msg);
         }
     }
-    fn update_nonce_and_pages_amount(&mut self, program_id: ProgramId, _persistent_pages: BTreeSet<u32>, nonce: u64) {
+    fn update_nonce_and_pages_amount(
+        &mut self,
+        program_id: ProgramId,
+        _persistent_pages: BTreeSet<u32>,
+        nonce: u64,
+    ) {
         if let Some(prog) = self.programs.get_mut(&program_id) {
             prog.set_message_nonce(nonce);
         } else {
