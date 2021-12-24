@@ -372,12 +372,14 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     original_nonce
 }
 
-// TODO: refactor this
-pub fn set_nonce(id: H256, nonce: u64) {
-    let mut key_id = STORAGE_MESSAGE_USER_NONCE_KEY.to_vec();
-    key_id.extend(&id[..]);
+pub fn set_nonce_and_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>, nonce: u64) {
+    if let Some(mut prog) = sp_io::storage::get(&program_key(id))
+    .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly")) {
+        prog.nonce = nonce;
+        prog.persistent_pages = persistent_pages;
 
-    sp_io::storage::set(&key_id, &nonce.encode());
+        sp_io::storage::set(&program_key(id), &prog.encode())
+    }
 }
 
 pub fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message, bn: u32) {

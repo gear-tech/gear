@@ -159,8 +159,9 @@ pub fn process<E: Environment<Ext>>(
         }
     }
 
-    journal.push(JournalNote::UpdateNonce {
+    journal.push(JournalNote::UpdateNonceAndPagesAmount {
         program_id,
+        persistent_pages: dispatch_result.page_update.keys().map(|v| v.raw()).collect(),
         nonce: dispatch_result.nonce,
     });
 
@@ -196,7 +197,7 @@ pub fn process_many<E: Environment<Ext>>(
         } = process::<E>(program, dispatch, block_info);
 
         for note in &current_journal {
-            if let JournalNote::UpdateNonce { nonce, .. } = note {
+            if let JournalNote::UpdateNonceAndPagesAmount { nonce, .. } = note {
                 program.set_message_nonce(*nonce);
             } else if let JournalNote::UpdatePage {
                 page_number, data, ..

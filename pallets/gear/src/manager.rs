@@ -23,7 +23,7 @@ use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 
 use sp_std::{
-    collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+    collections::{btree_map::BTreeMap, vec_deque::VecDeque, btree_set::BTreeSet},
     marker::PhantomData,
     prelude::*,
 };
@@ -293,8 +293,8 @@ where
             );
         }
     }
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        common::set_nonce(program_id.into_origin(), nonce);
+    fn update_nonce_and_pages_amount(&mut self, program_id: ProgramId, persistent_pages: BTreeSet<u32>, nonce: u64) {
+        common::set_nonce_and_persistent_pages(program_id.into_origin(), persistent_pages, nonce);
     }
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>) {
         common::set_program_page(program_id.into_origin(), page_number.raw(), data);

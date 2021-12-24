@@ -151,8 +151,9 @@ pub enum JournalNote {
         program_id: ProgramId,
         awakening_id: MessageId,
     },
-    UpdateNonce {
+    UpdateNonceAndPagesAmount {
         program_id: ProgramId,
+        persistent_pages: BTreeSet<u32>,
         nonce: u64,
     },
     UpdatePage {
@@ -174,7 +175,7 @@ pub trait JournalHandler {
         program_id: ProgramId,
         awakening_id: MessageId,
     );
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
+    fn update_nonce_and_pages_amount(&mut self, program_id: ProgramId, persistent_pages: BTreeSet<u32>, nonce: u64);
     fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
 }
 

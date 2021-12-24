@@ -45,8 +45,8 @@ pub fn handle_journal(
                 program_id,
                 awakening_id,
             } => handler.wake_message(message_id, program_id, awakening_id),
-            JournalNote::UpdateNonce { program_id, nonce } => {
-                let _ = nonces.insert(program_id, nonce);
+            JournalNote::UpdateNonceAndPagesAmount { program_id, persistent_pages, nonce } => {
+                let _ = nonces.insert(program_id, (persistent_pages, nonce));
             }
             JournalNote::UpdatePage {
                 program_id,
@@ -59,13 +59,13 @@ pub fn handle_journal(
         }
     }
 
+    for (program_id, v) in nonces {
+        handler.update_nonce_and_pages_amount(program_id, v.0, v.1);
+    }
+
     for (program_id, pages) in page_updates {
         for (page_number, data) in pages {
             handler.update_page(program_id, page_number, data);
         }
-    }
-
-    for (program_id, nonce) in nonces {
-        handler.update_nonce(program_id, nonce);
     }
 }
