@@ -282,7 +282,7 @@ pub mod pallet {
 
             let mut messages: VecDeque<Message> = VecDeque::from([Message {
                 id: common::next_message_id(&payload),
-                source: 1.into_origin(),
+                source: 100001.into_origin(),
                 dest,
                 gas_limit: u64::MAX,
                 payload,
@@ -315,11 +315,9 @@ pub mod pallet {
                         JournalNote::GasBurned { amount, .. } => {
                             gas_burned = gas_burned.saturating_add(*amount)
                         }
-                        JournalNote::MessageDispatched(outcome) => match outcome {
-                            CoreDispatchOutcome::InitFailure { .. } => return None,
-                            CoreDispatchOutcome::MessageTrap { .. } => return None,
-                            _ => {}
-                        },
+                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                            ..
+                        }) => return None,
                         _ => {}
                     }
                 }

@@ -30,14 +30,13 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake lz4
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Cache: Unpack"
         run: |
-          cp /root/cache/*.lz4 /tmp/
-          lz4 -dc --no-sparse /tmp/cache.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /tmp/cargo_registry.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /tmp/target.tar.lz4 | tar xf -
+          tar -xf /root/cache/check_cache.tar -C /
+          tar -xf /root/cache/check_cargo_registry.tar -C /
+          tar -xf /root/cache/check_target.tar
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -59,10 +58,9 @@ jobs:
 
       - name: "Cache: Pack"
         run: |
-          tar cf - ./target | lz4 > /tmp/target.tar.lz4
-          tar cf - /tmp/cachepot | lz4 > /tmp/cache.tar.lz4
-          tar cf - /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git | lz4 > /tmp/cargo_registry.tar.lz4
-          mv /tmp/*.lz4 /root/cache/
+          tar -cf /root/cache/check_target.tar ./target
+          tar -cf /root/cache/check_cache.tar /tmp/cachepot
+          tar -cf /root/cache/check_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
 
   build:
     runs-on: [self-hosted, cachepot]
@@ -93,14 +91,13 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake lz4
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Cache: Unpack"
         run: |
-          cp /root/cache/*.lz4 /tmp/
-          lz4 -dc --no-sparse /tmp/cache.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /tmp/cargo_registry.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /tmp/target.tar.lz4 | tar xf -
+          tar -xf /root/cache/build_cache.tar -C /
+          tar -xf /root/cache/build_cargo_registry.tar -C /
+          tar -xf /root/cache/build_target.tar
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked
@@ -134,10 +131,9 @@ jobs:
 
       - name: "Cache: Pack"
         run: |
-          tar cf - ./target | lz4 > /tmp/target.tar.lz4
-          tar cf - /tmp/cachepot | lz4 > /tmp/cache.tar.lz4
-          tar cf - /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git | lz4 > /tmp/cargo_registry.tar.lz4
-          mv /tmp/*.lz4 /root/cache/
+          tar -cf /root/cache/build_target.tar ./target
+          tar -cf /root/cache/build_cache.tar /tmp/cachepot
+          tar -cf /root/cache/build_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
@@ -215,14 +211,13 @@ jobs:
       - name: "Install: Build deps"
         run: |
           sudo apt update
-          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake lz4
+          sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Cache: Unpack"
         run: |
-          cp /root/cache/*.lz4 /tmp/
-          lz4 -dc --no-sparse /tmp/cache.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /tmp/cargo_registry.tar.lz4 | tar xf - -C /
-          lz4 -dc --no-sparse /tmp/target.tar.lz4 | tar xf -
+          tar -xf /root/cache/gtest_cache.tar -C /
+          tar -xf /root/cache/gtest_cargo_registry.tar -C /
+          tar -xf /root/cache/gtest_target.tar
 
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
@@ -241,7 +236,6 @@ jobs:
 
       - name: "Cache: Pack"
         run: |
-          tar cf - ./target | lz4 > /tmp/target.tar.lz4
-          tar cf - /tmp/cachepot | lz4 > /tmp/cache.tar.lz4
-          tar cf - /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git | lz4 > /tmp/cargo_registry.tar.lz4
-          mv /tmp/*.lz4 /root/cache/
+          tar -cf /root/cache/gtest_target.tar ./target
+          tar -cf /root/cache/gtest_cache.tar /tmp/cachepot
+          tar -cf /root/cache/gtest_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git

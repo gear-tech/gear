@@ -29,7 +29,11 @@ use sp_runtime::{
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-pub const BLOCK_AUTHOR: u64 = 255;
+pub(crate) const USER_1: u64 = 1;
+pub(crate) const USER_2: u64 = 2;
+pub(crate) const USER_3: u64 = 3;
+pub(crate) const LOW_BALANCE_USER: u64 = 4;
+pub(crate) const BLOCK_AUTHOR: u64 = 255;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -145,9 +149,10 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (1, 100_000_000_u128),
-            (2, 2_u128),
-            (3, 100_000_000_u128),
+            (USER_1, 100_000_000_u128),
+            (USER_2, 100_000_000_u128),
+            (USER_3, 100_000_000_u128),
+            (LOW_BALANCE_USER, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],
     }

@@ -234,6 +234,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-bot"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-capacitor"
 version = "0.1.0"
 dependencies = [
@@ -412,15 +421,6 @@ version = "0.1.0"
 dependencies = [
  "gcore",
  "gstd",
-]
-
-[[package]]
-name = "demo_bot"
-version = "0.1.0"
-dependencies = [
- "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]

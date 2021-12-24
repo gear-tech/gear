@@ -224,11 +224,18 @@ where
 
         if let Some(gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
             if let ConsumeResult::RefundExternal(external, gas_left) = gas_tree.consume() {
+                log::debug!("unreserve: {}", gas_left);
+
                 let refund = T::GasConverter::gas_to_fee(gas_left);
 
                 let _ = T::Currency::unreserve(
                     &<T::AccountId as Origin>::from_origin(external),
                     refund,
+                );
+            } else {
+                log::error!(
+                    "Associated gas tree for message aren't able to be consumed: {:?}",
+                    message_id
                 );
             }
         } else {
@@ -239,20 +246,21 @@ where
         }
     }
     fn send_message(&mut self, message_id: MessageId, message: Message) {
+        log::debug!("{:?}", message);
         let message_id = message_id.into_origin();
         let dest = message.dest().into_origin();
         let message: common::Message = message.into();
 
-        if common::program_exists(dest) {
-            if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
-                let _ = gas_tree.split_off(message.id, message.gas_limit);
-            } else {
-                log::error!(
-                    "Message does not have associated gas tree: {:?}",
-                    message_id
-                );
-            }
+        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+            let _ = gas_tree.split_off(message.id, message.gas_limit);
+        } else {
+            log::error!(
+                "Message does not have associated gas tree: {:?}",
+                message_id
+            );
+        }
 
+        if common::program_exists(dest) {
             common::queue_message(message);
         } else {
             Pallet::<T>::insert_to_mailbox(dest, message.clone());
