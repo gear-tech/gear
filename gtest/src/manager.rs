@@ -1,13 +1,13 @@
+use core_processor::common::*;
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
     program::{Program, ProgramId},
 };
-use gear_core_processor::common::*;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Clone, Default)]
-pub struct InMemoryHandler {
+pub struct InMemoryExtManager {
     message_queue: VecDeque<Message>,
     log: Vec<Message>,
     programs: BTreeMap<ProgramId, Program>,
@@ -15,9 +15,9 @@ pub struct InMemoryHandler {
     current_failed: bool,
 }
 
-impl CollectState for InMemoryHandler {
+impl CollectState for InMemoryExtManager {
     fn collect(&self) -> State {
-        let InMemoryHandler {
+        let InMemoryExtManager {
             message_queue,
             log,
             programs,
@@ -34,7 +34,7 @@ impl CollectState for InMemoryHandler {
     }
 }
 
-impl JournalHandler for InMemoryHandler {
+impl JournalHandler for InMemoryExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
             DispatchOutcome::Success(_) => {

@@ -25,7 +25,7 @@
 
 pub mod address;
 pub mod check;
-pub mod handler;
 pub mod js;
+pub mod manager;
 pub mod proc;
 pub mod sample;

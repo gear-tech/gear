@@ -21,22 +21,29 @@ use crate::proc;
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
+use core_processor::{
+    common::{CollectState, JournalHandler},
+    Ext,
+};
 use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
+use gear_backend_common::Environment;
 use gear_core::{
     memory::PAGE_SIZE,
     message::Message,
     program::{Program, ProgramId},
 };
-use gear_core_processor::common::{CollectState, JournalHandler};
-use rayon::prelude::*;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
-use std::thread::{self, ThreadId};
-use std::{fmt, fs};
-
 use log::{Log, Metadata, Record, SetLoggerError};
+use rayon::prelude::*;
+use std::{
+    collections::HashMap,
+    fmt, fs,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, RwLock,
+    },
+    thread::{self, ThreadId},
+};
 
 const FILTER_ENV: &str = "RUST_LOG";
 
@@ -416,7 +423,7 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_fixture<JH>(
+fn run_fixture<JH, E>(
     mut journal_handler: JH,
     test: &Test,
     fixture_no: usize,
@@ -428,11 +435,12 @@ fn run_fixture<JH>(
 ) -> ColoredString
 where
     JH: JournalHandler + CollectState,
+    E: Environment<Ext>,
 {
-    match proc::init_fixture(test, fixture_no, &mut journal_handler) {
+    match proc::init_fixture::<E>(test, fixture_no, &mut journal_handler) {
         Ok(()) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = proc::run(last_exp_steps, &mut journal_handler);
+            let results = proc::run::<JH, E>(last_exp_steps, &mut journal_handler);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {
@@ -520,7 +528,7 @@ where
 /// For each fixture in the test file from `files` the function setups (initializes) it and then performs all the checks
 /// by first running messages defined in the fixture section and then checking (if required) message state, allocations and memory.
 #[allow(clippy::too_many_arguments)]
-pub fn check_main<JH, F>(
+pub fn check_main<JH, E, F>(
     files: Vec<std::path::PathBuf>,
     skip_messages: bool,
     skip_allocations: bool,
@@ -531,6 +539,7 @@ pub fn check_main<JH, F>(
 ) -> anyhow::Result<()>
 where
     JH: JournalHandler + CollectState,
+    E: Environment<Ext>,
     F: Fn() -> JH + std::marker::Sync + std::marker::Send,
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
@@ -571,7 +580,7 @@ where
                 let output = if let Some(test_ext) = &ext {
                     test_ext().execute_with(|| {
                         let storage = storage_factory();
-                        run_fixture::<JH>(
+                        run_fixture::<JH, E>(
                             storage,
                             test,
                             fixture_no,
@@ -584,7 +593,7 @@ where
                     })
                 } else {
                     let storage = storage_factory();
-                    run_fixture::<JH>(
+                    run_fixture::<JH, E>(
                         storage,
                         test,
                         fixture_no,

@@ -21,7 +21,6 @@ use gear_core::{
 };
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
-
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
     marker::PhantomData,

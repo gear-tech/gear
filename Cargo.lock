@@ -2133,7 +2133,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "frame-system",
- "gear-backend-wasmtime",
+ "gear-backend-sandbox",
  "gear-common",
  "gear-core",
  "gear-core-processor",

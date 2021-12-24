@@ -1,20 +1,19 @@
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
+use core_processor::{common::*, configs::*, Ext};
+use gear_backend_common::Environment;
 use gear_core::{
     message::{IncomingMessage, Message},
     program::{Program, ProgramId},
 };
-use std::time::{SystemTime, UNIX_EPOCH};
-
+use regex::Regex;
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
-use std::fmt::Write;
-use std::str::FromStr;
-
-use regex::Regex;
-
-use gear_backend_wasmtime::WasmtimeEnvironment;
-use gear_core_processor::{common::*, configs::*, Ext};
+use std::{
+    fmt::Write,
+    str::FromStr,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
@@ -90,7 +89,7 @@ pub fn message_to_dispatch(message: Message) -> Dispatch {
     }
 }
 
-pub fn init_program(
+pub fn init_program<E: Environment<Ext>>(
     message: InitMessage,
     block_info: BlockInfo,
     journal_handler: &mut dyn JournalHandler,
@@ -103,18 +102,14 @@ pub fn init_program(
         ));
     }
 
-    let res = gear_core_processor::process::<WasmtimeEnvironment<Ext>>(
-        program,
-        message.into(),
-        block_info,
-    );
+    let res = core_processor::process::<E>(program, message.into(), block_info);
 
-    gear_core_processor::handle_journal(res.journal, journal_handler);
+    core_processor::handle_journal(res.journal, journal_handler);
 
     Ok(())
 }
 
-pub fn init_fixture(
+pub fn init_fixture<E: Environment<Ext>>(
     test: &Test,
     fixture_no: usize,
     journal_handler: &mut dyn JournalHandler,
@@ -153,7 +148,7 @@ pub fn init_fixture(
         let message_id = nonce.into();
         let id = program.id.to_program_id();
 
-        let _ = init_program(
+        let _ = init_program::<E>(
             InitMessage {
                 id,
                 code,
@@ -230,9 +225,13 @@ pub fn init_fixture(
     Ok(())
 }
 
-pub fn run<JH>(steps: Option<usize>, journal_handler: &mut JH) -> Vec<(State, anyhow::Result<()>)>
+pub fn run<JH, E>(
+    steps: Option<usize>,
+    journal_handler: &mut JH,
+) -> Vec<(State, anyhow::Result<()>)>
 where
     JH: JournalHandler + CollectState,
+    E: Environment<Ext>,
 {
     let mut results = Vec::new();
     let mut state = journal_handler.collect();
@@ -249,13 +248,13 @@ where
             if let Some(m) = state.message_queue.pop_front() {
                 let program = state.programs.get(&m.dest()).expect("Can't find program");
 
-                let res = gear_core_processor::process::<WasmtimeEnvironment<Ext>>(
+                let res = core_processor::process::<E>(
                     program.clone(),
                     message_to_dispatch(m),
                     BlockInfo { height, timestamp },
                 );
 
-                gear_core_processor::handle_journal(res.journal, journal_handler);
+                core_processor::handle_journal(res.journal, journal_handler);
 
                 log::debug!("step: {}", step_no + 1);
             }
@@ -274,7 +273,7 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let res = gear_core_processor::process::<WasmtimeEnvironment<Ext>>(
+            let res = core_processor::process::<E>(
                 program.clone(),
                 message_to_dispatch(m),
                 BlockInfo {
@@ -284,7 +283,7 @@ where
             );
             counter += 1;
 
-            gear_core_processor::handle_journal(res.journal, journal_handler);
+            core_processor::handle_journal(res.journal, journal_handler);
 
             state = journal_handler.collect();
             log::debug!("{:?}", state);

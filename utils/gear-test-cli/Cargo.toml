@@ -24,4 +24,4 @@ gear-core = { path = "../../core" }
 gear-core-processor = { path = "../../core-processor" }
 gear-runtime = { path = "../../runtime" }
 gear-test = { path = "../../gtest" }
-gear-backend-wasmtime = { path = "../../core-backend/wasmtime" }
+gear-backend-sandbox = { path = "../../core-backend/sandbox" }
