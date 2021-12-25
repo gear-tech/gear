@@ -241,31 +241,24 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
 }
 
 // (code_hash, salt(start_ptr, len), payload (start_ptr, len), gas_limit, value) -> ActorId
-pub fn create_program<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
+pub fn create_program<E: Ext>(
+    ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
     move |code_hash_ptr: i32,
           salt_ptr: i32,
           salt_len: i32,
           payload_ptr: i32,
           payload_len: i32,
-          gas_limit: i64,
+          _gas_limit: i64,
           value_ptr: i32,
           program_id_ptr: i32| {
         let res = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let code_hash = get_bytes32(ext, code_hash_ptr);
             let salt = get_vec(ext, salt_ptr, salt_len);
-            let payload = get_vec(ext, payload_ptr, payload_len);
-            let value = get_u128(ext, value_ptr);
-            log::debug!(
-                "create_program syscall received data: \
-                payload - {:?}, \
-                gas - limit - {:?}, \
-                value - {:?}, \
-                code hash - {:?}, \
-                salt - {:?}",
-                payload, gas_limit, value, code_hash, salt
-            );
+            let _payload = get_vec(ext, payload_ptr, payload_len);
+            let _value = get_u128(ext, value_ptr);
             let new_actor_id = {
-                // todo use Codec::Encode instead
+                // todo [sab] use Codec::Encode instead
                 let mut data = code_hash.to_vec();
                 data.extend_from_slice(&salt);
                 blake2_rfc::blake2b::blake2b(32, &[], &data)

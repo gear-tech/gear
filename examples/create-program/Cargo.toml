@@ -1,7 +1,9 @@
 [package]
-name = "program-factory"
+name = "demo-create-program"
 version = "0.1.0"
+authors = ["Gear Technologies"]
 edition = "2021"
+license = "GPL-3.0"
 
 [lib]
 crate-type = ["cdylib"]
@@ -9,4 +11,3 @@ crate-type = ["cdylib"]
 [dependencies]
 gcore = { path = "../../gcore", features = ["debug"] }
 gstd = { path = "../../gstd", features = ["debug"] }
-hex-literal = "0.3.4"

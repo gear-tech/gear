@@ -502,9 +502,14 @@ pub fn value() -> u128 {
     u128::from_le_bytes(value_data)
 }
 
-/// Docs todo
-/// Create mirror in gstd (with AsRef generic params for salt and payload)
-pub fn create_program(code_hash: H256, salt: &[u8], payload: &[u8], gas_limit: u64, value: u128) -> ActorId {
+// todo [sab] - create docs, create mirror in gstd (with AsRef generic params for salt and payload)
+pub fn create_program(
+    code_hash: H256,
+    salt: &[u8],
+    payload: &[u8],
+    gas_limit: u64,
+    value: u128,
+) -> ActorId {
     unsafe {
         let mut program_id = ActorId::default();
         sys::gr_create_program(
@@ -520,4 +525,3 @@ pub fn create_program(code_hash: H256, salt: &[u8], payload: &[u8], gas_limit: u
         program_id
     }
 }
-

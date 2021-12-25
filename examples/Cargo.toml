@@ -18,7 +18,7 @@ members = [
     "fungible-token",
     "futures-unordered",
     "init-wait",
-    "program-factory",
+    "create-program",
     "mem",
     "guestbook",
     "gui-test",

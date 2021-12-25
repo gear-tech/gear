@@ -264,9 +264,12 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         );
     }
 
-    fn add_func_i32_i32_i32_i32_i32_i64_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-        where
-            F: 'static + Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str>,
+    fn add_func_i32_i32_i32_i32_i32_i64_i32_i32<F>(
+        &mut self,
+        key: &'static str,
+        func: fn(LaterExt<E>) -> F,
+    ) where
+        F: 'static + Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,
