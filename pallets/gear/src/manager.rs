@@ -245,7 +245,6 @@ where
         }
     }
     fn send_message(&mut self, message_id: MessageId, message: Message) {
-        log::debug!("{:?}", message);
         let message_id = message_id.into_origin();
         let dest = message.dest().into_origin();
         let message: common::Message = message.into();

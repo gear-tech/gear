@@ -1071,6 +1071,11 @@ fn distributor_initialize() {
         let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
+        let program_id = generate_program_id(
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!"),
+            DEFAULT_SALT,
+        );
+
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1).into(),
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
@@ -1081,6 +1086,14 @@ fn distributor_initialize() {
         ));
 
         run_to_block(2, None);
+
+        let prog = common::get_program(program_id).expect("Can't fail. Added above");
+
+        // TODO: Need to fix ValueTree issue, related to unability to unreserve unused gas.
+        // Now we gonna claim value from mailbox to force it's tree consumption.
+        let message_id = compute_program_message_id(program_id.as_bytes(), prog.nonce - 1);
+        let _ =
+            GearPallet::<Test>::claim_value_from_mailbox(Origin::signed(USER_1).into(), message_id);
 
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
@@ -1112,6 +1125,14 @@ fn distributor_distribute() {
 
         run_to_block(2, None);
 
+        let prog = common::get_program(program_id).expect("Can't fail. Added above");
+
+        // TODO: Need to fix ValueTree issue, related to unability to unreserve unused gas.
+        // Now we gonna claim value from mailbox to force it's tree consumption.
+        let message_id = compute_program_message_id(program_id.as_bytes(), prog.nonce - 1);
+        let _ =
+            GearPallet::<Test>::claim_value_from_mailbox(Origin::signed(USER_1).into(), message_id);
+
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             program_id,
@@ -1122,6 +1143,12 @@ fn distributor_distribute() {
 
         run_to_block(3, None);
 
+        // Now we gonna claim value from mailbox to force it's tree consumption.
+        let message_id = compute_program_message_id(program_id.as_bytes(), prog.nonce);
+        let _ =
+            GearPallet::<Test>::claim_value_from_mailbox(Origin::signed(USER_1).into(), message_id);
+
+        // Need to fix ValueTree issue, related to unability to unreserve unused gas.
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
