@@ -22,7 +22,7 @@ use crate::errors::{ContractError, Result};
 use crate::prelude::convert::TryFrom;
 use crate::prelude::String;
 use codec::{Decode, Encode};
-use primitive_types::H256;
+use primitive_types::H256 as spH256;
 use scale_info::TypeInfo;
 
 #[derive(
@@ -87,8 +87,8 @@ impl From<ActorId> for [u8; 32] {
     }
 }
 
-impl From<H256> for ActorId {
-    fn from(h256: H256) -> Self {
+impl From<spH256> for ActorId {
+    fn from(h256: spH256) -> Self {
         Self::new(h256.to_fixed_bytes())
     }
 }
@@ -140,5 +140,77 @@ impl From<MessageId> for gcore::MessageId {
 impl From<gcore::MessageId> for MessageId {
     fn from(other: gcore::MessageId) -> Self {
         Self(other.0)
+    }
+}
+
+#[derive(
+    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
+)]
+pub struct H256([u8; 32]);
+
+impl H256 {
+    pub const fn new(arr: [u8; 32]) -> Self {
+        Self(arr)
+    }
+
+    pub fn from_slice(slice: &[u8]) -> Result<Self> {
+        if slice.len() != 32 {
+            return Err(ContractError::Convert("Slice should be 32 length"));
+        }
+
+        let mut ret: Self = Default::default();
+        ret.0.as_mut().copy_from_slice(slice);
+
+        Ok(ret)
+    }
+}
+
+impl AsRef<[u8]> for H256 {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl AsMut<[u8]> for H256 {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut()
+    }
+}
+
+impl From<[u8; 32]> for H256 {
+    fn from(arr: [u8; 32]) -> Self {
+        Self(arr)
+    }
+}
+
+impl From<H256> for [u8; 32] {
+    fn from(other: H256) -> Self {
+        other.0
+    }
+}
+
+impl From<spH256> for H256 {
+    fn from(h256: spH256) -> Self {
+        Self::new(h256.to_fixed_bytes())
+    }
+}
+
+impl From<gcore::H256> for H256 {
+    fn from(other: gcore::H256) -> Self {
+        Self(other.0)
+    }
+}
+
+impl From<H256> for gcore::H256 {
+    fn from(other: H256) -> Self {
+        Self(other.0)
+    }
+}
+
+impl TryFrom<&[u8]> for H256 {
+    type Error = ContractError;
+
+    fn try_from(slice: &[u8]) -> Result<Self> {
+        Self::from_slice(slice)
     }
 }

@@ -19,7 +19,7 @@
 //! Module with basic messaging functions.
 
 use crate::prelude::{convert::AsRef, vec, Vec};
-use crate::{ActorId, MessageId};
+use crate::{ActorId, MessageId, H256};
 use codec::Output;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -129,4 +129,21 @@ pub fn source() -> ActorId {
 
 pub fn value() -> u128 {
     gcore::msg::value()
+}
+
+pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
+    code_hash: H256,
+    salt: T1,
+    payload: T2,
+    gas_limit: u64,
+    value: u128,
+) -> ActorId {
+    gcore::msg::create_program(
+        code_hash.into(),
+        salt.as_ref(),
+        payload.as_ref(),
+        gas_limit,
+        value,
+    )
+    .into()
 }

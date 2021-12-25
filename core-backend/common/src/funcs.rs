@@ -240,7 +240,6 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
     }
 }
 
-// (code_hash, salt(start_ptr, len), payload (start_ptr, len), gas_limit, value) -> ActorId
 pub fn create_program<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
@@ -258,7 +257,7 @@ pub fn create_program<E: Ext>(
             let _payload = get_vec(ext, payload_ptr, payload_len);
             let _value = get_u128(ext, value_ptr);
             let new_actor_id = {
-                // todo [sab] use Codec::Encode instead
+                // todo #245, move id generation to core while using Codec::Encode
                 let mut data = code_hash.to_vec();
                 data.extend_from_slice(&salt);
                 blake2_rfc::blake2b::blake2b(32, &[], &data)

@@ -1085,7 +1085,7 @@ fn distributor_distribute() {
     });
 }
 
-// TODO #512 All `submit_code` tests should be changed to testing program creation from program logic.
+// TODO #245 All `submit_code` tests should be changed to testing program creation from program logic.
 
 #[test]
 fn test_code_submission_pass() {
