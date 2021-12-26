@@ -76,13 +76,13 @@ impl EnvExt for Ext {
             return self.return_and_store_err(result);
         }
 
-        // Returns back greedly used gas for grow
+        // Returns back greedily used gas for grow
         let new_mem_size = self.memory_context.memory().size().raw();
         let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back =
             self.config.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
 
-        // Returns back greedly used gas for allocations
+        // Returns back greedily used gas for allocations
         let first_page = result.unwrap().raw();
         let last_page = first_page + pages_num.raw() - 1;
         let mut new_alloced_pages_num = 0;

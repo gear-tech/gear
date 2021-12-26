@@ -14,5 +14,4 @@ codec = { package = "parity-scale-codec", version = "2", features = ["derive"], 
 log = { version = "0.4.14", default-features = false }
 
 [features]
-default = []
 strict = []

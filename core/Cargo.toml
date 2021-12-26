@@ -20,5 +20,4 @@ pwasm-utils = { version = "0.18.2", default-features = false }
 wabt = "0.10.0"
 
 [features]
-default = []
 strict = []
