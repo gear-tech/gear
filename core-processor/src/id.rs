@@ -16,14 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Message identifiers.
+
 use blake2_rfc::blake2b;
 use gear_core::{
     message::{MessageId, MessageIdGenerator},
     program::ProgramId,
 };
 
+/// Blake message id generator.
 pub struct BlakeMessageIdGenerator {
+    /// Program id.
     pub program_id: ProgramId,
+    /// Nonce.
     pub nonce: u64,
 }
 
@@ -42,6 +47,7 @@ impl MessageIdGenerator for BlakeMessageIdGenerator {
     }
 }
 
+/// Generate next message id by using program id and nonce.
 pub fn next_message_id(program_id: ProgramId, nonce: u64) -> MessageId {
     BlakeMessageIdGenerator { program_id, nonce }.next()
 }

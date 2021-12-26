@@ -28,6 +28,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
 use gear_core::program::{Program, ProgramId};
 
+/// Process program & dispatch for it and return journal for updates.
 pub fn process<E: Environment<Ext>>(
     program: Program,
     dispatch: Dispatch,
@@ -181,6 +182,7 @@ pub fn process<E: Environment<Ext>>(
     }
 }
 
+/// Process multiple dispatches into multiple programs and return journal notes for update.
 pub fn process_many<E: Environment<Ext>>(
     mut programs: BTreeMap<ProgramId, Program>,
     dispatches: Vec<Dispatch>,

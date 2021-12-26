@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Configurations.
+
 use codec::{Decode, Encode};
 use gear_core::memory::PageNumber;
 
@@ -25,18 +27,27 @@ const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
 const LOAD_PAGE_COST: u64 = 3000;
 
+/// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
 pub struct BlockInfo {
+    /// Height.
     pub height: u32,
+    /// Timestamp.
     pub timestamp: u64,
 }
 
+/// Memory/allocation config.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct AllocationsConfig {
+    /// Max amount of pages.
     pub max_pages: PageNumber,
+    /// Cost of initial memory.
     pub init_cost: u64,
+    /// Cost of allocating memory.
     pub alloc_cost: u64,
+    /// Memory grow cost.
     pub mem_grow_cost: u64,
+    /// Load page cost.
     pub load_page_cost: u64,
 }
 
@@ -52,12 +63,16 @@ impl Default for AllocationsConfig {
     }
 }
 
+/// Execution settings for handling messages.
 pub struct ExecutionSettings {
+    /// Contextual block information.
     pub block_info: BlockInfo,
+    /// Allocation config.
     pub config: AllocationsConfig,
 }
 
 impl ExecutionSettings {
+    /// New execution settings with default allocation config.
     pub fn new(block_info: BlockInfo) -> Self {
         Self {
             block_info,
@@ -65,22 +80,27 @@ impl ExecutionSettings {
         }
     }
 
+    /// Max amount of pages.
     pub fn max_pages(&self) -> PageNumber {
         self.config.max_pages
     }
 
+    /// Cost of initial memory.
     pub fn init_cost(&self) -> u64 {
         self.config.init_cost
     }
 
+    /// Cost of allocating memory.
     pub fn alloc_cost(&self) -> u64 {
         self.config.alloc_cost
     }
 
+    /// Memory grow cost.
     pub fn mem_grow_cost(&self) -> u64 {
         self.config.mem_grow_cost
     }
 
+    /// Load page cost.
     pub fn load_page_cost(&self) -> u64 {
         self.config.load_page_cost
     }

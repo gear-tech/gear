@@ -19,6 +19,7 @@
 use crate::common::{JournalHandler, JournalNote};
 use alloc::collections::BTreeMap;
 
+/// Handle some journal records passing them to the journal handler.
 pub fn handle_journal(
     journal: impl IntoIterator<Item = JournalNote>,
     handler: &mut dyn JournalHandler,

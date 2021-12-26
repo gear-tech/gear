@@ -36,6 +36,7 @@ use gear_core::{
     program::Program,
 };
 
+/// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<E: Environment<Ext>>(
     program: Program,
     dispatch: Dispatch,

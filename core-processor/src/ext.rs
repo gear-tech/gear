@@ -36,7 +36,7 @@ pub struct Ext {
     pub memory_context: MemoryContext,
     /// Message context.
     pub message_context: MessageContext<BlakeMessageIdGenerator>,
-    // Block info.
+    /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
     pub config: AllocationsConfig,

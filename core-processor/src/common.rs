@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-///! Common structures for processing.
+//! Common structures for processing.
 
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -31,12 +31,16 @@ use gear_core::{
 /// Type of wasm execution entry point.
 #[derive(Clone, Copy, Debug)]
 pub enum DispatchKind {
+    /// Initialization.
     Init,
+    /// Handle.
     Handle,
+    /// Handle reply.
     HandleReply,
 }
 
 impl DispatchKind {
+    /// Convert into entry point (function name).
     pub fn into_entry(self) -> &'static str {
         match self {
             Self::Init => "init",
@@ -60,8 +64,11 @@ pub struct Dispatch {
 /// Kind of the dispatch result.
 #[derive(Clone)]
 pub enum DispatchResultKind {
+    /// Successful dispatch
     Success,
+    /// Trap dispatch.
     Trap(Option<&'static str>),
+    /// Wait dispatch.
     Wait,
 }
 
@@ -319,5 +326,6 @@ impl alloc::fmt::Debug for State {
 
 /// Something that can return in-memory state.
 pub trait CollectState {
+    /// Collect the state from self.
     fn collect(&self) -> State;
 }
