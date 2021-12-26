@@ -168,8 +168,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         ext.get_mem(page.offset(), &mut buf);
         let mut need_update = true;
         if let Some(data) = initial_pages.get(page) {
-            need_update = *data.to_vec() != buf
-        };
+            need_update = *data.to_vec() != buf;
+        }
         if need_update {
             let _ = page_update.insert(*page, buf);
         }
