@@ -97,7 +97,7 @@ pub fn get_program(id: ProgramId) -> Option<Program> {
                 Program::from_parts(id, code, prog.static_pages, prog.nonce, persistent_pages);
             return Some(program);
         }
-    };
+    }
 
     None
 }
