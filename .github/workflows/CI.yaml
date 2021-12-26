@@ -35,9 +35,9 @@ jobs:
       - name: "Cache: Unpack"
         run: |
           cp /root/cache/check* /tmp/
-          tar -xf /tmp/check_cache.tar -C / || true
-          tar -xf /tmp/check_cargo_registry.tar -C / || true
-          tar -xf /tmp/check_target.tar || true
+          tar -xf /tmp/check_cache.tar -C /
+          tar -xf /tmp/check_cargo_registry.tar -C /
+          tar -xf /tmp/check_target.tar
 
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
@@ -98,9 +98,9 @@ jobs:
       - name: "Cache: Unpack"
         run: |
           cp /root/cache/build* /tmp/
-          tar -xf /tmp/build_cache.tar -C / || true
-          tar -xf /tmp/build_cargo_registry.tar -C / || true
-          tar -xf /tmp/build_target.tar || true
+          tar -xf /tmp/build_cache.tar -C /
+          tar -xf /tmp/build_cargo_registry.tar -C /
+          tar -xf /tmp/build_target.tar
 
       - name: "Build: Gear"
         run: ./scripts/gear.sh build gear --release --locked
@@ -220,9 +220,9 @@ jobs:
       - name: "Cache: Unpack"
         run: |
           cp /root/cache/gtest* /tmp/
-          tar -xf /tmp/gtest_cache.tar -C / || true
-          tar -xf /tmp/gtest_cargo_registry.tar -C / || true
-          tar -xf /tmp/gtest_target.tar || true
+          tar -xf /tmp/gtest_cache.tar -C /
+          tar -xf /tmp/gtest_cargo_registry.tar -C /
+          tar -xf /tmp/gtest_target.tar
 
       - name: "Install: Node.js packages"
         run: ./scripts/gear.sh init js
