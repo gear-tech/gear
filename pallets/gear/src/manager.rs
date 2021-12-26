@@ -195,7 +195,7 @@ where
     fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64) {
         let message_id = message_id.into_origin();
 
-        log::debug!("burned: {:?}", amount);
+        log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
         // Adjust block gas allowance
         GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));
@@ -246,8 +246,9 @@ where
     }
     fn send_message(&mut self, message_id: MessageId, message: Message) {
         let message_id = message_id.into_origin();
-        let dest = message.dest().into_origin();
         let message: common::Message = message.into();
+
+        log::debug!("Message sent (from: {:?}): {:?}", message_id, message);
 
         if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
             let _ = gas_tree.split_off(message.id, message.gas_limit);
@@ -258,10 +259,10 @@ where
             );
         }
 
-        if common::program_exists(dest) {
+        if common::program_exists(message.dest) {
             common::queue_message(message);
         } else {
-            Pallet::<T>::insert_to_mailbox(dest, message.clone());
+            Pallet::<T>::insert_to_mailbox(message.dest, message.clone());
             Pallet::<T>::deposit_event(Event::Log(message));
         }
     }

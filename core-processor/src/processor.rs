@@ -155,6 +155,8 @@ pub fn process<E: Environment<Ext>>(
                 amount: dispatch_result.gas_burned,
             });
 
+            dispatch_result.dispatch.message.gas_limit = dispatch_result.gas_left;
+
             journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch));
         }
     }
