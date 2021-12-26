@@ -59,9 +59,10 @@ jobs:
 
       - name: "Cache: Pack"
         run: |
-          tar -cf /root/cache/check_target.tar ./target
-          tar -cf /root/cache/check_cache.tar /tmp/cachepot
-          tar -cf /root/cache/check_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/check_target.tar ./target
+          tar -cf /tmp/check_cache.tar /tmp/cachepot
+          tar -cf /tmp/check_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
 
   build:
     runs-on: [self-hosted, cachepot]
@@ -133,9 +134,10 @@ jobs:
 
       - name: "Cache: Pack"
         run: |
-          tar -cf /root/cache/build_target.tar ./target
-          tar -cf /root/cache/build_cache.tar /tmp/cachepot
-          tar -cf /root/cache/build_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/build_target.tar ./target
+          tar -cf /tmp/build_cache.tar /tmp/cachepot
+          tar -cf /tmp/build_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
 
       - name: Prepare artifacts
         if: github.event_name == 'push'
@@ -239,6 +241,7 @@ jobs:
 
       - name: "Cache: Pack"
         run: |
-          tar -cf /root/cache/gtest_target.tar ./target
-          tar -cf /root/cache/gtest_cache.tar /tmp/cachepot
-          tar -cf /root/cache/gtest_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          tar -cf /tmp/gtest_target.tar ./target
+          tar -cf /tmp/gtest_cache.tar /tmp/cachepot
+          tar -cf /tmp/gtest_cargo_registry.tar /tmp/cargo/registry/cache /tmp/cargo/registry/index /tmp/cargo/git
+          mv /tmp/*.tar /root/cache/
