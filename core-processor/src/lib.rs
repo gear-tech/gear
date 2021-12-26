@@ -33,6 +33,7 @@ mod handler;
 mod id;
 mod processor;
 
+/// Error exit code.
 pub const ERR_EXIT_CODE: i32 = 1;
 
 pub use executor::execute_wasm;
