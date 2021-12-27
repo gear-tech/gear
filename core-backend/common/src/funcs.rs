@@ -265,7 +265,7 @@ pub fn create_program<E: Ext>(
             ext.set_mem(program_id_ptr as isize as _, new_actor_id.as_bytes());
             Ok(())
         })?;
-        res
+        res.map_err(|_| "Trapping: unable to create program")
     }
 }
 
