@@ -26,7 +26,7 @@ use tests_distributor::{Request, WASM_BINARY_BLOATY};
 use super::{
     mock::{
         new_test_ext, run_to_block, Event as MockEvent, Origin, Test, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        LOW_BALANCE_USER, USER_1, USER_2, USER_3, Gear, System
     },
     pallet, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox, MessageInfo,
     Pallet as GearPallet, Reason,
@@ -49,7 +49,7 @@ fn submit_program_works() {
         let (origin, code, program_id, message_id) = {
             let submit_msg = mq.into_iter().next().expect("mq length is 1");
             match submit_msg {
-                IntermediateMessage::InitProgram {
+                IntermediateMessage::Init {
                     origin,
                     code,
                     program_id,
@@ -150,7 +150,7 @@ fn send_message_works() {
         let actual_msg_id = {
             let sent_to_prog_msg = mq.into_iter().next_back().expect("mq is not empty");
             match sent_to_prog_msg {
-                IntermediateMessage::DispatchMessage { id, .. } => id,
+                IntermediateMessage::Dispatch { id, .. } => id,
                 _ => unreachable!("last message was a dispatch message"),
             }
         };
@@ -554,7 +554,7 @@ fn init_message_logging_works() {
                     .flatten()
                     .expect("mq has only submit program message");
                 match msg {
-                    IntermediateMessage::InitProgram {
+                    IntermediateMessage::Init {
                         program_id,
                         init_message_id,
                         origin,
@@ -627,7 +627,7 @@ fn program_lifecycle_works() {
         // Expect the program to have made it to the PS, cause it failed it's init
         assert!(common::get_program(program_id).is_none());
         // while at the same time being stuck in "limbo"
-        assert!(GearPallet::<Test>::is_uninitialized(program_id));
+        assert!(GearPallet::<Test>::is_failed(program_id));
 
         // Program author is allowed to remove the program and reclaim funds
         // An attempt to remove a program on behalf of another account will make no changes
@@ -638,7 +638,7 @@ fn program_lifecycle_works() {
         // Program not in the storage
         assert!(common::get_program(program_id).is_none());
         // and is still in the limbo
-        assert!(GearPallet::<Test>::is_uninitialized(program_id));
+        assert!(GearPallet::<Test>::is_failed(program_id));
 
         assert_ok!(GearPallet::<Test>::remove_stale_program(
             Origin::signed(USER_1).into(),
@@ -648,6 +648,7 @@ fn program_lifecycle_works() {
         assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
     })
 }
+
 #[test]
 fn events_logging_works() {
     let wat_trap_in_handle = r#"
@@ -784,7 +785,7 @@ fn send_reply_works() {
                 .flatten()
                 .expect("reply message was previously sent");
             match intermediate_msg {
-                IntermediateMessage::DispatchMessage { id, reply, .. } => {
+                IntermediateMessage::Dispatch { id, reply, .. } => {
                     (id, reply.expect("was a reply message"))
                 }
                 _ => unreachable!("only reply message was in mq"),
@@ -1264,6 +1265,282 @@ fn test_code_is_not_resetted_within_program_submission() {
 
         assert_eq!(expected_meta, actual_meta);
         assert_eq!(expected_code_saved_events, actual_code_saved_events);
+    })
+}
+
+#[test]
+fn messages_to_uninitialized_program_wait() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            50_000_000u64,
+            0u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        let (program_id, _init_message_id) = match &messages[0] {
+            IntermediateMessage::Init {
+                program_id,
+                init_message_id,
+                ..
+            } => (*program_id, *init_message_id),
+            _ => unreachable!(),
+        };
+        assert!(common::get_program(program_id).is_none());
+        assert!(super::ProgramsLimbo::<Test>::get(program_id).is_none());
+
+        run_to_block(2, None);
+
+        assert_eq!(
+            common::WaitingMessageIterator::new(program_id, None).count(),
+            1
+        );
+        // Expect the program to be in PS by now
+        assert!(common::get_program(program_id).is_some());
+        assert!(super::ProgramsLimbo::<Test>::get(program_id).is_none());
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id,
+            vec![],
+            10_000u64,
+            0u128
+        ));
+
+        run_to_block(3, None);
+
+        assert_eq!(
+            common::WaitingMessageIterator::new(program_id, None).count(),
+            2
+        );
+    })
+}
+
+#[test]
+fn uninitialized_program_should_accept_replies() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            20_000_000u64,
+            0u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        let program_id = match &messages[0] {
+            IntermediateMessage::Init { program_id, .. } => *program_id,
+            _ => unreachable!(),
+        };
+
+        run_to_block(2, None);
+
+        // there should be one message for the program author
+        let mailbox = Gear::get_mailbox(USER_1);
+        assert!(mailbox.is_some());
+
+        let mailbox = mailbox.unwrap();
+        let mut keys = mailbox.keys();
+
+        let message_id = keys.next();
+        assert!(message_id.is_some());
+        let message_id = message_id.unwrap();
+
+        assert!(keys.next().is_none());
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            *message_id,
+            b"PONG".to_vec(),
+            20_000_000u64,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        assert!(Gear::is_initialized(program_id));
+    })
+}
+
+#[test]
+fn defer_program_initialization() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            20_000_000u64,
+            0u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        let program_id = match &messages[0] {
+            IntermediateMessage::Init { program_id, .. } => *program_id,
+            _ => unreachable!(),
+        };
+
+        run_to_block(2, None);
+
+        let mailbox =
+            Gear::get_mailbox(USER_1).expect("should be one message for the program author");
+        let mut keys = mailbox.keys();
+
+        let message_id = keys.next().expect("message keys cannot be empty");
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            *message_id,
+            b"PONG".to_vec(),
+            20_000_000u64,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            program_id,
+            vec![],
+            10_000_000u64,
+            0u128
+        ));
+
+        run_to_block(4, None);
+
+        assert_eq!(
+            Gear::get_mailbox(USER_1)
+                .expect("should be one reply for the program author")
+                .into_values()
+                .count(),
+            1
+        );
+
+        let message = Gear::get_mailbox(USER_1)
+            .expect("should be one reply for the program author")
+            .into_values()
+            .next();
+        assert!(message.is_some());
+
+        assert_eq!(message.unwrap().payload, b"Hello, world!".encode());
+    })
+}
+
+#[test]
+fn wake_messages_after_program_inited() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let messages: Vec<IntermediateMessage> =
+            Gear::message_queue().expect("There should be a message in the queue");
+        let program_id = match &messages[0] {
+            IntermediateMessage::Init { program_id, .. } => *program_id,
+            _ => unreachable!(),
+        };
+
+        run_to_block(2, None);
+
+        // While program is not inited all messages addressed to it are waiting.
+        // There could be dozens of them.
+        let n = 10;
+        for _ in 0..n {
+            assert_ok!(GearPallet::<Test>::send_message(
+                Origin::signed(USER_3).into(),
+                program_id,
+                vec![],
+                10_000_000u64,
+                0u128
+            ));
+        }
+
+        run_to_block(3, None);
+
+        let mailbox =
+            Gear::get_mailbox(USER_1).expect("should be one message for the program author");
+        let mut keys = mailbox.keys();
+
+        let message_id = keys.next().expect("message keys cannot be empty");
+
+        let reply_gas = <Test as frame_system::Config>::DbWeight::get().reads(1);
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            *message_id,
+            b"PONG".to_vec(),
+            reply_gas,
+            0,
+        ));
+
+        // Emulate the situation when not all waiting messages can be woken since one storage read
+        // takes some weight.
+        // The following formula should produce the weight that is sufficient for about 2-4 messages to be woken.
+        run_to_block(
+            4,
+            Some(reply_gas + 3 * <Test as frame_system::Config>::DbWeight::get().reads(2)),
+        );
+
+        // check that there are remained messages
+        let remaining_messages = common::WaitingMessageIterator::new(program_id, None);
+        assert!(remaining_messages.count() > 0);
+
+        let messages = Gear::message_queue();
+        assert!(messages.is_some());
+
+        let messages = messages.unwrap();
+        // and that the next bunch of messages will be awoken
+        let destination_id = match &messages[0] {
+            IntermediateMessage::Wake {
+                destination_program_id,
+            } => *destination_program_id,
+            _ => unreachable!(),
+        };
+
+        assert_eq!(destination_id, program_id);
+
+        run_to_block(10, None);
+
+        let actual_n = Gear::get_mailbox(USER_3)
+            .expect("should be replies to USER_3")
+            .into_values()
+            .fold(0usize, |acc, m| {
+                assert_eq!(m.payload, b"Hello, world!".encode());
+                acc + 1
+            });
+
+        assert_eq!(actual_n, n);
     })
 }
 

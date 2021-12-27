@@ -18,6 +18,7 @@
 
 use crate as pallet_gear;
 use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
+use frame_support::weights::RuntimeDbWeight;
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use sp_core::H256;
@@ -28,12 +29,13 @@ use sp_runtime::{
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+type AccountId = u64;
 
-pub(crate) const USER_1: u64 = 1;
-pub(crate) const USER_2: u64 = 2;
-pub(crate) const USER_3: u64 = 3;
-pub(crate) const LOW_BALANCE_USER: u64 = 4;
-pub(crate) const BLOCK_AUTHOR: u64 = 255;
+pub(crate) const USER_1: AccountId = 1;
+pub(crate) const USER_2: AccountId = 2;
+pub(crate) const USER_3: AccountId = 3;
+pub(crate) const LOW_BALANCE_USER: AccountId = 4;
+pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -66,20 +68,24 @@ parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
+    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight {
+        read: 10_000_000u64,
+        write: 20_000_000u64,
+    };
 }
 
 impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
-    type DbWeight = ();
+    type DbWeight = DbWeight;
     type Origin = Origin;
     type Call = Call;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
-    type AccountId = u64;
+    type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
     type Event = Event;
@@ -151,7 +157,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         balances: vec![
             (USER_1, 100_000_000_u128),
             (USER_2, 100_000_000_u128),
-            (USER_3, 100_000_000_u128),
+            (USER_3, 300_000_000_u128),
             (LOW_BALANCE_USER, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],

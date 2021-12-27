@@ -59,6 +59,9 @@ where
             CoreDispatchOutcome::InitSuccess { .. } => {
                 self.current_failed = false;
             }
+            CoreDispatchOutcome::InitWait { .. } => {
+                self.current_failed = false;
+            }
             CoreDispatchOutcome::Success(_) => {
                 self.current_failed = false;
                 let _ = gear_common::dequeue_message();

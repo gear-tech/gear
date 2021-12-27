@@ -227,7 +227,7 @@ benchmarks! {
         T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = generate_wasm(q).unwrap();
         MessageQueue::<T>::append(
-            IntermediateMessage::InitProgram {
+            IntermediateMessage::Init {
                 origin: caller.into_origin(),
                 code,
                 program_id: account::<T::AccountId>("program", q, 0).into_origin(),
@@ -252,7 +252,7 @@ benchmarks! {
         let program_id = account::<T::AccountId>("program", q, 0).into_origin();
         set_program(program_id, code, 1_u32, q as u64);
         MessageQueue::<T>::append(
-            IntermediateMessage::DispatchMessage {
+            IntermediateMessage::Dispatch {
                 id: account::<T::AccountId>("message", q, 100).into_origin(),
                 origin: caller.into_origin(),
                 destination: program_id,

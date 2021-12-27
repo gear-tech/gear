@@ -1,11 +1,11 @@
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GasAllowance,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult,
     MessageInfo, Pallet, ProgramsLimbo,
 };
 use codec::Decode;
 use common::{
     value_tree::{ConsumeResult, ValueView},
-    GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_PROGRAM_PREFIX,
+    GasToFeeConverter, Origin, ProgramState, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
@@ -153,15 +153,35 @@ where
                 origin,
                 program,
             } => {
+                let program_id = program.id().into_origin();
                 let event = Event::InitSuccess(MessageInfo {
                     message_id: message_id.into_origin(),
                     origin: origin.into_origin(),
-                    program_id: program.id().into_origin(),
+                    program_id,
                 });
 
-                self.set_program(program);
+                if let None = common::get_program_state(program_id) {
+                    self.set_program(program);
+                } else {
+                    Pallet::<T>::wake_waiting_messages(program_id);
+                }
+
+                common::set_program_state(program_id, ProgramState::Initialized);
 
                 event
+            }
+            CoreDispatchOutcome::InitWait {
+                message_id,
+                program,
+                ..
+            } => {
+                let program_id = program.id().into_origin();
+                if let None = common::get_program_state(program_id) {
+                    common::set_program_state(program_id, ProgramState::Uninitialized { message_id: message_id.into_origin() });
+                    self.set_program(program);
+                }
+
+                return;
             }
             CoreDispatchOutcome::InitFailure {
                 message_id,
@@ -197,8 +217,7 @@ where
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
-        // Adjust block gas allowance
-        GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));
+        Pallet::<T>::decrease_gas_allowance(amount);
         // TODO: weight to fee calculator might not be identity fee
         let charge = T::GasConverter::gas_to_fee(amount);
 

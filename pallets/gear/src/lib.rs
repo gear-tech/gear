@@ -52,7 +52,7 @@ pub mod pallet {
 
     use common::{
         self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin,
-        GAS_VALUE_PREFIX,
+        ProgramState, GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -207,6 +207,7 @@ pub mod pallet {
     pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
 
     #[pallet::storage]
+    #[pallet::getter(fn get_mailbox)]
     pub type Mailbox<T: Config> =
         StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
 
@@ -246,6 +247,8 @@ pub mod pallet {
             weight
         }
     }
+
+    struct WaitingMessages;
 
     impl<T: Config> Pallet<T>
     where
@@ -328,12 +331,62 @@ pub mod pallet {
             Some(gas_burned)
         }
 
+        pub(crate) fn decrease_gas_allowance(gas_charge: u64) {
+            GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
+        }
+
+        /// Returns true if a program has been successfully initialized
+        pub fn is_initialized(program_id: H256) -> bool {
+            common::get_program_state(program_id)
+                .map(|s| matches!(s, ProgramState::Initialized))
+                .unwrap_or(false)
+        }
+
         /// Returns true if a program resulted in an error during initialization
         /// but hasn't been explicitly removed from storage by its creator
-        pub fn is_uninitialized(program_id: H256) -> bool {
+        pub fn is_failed(program_id: H256) -> bool {
             ProgramsLimbo::<T>::get(program_id)
                 .map(|_| true)
                 .unwrap_or(false)
+        }
+
+        /// Internal helper function. Moves messages from waiting list to the queue. Returns a flag if there are
+        /// more (probably) messages and used weight.
+        fn requeue_waiting_messages(
+            program_id: H256,
+            available_weight: Weight,
+        ) -> (Option<WaitingMessages>, Weight) {
+            let one_step_weight = T::DbWeight::get().reads(2) + T::DbWeight::get().writes(1);
+            let message_count = available_weight / one_step_weight;
+
+            let actual_count = common::WaitingMessageIterator::drain(program_id, None)
+                .take(message_count as usize)
+                .fold(0u64, |i, (m, _)| {
+                    common::queue_message(m);
+                    i + 1
+                });
+
+            let used_weight = actual_count * one_step_weight;
+            if actual_count < message_count {
+                (None, used_weight)
+            } else {
+                (Some(WaitingMessages), used_weight)
+            }
+        }
+
+        /// Tries to wake all messages sent to `destination_program_id` while it hasn't been initialized.
+        pub fn wake_waiting_messages(destination_program_id: H256) {
+            let (remained, used_weight) = Self::requeue_waiting_messages(
+                destination_program_id,
+                Self::gas_allowance() as Weight,
+            );
+            Self::decrease_gas_allowance(used_weight);
+
+            if let Some(WaitingMessages) = remained {
+                MessageQueue::<T>::append(IntermediateMessage::Wake {
+                    destination_program_id,
+                });
+            }
         }
 
         /// Message Queue processing.
@@ -360,7 +413,7 @@ pub mod pallet {
                 match message {
                     // Initialization queue is handled separately and on the first place
                     // Any programs failed to initialize are deleted and further messages to them are not processed
-                    IntermediateMessage::InitProgram {
+                    IntermediateMessage::Init {
                         origin,
                         ref code,
                         program_id,
@@ -438,9 +491,9 @@ pub mod pallet {
                                 },
                                 Reason::Error,
                             ));
-                        };
+                        }
                     }
-                    IntermediateMessage::DispatchMessage {
+                    IntermediateMessage::Dispatch {
                         id,
                         origin,
                         destination,
@@ -473,6 +526,10 @@ pub mod pallet {
                             Self::deposit_event(Event::Log(message));
                         }
                     }
+
+                    IntermediateMessage::Wake {
+                        destination_program_id,
+                    } => Self::wake_waiting_messages(destination_program_id),
                 }
             }
 
@@ -483,25 +540,15 @@ pub mod pallet {
                     break;
                 }
 
-                if let Some(program) = ext_manager.get_program(message.dest) {
-                    let kind = if message.reply.is_none() {
-                        DispatchKind::Handle
-                    } else {
-                        DispatchKind::HandleReply
-                    };
+                let program_id = message.dest;
 
-                    let dispatch = Dispatch {
-                        kind,
-                        message: message.into(),
-                    };
-
-                    let res = core_processor::process::<SandboxEnvironment<Ext>>(
-                        program, dispatch, block_info,
-                    );
-
-                    core_processor::handle_journal(res.journal, &mut ext_manager);
-
-                    total_handled += 1;
+                let (program, state) = if let Some(data) = ext_manager.get_program(program_id)
+                    .and_then(|p| {
+                        common::get_program_state(program_id)
+                            .map(|s| (p, s))
+                    })
+                {
+                    data
                 } else {
                     log::warn!(
                         "Couldn't find program: {:?}, message with id: {:?} will be skipped",
@@ -510,7 +557,43 @@ pub mod pallet {
                     );
                     // TODO: make error event log record
                     continue;
-                }
+                };
+
+                let kind = if let Some(kind) = message.reply
+                    .map(|_| DispatchKind::HandleReply)
+                    .or(match state {
+                        ProgramState::Initialized => Some(DispatchKind::Handle),
+                        ProgramState::Uninitialized { message_id } => if message_id == message.id {
+                                Some(DispatchKind::Init)
+                            } else {
+                                None
+                            },
+                    }) {
+                        kind
+                    } else {
+                        Self::deposit_event(Event::AddedToWaitList(message.clone()));
+                        common::insert_waiting_message(
+                            program_id,
+                            message.id,
+                            message,
+                            block_info.height,
+                        );
+
+                        continue;
+                    };
+
+                let dispatch = Dispatch {
+                    kind,
+                    message: message.into(),
+                };
+
+                let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                    program, dispatch, block_info,
+                );
+
+                core_processor::handle_journal(res.journal, &mut ext_manager);
+
+                total_handled += 1;
 
                 if T::DebugInfo::is_enabled() {
                     T::DebugInfo::do_snapshot();
@@ -671,7 +754,7 @@ pub mod pallet {
                 Self::deposit_event(Event::CodeSaved(code_hash))
             };
 
-            <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
+            <MessageQueue<T>>::append(IntermediateMessage::Init {
                 origin,
                 code,
                 program_id: id,
@@ -718,9 +801,9 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            // Check that the message is not intended for an uninitialized program
+            // Check that the message is not intended for a failed program
             ensure!(
-                !Self::is_uninitialized(destination),
+                !Self::is_failed(destination),
                 Error::<T>::ProgramIsNotInitialized
             );
 
@@ -747,7 +830,7 @@ pub mod pallet {
             )?;
 
             // Only after reservation the message is actually put in the queue.
-            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
+            <MessageQueue<T>>::append(IntermediateMessage::Dispatch {
                 id: message_id,
                 origin: who.clone().into_origin(),
                 destination,
@@ -846,7 +929,7 @@ pub mod pallet {
             }
 
             let message_id = common::next_message_id(&payload);
-            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
+            <MessageQueue<T>>::append(IntermediateMessage::Dispatch {
                 id: message_id,
                 origin: who.clone().into_origin(),
                 destination,

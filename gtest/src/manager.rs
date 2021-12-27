@@ -50,6 +50,9 @@ impl JournalHandler for InMemoryExtManager {
             DispatchOutcome::InitFailure { .. } => {
                 self.current_failed = true;
             }
+            DispatchOutcome::InitWait { .. } => {
+                self.current_failed = false;
+            }
         };
     }
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}

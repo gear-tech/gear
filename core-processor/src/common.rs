@@ -157,6 +157,15 @@ pub enum DispatchOutcome {
         /// Program that was successsfully initialized.
         program: Program,
     },
+    /// Initialization message waited.
+    InitWait {
+        /// Id of the init-message.
+        message_id: MessageId,
+        /// Original actor.
+        origin: ProgramId,
+        /// Program whose `init` waited.
+        program: Program,
+    },
     /// Message was an initialization failure.
     InitFailure {
         /// Message id.
