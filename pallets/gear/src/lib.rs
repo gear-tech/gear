@@ -51,8 +51,8 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin,
-        ProgramState, GAS_VALUE_PREFIX,
+        self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin, ProgramState,
+        GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -542,11 +542,9 @@ pub mod pallet {
 
                 let program_id = message.dest;
 
-                let (program, state) = if let Some(data) = ext_manager.get_program(program_id)
-                    .and_then(|p| {
-                        common::get_program_state(program_id)
-                            .map(|s| (p, s))
-                    })
+                let (program, state) = if let Some(data) = ext_manager
+                    .get_program(program_id)
+                    .and_then(|p| common::get_program_state(program_id).map(|s| (p, s)))
                 {
                     data
                 } else {
@@ -559,28 +557,32 @@ pub mod pallet {
                     continue;
                 };
 
-                let kind = if let Some(kind) = message.reply
-                    .map(|_| DispatchKind::HandleReply)
-                    .or(match state {
-                        ProgramState::Initialized => Some(DispatchKind::Handle),
-                        ProgramState::Uninitialized { message_id } => if message_id == message.id {
-                                Some(DispatchKind::Init)
-                            } else {
-                                None
-                            },
-                    }) {
-                        kind
-                    } else {
-                        Self::deposit_event(Event::AddedToWaitList(message.clone()));
-                        common::insert_waiting_message(
-                            program_id,
-                            message.id,
-                            message,
-                            block_info.height,
-                        );
+                let kind = if let Some(kind) =
+                    message
+                        .reply
+                        .map(|_| DispatchKind::HandleReply)
+                        .or(match state {
+                            ProgramState::Initialized => Some(DispatchKind::Handle),
+                            ProgramState::Uninitialized { message_id } => {
+                                if message_id == message.id {
+                                    Some(DispatchKind::Init)
+                                } else {
+                                    None
+                                }
+                            }
+                        }) {
+                    kind
+                } else {
+                    Self::deposit_event(Event::AddedToWaitList(message.clone()));
+                    common::insert_waiting_message(
+                        program_id,
+                        message.id,
+                        message,
+                        block_info.height,
+                    );
 
-                        continue;
-                    };
+                    continue;
+                };
 
                 let dispatch = Dispatch {
                     kind,

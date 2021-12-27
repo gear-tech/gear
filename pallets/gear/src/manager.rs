@@ -1,11 +1,12 @@
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult,
-    MessageInfo, Pallet, ProgramsLimbo,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
+    Pallet, ProgramsLimbo,
 };
 use codec::Decode;
 use common::{
     value_tree::{ConsumeResult, ValueView},
-    GasToFeeConverter, Origin, ProgramState, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_PROGRAM_PREFIX,
+    GasToFeeConverter, Origin, ProgramState, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX,
+    STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
@@ -160,7 +161,7 @@ where
                     program_id,
                 });
 
-                if let None = common::get_program_state(program_id) {
+                if common::get_program_state(program_id).is_none() {
                     self.set_program(program);
                 } else {
                     Pallet::<T>::wake_waiting_messages(program_id);
@@ -176,8 +177,13 @@ where
                 ..
             } => {
                 let program_id = program.id().into_origin();
-                if let None = common::get_program_state(program_id) {
-                    common::set_program_state(program_id, ProgramState::Uninitialized { message_id: message_id.into_origin() });
+                if common::get_program_state(program_id).is_none() {
+                    common::set_program_state(
+                        program_id,
+                        ProgramState::Uninitialized {
+                            message_id: message_id.into_origin(),
+                        },
+                    );
                     self.set_program(program);
                 }
 

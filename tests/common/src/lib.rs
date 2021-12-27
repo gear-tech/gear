@@ -268,7 +268,7 @@ impl<'a> JournalHandler for Journal<'a> {
             DispatchOutcome::InitSuccess { program, .. } => {
                 self.context.programs.insert(program.id(), program);
             }
-            DispatchOutcome::InitWait{ .. } => {}
+            DispatchOutcome::InitWait { .. } => {}
             DispatchOutcome::InitFailure {
                 program_id,
                 message_id,
