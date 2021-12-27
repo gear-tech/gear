@@ -195,13 +195,13 @@ impl From<spH256> for H256 {
     }
 }
 
-impl From<gcore::H256> for H256 {
-    fn from(other: gcore::H256) -> Self {
+impl From<gcore::CodeHash> for H256 {
+    fn from(other: gcore::CodeHash) -> Self {
         Self(other.0)
     }
 }
 
-impl From<H256> for gcore::H256 {
+impl From<H256> for gcore::CodeHash {
     fn from(other: H256) -> Self {
         Self(other.0)
     }

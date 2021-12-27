@@ -147,15 +147,15 @@ impl ActorId {
 }
 
 #[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
-pub struct H256(pub [u8; 32]);
+pub struct CodeHash(pub [u8; 32]);
 
-impl From<[u8; 32]> for H256 {
+impl From<[u8; 32]> for CodeHash {
     fn from(v: [u8; 32]) -> Self {
-        H256(v)
+        CodeHash(v)
     }
 }
 
-impl H256 {
+impl CodeHash {
     /// Create a new `H256` from 32-byte slice `s`.
     ///
     /// Panics if the supplied slice length is other than 32.
@@ -163,7 +163,7 @@ impl H256 {
         if s.len() != 32 {
             panic!("The slice must contain 32 u8 to be casted to H256");
         }
-        let mut ret = H256([0u8; 32]);
+        let mut ret = CodeHash([0u8; 32]);
         ret.0[..].copy_from_slice(s);
         ret
     }

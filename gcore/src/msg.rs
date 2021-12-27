@@ -26,7 +26,7 @@
 //! reply to the initial message.
 
 use crate::MessageHandle;
-use crate::{ActorId, MessageId, H256};
+use crate::{ActorId, MessageId, CodeHash};
 
 mod sys {
     extern "C" {
@@ -519,7 +519,7 @@ pub fn value() -> u128 {
 /// Basically we can use "automatic" salt generation ("nonce"):
 /// ```
 /// use gcore::msg;
-/// use gcore::H256;
+/// use gcore::CodeHash;
 ///
 /// static mut NONCE: i32 = 0;
 ///
@@ -534,7 +534,7 @@ pub fn value() -> u128 {
 /// }
 ///
 /// pub unsafe extern "C" fn handle() {
-///     let submitted_code: H256 =
+///     let submitted_code: CodeHash =
 ///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
 ///             .into();
 ///     let new_program_id =
@@ -544,10 +544,10 @@ pub fn value() -> u128 {
 /// Another case for salt is to receive it as an input:
 /// ```
 /// use gcore::msg;
-/// # use gcore::H256;
+/// # use gcore::CodeHash;
 ///
 /// pub unsafe extern "C" fn handle() {
-///     # let submitted_code: H256 = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
+///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
 ///     let mut salt = vec![0u8; msg::size()];
 ///     msg::load(&mut salt[..]);
 ///     let new_program_id = msg::create_program(submitted_code, &salt, b"", 10_000, 0);
@@ -557,10 +557,10 @@ pub fn value() -> u128 {
 /// What's more, messages can be sent to a new program:
 /// ```
 /// use gcore::msg;
-/// # use gcore::H256;
+/// # use gcore::CodeHash;
 ///
 /// pub unsafe extern "C" fn handle() {
-///     # let submitted_code: H256 = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
+///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
 ///     # let mut salt = vec![0u8; msg::size()];
 ///     # msg::load(&mut salt[..]);
 ///     let new_program_id = msg::create_program(submitted_code, &salt, b"", 10_000, 0);
@@ -568,7 +568,7 @@ pub fn value() -> u128 {
 /// }
 /// ```
 pub fn create_program(
-    code_hash: H256,
+    code_hash: CodeHash,
     salt: &[u8],
     payload: &[u8],
     gas_limit: u64,
