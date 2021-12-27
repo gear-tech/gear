@@ -96,7 +96,7 @@ mod wasm {
                 let reply_bytes = msg::send_bytes_and_wait_for_reply(
                     program_handle,
                     &encoded_request[..],
-                    exec::gas_available() - 60_000_000,
+                    1_000_000_000,
                     0,
                 )
                 .await
@@ -142,7 +142,7 @@ mod wasm {
             };
 
             debug!("Handle request finished");
-            msg::reply(reply, exec::gas_available() - 60_000_000, 0);
+            msg::reply(reply, exec::gas_available() - 50_000_000, 0);
         }
 
         async fn handle_receive(amount: u64) -> Reply {
@@ -246,6 +246,8 @@ mod tests {
 
     #[test]
     fn program_can_be_initialized() {
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+
         let mut runner = RunnerContext::default();
 
         // Assertions are performed when decoding reply
@@ -254,6 +256,8 @@ mod tests {
 
     #[test]
     fn single_program() {
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+
         let mut runner = RunnerContext::default();
         runner.init_program(wasm_code());
 
@@ -269,6 +273,8 @@ mod tests {
         program_id_2: u64,
         program_id_3: u64,
     ) -> RunnerContext {
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+
         let mut runner = RunnerContext::default();
 
         runner.init_program(InitProgram::from(wasm_code()).id(program_id_1));
@@ -288,6 +294,8 @@ mod tests {
 
     #[test]
     fn composite_program() {
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+
         let program_id_1 = 1;
         let program_id_2 = 2;
         let program_id_3 = 3;
@@ -310,7 +318,7 @@ mod tests {
     // This test show how RefCell will prevent to do conflicting changes (prevent multi-aliasing of the program state)
     #[test]
     fn conflicting_nodes() {
-        env_logger::Builder::from_env(env_logger::Env::default()).init();
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
         let program_id_1 = 1;
         let program_id_2 = 2;

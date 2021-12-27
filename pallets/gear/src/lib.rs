@@ -19,12 +19,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
-#[cfg(feature = "debug-mode")]
-pub use pallet_gear_debug::DebugInfo;
 pub use weights::WeightInfo;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+pub mod manager;
 pub mod weights;
 
 #[cfg(test)]
@@ -35,12 +34,30 @@ mod tests;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
+pub trait DebugInfo {
+    fn do_snapshot();
+    fn is_enabled() -> bool;
+}
+
+impl DebugInfo for () {
+    fn do_snapshot() {}
+    fn is_enabled() -> bool {
+        false
+    }
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
+
     use common::{
         self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin,
         GAS_VALUE_PREFIX,
+    };
+    use core_processor::{
+        common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
+        configs::BlockInfo,
+        Ext,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -48,11 +65,16 @@ pub mod pallet {
         traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
+    use gear_backend_sandbox::SandboxEnvironment;
+    use gear_core::program::Program;
+    use manager::ExtManager;
     use primitive_types::H256;
-    use runner::BlockInfo;
     use scale_info::TypeInfo;
     use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
-    use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+    use sp_std::{
+        collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+        prelude::*,
+    };
 
     #[pallet::config]
     pub trait Config:
@@ -74,7 +96,6 @@ pub mod pallet {
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
 
-        #[cfg(feature = "debug-mode")]
         type DebugInfo: DebugInfo;
     }
 
@@ -251,13 +272,60 @@ pub mod pallet {
             .flatten()
         }
 
-        pub fn get_gas_spent(destination: H256, payload: Vec<u8>) -> Option<u64> {
-            runner::gas_spent::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
-                destination,
+        pub fn get_gas_spent(dest: H256, payload: Vec<u8>) -> Option<u64> {
+            let mut ext_manager = ExtManager::<T>::new();
+
+            let block_info = BlockInfo {
+                height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+                timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+            };
+
+            let mut messages: VecDeque<Message> = VecDeque::from([Message {
+                id: common::next_message_id(&payload),
+                source: 100001.into_origin(),
+                dest,
+                gas_limit: u64::MAX,
                 payload,
-                0,
-            )
-            .ok()
+                value: 0,
+                reply: None,
+            }]);
+
+            let mut gas_burned = 0;
+
+            while let Some(message) = messages.pop_front() {
+                let program = ext_manager.get_program(message.dest).or(None)?;
+
+                let kind = if message.reply.is_none() {
+                    DispatchKind::Handle
+                } else {
+                    DispatchKind::HandleReply
+                };
+
+                let dispatch = Dispatch {
+                    kind,
+                    message: message.into(),
+                };
+
+                let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                    program, dispatch, block_info,
+                );
+
+                for note in &res.journal {
+                    match note {
+                        JournalNote::GasBurned { amount, .. } => {
+                            gas_burned = gas_burned.saturating_add(*amount)
+                        }
+                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                            ..
+                        }) => return None,
+                        _ => {}
+                    }
+                }
+
+                core_processor::handle_journal(res.journal, &mut ext_manager);
+            }
+
+            Some(gas_burned)
         }
 
         /// Returns true if a program resulted in an error during initialization
@@ -276,6 +344,8 @@ pub mod pallet {
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
         pub fn process_queue() -> Weight {
+            let mut ext_manager = ExtManager::<T>::new();
+
             // At the beginning of a new block, we process all queued messages
             let messages = <MessageQueue<T>>::take().unwrap_or_default();
 
@@ -312,7 +382,7 @@ pub mod pallet {
                             continue;
                         }
 
-                        let mut gas_tree = common::value_tree::ValueView::get_or_create(
+                        common::value_tree::ValueView::get_or_create(
                             GAS_VALUE_PREFIX,
                             origin,
                             init_message_id,
@@ -321,152 +391,54 @@ pub mod pallet {
 
                         // Successful outcome assumes a programs has been created and initialized so that
                         // messages sent to this `ProgramId` will be enqueued for processing.
-                        match runner::init_program::<
-                            gear_backend_sandbox::SandboxEnvironment<runner::Ext>,
-                        >(
-                            origin,
-                            program_id,
-                            code.to_vec(),
-                            init_message_id,
-                            payload.to_vec(),
+                        let init_message = common::Message {
+                            id: init_message_id,
+                            source: origin,
+                            dest: program_id,
+                            payload: payload.to_vec(),
                             gas_limit,
                             value,
-                            block_info,
-                        ) {
-                            Err(_) => {
-                                // `init_program` in Runner can only return Err(_) in two cases:
-                                // - failure to write program to Program Storage
-                                // - failure to instrument the init code
-                                // In both cases the function returns before any gas could be spent.
-                                // Hence no need to adjust the remaining gas allowance.
+                            reply: None,
+                        };
 
-                                // No code has run hense unreserving everything
-                                T::Currency::unreserve(
-                                    &<T::AccountId as Origin>::from_origin(origin),
-                                    T::GasConverter::gas_to_fee(gas_limit)
-                                        + value.unique_saturated_into(),
-                                );
+                        let H256(bytes) = program_id;
 
-                                // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
-                                ProgramsLimbo::<T>::insert(program_id, origin);
-                                log::info!(
-                                    target: "runtime::gear",
-                                    "👻 Program {} will stay in limbo until explicitly removed",
-                                    program_id
-                                );
-                                Self::deposit_event(Event::InitFailure(
-                                    MessageInfo {
-                                        message_id: init_message_id,
-                                        program_id,
-                                        origin,
-                                    },
-                                    Reason::Error,
-                                ));
-                            }
-                            Ok(execution_report) => {
-                                // In case of init, we can unreserve everything right away.
-                                T::Currency::unreserve(
-                                    &<T::AccountId as Origin>::from_origin(origin),
-                                    T::GasConverter::gas_to_fee(gas_limit)
-                                        + value.unique_saturated_into(),
-                                );
+                        if let Ok(program) = Program::new(bytes.into(), code.to_vec()) {
+                            let dispatch = Dispatch {
+                                kind: DispatchKind::Init,
+                                message: init_message.into(),
+                            };
 
-                                // Handle the stuff that should be taken care of regardless of the execution outcome
-                                total_handled += 1;
+                            let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                                program, dispatch, block_info,
+                            );
 
-                                // handle gas charge
-                                for (_, gas_charge) in execution_report.gas_charges {
-                                    // Adjust block gas allowance
-                                    GasAllowance::<T>::mutate(|x| {
-                                        *x = x.saturating_sub(gas_charge)
-                                    });
+                            core_processor::handle_journal(res.journal, &mut ext_manager);
 
-                                    // TODO: weight to fee calculator might not be identity fee
-                                    let charge = T::GasConverter::gas_to_fee(gas_charge);
+                            total_handled += 1;
+                        } else {
+                            T::Currency::unreserve(
+                                &<T::AccountId as Origin>::from_origin(origin),
+                                T::GasConverter::gas_to_fee(gas_limit)
+                                    + value.unique_saturated_into(),
+                            );
 
-                                    gas_tree.spend(gas_charge);
-                                    if let Err(e) = T::Currency::transfer(
-                                        &<T::AccountId as Origin>::from_origin(origin),
-                                        &Authorship::<T>::author(),
-                                        charge,
-                                        ExistenceRequirement::AllowDeath,
-                                    ) {
-                                        // should not be possible since there should've been reserved enough for
-                                        // the transfer
-                                        // TODO: audit this
-                                        log::warn!(
-                                            "Could not transfer enough gas to block producer: {:?}",
-                                            e
-                                        );
-                                    }
-                                }
-
-                                for message in execution_report.log {
-                                    Self::insert_to_mailbox(message.dest, message.clone());
-                                    Self::deposit_event(Event::Log(message));
-                                }
-
-                                // Enqueuing outgoing messages
-                                for message in execution_report.messages {
-                                    let _ = gas_tree.split_off(message.id, message.gas_limit);
-                                    common::queue_message(message);
-                                }
-
-                                // Now, find out if the init message processing outcome is actually an error
-                                let mut is_err = false;
-                                let mut reason = Reason::Error;
-                                for (_, exec_outcome) in execution_report.outcomes {
-                                    if let Err(v) = exec_outcome {
-                                        is_err = true;
-                                        reason = Reason::Dispatch(v);
-                                    }
-                                }
-
-                                if is_err
-                                    || T::Currency::transfer(
-                                        &<T::AccountId as Origin>::from_origin(origin),
-                                        &<T::AccountId as Origin>::from_origin(program_id),
-                                        value.unique_saturated_into(),
-                                        ExistenceRequirement::AllowDeath,
-                                    )
-                                    .is_err()
-                                {
-                                    // if transfer failed, gas left does not matter since initialization
-                                    // had failed, and we already unreserved gas_limit deposit above.
-
-                                    // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
-                                    ProgramsLimbo::<T>::insert(program_id, origin);
-                                    log::info!(
-                                        target: "runtime::gear",
-                                        "👻 Program {} will stay in limbo until explicitly removed",
-                                        program_id
-                                    );
-
-                                    Self::deposit_event(Event::InitFailure(
-                                        MessageInfo {
-                                            message_id: init_message_id,
-                                            program_id,
-                                            origin,
-                                        },
-                                        if is_err {
-                                            reason
-                                        } else {
-                                            Reason::ValueTransfer
-                                        },
-                                    ));
-                                } else {
-                                    Self::deposit_event(Event::InitSuccess(MessageInfo {
-                                        message_id: init_message_id,
-                                        program_id,
-                                        origin,
-                                    }));
-                                }
-                            }
-                        }
-                        #[cfg(feature = "debug-mode")]
-                        if T::DebugInfo::is_enabled() {
-                            T::DebugInfo::do_snapshot();
-                        }
+                            // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
+                            ProgramsLimbo::<T>::insert(program_id, origin);
+                            log::info!(
+                                target: "runtime::gear",
+                                "👻 Program {} will stay in limbo until explicitly removed",
+                                program_id
+                            );
+                            Self::deposit_event(Event::InitFailure(
+                                MessageInfo {
+                                    message_id: init_message_id,
+                                    program_id,
+                                    origin,
+                                },
+                                Reason::Error,
+                            ));
+                        };
                     }
                     IntermediateMessage::DispatchMessage {
                         id,
@@ -511,114 +483,35 @@ pub mod pallet {
                     break;
                 }
 
-                let mut gas_tree =
-                    match common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id) {
-                        Some(gas_tree) => gas_tree,
-                        None => {
-                            log::warn!(
-                                "Message does not have associated gas and will be skipped: {:?}",
-                                message.id
-                            );
-                            continue;
-                        }
+                if let Some(program) = ext_manager.get_program(message.dest) {
+                    let kind = if message.reply.is_none() {
+                        DispatchKind::Handle
+                    } else {
+                        DispatchKind::HandleReply
                     };
 
-                match runner::process::<gear_backend_sandbox::SandboxEnvironment<runner::Ext>>(
-                    message, block_info,
-                ) {
-                    Ok(execution_report) => {
-                        total_handled += 1;
+                    let dispatch = Dispatch {
+                        kind,
+                        message: message.into(),
+                    };
 
-                        let origin = gas_tree.origin();
+                    let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                        program, dispatch, block_info,
+                    );
 
-                        for (_, gas_charge) in execution_report.gas_charges {
-                            gas_tree.spend(gas_charge);
+                    core_processor::handle_journal(res.journal, &mut ext_manager);
 
-                            let charge = T::GasConverter::gas_to_fee(gas_charge);
-
-                            let _ = T::Currency::repatriate_reserved(
-                                &<T::AccountId as Origin>::from_origin(origin),
-                                &Authorship::<T>::author(),
-                                charge,
-                                BalanceStatus::Free,
-                            );
-
-                            // Decrease block gas allowance
-                            GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
-                        }
-
-                        for message in execution_report.log {
-                            Self::insert_to_mailbox(message.dest, message.clone());
-
-                            Self::deposit_event(Event::Log(message));
-                        }
-
-                        // Enqueuing outgoing messages
-                        for message in execution_report.messages {
-                            let _ = gas_tree.split_off(message.id, message.gas_limit);
-
-                            common::queue_message(message);
-                        }
-
-                        let mut waited = false;
-                        for msg in execution_report.wait_list {
-                            Self::deposit_event(Event::AddedToWaitList(msg.clone()));
-                            common::insert_waiting_message(
-                                msg.dest,
-                                msg.id,
-                                msg,
-                                block_info.height,
-                            );
-                            waited = true;
-                        }
-
-                        if !waited {
-                            if let common::value_tree::ConsumeResult::RefundExternal(
-                                external,
-                                gas_left,
-                            ) = gas_tree.consume()
-                            {
-                                let refund = T::GasConverter::gas_to_fee(gas_left);
-
-                                let _ = T::Currency::unreserve(
-                                    &<T::AccountId as Origin>::from_origin(external),
-                                    refund,
-                                );
-                            }
-                        }
-
-                        for msg_id in execution_report.awakening {
-                            if let Some((msg, _)) =
-                                common::remove_waiting_message(execution_report.program_id, msg_id)
-                            {
-                                common::queue_message(msg);
-                                Self::deposit_event(Event::RemovedFromWaitList(msg_id));
-                            } else {
-                                log::warn!("Unknown message awaken: {}", msg_id);
-                            }
-                        }
-
-                        for (message_id, outcome) in execution_report.outcomes {
-                            Self::deposit_event(Event::MessageDispatched(DispatchOutcome {
-                                message_id,
-                                outcome: match outcome {
-                                    Ok(_) => ExecutionResult::Success,
-                                    Err(v) => ExecutionResult::Failure(v),
-                                },
-                            }));
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "Message processing returned error and will be skipped: {:?}",
-                            e
-                        );
-                        // TODO: make error event log record
-                        continue;
-                    }
+                    total_handled += 1;
+                } else {
+                    log::warn!(
+                        "Couldn't find program: {:?}, message with id: {:?} will be skipped",
+                        message.dest,
+                        message.id,
+                    );
+                    // TODO: make error event log record
+                    continue;
                 }
 
-                #[cfg(feature = "debug-mode")]
                 if T::DebugInfo::is_enabled() {
                     T::DebugInfo::do_snapshot();
                 }
@@ -769,14 +662,15 @@ pub mod pallet {
             T::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            let init_message_id = common::next_message_id(&init_payload);
+            let origin = who.into_origin();
+
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(&code, who.clone().into_origin()) {
+            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
                 Self::deposit_event(Event::CodeSaved(code_hash))
             };
 
-            let init_message_id = common::next_message_id(&init_payload);
-            let origin = who.into_origin();
             <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
                 origin,
                 code,
@@ -842,6 +736,8 @@ pub mod pallet {
             T::Currency::reserve(&who, gas_limit_reserve)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
+            let message_id = common::next_message_id(&payload);
+
             // Since messages a guaranteed to be dispatched, we transfer value immediately
             T::Currency::transfer(
                 &who,
@@ -851,7 +747,6 @@ pub mod pallet {
             )?;
 
             // Only after reservation the message is actually put in the queue.
-            let message_id = common::next_message_id(&payload);
             <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
                 id: message_id,
                 origin: who.clone().into_origin(),

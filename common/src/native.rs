@@ -22,36 +22,61 @@ use gear_core::{
 };
 
 use primitive_types::H256;
-use sp_std::vec::Vec;
 
-impl From<CoreMessage> for crate::Message {
-    fn from(message: CoreMessage) -> crate::Message {
-        crate::Message {
-            id: H256::from_slice(message.id.as_slice()),
-            source: H256::from_slice(message.source.as_slice()),
-            dest: H256::from_slice(message.dest.as_slice()),
+use crate::{Message, Origin};
+
+impl Origin for MessageId {
+    fn into_origin(self) -> H256 {
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(self.as_slice());
+        H256(bytes)
+    }
+
+    fn from_origin(val: H256) -> Self {
+        Self::from_slice(val.as_ref())
+    }
+}
+
+impl Origin for ProgramId {
+    fn into_origin(self) -> H256 {
+        let mut bytes = [0; 32];
+        bytes.copy_from_slice(self.as_slice());
+        H256(bytes)
+    }
+
+    fn from_origin(val: H256) -> Self {
+        Self::from_slice(val.as_ref())
+    }
+}
+
+impl From<CoreMessage> for Message {
+    fn from(message: CoreMessage) -> Self {
+        Self {
+            id: message.id.into_origin(),
+            source: message.source.into_origin(),
+            dest: message.dest.into_origin(),
             payload: message.payload.into_raw(),
             gas_limit: message.gas_limit,
             value: message.value,
-            reply: message.reply.map(|(message_id, exit_code)| {
-                (H256::from_slice(message_id.as_slice()), exit_code)
-            }),
+            reply: message
+                .reply
+                .map(|(message_id, exit_code)| (message_id.into_origin(), exit_code)),
         }
     }
 }
 
-impl From<crate::Message> for CoreMessage {
-    fn from(message: crate::Message) -> CoreMessage {
-        CoreMessage {
-            id: MessageId::from_slice(message.id.as_ref()),
-            source: ProgramId::from_slice(message.source.as_ref()),
-            dest: ProgramId::from_slice(message.dest.as_ref()),
+impl From<Message> for CoreMessage {
+    fn from(message: Message) -> Self {
+        Self {
+            id: MessageId::from_origin(message.id),
+            source: ProgramId::from_origin(message.source),
+            dest: ProgramId::from_origin(message.dest),
             payload: message.payload.into(),
             gas_limit: message.gas_limit,
             value: message.value,
-            reply: message.reply.map(|(message_id, exit_code)| {
-                (MessageId::from_slice(message_id.as_ref()), exit_code)
-            }),
+            reply: message
+                .reply
+                .map(|(message_id, exit_code)| (MessageId::from_origin(message_id), exit_code)),
         }
     }
 }
@@ -65,17 +90,16 @@ pub fn dequeue_message() -> Option<CoreMessage> {
 }
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
-    let id_h256 = H256::from_slice(id.as_slice());
-    crate::get_program(id_h256).map(|prog| {
-        let persistent_pages = crate::get_program_pages(id_h256, prog.persistent_pages);
+    if let Some(prog) = crate::get_program(id.into_origin()) {
+        let persistent_pages = crate::get_program_pages(id.into_origin(), prog.persistent_pages);
         if let Some(code) = crate::get_code(prog.code_hash) {
-            let mut program = Program::new(id, code, persistent_pages).unwrap();
-            program.set_message_nonce(prog.nonce);
-            program
-        } else {
-            Program::new(id, Vec::new(), persistent_pages).unwrap()
+            let program =
+                Program::from_parts(id, code, prog.static_pages, prog.nonce, persistent_pages);
+            return Some(program);
         }
-    })
+    }
+
+    None
 }
 
 pub fn set_program(program: Program) {

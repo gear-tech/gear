@@ -10,13 +10,9 @@ anyhow = "1"
 clap = { version = "3.0.0-rc.8", features = ["derive"] }
 derive_more = "0.99"
 env_logger = "0.9"
-gear-core = { path = "../core" }
-gear-core-runner = { path = "../core-runner", default-features = false }
 colored = "2.0.0"
-common = { package = "gear-common", path = "../common" }
 regex = "^1.5"
 serde_yaml = "0.8.23"
-gear-node-runner = { path = "../node-runner" }
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
@@ -24,10 +20,15 @@ log = "0.4.14"
 parity-scale-codec = { version = "*", features = ["derive"], default-features = false }
 sp-keyring = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-core = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-gear-backend-common = { path = "../core-backend/common" }
-gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
 sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 rayon = "1.5"
+
+# Internal deps
+gear-core = { path = "../core" }
+common = { package = "gear-common", path = "../common" }
+core-processor = { package = "gear-core-processor", path = "../core-processor", default-features = false }
+gear-backend-common = { path = "../core-backend/common" }
+gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
 
 [[bin]]
 name = "gtest"

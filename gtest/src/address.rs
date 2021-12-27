@@ -18,10 +18,9 @@
 
 use gear_core::program::ProgramId;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::str::FromStr;
-
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
+use std::str::FromStr;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "value")]

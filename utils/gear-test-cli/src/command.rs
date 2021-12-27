@@ -16,16 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::manager::RuntestsExtManager;
+use crate::GearTestCmd;
+use gear_backend_sandbox::SandboxEnvironment;
+use gear_core_processor::Ext;
+use gear_runtime::Runtime;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 
-use frame_system as system;
-
-use crate::GearTestCmd;
-
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    system::GenesisConfig::default()
-        .build_storage::<gear_runtime::Runtime>()
+    frame_system::GenesisConfig::default()
+        .build_storage::<Runtime>()
         .unwrap()
         .into()
 }
@@ -35,7 +36,11 @@ impl GearTestCmd {
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         new_test_ext()
             .execute_with(|| {
-                gear_test::check::check_main::<runner::ExtStorage, _>(
+                gear_test::check::check_main::<
+                    RuntestsExtManager<Runtime>,
+                    SandboxEnvironment<Ext>,
+                    _,
+                >(
                     self.input.to_vec(),
                     false,
                     false,
@@ -46,14 +51,12 @@ impl GearTestCmd {
                         sp_io::storage::clear_prefix(gear_common::STORAGE_MESSAGE_PREFIX, None);
                         sp_io::storage::clear_prefix(gear_common::STORAGE_PROGRAM_PREFIX, None);
                         sp_io::storage::clear_prefix(gear_common::STORAGE_WAITLIST_PREFIX, None);
-                        gear_core::storage::Storage {
-                            program_storage: runner::ext::ExtProgramStorage,
-                        }
+                        Default::default()
                     },
                     Some(Box::new(&new_test_ext)),
                 )
             })
-            .map_err(|e| sc_cli::Error::Application(e.into()))
+            .map_err(|e: anyhow::Error| sc_cli::Error::Application(e.into()))
     }
 }
 

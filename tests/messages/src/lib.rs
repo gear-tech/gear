@@ -107,8 +107,7 @@ mod wasm {
 mod tests {
     use super::{native, Request};
 
-    use codec::Encode;
-    use common::{Error::Panic, RunResult, RunnerContext};
+    use common::{RunResult, RunnerContext};
 
     #[test]
     fn binary_available() {
@@ -129,21 +128,6 @@ mod tests {
     }
 
     #[test]
-    fn send_normal() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
-
-        let report = runner.request_report::<_, ()>(Request::SendOnce);
-        assert_eq!(report.result, RunResult::Normal);
-
-        let expected_payload = "SendOnce".encode();
-        assert!(runner
-            .log()
-            .iter()
-            .any(|log| log.payload.as_ref() == &expected_payload))
-    }
-
-    #[test]
     fn send_message_limit() {
         let mut runner = RunnerContext::default();
         runner.init_program(wasm_code());
@@ -153,8 +137,6 @@ mod tests {
             report.result,
             RunResult::Trap(String::from("Message init error"))
         );
-        // TODO: Should log be checked for messages?
-        // assert_eq!(runner.storage().log.get().len(), 130)
     }
 
     #[test]
@@ -189,7 +171,6 @@ mod tests {
             report.result,
             RunResult::Trap(String::from("Reply commit error"))
         );
-        assert_eq!(report.response, Some(Err(Panic)));
     }
 
     #[test]
@@ -202,6 +183,5 @@ mod tests {
             report.result,
             RunResult::Trap(String::from("Reply payload push error"))
         );
-        assert_eq!(report.response, Some(Err(Panic)));
     }
 }

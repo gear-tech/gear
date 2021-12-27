@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::{
+    configs::{AllocationsConfig, BlockInfo},
+    id::BlakeMessageIdGenerator,
+};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasCounter},
@@ -24,58 +28,42 @@ use gear_core::{
     program::ProgramId,
 };
 
-use crate::util::BlakeMessageIdGenerator;
-
-/// Structure with the info about the current block.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct BlockInfo {
-    /// Current block height.
-    pub height: u32,
-    /// Current block timestamp in msecs since tne Unix epoch.
-    pub timestamp: u64,
-}
-
 /// Structure providing externalities for running host functions.
 pub struct Ext {
+    /// Gas counter.
+    pub gas_counter: GasCounter,
     /// Memory context.
     pub memory_context: MemoryContext,
     /// Message context.
-    pub messages: MessageContext<BlakeMessageIdGenerator>,
-    /// Gas counter.
-    pub gas_counter: GasCounter,
-    /// Cost per allocation.
-    pub alloc_cost: u64,
-    /// Cost per memory page grow.
-    pub mem_grow_cost: u64,
-    /// Any guest code panic explanation, if available.
-    pub last_error_returned: Option<&'static str>,
-    /// Flag signaling whether the execution interrupts and goes to the waiting state.
-    pub wait_flag: bool,
-    /// Current block info.
+    pub message_context: MessageContext<BlakeMessageIdGenerator>,
+    /// Block info.
     pub block_info: BlockInfo,
+    /// Allocations config.
+    pub config: AllocationsConfig,
+    /// Any guest code panic explanation, if available.
+    pub error_explanation: Option<&'static str>,
+    /// Flag signaling whether the execution interrupts and goes to the waiting state.
+    pub waited: bool,
 }
 
 impl Ext {
-    fn return_with_tracing<T>(
+    fn return_and_store_err<T>(
         &mut self,
         result: Result<T, &'static str>,
     ) -> Result<T, &'static str> {
-        match result {
-            Ok(result) => Ok(result),
-            Err(error_string) => {
-                self.last_error_returned = Some(error_string);
-                Err(error_string)
-            }
-        }
+        result.map_err(|err| {
+            self.error_explanation = Some(err);
+            err
+        })
     }
 }
 
 impl EnvExt for Ext {
     fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
         // Greedily charge gas for allocations
-        self.charge_gas(pages_num.raw() * self.alloc_cost as u32)?;
+        self.charge_gas(pages_num.raw() * self.config.alloc_cost as u32)?;
         // Greedily charge gas for grow
-        self.charge_gas(pages_num.raw() * self.mem_grow_cost as u32)?;
+        self.charge_gas(pages_num.raw() * self.config.mem_grow_cost as u32)?;
 
         let old_mem_size = self.memory_context.memory().size().raw();
 
@@ -85,13 +73,14 @@ impl EnvExt for Ext {
             .map_err(|_e| "Allocation error");
 
         if result.is_err() {
-            return self.return_with_tracing(result);
+            return self.return_and_store_err(result);
         }
 
         // Returns back greedily used gas for grow
         let new_mem_size = self.memory_context.memory().size().raw();
         let grow_pages_num = new_mem_size - old_mem_size;
-        let mut gas_to_return_back = self.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
+        let mut gas_to_return_back =
+            self.config.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
 
         // Returns back greedily used gas for allocations
         let first_page = result.unwrap().raw();
@@ -102,11 +91,12 @@ impl EnvExt for Ext {
                 new_alloced_pages_num += 1;
             }
         }
-        gas_to_return_back += self.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
+        gas_to_return_back +=
+            self.config.alloc_cost * (pages_num.raw() - new_alloced_pages_num) as u64;
 
         self.refund_gas(gas_to_return_back as u32)?;
 
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
     }
 
     fn block_height(&self) -> u32 {
@@ -118,18 +108,30 @@ impl EnvExt for Ext {
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {
-        let result = self.messages.send_init().map_err(|_e| "Message init error");
+        let result = self
+            .message_context
+            .send_init()
+            .map_err(|_e| "Message init error");
 
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
     }
 
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         let result = self
-            .messages
+            .message_context
             .send_push(handle, buffer)
             .map_err(|_e| "Payload push error");
 
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
+    }
+
+    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
+        let result = self
+            .message_context
+            .reply_push(buffer)
+            .map_err(|_e| "Reply payload push error");
+
+        self.return_and_store_err(result)
     }
 
     fn send_commit(
@@ -139,49 +141,40 @@ impl EnvExt for Ext {
     ) -> Result<MessageId, &'static str> {
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self
-                .return_with_tracing(Err("Gas limit exceeded while trying to send message"));
+                .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
         };
 
         let result = self
-            .messages
+            .message_context
             .send_commit(handle, msg)
             .map_err(|_e| "Message commit error");
 
-        self.return_with_tracing(result)
-    }
-
-    fn reply_push(&mut self, buffer: &[u8]) -> Result<(), &'static str> {
-        let result = self
-            .messages
-            .reply_push(buffer)
-            .map_err(|_e| "Reply payload push error");
-
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
-            return self.return_with_tracing(Err("Gas limit exceeded while trying to reply"));
+            return self.return_and_store_err(Err("Gas limit exceeded while trying to reply"));
         };
 
         let result = self
-            .messages
+            .message_context
             .reply_commit(msg)
             .map_err(|_e| "Reply commit error");
 
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
     }
 
     fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
-        self.messages.current().reply()
+        self.message_context.current().reply()
     }
 
     fn source(&mut self) -> ProgramId {
-        self.messages.current().source()
+        self.message_context.current().source()
     }
 
     fn message_id(&mut self) -> MessageId {
-        self.messages.current().id()
+        self.message_context.current().id()
     }
 
     fn program_id(&mut self) -> ProgramId {
@@ -193,10 +186,10 @@ impl EnvExt for Ext {
 
         // Returns back gas for allocated page if it's new
         if !self.memory_context.is_init_page(ptr) {
-            self.refund_gas(self.alloc_cost as u32)?;
+            self.refund_gas(self.config.alloc_cost as u32)?;
         }
 
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
     }
 
     fn debug(&mut self, data: &str) -> Result<(), &'static str> {
@@ -218,14 +211,14 @@ impl EnvExt for Ext {
     }
 
     fn msg(&mut self) -> &[u8] {
-        self.messages.current().payload()
+        self.message_context.current().payload()
     }
 
     fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
         if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
             Ok(())
         } else {
-            self.return_with_tracing(Err("Gas limit exceeded"))
+            self.return_and_store_err(Err("Gas limit exceeded"))
         }
     }
 
@@ -233,7 +226,7 @@ impl EnvExt for Ext {
         if self.gas_counter.refund(val as u64) == ChargeResult::Enough {
             Ok(())
         } else {
-            self.return_with_tracing(Err("Too many gas added"))
+            self.return_and_store_err(Err("Too many gas added"))
         }
     }
 
@@ -242,32 +235,32 @@ impl EnvExt for Ext {
     }
 
     fn value(&self) -> u128 {
-        self.messages.current().value()
+        self.message_context.current().value()
     }
 
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
-            .messages
+            .message_context
             .check_uncommitted()
-            .map_err(|_| "There are uncommitted messages when passing to waiting state")
+            .map_err(|_| "There are uncommited messages when passing to waiting state")
             .and_then(|_| {
-                if self.wait_flag {
+                if self.waited {
                     Err("Cannot pass to the waiting state twice")
                 } else {
-                    self.wait_flag = true;
+                    self.waited = true;
                     Ok(())
                 }
             });
 
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
     }
 
     fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
         let result = self
-            .messages
+            .message_context
             .wake(waker_id)
             .map_err(|_| "Unable to mark the message to be woken");
 
-        self.return_with_tracing(result)
+        self.return_and_store_err(result)
     }
 }

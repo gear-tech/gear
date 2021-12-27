@@ -17,27 +17,33 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::js::{MetaData, MetaType};
-use crate::runner::{self, CollectState};
+use crate::proc;
 use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVariant, Test};
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
+use core_processor::{
+    common::{CollectState, JournalHandler},
+    Ext,
+};
 use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
-use gear_core::storage::Storage;
+use gear_backend_common::Environment;
 use gear_core::{
     memory::PAGE_SIZE,
     message::Message,
     program::{Program, ProgramId},
-    storage,
 };
-use rayon::prelude::*;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
-use std::thread::{self, ThreadId};
-use std::{fmt, fs};
-
 use log::{Log, Metadata, Record, SetLoggerError};
+use rayon::prelude::*;
+use std::{
+    collections::HashMap,
+    fmt, fs,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, RwLock,
+    },
+    thread::{self, ThreadId},
+};
 
 const FILTER_ENV: &str = "RUST_LOG";
 
@@ -417,8 +423,8 @@ fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Tes
 }
 
 #[allow(clippy::too_many_arguments)]
-fn run_fixture<SC>(
-    storage: Storage<<SC as storage::StorageCarrier>::PS>,
+fn run_fixture<JH, E>(
+    mut journal_handler: JH,
     test: &Test,
     fixture_no: usize,
     progs_n_paths: &[(&str, ProgramId)],
@@ -428,13 +434,13 @@ fn run_fixture<SC>(
     skip_memory: bool,
 ) -> ColoredString
 where
-    SC: storage::StorageCarrier,
-    storage::Storage<SC::PS>: CollectState,
+    JH: JournalHandler + CollectState,
+    E: Environment<Ext>,
 {
-    match runner::init_fixture::<SC>(storage, test, fixture_no) {
-        Ok((runner, messages, log)) => {
+    match proc::init_fixture::<E>(test, fixture_no, &mut journal_handler) {
+        Ok(()) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
-            let results = runner::run(runner, messages.into(), log, last_exp_steps);
+            let results = proc::run::<JH, E>(last_exp_steps, &mut journal_handler);
 
             let mut errors = Vec::new();
             for exp in &test.fixtures[fixture_no].expected {
@@ -442,11 +448,15 @@ where
                 if let Some(step) = exp.step {
                     final_state = results[step].0.clone();
                 }
+                if !exp.allow_error.unwrap_or(false) && final_state.current_failed {
+                    errors.push(format!("step: {:?}", exp.step));
+                    errors.extend(["Failed, but wasn't allowed to".to_string()]);
+                }
+
                 if !skip_messages {
                     if let Some(messages) = &exp.messages {
-                        if let Err(msg_errors) =
-                            check_messages(progs_n_paths, &final_state.messages, messages)
-                        {
+                        let msgs: Vec<Message> = final_state.message_queue.into_iter().collect();
+                        if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(
                                 msg_errors
@@ -474,9 +484,13 @@ where
                 }
                 if !skip_allocations {
                     if let Some(alloc) = &exp.allocations {
-                        if let Err(alloc_errors) =
-                            check_allocations(&final_state.program_storage, alloc)
-                        {
+                        let progs: Vec<Program> = final_state
+                            .programs
+                            .clone()
+                            .into_iter()
+                            .map(|(_, v)| v)
+                            .collect();
+                        if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(alloc_errors);
                         }
@@ -484,8 +498,9 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        if let Err(mem_errors) = check_memory(&mut final_state.program_storage, mem)
-                        {
+                        let mut progs: Vec<Program> =
+                            final_state.programs.into_iter().map(|(_, v)| v).collect();
+                        if let Err(mem_errors) = check_memory(&mut progs, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);
                         }
@@ -513,7 +528,7 @@ where
 /// For each fixture in the test file from `files` the function setups (initializes) it and then performs all the checks
 /// by first running messages defined in the fixture section and then checking (if required) message state, allocations and memory.
 #[allow(clippy::too_many_arguments)]
-pub fn check_main<SC, F>(
+pub fn check_main<JH, E, F>(
     files: Vec<std::path::PathBuf>,
     skip_messages: bool,
     skip_allocations: bool,
@@ -523,9 +538,9 @@ pub fn check_main<SC, F>(
     ext: Option<Box<dyn Fn() -> sp_io::TestExternalities + Send + Sync + 'static>>,
 ) -> anyhow::Result<()>
 where
-    SC: storage::StorageCarrier,
-    F: Fn() -> storage::Storage<SC::PS> + std::marker::Sync + std::marker::Send,
-    storage::Storage<SC::PS>: CollectState,
+    JH: JournalHandler + CollectState,
+    E: Environment<Ext>,
+    F: Fn() -> JH + std::marker::Sync + std::marker::Send,
 {
     let map = Arc::new(RwLock::new(HashMap::new()));
     if let Err(e) = FixtureLogger::init(Arc::clone(&map)) {
@@ -565,7 +580,7 @@ where
                 let output = if let Some(test_ext) = &ext {
                     test_ext().execute_with(|| {
                         let storage = storage_factory();
-                        run_fixture::<SC>(
+                        run_fixture::<JH, E>(
                             storage,
                             test,
                             fixture_no,
@@ -578,7 +593,7 @@ where
                     })
                 } else {
                     let storage = storage_factory();
-                    run_fixture::<SC>(
+                    run_fixture::<JH, E>(
                         storage,
                         test,
                         fixture_no,

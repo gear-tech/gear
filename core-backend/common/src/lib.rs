@@ -31,6 +31,8 @@ use gear_core::{
 };
 
 pub trait Environment<E: Ext>: Default + Sized {
+    fn new() -> Self;
+
     fn setup_and_run(
         &mut self,
         ext: E,

@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::fmt::Debug;
-
 mod command;
+mod manager;
 
 /// The `runtests` command used to test gear with yaml.
 #[derive(Debug, structopt::StructOpt)]

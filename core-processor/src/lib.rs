@@ -16,19 +16,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Runner for gear-core.
+//! Gear message processor.
 
 #![no_std]
 #![warn(missing_docs)]
+#![cfg_attr(feature = "strict", deny(warnings))]
+#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
-#[macro_use]
 extern crate alloc;
 
-mod builder;
-
+pub mod common;
+pub mod configs;
+mod executor;
 mod ext;
-pub mod runner;
-mod util;
-pub use ext::{BlockInfo, Ext};
-pub use runner::*;
-pub use util::*;
+mod handler;
+mod id;
+mod processor;
+
+/// Error exit code.
+pub const ERR_EXIT_CODE: i32 = 1;
+
+pub use executor::execute_wasm;
+pub use ext::Ext;
+pub use handler::handle_journal;
+pub use id::next_message_id;
+pub use processor::{process, process_many};

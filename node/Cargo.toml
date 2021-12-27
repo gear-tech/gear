@@ -71,6 +71,5 @@ gear-test-cli = { path = "../utils/gear-test-cli" }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
-default = []
 runtime-benchmarks = ["gear-runtime/runtime-benchmarks"]
 debug-mode = ["gear-runtime/debug-mode"]

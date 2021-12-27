@@ -109,7 +109,7 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: Vec<u8>, pages: BTreeMap<u32, Vec<u8>>) -> Result<Self> {
+    pub fn new(id: ProgramId, code: Vec<u8>) -> Result<Self> {
         // get initial memory size from memory import.
         let static_pages: u32 = {
             parity_wasm::elements::Module::from_bytes(&code)
@@ -127,26 +127,38 @@ impl Program {
                 .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
         };
 
-        let mut persistent_pages: BTreeMap<PageNumber, Box<PageBuf>> = BTreeMap::new();
-
-        for (num, buf) in pages {
-            persistent_pages.insert(
-                num.into(),
-                Box::new(
-                    PageBuf::try_from(buf).map_err(|_| {
-                        anyhow::anyhow!("Error loading program: invalid page buffer")
-                    })?,
-                ),
-            );
-        }
-
         Ok(Program {
             id,
             code,
             static_pages,
-            persistent_pages,
+            persistent_pages: Default::default(),
             message_nonce: 0,
         })
+    }
+
+    /// New program from stored data
+    pub fn from_parts(
+        id: ProgramId,
+        code: Vec<u8>,
+        static_pages: u32,
+        message_nonce: u64,
+        pages: BTreeMap<u32, Vec<u8>>,
+    ) -> Self {
+        Self {
+            id,
+            code,
+            static_pages,
+            persistent_pages: pages
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k.into(),
+                        Box::new(PageBuf::try_from(v).expect("Can't fail")),
+                    )
+                })
+                .collect(),
+            message_nonce,
+        }
     }
 
     /// Reference to code of this program.
@@ -263,7 +275,6 @@ impl Program {
 mod tests {
     use super::{Program, ProgramId};
     use crate::util::encode_hex;
-    use alloc::collections::BTreeMap;
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -316,20 +327,10 @@ mod tests {
             )"#;
 
         let binary: Vec<u8> = parse_wat(wat);
-        let mut pages = BTreeMap::new();
 
-        // invalid PageBuf
-        pages.insert(1, vec![]);
+        let mut program = Program::new(ProgramId::from(1), binary).unwrap();
 
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages.clone()).is_err());
-
-        pages.insert(1, vec![0; 65537]);
-
-        assert!(Program::new(ProgramId::from(1), binary.clone(), pages).is_err());
-
-        let mut program = Program::new(ProgramId::from(1), binary, BTreeMap::default()).unwrap();
-
-        // 2 initial pages
+        // 2 static pages
         assert_eq!(program.static_pages(), 2);
 
         assert!(program.set_page(1.into(), &vec![0; 123]).is_err());

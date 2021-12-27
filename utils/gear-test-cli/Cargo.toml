@@ -10,6 +10,7 @@ anyhow = "1.0.52"
 codec = { version = "2.0.0", package = "parity-scale-codec", default-features = false }
 regex = "1.4"
 structopt = "0.3.25"
+log = { version = "0.4.14", default-features = false }
 
 # Substrate deps
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
@@ -20,7 +21,7 @@ sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.g
 # Internal deps
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
+gear-core-processor = { path = "../../core-processor" }
 gear-runtime = { path = "../../runtime" }
-runner = { package = "gear-node-runner", path = "../../node-runner" }
 gear-test = { path = "../../gtest" }
-gear-backend-wasmtime = { path = "../../core-backend/wasmtime" }
+gear-backend-sandbox = { path = "../../core-backend/sandbox" }

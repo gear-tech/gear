@@ -112,6 +112,7 @@ impl pallet_gear::Config for Test {
     type GasConverter = GasConverter;
     type WeightInfo = ();
     type BlockGasLimit = ();
+    type DebugInfo = ();
 }
 
 parameter_types! {

@@ -296,6 +296,10 @@ pub fn set_program(id: H256, program: Program, persistent_pages: BTreeMap<u32, V
     sp_io::storage::set(&program_key(id), &program.encode())
 }
 
+pub fn set_program_page(program_id: H256, page_num: u32, page_buf: Vec<u8>) {
+    sp_io::storage::set(&page_key(program_id, page_num), &page_buf);
+}
+
 pub fn remove_program(id: H256) {
     if let Some(program) = get_program(id) {
         release_code(program.code_hash);
@@ -333,12 +337,23 @@ pub fn nonce_fetch_inc() -> u128 {
     original_nonce
 }
 
+pub fn peek_last_message_id(payload: &[u8]) -> H256 {
+    let nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
+        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
+        .unwrap_or(0u128);
+
+    let mut data = payload.encode();
+    data.extend_from_slice(&(nonce.wrapping_sub(1)).to_le_bytes());
+    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
+    message_id
+}
+
 // WARN: Never call that in threads
 pub fn next_message_id(payload: &[u8]) -> H256 {
     let nonce = nonce_fetch_inc();
-    let mut message_id = payload.encode();
-    message_id.extend_from_slice(&nonce.to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&message_id).into();
+    let mut data = payload.encode();
+    data.extend_from_slice(&nonce.to_le_bytes());
+    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
     message_id
 }
 
@@ -355,6 +370,17 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
     sp_io::storage::set(&key_id, &new_nonce.encode());
 
     original_nonce
+}
+
+pub fn set_nonce_and_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>, nonce: u64) {
+    if let Some(mut prog) = sp_io::storage::get(&program_key(id))
+        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
+    {
+        prog.nonce = nonce;
+        prog.persistent_pages = persistent_pages;
+
+        sp_io::storage::set(&program_key(id), &prog.encode())
+    }
 }
 
 pub fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message, bn: u32) {

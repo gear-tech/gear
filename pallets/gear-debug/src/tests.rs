@@ -16,16 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// TODO: deal with runner usage here
+
 use super::*;
 use crate::mock::*;
+use codec::Encode;
 use common::{self, Message, Origin as _};
-use frame_support::assert_ok;
-use runner::BlockInfo;
+use pallet_gear::DebugInfo;
+use pallet_gear::Pallet as PalletGear;
 use sp_core::H256;
 
-type Ext = gear_backend_sandbox::SandboxEnvironment<runner::Ext>;
-
-fn init_logger() {
+pub(crate) fn init_logger() {
     let _ = env_logger::Builder::from_default_env()
         .format_module_path(false)
         .format_level(true)
@@ -39,6 +40,17 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .expect("failed to parse module")
         .as_ref()
         .to_vec()
+}
+
+pub fn program_id(code: &[u8]) -> H256 {
+    let mut data = Vec::new();
+    // TODO #512
+    code.encode_to(&mut data);
+    b"salt".to_vec().encode_to(&mut data);
+
+    let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+
+    id
 }
 
 #[test]
@@ -70,25 +82,23 @@ fn debug_mode_works() {
         let code_1 = parse_wat(wat_1);
         let code_2 = parse_wat(wat_2);
 
+        let program_id_1 = program_id(&code_1);
+        let program_id_2 = program_id(&code_2);
+
+        PalletGear::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_1.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
+            1_000_000_u64,
+            0_u128,
+        )
+        .expect("Failed to submit program");
+
         // Enable debug-mode
         DebugMode::<Test>::put(true);
 
-        // Submit programs
-        // TODO uses set_program, that has redundant code set,
-        // that should be wiped off in #512
-        assert_ok!(runner::init_program::<Ext>(
-            1.into_origin(),
-            101.into_origin(),
-            code_1.to_vec(),
-            201.into_origin(),
-            vec![],
-            1_000_000_u64,
-            0_u128,
-            BlockInfo {
-                height: 1_u32,
-                timestamp: 1_000_000_000_u64,
-            },
-        ));
+        run_to_block(2, None);
 
         Pallet::<Test>::do_snapshot();
 
@@ -96,9 +106,9 @@ fn debug_mode_works() {
             crate::Event::DebugDataSnapshot(DebugData {
                 message_queue: vec![],
                 programs: vec![crate::ProgramDetails {
-                    id: 101.into_origin(),
+                    id: program_id_1,
                     static_pages: 16,
-                    persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                    persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                     code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                     nonce: 0u64,
                 }],
@@ -106,21 +116,17 @@ fn debug_mode_works() {
             .into(),
         );
 
-        // TODO uses set_program, that has redundant code set,
-        // that should be wiped off in #512
-        assert_ok!(runner::init_program::<Ext>(
-            1.into_origin(),
-            102.into_origin(),
-            code_2.to_vec(),
-            202.into_origin(),
-            vec![],
+        PalletGear::<Test>::submit_program(
+            Origin::signed(1).into(),
+            code_2.clone(),
+            b"salt".to_vec(),
+            Vec::new(),
             1_000_000_u64,
             0_u128,
-            BlockInfo {
-                height: 1_u32,
-                timestamp: 1_000_000_100_u64,
-            },
-        ));
+        )
+        .expect("Failed to submit program");
+
+        run_to_block(3, None);
 
         Pallet::<Test>::do_snapshot();
 
@@ -129,16 +135,16 @@ fn debug_mode_works() {
                 message_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: 101.into_origin(),
+                        id: program_id_1,
                         static_pages: 16,
-                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
-                        id: 102.into_origin(),
+                        id: program_id_2,
                         static_pages: 16,
-                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                         nonce: 0u64,
                     },
@@ -147,62 +153,67 @@ fn debug_mode_works() {
             .into(),
         );
 
-        // Enqueue messages
-        common::queue_message(Message {
-            id: 203.into_origin(),
-            source: 1.into_origin(),
-            payload: vec![],
-            gas_limit: 1_000_000_u64,
-            dest: 101.into_origin(), // code_1
-            value: 0_u128,
-            reply: None,
-        });
-        common::queue_message(Message {
-            id: 204.into_origin(),
-            source: 1.into_origin(),
-            payload: vec![],
-            gas_limit: 1_000_000_u64,
-            dest: 102.into_origin(), // code_2
-            value: 0_u128,
-            reply: None,
-        });
+        PalletGear::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id_1,
+            vec![],
+            1_000_000_u64,
+            0_u128,
+        )
+        .expect("Failed to send message");
+
+        let message_id_1 = common::peek_last_message_id(&[]);
+
+        PalletGear::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id_2,
+            vec![],
+            1_000_000_u64,
+            0_u128,
+        )
+        .expect("Failed to send message");
+
+        let message_id_2 = common::peek_last_message_id(&[]);
+
+        run_to_block(4, Some(0)); // no message will get processed
 
         Pallet::<Test>::do_snapshot();
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 message_queue: vec![
+                    // message will have reverse order since the first one requeued to the end
                     Message {
-                        id: 203.into_origin(),
+                        id: message_id_2,
                         source: 1.into_origin(),
+                        dest: program_id_2,
                         payload: vec![],
-                        gas_limit: 1_000_000_u64,
-                        dest: 101.into_origin(), // code_1
-                        value: 0_u128,
+                        gas_limit: 1_000_000,
+                        value: 0,
                         reply: None,
                     },
                     Message {
-                        id: 204.into_origin(),
+                        id: message_id_1,
                         source: 1.into_origin(),
+                        dest: program_id_1,
                         payload: vec![],
-                        gas_limit: 1_000_000_u64,
-                        dest: 102.into_origin(), // code_2
-                        value: 0_u128,
+                        gas_limit: 1_000_000,
+                        value: 0,
                         reply: None,
                     },
                 ],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: 101.into_origin(),
+                        id: program_id_1,
                         static_pages: 16,
-                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
-                        id: 102.into_origin(),
+                        id: program_id_2,
                         static_pages: 16,
-                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                         nonce: 0u64,
                     },
@@ -211,74 +222,25 @@ fn debug_mode_works() {
             .into(),
         );
 
-        // Process messages
-        assert_ok!(runner::process::<Ext>(
-            common::dequeue_message().expect("the queue should have the message; qed"),
-            BlockInfo {
-                height: 2_u32,
-                timestamp: 1_000_001_000_u64,
-            }
-        ));
-
+        run_to_block(5, None); // no message will get processed
         Pallet::<Test>::do_snapshot();
 
-        System::assert_last_event(
-            crate::Event::DebugDataSnapshot(DebugData {
-                message_queue: vec![Message {
-                    id: 204.into_origin(),
-                    source: 1.into_origin(),
-                    payload: vec![],
-                    gas_limit: 1_000_000_u64,
-                    dest: 102.into_origin(),
-                    value: 0_u128,
-                    reply: None,
-                }],
-                programs: vec![
-                    crate::ProgramDetails {
-                        id: 101.into_origin(),
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-                        nonce: 0u64,
-                    },
-                    crate::ProgramDetails {
-                        id: 102.into_origin(),
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
-                        nonce: 0u64,
-                    },
-                ],
-            })
-            .into(),
-        );
-
-        assert_ok!(runner::process::<Ext>(
-            common::dequeue_message().expect("the queue should have the message; qed"),
-            BlockInfo {
-                height: 2_u32,
-                timestamp: 1_000_001_200_u64,
-            }
-        ));
-
-        Pallet::<Test>::do_snapshot();
-
+        // only programs left!
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 message_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: 101.into_origin(),
+                        id: program_id_1,
                         static_pages: 16,
-                        persistent_pages: (0..16).map(|i| (i, vec![0; 65536])).collect(),
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
-                    // handle() has allocated another 4 memory pages, hence 20 overall, not 16
                     crate::ProgramDetails {
-                        id: 102.into_origin(),
+                        id: program_id_2,
                         static_pages: 16,
-                        persistent_pages: (0..20).map(|i| (i, vec![0; 65536])).collect(),
+                        persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
                         nonce: 0u64,
                     },

@@ -1973,6 +1973,7 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "gear-core",
+ "log",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -1998,18 +1999,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-core-runner"
+name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "blake2-rfc",
- "env_logger 0.9.0",
  "gear-backend-common",
- "gear-backend-wasmtime",
  "gear-core",
  "log",
  "parity-scale-codec",
- "wabt",
 ]
 
 [[package]]
@@ -2053,25 +2050,6 @@ dependencies = [
  "structopt",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
-]
-
-[[package]]
-name = "gear-node-runner"
-version = "0.1.0"
-dependencies = [
- "frame-system",
- "gear-backend-common",
- "gear-common",
- "gear-core",
- "gear-core-runner",
- "gear-runtime",
- "log",
- "parity-scale-codec",
- "primitive-types",
- "sp-core",
- "sp-io",
- "sp-std",
- "wabt",
 ]
 
 [[package]]
@@ -2135,8 +2113,7 @@ dependencies = [
  "gear-backend-wasmtime",
  "gear-common",
  "gear-core",
- "gear-core-runner",
- "gear-node-runner",
+ "gear-core-processor",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2156,12 +2133,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "frame-system",
- "gear-backend-wasmtime",
+ "gear-backend-sandbox",
  "gear-common",
  "gear-core",
- "gear-node-runner",
+ "gear-core-processor",
  "gear-runtime",
  "gear-test",
+ "log",
  "parity-scale-codec",
  "regex",
  "sc-cli",
@@ -2431,7 +2409,7 @@ checksum = "7245cd7449cc792608c3c8a9eaf69bd4eabbabf802713748fd739c98b82f0747"
 dependencies = [
  "bytes 1.0.1",
  "fnv",
- "itoa 0.4.7",
+ "itoa",
 ]
 
 [[package]]
@@ -2486,7 +2464,7 @@ dependencies = [
  "http-body",
  "httparse",
  "httpdate",
- "itoa 0.4.7",
+ "itoa",
  "pin-project-lite 0.2.4",
  "socket2 0.4.0",
  "tokio",
@@ -2686,12 +2664,6 @@ name = "itoa"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
-
-[[package]]
-name = "itoa"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aab8fc367588b89dcee83ab0fd66b72b50b72fa1904d7095045ace2b0c81c35"
 
 [[package]]
 name = "jobserver"
@@ -4161,12 +4133,11 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
- "gear-node-runner",
+ "gear-core-processor",
  "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",
- "pallet-gear-debug",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -4194,11 +4165,11 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
- "gear-node-runner",
  "hex-literal",
  "log",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gear",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -4385,7 +4356,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-core-runner",
+ "gear-core-processor",
  "hex-literal",
  "log",
  "pallet-authorship",
@@ -6375,11 +6346,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.73"
+version = "1.0.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcbd0344bc6533bc7ec56df11d42fb70f1b912351c0825ccb7211b59d8af7cf5"
+checksum = "d0ffa0837f2dfa6fb90868c2b5468cad482e175f7dad97e7421951e663f2b527"
 dependencies = [
- "itoa 1.0.1",
+ "itoa",
  "ryu",
  "serde",
 ]
@@ -7441,7 +7412,6 @@ name = "tests-btree"
 version = "0.1.0"
 dependencies = [
  "gear-core",
- "gear-core-runner",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
@@ -7454,7 +7424,7 @@ version = "0.1.0"
 dependencies = [
  "gear-backend-wasmtime",
  "gear-core",
- "gear-core-runner",
+ "gear-core-processor",
  "gstd",
  "parity-scale-codec",
 ]
@@ -7465,20 +7435,6 @@ version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",
  "gear-core",
- "gear-core-runner",
- "gstd",
- "parity-scale-codec",
- "substrate-wasm-builder",
- "tests-common",
-]
-
-[[package]]
-name = "tests-gas-limit"
-version = "0.1.0"
-dependencies = [
- "env_logger 0.9.0",
- "gear-core",
- "gear-core-runner",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
@@ -7490,7 +7446,6 @@ name = "tests-messages"
 version = "0.1.0"
 dependencies = [
  "gear-core",
- "gear-core-runner",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
@@ -7503,7 +7458,6 @@ version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",
  "gear-core",
- "gear-core-runner",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
@@ -7515,7 +7469,6 @@ name = "tests-wait-wake"
 version = "0.1.0"
 dependencies = [
  "gear-core",
- "gear-core-runner",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",

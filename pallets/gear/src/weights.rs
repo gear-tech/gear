@@ -37,9 +37,6 @@
 // --output
 // .
 
-#![allow(unused_parens)]
-#![allow(unused_imports)]
-
 use frame_support::{
     traits::Get,
     weights::{constants::RocksDbWeight, Weight},

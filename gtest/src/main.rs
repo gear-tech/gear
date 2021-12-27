@@ -19,11 +19,14 @@
 mod address;
 mod check;
 mod js;
-mod runner;
+mod manager;
+mod proc;
 mod sample;
 
 use clap::Parser;
-use gear_core::storage::InMemoryStorage;
+use core_processor::Ext;
+use gear_backend_wasmtime::WasmtimeEnvironment;
+use manager::InMemoryExtManager;
 
 #[derive(Parser)]
 struct Opts {
@@ -46,13 +49,13 @@ struct Opts {
 pub fn main() -> anyhow::Result<()> {
     let opts: Opts = Opts::parse();
     let print_logs = !matches!(opts.verbose, 0);
-    check::check_main::<InMemoryStorage, _>(
+    check::check_main::<InMemoryExtManager, WasmtimeEnvironment<Ext>, _>(
         opts.input.to_vec(),
         opts.skip_messages,
         opts.skip_allocations,
         opts.skip_memory,
         print_logs,
-        InMemoryStorage::default,
+        InMemoryExtManager::default,
         None,
     )
 }

@@ -68,4 +68,5 @@ fixtures:
     # has no output due to gas absence
     # not enough gas to reply for exit_code demo
     expected:
-      - log: []
+      - allowError: true
+        log: []

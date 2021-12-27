@@ -21,9 +21,9 @@ primitive-types = { version = "0.10.1", default-features = false, features = ["s
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-runner = { package = "gear-node-runner", path = "../../node-runner", default-features = false }
+core-processor = { package = "gear-core-processor", path = "../../core-processor" }
+gear-core = { path = "../../core" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox" }
-pallet-gear-debug = { package = "pallet-gear-debug", path = "../gear-debug", default-features = false, optional = true }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -53,7 +53,6 @@ std = [
 	"codec/std",
 	"log/std",
 	"common/std",
-	"runner/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -71,7 +70,4 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
-]
-debug-mode = [
-	"pallet-gear-debug"
 ]
