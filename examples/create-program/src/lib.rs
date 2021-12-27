@@ -14,7 +14,7 @@ fn get() -> i32 {
     unsafe { COUNTER }
 }
 
-/// Creates the next program
+/// Creates the following program:
 /// ```
 /// let default_program = r#"
 /// (module
