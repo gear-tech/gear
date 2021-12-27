@@ -744,8 +744,8 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             let id: H256 = {
-                let mut data = Vec::new();
                 let code_hash = sp_io::hashing::blake2_256(&code);
+                let mut data = Vec::with_capacity(code_hash.len() + salt.len());
 
                 code_hash.encode_to(&mut data);
                 salt.encode_to(&mut data);
