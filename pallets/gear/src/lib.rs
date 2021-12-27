@@ -699,7 +699,7 @@ pub mod pallet {
         /// could be more than remaining block gas limit. Therefore, the message processing will be postponed
         /// until the next block.
         ///
-        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of `code` + `salt`. (todo #512 `code_hash` + `salt`)
+        /// `ProgramId` is computed as Blake256 hash of concatenated bytes of hashed `code` + `salt`, i.e.  _h(h(`code_hash`), `salt`)_.
         /// Such `ProgramId` must not exist in the Program Storage at the time of this call.
         ///
         /// There is the same guarantee here as in `submit_code`. That is, future program's
@@ -743,12 +743,15 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let mut data = Vec::new();
-            // TODO #512
-            code.encode_to(&mut data);
-            salt.encode_to(&mut data);
+            let id: H256 = {
+                let mut data = Vec::new();
+                let code_hash = sp_io::hashing::blake2_256(&code);
 
-            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+                code_hash.encode_to(&mut data);
+                salt.encode_to(&mut data);
+
+                sp_io::hashing::blake2_256(&data).into()
+            };
 
             // Make sure there is no program with such id in program storage
             ensure!(

@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{debug, H256, msg};
+use gstd::{debug, msg, H256};
 
 static mut COUNTER: i32 = 0;
 
@@ -29,7 +29,9 @@ fn get() -> i32 {
 pub unsafe extern "C" fn handle() {
     // Assume that the code of the deploying program was submitted by `submit_code`
     // extrinsic and we got its hash. For more details please read README file.
-    let submitted_code: H256 = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
+    let submitted_code: H256 =
+        hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
+            .into();
     let new_program_id = msg::create_program(submitted_code, get().to_le_bytes(), [], 10_000, 0);
     debug!("A new program is created {:?}", new_program_id);
 

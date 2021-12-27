@@ -1289,12 +1289,13 @@ mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-        // TODO #512
         let mut data = Vec::new();
-        code.encode_to(&mut data);
+        let code_hash = sp_io::hashing::blake2_256(code);
+
+        code_hash.encode_to(&mut data);
         salt.encode_to(&mut data);
 
-        sp_io::hashing::blake2_256(&data[..]).into()
+        sp_io::hashing::blake2_256(&data).into()
     }
 
     pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {

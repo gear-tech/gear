@@ -504,20 +504,20 @@ pub fn value() -> u128 {
 
 /// Creates a new program and returns its address.
 ///
-/// The deploying program code must be represented as blake2b hash (`code_hash` parameter).
-/// This function creates a program initialization message and as any message send in this crate,
-/// this one requires common additional data for message execution, such as:
-/// 1. `payload` that can be used in `init` function of the newly deployed "child" program;
-/// 2. `gas_limit`, provided for the program initialization;
-/// 3. `value`, sent with the message.
+/// The deploying program code must be represented as blake2b hash (`code_hash`
+/// parameter). This function creates a program initialization message and as
+/// any message send in this crate, this one requires common additional data for
+/// message execution, such as: 1. `payload` that can be used in `init` function
+/// of the newly deployed "child" program; 2. `gas_limit`, provided for the
+/// program initialization; 3. `value`, sent with the message.
 ///
 /// # Examples
 ///
-/// In order to generate an address for a new program `salt` must be provided. Control
-/// of salt uniqueness is fully on a program developer side.
+/// In order to generate an address for a new program `salt` must be provided.
+/// Control of salt uniqueness is fully on a program developer side.
 ///
 /// Basically we can use "automatic" salt generation ("nonce"):
-/// ```no_run
+/// ```
 /// use gcore::msg;
 /// use gcore::H256;
 ///
@@ -534,12 +534,15 @@ pub fn value() -> u128 {
 /// }
 ///
 /// pub unsafe extern "C" fn handle() {
-///     let submitted_code: H256 = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
-///     let new_program_id = msg::create_program(submitted_code, &get().to_le_bytes(), b"", 10_000, 0);
+///     let submitted_code: H256 =
+///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
+///             .into();
+///     let new_program_id =
+///         msg::create_program(submitted_code, &get().to_le_bytes(), b"", 10_000, 0);
 /// }
 /// ```
 /// Another case for salt is to receive it as an input:
-/// ```no_run
+/// ```
 /// use gcore::msg;
 /// # use gcore::H256;
 ///
@@ -552,7 +555,7 @@ pub fn value() -> u128 {
 /// ```
 ///
 /// What's more, messages can be sent to a new program:
-/// ```no_run
+/// ```
 /// use gcore::msg;
 /// # use gcore::H256;
 ///
