@@ -23,6 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
+    gas::GasCounterView,
     memory::PageNumber,
     message::{Message, MessageId},
     program::{Program, ProgramId},
@@ -87,11 +88,8 @@ pub struct DispatchResult {
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
 
-    /// Gas that was left.
-    pub gas_left: u64,
-
-    /// Gas burned.
-    pub gas_burned: u64,
+    /// Gas counter view.
+    pub gas_counter_view: GasCounterView,
 
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, Vec<u8>>,
@@ -118,7 +116,7 @@ impl DispatchResult {
     }
 
     /// Generate trap reply if original message is a trap.
-    pub fn trap_reply(&mut self) -> Option<Message> {
+    pub fn trap_reply(&mut self, gas_limit: u64) -> Option<Message> {
         if let Some((_, exit_code)) = self.dispatch.message.reply() {
             if exit_code != 0 {
                 return None;
@@ -133,13 +131,11 @@ impl DispatchResult {
             self.program_id(),
             self.message_source(),
             Default::default(),
-            self.gas_left,
+            gas_limit,
             0,
             self.message_id(),
             crate::ERR_EXIT_CODE,
         );
-
-        self.gas_left = 0;
 
         Some(message)
     }
@@ -279,8 +275,8 @@ pub struct ProcessResult {
 pub struct ExecutionError {
     /// Program that generated execution error.
     pub program: Program,
-    /// Gas burned during the execution.
-    pub gas_burned: u64,
+    /// Gas counter view of the execution.
+    pub gas_counter_view: GasCounterView,
     /// Error text.
     pub reason: &'static str,
 }

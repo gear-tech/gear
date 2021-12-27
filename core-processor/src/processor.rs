@@ -69,7 +69,7 @@ pub fn process<E: Environment<Ext>>(
                 journal.push(JournalNote::GasBurned {
                     message_id,
                     origin,
-                    amount: e.gas_burned,
+                    amount: e.gas_counter_view.burned(),
                 });
                 journal.push(JournalNote::MessageConsumed(message_id));
 
@@ -114,12 +114,14 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,
-                amount: dispatch_result.gas_burned,
+                amount: dispatch_result.gas_counter_view.burned(),
             });
             journal.push(JournalNote::MessageConsumed(message_id));
         }
         DispatchResultKind::Trap(trap) => {
-            if let Some(message) = dispatch_result.trap_reply() {
+            if let Some(message) =
+                dispatch_result.trap_reply(dispatch_result.gas_counter_view.left())
+            {
                 journal.push(JournalNote::SendMessage {
                     message_id,
                     message,
@@ -144,7 +146,7 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,
-                amount: dispatch_result.gas_burned,
+                amount: dispatch_result.gas_counter_view.burned(),
             });
 
             journal.push(JournalNote::MessageConsumed(message_id));
@@ -153,10 +155,10 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,
-                amount: dispatch_result.gas_burned,
+                amount: dispatch_result.gas_counter_view.burned(),
             });
 
-            dispatch_result.dispatch.message.gas_limit = dispatch_result.gas_left;
+            dispatch_result.dispatch.message.gas_limit = dispatch_result.gas_counter_view.left();
 
             journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch));
         }

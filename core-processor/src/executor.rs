@@ -30,7 +30,7 @@ use alloc::{
 use gear_backend_common::Environment;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter},
+    gas::{ChargeResult, GasCounter, GasCounterView},
     memory::{MemoryContext, PageNumber},
     message::{MessageContext, MessageState},
     program::Program,
@@ -47,19 +47,19 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let Dispatch { kind, message } = dispatch.clone();
     let entry = kind.into_entry();
 
+    // Creating gas counter.
+    let mut gas_counter = GasCounter::new(message.gas_limit());
+
     let instrumented_code = match gear_core::gas::instrument(program.code()) {
         Ok(code) => code,
         Err(_) => {
             return Err(ExecutionError {
                 program,
-                gas_burned: 0,
+                gas_counter_view: gas_counter.into(),
                 reason: "Cannot instrument code with gas-counting instructions.",
             })
         }
     };
-
-    // Creating gas counter.
-    let mut gas_counter = GasCounter::new(message.gas_limit());
 
     // Charging for initial or loaded pages.
     if entry == "init" {
@@ -68,7 +68,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         {
             return Err(ExecutionError {
                 program,
-                gas_burned: gas_counter.burned(),
+                gas_counter_view: gas_counter.into(),
                 reason: "Not enough gas for initial memory.",
             });
         };
@@ -77,7 +77,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     {
         return Err(ExecutionError {
             program,
-            gas_burned: gas_counter.burned(),
+            gas_counter_view: gas_counter.into(),
             reason: "Not enough gas for loading memory.",
         });
     };
@@ -96,7 +96,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
             if gas_counter.charge(amount) != ChargeResult::Enough {
                 return Err(ExecutionError {
                     program,
-                    gas_burned: gas_counter.burned(),
+                    gas_counter_view: gas_counter.into(),
                     reason: "Not enough gas for grow memory size.",
                 });
             }
@@ -199,11 +199,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         outgoing.push(reply_message.into_message(message.id(), program.id(), message.source()));
     }
 
-    // Checking gas that was spent.
-    let gas_burned = ext.gas_counter.burned();
-
-    // Storing gas values after execution.
-    let gas_left = ext.gas_counter.left();
+    // Getting read-only gas counter
+    let gas_counter_view: GasCounterView = ext.gas_counter.into();
 
     // Output.
     Ok(DispatchResult {
@@ -212,8 +209,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         dispatch,
         outgoing,
         awakening,
-        gas_left,
-        gas_burned,
+        gas_counter_view,
         page_update,
         persistent_pages,
         nonce,
