@@ -19,7 +19,7 @@
 //! Module with basic messaging functions.
 
 use crate::prelude::{convert::AsRef, vec, Vec};
-use crate::{ActorId, MessageId, H256};
+use crate::{ActorId, CodeHash, MessageId};
 use codec::Output;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -132,7 +132,7 @@ pub fn value() -> u128 {
 }
 
 pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
-    code_hash: H256,
+    code_hash: CodeHash,
     salt: T1,
     payload: T2,
     gas_limit: u64,

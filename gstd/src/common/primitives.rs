@@ -22,7 +22,7 @@ use crate::errors::{ContractError, Result};
 use crate::prelude::convert::TryFrom;
 use crate::prelude::String;
 use codec::{Decode, Encode};
-use primitive_types::H256 as spH256;
+use primitive_types::H256;
 use scale_info::TypeInfo;
 
 #[derive(
@@ -87,8 +87,8 @@ impl From<ActorId> for [u8; 32] {
     }
 }
 
-impl From<spH256> for ActorId {
-    fn from(h256: spH256) -> Self {
+impl From<H256> for ActorId {
+    fn from(h256: H256) -> Self {
         Self::new(h256.to_fixed_bytes())
     }
 }
@@ -146,9 +146,9 @@ impl From<gcore::MessageId> for MessageId {
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
-pub struct H256([u8; 32]);
+pub struct CodeHash([u8; 32]);
 
-impl H256 {
+impl CodeHash {
     pub const fn new(arr: [u8; 32]) -> Self {
         Self(arr)
     }
@@ -165,49 +165,49 @@ impl H256 {
     }
 }
 
-impl AsRef<[u8]> for H256 {
+impl AsRef<[u8]> for CodeHash {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl AsMut<[u8]> for H256 {
+impl AsMut<[u8]> for CodeHash {
     fn as_mut(&mut self) -> &mut [u8] {
         self.0.as_mut()
     }
 }
 
-impl From<[u8; 32]> for H256 {
+impl From<[u8; 32]> for CodeHash {
     fn from(arr: [u8; 32]) -> Self {
         Self(arr)
     }
 }
 
-impl From<H256> for [u8; 32] {
-    fn from(other: H256) -> Self {
+impl From<CodeHash> for [u8; 32] {
+    fn from(other: CodeHash) -> Self {
         other.0
     }
 }
 
-impl From<spH256> for H256 {
-    fn from(h256: spH256) -> Self {
+impl From<H256> for CodeHash {
+    fn from(h256: H256) -> Self {
         Self::new(h256.to_fixed_bytes())
     }
 }
 
-impl From<gcore::CodeHash> for H256 {
+impl From<gcore::CodeHash> for CodeHash {
     fn from(other: gcore::CodeHash) -> Self {
         Self(other.0)
     }
 }
 
-impl From<H256> for gcore::CodeHash {
-    fn from(other: H256) -> Self {
+impl From<CodeHash> for gcore::CodeHash {
+    fn from(other: CodeHash) -> Self {
         Self(other.0)
     }
 }
 
-impl TryFrom<&[u8]> for H256 {
+impl TryFrom<&[u8]> for CodeHash {
     type Error = ContractError;
 
     fn try_from(slice: &[u8]) -> Result<Self> {

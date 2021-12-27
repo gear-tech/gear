@@ -26,7 +26,7 @@
 //! reply to the initial message.
 
 use crate::MessageHandle;
-use crate::{ActorId, MessageId, CodeHash};
+use crate::{ActorId, CodeHash, MessageId};
 
 mod sys {
     extern "C" {
