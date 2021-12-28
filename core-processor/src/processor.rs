@@ -69,7 +69,7 @@ pub fn process<E: Environment<Ext>>(
                 journal.push(JournalNote::GasBurned {
                     message_id,
                     origin,
-                    amount: e.gas_burned,
+                    amount: e.gas_amount.burned(),
                 });
                 journal.push(JournalNote::MessageConsumed(message_id));
 
@@ -114,12 +114,12 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,
-                amount: dispatch_result.gas_burned,
+                amount: dispatch_result.gas_amount.burned(),
             });
             journal.push(JournalNote::MessageConsumed(message_id));
         }
         DispatchResultKind::Trap(trap) => {
-            if let Some(message) = dispatch_result.trap_reply() {
+            if let Some(message) = dispatch_result.trap_reply(dispatch_result.gas_amount.left()) {
                 journal.push(JournalNote::SendMessage {
                     message_id,
                     message,
@@ -144,7 +144,7 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,
-                amount: dispatch_result.gas_burned,
+                amount: dispatch_result.gas_amount.burned(),
             });
 
             journal.push(JournalNote::MessageConsumed(message_id));
@@ -153,18 +153,17 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,
-                amount: dispatch_result.gas_burned,
+                amount: dispatch_result.gas_amount.burned(),
             });
 
-            dispatch_result.dispatch.message.gas_limit = dispatch_result.gas_left;
+            dispatch_result.dispatch.message.gas_limit = dispatch_result.gas_amount.left();
 
             journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch));
         }
     }
 
-    journal.push(JournalNote::UpdateNonceAndPagesAmount {
+    journal.push(JournalNote::UpdateNonce {
         program_id,
-        persistent_pages: dispatch_result.persistent_pages,
         nonce: dispatch_result.nonce,
     });
 
@@ -201,13 +200,17 @@ pub fn process_many<E: Environment<Ext>>(
         } = process::<E>(program, dispatch, block_info);
 
         for note in &current_journal {
-            if let JournalNote::UpdateNonceAndPagesAmount { nonce, .. } = note {
+            if let JournalNote::UpdateNonce { nonce, .. } = note {
                 program.set_message_nonce(*nonce);
             } else if let JournalNote::UpdatePage {
                 page_number, data, ..
             } = note
             {
-                program.set_page(*page_number, data).expect("Can't fail");
+                if let Some(data) = data {
+                    program.set_page(*page_number, data).expect("Can't fail");
+                } else {
+                    program.remove_page(*page_number);
+                }
             }
         }
 

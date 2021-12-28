@@ -56,7 +56,7 @@ impl FixtureLogger {
     fn new(map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>) -> FixtureLogger {
         let mut builder = Builder::from_env(FILTER_ENV);
         builder.parse(
-            "gtest=debug,gear_core=debug,gear_backend_common=debug,gear_backend_wasmtime=debug,gear_backend_sandbox=debug,gear_core_runner=debug,gwasm=debug",
+            "gtest=debug,gear_core=debug,gear_backend_common=debug,gear_backend_wasmtime=debug,gear_backend_sandbox=debug,gear_core_processor=debug,gwasm=debug",
         );
 
         FixtureLogger {

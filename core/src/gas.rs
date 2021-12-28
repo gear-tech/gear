@@ -113,6 +113,33 @@ impl GasCounter {
     }
 }
 
+/// Read-only representation of consumed `GasCounter`.
+#[derive(Debug)]
+pub struct GasAmount {
+    left: u64,
+    burned: u64,
+}
+
+impl GasAmount {
+    /// Report how much gas were left.
+    pub fn left(&self) -> u64 {
+        self.left
+    }
+
+    /// Report how much gas were burned.
+    pub fn burned(&self) -> u64 {
+        self.burned
+    }
+}
+
+impl From<GasCounter> for GasAmount {
+    fn from(gas_counter: GasCounter) -> Self {
+        let GasCounter { left, burned } = gas_counter;
+
+        Self { left, burned }
+    }
+}
+
 /// Instrument code with gas-counting instructions.
 pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     use pwasm_utils::rules::{InstructionType, Metering};
