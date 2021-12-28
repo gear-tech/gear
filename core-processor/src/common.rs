@@ -92,9 +92,7 @@ pub struct DispatchResult {
     pub gas_counter_view: GasCounterView,
 
     /// Page updates.
-    pub page_update: BTreeMap<PageNumber, Vec<u8>>,
-    /// Page allocations.
-    pub persistent_pages: BTreeSet<u32>,
+    pub page_update: BTreeMap<PageNumber, Option<Vec<u8>>>,
     /// New nonce.
     pub nonce: u64,
 }
@@ -211,12 +209,10 @@ pub enum JournalNote {
         /// Message that should be wokoen.
         awakening_id: MessageId,
     },
-    /// Update nonce and page layout.
-    UpdateNonceAndPagesAmount {
+    /// Update program nonce.
+    UpdateNonce {
         /// Program id to be updated.
         program_id: ProgramId,
-        /// Page layout to set.
-        persistent_pages: BTreeSet<u32>,
         /// Nonce to set.
         nonce: u64,
     },
@@ -227,7 +223,9 @@ pub enum JournalNote {
         /// Number of the page.
         page_number: PageNumber,
         /// New data of the page.
-        data: Vec<u8>,
+        ///
+        /// Updates data in case of `Some(data)` or deletes the page
+        data: Option<Vec<u8>>,
     },
 }
 
@@ -252,15 +250,15 @@ pub trait JournalHandler {
         program_id: ProgramId,
         awakening_id: MessageId,
     );
-    /// Process nonce update and page layout.
-    fn update_nonce_and_pages_amount(
+    /// Process nonce update.
+    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
+    /// Process page update.
+    fn update_page(
         &mut self,
         program_id: ProgramId,
-        persistent_pages: BTreeSet<u32>,
-        nonce: u64,
+        page_number: PageNumber,
+        data: Option<Vec<u8>>,
     );
-    /// Process page update.
-    fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
 }
 
 /// Result of the message processing.

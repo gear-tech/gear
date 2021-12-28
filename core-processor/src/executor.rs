@@ -115,7 +115,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let memory_context = MemoryContext::new(
         program.id(),
         memory.clone(),
-        allocations,
+        allocations.clone(),
         program.static_pages().into(),
         settings.max_pages(),
     );
@@ -161,7 +161,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     // Updating program memory
-    let mut page_update = BTreeMap::<PageNumber, Vec<u8>>::new();
+    let mut page_update = BTreeMap::<PageNumber, Option<Vec<u8>>>::new();
     let persistent_pages = ext.memory_context.allocations().clone();
 
     for page in &persistent_pages {
@@ -172,11 +172,16 @@ pub fn execute_wasm<E: Environment<Ext>>(
             need_update = *data.to_vec() != buf;
         }
         if need_update {
-            let _ = page_update.insert(*page, buf);
+            let _ = page_update.insert(*page, Some(buf));
         }
     }
 
-    let persistent_pages = persistent_pages.into_iter().map(|v| v.raw()).collect();
+    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
+    let actual_max_page = persistent_pages.iter().last().expect("Can't fail").raw();
+
+    for removed_page in (actual_max_page + 1)..=prev_max_page {
+        let _ = page_update.insert(removed_page.into(), None);
+    }
 
     // Storing outgoing messages from message state.
     let mut outgoing = Vec::new();
@@ -211,7 +216,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
         awakening,
         gas_counter_view,
         page_update,
-        persistent_pages,
         nonce,
     })
 }
