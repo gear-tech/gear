@@ -960,7 +960,7 @@ pub mod pallet {
             common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);
-            
+
             Ok(())
         }
     }
