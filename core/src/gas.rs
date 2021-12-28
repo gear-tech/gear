@@ -113,14 +113,14 @@ impl GasCounter {
     }
 }
 
-/// Read-only gas counter representation of consumed `GasCounter`.
+/// Read-only representation of consumed `GasCounter`.
 #[derive(Debug)]
-pub struct GasCounterView {
+pub struct GasAmount {
     left: u64,
     burned: u64,
 }
 
-impl GasCounterView {
+impl GasAmount {
     /// Report how much gas were left.
     pub fn left(&self) -> u64 {
         self.left
@@ -132,7 +132,7 @@ impl GasCounterView {
     }
 }
 
-impl From<GasCounter> for GasCounterView {
+impl From<GasCounter> for GasAmount {
     fn from(gas_counter: GasCounter) -> Self {
         let GasCounter { left, burned } = gas_counter;
 

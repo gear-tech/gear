@@ -30,7 +30,7 @@ use alloc::{
 use gear_backend_common::Environment;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter, GasCounterView},
+    gas::{ChargeResult, GasAmount, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{MessageContext, MessageState},
     program::Program,
@@ -55,7 +55,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         Err(_) => {
             return Err(ExecutionError {
                 program,
-                gas_counter_view: gas_counter.into(),
+                gas_amount: gas_counter.into(),
                 reason: "Cannot instrument code with gas-counting instructions.",
             })
         }
@@ -68,7 +68,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         {
             return Err(ExecutionError {
                 program,
-                gas_counter_view: gas_counter.into(),
+                gas_amount: gas_counter.into(),
                 reason: "Not enough gas for initial memory.",
             });
         };
@@ -77,7 +77,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     {
         return Err(ExecutionError {
             program,
-            gas_counter_view: gas_counter.into(),
+            gas_amount: gas_counter.into(),
             reason: "Not enough gas for loading memory.",
         });
     };
@@ -96,7 +96,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
             if gas_counter.charge(amount) != ChargeResult::Enough {
                 return Err(ExecutionError {
                     program,
-                    gas_counter_view: gas_counter.into(),
+                    gas_amount: gas_counter.into(),
                     reason: "Not enough gas for grow memory size.",
                 });
             }
@@ -205,7 +205,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     }
 
     // Getting read-only gas counter
-    let gas_counter_view: GasCounterView = ext.gas_counter.into();
+    let gas_amount: GasAmount = ext.gas_counter.into();
 
     // Output.
     Ok(DispatchResult {
@@ -214,7 +214,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         dispatch,
         outgoing,
         awakening,
-        gas_counter_view,
+        gas_amount,
         page_update,
         nonce,
     })

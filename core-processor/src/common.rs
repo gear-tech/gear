@@ -23,7 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    gas::GasCounterView,
+    gas::GasAmount,
     memory::PageNumber,
     message::{Message, MessageId},
     program::{Program, ProgramId},
@@ -88,8 +88,8 @@ pub struct DispatchResult {
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
 
-    /// Gas counter view.
-    pub gas_counter_view: GasCounterView,
+    /// Gas amount after execution.
+    pub gas_amount: GasAmount,
 
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, Option<Vec<u8>>>,
@@ -273,8 +273,8 @@ pub struct ProcessResult {
 pub struct ExecutionError {
     /// Program that generated execution error.
     pub program: Program,
-    /// Gas counter view of the execution.
-    pub gas_counter_view: GasCounterView,
+    /// Gas amount of the execution.
+    pub gas_amount: GasAmount,
     /// Error text.
     pub reason: &'static str,
 }
