@@ -132,6 +132,8 @@ pub mod pallet {
         RemovedFromWaitList(H256),
         /// Program code with a calculated code hash is saved to the storage
         CodeSaved(H256),
+        /// Pallet associated storage has been wiped.
+        DatabaseWiped,
     }
 
     // Gear pallet error.
@@ -946,6 +948,20 @@ pub mod pallet {
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 
             Ok(().into())
+        }
+
+        /// Reset all pallet associated storage.
+        #[pallet::weight(0)]
+        pub fn reset(origin: OriginFor<T>) -> DispatchResult {
+            ensure_root(origin)?;
+            MessageQueue::<T>::kill();
+            <Mailbox<T>>::remove_all(None);
+            ProgramsLimbo::<T>::remove_all(None);
+            common::reset_storage();
+
+            Self::deposit_event(Event::DatabaseWiped);
+            
+            Ok(())
         }
     }
 
