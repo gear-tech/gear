@@ -709,21 +709,24 @@ fn send_reply_works() {
         // global nonce is 2 before sending reply message
         // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
         let expected_reply_message_id = compute_user_message_id(EMPTY_PAYLOAD, 2);
-        let (actual_reply_message_id, orig_id) = {
-            let intermediate_msg = GearPallet::<Test>::message_queue()
-                .map(|v| v.into_iter().next())
-                .flatten()
-                .expect("reply message was previously sent");
-            match intermediate_msg {
-                IntermediateMessage::Dispatch { id, reply, .. } => {
-                    (id, reply.expect("was a reply message"))
-                }
-                _ => unreachable!("only reply message was in mq"),
-            }
+
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo {
+            message_id: actual_reply_message_id,
+            ..
+        } = match event {
+            Event::DispatchMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::DispatchMessageEnqueued"),
         };
 
         assert_eq!(expected_reply_message_id, actual_reply_message_id);
-        assert_eq!(orig_id, reply_to_id);
     })
 }
 

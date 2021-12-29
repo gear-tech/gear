@@ -413,40 +413,6 @@ pub mod pallet {
 
             for message in messages {
                 match message {
-                    IntermediateMessage::Dispatch {
-                        id,
-                        origin,
-                        destination,
-                        payload,
-                        gas_limit,
-                        value,
-                        reply,
-                    } => {
-                        let _ = common::value_tree::ValueView::get_or_create(
-                            GAS_VALUE_PREFIX,
-                            origin,
-                            id,
-                            gas_limit,
-                        );
-
-                        let message = Message {
-                            id,
-                            source: origin,
-                            payload,
-                            gas_limit,
-                            dest: destination,
-                            value,
-                            reply: reply.map(|r| (r, 0)),
-                        };
-
-                        if common::program_exists(destination) {
-                            common::queue_message(message);
-                        } else {
-                            Self::insert_to_mailbox(destination, message.clone());
-                            Self::deposit_event(Event::Log(message));
-                        }
-                    }
-
                     IntermediateMessage::Wake {
                         destination_program_id,
                     } => Self::wake_waiting_messages(destination_program_id),
@@ -744,16 +710,16 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            // Check that the message is not intended for a failed program
-            ensure!(
-                !Self::is_failed(destination),
-                Error::<T>::ProgramIsNotInitialized
-            );
-
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Check that the message is not intended for a failed program
+            ensure!(
+                !Self::is_failed(destination),
+                Error::<T>::ProgramIsNotInitialized
             );
 
             let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
@@ -772,22 +738,36 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )?;
 
-            // Only after reservation the message is actually put in the queue.
-            <MessageQueue<T>>::append(IntermediateMessage::Dispatch {
+            let origin = who.into_origin();
+            common::value_tree::ValueView::get_or_create(
+                GAS_VALUE_PREFIX,
+                origin,
+                message_id,
+                gas_limit,
+            );
+
+            let message = Message {
                 id: message_id,
-                origin: who.clone().into_origin(),
-                destination,
+                source: origin,
                 payload,
                 gas_limit,
+                dest: destination,
                 value: value.unique_saturated_into(),
                 reply: None,
-            });
+            };
 
             Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                 message_id,
-                origin: who.into_origin(),
+                origin,
                 program_id: destination,
             }));
+
+            if common::program_exists(destination) {
+                common::queue_message(message);
+            } else {
+                Self::insert_to_mailbox(destination, message.clone());
+                Self::deposit_event(Event::Log(message));
+            }
 
             Ok(().into())
         }
@@ -872,21 +852,37 @@ pub mod pallet {
             }
 
             let message_id = common::next_message_id(&payload);
-            <MessageQueue<T>>::append(IntermediateMessage::Dispatch {
+
+            let origin = who.into_origin();
+            common::value_tree::ValueView::get_or_create(
+                GAS_VALUE_PREFIX,
+                origin,
+                message_id,
+                gas_limit,
+            );
+
+            let message = Message {
                 id: message_id,
-                origin: who.clone().into_origin(),
-                destination,
+                source: origin,
                 payload,
                 gas_limit,
+                dest: destination,
                 value: value.unique_saturated_into(),
-                reply: Some(reply_to_id),
-            });
+                reply: Some((reply_to_id, 0)),
+            };
 
             Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                 message_id,
-                origin: who.into_origin(),
+                origin,
                 program_id: destination,
             }));
+
+            if common::program_exists(destination) {
+                common::queue_message(message);
+            } else {
+                Self::insert_to_mailbox(destination, message.clone());
+                Self::deposit_event(Event::Log(message));
+            }
 
             Ok(().into())
         }
