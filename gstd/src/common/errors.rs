@@ -17,6 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear common errors module.
+//! Enumerates the list of errors that can occur in `gstd`. 
+//! Errors related to conversion, decoding, message exit code, or any other internal errors.
+//! Result is the Gear's custom result enum, where Err relates to `ContractError`.
 
 use core::fmt;
 
@@ -33,7 +36,7 @@ pub enum ContractError {
 impl fmt::Display for ContractError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ContractError::Convert(e) => write!(f, "Convertation error: {:?}", e),
+            ContractError::Convert(e) => write!(f, "Conversion error: {:?}", e),
             ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {}", e),
             ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
             ContractError::Internal(e) => write!(f, "Internal error: {:?}", e),

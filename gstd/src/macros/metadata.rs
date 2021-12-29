@@ -16,7 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `metadata!` macro. Exports functions with IO data.
+//! Gear `metadata!` macro. Exports functions from Rust with IO data that 
+//! the user has specified in the macro.
+//! Macro contains `input` and `output` message types for `init`, `handle`,
+//! `async`. It is used in `idea.gear-tech.io` in order to correctly form 
+//! a payload from json on the JS application side.
 
 #[macro_export]
 macro_rules! metadata {

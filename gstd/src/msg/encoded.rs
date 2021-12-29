@@ -16,7 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module with encoded via scale-codec messaging functions.
+//! Module with messaging functions (load, reply, send) for operating 
+//! with messages arguments as with data structure instead of bytes array 
+//! decoded/encoded via SCALE Codec.
+/// `load` returns Result of decoding because of possible errors.
+/// If ok, it returns the structure itself, else error.
+//! 
+//! Example:
+//! ```
+//! let x: String = load().expect(msg: &str);
+//! ```
 
 use crate::errors::{ContractError, Result};
 use crate::prelude::convert::AsRef;

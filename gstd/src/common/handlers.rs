@@ -17,6 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Module with custom panic handlers implementations.
+//! Introduces Gear's implementation of panic for memory allocation and other common Rust panic.
+//! Gear smart contracts run on Wasm, so the Rust program error is considered equal 
+//! to the Wasm runtime error `wasm32::unreachable`.
+//! Panic handlers available for programs built in `wasm32` architecture in two implementations - 
+//! for `debug` mode it provides more extensive logging. 
 
 #[cfg(not(feature = "debug"))]
 #[cfg(target_arch = "wasm32")]

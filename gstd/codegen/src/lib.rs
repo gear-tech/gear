@@ -29,16 +29,20 @@ fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
         .into()
 }
 
-/// Mark async function to be the program entry point.
+/// This is the procedural macro for your convenience. 
+/// It marks main async function to be the program entry point.
+/// Functions handle, handle_reply canont be specified if this macro is used.
+/// If you need to specify handle, handle_reply explicitly don't use this macro.
 ///
 /// ## Usage
 ///
 /// ```ignore
-/// #[gstd::main]
+/// #[gstd::asyn_main]
 /// async fn main() {
 ///     gstd::debug!("Hello world");
 /// }
 /// ```
+
 #[proc_macro_attribute]
 pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
@@ -59,7 +63,7 @@ pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     let body = &function.block;
-
+   
     quote!(
         #[no_mangle]
         pub unsafe extern "C" fn handle() {

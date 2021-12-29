@@ -17,6 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear primitive types.
+//! 
+//! `gcore::general` provides some minimal implementation for `ActorId` and
+//! `MessageId` structs with public access to their internals. It can be used 
+//! provided that you understand how it works and take security considerations into account.
+//! 
+//! `gstd::primitives` declares its own `ActorId` and `MessageId` structures 
+//! with more extensive methods for access to their internals (no public access). 
+//! It is recommended to use for most cases.
+//! 
+//! # Examples
+/// ```
+/// let id = ActorId::new([]);
+//! let bytes = MessageId.as_ref();
+//! ```
+//!   
 
 use crate::errors::{ContractError, Result};
 use crate::prelude::convert::TryFrom;
@@ -24,6 +39,15 @@ use crate::prelude::String;
 use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
+
+/// Program (actor) identifier.
+///
+/// Gear allows users and programs to interact with other users and programs via
+/// messages. Source and target program as well as user are represented by
+/// 256-bit identifier `ActorId` struct. The source `ActorId` for a message
+/// being processed can be obtained using [`msg::source`](crate::msg::source)
+/// function. Also, each send function has a target `ActorId` as one of the
+/// arguments.
 
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
@@ -112,6 +136,14 @@ impl TryFrom<&[u8]> for ActorId {
         Self::from_slice(slice)
     }
 }
+
+/// Message identifier.
+///
+/// Gear allows users and programs to interact with other users and programs via
+/// messages. Each message has its own unique 256-bit id. This id is represented
+/// via the `MessageId` struct. Message identifier can be obtained for the
+/// currently processed message using the [`msg::id`](crate::msg::id) function.
+/// Also, each send and reply functions return a message identifier.
 
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,

@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module with async messaging functions.
+//! This `gstd` module provides async messaging functions. 
+//! While `gcore` provides API for low-level async implementation only (gcore::exec).
 
 use crate::async_runtime::{signals, ReplyPoll};
 use crate::errors::{ContractError, Result};
@@ -61,6 +62,15 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
     }
 }
 
+/// To interrupt a program execition waiting for a reply on a previous message,
+/// one need to specify an `.await` expression.
+/// The initial message that requires a reply is sent instantly.
+/// methods `send_and_wait_for_reply` retun `MessageFuture` where `.await` can be specified.
+/// `MessageFuture` checks if the reply exists already:
+///     if not, program interrupts
+///     if reply exists, function returns the payload `Result`
+///     if reply came without paylod, program  with `ContractError::ExitCode`
+
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
 }
@@ -82,7 +92,7 @@ impl Future for MessageFuture {
             },
         }
     }
-}
+} 
 
 impl FusedFuture for MessageFuture {
     fn is_terminated(&self) -> bool {
@@ -90,7 +100,7 @@ impl FusedFuture for MessageFuture {
     }
 }
 
-/// Send a message and wait for reply.
+/// Send a message and wait for reply (as encoded structure).
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
@@ -106,7 +116,7 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     }
 }
 
-/// Send a message and wait for reply.
+/// Send a message and wait for reply (as bytes).
 pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,

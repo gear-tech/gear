@@ -31,6 +31,9 @@ pub(crate) type FuturesMap = BTreeMap<MessageId, Task>;
 
 type PinnedFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 
+/// Matches a task to a some message in order to avoid duplicate execution 
+/// of code that was running before the program was interrupted by `wait`.
+
 pub struct Task {
     waker: Waker,
     future: PinnedFuture,
@@ -48,7 +51,9 @@ impl Task {
     }
 }
 
-/// Asynchronous message handling main loop.
+/// Gear allows users and programs to interact with other users and programs via
+/// messages. This function enables an asynchronous message handling main loop.
+
 pub fn message_loop<F>(future: F)
 where
     F: Future<Output = ()> + 'static,

@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `debug!` macro. Provides logs.
+//! Gear `debug!` macro. 
+//! Enables output of the logs from Wasm if the `debug` feature is enabled.
 
-/// **The `debug!` macro**
 #[cfg(feature = "debug")]
 #[macro_export]
 macro_rules! debug {
