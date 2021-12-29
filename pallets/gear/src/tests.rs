@@ -35,46 +35,6 @@ use super::{
 use utils::*;
 
 #[test]
-fn submit_program_works() {
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // Check MQ is empty
-        assert!(GearPallet::<Test>::message_queue().is_none());
-
-        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
-
-        let mq = GearPallet::<Test>::message_queue().expect("message was added to the queue");
-        assert_eq!(mq.len(), 1);
-
-        let (origin, code, program_id, message_id) = {
-            let submit_msg = mq.into_iter().next().expect("mq length is 1");
-            match submit_msg {
-                IntermediateMessage::Init {
-                    origin,
-                    code,
-                    program_id,
-                    init_message_id,
-                    ..
-                } => (origin, code, program_id, init_message_id),
-                _ => unreachable!("only init program message is in the queue"),
-            }
-        };
-        assert_eq!(origin, USER_1.into_origin());
-        // submit_program_default submits ProgramCodeKind::Default
-        assert_eq!(code, ProgramCodeKind::Default.to_bytes());
-
-        SystemPallet::<Test>::assert_last_event(
-            Event::InitMessageEnqueued(MessageInfo {
-                message_id,
-                program_id,
-                origin,
-            })
-            .into(),
-        );
-    })
-}
-
-#[test]
 fn submit_program_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -139,23 +99,8 @@ fn send_message_works() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-        // After the submit program message will be sent, global nonce will be 1.
-        let expected_msg_id = compute_user_message_id(EMPTY_PAYLOAD, 1);
 
         assert_ok!(send_default_message(USER_1, program_id));
-
-        let mq = GearPallet::<Test>::message_queue().expect("Two messages were sent");
-        assert_eq!(mq.len(), 2);
-
-        let actual_msg_id = {
-            let sent_to_prog_msg = mq.into_iter().next_back().expect("mq is not empty");
-            match sent_to_prog_msg {
-                IntermediateMessage::Dispatch { id, .. } => id,
-                _ => unreachable!("last message was a dispatch message"),
-            }
-        };
-
-        assert_eq!(expected_msg_id, actual_msg_id);
 
         // Balances check
         // Gas spends on sending 2 default messages (submit program and send message to program)
@@ -339,7 +284,7 @@ fn unused_gas_released_back_works() {
             user1_initial_balance - user1_potential_msgs_spends
         );
         assert_eq!(
-            BalancesPallet::<Test>::reserved_balance(1),
+            BalancesPallet::<Test>::reserved_balance(USER_1),
             (DEFAULT_GAS_LIMIT + huge_send_message_gas_limit) as _,
         );
 
@@ -438,8 +383,6 @@ fn block_gas_limit_works() {
 
         // Run to the next block to reset the gas limit
         run_to_block(4, Some(remaining_weight));
-
-        assert!(GearPallet::<Test>::message_queue().is_none());
 
         // Add more messages to queue
         // Total `gas_limit` of three messages (2 to pid1 and 1 to pid2) exceeds the block gas limit
@@ -548,37 +491,19 @@ fn init_message_logging_works() {
 
             assert_ok!(submit_program_default(USER_1, code_kind));
 
-            let (program_id, message_id, origin) = {
-                let msg: IntermediateMessage = GearPallet::<Test>::message_queue()
-                    .map(|v| v.into_iter().next())
-                    .flatten()
-                    .expect("mq has only submit program message");
-                match msg {
-                    IntermediateMessage::Init {
-                        program_id,
-                        init_message_id,
-                        origin,
-                        ..
-                    } => (program_id, init_message_id, origin),
-                    _ => unreachable!("mq has only submit program message"),
-                }
+            let event = match SystemPallet::<Test>::events()
+                .last()
+                .map(|r| r.event.clone())
+            {
+                Some(MockEvent::Gear(e)) => e,
+                _ => unreachable!("Should be one Gear event"),
             };
-
-            SystemPallet::<Test>::assert_last_event(
-                Event::InitMessageEnqueued(MessageInfo {
-                    message_id,
-                    program_id,
-                    origin,
-                })
-                .into(),
-            );
 
             run_to_block(next_block, None);
 
-            let msg_info = MessageInfo {
-                message_id,
-                program_id,
-                origin,
+            let msg_info = match event {
+                Event::InitMessageEnqueued(info) => info,
+                _ => unreachable!("expect Event::InitMessageEnqueued"),
             };
 
             SystemPallet::<Test>::assert_has_event(if is_failing {
@@ -607,11 +532,13 @@ fn program_lifecycle_works() {
             res.expect("submit result was asserted")
         };
 
-        assert!(common::get_program(program_id).is_none());
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
-        // Expect the program to be in PS by now
-        assert!(common::get_program(program_id).is_some());
+
+        assert!(Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         // Submitting second program, which fails on initialization, therefore goes to limbo.
         let program_id = {
@@ -620,23 +547,24 @@ fn program_lifecycle_works() {
             res.expect("submit result was asserted")
         };
 
-        assert!(common::get_program(program_id).is_none());
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         run_to_block(3, None);
 
-        // Expect the program to have made it to the PS, cause it failed it's init
-        assert!(common::get_program(program_id).is_none());
+        assert!(!Gear::is_initialized(program_id));
         // while at the same time being stuck in "limbo"
-        assert!(GearPallet::<Test>::is_failed(program_id));
+        assert!(Gear::is_failed(program_id));
 
         // Program author is allowed to remove the program and reclaim funds
         // An attempt to remove a program on behalf of another account will make no changes
         assert_ok!(GearPallet::<Test>::remove_stale_program(
-            Origin::signed(LOW_BALANCE_USER).into(), // Not the author
+            // Not the author
+            Origin::signed(LOW_BALANCE_USER).into(),
             program_id,
         ));
-        // Program not in the storage
-        assert!(common::get_program(program_id).is_none());
+        // Program in the storage
+        assert!(common::get_program(program_id).is_some());
         // and is still in the limbo
         assert!(GearPallet::<Test>::is_failed(program_id));
 
@@ -644,6 +572,8 @@ fn program_lifecycle_works() {
             Origin::signed(USER_1).into(),
             program_id,
         ));
+        // Program not in the storage
+        assert!(common::get_program(program_id).is_none());
         // This time the program has been removed from limbo
         assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
     })
@@ -1285,18 +1215,21 @@ fn messages_to_uninitialized_program_wait() {
             0u128
         ));
 
-        let messages: Vec<IntermediateMessage> =
-            Gear::message_queue().expect("There should be a message in the queue");
-        let (program_id, _init_message_id) = match &messages[0] {
-            IntermediateMessage::Init {
-                program_id,
-                init_message_id,
-                ..
-            } => (*program_id, *init_message_id),
-            _ => unreachable!(),
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
         };
-        assert!(common::get_program(program_id).is_none());
-        assert!(super::ProgramsLimbo::<Test>::get(program_id).is_none());
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
+        };
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
 
@@ -1304,9 +1237,9 @@ fn messages_to_uninitialized_program_wait() {
             common::WaitingMessageIterator::new(program_id, None).count(),
             1
         );
-        // Expect the program to be in PS by now
-        assert!(common::get_program(program_id).is_some());
-        assert!(super::ProgramsLimbo::<Test>::get(program_id).is_none());
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(1).into(),
@@ -1342,12 +1275,21 @@ fn uninitialized_program_should_accept_replies() {
             0u128
         ));
 
-        let messages: Vec<IntermediateMessage> =
-            Gear::message_queue().expect("There should be a message in the queue");
-        let program_id = match &messages[0] {
-            IntermediateMessage::Init { program_id, .. } => *program_id,
-            _ => unreachable!(),
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
         };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
+        };
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
 
@@ -1375,6 +1317,7 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(3, None);
 
         assert!(Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
     })
 }
 
@@ -1395,11 +1338,17 @@ fn defer_program_initialization() {
             0u128
         ));
 
-        let messages: Vec<IntermediateMessage> =
-            Gear::message_queue().expect("There should be a message in the queue");
-        let program_id = match &messages[0] {
-            IntermediateMessage::Init { program_id, .. } => *program_id,
-            _ => unreachable!(),
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
         };
 
         run_to_block(2, None);
@@ -1465,11 +1414,17 @@ fn wake_messages_after_program_inited() {
             0u128
         ));
 
-        let messages: Vec<IntermediateMessage> =
-            Gear::message_queue().expect("There should be a message in the queue");
-        let program_id = match &messages[0] {
-            IntermediateMessage::Init { program_id, .. } => *program_id,
-            _ => unreachable!(),
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
         };
 
         run_to_block(2, None);

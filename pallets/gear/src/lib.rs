@@ -165,6 +165,8 @@ pub mod pallet {
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
+        /// Failed to create a program.
+        FailedToConstructProgram,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -411,88 +413,6 @@ pub mod pallet {
 
             for message in messages {
                 match message {
-                    // Initialization queue is handled separately and on the first place
-                    // Any programs failed to initialize are deleted and further messages to them are not processed
-                    IntermediateMessage::Init {
-                        origin,
-                        ref code,
-                        program_id,
-                        init_message_id,
-                        ref payload,
-                        gas_limit,
-                        value,
-                    } => {
-                        // Block gas allowance must be checked here for `InitProgram` messages
-                        // as they are not placed in the internal message queue
-                        if gas_limit > GasAllowance::<T>::get() {
-                            // Put message back to storage to let it be processed in future blocks
-                            MessageQueue::<T>::append(message);
-                            log::info!(
-                                target: "runtime::gear",
-                                "⛽️ Block gas limit exceeded: init message {} will be re-queued",
-                                init_message_id,
-                            );
-                            continue;
-                        }
-
-                        common::value_tree::ValueView::get_or_create(
-                            GAS_VALUE_PREFIX,
-                            origin,
-                            init_message_id,
-                            gas_limit,
-                        );
-
-                        // Successful outcome assumes a programs has been created and initialized so that
-                        // messages sent to this `ProgramId` will be enqueued for processing.
-                        let init_message = common::Message {
-                            id: init_message_id,
-                            source: origin,
-                            dest: program_id,
-                            payload: payload.to_vec(),
-                            gas_limit,
-                            value,
-                            reply: None,
-                        };
-
-                        let H256(bytes) = program_id;
-
-                        if let Ok(program) = Program::new(bytes.into(), code.to_vec()) {
-                            let dispatch = Dispatch {
-                                kind: DispatchKind::Init,
-                                message: init_message.into(),
-                            };
-
-                            let res = core_processor::process::<SandboxEnvironment<Ext>>(
-                                program, dispatch, block_info,
-                            );
-
-                            core_processor::handle_journal(res.journal, &mut ext_manager);
-
-                            total_handled += 1;
-                        } else {
-                            T::Currency::unreserve(
-                                &<T::AccountId as Origin>::from_origin(origin),
-                                T::GasConverter::gas_to_fee(gas_limit)
-                                    + value.unique_saturated_into(),
-                            );
-
-                            // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
-                            ProgramsLimbo::<T>::insert(program_id, origin);
-                            log::info!(
-                                target: "runtime::gear",
-                                "👻 Program {} will stay in limbo until explicitly removed",
-                                program_id
-                            );
-                            Self::deposit_event(Event::InitFailure(
-                                MessageInfo {
-                                    message_id: init_message_id,
-                                    program_id,
-                                    origin,
-                                },
-                                Reason::Error,
-                            ));
-                        }
-                    }
                     IntermediateMessage::Dispatch {
                         id,
                         origin,
@@ -530,6 +450,8 @@ pub mod pallet {
                     IntermediateMessage::Wake {
                         destination_program_id,
                     } => Self::wake_waiting_messages(destination_program_id),
+
+                    _ => unreachable!(),
                 }
             }
 
@@ -721,24 +643,27 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let mut data = Vec::new();
-            // TODO #512
-            code.encode_to(&mut data);
-            salt.encode_to(&mut data);
-
-            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
-
-            // Make sure there is no program with such id in program storage
-            ensure!(
-                !common::program_exists(id),
-                Error::<T>::ProgramAlreadyExists
-            );
-
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
+
+            let mut data = Vec::new();
+            // TODO #512
+            code.encode_to(&mut data);
+            salt.encode_to(&mut data);
+
+            // Make sure there is no program with such id in program storage
+            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+            ensure!(
+                !common::program_exists(id),
+                Error::<T>::ProgramAlreadyExists
+            );
+
+            let H256(id_bytes) = id;
+            let program = Program::new(id_bytes.into(), code.to_vec())
+                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
 
             let reserve_fee = T::GasConverter::gas_to_fee(gas_limit);
 
@@ -747,23 +672,39 @@ pub mod pallet {
             T::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let init_message_id = common::next_message_id(&init_payload);
             let origin = who.into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
-                Self::deposit_event(Event::CodeSaved(code_hash))
-            };
+                Self::deposit_event(Event::CodeSaved(code_hash));
+            }
 
-            <MessageQueue<T>>::append(IntermediateMessage::Init {
+            ExtManager::<T>::new().set_program(program);
+
+            let init_message_id = common::next_message_id(&init_payload);
+            common::set_program_state(
+                id,
+                ProgramState::Uninitialized {
+                    message_id: init_message_id,
+                },
+            );
+
+            common::value_tree::ValueView::get_or_create(
+                GAS_VALUE_PREFIX,
                 origin,
-                code,
-                program_id: id,
                 init_message_id,
+                gas_limit,
+            );
+
+            common::queue_message(common::Message {
+                id: init_message_id,
+                source: origin,
+                dest: id,
                 payload: init_payload,
                 gas_limit,
                 value: value.unique_saturated_into(),
+                reply: None,
             });
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
