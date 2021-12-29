@@ -800,9 +800,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.0.0-rc.8"
+version = "3.0.0-rc.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "484f17839417b695a6f4a75c20e49820ba0a1d00aa41ebd8ba0e5dfe0fbc3b74"
+checksum = "c7843ae7a539bef687e018bf9edf7e87728024b29d02b0f8409726be8880ae1a"
 dependencies = [
  "atty",
  "bitflags",
@@ -817,9 +817,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "3.0.0-rc.8"
+version = "3.0.0-rc.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a86d4ec799f94ddc4a4a4edf652f89b360219905f86edcb8abe5974dfef135b8"
+checksum = "cae3cc2f259ea636871f5da15b0ac033f1821d7a5506c3d1bfbdde201f14c803"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -2105,7 +2105,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.0.0-rc.8",
+ "clap 3.0.0-rc.9",
  "colored",
  "derive_more",
  "env_logger 0.9.0",
@@ -2409,7 +2409,7 @@ checksum = "7245cd7449cc792608c3c8a9eaf69bd4eabbabf802713748fd739c98b82f0747"
 dependencies = [
  "bytes 1.0.1",
  "fnv",
- "itoa",
+ "itoa 0.4.7",
 ]
 
 [[package]]
@@ -2464,7 +2464,7 @@ dependencies = [
  "http-body",
  "httparse",
  "httpdate",
- "itoa",
+ "itoa 0.4.7",
  "pin-project-lite 0.2.4",
  "socket2 0.4.0",
  "tokio",
@@ -2664,6 +2664,12 @@ name = "itoa"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
+
+[[package]]
+name = "itoa"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aab8fc367588b89dcee83ab0fd66b72b50b72fa1904d7095045ace2b0c81c35"
 
 [[package]]
 name = "jobserver"
@@ -6347,11 +6353,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.72"
+version = "1.0.73"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0ffa0837f2dfa6fb90868c2b5468cad482e175f7dad97e7421951e663f2b527"
+checksum = "bcbd0344bc6533bc7ec56df11d42fb70f1b912351c0825ccb7211b59d8af7cf5"
 dependencies = [
- "itoa",
+ "itoa 1.0.1",
  "ryu",
  "serde",
 ]
@@ -8151,7 +8157,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 3.0.0-rc.8",
+ "clap 3.0.0-rc.9",
  "env_logger 0.9.0",
  "log",
  "pwasm-utils",

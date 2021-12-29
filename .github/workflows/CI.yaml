@@ -129,7 +129,7 @@ jobs:
           cd rpc-tests
           npm run build
           cd ..
-          RUST_LOG=gwasm=debug,gear_core_runner=debug ./target/release/gear-node --dev --ws-max-out-buffer-capacity 500 --rpc-max-payload 500 -l 0 & sleep 10
+          RUST_LOG=gwasm=debug,gear_core_processor=debug ./target/release/gear-node --dev --ws-max-out-buffer-capacity 500 --rpc-max-payload 500 -l 0 & sleep 10
           node rpc-tests/dist/index.js ./gtest/spec/*.yaml
 
       - name: "Cache: Pack"

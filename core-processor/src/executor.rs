@@ -30,7 +30,7 @@ use alloc::{
 use gear_backend_common::Environment;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter},
+    gas::{ChargeResult, GasAmount, GasCounter},
     memory::{MemoryContext, PageNumber},
     message::{MessageContext, MessageState},
     program::Program,
@@ -47,19 +47,19 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let Dispatch { kind, message } = dispatch.clone();
     let entry = kind.into_entry();
 
+    // Creating gas counter.
+    let mut gas_counter = GasCounter::new(message.gas_limit());
+
     let instrumented_code = match gear_core::gas::instrument(program.code()) {
         Ok(code) => code,
         Err(_) => {
             return Err(ExecutionError {
                 program,
-                gas_burned: 0,
+                gas_amount: gas_counter.into(),
                 reason: "Cannot instrument code with gas-counting instructions.",
             })
         }
     };
-
-    // Creating gas counter.
-    let mut gas_counter = GasCounter::new(message.gas_limit());
 
     // Charging for initial or loaded pages.
     if entry == "init" {
@@ -68,7 +68,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         {
             return Err(ExecutionError {
                 program,
-                gas_burned: gas_counter.burned(),
+                gas_amount: gas_counter.into(),
                 reason: "Not enough gas for initial memory.",
             });
         };
@@ -77,7 +77,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     {
         return Err(ExecutionError {
             program,
-            gas_burned: gas_counter.burned(),
+            gas_amount: gas_counter.into(),
             reason: "Not enough gas for loading memory.",
         });
     };
@@ -96,7 +96,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
             if gas_counter.charge(amount) != ChargeResult::Enough {
                 return Err(ExecutionError {
                     program,
-                    gas_burned: gas_counter.burned(),
+                    gas_amount: gas_counter.into(),
                     reason: "Not enough gas for grow memory size.",
                 });
             }
@@ -115,7 +115,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let memory_context = MemoryContext::new(
         program.id(),
         memory.clone(),
-        allocations,
+        allocations.clone(),
         program.static_pages().into(),
         settings.max_pages(),
     );
@@ -161,7 +161,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     // Updating program memory
-    let mut page_update = BTreeMap::<PageNumber, Vec<u8>>::new();
+    let mut page_update = BTreeMap::<PageNumber, Option<Vec<u8>>>::new();
     let persistent_pages = ext.memory_context.allocations().clone();
 
     for page in &persistent_pages {
@@ -172,11 +172,16 @@ pub fn execute_wasm<E: Environment<Ext>>(
             need_update = *data.to_vec() != buf;
         }
         if need_update {
-            let _ = page_update.insert(*page, buf);
+            let _ = page_update.insert(*page, Some(buf));
         }
     }
 
-    let persistent_pages = persistent_pages.into_iter().map(|v| v.raw()).collect();
+    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
+    let actual_max_page = persistent_pages.iter().last().expect("Can't fail").raw();
+
+    for removed_page in (actual_max_page + 1)..=prev_max_page {
+        let _ = page_update.insert(removed_page.into(), None);
+    }
 
     // Storing outgoing messages from message state.
     let mut outgoing = Vec::new();
@@ -199,11 +204,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         outgoing.push(reply_message.into_message(message.id(), program.id(), message.source()));
     }
 
-    // Checking gas that was spent.
-    let gas_burned = ext.gas_counter.burned();
-
-    // Storing gas values after execution.
-    let gas_left = ext.gas_counter.left();
+    // Getting read-only gas counter
+    let gas_amount: GasAmount = ext.gas_counter.into();
 
     // Output.
     Ok(DispatchResult {
@@ -212,10 +214,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         dispatch,
         outgoing,
         awakening,
-        gas_left,
-        gas_burned,
+        gas_amount,
         page_update,
-        persistent_pages,
         nonce,
     })
 }

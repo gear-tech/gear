@@ -23,6 +23,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
+    gas::GasAmount,
     memory::PageNumber,
     message::{Message, MessageId},
     program::{Program, ProgramId},
@@ -87,16 +88,11 @@ pub struct DispatchResult {
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
 
-    /// Gas that was left.
-    pub gas_left: u64,
-
-    /// Gas burned.
-    pub gas_burned: u64,
+    /// Gas amount after execution.
+    pub gas_amount: GasAmount,
 
     /// Page updates.
-    pub page_update: BTreeMap<PageNumber, Vec<u8>>,
-    /// Page allocations.
-    pub persistent_pages: BTreeSet<u32>,
+    pub page_update: BTreeMap<PageNumber, Option<Vec<u8>>>,
     /// New nonce.
     pub nonce: u64,
 }
@@ -118,7 +114,7 @@ impl DispatchResult {
     }
 
     /// Generate trap reply if original message is a trap.
-    pub fn trap_reply(&mut self) -> Option<Message> {
+    pub fn trap_reply(&mut self, gas_limit: u64) -> Option<Message> {
         if let Some((_, exit_code)) = self.dispatch.message.reply() {
             if exit_code != 0 {
                 return None;
@@ -133,13 +129,11 @@ impl DispatchResult {
             self.program_id(),
             self.message_source(),
             Default::default(),
-            self.gas_left,
+            gas_limit,
             0,
             self.message_id(),
             crate::ERR_EXIT_CODE,
         );
-
-        self.gas_left = 0;
 
         Some(message)
     }
@@ -224,12 +218,10 @@ pub enum JournalNote {
         /// Message that should be wokoen.
         awakening_id: MessageId,
     },
-    /// Update nonce and page layout.
-    UpdateNonceAndPagesAmount {
+    /// Update program nonce.
+    UpdateNonce {
         /// Program id to be updated.
         program_id: ProgramId,
-        /// Page layout to set.
-        persistent_pages: BTreeSet<u32>,
         /// Nonce to set.
         nonce: u64,
     },
@@ -240,7 +232,9 @@ pub enum JournalNote {
         /// Number of the page.
         page_number: PageNumber,
         /// New data of the page.
-        data: Vec<u8>,
+        ///
+        /// Updates data in case of `Some(data)` or deletes the page
+        data: Option<Vec<u8>>,
     },
 }
 
@@ -265,15 +259,15 @@ pub trait JournalHandler {
         program_id: ProgramId,
         awakening_id: MessageId,
     );
-    /// Process nonce update and page layout.
-    fn update_nonce_and_pages_amount(
+    /// Process nonce update.
+    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
+    /// Process page update.
+    fn update_page(
         &mut self,
         program_id: ProgramId,
-        persistent_pages: BTreeSet<u32>,
-        nonce: u64,
+        page_number: PageNumber,
+        data: Option<Vec<u8>>,
     );
-    /// Process page update.
-    fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>);
 }
 
 /// Result of the message processing.
@@ -288,8 +282,8 @@ pub struct ProcessResult {
 pub struct ExecutionError {
     /// Program that generated execution error.
     pub program: Program,
-    /// Gas burned during the execution.
-    pub gas_burned: u64,
+    /// Gas amount of the execution.
+    pub gas_amount: GasAmount,
     /// Error text.
     pub reason: &'static str,
 }

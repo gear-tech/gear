@@ -23,7 +23,7 @@ use gear_core::{
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
+    collections::{btree_map::BTreeMap, vec_deque::VecDeque},
     marker::PhantomData,
     prelude::*,
 };
@@ -325,15 +325,30 @@ where
             );
         }
     }
-    fn update_nonce_and_pages_amount(
+    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
+        common::set_program_nonce(program_id.into_origin(), nonce);
+    }
+    fn update_page(
         &mut self,
         program_id: ProgramId,
-        persistent_pages: BTreeSet<u32>,
-        nonce: u64,
+        page_number: PageNumber,
+        data: Option<Vec<u8>>,
     ) {
-        common::set_nonce_and_persistent_pages(program_id.into_origin(), persistent_pages, nonce);
-    }
-    fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>) {
-        common::set_program_page(program_id.into_origin(), page_number.raw(), data);
+        let program_id = program_id.into_origin();
+        let page_number = page_number.raw();
+
+        if let Some(prog) = common::get_program(program_id) {
+            let mut persistent_pages = prog.persistent_pages;
+
+            if let Some(data) = data {
+                persistent_pages.insert(page_number);
+                common::set_program_page(program_id, page_number, data);
+            } else {
+                persistent_pages.remove(&page_number);
+                common::remove_program_page(program_id, page_number);
+            }
+
+            common::set_program_persistent_pages(program_id, persistent_pages);
+        };
     }
 }

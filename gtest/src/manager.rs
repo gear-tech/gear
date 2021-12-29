@@ -4,7 +4,7 @@ use gear_core::{
     message::{Message, MessageId},
     program::{Program, ProgramId},
 };
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
@@ -89,21 +89,25 @@ impl JournalHandler for InMemoryExtManager {
             self.message_queue.push_back(msg);
         }
     }
-    fn update_nonce_and_pages_amount(
-        &mut self,
-        program_id: ProgramId,
-        _persistent_pages: BTreeSet<u32>,
-        nonce: u64,
-    ) {
+    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
         if let Some(prog) = self.programs.get_mut(&program_id) {
             prog.set_message_nonce(nonce);
         } else {
             panic!("Program not found in storage");
         }
     }
-    fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>) {
+    fn update_page(
+        &mut self,
+        program_id: ProgramId,
+        page_number: PageNumber,
+        data: Option<Vec<u8>>,
+    ) {
         if let Some(prog) = self.programs.get_mut(&program_id) {
-            let _ = prog.set_page(page_number, &data);
+            if let Some(data) = data {
+                let _ = prog.set_page(page_number, &data);
+            } else {
+                prog.remove_page(page_number);
+            }
         } else {
             panic!("Program not found in storage");
         }

@@ -221,6 +221,11 @@ impl Program {
         Ok(())
     }
 
+    /// Remove memory page from buffer.
+    pub fn remove_page(&mut self, page: PageNumber) {
+        self.persistent_pages.remove(&page);
+    }
+
     /// Get reference to memory pages.
     pub fn get_pages(&self) -> &BTreeMap<PageNumber, Box<PageBuf>> {
         &self.persistent_pages

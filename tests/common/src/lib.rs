@@ -28,7 +28,7 @@ use gear_core::{
     message::{Message, MessageId},
     program::{Program, ProgramId},
 };
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 pub struct InitProgram {
     pub program_id: Option<ProgramId>,
@@ -332,12 +332,7 @@ impl<'a> JournalHandler for Journal<'a> {
         }
     }
 
-    fn update_nonce_and_pages_amount(
-        &mut self,
-        program_id: ProgramId,
-        _persistent_pages: BTreeSet<u32>,
-        nonce: u64,
-    ) {
+    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
         self.context
             .programs
             .get_mut(&program_id)
@@ -345,13 +340,23 @@ impl<'a> JournalHandler for Journal<'a> {
             .set_message_nonce(nonce);
     }
 
-    fn update_page(&mut self, program_id: ProgramId, page_number: PageNumber, data: Vec<u8>) {
-        self.context
+    fn update_page(
+        &mut self,
+        program_id: ProgramId,
+        page_number: PageNumber,
+        data: Option<Vec<u8>>,
+    ) {
+        let program = self
+            .context
             .programs
             .get_mut(&program_id)
-            .expect("program not found")
-            .set_page(page_number, data.as_ref())
-            .expect("Failed to set page");
+            .expect("program not found");
+
+        if let Some(data) = data {
+            let _ = program.set_page(page_number, &data);
+        } else {
+            program.remove_page(page_number);
+        }
     }
 }
 
