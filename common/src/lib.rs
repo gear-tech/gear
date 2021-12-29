@@ -20,21 +20,15 @@
 
 pub mod native;
 pub mod storage_queue;
+mod traits;
 pub mod value_tree;
 
 use codec::{Decode, Encode};
-use frame_support::{
-    dispatch::DispatchError,
-    weights::{IdentityFee, WeightToFeePolynomial},
-};
 use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
 use scale_info::TypeInfo;
-use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
-use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryFrom,
     prelude::*,
 };
 
@@ -42,6 +36,9 @@ use gear_core::{
     message::DispatchKind,
     program::{Program as NativeProgram, ProgramId},
 };
+
+pub use traits::*;
+pub use value_tree::*;
 
 pub use storage_queue::Iterator;
 pub use storage_queue::StorageQueue;
@@ -195,64 +192,6 @@ impl CodeMetadata {
             block_number,
         }
     }
-}
-
-pub trait Origin: Sized {
-    fn into_origin(self) -> H256;
-    fn from_origin(val: H256) -> Self;
-}
-
-impl Origin for u64 {
-    fn into_origin(self) -> H256 {
-        let mut result = H256::zero();
-        result[0..8].copy_from_slice(&self.to_le_bytes());
-        result
-    }
-
-    fn from_origin(v: H256) -> Self {
-        // h256 -> u64 should not be used anywhere other than in tests!
-        let mut val = [0u8; 8];
-        val.copy_from_slice(&v[0..8]);
-        Self::from_le_bytes(val)
-    }
-}
-
-impl Origin for sp_runtime::AccountId32 {
-    fn into_origin(self) -> H256 {
-        H256::from(self.as_ref())
-    }
-
-    fn from_origin(v: H256) -> Self {
-        sp_runtime::AccountId32::unchecked_from(v)
-    }
-}
-
-impl Origin for H256 {
-    fn into_origin(self) -> H256 {
-        self
-    }
-
-    fn from_origin(val: H256) -> Self {
-        val
-    }
-}
-
-pub trait GasToFeeConverter {
-    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
-
-    fn gas_to_fee(gas: u64) -> Self::Balance {
-        IdentityFee::<Self::Balance>::calc(&gas)
-    }
-}
-
-pub trait PaymentProvider<AccountId> {
-    type Balance;
-
-    fn withhold_reserved(
-        source: H256,
-        dest: &AccountId,
-        amount: Self::Balance,
-    ) -> Result<(), DispatchError>;
 }
 
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes

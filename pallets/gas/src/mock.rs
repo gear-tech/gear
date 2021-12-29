@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate as pallet_gear_debug;
-use frame_support::traits::FindAuthor;
-use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
+use crate as pallet_gas;
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use primitive_types::H256;
@@ -30,7 +28,22 @@ use sp_runtime::{
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
+pub const ALICE: u64 = 1;
+pub const BOB: u64 = 2;
 pub const BLOCK_AUTHOR: u64 = 255;
+
+// Configure a mock runtime to test the pallet.
+construct_runtime!(
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Gas: pallet_gas::{Pallet, Storage},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+    }
+);
 
 impl pallet_balances::Config for Test {
     type MaxLocks = ();
@@ -74,84 +87,22 @@ impl system::Config for Test {
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
-    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
-impl pallet_gear_debug::Config for Test {
-    type Event = Event;
-    type WeightInfo = ();
-}
-
-pub struct FixedBlockAuthor;
-
-impl FindAuthor<u64> for FixedBlockAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<u64>
-    where
-        I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
-    {
-        Some(BLOCK_AUTHOR)
-    }
-}
-
-impl pallet_authorship::Config for Test {
-    type FindAuthor = FixedBlockAuthor;
-    type UncleGenerations = ();
-    type FilterUncle = ();
-    type EventHandler = ();
-}
-
-parameter_types! {
-    pub const MinimumPeriod: u64 = 500;
-    pub const BlockGasLimit: u64 = 100_000_000;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
-}
-
-pub struct GasConverter;
-impl common::GasPrice for GasConverter {
-    type Balance = u128;
-}
-
-impl pallet_gear::Config for Test {
-    type Event = Event;
-    type Currency = Balances;
-    type GasPrice = GasConverter;
-    type GasHandler = ();
-    type WeightInfo = ();
-    type BlockGasLimit = BlockGasLimit;
-    type DebugInfo = super::Pallet<Test>;
-}
-
-// Configure a mock runtime to test the pallet.
-construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
-    {
-        System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Storage},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-    }
-);
+impl pallet_gas::Config for Test {}
 
 // Build genesis storage according to the mock runtime.
-#[allow(unused)]
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(1, 100_000_000_u128), (2, 2_u128), (BLOCK_AUTHOR, 1_u128)],
+        balances: vec![
+            (ALICE, 100_000_000_u128),
+            (BOB, 2_u128),
+            (BLOCK_AUTHOR, 1_u128),
+        ],
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -159,16 +110,4 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| System::set_block_number(1));
     ext
-}
-
-pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
-    while System::block_number() < n {
-        System::on_finalize(System::block_number());
-        System::set_block_number(System::block_number() + 1);
-        System::on_initialize(System::block_number());
-        Gear::on_initialize(System::block_number());
-        let remaining_weight =
-            remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
-        Gear::on_idle(System::block_number(), remaining_weight);
-    }
 }

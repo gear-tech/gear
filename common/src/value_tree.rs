@@ -19,13 +19,19 @@
 //! This presents how some finite value maybe split over some (later abstract) nodes which then
 //! gets consumed individually and/or get refunded to the upper nodes.
 
+use super::{traits::*, GAS_VALUE_PREFIX};
 use codec::{Decode, Encode};
+use frame_support::{
+    dispatch::{DispatchError, DispatchResult},
+    traits::{Imbalance, SameOrOther, TryDrop},
+};
 use primitive_types::H256;
+use scale_info::TypeInfo;
 use sp_std::borrow::Cow;
 use sp_std::prelude::*;
 
-#[derive(Clone, Decode, Debug, Encode)]
-enum ValueOrigin {
+#[derive(Clone, Decode, Debug, Encode, TypeInfo)]
+pub enum ValueOrigin {
     External(H256),
     Local(H256),
 }
@@ -38,12 +44,23 @@ impl Default for ValueOrigin {
     }
 }
 
-#[derive(Clone, Default, Decode, Debug, Encode)]
+#[derive(Clone, Default, Decode, Debug, Encode, TypeInfo)]
 pub struct ValueNode {
-    origin: ValueOrigin,
-    refs: u32,
-    inner: u64,
-    consumed: bool,
+    pub origin: ValueOrigin,
+    pub refs: u32,
+    pub inner: u64,
+    pub consumed: bool,
+}
+
+impl ValueNode {
+    pub fn new(origin: H256, value: u64) -> Self {
+        Self {
+            origin: ValueOrigin::External(origin),
+            refs: 0,
+            inner: value,
+            consumed: false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -279,6 +296,105 @@ impl ValueView {
     fn delete(self) {
         let node_key = node_key(self.prefix.as_ref(), &self.key);
         sp_io::storage::clear(node_key.as_ref());
+    }
+}
+
+#[derive(Default)]
+pub struct ValueTreeGasHandler;
+
+impl DAGBasedLedger for ValueTreeGasHandler {
+    type ExternalOrigin = H256;
+    type Key = H256;
+    type Balance = u64;
+    type PositiveImbalance = DummyImbalance;
+    type NegativeImbalance = DummyImbalance;
+
+    fn total_supply() -> u64 {
+        Default::default()
+    }
+
+    fn create(origin: H256, key: H256, amount: u64) -> Result<DummyImbalance, DispatchError> {
+        let _ = ValueView::get_or_create(GAS_VALUE_PREFIX, origin, key, amount);
+        Ok(Default::default())
+    }
+
+    fn get(key: H256) -> Option<(u64, H256)> {
+        ValueView::get(GAS_VALUE_PREFIX, key)
+            .map(|gas_tree| (gas_tree.node.inner, gas_tree.origin()))
+    }
+
+    fn consume(key: H256) -> Option<(DummyImbalance, H256)> {
+        if let Some(gas_tree) = ValueView::get(GAS_VALUE_PREFIX, key) {
+            match gas_tree.consume() {
+                ConsumeResult::RefundExternal(origin, _) => Some((Default::default(), origin)),
+                _ => None,
+            }
+        } else {
+            log::error!("Message does not have associated gas tree: {:?}", key);
+
+            None
+        }
+    }
+
+    fn spend(key: H256, amount: u64) -> Result<DummyImbalance, DispatchError> {
+        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, key) {
+            gas_tree.spend(amount);
+        } else {
+            log::error!("Message does not have associated gas tree: {:?}", key);
+        }
+
+        Ok(Default::default())
+    }
+
+    fn split(message_id: H256, at: H256, amount: u64) -> DispatchResult {
+        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+            let _ = gas_tree.split_off(at, amount);
+        } else {
+            log::error!(
+                "Message does not have associated gas tree: {:?}",
+                message_id
+            );
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct DummyImbalance;
+
+impl TryDrop for DummyImbalance {
+    fn try_drop(self) -> Result<(), Self> {
+        Ok(())
+    }
+}
+
+impl<Balance: Default> Imbalance<Balance> for DummyImbalance {
+    type Opposite = DummyImbalance;
+
+    fn zero() -> Self {
+        Default::default()
+    }
+
+    fn drop_zero(self) -> Result<(), Self> {
+        Ok(())
+    }
+
+    fn split(self, _: Balance) -> (Self, Self) {
+        (Default::default(), Default::default())
+    }
+
+    fn merge(self, _: Self) -> Self {
+        Default::default()
+    }
+
+    fn subsume(&mut self, _: Self) {}
+
+    fn offset(self, _: Self::Opposite) -> SameOrOther<Self, Self::Opposite> {
+        SameOrOther::None
+    }
+    fn peek(&self) -> Balance {
+        Default::default()
     }
 }
 

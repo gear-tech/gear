@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::{self, GasToFeeConverter, Origin as _};
+use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use gear_runtime_interface as gear_ri;
@@ -30,8 +30,8 @@ use super::{
         new_test_ext, run_to_block, Event as MockEvent, Gear, Origin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox, MessageInfo,
-    Pallet as GearPallet, Reason,
+    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox,
+    MessageInfo, Pallet as GearPallet, Reason,
 };
 
 use utils::*;
@@ -96,6 +96,9 @@ fn send_message_works() {
         let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
         let user2_initial_balance = BalancesPallet::<Test>::free_balance(USER_2);
 
+        // No gas has been created initially
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+
         let program_id = {
             let res = submit_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
@@ -106,7 +109,7 @@ fn send_message_works() {
 
         // Balances check
         // Gas spends on sending 2 default messages (submit program and send message to program)
-        let user1_potential_msgs_spends = GasConverter::gas_to_fee(2 * DEFAULT_GAS_LIMIT);
+        let user1_potential_msgs_spends = GasPrice::gas_price(2 * DEFAULT_GAS_LIMIT);
         // User 1 has sent two messages
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
@@ -161,6 +164,9 @@ fn send_message_works() {
         // Messages were sent by user 1 only
         let actual_gas_burned = remaining_weight - GasAllowance::<Test>::get();
         assert_eq!(actual_gas_burned, 0);
+
+        // Ensure all created imbalances along the way cancel each other
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
     });
 }
 
@@ -259,7 +265,7 @@ fn spent_gas_to_reward_block_author_works() {
 
         // The block author should be paid the amount of Currency equal to
         // the `gas_charge` incurred while processing the `InitProgram` message
-        let gas_spent = GasConverter::gas_to_fee(
+        let gas_spent = GasPrice::gas_price(
             <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
         );
         assert_eq!(
@@ -276,6 +282,9 @@ fn unused_gas_released_back_works() {
         let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
         let huge_send_message_gas_limit = 50_000;
 
+        // Initial value in all gas trees is 0
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+
         let program_id = {
             let res = submit_program_default(USER_1, ProgramCodeKind::Default);
             assert_ok!(res);
@@ -291,7 +300,7 @@ fn unused_gas_released_back_works() {
         ));
         // Spends for submit program with default gas limit and sending default message with a huge gas limit
         let user1_potential_msgs_spends =
-            GasConverter::gas_to_fee(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
+            GasPrice::gas_price(DEFAULT_GAS_LIMIT + huge_send_message_gas_limit);
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
             user1_initial_balance - user1_potential_msgs_spends
@@ -302,7 +311,7 @@ fn unused_gas_released_back_works() {
         );
 
         run_to_block(2, None);
-        let user1_actual_msgs_spends = GasConverter::gas_to_fee(
+        let user1_actual_msgs_spends = GasPrice::gas_price(
             <Test as pallet::Config>::BlockGasLimit::get() - GasAllowance::<Test>::get(),
         );
         assert!(user1_potential_msgs_spends > user1_actual_msgs_spends);
@@ -310,6 +319,9 @@ fn unused_gas_released_back_works() {
             BalancesPallet::<Test>::free_balance(USER_1),
             user1_initial_balance - user1_actual_msgs_spends
         );
+
+        // All created gas cancels out
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
     })
 }
 
@@ -572,6 +584,9 @@ fn block_gas_limit_works() {
 fn mailbox_works() {
     init_logger();
     new_test_ext().execute_with(|| {
+        // Initial value in all gas trees is 0
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
@@ -589,6 +604,9 @@ fn mailbox_works() {
         // Gas limit should have been ignored by the code that puts a message into a mailbox
         assert_eq!(mailbox_message.gas_limit, 0);
         assert_eq!(mailbox_message.value, 1000);
+
+        // Gas is not passed to mailboxed messages and should have been all spent by now
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
     })
 }
 
@@ -929,7 +947,7 @@ fn send_reply_value_claiming_works() {
             ));
 
             let user_expected_balance =
-                user_balance - value_to_reply - GasConverter::gas_to_fee(gas_limit_to_reply)
+                user_balance - value_to_reply - GasPrice::gas_price(gas_limit_to_reply)
                     + locked_value;
 
             assert_eq!(
@@ -938,7 +956,7 @@ fn send_reply_value_claiming_works() {
             );
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
-                GasConverter::gas_to_fee(gas_limit_to_reply) + value_to_reply
+                GasPrice::gas_price(gas_limit_to_reply) + value_to_reply
             );
         }
     })
@@ -968,7 +986,7 @@ fn claim_value_from_mailbox_works() {
             populate_mailbox_from_program(prog_id, USER_2, 2, 0, gas_sent, value_sent);
         assert!(Mailbox::<Test>::contains_key(USER_1));
 
-        let gas_burned = GasConverter::gas_to_fee(
+        let gas_burned = GasPrice::gas_price(
             GearPallet::<Test>::get_gas_spent(
                 USER_1.into_origin(),
                 HandleKind::Handle(prog_id),
@@ -1041,6 +1059,9 @@ fn distributor_distribute() {
         let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
+        // Initial value in all gas trees is 0
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
+
         let program_id = generate_program_id(
             WASM_BINARY_BLOATY.expect("Wasm binary missing!"),
             DEFAULT_SALT,
@@ -1073,6 +1094,9 @@ fn distributor_distribute() {
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
         assert_eq!(initial_balance, final_balance);
+
+        // All gas cancelled out in the end
+        assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
     });
 }
 
@@ -1602,7 +1626,7 @@ mod utils {
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
-    pub(super) type GasConverter = <Test as pallet::Config>::GasConverter;
+    pub(super) type GasPrice = <Test as pallet::Config>::GasPrice;
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
     pub(super) fn init_logger() {

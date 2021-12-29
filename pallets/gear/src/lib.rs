@@ -59,8 +59,8 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, Dispatch, GasToFeeConverter, Message, Origin, Program, ProgramState,
-        GAS_VALUE_PREFIX,
+        self, CodeMetadata, DAGBasedLedger, Dispatch, GasPrice, Message, Origin, Program,
+        ProgramState, GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -92,7 +92,10 @@ pub mod pallet {
         type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
         /// Gas to Currency converter
-        type GasConverter: GasToFeeConverter<Balance = BalanceOf<Self>>;
+        type GasPrice: GasPrice<Balance = BalanceOf<Self>>;
+
+        /// Implementation of a ledger to account for gas creation and consumption
+        type GasHandler: DAGBasedLedger<ExternalOrigin = H256, Key = H256, Balance = u64>;
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
@@ -317,7 +320,7 @@ pub mod pallet {
         }
 
         pub fn get_gas_spent(source: H256, kind: HandleKind, payload: Vec<u8>) -> Option<u64> {
-            let ext_manager = ExtManager::<T>::default();
+            let ext_manager = ExtManager::<T, ()>::default();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -621,7 +624,7 @@ pub mod pallet {
             let program = NativeProgram::new(id_bytes.into(), code.to_vec())
                 .map_err(|_| Error::<T>::FailedToConstructProgram)?;
 
-            let reserve_fee = T::GasConverter::gas_to_fee(gas_limit);
+            let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
@@ -639,12 +642,7 @@ pub mod pallet {
             let init_message_id = common::next_message_id(&init_payload);
             ExtManager::<T>::default().set_program(program, init_message_id);
 
-            let _ = common::value_tree::ValueView::get_or_create(
-                GAS_VALUE_PREFIX,
-                origin,
-                init_message_id,
-                gas_limit,
-            );
+            let _ = T::GasHandler::create(origin, init_message_id, gas_limit);
 
             let message = common::Message {
                 id: init_message_id,
@@ -714,7 +712,7 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             if common::program_exists(destination) {
-                let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
+                let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 T::Currency::reserve(&who, gas_limit_reserve)
@@ -722,12 +720,7 @@ pub mod pallet {
 
                 let origin = who.into_origin();
 
-                let _ = common::value_tree::ValueView::get_or_create(
-                    GAS_VALUE_PREFIX,
-                    origin,
-                    message_id,
-                    gas_limit,
-                );
+                let _ = T::GasHandler::create(origin, message_id, gas_limit);
 
                 let message = Message {
                     id: message_id,
@@ -807,7 +800,7 @@ pub mod pallet {
             let message_id = common::next_message_id(&payload);
 
             if common::program_exists(destination) {
-                let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
+                let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
                 T::Currency::reserve(&who, gas_limit_reserve)
@@ -815,12 +808,7 @@ pub mod pallet {
 
                 let origin = who.into_origin();
 
-                let _ = common::value_tree::ValueView::get_or_create(
-                    GAS_VALUE_PREFIX,
-                    origin,
-                    message_id,
-                    gas_limit,
-                );
+                let _ = T::GasHandler::create(origin, message_id, gas_limit);
 
                 let message = Message {
                     id: message_id,
