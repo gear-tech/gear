@@ -22,7 +22,7 @@ pub mod native;
 pub mod storage_queue;
 pub mod value_tree;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, EncodeAppend};
 use frame_support::{
     dispatch::DispatchError,
     storage::PrefixIterator,
@@ -40,6 +40,7 @@ use storage_queue::StorageQueue;
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_PREFIX: &[u8] = b"g::prog_state::";
+pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
@@ -453,6 +454,28 @@ pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(Messa
         sp_io::storage::clear(&id);
     }
     msg
+}
+
+fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
+    prog_id.encode_to(&mut key);
+
+    key
+}
+
+pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {
+    let key = waiting_init_prefix(dest_prog_id);
+    let extended_encoded = <Vec<H256> as EncodeAppend>::append_or_new(sp_io::storage::get(&key).unwrap_or_default(), &[message_id]).expect("EncodeAppend should succeed");
+    sp_io::storage::set(&key, &extended_encoded);
+}
+
+pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
+    let key = waiting_init_prefix(dest_prog_id);
+    let messages = sp_io::storage::get(&key).and_then(|v| Vec::<H256>::decode(&mut &v[..]).ok());
+    sp_io::storage::clear(&key);
+
+    messages.unwrap_or_default()
 }
 
 pub struct WaitingMessageIterator(PrefixIterator<(Message, u32)>);

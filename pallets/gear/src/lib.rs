@@ -462,6 +462,7 @@ pub mod pallet {
                     kind
                 } else {
                     Self::deposit_event(Event::AddedToWaitList(message.clone()));
+                    common::waiting_init_append_message_id(program_id, message.id);
                     common::insert_waiting_message(
                         program_id,
                         message.id,

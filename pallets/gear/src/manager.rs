@@ -161,11 +161,13 @@ where
                     program_id,
                 });
 
-                if common::get_program_state(program_id).is_none() {
-                    self.set_program(program);
-                } else {
-                    Pallet::<T>::wake_waiting_messages(program_id);
-                }
+                common::waiting_init_take_messages(program_id)
+                    .into_iter()
+                    .for_each(|m_id| {
+                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                            common::queue_message(m);
+                        }
+                    });
 
                 common::set_program_state(program_id, ProgramState::Initialized);
 
