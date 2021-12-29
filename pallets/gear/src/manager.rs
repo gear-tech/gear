@@ -171,24 +171,6 @@ where
 
                 event
             }
-            CoreDispatchOutcome::InitWait {
-                message_id,
-                program,
-                ..
-            } => {
-                let program_id = program.id().into_origin();
-                if common::get_program_state(program_id).is_none() {
-                    common::set_program_state(
-                        program_id,
-                        ProgramState::Uninitialized {
-                            message_id: message_id.into_origin(),
-                        },
-                    );
-                    self.set_program(program);
-                }
-
-                return;
-            }
             CoreDispatchOutcome::InitFailure {
                 message_id,
                 origin,

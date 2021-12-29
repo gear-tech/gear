@@ -150,14 +150,6 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::MessageConsumed(message_id));
         }
         DispatchResultKind::Wait => {
-            if let DispatchKind::Init = kind {
-                journal.push(JournalNote::MessageDispatched(DispatchOutcome::InitWait {
-                    message_id,
-                    origin,
-                    program: dispatch_result.program.clone(),
-                }))
-            }
-
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,

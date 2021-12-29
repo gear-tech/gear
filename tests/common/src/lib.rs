@@ -268,7 +268,6 @@ impl<'a> JournalHandler for Journal<'a> {
             DispatchOutcome::InitSuccess { program, .. } => {
                 self.context.programs.insert(program.id(), program);
             }
-            DispatchOutcome::InitWait { .. } => {}
             DispatchOutcome::InitFailure {
                 program_id,
                 message_id,
@@ -287,7 +286,7 @@ impl<'a> JournalHandler for Journal<'a> {
         self.context.gas_spent.insert(message_id, amount);
     }
 
-    fn message_consumed(&mut self, _: MessageId) {}
+    fn message_consumed(&mut self, _message_id: MessageId) {}
 
     fn send_message(&mut self, _origin: MessageId, message: Message) {
         match message.reply {
