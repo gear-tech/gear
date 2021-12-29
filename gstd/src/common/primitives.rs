@@ -18,7 +18,7 @@
 
 //! Gear primitive types.
 //! 
-//! `gcore::general` provides some minimal implementation for `ActorId` and
+//! Unlike `gstd`, `gcore::general` provides some minimal implementation for `ActorId` and
 //! `MessageId` structs with public access to their internals. It can be used 
 //! provided that you understand how it works and take security considerations into account.
 //! 

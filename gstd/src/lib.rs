@@ -18,7 +18,7 @@
 
 /// Declares modules, attributes, public re-exports.
 /// All Gear crates don't load Rust std modules (no_std) which makes them lightweight. 
-/// They are based on the  core library.
+/// They are based on the core library.
 
 #![no_std]
 #![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]

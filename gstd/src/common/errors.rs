@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear common errors module.
-//! Enumerates the list of errors that can occur in `gstd`. 
-//! Errors related to conversion, decoding, message exit code, or any other internal errors.
-//! Result is the Gear's custom result enum, where Err relates to `ContractError`.
+//! Enumerates errors that can occur in smart-contracts `ContractError`. 
+//! Errors related to conversion, decoding, message exit code, other internal errors.
 
 use core::fmt;
 

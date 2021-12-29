@@ -38,9 +38,9 @@ use codec::Output;
 /// arguments:
 ///     - the address of the target account.
 ///     - the gas_limit - maximum gas allowed to be utilized during
-/// reply message processing.
+///     reply message processing.
 ///     - the value to be transferred from the current program account
-/// to the message target account.
+///     to the message target account.
 /// 
 /// Send transaction will be posted only after the execution of message processing is
 /// finished.
@@ -48,7 +48,18 @@ use codec::Output;
 /// In order to identify a message that is being built from parts of a program
 /// you should use `MessageHandle` obtained via
 /// [`msg::send_init`](crate::msg::send_init).
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let msg_handle = msg::send_init();
+/// }
+/// ```
+/// 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);
 
@@ -94,7 +105,18 @@ impl From<gcore::MessageHandle> for MessageHandle {
 ///
 /// This function is used to check the reply message was processed
 /// successfully or not.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let exit_code = msg::exit_code();
+/// }
+/// ```
+/// 
 pub fn exit_code() -> i32 {
     gcore::msg::exit_code()
 }
@@ -103,7 +125,17 @@ pub fn exit_code() -> i32 {
 ///
 /// Message identifiers can be obtained for the currently processed message,
 /// also each send and reply functions return a message identifier.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     let current_message_id = msg::id();
+/// }
+/// ```
+/// 
 pub fn id() -> MessageId {
     gcore::msg::id().into()
 }
@@ -112,7 +144,18 @@ pub fn id() -> MessageId {
 ///
 /// Loads payload of the message into a buffer with a message size which can be
 /// obtained using the [`size`] function.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     let mut result = vec![0u8; msg::size()];
+///     msg::load_bytes(&mut result[..]);
+/// }
+/// ```
+/// 
 pub fn load_bytes() -> Vec<u8> {
     let mut result = vec![0u8; size()];
     gcore::msg::load(&mut result[..]);
@@ -137,7 +180,22 @@ pub fn load_bytes() -> Vec<u8> {
 ///
 /// Reply message transactions will be posted only after processing is finished,
 /// similar to the standard message [`send`].
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_bytes(b"PING", exec::gas_available(), 0);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+/// 
 pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> MessageId {
     gcore::msg::reply(payload.as_ref(), gas_limit, value).into()
 }
@@ -152,7 +210,26 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> M
 /// via ['reply_push'] during the message handling. Finalization of the
 /// reply message is done via [`reply_commit`] function similar to
 /// [`send_commit`].
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_push(b"Part 1");
+///     // ...
+///     msg::reply_push(b"Part 2");
+///     // ...
+///     msg::reply_commit(exec::gas_available(), 42);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`reply_push`] function allows to form a reply message in parts.
+/// 
 pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
     gcore::msg::reply_commit(gas_limit, value).into()
 }
@@ -165,7 +242,20 @@ pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
 ///
 /// This function allows filling the reply payload parts via ['reply_push']
 /// during the message `handling`. The payload can consist of several parts.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     msg::reply_push(b"Part 1");
+///     // ...
+///     msg::reply_push(b"Part 2");
+/// }
+/// ```
+/// 
 pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
     gcore::msg::reply_push(payload.as_ref());
 }
@@ -176,12 +266,27 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
 /// Processing the reply to the message in Gear program is performed using
 /// `handle_reply` function. In order to obtain the original message id on
 /// which reply has been posted, a program should call this function.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle_reply() {
+///     // ...
+///     let orginal_message_id = msg::reply_to();
+/// }
+/// ```
+///
+/// # Panics
+///
+/// Panics if called in a context other than `handle_reply()`.
+/// 
 pub fn reply_to() -> MessageId {
     gcore::msg::reply_to().into()
 }
  
-/// /// Send a new message to the program or user.
+/// Send a new message to the program or user.
 ///
 /// Gear allows programs to communicate to each other and users via messages.
 /// [`send`] function allows sending such messages.
@@ -195,7 +300,28 @@ pub fn reply_to() -> MessageId {
 /// 
 /// Send transaction will be posted only after the execution of processing is
 /// finished, similar to the reply message [`reply`].
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{msg, ActorId};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let mut id: [u8; 32] = [0; 32];
+///     for i in 0..id.len() {
+///         id[i] = i as u8;
+///     }
+///
+///     msg::send_bytes(ActorId(id), b"HELLO", 1000, 12345678);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
+/// message to send in parts.
+/// 
 pub fn send_bytes<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -219,7 +345,27 @@ pub fn send_bytes<T: AsRef<[u8]>>(
 /// account to the message target account.
 /// Send transaction will be posted only after the execution of processing is
 /// finished.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send`] allows to send message in one step.
+///
+/// [`send_push`], [`send_init`] functions allows to form a message to send in
+/// parts.
+/// 
 pub fn send_commit(
     handle: MessageHandle,
     program: ActorId,
@@ -234,7 +380,26 @@ pub fn send_commit(
 /// Gear allows programs to work with messages that consist of several parts.
 /// This function initializes a message built in parts and returns corresponding
 /// message `handle`.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+/// }
+/// ```
+///
+/// # See also
+/// [`send`] allows to send message in one step.
+///
+/// [`send_push`], [`send_commit`] functions allows to form a message to send in
+/// parts.
+/// 
 pub fn send_init() -> MessageHandle {
     gcore::msg::send_init().into()
 }
@@ -244,7 +409,27 @@ pub fn send_init() -> MessageHandle {
 /// Gear allows programs to work with messages in parts.
 /// This function adds a `payload` part to the message specified by message
 /// `handle`.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send`] allows to send a message in one step.
+///
+/// [`send_init`], [`send_commit`] functions allows to form and send a message
+/// to send in parts.
+/// 
 pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) {
     gcore::msg::send_push(handle.as_ref(), payload.as_ref())
 }
@@ -253,7 +438,18 @@ pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) {
 ///
 /// This function is used to obtain the payload size of the current message
 /// being processed.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let payload_size = msg::size();
+/// }
+/// ```
+/// 
 pub fn size() -> usize {
     gcore::msg::size()
 }
@@ -262,7 +458,18 @@ pub fn size() -> usize {
 ///
 /// This function is used to obtain [`ActorId`] of the account that sends
 /// the currently processing message (either a program or a user).
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let who_sends_message = msg::source();
+/// }
+/// ```
+/// 
 pub fn source() -> ActorId {
     gcore::msg::source().into()
 }
@@ -271,7 +478,18 @@ pub fn source() -> ActorId {
 ///
 /// This function is used to obtain the value that has been sent along with
 /// a current message being processed.
-
+///
+/// # Examples
+///
+/// ```
+/// use gstd::msg;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let amount_sent_with_message = msg::value();
+/// }
+/// ```
+/// 
 pub fn value() -> u128 {
     gcore::msg::value()
 }
