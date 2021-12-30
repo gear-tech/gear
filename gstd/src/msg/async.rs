@@ -67,8 +67,9 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// methods `send_and_wait_for_reply` return `MessageFuture` which implements `Future` trait.
 /// `MessageFuture` checks if the reply exists already:
 ///     if not, program interrupts
-///     if reply exists, function returns the payload `Result`
-///     if reply came without paylod, program  with `ContractError::ExitCode`
+///     if reply exists, function checks it's exit code:
+///          if it equals 0, returns `Ok(payload)`
+///          else returns `Err(ContractError::ExitCode(code))`
 
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
