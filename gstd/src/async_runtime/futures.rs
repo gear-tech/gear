@@ -31,7 +31,7 @@ pub(crate) type FuturesMap = BTreeMap<MessageId, Task>;
 
 type PinnedFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 
-/// Matches a task to a some message in order to avoid duplicate execution 
+/// Matches a task to a some message in order to avoid duplicate execution
 /// of code that was running before the program was interrupted by `wait`.
 
 pub struct Task {

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! This `gstd` module provides async messaging functions. 
+//! This `gstd` module provides async messaging functions.
 
 use crate::async_runtime::{signals, ReplyPoll};
 use crate::errors::{ContractError, Result};
@@ -64,8 +64,8 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// To interrupt a program execition waiting for a reply on a previous message,
 /// one need to call an `.await` expression.
 /// The initial message that requires a reply is sent instantly.
-/// Methods `send_and_wait_for_reply` retun `MessageFuture` where `.await` can be called.
-/// `MessageFuture` checks if the reply exists already:
+/// Methods `send_and_wait_for_reply` retun `MessageFuture` where `.await` can
+/// be called. `MessageFuture` checks if the reply exists already:
 ///     if not, program interrupts
 ///     if reply exists, function checks it's exit code:
 ///          if it equals 0, returns `Ok(payload)`
@@ -92,7 +92,7 @@ impl Future for MessageFuture {
             },
         }
     }
-} 
+}
 
 impl FusedFuture for MessageFuture {
     fn is_terminated(&self) -> bool {

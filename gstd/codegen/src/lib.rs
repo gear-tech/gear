@@ -29,7 +29,7 @@ fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
         .into()
 }
 
-/// This is the procedural macro for your convenience. 
+/// This is the procedural macro for your convenience.
 /// It marks main async function to be the program entry point.
 /// Functions handle, handle_reply canont be specified if this macro is used.
 /// If you need to specify handle, handle_reply explicitly don't use this macro.
@@ -62,7 +62,7 @@ pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     let body = &function.block;
-   
+
     quote!(
         #[no_mangle]
         pub unsafe extern "C" fn handle() {

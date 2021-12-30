@@ -30,20 +30,20 @@ use codec::Output;
 /// sending.
 ///
 /// Here are the functions that make up the parts of building and sending
-/// messages: 
+/// messages:
 /// [`msg::send_init`](crate::msg::send_init) - message initialization.
-/// [`msg::send_push`](crate::msg::send_push) - adds a `payload` part to the message
-///  specified by `MessageHandle`.
-/// [`msg::send_commit`](crate::msg::send_commit) - send a message with the following 
-/// arguments:
+/// [`msg::send_push`](crate::msg::send_push) - adds a `payload` part to the
+/// message  specified by `MessageHandle`.
+/// [`msg::send_commit`](crate::msg::send_commit) - send a message with the
+/// following arguments:
 ///     - the address of the target account.
 ///     - the gas_limit - maximum gas allowed to be utilized during
 ///     reply message processing.
 ///     - the value to be transferred from the current program account
 ///     to the message target account.
-/// 
-/// Send transaction will be posted only after the execution of message processing is
-/// finished.
+///
+/// Send transaction will be posted only after the execution of message
+/// processing is finished.
 ///
 /// In order to identify a message that is being built from parts of a program
 /// you should use `MessageHandle` obtained via
@@ -59,7 +59,6 @@ use codec::Output;
 ///     let msg_handle = msg::send_init();
 /// }
 /// ```
-/// 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MessageHandle(gcore::MessageHandle);
 
@@ -116,7 +115,6 @@ impl From<gcore::MessageHandle> for MessageHandle {
 ///     let exit_code = msg::exit_code();
 /// }
 /// ```
-/// 
 pub fn exit_code() -> i32 {
     gcore::msg::exit_code()
 }
@@ -135,7 +133,6 @@ pub fn exit_code() -> i32 {
 ///     let current_message_id = msg::id();
 /// }
 /// ```
-/// 
 pub fn id() -> MessageId {
     gcore::msg::id().into()
 }
@@ -154,7 +151,6 @@ pub fn id() -> MessageId {
 ///     let payload_bytes = msg::load_bytes();
 /// }
 /// ```
-/// 
 pub fn load_bytes() -> Vec<u8> {
     let mut result = vec![0u8; size()];
     gcore::msg::load(&mut result[..]);
@@ -165,14 +161,14 @@ pub fn load_bytes() -> Vec<u8> {
 ///
 /// Some programs can reply to other programs, i.e. check another program's
 /// state and use it as a parameter for its own business logic [`MessageId`].
-/// 
+///
 /// This function allows sending such replies, which are similar to standard
 /// messages in terms of payload and different only in the way the message
 /// processing is handled by a separate program function called
 /// `handle_reply`.
 ///
-/// First argument is the reply message payload in bytes. 
-/// Second argument is `gas_limit` - maximum gas allowed to be utilized 
+/// First argument is the reply message payload in bytes.
+/// Second argument is `gas_limit` - maximum gas allowed to be utilized
 /// during the reply message processing.
 /// Last argument `value` is the value to be transferred from the current
 /// program account to the reply message target account.
@@ -194,13 +190,12 @@ pub fn load_bytes() -> Vec<u8> {
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-/// 
 pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> MessageId {
     gcore::msg::reply(payload.as_ref(), gas_limit, value).into()
 }
 
 /// Finalize and send a current reply message.
-/// 
+///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
 /// logic. Basic implementation is covered in [`reply`] function.
@@ -228,7 +223,6 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> M
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-/// 
 pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
     gcore::msg::reply_commit(gas_limit, value).into()
 }
@@ -254,7 +248,6 @@ pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
 ///     msg::reply_push(b"Part 2");
 /// }
 /// ```
-/// 
 pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
     gcore::msg::reply_push(payload.as_ref());
 }
@@ -280,11 +273,10 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
 /// # Panics
 ///
 /// Panics if called in a context other than `handle_reply()`.
-/// 
 pub fn reply_to() -> MessageId {
     gcore::msg::reply_to().into()
 }
- 
+
 /// Send a new message to the program or user.
 ///
 /// Gear allows programs to communicate to each other and users via messages.
@@ -296,7 +288,7 @@ pub fn reply_to() -> MessageId {
 /// sent message processing.
 /// Last argument is the value to be transferred from the current program
 /// account to the message target account.
-/// 
+///
 /// Send transaction will be posted only after the execution of processing is
 /// finished, similar to the reply message [`reply`].
 ///
@@ -317,7 +309,6 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-/// 
 pub fn send_bytes<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
@@ -361,7 +352,6 @@ pub fn send_bytes<T: AsRef<[u8]>>(
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
-/// 
 pub fn send_commit(
     handle: MessageHandle,
     program: ActorId,
@@ -395,7 +385,6 @@ pub fn send_commit(
 ///
 /// [`send_push`], [`send_commit`] functions allows to form a message to send in
 /// parts.
-/// 
 pub fn send_init() -> MessageHandle {
     gcore::msg::send_init().into()
 }
@@ -425,7 +414,6 @@ pub fn send_init() -> MessageHandle {
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.
-/// 
 pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) {
     gcore::msg::send_push(handle.as_ref(), payload.as_ref())
 }
@@ -445,7 +433,6 @@ pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) {
 ///     let payload_size = msg::size();
 /// }
 /// ```
-/// 
 pub fn size() -> usize {
     gcore::msg::size()
 }
@@ -465,7 +452,6 @@ pub fn size() -> usize {
 ///     let who_sends_message = msg::source();
 /// }
 /// ```
-/// 
 pub fn source() -> ActorId {
     gcore::msg::source().into()
 }
@@ -485,7 +471,6 @@ pub fn source() -> ActorId {
 ///     let amount_sent_with_message = msg::value();
 /// }
 /// ```
-/// 
 pub fn value() -> u128 {
     gcore::msg::value()
 }

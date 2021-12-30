@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! The `gstd` default prelude. Re-imports default `std` modules and traits.
-//! It is safe for Rust programs to rename `std` to `gstd` so that nothing breaks.
+//! It is safe for Rust programs to rename `std` to `gstd` so that nothing
+//! breaks.
 
 extern crate alloc;
 
@@ -44,7 +45,7 @@ pub use core::hash;
 pub use core::hint;
 pub use core::iter;
 pub use core::marker;
-pub use core::mem; 
+pub use core::mem;
 pub use core::ops;
 pub use core::pin;
 pub use core::ptr;

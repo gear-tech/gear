@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear common errors module.
-//! Enumerates errors that can occur in smart-contracts `ContractError`. 
-//! Errors related to conversion, decoding, message exit code, other internal errors.
+//! Enumerates errors that can occur in smart-contracts `ContractError`.
+//! Errors related to conversion, decoding, message exit code, other internal
+//! errors.
 
 use core::fmt;
 

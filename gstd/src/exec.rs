@@ -18,9 +18,9 @@
 
 //! Sys calls related to the program execution flow.
 
-
 /// Wraps methods from `gcore` for getting the current block height,
-/// the current block timestamp, the current value of the gas available for execution.
+/// the current block timestamp, the current value of the gas available for
+/// execution.
 ///
 /// The block height serves to identify a particular block.
 /// This information can be used to enable many scenarios like restricting or
@@ -33,7 +33,7 @@
 /// spending during current execution. Its use may help to avoid unexpected
 /// behaviors during the smart-contract execution in case of not enough gas
 /// available.
-/// 
+///
 /// /// # Examples
 ///
 /// ```
@@ -70,7 +70,6 @@
 ///     }
 /// }
 /// ```
-
 use crate::{ActorId, MessageId};
 pub use gcore::exec::{block_height, block_timestamp, gas_available};
 

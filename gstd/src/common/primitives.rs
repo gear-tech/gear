@@ -17,21 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear primitive types.
-//! 
-//! Unlike `gstd`, `gcore::general` provides some minimal implementation for `ActorId` and
-//! `MessageId` structs with public access to their internals. It can be used 
-//! provided that you understand how it works and take security considerations into account.
-//! 
-//! `gstd::primitives` declares its own `ActorId` and `MessageId` structures 
-//! with more extensive methods for access to their internals (no public access). 
-//! It is recommended to use for most cases.
-//! 
+//!
+//! Unlike `gstd`, `gcore::general` provides some minimal implementation for
+//! `ActorId` and `MessageId` structs with public access to their internals. It
+//! can be used provided that you understand how it works and take security
+//! considerations into account.
+//!
+//! `gstd::primitives` declares its own `ActorId` and `MessageId` structures
+//! with more extensive methods for access to their internals (no public
+//! access). It is recommended to use for most cases.
+//!
 //! # Examples
-/// ```
-/// let id = ActorId::new([0; 32]);
+//! ```
+//! let id = ActorId::new([0; 32]);
 //! let bytes = id.as_ref();
 //! ```
-//!   
 
 use crate::errors::{ContractError, Result};
 use crate::prelude::convert::TryFrom;
