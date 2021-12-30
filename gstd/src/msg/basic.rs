@@ -307,12 +307,9 @@ pub fn reply_to() -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     let mut id: [u8; 32] = [0; 32];
-///     for i in 0..id.len() {
-///         id[i] = i as u8;
-///     }
+///     let id = msg::source();
 ///
-///     msg::send_bytes(ActorId(id), b"HELLO", 1000, 12345678);
+///     msg::send_bytes(ActorId::new(id), b"HELLO", 1000, 12345678);
 /// }
 /// ```
 ///
