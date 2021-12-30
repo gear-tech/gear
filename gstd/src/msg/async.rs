@@ -99,7 +99,7 @@ impl FusedFuture for MessageFuture {
     }
 }
 
-/// Send a message and wait for reply (as encoded structure of the repluy message payload).
+/// Send a message and wait for reply (as encoded structure of the reply message payload).
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
