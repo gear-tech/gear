@@ -37,7 +37,7 @@ fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
 /// ## Usage
 ///
 /// ```ignore
-/// #[gstd::asyn_main]
+/// #[gstd::asynс_main]
 /// async fn main() {
 ///     gstd::debug!("Hello world");
 /// }
