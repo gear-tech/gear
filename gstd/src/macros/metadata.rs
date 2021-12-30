@@ -19,7 +19,9 @@
 //! Gear `metadata!` macro serves for exporting functions from Rust with 
 //! IO data that the user has specified in the macro.
 //! Macro contains `input` and `output` message types for `init`, `handle`,
-//! `async`. It is used in `idea.gear-tech.io` in order to correctly form 
+//! `async`. It also contains `state` IO for reading state and reading it, 
+//! depending on some arguments passed.
+//! It is used in `idea.gear-tech.io` in order to correctly form 
 //! a payload from json on the JS application side.
 
 #[macro_export]
