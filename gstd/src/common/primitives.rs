@@ -29,7 +29,7 @@
 //! # Examples
 /// ```
 /// let id = ActorId::new([0; 32]);
-//! let bytes = MessageId.as_ref();
+//! let bytes = id.as_ref();
 //! ```
 //!   
 
