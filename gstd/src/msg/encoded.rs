@@ -23,7 +23,9 @@
 //! 
 //! Example:
 //! ```
-//! let x: String = load().expect(msg: &str);
+//! use gstd::msg;
+//! ...
+//! let x: String = msg::load().expect("Unable to decode `String`");
 //! ```
 
 use crate::errors::{ContractError, Result};
