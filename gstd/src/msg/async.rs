@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! This `gstd` module provides async messaging functions. 
-//! While `gcore` provides API for low-level async implementation only (gcore::exec).
 
 use crate::async_runtime::{signals, ReplyPoll};
 use crate::errors::{ContractError, Result};
