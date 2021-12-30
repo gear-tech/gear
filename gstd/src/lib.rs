@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 /// Declares modules, attributes, public re-exports.
-/// All Gear crates don't load Rust std modules (no_std) which makes them lightweight. 
+/// Gear libs are `#![no_std]`, which makes them lightweight. 
 /// They are based on the core library.
 
 #![no_std]
