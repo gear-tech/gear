@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Classic async implementation of mutex.
+//! Mutex async implementation.
 //! The data protected by the mutex can be accessed through this guard via its 
 //! `deref` and `deref_mut` implementations.
 
