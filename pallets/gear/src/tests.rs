@@ -1236,11 +1236,6 @@ fn messages_to_uninitialized_program_wait() {
 
         run_to_block(2, None);
 
-        assert_eq!(
-            common::WaitingMessageIterator::new(program_id, None).count(),
-            1
-        );
-
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_failed(program_id));
 
@@ -1254,10 +1249,7 @@ fn messages_to_uninitialized_program_wait() {
 
         run_to_block(3, None);
 
-        assert_eq!(
-            common::WaitingMessageIterator::new(program_id, None).count(),
-            2
-        );
+        assert_eq!(common::waiting_init_take_messages(program_id).len(), 1);
     })
 }
 
@@ -1447,56 +1439,32 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let mailbox =
-            Gear::get_mailbox(USER_1).expect("should be one message for the program author");
-        let mut keys = mailbox.keys();
+        let message_id = Gear::get_mailbox(USER_1)
+            .and_then(|t| {
+                let mut keys = t.keys();
+                keys.next().cloned()
+            });
+        assert!(message_id.is_some());
 
-        let message_id = keys.next().expect("message keys cannot be empty");
-
-        let reply_gas = <Test as frame_system::Config>::DbWeight::get().reads(1);
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1).into(),
-            *message_id,
+            message_id.unwrap(),
             b"PONG".to_vec(),
-            reply_gas,
+            10_000_000u64,
             0,
         ));
 
-        // Emulate the situation when not all waiting messages can be woken since one storage read
-        // takes some weight.
-        // The following formula should produce the weight that is sufficient for about 2-4 messages to be woken.
-        run_to_block(
-            4,
-            Some(reply_gas + 3 * <Test as frame_system::Config>::DbWeight::get().reads(2)),
-        );
-
-        // check that there are remained messages
-        let remaining_messages = common::WaitingMessageIterator::new(program_id, None);
-        assert!(remaining_messages.count() > 0);
-
-        let messages = Gear::message_queue();
-        assert!(messages.is_some());
-
-        let messages = messages.unwrap();
-        // and that the next bunch of messages will be awoken
-        let destination_id = match &messages[0] {
-            IntermediateMessage::Wake {
-                destination_program_id,
-            } => *destination_program_id,
-            _ => unreachable!(),
-        };
-
-        assert_eq!(destination_id, program_id);
-
-        run_to_block(10, None);
+        run_to_block(4, None);
 
         let actual_n = Gear::get_mailbox(USER_3)
-            .expect("should be replies to USER_3")
-            .into_values()
-            .fold(0usize, |acc, m| {
-                assert_eq!(m.payload, b"Hello, world!".encode());
-                acc + 1
-            });
+            .map(|t| {
+                t.into_values()
+                .fold(0usize, |i, m| {
+                    assert_eq!(m.payload, b"Hello, world!".encode());
+                    i + 1
+                })
+            })
+            .unwrap_or(0);
 
         assert_eq!(actual_n, n);
     })

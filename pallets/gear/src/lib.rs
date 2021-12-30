@@ -250,8 +250,6 @@ pub mod pallet {
         }
     }
 
-    struct WaitingMessages;
-
     impl<T: Config> Pallet<T>
     where
         T::AccountId: Origin,
@@ -352,45 +350,6 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Internal helper function. Moves messages from waiting list to the queue. Returns a flag if there are
-        /// more (probably) messages and used weight.
-        fn requeue_waiting_messages(
-            program_id: H256,
-            available_weight: Weight,
-        ) -> (Option<WaitingMessages>, Weight) {
-            let one_step_weight = T::DbWeight::get().reads(2) + T::DbWeight::get().writes(1);
-            let message_count = available_weight / one_step_weight;
-
-            let actual_count = common::WaitingMessageIterator::drain(program_id, None)
-                .take(message_count as usize)
-                .fold(0u64, |i, (m, _)| {
-                    common::queue_message(m);
-                    i + 1
-                });
-
-            let used_weight = actual_count * one_step_weight;
-            if actual_count < message_count {
-                (None, used_weight)
-            } else {
-                (Some(WaitingMessages), used_weight)
-            }
-        }
-
-        /// Tries to wake all messages sent to `destination_program_id` while it hasn't been initialized.
-        pub fn wake_waiting_messages(destination_program_id: H256) {
-            let (remained, used_weight) = Self::requeue_waiting_messages(
-                destination_program_id,
-                Self::gas_allowance() as Weight,
-            );
-            Self::decrease_gas_allowance(used_weight);
-
-            if let Some(WaitingMessages) = remained {
-                MessageQueue::<T>::append(IntermediateMessage::Wake {
-                    destination_program_id,
-                });
-            }
-        }
-
         /// Message Queue processing.
         ///
         /// Can emit the following events:
@@ -401,25 +360,12 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::new();
 
-            // At the beginning of a new block, we process all queued messages
-            let messages = <MessageQueue<T>>::take().unwrap_or_default();
-
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
-
-            for message in messages {
-                match message {
-                    IntermediateMessage::Wake {
-                        destination_program_id,
-                    } => Self::wake_waiting_messages(destination_program_id),
-
-                    _ => unreachable!(),
-                }
-            }
 
             while let Some(message) = common::dequeue_message() {
                 // Check whether we have enough of gas allowed for message processing

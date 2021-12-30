@@ -25,7 +25,6 @@ pub mod value_tree;
 use codec::{Decode, Encode, EncodeAppend};
 use frame_support::{
     dispatch::DispatchError,
-    storage::PrefixIterator,
     weights::{IdentityFee, WeightToFeePolynomial},
 };
 use primitive_types::H256;
@@ -476,41 +475,6 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
     sp_io::storage::clear(&key);
 
     messages.unwrap_or_default()
-}
-
-pub struct WaitingMessageIterator(PrefixIterator<(Message, u32)>);
-
-fn decode_message_tuple(_: &[u8], value: &[u8]) -> Result<(Message, u32), codec::Error> {
-    <(Message, u32)>::decode(&mut &*value)
-}
-
-impl WaitingMessageIterator {
-    pub fn new(destination_program_id: H256, previous_message_id: Option<H256>) -> Self {
-        let prefix = wait_prefix(destination_program_id);
-        let previous_key = previous_message_id
-            .map(|id| wait_key(destination_program_id, id))
-            .unwrap_or_else(|| prefix.clone());
-
-        Self(PrefixIterator::new(
-            prefix,
-            previous_key,
-            decode_message_tuple,
-        ))
-    }
-
-    pub fn drain(destination_program_id: H256, previous_message_id: Option<H256>) -> Self {
-        let Self(i) = Self::new(destination_program_id, previous_message_id);
-
-        Self(i.drain())
-    }
-}
-
-impl Iterator for WaitingMessageIterator {
-    type Item = (Message, u32);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
 }
 
 pub fn code_exists(code_hash: H256) -> bool {
