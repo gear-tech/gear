@@ -103,7 +103,7 @@ pub struct MutexLockFuture<'a, T> {
     mutex: &'a Mutex<T>,
 }
 
-/// In case of locked mutex and an `.await`, function `poll` checks if the mutex can be taken, else it waits.
+/// In case of locked mutex and an `.await`, function `poll` checks if the mutex can be taken, else it waits (goes into *waiting queue*).
 
 impl<'a, T> Future for MutexLockFuture<'a, T> {
     type Output = MutexGuard<'a, T>;
