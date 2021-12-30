@@ -61,7 +61,7 @@
 /// }
 /// ```
 /// ```
-/// use gcore::exec;
+/// use gstd::exec;
 ///
 /// // Perform work while `gas_available` is more than 1000
 /// pub unsafe extern "C" fn handle() {
