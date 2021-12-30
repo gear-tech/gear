@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::{self, GasToFeeConverter, IntermediateMessage, Origin as _};
+use common::{self, GasToFeeConverter, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
@@ -1439,11 +1439,10 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = Gear::get_mailbox(USER_1)
-            .and_then(|t| {
-                let mut keys = t.keys();
-                keys.next().cloned()
-            });
+        let message_id = Gear::get_mailbox(USER_1).and_then(|t| {
+            let mut keys = t.keys();
+            keys.next().cloned()
+        });
         assert!(message_id.is_some());
 
         assert_ok!(GearPallet::<Test>::send_reply(
@@ -1458,8 +1457,7 @@ fn wake_messages_after_program_inited() {
 
         let actual_n = Gear::get_mailbox(USER_3)
             .map(|t| {
-                t.into_values()
-                .fold(0usize, |i, m| {
+                t.into_values().fold(0usize, |i, m| {
                     assert_eq!(m.payload, b"Hello, world!".encode());
                     i + 1
                 })
