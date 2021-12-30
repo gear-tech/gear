@@ -112,7 +112,9 @@ pub fn wait() -> ! {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     exec::wake(MessageId::default());
+///     ...
+///     let msg_id = ... ;
+///     exec::wake(msg_id);
 /// }
 /// ```
 
