@@ -64,7 +64,7 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one need to specify an `.await` expression.
 /// The initial message that requires a reply is sent instantly.
-/// methods `send_and_wait_for_reply` retun `MessageFuture` where `.await` can be specified.
+/// methods `send_and_wait_for_reply` return `MessageFuture` which implements `Future` trait.
 /// `MessageFuture` checks if the reply exists already:
 ///     if not, program interrupts
 ///     if reply exists, function returns the payload `Result`
