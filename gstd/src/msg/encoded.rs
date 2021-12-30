@@ -20,7 +20,6 @@
 //! with messages arguments as with data structure instead of bytes array 
 //! decoded/encoded via SCALE Codec.
 /// `load` returns Result of decoding because of possible errors.
-/// If ok, it returns the structure itself, else error.
 //! 
 //! Example:
 //! ```
