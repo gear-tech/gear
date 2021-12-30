@@ -48,7 +48,6 @@ use scale_info::TypeInfo;
 /// being processed can be obtained using [`msg::source`](crate::msg::source)
 /// function. Also, each send function has a target `ActorId` as one of the
 /// arguments.
-
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]
@@ -144,7 +143,6 @@ impl TryFrom<&[u8]> for ActorId {
 /// via the `MessageId` struct. Message identifier can be obtained for the
 /// currently processed message using the [`msg::id`](crate::msg::id) function.
 /// Also, each send and reply functions return a message identifier.
-
 #[derive(
     Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
 )]

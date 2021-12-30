@@ -17,59 +17,60 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Sys calls related to the program execution flow.
-
-/// Wraps methods from `gcore` for getting the current block height,
-/// the current block timestamp, the current value of the gas available for
-/// execution.
-///
-/// The block height serves to identify a particular block.
-/// This information can be used to enable many scenarios like restricting or
-/// allowing of some functions until certain block height is reached.
-///
-/// The timestamp is the number of milliseconds elapsed since the Unix epoch.
-///
-/// Each message processing consumes gas, both on instructions execution and
-/// memory allocations. This function returns a value of the gas available for
-/// spending during current execution. Its use may help to avoid unexpected
-/// behaviors during the smart-contract execution in case of not enough gas
-/// available.
-///
-/// /// # Examples
-///
-/// ```
-/// use gstd::{exec, msg};
-///
-/// // Send a reply after the block height reaches the number 1000
-/// pub unsafe extern "C" fn handle() {
-///     if exec::block_height() >= 1000 {
-///         msg::reply(b"Block #1000 reached", 1_000_000, 0);
-///     }
-/// }
-/// ```
-/// ```
-/// use gstd::{exec, msg};
-///
-/// // Send a reply after the block timestamp reaches the February 22, 2022
-/// pub unsafe extern "C" fn handle() {
-///     if exec::block_timestamp() >= 1645488000000 {
-///         msg::reply(
-///             b"The current block is generated after February 22, 2022",
-///             1_000_000,
-///             0,
-///         );
-///     }
-/// }
-/// ```
-/// ```
-/// use gstd::exec;
-///
-/// // Perform work while `gas_available` is more than 1000
-/// pub unsafe extern "C" fn handle() {
-///     while exec::gas_available() > 1000 {
-///         // ...
-///     }
-/// }
-/// ```
+//!
+//! Wraps methods from `gcore` for getting the current block height,
+//! the current block timestamp, the current value of the gas available for
+//! execution.
+//!
+//!
+//! The block height serves to identify a particular block.
+//! This information can be used to enable many scenarios like restricting or
+//! allowing of some functions until certain block height is reached.
+//!
+//! The timestamp is the number of milliseconds elapsed since the Unix epoch.
+//!
+//! Each message processing consumes gas, both on instructions execution and
+//! memory allocations. This function returns a value of the gas available for
+//! spending during current execution. Its use may help to avoid unexpected
+//! behaviors during the smart-contract execution in case of not enough gas
+//! available.
+//!
+//! # Examples
+//!
+//! ```
+//! use gstd::{exec, msg};
+//!
+//! // Send a reply after the block height reaches the number 1000
+//! pub unsafe extern "C" fn handle() {
+//!     if exec::block_height() >= 1000 {
+//!         msg::reply(b"Block #1000 reached", 1_000_000, 0);
+//!     }
+//! }
+//! ```
+//! ```
+//! use gstd::{exec, msg};
+//!
+//! // Send a reply after the block timestamp reaches the February 22, 2022
+//! pub unsafe extern "C" fn handle() {
+//!     if exec::block_timestamp() >= 1645488000000 {
+//!         msg::reply(
+//!             b"The current block is generated after February 22, 2022",
+//!             1_000_000,
+//!             0,
+//!         );
+//!     }
+//! }
+//! ```
+//! ```
+//! use gstd::exec;
+//!
+//! // Perform work while `gas_available` is more than 1000
+//! pub unsafe extern "C" fn handle() {
+//!     while exec::gas_available() > 1000 {
+//!         // ...
+//!     }
+//! }
+//! ```
 use crate::{ActorId, MessageId};
 pub use gcore::exec::{block_height, block_timestamp, gas_available};
 
@@ -92,7 +93,6 @@ pub use gcore::exec::{block_height, block_timestamp, gas_available};
 ///     exec::wait();
 /// }
 /// ```
-
 pub fn wait() -> ! {
     gcore::exec::wait()
 }
@@ -116,7 +116,6 @@ pub fn wait() -> ! {
 ///     exec::wake(msg_id);
 /// }
 /// ```
-
 pub fn wake(waker_id: MessageId) {
     gcore::exec::wake(waker_id.into())
 }
@@ -133,7 +132,6 @@ pub fn wake(waker_id: MessageId) {
 ///     let me = exec::program_id();
 /// }
 /// ```
-
 pub fn program_id() -> ActorId {
     gcore::exec::program_id().into()
 }
