@@ -107,12 +107,11 @@ pub fn wait() -> ! {
 /// # Examples
 ///
 /// ```
-/// use gstd::{exec, MessageId};
+/// use gstd::{exec, msg};
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     ...
-///     let msg_id = ... ;
+///     let msg_id = msg::id();
 ///     exec::wake(msg_id);
 /// }
 /// ```

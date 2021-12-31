@@ -29,6 +29,8 @@
 //!
 //! # Examples
 //! ```
+//! use gstd::ActorId;
+//!
 //! let id = ActorId::new([0; 32]);
 //! let bytes = id.as_ref();
 //! ```

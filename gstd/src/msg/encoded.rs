@@ -22,7 +22,7 @@
 //! `load` returns Result of decoding due to possible decoding issues.
 //!
 //! Example:
-//! ```
+//! ```ignore
 //! use gstd::msg;
 //! // ...
 //! let x: String = msg::load().expect("Unable to decode `String`");

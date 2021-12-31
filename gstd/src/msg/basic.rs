@@ -301,7 +301,7 @@ pub fn reply_to() -> MessageId {
 ///     // ...
 ///     let id = msg::source();
 ///
-///     msg::send_bytes(ActorId::new(id), b"HELLO", 1000, 12345678);
+///     msg::send_bytes(id, b"HELLO", 1000, 12345678);
 /// }
 /// ```
 ///
