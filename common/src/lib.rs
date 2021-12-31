@@ -423,11 +423,7 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_MESSAGE_NONCE_KEY, None);
-    sp_io::storage::clear_prefix(STORAGE_MESSAGE_USER_NONCE_KEY, None);
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_CODE_METADATA_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_CODE_REFS_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
 }
