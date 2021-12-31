@@ -18,7 +18,7 @@ jobs:
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
-          
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v2
 
@@ -175,11 +175,11 @@ jobs:
     runs-on: self-hosted
     needs: build
     steps:
-      - name: Cancel Previous Runs
+      - name: Cancel Previous
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
-          
+
       - name: Download artifacts
         uses: actions/download-artifact@v2
 
