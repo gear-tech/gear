@@ -19,7 +19,7 @@
 //! Module with messaging functions (load, reply, send) for operating
 //! with messages arguments as with data structure instead of bytes array
 //! decoded/encoded via SCALE Codec.
-//! `load` returns Result of decoding because of possible errors.
+//! `load` returns Result of decoding due to possible decoding issues.
 //!
 //! Example:
 //! ```

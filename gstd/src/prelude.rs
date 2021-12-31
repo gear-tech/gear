@@ -17,8 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! The `gstd` default prelude. Re-imports default `std` modules and traits.
-//! It is safe for Rust programs to rename `std` to `gstd` so that nothing
-//! breaks.
+//! `std` can be safely replaced to `gstd` in the Rust programs.
 
 extern crate alloc;
 

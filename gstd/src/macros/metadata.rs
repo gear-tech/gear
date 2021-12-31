@@ -21,8 +21,8 @@
 //! Macro contains `input` and `output` message types for `init`, `handle`,
 //! `async`. It also contains `state` IO for reading state and reading it,
 //! depending on some arguments passed.
-//! Metadata can be used as a payload description for external tools and
-//! applications that work with the blockchain network.
+//! Metadata can be used as a message payload description for external 
+//! tools and applications that interact with gear programs in the network.
 //! For example, it is used in `idea.gear-tech.io` in order to correctly
 //! form a payload from json on the JS application side.
 
