@@ -216,17 +216,11 @@ fn page_key(id: H256, page: u32) -> Vec<u8> {
     key
 }
 
-pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
     key.extend(b"::");
-
-    key
-}
-
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
-    let mut key = wait_prefix(prog_id);
     msg_id.encode_to(&mut key);
 
     key

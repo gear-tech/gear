@@ -18,7 +18,6 @@
 
 use crate as pallet_gear;
 use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
-use frame_support::weights::RuntimeDbWeight;
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use sp_core::H256;
@@ -68,17 +67,13 @@ parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
     pub const ExistentialDeposit: u64 = 1;
-    pub const DbWeight: RuntimeDbWeight = RuntimeDbWeight {
-        read: 10_000_000u64,
-        write: 20_000_000u64,
-    };
 }
 
 impl system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
-    type DbWeight = DbWeight;
+    type DbWeight = ();
     type Origin = Origin;
     type Call = Call;
     type Index = u64;
