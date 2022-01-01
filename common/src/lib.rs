@@ -338,6 +338,8 @@ pub fn remove_program(id: H256) {
     pages_prefix.extend(&program_key(id));
     sp_io::storage::clear_prefix(&pages_prefix, None);
     sp_io::storage::clear_prefix(&program_key(id), None);
+    sp_io::storage::clear_prefix(&program_state_key(id), None);
+    sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
 }
 
 pub fn program_exists(id: H256) -> bool {
