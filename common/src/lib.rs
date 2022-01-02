@@ -144,31 +144,6 @@ pub trait PaymentProvider<AccountId> {
     ) -> Result<(), DispatchError>;
 }
 
-#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-pub enum IntermediateMessage {
-    Init {
-        origin: H256,
-        program_id: H256,
-        code: Vec<u8>,
-        init_message_id: H256,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: u128,
-    },
-    Dispatch {
-        id: H256,
-        origin: H256,
-        destination: H256,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: u128,
-        reply: Option<H256>,
-    },
-    Wake {
-        destination_program_id: H256,
-    },
-}
-
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
 enum CodeKeyPrefixKind {
     // "g::code::"

@@ -20,11 +20,12 @@
 
 use super::*;
 use codec::Encode;
-use common::{IntermediateMessage, Origin};
+use common::Origin;
 use parity_wasm::elements::*;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::UniqueSaturatedInto;
+use sp_std::borrow::ToOwned;
 use sp_std::prelude::*;
 
 #[allow(unused)]
@@ -33,6 +34,7 @@ use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::traits::Currency;
 use frame_system::RawOrigin;
 
+const MIN_CODE_LEN: u32 = 128;
 const MAX_CODE_LEN: u32 = 128 * 1024;
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
@@ -49,8 +51,8 @@ pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> 
 //     (import "env" "memory" (memory $num_pages))
 //     (func (type 0))
 //     (export "init" (func 0)))
-fn generate_wasm(num_pages: u32) -> Result<Vec<u8>, &'static str> {
-    let module = parity_wasm::elements::Module::new(vec![
+fn create_module(num_pages: u32) -> parity_wasm::elements::Module {
+    parity_wasm::elements::Module::new(vec![
         Section::Type(TypeSection::with_types(vec![Type::Function(
             FunctionType::new(vec![], vec![]),
         )])),
@@ -68,7 +70,11 @@ fn generate_wasm(num_pages: u32) -> Result<Vec<u8>, &'static str> {
             vec![],
             Instructions::new(vec![Instruction::End]),
         )])),
-    ]);
+    ])
+}
+
+fn generate_wasm(num_pages: u32) -> Result<Vec<u8>, &'static str> {
+    let module = create_module(num_pages);
     let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
 
     Ok(code)
@@ -129,6 +135,19 @@ fn generate_wasm2(num_pages: i32) -> Result<Vec<u8>, &'static str> {
     Ok(code)
 }
 
+fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
+    let mut module = create_module(1);
+    module
+        .insert_section(Section::Custom(CustomSection::new(
+            "zeroed_section".to_owned(),
+            payload,
+        )))
+        .unwrap();
+    let code = parity_wasm::serialize(module).map_err(|_| "Failed to serialize module")?;
+
+    Ok(code)
+}
+
 fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
     let code_hash = sp_io::hashing::blake2_256(&code).into();
     // TODO set_program has redundant code set, that should be wiped off in #512
@@ -160,18 +179,18 @@ benchmarks! {
     }
 
     submit_program {
-        let c in 0 .. MAX_CODE_LEN;
+        let c in MIN_CODE_LEN .. MAX_CODE_LEN;
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller: T::AccountId = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let code = vec![0u8; c as usize];
+        let code = generate_wasm3(vec![0u8; (c - MIN_CODE_LEN) as usize]).unwrap();
         let salt = vec![255u8; 32];
         let payload = vec![1_u8; p as usize];
         // Using a non-zero `value` to count in the transfer, as well
         let value = 10_000_u32;
     }: _(RawOrigin::Signed(caller), code, salt, payload, 100_000_000_u64, value.into())
     verify {
-        assert!(Gear::<T>::message_queue().is_some());
+        assert!(common::dequeue_message().is_some());
     }
 
     send_message {
@@ -179,10 +198,12 @@ benchmarks! {
         let caller = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
+        let code = generate_wasm2(16_i32).unwrap();
+        set_program(program_id, code, 1_u32, 0_u64);
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(Gear::<T>::message_queue().is_some());
+        assert!(common::dequeue_message().is_some());
     }
 
     send_reply {
@@ -190,6 +211,8 @@ benchmarks! {
         let caller = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
+        let code = generate_wasm2(16_i32).unwrap();
+        set_program(program_id, code, 1_u32, 0_u64);
         let original_message_id = account::<T::AccountId>("message", 0, 100).into_origin();
         Gear::<T>::insert_to_mailbox(
             caller.clone().into_origin(),
@@ -206,7 +229,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(Gear::<T>::message_queue().is_some());
+        assert!(common::dequeue_message().is_some());
     }
 
     remove_stale_program {
@@ -222,26 +245,17 @@ benchmarks! {
     }
 
     initial_allocation {
-        let q in 0 .. MAX_PAGES;
+        let q in 1 .. MAX_PAGES;
         let caller: T::AccountId = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
+        T::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = generate_wasm(q).unwrap();
-        MessageQueue::<T>::append(
-            IntermediateMessage::Init {
-                origin: caller.into_origin(),
-                code,
-                program_id: account::<T::AccountId>("program", q, 0).into_origin(),
-                init_message_id: account::<T::AccountId>("message", q, 100).into_origin(),
-                payload: Vec::new(),
-                gas_limit: 10_000_000_u64,
-                value: 0,
-            }
-        );
+        let salt = vec![255u8; 32];
     }: {
-        crate::Pallet::<T>::process_queue()
+        let _ = crate::Pallet::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        crate::Pallet::<T>::process_queue();
     }
     verify {
-        assert!(Gear::<T>::message_queue().is_none());
+        assert!(common::dequeue_message().is_none());
     }
 
     alloc_in_handle {
@@ -249,24 +263,13 @@ benchmarks! {
         let caller: T::AccountId = account("caller", 0, 0);
         T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = generate_wasm2(q as i32).unwrap();
-        let program_id = account::<T::AccountId>("program", q, 0).into_origin();
-        set_program(program_id, code, 1_u32, q as u64);
-        MessageQueue::<T>::append(
-            IntermediateMessage::Dispatch {
-                id: account::<T::AccountId>("message", q, 100).into_origin(),
-                origin: caller.into_origin(),
-                destination: program_id,
-                payload: vec![],
-                gas_limit: 10_000_000_u64,
-                value: 0,
-                reply: None,
-            }
-        );
+        let salt = vec![255u8; 32];
     }: {
-        crate::Pallet::<T>::process_queue()
+        let _ = crate::Pallet::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        crate::Pallet::<T>::process_queue();
     }
     verify {
-        assert!(Gear::<T>::message_queue().is_none());
+        assert!(common::dequeue_message().is_none());
     }
 }
 

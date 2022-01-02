@@ -51,8 +51,7 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin, ProgramState,
-        GAS_VALUE_PREFIX,
+        self, CodeMetadata, GasToFeeConverter, Message, Origin, ProgramState, GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -194,10 +193,6 @@ pub mod pallet {
         pub program_id: H256,
         pub origin: H256,
     }
-
-    #[pallet::storage]
-    #[pallet::getter(fn message_queue)]
-    pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
 
     #[pallet::type_value]
     pub fn DefaultForGasLimit<T: Config>() -> u64 {
