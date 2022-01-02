@@ -30,9 +30,9 @@ fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
 }
 
 /// This is the procedural macro for your convenience.
-/// It marks main async function to be the program entry point.
+/// It marks the main async function to be the program entry point.
 /// Functions `handle`, `handle_reply` cannot be specified if this macro is used.
-/// If you need to specify handle, handle_reply explicitly don't use this macro.
+/// If you need to specify `handle`, `handle_reply` explicitly don't use this macro.
 ///
 /// ## Usage
 ///

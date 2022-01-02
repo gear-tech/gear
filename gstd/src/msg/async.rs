@@ -62,11 +62,11 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 }
 
 /// To interrupt a program execution waiting for a reply on a previous message,
-/// one need to call an `.await` expression.
+/// one needs to call an `.await` expression.
 /// The initial message that requires a reply is sent instantly.
-/// Methods `send_and_wait_for_reply` return `MessageFuture` where `.await` can
-/// be called. `MessageFuture` checks if the reply exists already:
-///     if not, program interrupts
+/// Methods `send_and_wait_for_reply` return `MessageFuture` which implements 
+/// Future trait. `MessageFuture` checks if the reply was received:
+///     if not, program interrupts;
 ///     if reply exists, function checks it's exit code:
 ///          if it equals 0, returns `Ok(payload)`
 ///          else returns `Err(ContractError::ExitCode(code))`
