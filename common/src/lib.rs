@@ -22,7 +22,7 @@ pub mod native;
 pub mod storage_queue;
 pub mod value_tree;
 
-use codec::{Decode, Encode, EncodeAppend};
+use codec::{Decode, Encode};
 use frame_support::{
     dispatch::DispatchError,
     weights::{IdentityFee, WeightToFeePolynomial},
@@ -436,12 +436,7 @@ fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
 
 pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {
     let key = waiting_init_prefix(dest_prog_id);
-    let extended_encoded = <Vec<H256> as EncodeAppend>::append_or_new(
-        sp_io::storage::get(&key).unwrap_or_default(),
-        &[message_id],
-    )
-    .expect("EncodeAppend should succeed");
-    sp_io::storage::set(&key, &extended_encoded);
+    sp_io::storage::append(&key, message_id.encode());
 }
 
 pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
