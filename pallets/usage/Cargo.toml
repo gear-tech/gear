@@ -37,7 +37,7 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 
 [dev-dependencies]
 parking_lot = "0.11.2"
-serde = "1.0.132"
+serde = "1.0.133"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
