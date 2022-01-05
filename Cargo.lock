@@ -800,9 +800,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.0.3"
+version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17a98d95cbe8abdf3bfe1a2bd4aa7215700403b79a0eb03cbddb017a5824e186"
+checksum = "d01c9347757e131122b19cd19a05c85805b68c2352a97b623efdc3c295290299"
 dependencies = [
  "atty",
  "bitflags",
@@ -2105,7 +2105,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.0.3",
+ "clap 3.0.4",
  "colored",
  "derive_more",
  "env_logger 0.9.0",
@@ -8150,7 +8150,7 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 3.0.3",
+ "clap 3.0.4",
  "env_logger 0.9.0",
  "log",
  "pwasm-utils",
