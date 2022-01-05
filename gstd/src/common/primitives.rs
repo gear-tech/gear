@@ -142,7 +142,7 @@ impl TryFrom<&[u8]> for ActorId {
 ///
 /// Gear allows users and programs to interact with other users and programs via
 /// messages. Each message has its own unique 256-bit id. This id is represented
-/// via the `MessageId` struct. Message identifier can be obtained for the
+/// via the `MessageId` struct. The message identifier can be obtained for the
 /// currently processed message using the [`msg::id`](crate::msg::id) function.
 /// Also, each send and reply functions return a message identifier.
 #[derive(
