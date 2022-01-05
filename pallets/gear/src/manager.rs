@@ -106,7 +106,7 @@ where
         common::native::get_program(ProgramId::from_origin(id))
     }
 
-    pub(super) fn set_program(&self, program: gear_core::program::Program) {
+    pub fn set_program(&self, program: gear_core::program::Program) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
