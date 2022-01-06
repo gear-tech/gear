@@ -22,7 +22,7 @@
 //! 
 //! `load` returns Result, where ok case contains struct of specified type, or as a generic argument.
 //! In case of Err, contains a decoding error ContractError::Decode.
-//! For codec-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
+//! For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
 //! Gear returns the native one after decode.
 //!
 //! Example:

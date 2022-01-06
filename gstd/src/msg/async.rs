@@ -38,7 +38,7 @@ use futures::future::FusedFuture;
 /// Program interrupts until the reply is received. As soon as the reply is received, 
 /// the function checks it's exit code and returns `Ok()` with decoded structure inside or 
 /// `Err()` in case of exit code does not equal 0.
-/// For codec-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
+/// For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
 //! Gear returns the native one after decode.
 
 pub struct CodecMessageFuture<T> {
@@ -78,7 +78,7 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// Program interrupts until the reply is received. As soon as the reply is received, 
 /// the function checks it's exit code and returns `Ok()` with raw bytes inside or 
 /// `Err()` in case of exit code does not equal 0.
-/// For codec-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
+/// For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
 //! Gear returns the native one after decode.
 
 pub struct MessageFuture {
