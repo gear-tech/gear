@@ -19,25 +19,23 @@
 //! Module with messaging functions (`load`, `reply`, `send`) for operating
 //! with messages arguments as with data structure instead of bytes array
 //! decoded/encoded via SCALE Codec.
-//! 
-//! `load` returns Result, where ok case contains struct of specified type, or as a generic argument.
-//! In case of Err, contains a decoding error ContractError::Decode.
-//! For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
-//! Gear returns the native one after decode.
-//!
-//! Example:
-//! ```ignore
-//! use gstd::msg;
-//! // ...
-//! let x: String = msg::load().expect("Unable to decode `String`");
-//! ```
-//!
 
 use crate::errors::{ContractError, Result};
 use crate::prelude::convert::AsRef;
 use crate::{ActorId, MessageId};
 use codec::{Decode, Encode};
 
+/// `load` returns Result, where ok case contains struct of specified type, or
+/// as a generic argument. In case of Err, contains a decoding error
+/// ContractError::Decode. For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html),
+/// Gear returns the native one after decode.
+///
+/// Example:
+/// ```ignore
+/// use gstd::msg;
+/// ...
+/// let x: String = msg::load().expect("Unable to decode `String`");
+/// ```
 pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes().as_ref()).map_err(ContractError::Decode)
 }
