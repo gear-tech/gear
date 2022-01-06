@@ -24,7 +24,7 @@
 //! Metadata can be used as a message payload description for external
 //! tools and applications that interact with gear programs in the network.
 //! For example, it is used in `idea.gear-tech.io` in order to correctly
-//! form a payload from json on the JS application side.
+//! form a message payload from json on the JS application side.
 
 #[macro_export]
 macro_rules! metadata {

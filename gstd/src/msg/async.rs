@@ -31,6 +31,16 @@ use core::{
 };
 use futures::future::FusedFuture;
 
+/// To interrupt a program execution waiting for a reply on a previous message,
+/// one needs to call an `.await` expression.
+/// The initial message that requires a reply is sent instantly.
+/// Function `send_and_wait_for_reply` returns `CodecMessageFuture` which implements `Future` trait.
+/// Program interrupts until the reply is received. As soon as the reply is received, 
+/// the function checks it's exit code and returns `Ok()` with decoded structure inside or 
+/// `Err()` in case of exit code does not equal 0.
+/// For codec-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
+//! Gear returns the native one after decode.
+
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
     phantom: PhantomData<T>,
@@ -64,12 +74,13 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// To interrupt a program execution waiting for a reply on a previous message,
 /// one needs to call an `.await` expression.
 /// The initial message that requires a reply is sent instantly.
-/// Methods `send_and_wait_for_reply` return `MessageFuture` which implements
-/// Future trait. `MessageFuture` checks if the reply was received:
-///     if not, program interrupts;
-///     if reply exists, function checks it's exit code:
-///          if it equals 0, returns `Ok(payload)`
-///          else returns `Err(ContractError::ExitCode(code))`
+/// Function `send_bytes_and_wait_for_reply` returns `MessageFuture` which implements `Future` trait.
+/// Program interrupts until the reply is received. As soon as the reply is received, 
+/// the function checks it's exit code and returns `Ok()` with raw bytes inside or 
+/// `Err()` in case of exit code does not equal 0.
+/// For codec-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
+//! Gear returns the native one after decode.
+
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
 }
@@ -99,8 +110,14 @@ impl FusedFuture for MessageFuture {
     }
 }
 
-/// Send a message and wait for reply (as encoded structure of the reply message
-/// payload).
+/// Send a message and wait for reply.
+/// This function works similarly to `send_bytes_and_wait_for_reply`, 
+/// with one difference - it takes the structure in, then encodes it 
+/// and sends it in bytes. When receiving the message, it decodes the bytes.
+/// So the input should be SCALE codeс encodable, output - decodable.
+/// The program will be interrupted (waiting for a reply) if an `.await` 
+/// has been called on the `CodecMessageFuture` object returned by the function.
+
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
@@ -116,8 +133,12 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     }
 }
 
-/// Send a message and wait for reply (as raw bytes of the reply message
-/// payload).
+/// /// Send a message and wait for reply.
+/// This function works similarly to `send_and_wait_for_reply`, 
+/// with one difference - it works with raw bytes as a paylod.
+/// The program will be interrupted (waiting for a reply) if an `.await` 
+/// has been called on the `MessageFuture` object returned by the function.
+
 pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,

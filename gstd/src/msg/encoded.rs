@@ -16,10 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module with messaging functions (load, reply, send) for operating
+//! Module with messaging functions (`load`, `reply`, `send`) for operating
 //! with messages arguments as with data structure instead of bytes array
 //! decoded/encoded via SCALE Codec.
-//! `load` returns Result of decoding due to possible decoding issues.
+//! 
+//! `load` returns Result, where ok case contains struct of specified type, or as a generic argument.
+//! In case of Err, contains a decoding error ContractError::Decode.
+//! For codec-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html), 
+//! Gear returns the native one after decode.
 //!
 //! Example:
 //! ```ignore
@@ -27,6 +31,7 @@
 //! // ...
 //! let x: String = msg::load().expect("Unable to decode `String`");
 //! ```
+//!
 
 use crate::errors::{ContractError, Result};
 use crate::prelude::convert::AsRef;
