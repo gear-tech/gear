@@ -63,6 +63,8 @@ rustup target add wasm32-unknown-unknown --toolchain nightly
 Test network is live. To run local node connected to test network, compile and launch node without parameters:
 
 ```
+git clone https://github.com/gear-tech/gear.git
+cd gear
 cargo build --release
 ./target/release/gear-node
 ```
