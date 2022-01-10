@@ -266,7 +266,7 @@ where
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
         Pallet::<T>::decrease_gas_allowance(amount);
-        // TODO: weight to fee calculator might not be identity fee
+
         let charge = T::GasConverter::gas_to_fee(amount);
 
         self.gas_handler.spend(message_id, amount);
@@ -295,16 +295,21 @@ where
 
     fn send_message(&mut self, message_id: MessageId, message: Message) {
         let message_id = message_id.into_origin();
-        let message: common::Message = message.into();
+        let mut message: common::Message = message.into();
 
-        log::debug!("Message sent (from: {:?}): {:?}", message_id, message);
-
-        self.gas_handler
-            .split(message_id, message.id, message.gas_limit);
+        log::debug!("Sending message {:?} from {:?}", message, message_id);
 
         if common::program_exists(message.dest) {
+            self.gas_handler
+                .split(message_id, message.id, message.gas_limit);
             common::queue_message(message);
         } else {
+            // Being placed into a user's mailbox means the end of a message life cycle.
+            // There can be no further processing whatsoever, hence any gas attempted to be
+            // passed along must be returned (i.e. remain in the parent message's value tree).
+            if message.gas_limit > 0 {
+                message.gas_limit = 0;
+            }
             Pallet::<T>::insert_to_mailbox(message.dest, message.clone());
             Pallet::<T>::deposit_event(Event::Log(message));
         }
@@ -339,7 +344,7 @@ where
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
             log::error!(
-                "Unknown message awaken: {:?} from {:?}",
+                "Attempt to awaken unknown message {:?} from {:?}",
                 awakening_id,
                 message_id.into_origin()
             );

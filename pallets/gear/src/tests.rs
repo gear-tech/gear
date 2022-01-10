@@ -111,8 +111,15 @@ fn send_message_works() {
             user1_initial_balance - user1_potential_msgs_spends
         );
 
-        // Sending message to a non-program address works as a simple value transfer
+        // Clear messages from the queue to refund unused gas
+        run_to_block(2, None);
+
+        // Checking that sending a message to a non-program address works as a value transfer
         let mail_value = 20_000;
+
+        // Take note of up-to-date users balance
+        let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             USER_2.into_origin(),
@@ -120,12 +127,12 @@ fn send_message_works() {
             DEFAULT_GAS_LIMIT,
             mail_value,
         ));
-        let mail_spends = GasConverter::gas_to_fee(DEFAULT_GAS_LIMIT) + mail_value;
+        let mail_reserves = GasConverter::gas_to_fee(DEFAULT_GAS_LIMIT);
 
-        // "Mail" deducts from the sender's balance `value + gas_limit`
+        // Transfer of `mail_value` has completed and gas reserved
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user1_initial_balance - user1_potential_msgs_spends - mail_spends
+            user1_initial_balance - (mail_value + mail_reserves)
         );
         // However, only `value` has been transferred to the recipient yet
         assert_eq!(
@@ -133,9 +140,10 @@ fn send_message_works() {
             user2_initial_balance + mail_value
         );
 
-        // The `gas_limit` part will be released to the sender in the next block
+        // The `gas_limit` part will be released to the sender upon message queue processing
         let remaining_weight = 100_000;
-        run_to_block(2, Some(remaining_weight));
+        run_to_block(3, Some(remaining_weight));
+
         // Messages were sent by user 1 only
         let user1_actual_msgs_spends =
             GasConverter::gas_to_fee(remaining_weight - GasAllowance::<Test>::get());
@@ -145,10 +153,12 @@ fn send_message_works() {
             BalancesPallet::<Test>::free_balance(USER_2),
             user2_initial_balance + mail_value
         );
-        // Corrected by the actual amount of spends for sending messages
+
+        // Since gas_limit is ignored for mailboxed messages, all gas except what was actually
+        // spent (nothing in this case) should have been returned to the sender (i.e. USER_1)
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_1),
-            user1_initial_balance - user1_actual_msgs_spends - mail_spends
+            user1_initial_balance - (mail_value + user1_actual_msgs_spends)
         );
     });
 }
@@ -462,6 +472,9 @@ fn mailbox_works() {
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
+        // Ensure that all the gas has been returned to the sender upon messages processing
+        assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+
         let mailbox_message = {
             let res = GearPallet::<Test>::remove_from_mailbox(USER_1.into_origin(), reply_to_id);
             assert!(res.is_some());
@@ -469,8 +482,9 @@ fn mailbox_works() {
         };
 
         assert_eq!(mailbox_message.id, reply_to_id,);
-        // Value was taken from the program code!
-        assert_eq!(mailbox_message.gas_limit, 10_000_000);
+
+        // Gas limit should have been ignored by the code that puts a message into a mailbox
+        assert_eq!(mailbox_message.gas_limit, 0);
         assert_eq!(mailbox_message.value, 1000);
     })
 }
@@ -698,6 +712,21 @@ fn send_reply_works() {
         // caution: runs to block 2
         let reply_to_id = setup_mailbox_test_state(USER_1);
 
+        let prog_id = generate_program_id(
+            &ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
+            &DEFAULT_SALT.to_vec(),
+        );
+
+        // Top up program's account balance by 2000 to allow user claim 1000 from mailbox
+        assert_ok!(
+            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
+                &USER_1,
+                &AccountId::from_origin(prog_id),
+                2000,
+                frame_support::traits::ExistenceRequirement::AllowDeath
+            )
+        );
+
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1).into(),
             reply_to_id,
@@ -873,8 +902,7 @@ fn send_reply_value_offset_works() {
             res.expect("submit result was asserted")
         };
 
-        // These values are actually constants in WAT. Alternatively can be read from Mailbox.
-        let locked_gas_limit = 10_000_000;
+        // This value is actually a constants in WAT. Alternatively can be read from Mailbox.
         let locked_value = 1000;
 
         let mut next_block = 2;
@@ -900,7 +928,7 @@ fn send_reply_value_offset_works() {
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
-            let send_to_program_amount = GasConverter::gas_to_fee(locked_gas_limit) * 2;
+            let send_to_program_amount = locked_value * 2;
             assert_ok!(
                 <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
                     &USER_1,
@@ -913,8 +941,7 @@ fn send_reply_value_offset_works() {
                 BalancesPallet::<Test>::free_balance(USER_1),
                 user_balance - send_to_program_amount
             );
-            // TODO: refactor `send_reply` extrinsic
-            // assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
+            assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
             assert_ok!(GearPallet::<Test>::send_reply(
                 Origin::signed(USER_1).into(),
@@ -928,17 +955,15 @@ fn send_reply_value_offset_works() {
                 - send_to_program_amount
                 - value_to_reply
                 - GasConverter::gas_to_fee(gas_limit_to_reply)
-                + locked_value
-                + GasConverter::gas_to_fee(locked_gas_limit);
+                + locked_value;
             assert_eq!(
                 BalancesPallet::<Test>::free_balance(USER_1),
                 user_expected_balance
             );
-            // TODO: refactor `send_reply` extrinsic
-            // assert_eq!(
-            //     BalancesPallet::<Test>::reserved_balance(USER_1),
-            //     GasConverter::gas_to_fee(gas_limit_to_reply.saturating_sub(locked_gas_limit))
-            // );
+            assert_eq!(
+                BalancesPallet::<Test>::reserved_balance(USER_1),
+                GasConverter::gas_to_fee(gas_limit_to_reply)
+            );
         }
     })
 }
@@ -1005,11 +1030,6 @@ fn distributor_initialize() {
         let initial_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
-        let program_id = generate_program_id(
-            WASM_BINARY_BLOATY.expect("Wasm binary missing!"),
-            DEFAULT_SALT,
-        );
-
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1).into(),
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
@@ -1021,14 +1041,9 @@ fn distributor_initialize() {
 
         run_to_block(2, None);
 
-        let prog = common::get_program(program_id).expect("Can't fail. Added above");
-
-        // TODO: Need to fix ValueTree issue, related to unability to unreserve unused gas.
-        // Now we gonna claim value from mailbox to force it's tree consumption.
-        let message_id = compute_program_message_id(program_id.as_bytes(), prog.nonce - 1);
-        let _ =
-            GearPallet::<Test>::claim_value_from_mailbox(Origin::signed(USER_1).into(), message_id);
-
+        // At this point there is a message in USER_1's mailbox, however, since messages in
+        // mailbox are stripped of the `gas_limit`, the respective gas tree has been consumed
+        // and the value unreserved back to the original sender (USER_1)
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
@@ -1059,14 +1074,6 @@ fn distributor_distribute() {
 
         run_to_block(2, None);
 
-        let prog = common::get_program(program_id).expect("Can't fail. Added above");
-
-        // TODO: Need to fix ValueTree issue, related to unability to unreserve unused gas.
-        // Now we gonna claim value from mailbox to force it's tree consumption.
-        let message_id = compute_program_message_id(program_id.as_bytes(), prog.nonce - 1);
-        let _ =
-            GearPallet::<Test>::claim_value_from_mailbox(Origin::signed(USER_1).into(), message_id);
-
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             program_id,
@@ -1077,12 +1084,8 @@ fn distributor_distribute() {
 
         run_to_block(3, None);
 
-        // Now we gonna claim value from mailbox to force it's tree consumption.
-        let message_id = compute_program_message_id(program_id.as_bytes(), prog.nonce);
-        let _ =
-            GearPallet::<Test>::claim_value_from_mailbox(Origin::signed(USER_1).into(), message_id);
-
-        // Need to fix ValueTree issue, related to unability to unreserve unused gas.
+        // Despite some messages are still in the mailbox all gas locked in value trees
+        // has been refunded to the sender so the free balances should add up
         let final_balance = BalancesPallet::<Test>::free_balance(USER_1)
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
