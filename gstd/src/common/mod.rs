@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Common things for each Gear contract.
+//! Common modules for each Gear smart contract.
 
 pub mod errors;
 pub mod handlers;
