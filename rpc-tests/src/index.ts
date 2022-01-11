@@ -444,6 +444,25 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
 
     await api.tx.utility.batch(txs).signAndSend(sudoPair, { nonce: -1 });
 
+    /* This is a workaround for chat demo program.
+      Frankly speaking for any programs that may emit messages in their `init` method.
+
+      Before new messages may be appended to the queue programs should be inited and
+      outgoing messages should be queued if any. So here we just wait for several blocks
+      before enqueuing new messages.
+    */
+    const countLimit = 5;
+    let count = 0;
+    const unsubscribe = await api.rpc.chain.subscribeNewHeads((_header) => {
+      if (++count === countLimit) {
+        unsubscribe();
+      }
+    });
+
+    while (count < countLimit) {
+      await sleep(100);
+    }
+
     const out = await processFixture(api, debugMode, sudoPair, fixture);
     if (out.length > 0) {
       console.log(`Fixture ${fixture.title}: Ok`);
