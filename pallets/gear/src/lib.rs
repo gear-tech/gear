@@ -918,7 +918,6 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
-            MessageQueue::<T>::kill();
             <Mailbox<T>>::remove_all(None);
             ProgramsLimbo::<T>::remove_all(None);
             common::reset_storage();
