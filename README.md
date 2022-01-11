@@ -41,13 +41,13 @@ Gear is a Substrate-based smart-contract platform allowing anyone to run dApp in
 
 1. :open_hands: The easiest way to get started with Gear is to use a demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io). 
 
-2. :wrench: Follow the instructions from [Gear Wiki](https://wiki.gear-tech.io/get-started/getting-started-in-5-minutes) to compile the Rust test smart contract to WebAssembly. :running: Upload and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going. 
+2. :wrench: Follow the instructions from ["Getting started in 5 minutes"](https://wiki.gear-tech.io/getting-started-in-5-minutes) to compile the Rust test smart contract to WebAssembly. :running: Upload and run smart contract in Gear demo environment on [https://idea.gear-tech.io](https://idea.gear-tech.io), send a message to a program, check how it is going. 
 
 3. :scroll: Write your own smart contract or take one from the [examples](https://github.com/gear-tech/gear/tree/master/examples). A comprehensive amount of smart contract examples are available for your convenience and faster onboarding.
 
 4. :computer: Download and run your Gear node locally or create your own multi-node local testnet.
 
-5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/get-started/smart-contracts/gear-program) of the Gear Wiki for more details about how to implement and run your dApp in Gear.
+5. :dolphin: Deep dive to the [Smart Contracts section](https://wiki.gear-tech.io/developing-contracts/gear-program) of the Gear Wiki for more details about how to implement and run your dApp in Gear.
 
 ## Run Gear Node
 
