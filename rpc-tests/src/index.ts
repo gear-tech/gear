@@ -448,10 +448,10 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
       Frankly speaking for any programs that may emit messages in their `init` method.
 
       Before new messages may be appended to the queue programs should be inited and
-      outgoing messages should be queued if any. So here we just wait for 2-3 blocks
+      outgoing messages should be queued if any. So here we just wait for several blocks
       before enqueuing new messages.
     */
-    const countLimit = 2;
+    const countLimit = 5;
     let count = 0;
     const unsubscribe = await api.rpc.chain.subscribeNewHeads((_header) => {
       if (++count === countLimit) {
