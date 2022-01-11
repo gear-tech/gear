@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Mutex async implementation.
+//! The data protected by the mutex can be accessed through this guard via its
+//! `deref` and `deref_mut` implementations.
 
 use crate::MessageId;
 use core::{
@@ -36,6 +38,7 @@ pub struct Mutex<T> {
 }
 
 impl<T> Mutex<T> {
+    /// Method `lock` allows message to lock mutex.
     pub fn lock(&self) -> MutexLockFuture<'_, T> {
         MutexLockFuture { mutex: self }
     }
@@ -49,6 +52,7 @@ impl<T> Mutex<T> {
     }
 }
 
+/// This structure is created by the lock and try_lock methods on Mutex.
 pub struct MutexGuard<'a, T> {
     mutex: &'a Mutex<T>,
 }
@@ -100,6 +104,8 @@ pub struct MutexLockFuture<'a, T> {
 impl<'a, T> Future for MutexLockFuture<'a, T> {
     type Output = MutexGuard<'a, T>;
 
+    /// In case of locked mutex and an `.await`, function `poll` checks if the
+    /// mutex can be taken, else it waits (goes into *waiting queue*).
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let lock = unsafe { &mut *self.mutex.locked.get() };
         if lock.is_none() {

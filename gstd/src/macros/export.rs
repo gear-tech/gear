@@ -16,7 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `export!` macro. Creates FFI function to be exported.
+//! Gear `export!` macro creates FFI function that returns a pointer to the
+//! Wasm memory and the length of the data required to export.
+//! It enables, for example, JS applications to get data from Wasm.
 
 #[macro_export]
 macro_rules! export {

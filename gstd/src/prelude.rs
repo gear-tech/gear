@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! The `gstd` default prelude.
+//! The `gstd` default prelude. Re-imports default `std` modules and traits.
+//! `std` can be safely replaced to `gstd` in the Rust programs.
 
 extern crate alloc;
 

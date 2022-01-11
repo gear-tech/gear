@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Declares modules, attributes, public re-exports.
+//! Gear libs are `#![no_std]`, which makes them lightweight.
+
 #![no_std]
 #![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
 #![cfg_attr(feature = "strict", deny(warnings))]

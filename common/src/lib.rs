@@ -451,6 +451,15 @@ pub fn code_exists(code_hash: H256) -> bool {
     sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
 }
 
+pub fn reset_storage() {
+    sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
+    sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

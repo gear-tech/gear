@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download wasm runtime
-        run: curl https://builds.gear.rs/gear-runtime-nightly-wasm.tar.xz | tar -xvJ
+        run: wget https://github.com/gear-tech/gear/releases/download/build/gear_runtime.compact.compressed.wasm
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
