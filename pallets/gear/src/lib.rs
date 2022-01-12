@@ -273,7 +273,7 @@ pub mod pallet {
         }
 
         pub fn get_gas_spent(dest: H256, payload: Vec<u8>) -> Option<u64> {
-            let mut ext_manager = ExtManager::<T>::new();
+            let mut ext_manager = ExtManager::<T>::default();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -355,7 +355,7 @@ pub mod pallet {
         /// - `Log(Message)` when a dispatched message spawns other messages (including replies);
         /// - `MessageDispatched(H256)` when a dispatch message has been processed with some outcome.
         pub fn process_queue() -> Weight {
-            let mut ext_manager = ExtManager::<T>::new();
+            let mut ext_manager = ExtManager::<T>::default();
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;

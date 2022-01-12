@@ -28,8 +28,9 @@ use sp_std::{
     prelude::*,
 };
 
-pub struct ExtManager<T: Config> {
+pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
     _phantom: PhantomData<T>,
+    gas_handler: GH,
 }
 
 #[derive(Decode)]
@@ -38,7 +39,63 @@ struct Node {
     next: Option<H256>,
 }
 
-impl<T> CollectState for ExtManager<T>
+pub trait GasHandler {
+    fn spend(&mut self, message_id: H256, amount: u64);
+    fn consume(&mut self, message_id: H256) -> ConsumeResult;
+    fn split(&mut self, message_id: H256, at: H256, amount: u64);
+}
+
+#[derive(Default)]
+pub struct ValueTreeGasHandler;
+
+impl GasHandler for ValueTreeGasHandler {
+    fn spend(&mut self, message_id: H256, amount: u64) {
+        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+            gas_tree.spend(amount);
+        } else {
+            log::error!(
+                "Message does not have associated gas tree: {:?}",
+                message_id
+            );
+        }
+    }
+
+    fn consume(&mut self, message_id: H256) -> ConsumeResult {
+        if let Some(gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+            gas_tree.consume()
+        } else {
+            log::error!(
+                "Message does not have associated gas tree: {:?}",
+                message_id
+            );
+
+            ConsumeResult::None
+        }
+    }
+
+    fn split(&mut self, message_id: H256, at: H256, amount: u64) {
+        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
+            let _ = gas_tree.split_off(at, amount);
+        } else {
+            log::error!(
+                "Message does not have associated gas tree: {:?}",
+                message_id
+            );
+        }
+    }
+}
+
+impl GasHandler for () {
+    fn spend(&mut self, _message_id: H256, _amount: u64) {}
+
+    fn consume(&mut self, _message_id: H256) -> ConsumeResult {
+        ConsumeResult::None
+    }
+
+    fn split(&mut self, _message_id: H256, _at: H256, _amount: u64) {}
+}
+
+impl<T, GH: GasHandler> CollectState for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
@@ -81,27 +138,25 @@ where
     }
 }
 
-impl<T> Default for ExtManager<T>
+impl<T, GH: GasHandler> Default for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: Default,
 {
     fn default() -> Self {
         ExtManager {
             _phantom: PhantomData,
+            gas_handler: GH::default(),
         }
     }
 }
 
-impl<T> ExtManager<T>
+impl<T, GH: GasHandler> ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
 {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
         common::native::get_program(ProgramId::from_origin(id))
     }
@@ -130,7 +185,7 @@ where
     }
 }
 
-impl<T> JournalHandler for ExtManager<T>
+impl<T, GH: GasHandler> JournalHandler for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
@@ -211,14 +266,7 @@ where
         // TODO: weight to fee calculator might not be identity fee
         let charge = T::GasConverter::gas_to_fee(amount);
 
-        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
-            gas_tree.spend(amount);
-        } else {
-            log::error!(
-                "Message does not have associated gas tree: {:?}",
-                message_id
-            );
-        }
+        self.gas_handler.spend(message_id, amount);
 
         let _ = T::Currency::repatriate_reserved(
             &<T::AccountId as Origin>::from_origin(origin.into_origin()),
@@ -230,43 +278,26 @@ where
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 
-        if let Some(gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
-            if let ConsumeResult::RefundExternal(external, gas_left) = gas_tree.consume() {
-                log::debug!("unreserve: {}", gas_left);
+        if let ConsumeResult::RefundExternal(external, gas_left) =
+            self.gas_handler.consume(message_id)
+        {
+            log::debug!("unreserve: {}", gas_left);
 
-                let refund = T::GasConverter::gas_to_fee(gas_left);
+            let refund = T::GasConverter::gas_to_fee(gas_left);
 
-                let _ = T::Currency::unreserve(
-                    &<T::AccountId as Origin>::from_origin(external),
-                    refund,
-                );
-            } else {
-                log::error!(
-                    "Associated gas tree for message aren't able to be consumed: {:?}",
-                    message_id
-                );
-            }
-        } else {
-            log::error!(
-                "Message does not have associated gas tree: {:?}",
-                message_id
-            );
+            let _ =
+                T::Currency::unreserve(&<T::AccountId as Origin>::from_origin(external), refund);
         }
     }
+
     fn send_message(&mut self, message_id: MessageId, message: Message) {
         let message_id = message_id.into_origin();
         let message: common::Message = message.into();
 
         log::debug!("Message sent (from: {:?}): {:?}", message_id, message);
 
-        if let Some(mut gas_tree) = ValueView::get(GAS_VALUE_PREFIX, message_id) {
-            let _ = gas_tree.split_off(message.id, message.gas_limit);
-        } else {
-            log::error!(
-                "Message does not have associated gas tree: {:?}",
-                message_id
-            );
-        }
+        self.gas_handler
+            .split(message_id, message.id, message.gas_limit);
 
         if common::program_exists(message.dest) {
             common::queue_message(message);
@@ -275,6 +306,7 @@ where
             Pallet::<T>::deposit_event(Event::Log(message));
         }
     }
+
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         let message: common::Message = dispatch.message.into();
 
@@ -287,6 +319,7 @@ where
 
         Pallet::<T>::deposit_event(Event::AddedToWaitList(message));
     }
+
     fn wake_message(
         &mut self,
         message_id: MessageId,
@@ -309,9 +342,11 @@ where
             );
         }
     }
+
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
         common::set_program_nonce(program_id.into_origin(), nonce);
     }
+
     fn update_page(
         &mut self,
         program_id: ProgramId,
