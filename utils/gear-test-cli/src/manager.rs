@@ -1,4 +1,4 @@
-use gear_common::{Origin, GAS_VALUE_PREFIX};
+use gear_common::Origin;
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
@@ -8,7 +8,7 @@ use gear_core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
 use gear_runtime::{pallet_gear::Config, ExtManager};
-use gear_test::{check::ProgramInitializer, proc::SOME_FIXED_USER};
+use gear_test::check::ProgramStorage;
 
 pub struct RuntestsExtManager<T: Config> {
     log: Vec<Message>,
@@ -16,34 +16,13 @@ pub struct RuntestsExtManager<T: Config> {
     current_failed: bool,
 }
 
-impl<T> ProgramInitializer for RuntestsExtManager<T>
+impl<T> ProgramStorage for RuntestsExtManager<T>
 where
     T: Config,
     T::AccountId: Origin,
 {
-    fn store_program(
-        &self,
-        program: gear_core::program::Program,
-        init_message_id: MessageId,
-        gas_limit: u64,
-    ) {
+    fn store_program(&self, program: gear_core::program::Program) {
         self.inner.set_program(program);
-
-        gear_common::value_tree::ValueView::get_or_create(
-            GAS_VALUE_PREFIX,
-            ProgramId::from(SOME_FIXED_USER).into_origin(),
-            init_message_id.into_origin(),
-            gas_limit,
-        );
-    }
-
-    fn create_root_message_value_tree(&self, id: MessageId) {
-        gear_common::value_tree::ValueView::get_or_create(
-            GAS_VALUE_PREFIX,
-            ProgramId::from(SOME_FIXED_USER).into_origin(),
-            id.into_origin(),
-            u64::MAX,
-        );
     }
 }
 

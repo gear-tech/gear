@@ -1,4 +1,4 @@
-use crate::check::ProgramInitializer;
+use crate::check::ProgramStorage;
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
@@ -99,7 +99,7 @@ pub fn init_program<E, JH>(
 ) -> anyhow::Result<()>
 where
     E: Environment<Ext>,
-    JH: JournalHandler + CollectState + ProgramInitializer,
+    JH: JournalHandler + CollectState + ProgramStorage,
 {
     let program = Program::new(message.id, message.code.clone())?;
 
@@ -109,11 +109,7 @@ where
         ));
     }
 
-    journal_handler.store_program(
-        program.clone(),
-        message.message.id(),
-        message.message.gas_limit(),
-    );
+    journal_handler.store_program(program.clone());
 
     let res = core_processor::process::<E>(program, message.into(), block_info);
 
@@ -129,12 +125,9 @@ pub fn init_fixture<E, JH>(
 ) -> anyhow::Result<()>
 where
     E: Environment<Ext>,
-    JH: JournalHandler + CollectState + ProgramInitializer,
+    JH: JournalHandler + CollectState + ProgramStorage,
 {
     let mut nonce = 1;
-
-    let root_message_id = <MessageId as Default>::default();
-    journal_handler.create_root_message_value_tree(root_message_id);
 
     for program in &test.programs {
         let program_path = program.path.clone();
@@ -230,7 +223,7 @@ where
         }
 
         journal_handler.send_message(
-            root_message_id,
+            Default::default(),
             Message {
                 id: message_id,
                 source: message_source,

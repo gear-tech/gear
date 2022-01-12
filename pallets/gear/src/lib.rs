@@ -590,7 +590,7 @@ pub mod pallet {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
-            ExtManager::<T>::new().set_program(program);
+            ExtManager::<T>::default().set_program(program);
 
             let init_message_id = common::next_message_id(&init_payload);
             common::set_program_state(

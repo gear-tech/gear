@@ -7,7 +7,7 @@ use gear_core::{
 use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::check::ProgramInitializer;
+use crate::check::ProgramStorage;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
@@ -18,12 +18,10 @@ pub struct InMemoryExtManager {
     current_failed: bool,
 }
 
-impl ProgramInitializer for InMemoryExtManager {
-    fn store_program(&self, program: gear_core::program::Program, _: MessageId, _: u64) {
+impl ProgramStorage for InMemoryExtManager {
+    fn store_program(&self, program: gear_core::program::Program) {
         let _ = self.programs.borrow_mut().insert(program.id(), program);
     }
-
-    fn create_root_message_value_tree(&self, _: MessageId) {}
 }
 
 impl CollectState for InMemoryExtManager {

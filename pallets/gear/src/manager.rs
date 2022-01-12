@@ -95,10 +95,11 @@ impl GasHandler for () {
     fn split(&mut self, _message_id: H256, _at: H256, _amount: u64) {}
 }
 
-impl<T, GH: GasHandler> CollectState for ExtManager<T, GH>
+impl<T, GH> CollectState for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     fn collect(&self) -> State {
         let programs: BTreeMap<ProgramId, Program> = PrefixIterator::<H256>::new(
@@ -138,11 +139,11 @@ where
     }
 }
 
-impl<T, GH: GasHandler> Default for ExtManager<T, GH>
+impl<T, GH> Default for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
-    GH: Default,
+    GH: Default + GasHandler,
 {
     fn default() -> Self {
         ExtManager {
@@ -152,10 +153,11 @@ where
     }
 }
 
-impl<T, GH: GasHandler> ExtManager<T, GH>
+impl<T, GH> ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
         common::native::get_program(ProgramId::from_origin(id))
@@ -185,10 +187,11 @@ where
     }
 }
 
-impl<T, GH: GasHandler> JournalHandler for ExtManager<T, GH>
+impl<T, GH> JournalHandler for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
