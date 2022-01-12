@@ -11,7 +11,7 @@ use gear_runtime::{pallet_gear::Config, ExtManager};
 
 pub struct RuntestsExtManager<T: Config> {
     log: Vec<Message>,
-    inner: ExtManager<T>,
+    inner: ExtManager<T, ()>,
     current_failed: bool,
 }
 
@@ -39,7 +39,7 @@ where
     fn default() -> Self {
         Self {
             log: Default::default(),
-            inner: ExtManager::<T>::new(),
+            inner: ExtManager::<T, ()>::default(),
             current_failed: false,
         }
     }
