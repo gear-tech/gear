@@ -158,6 +158,7 @@ fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
             persistent_pages: (0..static_pages).collect(),
             code_hash,
             nonce,
+            state: common::ProgramState::Initialized,
         },
         (0..static_pages).map(|i| (i, vec![0u8; 65536])).collect(),
     );
