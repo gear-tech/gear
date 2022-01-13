@@ -206,7 +206,7 @@ pub mod pallet {
     pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
 
     #[pallet::storage]
-    #[pallet::getter(fn get_mailbox)]
+    #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
         StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
 
@@ -342,9 +342,7 @@ pub mod pallet {
         /// Returns true if a program resulted in an error during initialization
         /// but hasn't been explicitly removed from storage by its creator
         pub fn is_failed(program_id: H256) -> bool {
-            ProgramsLimbo::<T>::get(program_id)
-                .map(|_| true)
-                .unwrap_or(false)
+            ProgramsLimbo::<T>::get(program_id).is_some()
         }
 
         /// Message Queue processing.
@@ -600,7 +598,7 @@ pub mod pallet {
                 },
             );
 
-            common::value_tree::ValueView::get_or_create(
+            let _ = common::value_tree::ValueView::get_or_create(
                 GAS_VALUE_PREFIX,
                 origin,
                 init_message_id,
@@ -683,7 +681,7 @@ pub mod pallet {
             )?;
 
             let origin = who.into_origin();
-            common::value_tree::ValueView::get_or_create(
+            let _ = common::value_tree::ValueView::get_or_create(
                 GAS_VALUE_PREFIX,
                 origin,
                 message_id,
@@ -798,7 +796,7 @@ pub mod pallet {
             let message_id = common::next_message_id(&payload);
 
             let origin = who.into_origin();
-            common::value_tree::ValueView::get_or_create(
+            let _ = common::value_tree::ValueView::get_or_create(
                 GAS_VALUE_PREFIX,
                 origin,
                 message_id,

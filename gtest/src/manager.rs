@@ -45,20 +45,10 @@ impl CollectState for InMemoryExtManager {
 
 impl JournalHandler for InMemoryExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
-        match outcome {
-            DispatchOutcome::Success(_) => {
-                self.current_failed = false;
-            }
-            DispatchOutcome::MessageTrap { .. } => {
-                self.current_failed = true;
-            }
-            DispatchOutcome::InitSuccess { .. } => {
-                self.current_failed = false;
-            }
-            DispatchOutcome::InitFailure { .. } => {
-                self.current_failed = true;
-            }
-        };
+        self.current_failed = matches!(
+            outcome,
+            DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. }
+        );
     }
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {

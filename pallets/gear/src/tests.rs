@@ -1289,7 +1289,7 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let mailbox = Gear::get_mailbox(USER_1);
+        let mailbox = Gear::mailbox(USER_1);
         assert!(mailbox.is_some());
 
         let mailbox = mailbox.unwrap();
@@ -1348,8 +1348,7 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let mailbox =
-            Gear::get_mailbox(USER_1).expect("should be one message for the program author");
+        let mailbox = Gear::mailbox(USER_1).expect("should be one message for the program author");
         let mut keys = mailbox.keys();
 
         let message_id = keys.next().expect("message keys cannot be empty");
@@ -1375,14 +1374,14 @@ fn defer_program_initialization() {
         run_to_block(4, None);
 
         assert_eq!(
-            Gear::get_mailbox(USER_1)
+            Gear::mailbox(USER_1)
                 .expect("should be one reply for the program author")
                 .into_values()
                 .count(),
             1
         );
 
-        let message = Gear::get_mailbox(USER_1)
+        let message = Gear::mailbox(USER_1)
             .expect("should be one reply for the program author")
             .into_values()
             .next();
@@ -1439,7 +1438,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = Gear::get_mailbox(USER_1).and_then(|t| {
+        let message_id = Gear::mailbox(USER_1).and_then(|t| {
             let mut keys = t.keys();
             keys.next().cloned()
         });
@@ -1455,7 +1454,7 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(4, None);
 
-        let actual_n = Gear::get_mailbox(USER_3)
+        let actual_n = Gear::mailbox(USER_3)
             .map(|t| {
                 t.into_values().fold(0usize, |i, m| {
                     assert_eq!(m.payload, b"Hello, world!".encode());
