@@ -8,6 +8,9 @@ jobs:
   upgrade-runtime:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        
       - name: Download wasm runtime
         run: wget https://github.com/gear-tech/gear/releases/download/build/gear_runtime.compact.compressed.wasm
 
