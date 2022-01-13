@@ -8,11 +8,23 @@ use gear_core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
 use gear_runtime::{pallet_gear::Config, ExtManager};
+use gear_test::check::ProgramStorage;
 
 pub struct RuntestsExtManager<T: Config> {
     log: Vec<Message>,
     inner: ExtManager<T, ()>,
     current_failed: bool,
+}
+
+impl<T> ProgramStorage for RuntestsExtManager<T>
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId) {
+        self.inner
+            .set_program(program, init_message_id.into_origin());
+    }
 }
 
 impl<T> CollectState for RuntestsExtManager<T>
@@ -78,7 +90,7 @@ where
     fn send_message(&mut self, message_id: MessageId, message: Message) {
         if !gear_common::program_exists(message.dest().into_origin()) {
             self.log.push(message.clone())
-        };
+        }
 
         self.inner.send_message(message_id, message);
     }

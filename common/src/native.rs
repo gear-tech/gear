@@ -120,6 +120,7 @@ pub fn set_program(program: Program) {
                 .collect(),
             code_hash,
             nonce: program.message_nonce(),
+            state: crate::ProgramState::Initialized,
         },
         program
             .get_pages()

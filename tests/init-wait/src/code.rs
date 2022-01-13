@@ -1,5 +1,3 @@
-#![no_std]
-
 use gstd::{exec, msg, MessageId};
 
 #[derive(PartialEq, Debug)]
@@ -18,7 +16,7 @@ pub unsafe extern "C" fn handle() {
         panic!("not initialized");
     }
 
-    msg::reply(b"Hello world!", 0, 0);
+    msg::reply(b"Hello, world!", exec::gas_available() - 5_000_000, 0);
 }
 
 #[no_mangle]
@@ -29,7 +27,7 @@ pub unsafe extern "C" fn init() {
             msg::send(
                 msg::source(),
                 b"PING",
-                exec::gas_available() - 100_000_000,
+                exec::gas_available() - 5_000_000,
                 0,
             );
             STATE = State::WaitForReply;

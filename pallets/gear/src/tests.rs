@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::Encode;
-use common::{self, GasToFeeConverter, IntermediateMessage, Origin as _};
+use common::{self, GasToFeeConverter, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
@@ -25,7 +25,7 @@ use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
 use super::{
     mock::{
-        new_test_ext, run_to_block, Event as MockEvent, Origin, Test, BLOCK_AUTHOR,
+        new_test_ext, run_to_block, Event as MockEvent, Gear, Origin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox, MessageInfo,
@@ -33,46 +33,6 @@ use super::{
 };
 
 use utils::*;
-
-#[test]
-fn submit_program_works() {
-    init_logger();
-    new_test_ext().execute_with(|| {
-        // Check MQ is empty
-        assert!(GearPallet::<Test>::message_queue().is_none());
-
-        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
-
-        let mq = GearPallet::<Test>::message_queue().expect("message was added to the queue");
-        assert_eq!(mq.len(), 1);
-
-        let (origin, code, program_id, message_id) = {
-            let submit_msg = mq.into_iter().next().expect("mq length is 1");
-            match submit_msg {
-                IntermediateMessage::InitProgram {
-                    origin,
-                    code,
-                    program_id,
-                    init_message_id,
-                    ..
-                } => (origin, code, program_id, init_message_id),
-                _ => unreachable!("only init program message is in the queue"),
-            }
-        };
-        assert_eq!(origin, USER_1.into_origin());
-        // submit_program_default submits ProgramCodeKind::Default
-        assert_eq!(code, ProgramCodeKind::Default.to_bytes());
-
-        SystemPallet::<Test>::assert_last_event(
-            Event::InitMessageEnqueued(MessageInfo {
-                message_id,
-                program_id,
-                origin,
-            })
-            .into(),
-        );
-    })
-}
 
 #[test]
 fn submit_program_expected_failure() {
@@ -139,23 +99,8 @@ fn send_message_works() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-        // After the submit program message will be sent, global nonce will be 1.
-        let expected_msg_id = compute_user_message_id(EMPTY_PAYLOAD, 1);
 
         assert_ok!(send_default_message(USER_1, program_id));
-
-        let mq = GearPallet::<Test>::message_queue().expect("Two messages were sent");
-        assert_eq!(mq.len(), 2);
-
-        let actual_msg_id = {
-            let sent_to_prog_msg = mq.into_iter().next_back().expect("mq is not empty");
-            match sent_to_prog_msg {
-                IntermediateMessage::DispatchMessage { id, .. } => id,
-                _ => unreachable!("last message was a dispatch message"),
-            }
-        };
-
-        assert_eq!(expected_msg_id, actual_msg_id);
 
         // Balances check
         // Gas spends on sending 2 default messages (submit program and send message to program)
@@ -339,7 +284,7 @@ fn unused_gas_released_back_works() {
             user1_initial_balance - user1_potential_msgs_spends
         );
         assert_eq!(
-            BalancesPallet::<Test>::reserved_balance(1),
+            BalancesPallet::<Test>::reserved_balance(USER_1),
             (DEFAULT_GAS_LIMIT + huge_send_message_gas_limit) as _,
         );
 
@@ -438,8 +383,6 @@ fn block_gas_limit_works() {
 
         // Run to the next block to reset the gas limit
         run_to_block(4, Some(remaining_weight));
-
-        assert!(GearPallet::<Test>::message_queue().is_none());
 
         // Add more messages to queue
         // Total `gas_limit` of three messages (2 to pid1 and 1 to pid2) exceeds the block gas limit
@@ -548,37 +491,19 @@ fn init_message_logging_works() {
 
             assert_ok!(submit_program_default(USER_1, code_kind));
 
-            let (program_id, message_id, origin) = {
-                let msg: IntermediateMessage = GearPallet::<Test>::message_queue()
-                    .map(|v| v.into_iter().next())
-                    .flatten()
-                    .expect("mq has only submit program message");
-                match msg {
-                    IntermediateMessage::InitProgram {
-                        program_id,
-                        init_message_id,
-                        origin,
-                        ..
-                    } => (program_id, init_message_id, origin),
-                    _ => unreachable!("mq has only submit program message"),
-                }
+            let event = match SystemPallet::<Test>::events()
+                .last()
+                .map(|r| r.event.clone())
+            {
+                Some(MockEvent::Gear(e)) => e,
+                _ => unreachable!("Should be one Gear event"),
             };
-
-            SystemPallet::<Test>::assert_last_event(
-                Event::InitMessageEnqueued(MessageInfo {
-                    message_id,
-                    program_id,
-                    origin,
-                })
-                .into(),
-            );
 
             run_to_block(next_block, None);
 
-            let msg_info = MessageInfo {
-                message_id,
-                program_id,
-                origin,
+            let msg_info = match event {
+                Event::InitMessageEnqueued(info) => info,
+                _ => unreachable!("expect Event::InitMessageEnqueued"),
             };
 
             SystemPallet::<Test>::assert_has_event(if is_failing {
@@ -607,11 +532,13 @@ fn program_lifecycle_works() {
             res.expect("submit result was asserted")
         };
 
-        assert!(common::get_program(program_id).is_none());
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
-        // Expect the program to be in PS by now
-        assert!(common::get_program(program_id).is_some());
+
+        assert!(Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         // Submitting second program, which fails on initialization, therefore goes to limbo.
         let program_id = {
@@ -620,34 +547,38 @@ fn program_lifecycle_works() {
             res.expect("submit result was asserted")
         };
 
-        assert!(common::get_program(program_id).is_none());
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
 
         run_to_block(3, None);
 
-        // Expect the program to have made it to the PS, cause it failed it's init
-        assert!(common::get_program(program_id).is_none());
+        assert!(!Gear::is_initialized(program_id));
         // while at the same time being stuck in "limbo"
-        assert!(GearPallet::<Test>::is_uninitialized(program_id));
+        assert!(Gear::is_failed(program_id));
 
         // Program author is allowed to remove the program and reclaim funds
         // An attempt to remove a program on behalf of another account will make no changes
         assert_ok!(GearPallet::<Test>::remove_stale_program(
-            Origin::signed(LOW_BALANCE_USER).into(), // Not the author
+            // Not the author
+            Origin::signed(LOW_BALANCE_USER).into(),
             program_id,
         ));
-        // Program not in the storage
-        assert!(common::get_program(program_id).is_none());
+        // Program in the storage
+        assert!(common::get_program(program_id).is_some());
         // and is still in the limbo
-        assert!(GearPallet::<Test>::is_uninitialized(program_id));
+        assert!(GearPallet::<Test>::is_failed(program_id));
 
         assert_ok!(GearPallet::<Test>::remove_stale_program(
             Origin::signed(USER_1).into(),
             program_id,
         ));
+        // Program not in the storage
+        assert!(common::get_program(program_id).is_none());
         // This time the program has been removed from limbo
         assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
     })
 }
+
 #[test]
 fn events_logging_works() {
     let wat_trap_in_handle = r#"
@@ -778,21 +709,24 @@ fn send_reply_works() {
         // global nonce is 2 before sending reply message
         // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
         let expected_reply_message_id = compute_user_message_id(EMPTY_PAYLOAD, 2);
-        let (actual_reply_message_id, orig_id) = {
-            let intermediate_msg = GearPallet::<Test>::message_queue()
-                .map(|v| v.into_iter().next())
-                .flatten()
-                .expect("reply message was previously sent");
-            match intermediate_msg {
-                IntermediateMessage::DispatchMessage { id, reply, .. } => {
-                    (id, reply.expect("was a reply message"))
-                }
-                _ => unreachable!("only reply message was in mq"),
-            }
+
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo {
+            message_id: actual_reply_message_id,
+            ..
+        } = match event {
+            Event::DispatchMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::DispatchMessageEnqueued"),
         };
 
         assert_eq!(expected_reply_message_id, actual_reply_message_id);
-        assert_eq!(orig_id, reply_to_id);
     })
 }
 
@@ -1264,6 +1198,272 @@ fn test_code_is_not_resetted_within_program_submission() {
 
         assert_eq!(expected_meta, actual_meta);
         assert_eq!(expected_code_saved_events, actual_code_saved_events);
+    })
+}
+
+#[test]
+fn messages_to_uninitialized_program_wait() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            50_000_000u64,
+            0u128
+        ));
+
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
+        };
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
+
+        run_to_block(2, None);
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(1).into(),
+            program_id,
+            vec![],
+            10_000u64,
+            0u128
+        ));
+
+        run_to_block(3, None);
+
+        assert_eq!(common::waiting_init_take_messages(program_id).len(), 1);
+    })
+}
+
+#[test]
+fn uninitialized_program_should_accept_replies() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            20_000_000u64,
+            0u128
+        ));
+
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
+        };
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
+
+        run_to_block(2, None);
+
+        // there should be one message for the program author
+        let mailbox = Gear::mailbox(USER_1);
+        assert!(mailbox.is_some());
+
+        let mailbox = mailbox.unwrap();
+        let mut keys = mailbox.keys();
+
+        let message_id = keys.next();
+        assert!(message_id.is_some());
+        let message_id = message_id.unwrap();
+
+        assert!(keys.next().is_none());
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            *message_id,
+            b"PONG".to_vec(),
+            20_000_000u64,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        assert!(Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
+    })
+}
+
+#[test]
+fn defer_program_initialization() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            20_000_000u64,
+            0u128
+        ));
+
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
+        };
+
+        run_to_block(2, None);
+
+        let mailbox = Gear::mailbox(USER_1).expect("should be one message for the program author");
+        let mut keys = mailbox.keys();
+
+        let message_id = keys.next().expect("message keys cannot be empty");
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            *message_id,
+            b"PONG".to_vec(),
+            20_000_000u64,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            program_id,
+            vec![],
+            10_000_000u64,
+            0u128
+        ));
+
+        run_to_block(4, None);
+
+        assert_eq!(
+            Gear::mailbox(USER_1)
+                .expect("should be one reply for the program author")
+                .into_values()
+                .count(),
+            1
+        );
+
+        let message = Gear::mailbox(USER_1)
+            .expect("should be one reply for the program author")
+            .into_values()
+            .next();
+        assert!(message.is_some());
+
+        assert_eq!(message.unwrap().payload, b"Hello, world!".encode());
+    })
+}
+
+#[test]
+fn wake_messages_after_program_inited() {
+    use tests_init_wait::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
+        };
+
+        run_to_block(2, None);
+
+        // While program is not inited all messages addressed to it are waiting.
+        // There could be dozens of them.
+        let n = 10;
+        for _ in 0..n {
+            assert_ok!(GearPallet::<Test>::send_message(
+                Origin::signed(USER_3).into(),
+                program_id,
+                vec![],
+                10_000_000u64,
+                0u128
+            ));
+        }
+
+        run_to_block(3, None);
+
+        let message_id = Gear::mailbox(USER_1).and_then(|t| {
+            let mut keys = t.keys();
+            keys.next().cloned()
+        });
+        assert!(message_id.is_some());
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            message_id.unwrap(),
+            b"PONG".to_vec(),
+            10_000_000u64,
+            0,
+        ));
+
+        run_to_block(4, None);
+
+        let actual_n = Gear::mailbox(USER_3)
+            .map(|t| {
+                t.into_values().fold(0usize, |i, m| {
+                    assert_eq!(m.payload, b"Hello, world!".encode());
+                    i + 1
+                })
+            })
+            .unwrap_or(0);
+
+        assert_eq!(actual_n, n);
     })
 }
 

@@ -38,6 +38,7 @@ use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
+pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
@@ -67,6 +68,7 @@ pub struct Program {
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub nonce: u64,
+    pub state: ProgramState,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
@@ -142,28 +144,6 @@ pub trait PaymentProvider<AccountId> {
     ) -> Result<(), DispatchError>;
 }
 
-#[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-pub enum IntermediateMessage {
-    InitProgram {
-        origin: H256,
-        program_id: H256,
-        code: Vec<u8>,
-        init_message_id: H256,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: u128,
-    },
-    DispatchMessage {
-        id: H256,
-        origin: H256,
-        destination: H256,
-        payload: Vec<u8>,
-        gas_limit: u64,
-        value: u128,
-        reply: Option<H256>,
-    },
-}
-
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
 enum CodeKeyPrefixKind {
     // "g::code::"
@@ -210,6 +190,7 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     prog_id.encode_to(&mut key);
     key.extend(b"::");
     msg_id.encode_to(&mut key);
+
     key
 }
 
@@ -231,6 +212,31 @@ pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
 pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
     sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeMetadata))
         .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
+}
+
+/// Enumeration contains variants for program state.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub enum ProgramState {
+    /// `init` method of a program has not yet finished its execution so
+    /// the program is not considered as initialized. All messages to such a
+    /// program go to the wait list.
+    /// `message_id` contains identifier of the initialization message.
+    Uninitialized { message_id: H256 },
+    /// Program has been successfully initialized and can process messages.
+    Initialized,
+}
+
+pub fn get_program_state(id: H256) -> Option<ProgramState> {
+    get_program(id).map(|p| p.state)
+}
+
+pub fn set_program_initialized(id: H256) {
+    if let Some(mut p) = get_program(id) {
+        if !matches!(p.state, ProgramState::Initialized) {
+            p.state = ProgramState::Initialized;
+            sp_io::storage::set(&program_key(id), &p.encode());
+        }
+    }
 }
 
 fn get_code_refs(code_hash: H256) -> u32 {
@@ -304,6 +310,7 @@ pub fn remove_program(id: H256) {
     pages_prefix.extend(&program_key(id));
     sp_io::storage::clear_prefix(&pages_prefix, None);
     sp_io::storage::clear_prefix(&program_key(id), None);
+    sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
 }
 
 pub fn program_exists(id: H256) -> bool {
@@ -400,19 +407,40 @@ pub fn remove_program_page(program_id: H256, page_num: u32) {
     sp_io::storage::clear(&page_key);
 }
 
-pub fn insert_waiting_message(prog_id: H256, msg_id: H256, message: Message, bn: u32) {
+pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, message: Message, bn: u32) {
     let payload = (message, bn);
-    sp_io::storage::set(&wait_key(prog_id, msg_id), &payload.encode());
+    sp_io::storage::set(&wait_key(dest_prog_id, msg_id), &payload.encode());
 }
 
-pub fn remove_waiting_message(prog_id: H256, msg_id: H256) -> Option<(Message, u32)> {
-    let id = wait_key(prog_id, msg_id);
+pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(Message, u32)> {
+    let id = wait_key(dest_prog_id, msg_id);
     let msg = sp_io::storage::get(&id).and_then(|val| <(Message, u32)>::decode(&mut &val[..]).ok());
 
     if msg.is_some() {
         sp_io::storage::clear(&id);
     }
     msg
+}
+
+fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
+    prog_id.encode_to(&mut key);
+
+    key
+}
+
+pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {
+    let key = waiting_init_prefix(dest_prog_id);
+    sp_io::storage::append(&key, message_id.encode());
+}
+
+pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
+    let key = waiting_init_prefix(dest_prog_id);
+    let messages = sp_io::storage::get(&key).and_then(|v| Vec::<H256>::decode(&mut &v[..]).ok());
+    sp_io::storage::clear(&key);
+
+    messages.unwrap_or_default()
 }
 
 pub fn code_exists(code_hash: H256) -> bool {
@@ -452,6 +480,7 @@ mod tests {
                 persistent_pages: Default::default(),
                 code_hash,
                 nonce: 0,
+                state: ProgramState::Initialized,
             };
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
@@ -478,6 +507,7 @@ mod tests {
                     persistent_pages: Default::default(),
                     code_hash,
                     nonce: 0,
+                    state: ProgramState::Initialized,
                 },
                 Default::default(),
             );
@@ -490,6 +520,7 @@ mod tests {
                     persistent_pages: Default::default(),
                     code_hash,
                     nonce: 1,
+                    state: ProgramState::Initialized,
                 },
                 Default::default(),
             );

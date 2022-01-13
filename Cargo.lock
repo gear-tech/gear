@@ -4163,6 +4163,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "tests-distributor",
+ "tests-init-wait",
  "wabt",
 ]
 
@@ -7443,6 +7444,18 @@ dependencies = [
 
 [[package]]
 name = "tests-distributor"
+version = "0.1.0"
+dependencies = [
+ "env_logger 0.9.0",
+ "gear-core",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder",
+ "tests-common",
+]
+
+[[package]]
+name = "tests-init-wait"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",

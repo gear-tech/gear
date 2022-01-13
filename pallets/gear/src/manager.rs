@@ -1,6 +1,6 @@
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GasAllowance,
-    MessageInfo, Pallet, ProgramsLimbo,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
+    Pallet, ProgramsLimbo,
 };
 use codec::Decode;
 use common::{
@@ -94,10 +94,11 @@ impl GasHandler for () {
     fn split(&mut self, _message_id: H256, _at: H256, _amount: u64) {}
 }
 
-impl<T, GH: GasHandler> CollectState for ExtManager<T, GH>
+impl<T, GH> CollectState for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     fn collect(&self) -> State {
         let programs: BTreeMap<ProgramId, Program> = PrefixIterator::<H256>::new(
@@ -137,11 +138,11 @@ where
     }
 }
 
-impl<T, GH: GasHandler> Default for ExtManager<T, GH>
+impl<T, GH> Default for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
-    GH: Default,
+    GH: Default + GasHandler,
 {
     fn default() -> Self {
         ExtManager {
@@ -151,16 +152,17 @@ where
     }
 }
 
-impl<T, GH: GasHandler> ExtManager<T, GH>
+impl<T, GH> ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
         common::native::get_program(ProgramId::from_origin(id))
     }
 
-    fn set_program(&self, program: gear_core::program::Program) {
+    pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
@@ -178,16 +180,18 @@ where
             nonce: program.message_nonce(),
             persistent_pages: persistent_pages.keys().copied().collect(),
             code_hash,
+            state: common::ProgramState::Uninitialized { message_id },
         };
 
         common::set_program(id, program, persistent_pages);
     }
 }
 
-impl<T, GH: GasHandler> JournalHandler for ExtManager<T, GH>
+impl<T, GH> JournalHandler for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
@@ -208,13 +212,22 @@ where
                 origin,
                 program,
             } => {
+                let program_id = program.id().into_origin();
                 let event = Event::InitSuccess(MessageInfo {
                     message_id: message_id.into_origin(),
                     origin: origin.into_origin(),
-                    program_id: program.id().into_origin(),
+                    program_id,
                 });
 
-                self.set_program(program);
+                common::waiting_init_take_messages(program_id)
+                    .into_iter()
+                    .for_each(|m_id| {
+                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                            common::queue_message(m);
+                        }
+                    });
+
+                common::set_program_initialized(program_id);
 
                 event
             }
@@ -252,8 +265,7 @@ where
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
-        // Adjust block gas allowance
-        GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));
+        Pallet::<T>::decrease_gas_allowance(amount);
         // TODO: weight to fee calculator might not be identity fee
         let charge = T::GasConverter::gas_to_fee(amount);
 

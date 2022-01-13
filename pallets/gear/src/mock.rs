@@ -28,12 +28,13 @@ use sp_runtime::{
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+type AccountId = u64;
 
-pub(crate) const USER_1: u64 = 1;
-pub(crate) const USER_2: u64 = 2;
-pub(crate) const USER_3: u64 = 3;
-pub(crate) const LOW_BALANCE_USER: u64 = 4;
-pub(crate) const BLOCK_AUTHOR: u64 = 255;
+pub(crate) const USER_1: AccountId = 1;
+pub(crate) const USER_2: AccountId = 2;
+pub(crate) const USER_3: AccountId = 3;
+pub(crate) const LOW_BALANCE_USER: AccountId = 4;
+pub(crate) const BLOCK_AUTHOR: AccountId = 255;
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -79,7 +80,7 @@ impl system::Config for Test {
     type BlockNumber = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
-    type AccountId = u64;
+    type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
     type Event = Event;
@@ -151,7 +152,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         balances: vec![
             (USER_1, 100_000_000_u128),
             (USER_2, 100_000_000_u128),
-            (USER_3, 100_000_000_u128),
+            (USER_3, 300_000_000_u128),
             (LOW_BALANCE_USER, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],
