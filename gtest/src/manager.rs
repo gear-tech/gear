@@ -19,7 +19,7 @@ pub struct InMemoryExtManager {
 }
 
 impl ProgramStorage for InMemoryExtManager {
-    fn store_program(&self, program: gear_core::program::Program) {
+    fn store_program(&self, program: gear_core::program::Program, _init_message_id: MessageId) {
         let _ = self.programs.borrow_mut().insert(program.id(), program);
     }
 }

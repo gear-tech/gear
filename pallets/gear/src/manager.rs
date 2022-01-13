@@ -5,8 +5,7 @@ use crate::{
 use codec::Decode;
 use common::{
     value_tree::{ConsumeResult, ValueView},
-    GasToFeeConverter, Origin, ProgramState, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX,
-    STORAGE_PROGRAM_PREFIX,
+    GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
@@ -163,7 +162,7 @@ where
         common::native::get_program(ProgramId::from_origin(id))
     }
 
-    pub fn set_program(&self, program: gear_core::program::Program) {
+    pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
@@ -181,6 +180,7 @@ where
             nonce: program.message_nonce(),
             persistent_pages: persistent_pages.keys().copied().collect(),
             code_hash,
+            state: common::ProgramState::Uninitialized { message_id },
         };
 
         common::set_program(id, program, persistent_pages);
@@ -227,7 +227,7 @@ where
                         }
                     });
 
-                common::set_program_state(program_id, ProgramState::Initialized);
+                common::set_program_initialized(program_id);
 
                 event
             }

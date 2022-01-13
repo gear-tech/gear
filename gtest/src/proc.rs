@@ -109,7 +109,7 @@ where
         ));
     }
 
-    journal_handler.store_program(program.clone());
+    journal_handler.store_program(program.clone(), message.message.id());
 
     let res = core_processor::process::<E>(program, message.into(), block_info);
 

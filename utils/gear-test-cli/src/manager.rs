@@ -21,8 +21,9 @@ where
     T: Config,
     T::AccountId: Origin,
 {
-    fn store_program(&self, program: gear_core::program::Program) {
-        self.inner.set_program(program);
+    fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId) {
+        self.inner
+            .set_program(program, init_message_id.into_origin());
     }
 }
 

@@ -30,7 +30,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::{
     memory::PAGE_SIZE,
-    message::Message,
+    message::{Message, MessageId},
     program::{Program, ProgramId},
 };
 use log::{Log, Metadata, Record, SetLoggerError};
@@ -48,7 +48,7 @@ use std::{
 const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ProgramStorage {
-    fn store_program(&self, program: gear_core::program::Program);
+    fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId);
 }
 
 pub struct FixtureLogger {

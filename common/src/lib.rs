@@ -38,7 +38,6 @@ use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
-pub const STORAGE_PROGRAM_STATE_PREFIX: &[u8] = b"g::prog_state::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
@@ -69,6 +68,7 @@ pub struct Program {
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub nonce: u64,
+    pub state: ProgramState,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
@@ -161,13 +161,6 @@ fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
-fn program_state_key(id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_PROGRAM_STATE_PREFIX);
-    id.encode_to(&mut key);
-    key
-}
-
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
         CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
@@ -222,7 +215,7 @@ pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
 }
 
 /// Enumeration contains variants for program state.
-#[derive(Decode, Encode)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum ProgramState {
     /// `init` method of a program has not yet finished its execution so
     /// the program is not considered as initialized. All messages to such a
@@ -234,12 +227,16 @@ pub enum ProgramState {
 }
 
 pub fn get_program_state(id: H256) -> Option<ProgramState> {
-    sp_io::storage::get(&program_state_key(id))
-        .map(|bytes| ProgramState::decode(&mut &bytes[..]).expect("ProgramState encoded correctly"))
+    get_program(id).map(|p| p.state)
 }
 
-pub fn set_program_state(id: H256, state: ProgramState) {
-    sp_io::storage::set(&program_state_key(id), &state.encode())
+pub fn set_program_initialized(id: H256) {
+    if let Some(mut p) = get_program(id) {
+        if !matches!(p.state, ProgramState::Initialized) {
+            p.state = ProgramState::Initialized;
+            sp_io::storage::set(&program_key(id), &p.encode());
+        }
+    }
 }
 
 fn get_code_refs(code_hash: H256) -> u32 {
@@ -313,7 +310,6 @@ pub fn remove_program(id: H256) {
     pages_prefix.extend(&program_key(id));
     sp_io::storage::clear_prefix(&pages_prefix, None);
     sp_io::storage::clear_prefix(&program_key(id), None);
-    sp_io::storage::clear_prefix(&program_state_key(id), None);
     sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
 }
 
@@ -484,6 +480,7 @@ mod tests {
                 persistent_pages: Default::default(),
                 code_hash,
                 nonce: 0,
+                state: ProgramState::Initialized,
             };
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
@@ -510,6 +507,7 @@ mod tests {
                     persistent_pages: Default::default(),
                     code_hash,
                     nonce: 0,
+                    state: ProgramState::Initialized,
                 },
                 Default::default(),
             );
@@ -522,6 +520,7 @@ mod tests {
                     persistent_pages: Default::default(),
                     code_hash,
                     nonce: 1,
+                    state: ProgramState::Initialized,
                 },
                 Default::default(),
             );

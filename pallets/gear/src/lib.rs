@@ -588,15 +588,8 @@ pub mod pallet {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
-            ExtManager::<T>::default().set_program(program);
-
             let init_message_id = common::next_message_id(&init_payload);
-            common::set_program_state(
-                id,
-                ProgramState::Uninitialized {
-                    message_id: init_message_id,
-                },
-            );
+            ExtManager::<T>::default().set_program(program, init_message_id);
 
             let _ = common::value_tree::ValueView::get_or_create(
                 GAS_VALUE_PREFIX,
