@@ -12,9 +12,14 @@ exports.getWasmMetadata = async (wasmBytes) => {
             STACK_MAX: memory.buffer.byteLength,
             alloc: (pages) => { return memory.grow(pages) },
             free: (_pages) => { },
+            gas: () => { },
             gr_debug: (string_ptr, len) => {
                 console.log('GR_DEBUG', len, ab2str(memory.buffer.slice(string_ptr, string_ptr + len)));
             },
+            gr_block_height: () => { },
+            gr_block_timestamp: () => { },
+            gr_exit_code: () => { },
+            gr_program_id: () => { },
             gr_msg_id: () => { },
             gr_size: () => { },
             gr_read: () => { },
@@ -26,6 +31,7 @@ exports.getWasmMetadata = async (wasmBytes) => {
             gr_send_push: () => { },
             gr_reply: () => { },
             gr_reply_push: () => { },
+            gr_reply_commit: () => { },
             gr_reply_to: () => { },
             gr_value: () => { },
             gr_wait: () => { },
@@ -34,34 +40,40 @@ exports.getWasmMetadata = async (wasmBytes) => {
     };
 
     let metadata = {
-        init_input: "",
-        init_output: "",
-        async_init_input: "",
-        async_init_output: "",
-        handle_input: "",
-        handle_output: "",
-        async_handle_input: "",
-        async_handle_output: "",
-        state_input: "",
-        state_output: "",
-        registry: "",
-        title: ""
+        init_input: null,
+        init_output: null,
+        async_init_input: null,
+        async_init_output: null,
+        handle_input: null,
+        handle_output: null,
+        async_handle_input: null,
+        async_handle_output: null,
+        state_input: null,
+        state_output: null,
+        registry: null,
+        title: null,
     }
 
     let module = await WebAssembly.instantiate(wasmBytes, importObj);
+    let instance_exports = module.instance.exports;
 
-    metadata.init_input = readMeta(memory, module.instance.exports.meta_init_input());
-    metadata.init_output = readMeta(memory, module.instance.exports.meta_init_output());
-    metadata.async_init_input = readMeta(memory, module.instance.exports.meta_async_init_input());
-    metadata.async_init_output = readMeta(memory, module.instance.exports.meta_async_init_output());
-    metadata.handle_input = readMeta(memory, module.instance.exports.meta_handle_input());
-    metadata.handle_output = readMeta(memory, module.instance.exports.meta_handle_output());
-    metadata.async_handle_input = readMeta(memory, module.instance.exports.meta_async_handle_input());
-    metadata.async_handle_output = readMeta(memory, module.instance.exports.meta_async_handle_output());
-    metadata.state_input = readMeta(memory, module.instance.exports.meta_state_input());
-    metadata.state_output = readMeta(memory, module.instance.exports.meta_state_output());
-    metadata.registry = `0x${readMeta(memory, module.instance.exports.meta_registry())}`;
-    metadata.title = readMeta(memory, module.instance.exports.meta_title());
+    const expected_exports = [
+        "init_input", "init_output",
+        "async_init_input", "async_init_output",
+        "handle_input", "handle_output",
+        "async_handle_input", "async_handle_output",
+        "state_input", "state_output",
+        "registry",
+        "title",
+    ];
+
+    for (const exp of expected_exports) {
+        if (`meta_${exp}` in instance_exports)
+            metadata[exp] = readMeta(memory, instance_exports[`meta_${exp}`]());
+    }
+
+    if (metadata.registry !== null)
+        metadata.registry = `0x${metadata.registry}`;
 
     return metadata;
 }
