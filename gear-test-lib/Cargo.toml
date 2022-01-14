@@ -1,0 +1,13 @@
+[package]
+name = "gear-test-lib"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+gear-core = { path = "../core" }
+core-processor = { package = "gear-core-processor", path = "../core-processor" }
+
+anyhow = "1.0.52"
+codec = { package = "parity-scale-codec", version = "2", features = ["derive"] }
