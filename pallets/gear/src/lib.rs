@@ -272,6 +272,36 @@ pub mod pallet {
             .flatten()
         }
 
+        pub fn remove_and_claim_from_mailbox(
+            user_id: &T::AccountId,
+            message_id: H256,
+        ) -> Result<common::Message, DispatchError> {
+            let message = Self::remove_from_mailbox(user_id.clone().into_origin(), message_id)
+                .ok_or(Error::<T>::NoMessageInMailbox)?;
+
+            // There shouldn't be any associated gas tree for a message in a user's mailbox
+            let maybe_gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id);
+            if maybe_gas_tree.is_some() {
+                log::warn!(
+                    target: "runtime::gear",
+                    "Message in user's {:?} mailbox has an associated gas tree: {:?}",
+                    user_id.clone().into_origin(), message_id
+                );
+            }
+
+            if message.value > 0 {
+                // Assuming the programs has enough balance
+                T::Currency::transfer(
+                    &<T::AccountId as Origin>::from_origin(message.source),
+                    user_id,
+                    message.value.unique_saturated_into(),
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
+
+            Ok(message)
+        }
+
         pub fn get_gas_spent(dest: H256, payload: Vec<u8>) -> Option<u64> {
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -575,7 +605,7 @@ pub mod pallet {
 
             let reserve_fee = T::GasConverter::gas_to_fee(gas_limit);
 
-            // First we reserve enough funds on the account to pay for 'gas_limit'
+            // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             T::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
@@ -657,15 +687,9 @@ pub mod pallet {
                 Error::<T>::ProgramIsNotInitialized
             );
 
-            let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
-
-            // First we reserve enough funds on the account to pay for 'gas_limit'
-            T::Currency::reserve(&who, gas_limit_reserve)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-
             let message_id = common::next_message_id(&payload);
 
-            // Since messages a guaranteed to be dispatched, we transfer value immediately
+            // Since messages are guaranteed to be dispatched, we transfer value immediately
             T::Currency::transfer(
                 &who,
                 &<T::AccountId as Origin>::from_origin(destination),
@@ -673,33 +697,52 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )?;
 
-            let origin = who.into_origin();
-            let _ = common::value_tree::ValueView::get_or_create(
-                GAS_VALUE_PREFIX,
-                origin,
-                message_id,
-                gas_limit,
-            );
-
-            let message = Message {
-                id: message_id,
-                source: origin,
-                payload,
-                gas_limit,
-                dest: destination,
-                value: value.unique_saturated_into(),
-                reply: None,
-            };
-
-            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                message_id,
-                origin,
-                program_id: destination,
-            }));
-
             if common::program_exists(destination) {
+                let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
+
+                // First we reserve enough funds on the account to pay for `gas_limit`
+                T::Currency::reserve(&who, gas_limit_reserve)
+                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+                let origin = who.into_origin();
+
+                let _ = common::value_tree::ValueView::get_or_create(
+                    GAS_VALUE_PREFIX,
+                    origin,
+                    message_id,
+                    gas_limit,
+                );
+
+                let message = Message {
+                    id: message_id,
+                    source: origin,
+                    payload,
+                    gas_limit,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: None,
+                };
+
                 common::queue_message(message);
+
+                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                    message_id,
+                    origin,
+                    program_id: destination,
+                }));
             } else {
+                // Message in mailbox is not meant for any processing, hence 0 gas limit
+                // and no gas tree needs to be created
+                let message = Message {
+                    id: message_id,
+                    source: who.into_origin(),
+                    payload,
+                    gas_limit: 0,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: None,
+                };
+
                 Self::insert_to_mailbox(destination, message.clone());
                 Self::deposit_event(Event::Log(message));
             }
@@ -736,85 +779,66 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let original_message =
-                Self::remove_from_mailbox(who.clone().into_origin(), reply_to_id)
-                    .ok_or(Error::<T>::NoMessageInMailbox)?;
-
+            // Claim outstanding value from the original message first
+            let original_message = Self::remove_and_claim_from_mailbox(&who, reply_to_id)?;
             let destination = original_message.source;
 
-            let locked_gas = original_message.gas_limit;
-            // Offset the gas_limit against the gas passed to us in the original message
-            let gas_limit_reserve =
-                T::GasConverter::gas_to_fee(gas_limit.saturating_sub(locked_gas));
-
-            if gas_limit_reserve > 0_u32.into() {
-                // First we reserve enough funds on the account to pay for 'gas_limit'
-                T::Currency::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-            } else {
-                // There still might be some gas leftover that needs to be refunded to the origin
-                // Assuming the programs has enough balance
-                T::Currency::transfer(
-                    &<T::AccountId as Origin>::from_origin(destination),
-                    &who,
-                    T::GasConverter::gas_to_fee(locked_gas.saturating_sub(gas_limit)),
-                    ExistenceRequirement::AllowDeath,
-                )?;
-            }
-
-            let locked_value: BalanceOf<T> = original_message.value.unique_saturated_into();
-            // Tally up the `values` from the two messages to find out who owes who
-            let offset_value = value.saturating_sub(locked_value);
-            if offset_value > 0_u32.into() {
-                // Some outstanding amount still remains to be transferred to the original message source
-                T::Currency::transfer(
-                    &who,
-                    &<T::AccountId as Origin>::from_origin(destination),
-                    offset_value,
-                    ExistenceRequirement::AllowDeath,
-                )?;
-            } else {
-                // The value owed to us exceeds the `value` to transfer out
-                // TODO: here we assume that since the message ended up in the mailbox all necessary
-                // checks had been done, including the validity of the `value`amount the program that had created
-                // the message wants to transfer (in other words, it has enough balance). Need to audit this.
-                T::Currency::transfer(
-                    &<T::AccountId as Origin>::from_origin(destination),
-                    &who,
-                    locked_value.saturating_sub(value),
-                    ExistenceRequirement::AllowDeath, // TODO: should we use ExistenceRequirement::KeepAlive instead?
-                )?;
-            }
+            // Since messages are guaranteed to be dispatched, we transfer value immediately
+            T::Currency::transfer(
+                &who,
+                &<T::AccountId as Origin>::from_origin(destination),
+                value,
+                ExistenceRequirement::AllowDeath,
+            )?;
 
             let message_id = common::next_message_id(&payload);
 
-            let origin = who.into_origin();
-            let _ = common::value_tree::ValueView::get_or_create(
-                GAS_VALUE_PREFIX,
-                origin,
-                message_id,
-                gas_limit,
-            );
-
-            let message = Message {
-                id: message_id,
-                source: origin,
-                payload,
-                gas_limit,
-                dest: destination,
-                value: value.unique_saturated_into(),
-                reply: Some((reply_to_id, 0)),
-            };
-
-            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                message_id,
-                origin,
-                program_id: destination,
-            }));
-
             if common::program_exists(destination) {
+                let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
+
+                // First we reserve enough funds on the account to pay for `gas_limit`
+                T::Currency::reserve(&who, gas_limit_reserve)
+                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+                let origin = who.into_origin();
+
+                let _ = common::value_tree::ValueView::get_or_create(
+                    GAS_VALUE_PREFIX,
+                    origin,
+                    message_id,
+                    gas_limit,
+                );
+
+                let message = Message {
+                    id: message_id,
+                    source: origin,
+                    payload,
+                    gas_limit,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: Some((reply_to_id, 0)),
+                };
+
                 common::queue_message(message);
+
+                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                    message_id,
+                    origin,
+                    program_id: destination,
+                }));
             } else {
+                // Message in mailbox is not meant for any processing, hence 0 gas limit
+                // and no gas tree needs to be created
+                let message = Message {
+                    id: message_id,
+                    source: who.into_origin(),
+                    payload,
+                    gas_limit: 0,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: Some((reply_to_id, 0)),
+                };
+
                 Self::insert_to_mailbox(destination, message.clone());
                 Self::deposit_event(Event::Log(message));
             }
@@ -872,33 +896,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let message = Self::remove_from_mailbox(who.clone().into_origin(), message_id)
-                .ok_or(Error::<T>::NoMessageInMailbox)?;
-
-            // gas should be returned to sender tree
-            let gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id)
-                .ok_or(Error::<T>::NoMessageTree)?;
-
-            if message.value > 0 {
-                // Assuming the programs has enough balance
-                T::Currency::transfer(
-                    &<T::AccountId as Origin>::from_origin(message.source),
-                    &who,
-                    message.value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
-                )?;
-            }
-
-            if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
-                gas_tree.consume()
-            {
-                let refund = T::GasConverter::gas_to_fee(gas_left);
-
-                let _ = T::Currency::unreserve(
-                    &<T::AccountId as Origin>::from_origin(external),
-                    refund,
-                );
-            }
+            let _ = Self::remove_and_claim_from_mailbox(&who, message_id)?;
 
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 
