@@ -47,7 +47,7 @@ pub fn handle_journal(
                 awakening_id,
             } => handler.wake_message(message_id, program_id, awakening_id),
             JournalNote::UpdateNonce { program_id, nonce } => {
-                let _ = nonces.insert(program_id, nonce);
+                nonces.insert(program_id, nonce);
             }
             JournalNote::UpdatePage {
                 program_id,
@@ -55,7 +55,7 @@ pub fn handle_journal(
                 data,
             } => {
                 let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
-                let _ = entry.insert(page_number, data);
+                entry.insert(page_number, data);
             }
         }
     }
