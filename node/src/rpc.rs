@@ -47,7 +47,7 @@ where
     C: Send + Sync + 'static,
     C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-    C::Api: pallet_gear_rpc::GearRuntimeApi<Block, ProgramId>,
+    C::Api: pallet_gear_rpc::GearRuntimeApi<Block, AccountId, ProgramId>,
     C::Api: BlockBuilder<Block>,
     P: TransactionPool + 'static,
 {

@@ -22,8 +22,11 @@ use codec::Codec;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    pub trait GearApi<ProgramId>
-    where ProgramId: Codec {
-        fn get_gas_spent(program_id: ProgramId, payload: Vec<u8>) -> Option<u64>;
+    pub trait GearApi<AccountId, ProgramId>
+    where
+    AccountId: Codec,
+    ProgramId: Codec,
+    {
+        fn get_gas_spent(account_id: AccountId, program_id: ProgramId, payload: Vec<u8>) -> Option<u64>;
     }
 }

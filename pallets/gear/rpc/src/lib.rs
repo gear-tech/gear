@@ -31,10 +31,11 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 #[rpc]
-pub trait GearApi<BlockHash, ProgramId> {
+pub trait GearApi<BlockHash, AccountId, ProgramId> {
     #[rpc(name = "gear_getGasSpent")]
     fn get_gas_spent(
         &self,
+        account_id: AccountId,
         program_id: ProgramId,
         payload: Bytes,
         at: Option<BlockHash>,
@@ -76,15 +77,18 @@ impl From<Error> for i64 {
     }
 }
 
-impl<C, Block, ProgramId> GearApi<<Block as BlockT>::Hash, ProgramId> for Gear<C, Block>
+impl<C, Block, AccountId, ProgramId> GearApi<<Block as BlockT>::Hash, AccountId, ProgramId>
+    for Gear<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-    C::Api: GearRuntimeApi<Block, ProgramId>,
+    C::Api: GearRuntimeApi<Block, AccountId, ProgramId>,
+    AccountId: Codec,
     ProgramId: Codec + Copy,
 {
     fn get_gas_spent(
         &self,
+        account_id: AccountId,
         program_id: ProgramId,
         payload: Bytes,
         at: Option<<Block as BlockT>::Hash>,
@@ -95,7 +99,7 @@ where
 			self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(&at, program_id, payload.to_vec())
+            .get_gas_spent(&at, account_id, program_id, payload.to_vec())
             .map_err(|e| RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
                 message: "Unable to get gas spent.".into(),
