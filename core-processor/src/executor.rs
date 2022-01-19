@@ -45,7 +45,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let mut env = E::new();
 
     let Dispatch { kind, message } = dispatch.clone();
-    let entry = kind.into_entry();
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(message.gas_limit());
@@ -62,7 +61,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     // Charging for initial or loaded pages.
-    if entry == "init" {
+    if program.get_pages().is_empty() {
         if gas_counter.charge(settings.init_cost() * program.static_pages() as u64)
             != ChargeResult::Enough
         {
@@ -106,9 +105,10 @@ pub fn execute_wasm<E: Environment<Ext>>(
     }
 
     // Getting allocations.
-    let allocations: BTreeSet<PageNumber> = match entry {
-        "init" => (0..program.static_pages()).map(Into::into).collect(),
-        _ => program.get_pages().keys().cloned().collect(),
+    let allocations: BTreeSet<PageNumber> = if !program.get_pages().is_empty() {
+        program.get_pages().keys().cloned().collect()
+    } else {
+        (0..program.static_pages()).map(Into::into).collect()
     };
 
     // Creating memory context.
@@ -143,7 +143,13 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let initial_pages = program.get_pages();
 
     // Running backend.
-    let (res, mut ext) = env.setup_and_run(ext, &instrumented_code, initial_pages, &*memory, entry);
+    let (res, mut ext) = env.setup_and_run(
+        ext,
+        &instrumented_code,
+        initial_pages,
+        &*memory,
+        kind.into_entry(),
+    );
 
     // Parsing outcome.
     let kind = if let Err(e) = res {
