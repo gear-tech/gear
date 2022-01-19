@@ -217,17 +217,22 @@ where
                 message_id: message_id.into_origin(),
                 outcome: ExecutionResult::Success,
             }),
-            CoreDispatchOutcome::MessageTrap { message_id, trap } => {
-                let reason = if let Some(reason) = trap {
-                    log::warn!(
-                        target: "runtime::gear",
-                        "Program terminated with a trap: {}",
-                        reason
-                    );
-                    reason.as_bytes().to_vec()
-                } else {
-                    Vec::new()
-                };
+            CoreDispatchOutcome::MessageTrap {
+                message_id,
+                program_id,
+                trap,
+            } => {
+                let reason = trap
+                    .map(|v| {
+                        log::info!(
+                            target: "runtime::gear",
+                            "🪤 Program {} terminated with a trap: {}",
+                            program_id,
+                            v
+                        );
+                        v.as_bytes().to_vec()
+                    })
+                    .unwrap_or_default();
 
                 Event::MessageDispatched(DispatchOutcome {
                     message_id: message_id.into_origin(),
