@@ -157,11 +157,12 @@ where
         common::native::get_program(ProgramId::from_origin(id))
     }
 
+    /// Used only after init
     pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
-            .map(|(k, v)| (k.raw(), v.to_vec()))
+            .map(|(k, v)| (k.raw(), v.as_ref().expect("Must have page data").to_vec()))
             .collect();
 
         let id = program.id().into_origin();

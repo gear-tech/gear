@@ -36,7 +36,7 @@ use gear_core::{
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<E: Environment<Ext>>(
-    program: Program,
+    mut program: Program,
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
@@ -154,6 +154,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         error_explanation: None,
     };
 
+    let initial_pages = program.get_pages_mut();
+
     // Running backend.
     let BackendReport { termination, info } = match env.setup_and_execute(
         ext,
@@ -204,10 +206,16 @@ pub fn execute_wasm<E: Environment<Ext>>(
         .expect("Can't fail");
 
     for (page, data) in info.pages {
-        let mut need_update = true;
-        if let Some(initial_data) = initial_pages.get(&page) {
-            need_update = *initial_data.to_vec() != data;
-        }
+        let need_update = if let Some(initial_data) = initial_pages.get(&page) {
+            if let Some(initial_data) = initial_data {
+                !data.eq(initial_data.as_ref())
+            } else {
+                // page has no buf in inital pages - means page has not been accessed - no reasons to update.
+                false
+            }
+        } else {
+            true
+        };
         if need_update {
             page_update.insert(page, Some(data));
         }

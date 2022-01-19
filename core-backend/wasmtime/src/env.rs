@@ -239,7 +239,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         &mut self,
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
         entry_point: &str,
     ) -> Result<BackendReport, BackendError> {

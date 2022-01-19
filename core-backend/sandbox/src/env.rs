@@ -19,7 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{funcs, memory::MemoryWrap};
-use alloc::{boxed::Box, collections::BTreeMap, format};
+use alloc::{boxed::Box, collections::BTreeMap, format, vec::Vec};
 use core::marker::PhantomData;
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
@@ -33,6 +33,9 @@ use sp_sandbox::{
     SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
 };
 
+use common::Origin;
+use core::convert::TryFrom;
+
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E: Ext>(PhantomData<E>);
 
@@ -44,16 +47,18 @@ impl<E: Ext> Default for SandboxEnvironment<E> {
 
 pub struct Runtime<E: Ext + Into<ExtInfo>> {
     pub(crate) ext: LaterExt<E>,
+    pub(crate) lazy_pages_enabled: bool,
     pub(crate) trap: Option<&'static str>,
 }
 
 impl<E: Ext + Into<ExtInfo> + 'static> Runtime<E> {
-    fn from_ext(ext: E) -> Self {
+    fn new(ext: E, lazy_pages_enabled: bool) -> Self {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
 
         Self {
             ext: later_ext,
+            lazy_pages_enabled,
             trap: None,
         }
     }
@@ -114,7 +119,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         &mut self,
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
         entry_point: &str,
     ) -> Result<BackendReport, BackendError> {
@@ -131,11 +136,42 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             }
         };
 
-        let mut runtime = Runtime::from_ext(ext);
+        // In case any page buf is none we suppose that it's candidate to be lazy page
+        let lazy_pages_enabled = if !memory_pages.iter().any(|(_, buf)| buf.is_none()) {
+            log::debug!("lazy-pages: there is no pages to be lazy");
+            false
+        } else if cfg!(feature = "disable_lazy_pages")
+            || cfg!(target_family = "wasm")
+            || !gear_ri::gear_ri::init_lazy_pages()
+        {
+            // In case we don't support lazy-pages then we loads them all now.
+
+            // TODO: to support in Wasm runtime we must change embedded executor to host executor.
+            // TODO: also we cannot support for validators in relay-chain,
+            // but it can be fixed in future only.
+
+            log::debug!("lazy-pages: not unsupported here");
+            let prog_id_hash = ext.program_id().into_origin();
+            memory_pages
+                .iter_mut()
+                .filter(|(_x, y)| y.is_none())
+                .for_each(|(x, y)| {
+                    let data = common::get_program_page_data(prog_id_hash, x.raw())
+                        .expect("Page data must be in storage");
+                    *y = Option::from(Box::from(PageBuf::try_from(data).expect(
+                        "Must be able to convert vec to PageBuf, may be vec has wrong size",
+                    )));
+                });
+            false
+        } else {
+            log::debug!("lazy-pages: enabled");
+            true
+        };
+
+        let mut runtime = Runtime::new(ext, lazy_pages_enabled);
 
         let mut instance = Instance::new(binary, &env_builder, &mut runtime).map_err(|e| {
             let info: ExtInfo = runtime.ext.unset().into();
-
             BackendError {
                 reason: "Unable to instanciate module",
                 description: Some(format!("{:?}", e).into()),
@@ -154,7 +190,69 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             }
         })?;
 
+        // Actions for lazy pages: protect and save storage keys.
+        if lazy_pages_enabled {
+            let lazy_pages = memory_pages
+                .iter()
+                .filter(|(_num, buf)| buf.is_none())
+                .map(|(num, _buf)| num.raw())
+                .collect::<Vec<u32>>();
+            let prog_id_hash = runtime
+                .ext
+                .with(|ext| ext.program_id())
+                .expect("Must be correct")
+                .into_origin();
+            let wasm_mem_begin_addr = runtime
+                .ext
+                .with(|ext| ext.get_wasm_memory_begin_addr())
+                .expect("Must be correct");
+
+            gear_ri::gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr as u64);
+
+            lazy_pages.iter().for_each(|p| {
+                common::save_page_lazy_info(prog_id_hash, *p);
+            });
+
+            gear_ri::gear_ri::mprotect_wasm_pages(
+                wasm_mem_begin_addr as u64,
+                &lazy_pages,
+                false,
+                false,
+                false,
+            );
+        }
+
         let res = instance.invoke(entry_point, &[], &mut runtime);
+
+        if lazy_pages_enabled {
+            // Loads data for released lazy pages. Data which was before execution.
+            let released_pages = gear_ri::gear_ri::get_released_pages();
+            released_pages.into_iter().for_each(|page| {
+                let data = gear_ri::gear_ri::get_released_page_old_data(page);
+                memory_pages.insert(
+                    (page).into(),
+                    Option::from(Box::new(
+                        PageBuf::try_from(data).expect("Must be able to convert"),
+                    )),
+                );
+            });
+
+            // Removes protections from lazy pages
+            let wasm_mem_begin_addr = runtime
+                .ext
+                .with(|ext| ext.get_wasm_memory_begin_addr())
+                .expect("Must be correct") as u64;
+            let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
+            gear_ri::gear_ri::mprotect_wasm_pages(
+                wasm_mem_begin_addr,
+                &lazy_pages,
+                true,
+                true,
+                false,
+            );
+
+            gear_ri::gear_ri::reset_lazy_pages_info();
+        }
 
         let info: ExtInfo = runtime.ext.unset().into();
 

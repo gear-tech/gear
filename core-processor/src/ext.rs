@@ -211,7 +211,7 @@ impl EnvExt for Ext {
         self.message_context.current().id()
     }
 
-    fn program_id(&mut self) -> ProgramId {
+    fn program_id(&self) -> ProgramId {
         self.memory_context.program_id()
     }
 
@@ -297,5 +297,9 @@ impl EnvExt for Ext {
             .map_err(|_| "Unable to mark the message to be woken");
 
         self.return_and_store_err(result)
+    }
+
+    fn get_wasm_memory_begin_addr(&mut self) -> usize {
+        self.memory_context.memory().get_wasm_memory_begin_addr()
     }
 }

@@ -207,6 +207,21 @@ pub fn alloc<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
 
     let pages: u32 = pop_i32(&mut args)?;
 
+    // New pages allocation may change wasm memory buffer location.
+    // So, if lazy-pages are enabled we remove protections from lazy-pages
+    // and returns it back for new wasm memory buffer pages.
+    // Also we correct lazy-pages info if need.
+    let mut mem_addr = 0;
+    let mut lazy_pages = alloc::vec::Vec::new();
+    if ctx.lazy_pages_enabled {
+        mem_addr = ctx
+            .ext
+            .with(|ext| ext.get_wasm_memory_begin_addr())
+            .expect("Must be corrrect");
+        lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
+        gear_ri::gear_ri::mprotect_wasm_pages(mem_addr as u64, &lazy_pages, true, true, false);
+    }
+
     let ptr = ctx.ext.with(|ext| ext.alloc(pages.into())).and_then(|v| {
         v.map(|v| {
             let ptr = v.raw();
@@ -214,6 +229,29 @@ pub fn alloc<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
             ptr
         })
     });
+
+    if ctx.lazy_pages_enabled && ptr.is_ok() {
+        let new_mem_addr = ctx
+            .ext
+            .with(|ext| ext.get_wasm_memory_begin_addr())
+            .expect("Must be corrrect");
+        if new_mem_addr != mem_addr {
+            log::debug!(
+                "sandbox executor changed wasm mem buff: from {:#x} to {:#x}",
+                mem_addr,
+                new_mem_addr
+            );
+            gear_ri::gear_ri::set_wasm_mem_begin_addr(new_mem_addr as u64);
+        }
+        gear_ri::gear_ri::mprotect_wasm_pages(
+            new_mem_addr as u64,
+            &lazy_pages,
+            false,
+            false,
+            false,
+        );
+    }
+
     ptr.map(|res| ReturnValue::Value(Value::I32(res as i32)))
         .map_err(|err| {
             ctx.trap = Some(err);

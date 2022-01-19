@@ -20,6 +20,10 @@ name = "gear-node"
 clap = { version = "3.0", features = ["derive"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 hex-literal = "0.3.4"
+page_size = "0.4.2"
+libc = { version = "0.2.101", default-features = false }
+nix = "0.20.0"
+primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
@@ -46,6 +50,7 @@ sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-te
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-runtime = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 # These dependencies are used for the node template's RPCs
 jsonrpc-core = "18.0.0"
@@ -66,6 +71,8 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear
 # Internal
 gear-runtime = { path = "../runtime" }
 gear-test-cli = { path = "../utils/gear-test-cli" }
+gear-lazy-pages = { path = "../lazy-pages" }
+gear-ri = { path = "../ri" }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }

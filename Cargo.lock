@@ -2012,8 +2012,11 @@ name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
  "gear-backend-common",
+ "gear-common",
  "gear-core",
+ "gear-ri",
  "log",
+ "sp-io",
  "sp-sandbox",
 ]
 
@@ -2032,6 +2035,7 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "gear-core",
+ "gear-ri",
  "log",
  "parity-scale-codec",
  "primitive-types",
@@ -2069,18 +2073,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-lazy-pages"
+version = "0.1.0"
+dependencies = [
+ "errno",
+ "gear-core",
+ "libc",
+ "log",
+ "nix 0.23.1",
+ "page_size",
+ "sp-io",
+ "sp-std",
+]
+
+[[package]]
 name = "gear-node"
 version = "0.1.0"
 dependencies = [
  "clap",
  "frame-benchmarking",
  "frame-benchmarking-cli",
+ "gear-lazy-pages",
+ "gear-ri",
  "gear-runtime",
  "gear-test-cli",
  "hex-literal",
  "jsonrpc-core",
+ "libc",
+ "nix 0.20.0",
+ "page_size",
  "pallet-gear-rpc",
  "pallet-transaction-payment-rpc",
+ "primitive-types",
  "sc-basic-authorship",
  "sc-cli",
  "sc-client-api",
@@ -2104,11 +2128,26 @@ dependencies = [
  "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
+ "sp-io",
  "sp-runtime",
  "sp-timestamp",
  "sp-transaction-pool",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
+]
+
+[[package]]
+name = "gear-ri"
+version = "0.1.0"
+dependencies = [
+ "errno",
+ "gear-core",
+ "gear-lazy-pages",
+ "libc",
+ "log",
+ "page_size",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -3755,9 +3794,9 @@ dependencies = [
 
 [[package]]
 name = "memoffset"
-version = "0.6.1"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "157b4208e3059a8f9e78d559edc658e13df41410cb3ae03979c83130067fdd87"
+checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
 dependencies = [
  "autocfg",
 ]
@@ -4026,6 +4065,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa9b4819da1bc61c0ea48b63b7bc8604064dd43013e7cc325df098d49cd7c18a"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 1.0.0",
+ "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4215,6 +4279,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "page_size"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebde548fbbf1ea81a99b128872779c437752fb99f217c45245e1a61dcd9edcd"
+dependencies = [
+ "libc",
+ "winapi 0.3.9",
 ]
 
 [[package]]
