@@ -1151,7 +1151,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             vec![],
             Vec::new(),
-            150_000_000u64,
+            99_000_000u64,
             0u128
         ));
 
@@ -1214,7 +1214,7 @@ fn defer_program_initialization() {
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             vec![],
             Vec::new(),
-            150_000_000u64,
+            99_000_000u64,
             0u128
         ));
 
@@ -1242,7 +1242,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1).into(),
             *message_id,
             b"PONG".to_vec(),
-            100_000_000u64,
+            50_000_000u64,
             0,
         ));
 
@@ -1252,7 +1252,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1).into(),
             program_id,
             vec![],
-            100_000_000u64,
+            30_000_000u64,
             0u128
         ));
 
@@ -1289,7 +1289,7 @@ fn wake_messages_after_program_inited() {
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             vec![],
             Vec::new(),
-            150_000_000u64,
+            99_000_000u64,
             0u128
         ));
 
@@ -1316,7 +1316,7 @@ fn wake_messages_after_program_inited() {
                 Origin::signed(USER_3).into(),
                 program_id,
                 vec![],
-                99_000_000u64,
+                25_000_000u64,
                 0u128
             ));
         }
@@ -1333,7 +1333,7 @@ fn wake_messages_after_program_inited() {
             Origin::signed(USER_1).into(),
             message_id.unwrap(),
             b"PONG".to_vec(),
-            90_000_000u64,
+            50_000_000u64,
             0,
         ));
 
