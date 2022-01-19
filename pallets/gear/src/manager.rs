@@ -227,7 +227,7 @@ where
                         log::info!(
                             target: "runtime::gear",
                             "🪤 Program {} terminated with a trap: {}",
-                            program_id,
+                            program_id.into_origin(),
                             v
                         );
                         v.as_bytes().to_vec()
