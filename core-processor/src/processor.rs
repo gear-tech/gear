@@ -61,6 +61,7 @@ pub fn process<E: Environment<Ext>>(
                     journal.push(JournalNote::MessageDispatched(
                         DispatchOutcome::MessageTrap {
                             message_id,
+                            program_id,
                             trap: Some(e.reason),
                         },
                     ))
@@ -137,7 +138,11 @@ pub fn process<E: Environment<Ext>>(
                 ))
             } else {
                 journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::MessageTrap { message_id, trap },
+                    DispatchOutcome::MessageTrap {
+                        message_id,
+                        program_id,
+                        trap,
+                    },
                 ));
             }
 
