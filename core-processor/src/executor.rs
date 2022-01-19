@@ -106,9 +106,10 @@ pub fn execute_wasm<E: Environment<Ext>>(
     }
 
     // Getting allocations.
-    let allocations: BTreeSet<PageNumber> = match entry {
-        "init" => (0..program.static_pages()).map(Into::into).collect(),
-        _ => program.get_pages().keys().cloned().collect(),
+    let allocations: BTreeSet<PageNumber> = if !program.get_pages().is_empty() {
+        program.get_pages().keys().cloned().collect()
+    } else {
+        (0..program.static_pages()).map(Into::into).collect()
     };
 
     // Creating memory context.
