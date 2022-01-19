@@ -1151,7 +1151,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             vec![],
             Vec::new(),
-            20_000_000u64,
+            150_000_000u64,
             0u128
         ));
 
@@ -1190,7 +1190,7 @@ fn uninitialized_program_should_accept_replies() {
             Origin::signed(USER_1).into(),
             *message_id,
             b"PONG".to_vec(),
-            20_000_000u64,
+            50_000_000u64,
             0,
         ));
 
@@ -1214,7 +1214,7 @@ fn defer_program_initialization() {
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             vec![],
             Vec::new(),
-            20_000_000u64,
+            150_000_000u64,
             0u128
         ));
 
@@ -1242,7 +1242,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1).into(),
             *message_id,
             b"PONG".to_vec(),
-            20_000_000u64,
+            100_000_000u64,
             0,
         ));
 
@@ -1252,7 +1252,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1).into(),
             program_id,
             vec![],
-            10_000_000u64,
+            100_000_000u64,
             0u128
         ));
 
@@ -1289,7 +1289,7 @@ fn wake_messages_after_program_inited() {
             WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
             vec![],
             Vec::new(),
-            10_000_000u64,
+            150_000_000u64,
             0u128
         ));
 
@@ -1316,7 +1316,7 @@ fn wake_messages_after_program_inited() {
                 Origin::signed(USER_3).into(),
                 program_id,
                 vec![],
-                10_000_000u64,
+                99_000_000u64,
                 0u128
             ));
         }
@@ -1333,11 +1333,11 @@ fn wake_messages_after_program_inited() {
             Origin::signed(USER_1).into(),
             message_id.unwrap(),
             b"PONG".to_vec(),
-            10_000_000u64,
+            90_000_000u64,
             0,
         ));
 
-        run_to_block(4, None);
+        run_to_block(20, None);
 
         let actual_n = Gear::mailbox(USER_3)
             .map(|t| {
