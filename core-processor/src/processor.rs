@@ -200,17 +200,18 @@ pub fn process_many<E: Environment<Ext>>(
         } = process::<E>(program, dispatch, block_info);
 
         for note in &current_journal {
-            if let JournalNote::UpdateNonce { nonce, .. } = note {
-                program.set_message_nonce(*nonce);
-            } else if let JournalNote::UpdatePage {
-                page_number, data, ..
-            } = note
-            {
-                if let Some(data) = data {
-                    program.set_page(*page_number, data).expect("Can't fail");
-                } else {
-                    program.remove_page(*page_number);
+            match note {
+                JournalNote::UpdateNonce { nonce, .. } => program.set_message_nonce(*nonce),
+                JournalNote::UpdatePage {
+                    page_number, data, ..
+                } => {
+                    if let Some(data) = data {
+                        program.set_page(*page_number, data).expect("Can't fail");
+                    } else {
+                        program.remove_page(*page_number);
+                    }
                 }
+                _ => continue,
             }
         }
 
