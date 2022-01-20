@@ -1,33 +1,30 @@
-use std::{path::Path, fs};
-use gear_core::message::Message;
-use gear_core::program::{Program as CoreProgram, ProgramId};
-use codec::{Decode, Encode};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::Mutex,
+};
+use anyhow::{anyhow, Result};
 
-pub trait Program {
-    type StateArgument: Encode;
-    type State: Decode + Encode;
+use gear_core::{
+    program::{Program, ProgramId},
+    message::{Message, MessageId},
+};
+use core_processor::configs::{AllocationsConfig, BlockInfo};
 
-    fn process_message<T: Into<Message>>(message: T);
-    fn query_state(arg: Self::StateArgument) -> Self::State;
-}
+pub mod mock;
 
-pub trait WasmModule {
-    fn init();
-    fn handle();
-    fn handle_reply();
-    fn state();
-}
+#[derive(Default)]
+pub struct TestSystem(Mutex<System>);
 
-pub struct MockFromWasm(CoreProgram);
+#[derive(Default)]
+struct System {
+    block_info: BlockInfo,
+    config: AllocationsConfig,
+    nonce: u64,
 
-impl MockFromWasm {
-    pub fn new(id: ProgramId, code: Vec<u8>) -> anyhow::Result<Self> {
-        CoreProgram::new(id, code).map(|v| Self(v))
-    }
+    programs: BTreeMap<ProgramId, Program>,
+    message_queue: VecDeque<Message>,
+    mailbox: BTreeMap<ProgramId, Vec<Message>>,
+    wait_list: BTreeMap<(ProgramId, MessageId), Message>,
 
-    pub fn from_file<P: AsRef<Path>>(id: ProgramId, path: P) -> anyhow::Result<Self> {
-        let code = fs::read(&path)?;
-
-        Self::new(id, code)
-    }
+    log: BTreeSet<Message>,
 }
