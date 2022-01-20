@@ -6,7 +6,7 @@
  * `Init` method gets three addresses, sends empty messages
  * to them and waits for at least two replies with any payload ("approvals").
  *
- * `Handle` process only "PING" messages. When `handle` gets such message
+ * `Handle` processes only "PING" messages. When `handle` gets such message
  * it sends empty requests to the three addresses and waits for just one approval.
  * If an approval is obtained the method replies with "PONG".
  */

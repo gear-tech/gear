@@ -18,18 +18,14 @@
 
 //! Provides macros for async runtime of Gear contracts.
 
-#![feature(thread_local)]
-
 extern crate proc_macro;
 
-use core::cell::RefCell;
 use core::fmt::Display;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 
 /// A global flag, determining if `handle_reply` already was generated.
-#[thread_local]
-static HANDLE_REPLY_FLAG: RefCell<Flag> = RefCell::new(Flag(false));
+static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
 
 struct Flag(bool);
 
@@ -73,7 +69,7 @@ fn check_signature(name: &str, function: &syn::ItemFn) -> Result<(), TokenStream
 }
 
 fn generate_handle_reply_if_required(mut code: TokenStream) -> TokenStream {
-    let reply_generated = HANDLE_REPLY_FLAG.borrow_mut().get_and_set();
+    let reply_generated = unsafe { HANDLE_REPLY_FLAG.get_and_set() };
     if !reply_generated {
         let handle_reply: TokenStream = quote!(
             #[no_mangle]
