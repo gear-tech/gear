@@ -45,7 +45,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let mut env = E::new();
 
     let Dispatch { kind, message } = dispatch.clone();
-    let entry = kind.into_entry();
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(message.gas_limit());
@@ -62,7 +61,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     // Charging for initial or loaded pages.
-    if entry == "init" {
+    if program.get_pages().is_empty() {
         if gas_counter.charge(settings.init_cost() * program.static_pages() as u64)
             != ChargeResult::Enough
         {
@@ -106,9 +105,10 @@ pub fn execute_wasm<E: Environment<Ext>>(
     }
 
     // Getting allocations.
-    let allocations: BTreeSet<PageNumber> = match entry {
-        "init" => (0..program.static_pages()).map(Into::into).collect(),
-        _ => program.get_pages().keys().cloned().collect(),
+    let allocations: BTreeSet<PageNumber> = if !program.get_pages().is_empty() {
+        program.get_pages().keys().cloned().collect()
+    } else {
+        (0..program.static_pages()).map(Into::into).collect()
     };
 
     // Creating memory context.
@@ -143,7 +143,13 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let initial_pages = program.get_pages();
 
     // Running backend.
-    let (res, mut ext) = env.setup_and_run(ext, &instrumented_code, initial_pages, &*memory, entry);
+    let (res, mut ext) = env.setup_and_run(
+        ext,
+        &instrumented_code,
+        initial_pages,
+        &*memory,
+        kind.into_entry(),
+    );
 
     // Parsing outcome.
     let kind = if let Err(e) = res {
@@ -161,7 +167,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     // Updating program memory
-    let mut page_update = BTreeMap::<PageNumber, Option<Vec<u8>>>::new();
+    let mut page_update = BTreeMap::new();
     let persistent_pages = ext.memory_context.allocations().clone();
 
     for page in &persistent_pages {
@@ -172,7 +178,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
             need_update = *data.to_vec() != buf;
         }
         if need_update {
-            let _ = page_update.insert(*page, Some(buf));
+            page_update.insert(*page, Some(buf));
         }
     }
 
@@ -180,7 +186,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let actual_max_page = persistent_pages.iter().last().expect("Can't fail").raw();
 
     for removed_page in (actual_max_page + 1)..=prev_max_page {
-        let _ = page_update.insert(removed_page.into(), None);
+        page_update.insert(removed_page.into(), None);
     }
 
     // Storing outgoing messages from message state.

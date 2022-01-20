@@ -1,6 +1,24 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GasAllowance,
-    MessageInfo, Pallet, ProgramsLimbo,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
+    Pallet, ProgramsLimbo,
 };
 use codec::Decode;
 use common::{
@@ -94,10 +112,11 @@ impl GasHandler for () {
     fn split(&mut self, _message_id: H256, _at: H256, _amount: u64) {}
 }
 
-impl<T, GH: GasHandler> CollectState for ExtManager<T, GH>
+impl<T, GH> CollectState for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     fn collect(&self) -> State {
         let programs: BTreeMap<ProgramId, Program> = PrefixIterator::<H256>::new(
@@ -137,11 +156,11 @@ where
     }
 }
 
-impl<T, GH: GasHandler> Default for ExtManager<T, GH>
+impl<T, GH> Default for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
-    GH: Default,
+    GH: Default + GasHandler,
 {
     fn default() -> Self {
         ExtManager {
@@ -151,16 +170,17 @@ where
     }
 }
 
-impl<T, GH: GasHandler> ExtManager<T, GH>
+impl<T, GH> ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
         common::native::get_program(ProgramId::from_origin(id))
     }
 
-    fn set_program(&self, program: gear_core::program::Program) {
+    pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
@@ -178,16 +198,18 @@ where
             nonce: program.message_nonce(),
             persistent_pages: persistent_pages.keys().copied().collect(),
             code_hash,
+            state: common::ProgramState::Uninitialized { message_id },
         };
 
         common::set_program(id, program, persistent_pages);
     }
 }
 
-impl<T, GH: GasHandler> JournalHandler for ExtManager<T, GH>
+impl<T, GH> JournalHandler for ExtManager<T, GH>
 where
     T: Config,
     T::AccountId: Origin,
+    GH: GasHandler,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
@@ -195,8 +217,22 @@ where
                 message_id: message_id.into_origin(),
                 outcome: ExecutionResult::Success,
             }),
-            CoreDispatchOutcome::MessageTrap { message_id, trap } => {
-                let reason = trap.map(|v| v.as_bytes().to_vec()).unwrap_or_default();
+            CoreDispatchOutcome::MessageTrap {
+                message_id,
+                program_id,
+                trap,
+            } => {
+                let reason = trap
+                    .map(|v| {
+                        log::info!(
+                            target: "runtime::gear",
+                            "🪤 Program {} terminated with a trap: {}",
+                            program_id.into_origin(),
+                            v
+                        );
+                        v.as_bytes().to_vec()
+                    })
+                    .unwrap_or_default();
 
                 Event::MessageDispatched(DispatchOutcome {
                     message_id: message_id.into_origin(),
@@ -208,13 +244,22 @@ where
                 origin,
                 program,
             } => {
+                let program_id = program.id().into_origin();
                 let event = Event::InitSuccess(MessageInfo {
                     message_id: message_id.into_origin(),
                     origin: origin.into_origin(),
-                    program_id: program.id().into_origin(),
+                    program_id,
                 });
 
-                self.set_program(program);
+                common::waiting_init_take_messages(program_id)
+                    .into_iter()
+                    .for_each(|m_id| {
+                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                            common::queue_message(m);
+                        }
+                    });
+
+                common::set_program_initialized(program_id);
 
                 event
             }
@@ -252,9 +297,8 @@ where
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
 
-        // Adjust block gas allowance
-        GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(amount));
-        // TODO: weight to fee calculator might not be identity fee
+        Pallet::<T>::decrease_gas_allowance(amount);
+
         let charge = T::GasConverter::gas_to_fee(amount);
 
         self.gas_handler.spend(message_id, amount);
@@ -283,16 +327,21 @@ where
 
     fn send_message(&mut self, message_id: MessageId, message: Message) {
         let message_id = message_id.into_origin();
-        let message: common::Message = message.into();
+        let mut message: common::Message = message.into();
 
-        log::debug!("Message sent (from: {:?}): {:?}", message_id, message);
-
-        self.gas_handler
-            .split(message_id, message.id, message.gas_limit);
+        log::debug!("Sending message {:?} from {:?}", message, message_id);
 
         if common::program_exists(message.dest) {
+            self.gas_handler
+                .split(message_id, message.id, message.gas_limit);
             common::queue_message(message);
         } else {
+            // Being placed into a user's mailbox means the end of a message life cycle.
+            // There can be no further processing whatsoever, hence any gas attempted to be
+            // passed along must be returned (i.e. remain in the parent message's value tree).
+            if message.gas_limit > 0 {
+                message.gas_limit = 0;
+            }
             Pallet::<T>::insert_to_mailbox(message.dest, message.clone());
             Pallet::<T>::deposit_event(Event::Log(message));
         }
@@ -327,7 +376,7 @@ where
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
             log::error!(
-                "Unknown message awaken: {:?} from {:?}",
+                "Attempt to awaken unknown message {:?} from {:?}",
                 awakening_id,
                 message_id.into_origin()
             );

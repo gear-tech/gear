@@ -1,18 +1,45 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use core_processor::common::*;
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
     program::{Program, ProgramId},
 };
+use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
+
+use crate::check::ProgramStorage;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
     message_queue: VecDeque<Message>,
     log: Vec<Message>,
-    programs: BTreeMap<ProgramId, Program>,
+    programs: RefCell<BTreeMap<ProgramId, Program>>,
     wait_list: BTreeMap<(ProgramId, MessageId), Message>,
     current_failed: bool,
+}
+
+impl ProgramStorage for InMemoryExtManager {
+    fn store_program(&self, program: gear_core::program::Program, _init_message_id: MessageId) {
+        let _ = self.programs.borrow_mut().insert(program.id(), program);
+    }
 }
 
 impl CollectState for InMemoryExtManager {
@@ -28,7 +55,7 @@ impl CollectState for InMemoryExtManager {
         State {
             message_queue,
             log,
-            programs,
+            programs: programs.into_inner(),
             current_failed,
         }
     }
@@ -36,21 +63,10 @@ impl CollectState for InMemoryExtManager {
 
 impl JournalHandler for InMemoryExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
-        match outcome {
-            DispatchOutcome::Success(_) => {
-                self.current_failed = false;
-            }
-            DispatchOutcome::MessageTrap { .. } => {
-                self.current_failed = true;
-            }
-            DispatchOutcome::InitSuccess { program, .. } => {
-                self.current_failed = false;
-                let _ = self.programs.insert(program.id(), program);
-            }
-            DispatchOutcome::InitFailure { .. } => {
-                self.current_failed = true;
-            }
-        };
+        self.current_failed = matches!(
+            outcome,
+            DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. }
+        );
     }
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -63,7 +79,7 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn send_message(&mut self, _message_id: MessageId, message: Message) {
-        if self.programs.contains_key(&message.dest()) {
+        if self.programs.borrow().contains_key(&message.dest()) {
             self.message_queue.push_back(message);
         } else {
             self.log.push(message);
@@ -71,7 +87,7 @@ impl JournalHandler for InMemoryExtManager {
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.message_consumed(dispatch.message.id());
-        let _ = self.wait_list.insert(
+        self.wait_list.insert(
             (dispatch.message.dest(), dispatch.message.id()),
             dispatch.message,
         );
@@ -87,7 +103,7 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        if let Some(prog) = self.programs.get_mut(&program_id) {
+        if let Some(prog) = self.programs.borrow_mut().get_mut(&program_id) {
             prog.set_message_nonce(nonce);
         } else {
             panic!("Program not found in storage");
@@ -99,7 +115,7 @@ impl JournalHandler for InMemoryExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        if let Some(prog) = self.programs.get_mut(&program_id) {
+        if let Some(prog) = self.programs.borrow_mut().get_mut(&program_id) {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {

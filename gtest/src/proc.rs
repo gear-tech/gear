@@ -1,7 +1,9 @@
+use crate::check::ProgramStorage;
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
+use gear_core::message::MessageId;
 use gear_core::{
     message::{IncomingMessage, Message},
     program::{Program, ProgramId},
@@ -60,7 +62,8 @@ fn parse_payload(payload: String) -> String {
     s
 }
 
-const SOME_FIXED_USER: u64 = 1000001;
+pub const SOME_FIXED_USER: u64 = 1000001;
+pub const GAS_LIMIT: u64 = 100_000_000_000;
 
 #[derive(Clone, Debug)]
 pub struct InitMessage {
@@ -89,11 +92,15 @@ pub fn message_to_dispatch(message: Message) -> Dispatch {
     }
 }
 
-pub fn init_program<E: Environment<Ext>>(
+pub fn init_program<E, JH>(
     message: InitMessage,
     block_info: BlockInfo,
-    journal_handler: &mut dyn JournalHandler,
-) -> anyhow::Result<()> {
+    journal_handler: &mut JH,
+) -> anyhow::Result<()>
+where
+    E: Environment<Ext>,
+    JH: JournalHandler + CollectState + ProgramStorage,
+{
     let program = Program::new(message.id, message.code.clone())?;
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
@@ -102,6 +109,8 @@ pub fn init_program<E: Environment<Ext>>(
         ));
     }
 
+    journal_handler.store_program(program.clone(), message.message.id());
+
     let res = core_processor::process::<E>(program, message.into(), block_info);
 
     core_processor::handle_journal(res.journal, journal_handler);
@@ -109,12 +118,16 @@ pub fn init_program<E: Environment<Ext>>(
     Ok(())
 }
 
-pub fn init_fixture<E: Environment<Ext>>(
+pub fn init_fixture<E, JH>(
     test: &Test,
     fixture_no: usize,
-    journal_handler: &mut dyn JournalHandler,
-) -> anyhow::Result<()> {
-    let mut nonce = 0;
+    journal_handler: &mut JH,
+) -> anyhow::Result<()>
+where
+    E: Environment<Ext>,
+    JH: JournalHandler + CollectState + ProgramStorage,
+{
+    let mut nonce = 1;
 
     for program in &test.programs {
         let program_path = program.path.clone();
@@ -145,10 +158,10 @@ pub fn init_fixture<E: Environment<Ext>>(
             init_source = source.to_program_id();
         }
 
-        let message_id = nonce.into();
+        let message_id = MessageId::from(nonce);
         let id = program.id.to_program_id();
 
-        let _ = init_program::<E>(
+        let _ = init_program::<E, JH>(
             InitMessage {
                 id,
                 code,
@@ -156,7 +169,7 @@ pub fn init_fixture<E: Environment<Ext>>(
                     message_id,
                     init_source,
                     init_message.into(),
-                    program.init_gas_limit.unwrap_or(u64::MAX),
+                    program.init_gas_limit.unwrap_or(GAS_LIMIT),
                     program.init_value.unwrap_or(0) as u128,
                 ),
             },
@@ -201,6 +214,9 @@ pub fn init_fixture<E: Environment<Ext>>(
                 .unwrap_or_default(),
         };
 
+        let message_id = MessageId::from(nonce);
+        let gas_limit = message.gas_limit.unwrap_or(GAS_LIMIT);
+
         let mut message_source: ProgramId = SOME_FIXED_USER.into();
         if let Some(source) = &message.source {
             message_source = source.to_program_id();
@@ -209,11 +225,11 @@ pub fn init_fixture<E: Environment<Ext>>(
         journal_handler.send_message(
             Default::default(),
             Message {
-                id: nonce.into(),
+                id: message_id,
                 source: message_source,
                 dest: message.destination.to_program_id(),
                 payload: payload.into(),
-                gas_limit: message.gas_limit.unwrap_or(u64::MAX),
+                gas_limit,
                 value: message.value.unwrap_or_default() as _,
                 reply: None,
             },

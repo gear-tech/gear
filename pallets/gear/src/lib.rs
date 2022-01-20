@@ -51,8 +51,7 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, GasToFeeConverter, IntermediateMessage, Message, Origin,
-        GAS_VALUE_PREFIX,
+        self, CodeMetadata, GasToFeeConverter, Message, Origin, ProgramState, GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -167,6 +166,8 @@ pub mod pallet {
         ///
         /// Occurs when trying to save to storage a program code, that has been saved there.
         CodeAlreadyExists,
+        /// Failed to create a program.
+        FailedToConstructProgram,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -195,10 +196,6 @@ pub mod pallet {
         pub origin: H256,
     }
 
-    #[pallet::storage]
-    #[pallet::getter(fn message_queue)]
-    pub type MessageQueue<T> = StorageValue<_, Vec<IntermediateMessage>>;
-
     #[pallet::type_value]
     pub fn DefaultForGasLimit<T: Config>() -> u64 {
         T::BlockGasLimit::get()
@@ -209,6 +206,7 @@ pub mod pallet {
     pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
 
     #[pallet::storage]
+    #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
         StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
 
@@ -274,6 +272,36 @@ pub mod pallet {
             .flatten()
         }
 
+        pub fn remove_and_claim_from_mailbox(
+            user_id: &T::AccountId,
+            message_id: H256,
+        ) -> Result<common::Message, DispatchError> {
+            let message = Self::remove_from_mailbox(user_id.clone().into_origin(), message_id)
+                .ok_or(Error::<T>::NoMessageInMailbox)?;
+
+            // There shouldn't be any associated gas tree for a message in a user's mailbox
+            let maybe_gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id);
+            if maybe_gas_tree.is_some() {
+                log::warn!(
+                    target: "runtime::gear",
+                    "Message in user's {:?} mailbox has an associated gas tree: {:?}",
+                    user_id.clone().into_origin(), message_id
+                );
+            }
+
+            if message.value > 0 {
+                // Assuming the programs has enough balance
+                T::Currency::transfer(
+                    &<T::AccountId as Origin>::from_origin(message.source),
+                    user_id,
+                    message.value.unique_saturated_into(),
+                    ExistenceRequirement::AllowDeath,
+                )?;
+            }
+
+            Ok(message)
+        }
+
         pub fn get_gas_spent(dest: H256, payload: Vec<u8>) -> Option<u64> {
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -330,12 +358,21 @@ pub mod pallet {
             Some(gas_burned)
         }
 
+        pub(crate) fn decrease_gas_allowance(gas_charge: u64) {
+            GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
+        }
+
+        /// Returns true if a program has been successfully initialized
+        pub fn is_initialized(program_id: H256) -> bool {
+            common::get_program_state(program_id)
+                .map(|s| matches!(s, ProgramState::Initialized))
+                .unwrap_or(false)
+        }
+
         /// Returns true if a program resulted in an error during initialization
         /// but hasn't been explicitly removed from storage by its creator
-        pub fn is_uninitialized(program_id: H256) -> bool {
-            ProgramsLimbo::<T>::get(program_id)
-                .map(|_| true)
-                .unwrap_or(false)
+        pub fn is_failed(program_id: H256) -> bool {
+            ProgramsLimbo::<T>::get(program_id).is_some()
         }
 
         /// Message Queue processing.
@@ -348,135 +385,12 @@ pub mod pallet {
         pub fn process_queue() -> Weight {
             let mut ext_manager = ExtManager::<T>::default();
 
-            // At the beginning of a new block, we process all queued messages
-            let messages = <MessageQueue<T>>::take().unwrap_or_default();
-
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
-
-            for message in messages {
-                match message {
-                    // Initialization queue is handled separately and on the first place
-                    // Any programs failed to initialize are deleted and further messages to them are not processed
-                    IntermediateMessage::InitProgram {
-                        origin,
-                        ref code,
-                        program_id,
-                        init_message_id,
-                        ref payload,
-                        gas_limit,
-                        value,
-                    } => {
-                        // Block gas allowance must be checked here for `InitProgram` messages
-                        // as they are not placed in the internal message queue
-                        if gas_limit > GasAllowance::<T>::get() {
-                            // Put message back to storage to let it be processed in future blocks
-                            MessageQueue::<T>::append(message);
-                            log::info!(
-                                target: "runtime::gear",
-                                "⛽️ Block gas limit exceeded: init message {} will be re-queued",
-                                init_message_id,
-                            );
-                            continue;
-                        }
-
-                        common::value_tree::ValueView::get_or_create(
-                            GAS_VALUE_PREFIX,
-                            origin,
-                            init_message_id,
-                            gas_limit,
-                        );
-
-                        // Successful outcome assumes a programs has been created and initialized so that
-                        // messages sent to this `ProgramId` will be enqueued for processing.
-                        let init_message = common::Message {
-                            id: init_message_id,
-                            source: origin,
-                            dest: program_id,
-                            payload: payload.to_vec(),
-                            gas_limit,
-                            value,
-                            reply: None,
-                        };
-
-                        let H256(bytes) = program_id;
-
-                        if let Ok(program) = Program::new(bytes.into(), code.to_vec()) {
-                            let dispatch = Dispatch {
-                                kind: DispatchKind::Init,
-                                message: init_message.into(),
-                            };
-
-                            let res = core_processor::process::<SandboxEnvironment<Ext>>(
-                                program, dispatch, block_info,
-                            );
-
-                            core_processor::handle_journal(res.journal, &mut ext_manager);
-
-                            total_handled += 1;
-                        } else {
-                            T::Currency::unreserve(
-                                &<T::AccountId as Origin>::from_origin(origin),
-                                T::GasConverter::gas_to_fee(gas_limit)
-                                    + value.unique_saturated_into(),
-                            );
-
-                            // ProgramId must be placed in the "programs limbo" to forbid sending messages to it
-                            ProgramsLimbo::<T>::insert(program_id, origin);
-                            log::info!(
-                                target: "runtime::gear",
-                                "👻 Program {} will stay in limbo until explicitly removed",
-                                program_id
-                            );
-                            Self::deposit_event(Event::InitFailure(
-                                MessageInfo {
-                                    message_id: init_message_id,
-                                    program_id,
-                                    origin,
-                                },
-                                Reason::Error,
-                            ));
-                        };
-                    }
-                    IntermediateMessage::DispatchMessage {
-                        id,
-                        origin,
-                        destination,
-                        payload,
-                        gas_limit,
-                        value,
-                        reply,
-                    } => {
-                        let _ = common::value_tree::ValueView::get_or_create(
-                            GAS_VALUE_PREFIX,
-                            origin,
-                            id,
-                            gas_limit,
-                        );
-
-                        let message = Message {
-                            id,
-                            source: origin,
-                            payload,
-                            gas_limit,
-                            dest: destination,
-                            value,
-                            reply: reply.map(|r| (r, 0)),
-                        };
-
-                        if common::program_exists(destination) {
-                            common::queue_message(message);
-                        } else {
-                            Self::insert_to_mailbox(destination, message.clone());
-                            Self::deposit_event(Event::Log(message));
-                        }
-                    }
-                }
-            }
 
             while let Some(message) = common::dequeue_message() {
                 // Check whether we have enough of gas allowed for message processing
@@ -485,25 +399,13 @@ pub mod pallet {
                     break;
                 }
 
-                if let Some(program) = ext_manager.get_program(message.dest) {
-                    let kind = if message.reply.is_none() {
-                        DispatchKind::Handle
-                    } else {
-                        DispatchKind::HandleReply
-                    };
+                let program_id = message.dest;
 
-                    let dispatch = Dispatch {
-                        kind,
-                        message: message.into(),
-                    };
-
-                    let res = core_processor::process::<SandboxEnvironment<Ext>>(
-                        program, dispatch, block_info,
-                    );
-
-                    core_processor::handle_journal(res.journal, &mut ext_manager);
-
-                    total_handled += 1;
+                let (program, state) = if let Some(data) = ext_manager
+                    .get_program(program_id)
+                    .and_then(|p| common::get_program_state(program_id).map(|s| (p, s)))
+                {
+                    data
                 } else {
                     log::warn!(
                         "Couldn't find program: {:?}, message with id: {:?} will be skipped",
@@ -512,7 +414,48 @@ pub mod pallet {
                     );
                     // TODO: make error event log record
                     continue;
-                }
+                };
+
+                let kind = if let Some(kind) =
+                    message
+                        .reply
+                        .map(|_| DispatchKind::HandleReply)
+                        .or(match state {
+                            ProgramState::Initialized => Some(DispatchKind::Handle),
+                            ProgramState::Uninitialized { message_id } => {
+                                if message_id == message.id {
+                                    Some(DispatchKind::Init)
+                                } else {
+                                    None
+                                }
+                            }
+                        }) {
+                    kind
+                } else {
+                    Self::deposit_event(Event::AddedToWaitList(message.clone()));
+                    common::waiting_init_append_message_id(program_id, message.id);
+                    common::insert_waiting_message(
+                        program_id,
+                        message.id,
+                        message,
+                        block_info.height,
+                    );
+
+                    continue;
+                };
+
+                let dispatch = Dispatch {
+                    kind,
+                    message: message.into(),
+                };
+
+                let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                    program, dispatch, block_info,
+                );
+
+                core_processor::handle_journal(res.journal, &mut ext_manager);
+
+                total_handled += 1;
 
                 if T::DebugInfo::is_enabled() {
                     T::DebugInfo::do_snapshot();
@@ -638,49 +581,61 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let mut data = Vec::new();
-            // TODO #512
-            code.encode_to(&mut data);
-            salt.encode_to(&mut data);
-
-            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
-
-            // Make sure there is no program with such id in program storage
-            ensure!(
-                !common::program_exists(id),
-                Error::<T>::ProgramAlreadyExists
-            );
-
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
+            let mut data = Vec::new();
+            // TODO #512
+            code.encode_to(&mut data);
+            salt.encode_to(&mut data);
+
+            // Make sure there is no program with such id in program storage
+            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+            ensure!(
+                !common::program_exists(id),
+                Error::<T>::ProgramAlreadyExists
+            );
+
+            let H256(id_bytes) = id;
+            let program = Program::new(id_bytes.into(), code.to_vec())
+                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
+
             let reserve_fee = T::GasConverter::gas_to_fee(gas_limit);
 
-            // First we reserve enough funds on the account to pay for 'gas_limit'
+            // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
             T::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            let init_message_id = common::next_message_id(&init_payload);
             let origin = who.into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
             if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
-                Self::deposit_event(Event::CodeSaved(code_hash))
-            };
+                Self::deposit_event(Event::CodeSaved(code_hash));
+            }
 
-            <MessageQueue<T>>::append(IntermediateMessage::InitProgram {
+            let init_message_id = common::next_message_id(&init_payload);
+            ExtManager::<T>::default().set_program(program, init_message_id);
+
+            let _ = common::value_tree::ValueView::get_or_create(
+                GAS_VALUE_PREFIX,
                 origin,
-                code,
-                program_id: id,
                 init_message_id,
+                gas_limit,
+            );
+
+            common::queue_message(common::Message {
+                id: init_message_id,
+                source: origin,
+                dest: id,
                 payload: init_payload,
                 gas_limit,
                 value: value.unique_saturated_into(),
+                reply: None,
             });
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
@@ -720,27 +675,21 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            // Check that the message is not intended for an uninitialized program
-            ensure!(
-                !Self::is_uninitialized(destination),
-                Error::<T>::ProgramIsNotInitialized
-            );
-
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
             );
 
-            let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
-
-            // First we reserve enough funds on the account to pay for 'gas_limit'
-            T::Currency::reserve(&who, gas_limit_reserve)
-                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+            // Check that the message is not intended for a failed program
+            ensure!(
+                !Self::is_failed(destination),
+                Error::<T>::ProgramIsNotInitialized
+            );
 
             let message_id = common::next_message_id(&payload);
 
-            // Since messages a guaranteed to be dispatched, we transfer value immediately
+            // Since messages are guaranteed to be dispatched, we transfer value immediately
             T::Currency::transfer(
                 &who,
                 &<T::AccountId as Origin>::from_origin(destination),
@@ -748,22 +697,55 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )?;
 
-            // Only after reservation the message is actually put in the queue.
-            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
-                id: message_id,
-                origin: who.clone().into_origin(),
-                destination,
-                payload,
-                gas_limit,
-                value: value.unique_saturated_into(),
-                reply: None,
-            });
+            if common::program_exists(destination) {
+                let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
 
-            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                message_id,
-                origin: who.into_origin(),
-                program_id: destination,
-            }));
+                // First we reserve enough funds on the account to pay for `gas_limit`
+                T::Currency::reserve(&who, gas_limit_reserve)
+                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+                let origin = who.into_origin();
+
+                let _ = common::value_tree::ValueView::get_or_create(
+                    GAS_VALUE_PREFIX,
+                    origin,
+                    message_id,
+                    gas_limit,
+                );
+
+                let message = Message {
+                    id: message_id,
+                    source: origin,
+                    payload,
+                    gas_limit,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: None,
+                };
+
+                common::queue_message(message);
+
+                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                    message_id,
+                    origin,
+                    program_id: destination,
+                }));
+            } else {
+                // Message in mailbox is not meant for any processing, hence 0 gas limit
+                // and no gas tree needs to be created
+                let message = Message {
+                    id: message_id,
+                    source: who.into_origin(),
+                    payload,
+                    gas_limit: 0,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: None,
+                };
+
+                Self::insert_to_mailbox(destination, message.clone());
+                Self::deposit_event(Event::Log(message));
+            }
 
             Ok(().into())
         }
@@ -797,72 +779,69 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let original_message =
-                Self::remove_from_mailbox(who.clone().into_origin(), reply_to_id)
-                    .ok_or(Error::<T>::NoMessageInMailbox)?;
-
+            // Claim outstanding value from the original message first
+            let original_message = Self::remove_and_claim_from_mailbox(&who, reply_to_id)?;
             let destination = original_message.source;
 
-            let locked_gas = original_message.gas_limit;
-            // Offset the gas_limit against the gas passed to us in the original message
-            let gas_limit_reserve =
-                T::GasConverter::gas_to_fee(gas_limit.saturating_sub(locked_gas));
-
-            if gas_limit_reserve > 0_u32.into() {
-                // First we reserve enough funds on the account to pay for 'gas_limit'
-                T::Currency::reserve(&who, gas_limit_reserve)
-                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
-            } else {
-                // There still might be some gas leftover that needs to be refunded to the origin
-                // Assuming the programs has enough balance
-                T::Currency::transfer(
-                    &<T::AccountId as Origin>::from_origin(destination),
-                    &who,
-                    T::GasConverter::gas_to_fee(locked_gas.saturating_sub(gas_limit)),
-                    ExistenceRequirement::AllowDeath,
-                )?;
-            }
-
-            let locked_value: BalanceOf<T> = original_message.value.unique_saturated_into();
-            // Tally up the `values` from the two messages to find out who owes who
-            let offset_value = value.saturating_sub(locked_value);
-            if offset_value > 0_u32.into() {
-                // Some outstanding amount still remains to be transferred to the original message source
-                T::Currency::transfer(
-                    &who,
-                    &<T::AccountId as Origin>::from_origin(destination),
-                    offset_value,
-                    ExistenceRequirement::AllowDeath,
-                )?;
-            } else {
-                // The value owed to us exceeds the `value` to transfer out
-                // TODO: here we assume that since the message ended up in the mailbox all necessary
-                // checks had been done, including the validity of the `value`amount the program that had created
-                // the message wants to transfer (in other words, it has enough balance). Need to audit this.
-                T::Currency::transfer(
-                    &<T::AccountId as Origin>::from_origin(destination),
-                    &who,
-                    locked_value.saturating_sub(value),
-                    ExistenceRequirement::AllowDeath, // TODO: should we use ExistenceRequirement::KeepAlive instead?
-                )?;
-            }
+            // Since messages are guaranteed to be dispatched, we transfer value immediately
+            T::Currency::transfer(
+                &who,
+                &<T::AccountId as Origin>::from_origin(destination),
+                value,
+                ExistenceRequirement::AllowDeath,
+            )?;
 
             let message_id = common::next_message_id(&payload);
-            <MessageQueue<T>>::append(IntermediateMessage::DispatchMessage {
-                id: message_id,
-                origin: who.clone().into_origin(),
-                destination,
-                payload,
-                gas_limit,
-                value: value.unique_saturated_into(),
-                reply: Some(reply_to_id),
-            });
 
-            Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
-                message_id,
-                origin: who.into_origin(),
-                program_id: destination,
-            }));
+            if common::program_exists(destination) {
+                let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
+
+                // First we reserve enough funds on the account to pay for `gas_limit`
+                T::Currency::reserve(&who, gas_limit_reserve)
+                    .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
+
+                let origin = who.into_origin();
+
+                let _ = common::value_tree::ValueView::get_or_create(
+                    GAS_VALUE_PREFIX,
+                    origin,
+                    message_id,
+                    gas_limit,
+                );
+
+                let message = Message {
+                    id: message_id,
+                    source: origin,
+                    payload,
+                    gas_limit,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: Some((reply_to_id, 0)),
+                };
+
+                common::queue_message(message);
+
+                Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
+                    message_id,
+                    origin,
+                    program_id: destination,
+                }));
+            } else {
+                // Message in mailbox is not meant for any processing, hence 0 gas limit
+                // and no gas tree needs to be created
+                let message = Message {
+                    id: message_id,
+                    source: who.into_origin(),
+                    payload,
+                    gas_limit: 0,
+                    dest: destination,
+                    value: value.unique_saturated_into(),
+                    reply: Some((reply_to_id, 0)),
+                };
+
+                Self::insert_to_mailbox(destination, message.clone());
+                Self::deposit_event(Event::Log(message));
+            }
 
             Ok(().into())
         }
@@ -917,33 +896,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let message = Self::remove_from_mailbox(who.clone().into_origin(), message_id)
-                .ok_or(Error::<T>::NoMessageInMailbox)?;
-
-            // gas should be returned to sender tree
-            let gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id)
-                .ok_or(Error::<T>::NoMessageTree)?;
-
-            if message.value > 0 {
-                // Assuming the programs has enough balance
-                T::Currency::transfer(
-                    &<T::AccountId as Origin>::from_origin(message.source),
-                    &who,
-                    message.value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
-                )?;
-            }
-
-            if let common::value_tree::ConsumeResult::RefundExternal(external, gas_left) =
-                gas_tree.consume()
-            {
-                let refund = T::GasConverter::gas_to_fee(gas_left);
-
-                let _ = T::Currency::unreserve(
-                    &<T::AccountId as Origin>::from_origin(external),
-                    refund,
-                );
-            }
+            let _ = Self::remove_and_claim_from_mailbox(&who, message_id)?;
 
             Self::deposit_event(Event::ClaimedValueFromMailbox(message_id));
 
@@ -954,7 +907,6 @@ pub mod pallet {
         #[pallet::weight(0)]
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
-            MessageQueue::<T>::kill();
             <Mailbox<T>>::remove_all(None);
             ProgramsLimbo::<T>::remove_all(None);
             common::reset_storage();

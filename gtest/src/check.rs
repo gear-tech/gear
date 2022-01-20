@@ -30,7 +30,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::{
     memory::PAGE_SIZE,
-    message::Message,
+    message::{Message, MessageId},
     program::{Program, ProgramId},
 };
 use log::{Log, Metadata, Record, SetLoggerError};
@@ -46,6 +46,10 @@ use std::{
 };
 
 const FILTER_ENV: &str = "RUST_LOG";
+
+pub trait ProgramStorage {
+    fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId);
+}
 
 pub struct FixtureLogger {
     inner: Filter,
@@ -434,10 +438,10 @@ fn run_fixture<JH, E>(
     skip_memory: bool,
 ) -> ColoredString
 where
-    JH: JournalHandler + CollectState,
+    JH: JournalHandler + CollectState + ProgramStorage,
     E: Environment<Ext>,
 {
-    match proc::init_fixture::<E>(test, fixture_no, &mut journal_handler) {
+    match proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
         Ok(()) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
             let results = proc::run::<JH, E>(last_exp_steps, &mut journal_handler);
@@ -538,7 +542,7 @@ pub fn check_main<JH, E, F>(
     ext: Option<Box<dyn Fn() -> sp_io::TestExternalities + Send + Sync + 'static>>,
 ) -> anyhow::Result<()>
 where
-    JH: JournalHandler + CollectState,
+    JH: JournalHandler + CollectState + ProgramStorage,
     E: Environment<Ext>,
     F: Fn() -> JH + std::marker::Sync + std::marker::Send,
 {

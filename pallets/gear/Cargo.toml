@@ -46,6 +46,7 @@ wabt = "0.10"
 gear-core = { path = "../../core" }
 hex-literal = "0.3.4"
 tests-distributor = { path = "../../tests/distributor" }
+tests-init-wait = { path = "../../tests/init-wait" }
 
 [features]
 default = ['std']

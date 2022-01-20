@@ -259,7 +259,9 @@ impl<'a> JournalHandler for Journal<'a> {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
             DispatchOutcome::Success(_) => {}
-            DispatchOutcome::MessageTrap { message_id, trap } => {
+            DispatchOutcome::MessageTrap {
+                message_id, trap, ..
+            } => {
                 self.context.outcomes.insert(
                     message_id,
                     RunResult::Trap(trap.unwrap_or("No message").to_string()),

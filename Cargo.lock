@@ -800,9 +800,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.0.6"
+version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1957aa4a5fb388f0a0a73ce7556c5b42025b874e5cdc2c670775e346e97adec0"
+checksum = "7a30c3bf9ff12dfe5dae53f0a96e0febcd18420d1c0e7fad77796d9d5c4b5375"
 dependencies = [
  "atty",
  "bitflags",
@@ -1990,11 +1990,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "derive_more",
- "hashbrown 0.11.2",
+ "hashbrown 0.12.0",
  "log",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
- "pwasm-utils",
+ "pwasm-utils 0.19.0",
  "wabt",
 ]
 
@@ -2105,7 +2105,7 @@ name = "gear-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap 3.0.6",
+ "clap 3.0.10",
  "colored",
  "derive_more",
  "env_logger 0.9.0",
@@ -2329,6 +2329,15 @@ name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
+dependencies = [
+ "ahash",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c21d40587b92fa6a6c6e3c1bdbf87d75511db5672f9c93175574b3a00df1758"
 dependencies = [
  "ahash",
 ]
@@ -4173,6 +4182,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "tests-distributor",
+ "tests-init-wait",
  "wabt",
 ]
 
@@ -4953,6 +4963,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pwasm-utils"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ecdabd73c8beaf98c66e45aff3032b56260ee49eb5d0d1222ecce269bfafda7"
+dependencies = [
+ "byteorder",
+ "log",
+ "parity-wasm 0.42.2",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5679,7 +5700,7 @@ dependencies = [
  "derive_more",
  "environmental",
  "parity-scale-codec",
- "pwasm-utils",
+ "pwasm-utils 0.18.2",
  "sc-allocator",
  "sp-core",
  "sp-maybe-compressed-blob",
@@ -6368,9 +6389,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.74"
+version = "1.0.75"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee2bb9cd061c5865d345bb02ca49fcef1391741b672b54a0bf7b679badec3142"
+checksum = "c059c05b48c5c0067d4b4b2b4f0732dd65feb52daf7e0ea09cd87e7dadc1af79"
 dependencies = [
  "itoa 1.0.1",
  "ryu",
@@ -7244,9 +7265,9 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "structopt"
-version = "0.3.25"
+version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40b9788f4202aa75c240ecc9c15c65185e6a39ccdeb0fd5d008b98825464c87c"
+checksum = "0c6b5c64445ba8094a6ab0c3cd2ad323e07171012d9c98b0b15651daf1787a10"
 dependencies = [
  "clap 2.33.3",
  "lazy_static",
@@ -7453,6 +7474,18 @@ dependencies = [
 
 [[package]]
 name = "tests-distributor"
+version = "0.1.0"
+dependencies = [
+ "env_logger 0.9.0",
+ "gear-core",
+ "gstd",
+ "parity-scale-codec",
+ "substrate-wasm-builder",
+ "tests-common",
+]
+
+[[package]]
+name = "tests-init-wait"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",
@@ -8160,10 +8193,10 @@ dependencies = [
 name = "wasm-proc"
 version = "0.1.0"
 dependencies = [
- "clap 3.0.6",
+ "clap 3.0.10",
  "env_logger 0.9.0",
  "log",
- "pwasm-utils",
+ "pwasm-utils 0.19.0",
 ]
 
 [[package]]
