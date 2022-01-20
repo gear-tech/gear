@@ -34,6 +34,7 @@ use sp_core::crypto::UncheckedFrom;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;
 
+pub use storage_queue::Iterator;
 use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
@@ -326,6 +327,10 @@ pub fn queue_message(message: Message) {
     let mut message_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     let id = message.id;
     message_queue.queue(message, id);
+}
+
+pub fn message_iter() -> Iterator<Message> {
+    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
 
 pub fn nonce_fetch_inc() -> u128 {

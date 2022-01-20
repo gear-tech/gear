@@ -20,7 +20,12 @@ use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_std::borrow::Cow;
+use sp_std::marker::PhantomData;
 use sp_std::prelude::*;
+
+fn key_with_prefix(prefix: &[u8], key: &[u8]) -> Vec<u8> {
+    [prefix, key].concat()
+}
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
 struct Node<T: Encode + Decode> {
@@ -29,13 +34,14 @@ struct Node<T: Encode + Decode> {
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-pub struct StorageQueue {
+pub struct StorageQueue<T: Decode + Encode> {
     prefix: Cow<'static, [u8]>,
     head: Option<H256>,
     tail: Option<H256>,
+    _marker: PhantomData<T>,
 }
 
-impl StorageQueue {
+impl<T: Decode + Encode> StorageQueue<T> {
     pub fn get(prefix: impl Into<Cow<'static, [u8]>>) -> Self {
         let prefix: Cow<'static, [u8]> = prefix.into();
 
@@ -50,12 +56,14 @@ impl StorageQueue {
                     prefix,
                     head: Some(head),
                     tail: Some(tail),
+                    _marker: Default::default(),
                 }
             } else {
                 Self {
                     prefix,
                     head: Some(head),
                     tail: Some(head),
+                    _marker: Default::default(),
                 }
             }
         } else {
@@ -63,11 +71,12 @@ impl StorageQueue {
                 prefix,
                 head: None,
                 tail: None,
+                _marker: Default::default(),
             }
         }
     }
 
-    pub fn queue<T: Encode + Decode>(&mut self, value: T, id: H256) {
+    pub fn queue(&mut self, value: T, id: H256) {
         // store value
         sp_io::storage::set(
             &self.key_with_prefix(id.as_bytes()),
@@ -98,7 +107,7 @@ impl StorageQueue {
         self.set_tail(id);
     }
 
-    pub fn dequeue<T: Encode + Decode>(&mut self) -> Option<T> {
+    pub fn dequeue(&mut self) -> Option<T> {
         if self.is_empty() {
             None
         } else if let Some(value_key) = self.head {
@@ -137,7 +146,43 @@ impl StorageQueue {
     }
 
     fn key_with_prefix(&self, key: &[u8]) -> Vec<u8> {
-        [self.prefix.as_ref(), key].concat()
+        key_with_prefix(self.prefix.as_ref(), key)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Iterator<T: Decode + Encode>(Option<H256>, Cow<'static, [u8]>, PhantomData<T>);
+
+impl<T: Decode + Encode> sp_std::iter::Iterator for Iterator<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let Iterator(head, prefix, ..) = self;
+
+        let (result, next_head) = head
+            .and_then(|value_key| {
+                sp_io::storage::get(&key_with_prefix(prefix.as_ref(), value_key.as_bytes())).map(
+                    |value| {
+                        let node = Node::<T>::decode(&mut &value[..]).expect("Node<T> decode fail");
+
+                        (Some(node.value), node.next)
+                    },
+                )
+            })
+            .unwrap_or_default();
+
+        self.0 = next_head;
+
+        result
+    }
+}
+
+impl<T: Decode + Encode> sp_std::iter::IntoIterator for StorageQueue<T> {
+    type Item = T;
+    type IntoIter = Iterator<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Iterator(self.head, self.prefix, Default::default())
     }
 }
 

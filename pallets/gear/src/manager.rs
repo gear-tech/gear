@@ -2,10 +2,9 @@ use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
     Pallet, ProgramsLimbo,
 };
-use codec::Decode;
 use common::{
     value_tree::{ConsumeResult, ValueView},
-    GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX, STORAGE_PROGRAM_PREFIX,
+    GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
@@ -30,12 +29,6 @@ use sp_std::{
 pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
     _phantom: PhantomData<T>,
     gas_handler: GH,
-}
-
-#[derive(Decode)]
-struct Node {
-    value: Message,
-    next: Option<H256>,
 }
 
 pub trait GasHandler {
@@ -112,23 +105,7 @@ where
         })
         .collect();
 
-        let mq_head_key = [STORAGE_MESSAGE_PREFIX, b"head"].concat();
-        let mut message_queue = VecDeque::new();
-
-        if let Some(head) = sp_io::storage::get(&mq_head_key) {
-            let mut next_id = H256::from_slice(&head[..]);
-            loop {
-                let next_node_key = [STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-                if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                    let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                    message_queue.push_back(current_node.value);
-                    match current_node.next {
-                        Some(h) => next_id = h,
-                        None => break,
-                    }
-                }
-            }
-        }
+        let message_queue: VecDeque<_> = common::message_iter().map(Into::into).collect();
 
         State {
             message_queue,
