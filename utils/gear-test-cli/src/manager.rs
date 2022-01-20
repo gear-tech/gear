@@ -1,14 +1,15 @@
-use gear_common::Origin;
+use gear_common::{Origin, ProgramState};
 use gear_core::{
     memory::PageNumber,
     message::{Message, MessageId},
     program::ProgramId,
 };
 use gear_core_processor::common::{
-    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
+    CollectState, Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalHandler,
+    State,
 };
 use gear_runtime::{pallet_gear::Config, ExtManager};
-use gear_test::check::ProgramStorage;
+use gear_test::check::ExecutionContext;
 
 pub struct RuntestsExtManager<T: Config> {
     log: Vec<Message>,
@@ -16,7 +17,7 @@ pub struct RuntestsExtManager<T: Config> {
     current_failed: bool,
 }
 
-impl<T> ProgramStorage for RuntestsExtManager<T>
+impl<T> ExecutionContext for RuntestsExtManager<T>
 where
     T: Config,
     T::AccountId: Origin,
@@ -24,6 +25,24 @@ where
     fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId) {
         self.inner
             .set_program(program, init_message_id.into_origin());
+    }
+
+    fn message_to_dispatch(&self, message: Message) -> Dispatch {
+        let kind = if message.reply.is_some() {
+            DispatchKind::HandleReply
+        } else {
+            match gear_common::get_program_state(message.dest().into_origin())
+                .expect("Program should be in the storage")
+            {
+                ProgramState::Initialized => DispatchKind::Handle,
+                ProgramState::Uninitialized { message_id } => {
+                    assert_eq!(message_id, message.id().into_origin());
+                    DispatchKind::Init
+                }
+            }
+        };
+
+        Dispatch { kind, message }
     }
 }
 
@@ -67,8 +86,14 @@ where
             CoreDispatchOutcome::InitFailure { .. } => {
                 self.current_failed = true;
             }
-            CoreDispatchOutcome::InitSuccess { .. } => {
+            CoreDispatchOutcome::InitSuccess { message_id, .. } => {
                 self.current_failed = false;
+
+                if let Some(next_message) = gear_common::message_iter().next() {
+                    if next_message.id == message_id.into_origin() {
+                        gear_common::dequeue_message();
+                    }
+                }
             }
             CoreDispatchOutcome::Success(_) => {
                 self.current_failed = false;
@@ -88,15 +113,39 @@ where
         self.inner.message_consumed(message_id)
     }
     fn send_message(&mut self, message_id: MessageId, message: Message) {
-        if !gear_common::program_exists(message.dest().into_origin()) {
-            self.log.push(message.clone())
+        let program_id = message.dest().into_origin();
+        match gear_common::get_program_state(program_id) {
+            None => self.log.push(message.clone()),
+            Some(state) => {
+                if let (None, ProgramState::Uninitialized { message_id }) = (message.reply(), state)
+                {
+                    assert_ne!(message_id, message.id().into_origin());
+
+                    let message_id = message.id().into_origin();
+                    gear_common::waiting_init_append_message_id(program_id, message_id);
+                    gear_common::insert_waiting_message(
+                        program_id,
+                        message_id,
+                        message.into(),
+                        // TODO: retrieve block number
+                        0,
+                    );
+                    return;
+                }
+            }
         }
 
         self.inner.send_message(message_id, message);
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.current_failed = false;
-        let _ = gear_common::dequeue_message();
+
+        if let Some(next_message) = gear_common::message_iter().next() {
+            if next_message.id == dispatch.message.id().into_origin() {
+                gear_common::dequeue_message();
+            }
+        }
+
         self.inner.wait_dispatch(dispatch)
     }
     fn wake_message(

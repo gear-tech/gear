@@ -25,20 +25,35 @@ use gear_core::{
 use std::cell::RefCell;
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::check::ProgramStorage;
+use crate::check::ExecutionContext;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
     message_queue: VecDeque<Message>,
     log: Vec<Message>,
     programs: RefCell<BTreeMap<ProgramId, Program>>,
+    waiting_init: RefCell<BTreeMap<ProgramId, Vec<MessageId>>>,
     wait_list: BTreeMap<(ProgramId, MessageId), Message>,
     current_failed: bool,
 }
 
-impl ProgramStorage for InMemoryExtManager {
+impl ExecutionContext for InMemoryExtManager {
     fn store_program(&self, program: gear_core::program::Program, _init_message_id: MessageId) {
-        let _ = self.programs.borrow_mut().insert(program.id(), program);
+        self.waiting_init.borrow_mut().insert(program.id(), vec![]);
+        self.programs.borrow_mut().insert(program.id(), program);
+    }
+
+    fn message_to_dispatch(&self, message: Message) -> Dispatch {
+        Dispatch {
+            kind: if message.reply.is_some() {
+                DispatchKind::HandleReply
+            } else if self.waiting_init.borrow().contains_key(&message.dest()) {
+                DispatchKind::Init
+            } else {
+                DispatchKind::Handle
+            },
+            message,
+        }
     }
 }
 
@@ -63,10 +78,21 @@ impl CollectState for InMemoryExtManager {
 
 impl JournalHandler for InMemoryExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
-        self.current_failed = matches!(
-            outcome,
-            DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. }
-        );
+        self.current_failed = match outcome {
+            DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. } => true,
+            DispatchOutcome::Success(_) => false,
+            DispatchOutcome::InitSuccess { ref program, .. } => {
+                let id = program.id();
+                let waiting_messages = self.waiting_init.borrow_mut().remove(&id);
+                for m_id in waiting_messages.iter().flatten() {
+                    if let Some(msg) = self.wait_list.remove(&(id, *m_id)) {
+                        self.message_queue.push_back(msg);
+                    }
+                }
+
+                false
+            }
+        };
     }
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -79,8 +105,15 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn send_message(&mut self, _message_id: MessageId, message: Message) {
-        if self.programs.borrow().contains_key(&message.dest()) {
-            self.message_queue.push_back(message);
+        let id = message.dest();
+        if self.programs.borrow().contains_key(&id) {
+            let mut borrowed_list = self.waiting_init.borrow_mut();
+            if let (None, Some(list)) = (message.reply(), borrowed_list.get_mut(&id)) {
+                list.push(message.id);
+                self.wait_list.insert((id, message.id), message);
+            } else {
+                self.message_queue.push_back(message);
+            }
         } else {
             self.log.push(message);
         }
