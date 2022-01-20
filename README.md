@@ -1,7 +1,7 @@
 
 <p align="center">
   <a href="https://gear-tech.io">
-    <img src="images/title.png" width="700" alt="Gear">
+    <img src="images/title-grey.png" width="700" alt="Gear">
   </a>
 </p>
 

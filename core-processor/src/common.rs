@@ -166,6 +166,8 @@ pub enum DispatchOutcome {
     MessageTrap {
         /// Message id.
         message_id: MessageId,
+        /// Program that was failed initializing.
+        program_id: ProgramId,
         /// Reason of the fail.
         trap: Option<&'static str>,
     },
