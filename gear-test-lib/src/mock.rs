@@ -22,7 +22,7 @@ pub struct MockFromWasm(CoreProgram);
 
 impl MockFromWasm {
     pub fn new(id: ProgramId, code: Vec<u8>) -> anyhow::Result<Self> {
-        CoreProgram::new(id, code).map(|v| Self(v))
+        CoreProgram::new(id, code).map(Self)
     }
 
     pub fn from_file<P: AsRef<Path>>(id: ProgramId, path: P) -> anyhow::Result<Self> {

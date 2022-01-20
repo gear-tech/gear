@@ -2153,6 +2153,7 @@ name = "gear-test-lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
  "parity-scale-codec",
