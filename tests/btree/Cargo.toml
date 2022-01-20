@@ -17,5 +17,5 @@ substrate-wasm-builder = { version = "5.0.0-dev", git = "https://github.com/gear
 [lib]
 
 [features]
-std = ["gear-core", "codec/std", "common"]
+std = ["codec/std"]
 default = ["std"]

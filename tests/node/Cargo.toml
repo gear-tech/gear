@@ -20,5 +20,5 @@ env_logger = "0.9"
 [lib]
 
 [features]
-std = ["gear-core", "codec/std", "common"]
+std = ["codec/std"]
 default = ["std"]
