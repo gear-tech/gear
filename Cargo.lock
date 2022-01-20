@@ -7444,7 +7444,6 @@ dependencies = [
 name = "tests-btree"
 version = "0.1.0"
 dependencies = [
- "gear-core",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
@@ -7467,7 +7466,6 @@ name = "tests-distributor"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",
- "gear-core",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
@@ -7478,19 +7476,14 @@ dependencies = [
 name = "tests-init-wait"
 version = "0.1.0"
 dependencies = [
- "env_logger 0.9.0",
- "gear-core",
  "gstd",
- "parity-scale-codec",
  "substrate-wasm-builder",
- "tests-common",
 ]
 
 [[package]]
 name = "tests-messages"
 version = "0.1.0"
 dependencies = [
- "gear-core",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
@@ -7502,7 +7495,6 @@ name = "tests-node"
 version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",
- "gear-core",
  "gstd",
  "parity-scale-codec",
  "substrate-wasm-builder",
