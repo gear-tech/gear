@@ -10,5 +10,4 @@ gear-core = { path = "../core" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
 core-processor = { package = "gear-core-processor", path = "../core-processor" }
 
-anyhow = "1.0.52"
 codec = { package = "parity-scale-codec", version = "2", features = ["derive"] }
