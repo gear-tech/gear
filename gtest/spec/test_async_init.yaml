@@ -42,7 +42,7 @@ programs:
 
   - id: 1
     path: target/wasm32-unknown-unknown/release/demo_async_init.wasm
-    init_message:
+    init_message: &init
       kind: custom
       value:
         # Eve
@@ -110,20 +110,21 @@ fixtures:
           - destination: 1
             payload: *one
           - destination: 1
-            payload: &init
-              kind: bytes
-              value: "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+            init: true
+            payload: *init
 
       - step: 5
         messages:
           - destination: 1
             payload: *one
           - destination: 1
+            init: true
             payload: *init
 
       - step: 6
         messages:
           - destination: 1
+            init: true
             payload: *init
 
       - step: 7

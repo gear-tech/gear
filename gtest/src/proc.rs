@@ -3,9 +3,8 @@ use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
-use gear_core::message::MessageId;
 use gear_core::{
-    message::{IncomingMessage, Message},
+    message::{IncomingMessage, Message, MessageId},
     program::{Program, ProgramId},
 };
 use regex::Regex;
@@ -13,6 +12,8 @@ use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::{
     fmt::Write,
+    io::Error as IoError,
+    io::ErrorKind as IoErrorKind,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -120,7 +121,8 @@ where
 
     for program in &test.programs {
         let program_path = program.path.clone();
-        let code = std::fs::read(&program_path)?;
+        let code = std::fs::read(&program_path)
+            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", program_path, e)))?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
