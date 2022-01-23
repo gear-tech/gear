@@ -13,17 +13,28 @@ impl Default for System {
     }
 }
 
+use colored::Colorize;
+
+use std::io::Write;
+
 impl System {
     pub fn new() -> Self {
         Default::default()
     }
 
     pub fn init_logger(&self) {
-        let _ = env_logger::try_init();
-    }
-
-    pub fn init_wasm_logger(&self) {
-        let _ = Builder::from_env(Env::default().default_filter_or("gwasm=debug")).try_init();
+        let _ = Builder::from_env(Env::default().filter_or("gwasm", "gwasm=debug"))
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "[{}] {}",
+                    record.level().to_string().blue(),
+                    record.args().to_string().replacen("DEBUG: ", "", 1).white()
+                )
+            })
+            .format_target(false)
+            .format_timestamp(None)
+            .try_init();
     }
 
     pub fn send_message(&self, message: Message) {

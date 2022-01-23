@@ -29,7 +29,7 @@ mod tests {
     #[test]
     fn name() {
         let sys = System::new();
-        sys.init_wasm_logger();
+        sys.init_logger();
 
         let ping_pong = Program::from_file(
             &sys,
