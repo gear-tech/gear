@@ -15,19 +15,56 @@ pub trait WasmProgram: Debug {
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Vec<u8>, &'static str>;
 }
 
+#[derive(Clone, Debug)]
+pub struct ProgramIdWrapper(pub(crate) ProgramId);
+
+impl From<ProgramIdWrapper> for ProgramId {
+    fn from(other: ProgramIdWrapper) -> ProgramId {
+        other.0
+    }
+}
+
+impl From<u64> for ProgramIdWrapper {
+    fn from(other: u64) -> Self {
+        Self(other.into())
+    }
+}
+
+impl From<String> for ProgramIdWrapper {
+    fn from(other: String) -> Self {
+        other[..].into()
+    }
+}
+
+impl From<&str> for ProgramIdWrapper {
+    fn from(other: &str) -> Self {
+        let id = other.strip_prefix("0x").unwrap_or(other);
+
+        let mut bytes = [0u8; 32];
+
+        hex::encode_to_slice(id, &mut bytes)
+            .unwrap_or_else(|_| panic!("Invalid identifier: {:?}. It's not 32 bytes len", other));
+
+        Self(bytes.into())
+    }
+}
+
 pub struct Program<'a> {
     manager: &'a Mutex<ExtManager>,
     id: ProgramId,
 }
 
 impl<'a> Program<'a> {
-    fn program_with_id(system: &'a System, id: u64, program: InnerProgram) -> Self {
-        let program_id = ProgramId::from(id);
+    fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+        program: InnerProgram,
+    ) -> Self {
+        let program_id: ProgramId = id.clone().into().into();
 
-        if system
-            .0
-            .lock()
-            .unwrap()
+        let mut sys = system.0.lock().unwrap();
+
+        if sys
             .programs
             .insert(program_id, (program, ProgramState::Uninitialized(None)))
             .is_some()
@@ -50,7 +87,11 @@ impl<'a> Program<'a> {
         Self::mock_with_id(system, nonce, mock)
     }
 
-    pub fn mock_with_id<T: WasmProgram + 'static>(system: &'a System, id: u64, mock: T) -> Self {
+    pub fn mock_with_id<T: WasmProgram + 'static, I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+        mock: T,
+    ) -> Self {
         Self::program_with_id(system, id, InnerProgram::Mock(Box::new(mock)))
     }
 
@@ -60,12 +101,18 @@ impl<'a> Program<'a> {
         Self::from_file_with_id(system, nonce, path)
     }
 
-    pub fn from_file_with_id<P: AsRef<Path>>(system: &'a System, id: u64, path: P) -> Self {
+    pub fn from_file_with_id<P: AsRef<Path>, I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+        path: P,
+    ) -> Self {
+        let program_id: ProgramId = id.clone().into().into();
+
         let code =
             fs::read(&path).unwrap_or_else(|_| panic!("Failed to find file {:?}", path.as_ref()));
 
-        let program = CoreProgram::new(ProgramId::from(id), code)
-            .expect("Failed to create Program from code");
+        let program =
+            CoreProgram::new(program_id, code).expect("Failed to create Program from code");
 
         Self::program_with_id(system, id, InnerProgram::Core(program))
     }

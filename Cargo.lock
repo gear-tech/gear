@@ -2155,6 +2155,7 @@ dependencies = [
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
+ "hex",
  "parity-scale-codec",
 ]
 

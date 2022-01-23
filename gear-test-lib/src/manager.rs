@@ -45,29 +45,20 @@ pub(crate) struct ExtManager {
 }
 
 impl ExtManager {
-    pub fn clear(&mut self) {
-        self.log.clear();
-        self.failed = false;
-
-        if !self.message_queue.is_empty() {
-            panic!("Message queue isn't empty");
-        }
-    }
-
-    pub fn fetch_inc_message_nonce(&mut self) -> u64 {
+    pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
         let nonce = self.msg_nonce;
         self.msg_nonce += 1;
         nonce
     }
 
-    pub fn free_id_nonce(&mut self) -> u64 {
+    pub(crate) fn free_id_nonce(&mut self) -> u64 {
         while self.programs.contains_key(&self.id_nonce.into()) {
             self.id_nonce += 1;
         }
         self.id_nonce
     }
 
-    pub fn run_message(&mut self, message: Message) {
+    pub(crate) fn run_message(&mut self, message: Message) {
         self.clear();
 
         if self.programs.contains_key(&message.dest()) {
@@ -167,7 +158,7 @@ impl ExtManager {
                                 self.message_dispatched(DispatchOutcome::MessageTrap {
                                     message_id: message.id(),
                                     program_id: message.dest(),
-                                    trap: None,
+                                    trap: Some("Err(_) returned in function"),
                                 })
                             }
 
@@ -194,6 +185,15 @@ impl ExtManager {
                     }
                 }
             }
+        }
+    }
+
+    fn clear(&mut self) {
+        self.log.clear();
+        self.failed = false;
+
+        if !self.message_queue.is_empty() {
+            panic!("Message queue isn't empty");
         }
     }
 
