@@ -1,19 +1,15 @@
 use codec::Encode;
+use env_logger::{Builder, Env};
 use gear_core::{message::Message, program::ProgramId};
-use std::sync::Mutex;
+use std::{fmt::Debug, sync::Mutex};
 
-use crate::manager::ExtManager;
+use crate::{manager::ExtManager, program::ProgramIdWrapper};
 
 pub struct System(pub(crate) Mutex<ExtManager>);
 
 impl Default for System {
     fn default() -> Self {
-        Self(Mutex::new(ExtManager {
-            msg_nonce: 1,
-            id_nonce: 1,
-            user: 100001,
-            ..Default::default()
-        }))
+        Self(Mutex::new(ExtManager::new()))
     }
 }
 
@@ -22,23 +18,42 @@ impl System {
         Default::default()
     }
 
+    pub fn init_logger(&self) {
+        let _ = env_logger::try_init();
+    }
+
+    pub fn init_wasm_logger(&self) {
+        let _ = Builder::from_env(Env::default().default_filter_or("gwasm=debug")).try_init();
+    }
+
     pub fn send_message(&self, message: Message) {
         self.0.lock().unwrap().run_message(message)
     }
 
-    pub fn set_user(&self, user: u64) {
+    pub fn set_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
+        let program_id: ProgramId = user.clone().into().into();
+
         let mut system = self.0.lock().unwrap();
-        if system.programs.contains_key(&ProgramId::from(user)) {
+
+        if system.programs.contains_key(&program_id) {
             panic!(
                 "Can't set user {:?}, because Program with this id already exists",
                 user
             )
         }
 
-        system.user = user;
+        system.user = program_id;
     }
 
-    pub fn get_user(&self) -> u64 {
+    pub fn assert_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
+        let program_id: ProgramId = user.clone().into().into();
+
+        if self.0.lock().unwrap().user != program_id {
+            panic!("User {:?} isn't actual user", user)
+        }
+    }
+
+    pub fn get_user(&self) -> ProgramId {
         self.0.lock().unwrap().user
     }
 

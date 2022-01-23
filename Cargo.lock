@@ -2152,11 +2152,13 @@ dependencies = [
 name = "gear-test-lib"
 version = "0.1.0"
 dependencies = [
+ "env_logger 0.9.0",
  "gear-backend-wasmtime",
  "gear-core",
  "gear-core-processor",
  "hex",
  "parity-scale-codec",
+ "path-clean",
 ]
 
 [[package]]
@@ -4610,6 +4612,12 @@ name = "paste"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5d65c4d95931acda4498f675e332fcbdc9a06705cd07086c510e9b6009cd1c1"
+
+[[package]]
+name = "path-clean"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecba01bf2678719532c5e3059e0b5f0811273d94b397088b82e3bd0a78c78fdd"
 
 [[package]]
 name = "pbkdf2"

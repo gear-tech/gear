@@ -30,7 +30,7 @@ pub(crate) struct ExtManager {
     // Messaging and programs meta
     pub(crate) msg_nonce: u64,
     pub(crate) id_nonce: u64,
-    pub(crate) user: u64,
+    pub(crate) user: ProgramId,
 
     // State
     pub(crate) programs: BTreeMap<ProgramId, (Program, ProgramState)>,
@@ -45,6 +45,15 @@ pub(crate) struct ExtManager {
 }
 
 impl ExtManager {
+    pub(crate) fn new() -> Self {
+        Self {
+            msg_nonce: 1,
+            id_nonce: 1,
+            user: 100001.into(),
+            ..Default::default()
+        }
+    }
+
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
         let nonce = self.msg_nonce;
         self.msg_nonce += 1;

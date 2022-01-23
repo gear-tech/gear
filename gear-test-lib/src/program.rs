@@ -2,12 +2,13 @@ use crate::{
     manager::{ExtManager, Program as InnerProgram, ProgramState},
     system::System,
 };
-use codec::Encode;
+use codec::Codec;
 use gear_core::{
     message::{Message, MessageId},
     program::{Program as CoreProgram, ProgramId},
 };
-use std::{fmt::Debug, fs, path::Path, sync::Mutex};
+use path_clean::PathClean;
+use std::{env, fmt::Debug, fs, path::Path, sync::Mutex};
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Vec<u8>, &'static str>;
@@ -30,6 +31,12 @@ impl From<u64> for ProgramIdWrapper {
     }
 }
 
+impl From<[u8; 32]> for ProgramIdWrapper {
+    fn from(other: [u8; 32]) -> Self {
+        Self(other.into())
+    }
+}
+
 impl From<String> for ProgramIdWrapper {
     fn from(other: String) -> Self {
         other[..].into()
@@ -42,8 +49,9 @@ impl From<&str> for ProgramIdWrapper {
 
         let mut bytes = [0u8; 32];
 
-        hex::encode_to_slice(id, &mut bytes)
-            .unwrap_or_else(|_| panic!("Invalid identifier: {:?}. It's not 32 bytes len", other));
+        if hex::encode_to_slice(id, &mut bytes).is_err() {
+            panic!("Invalid identifier: {:?}. It's not 32 bytes len", other)
+        }
 
         Self(bytes.into())
     }
@@ -106,10 +114,14 @@ impl<'a> Program<'a> {
         id: I,
         path: P,
     ) -> Self {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(path)
+            .clean();
+
         let program_id: ProgramId = id.clone().into().into();
 
-        let code =
-            fs::read(&path).unwrap_or_else(|_| panic!("Failed to find file {:?}", path.as_ref()));
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
 
         let program =
             CoreProgram::new(program_id, code).expect("Failed to create Program from code");
@@ -117,7 +129,7 @@ impl<'a> Program<'a> {
         Self::program_with_id(system, id, InnerProgram::Core(program))
     }
 
-    pub fn send<E: Encode>(&self, payload: E) {
+    pub fn send<C: Codec>(&self, payload: C) {
         self.send_bytes(payload.encode())
     }
 
@@ -126,7 +138,7 @@ impl<'a> Program<'a> {
 
         let message = Message::new(
             MessageId::from(system.fetch_inc_message_nonce()),
-            ProgramId::from(system.user),
+            system.user,
             self.id,
             payload.as_ref().to_vec().into(),
             u64::MAX,

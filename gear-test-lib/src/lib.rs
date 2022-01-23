@@ -29,8 +29,12 @@ mod tests {
     #[test]
     fn name() {
         let sys = System::new();
+        sys.init_wasm_logger();
 
-        let ping_pong = Program::mock(&sys, MyContract);
+        let ping_pong = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_ping.wasm",
+        );
 
         ping_pong.send_bytes("INIT");
         sys.assert_log_empty();
