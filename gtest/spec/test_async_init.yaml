@@ -1,0 +1,185 @@
+title: Async init
+
+programs:
+  - id:
+      kind: account
+      value: alice
+    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    init_message:
+      kind: custom
+      value:
+        - request: ""
+          repeated: false
+          replies:
+            - count: 1
+              reply: "0x01"
+
+  - id:
+      kind: account
+      value: bob
+    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    init_message:
+      kind: custom
+      value:
+        - request: ""
+          repeated: false
+          replies:
+            - count: 2
+              reply: "0x02"
+
+  - id:
+      kind: account
+      value: eve
+    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    init_message:
+      kind: custom
+      value:
+        - request: ""
+          repeated: false
+          replies:
+            - count: 1
+              reply: "0x03"
+
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_async_init.wasm
+    init_message: &init
+      kind: custom
+      value:
+        # Eve
+        approver_first: "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"
+        # bob's Account Id
+        approver_second: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+        # alice
+        approver_third: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+
+fixtures:
+  - title: approved pong
+
+    messages:
+      - destination: 1
+        payload: &ping
+          kind: utf-8
+          value: "PING"
+
+    expected:
+      - step: 1
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: &empty
+              kind: bytes
+              value: ""
+          - destination:
+              kind: account
+              value: alice
+            payload: *empty
+          - destination: 1
+            payload: &three
+              kind: bytes
+              value: "0x03"
+
+      - step: 2
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *empty
+          - destination: 1
+            payload: *three
+          - destination: 1
+            payload: &two
+              kind: bytes
+              value: "0x02"
+
+      - step: 3
+        messages:
+          - destination: 1
+            payload: *three
+          - destination: 1
+            payload: *two
+          - destination: 1
+            payload: &one
+              kind: bytes
+              value: "0x01"
+
+      - step: 4
+        messages:
+          - destination: 1
+            payload: *two
+          - destination: 1
+            payload: *one
+          - destination: 1
+            init: true
+            payload: *init
+
+      - step: 5
+        messages:
+          - destination: 1
+            payload: *one
+          - destination: 1
+            init: true
+            payload: *init
+
+      - step: 6
+        messages:
+          - destination: 1
+            init: true
+            payload: *init
+
+      - step: 7
+        messages:
+          - destination: 1
+            payload: *ping
+
+      - step: 8
+        messages:
+          - destination:
+              kind: account
+              value: eve
+            payload: *empty
+          - destination:
+              kind: account
+              value: bob
+            payload: *empty
+          - destination:
+              kind: account
+              value: alice
+            payload: *empty
+
+      - step: 9
+        messages:
+          - destination:
+              kind: account
+              value: bob
+            payload: *empty
+          - destination:
+              kind: account
+              value: alice
+            payload: *empty
+
+      - step: 10
+        messages:
+          - destination:
+              kind: account
+              value: alice
+            payload: *empty
+          - destination: 1
+            payload: *two
+
+      - step: 11
+        messages:
+          - destination: 1
+            payload: *two
+
+      - step: 12
+        messages:
+          - destination: 1
+            payload: *ping
+
+      - step: 13
+        log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: "PONG"

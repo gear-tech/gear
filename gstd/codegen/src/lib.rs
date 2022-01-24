@@ -20,13 +20,68 @@
 
 extern crate proc_macro;
 
+use core::fmt::Display;
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 
-fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
+/// A global flag, determining if `handle_reply` already was generated.
+static mut HANDLE_REPLY_FLAG: Flag = Flag(false);
+
+struct Flag(bool);
+
+impl Flag {
+    fn get_and_set(&mut self) -> bool {
+        let ret = self.0;
+        self.0 = true;
+        ret
+    }
+}
+
+fn compile_error<T: ToTokens, U: Display>(tokens: T, msg: U) -> TokenStream {
     syn::Error::new_spanned(tokens, msg)
         .to_compile_error()
         .into()
+}
+
+fn check_signature(name: &str, function: &syn::ItemFn) -> Result<(), TokenStream> {
+    if function.sig.ident != name {
+        return Err(compile_error(
+            &function.sig.ident,
+            format!("function must be called `{}`", name),
+        ));
+    }
+
+    if !function.sig.inputs.is_empty() {
+        return Err(compile_error(
+            &function.sig.ident,
+            "function must have no arguments",
+        ));
+    }
+
+    if function.sig.asyncness.is_none() {
+        return Err(compile_error(
+            &function.sig.fn_token,
+            "function must be async",
+        ));
+    }
+
+    Ok(())
+}
+
+fn generate_handle_reply_if_required(mut code: TokenStream) -> TokenStream {
+    let reply_generated = unsafe { HANDLE_REPLY_FLAG.get_and_set() };
+    if !reply_generated {
+        let handle_reply: TokenStream = quote!(
+            #[no_mangle]
+            pub unsafe extern "C" fn handle_reply() {
+                gstd::record_reply();
+            }
+        )
+        .into();
+        code.extend([handle_reply]);
+    }
+
+    code
 }
 
 /// This is the procedural macro for your convenience.
@@ -37,42 +92,58 @@ fn compile_error<T: ToTokens>(tokens: T, msg: &str) -> TokenStream {
 /// ## Usage
 ///
 /// ```ignore
-/// #[gstd::asynс_main]
+/// #[gstd::async_main]
 /// async fn main() {
-///     gstd::debug!("Hello world");
+///     gstd::debug!("Hello world!");
 /// }
 /// ```
 #[proc_macro_attribute]
 pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let function = syn::parse_macro_input!(item as syn::ItemFn);
-
-    if function.sig.ident != "main" {
-        return compile_error(&function.sig.ident, "handle function must be called `main`");
-    }
-
-    if !function.sig.inputs.is_empty() {
-        return compile_error(
-            &function.sig.ident,
-            "handle function must have no arguments",
-        );
-    }
-
-    if function.sig.asyncness.is_none() {
-        return compile_error(&function.sig.fn_token, "handle function must be async");
+    if let Err(tokens) = check_signature("main", &function) {
+        return tokens;
     }
 
     let body = &function.block;
-
-    quote!(
+    let code: TokenStream = quote!(
         #[no_mangle]
         pub unsafe extern "C" fn handle() {
             gstd::message_loop(async #body);
         }
+    )
+    .into();
 
+    generate_handle_reply_if_required(code)
+}
+
+/// Mark async function to be the program initialization method.
+/// Can be used together with [`async_main`].
+/// Functions `init`, `handle_reply` cannot be specified if this macro is used.
+/// If you need to specify `init`, `handle_reply` explicitly don't use this macro.
+///
+/// ## Usage
+///
+/// ```ignore
+/// #[gstd::async_init]
+/// async fn init() {
+///     gstd::debug!("Hello world!");
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn async_init(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let function = syn::parse_macro_input!(item as syn::ItemFn);
+    if let Err(tokens) = check_signature("init", &function) {
+        return tokens;
+    }
+
+    let body = &function.block;
+    let code: TokenStream = quote!(
         #[no_mangle]
-        pub unsafe extern "C" fn handle_reply() {
-            gstd::record_reply();
+        pub unsafe extern "C" fn init() {
+            gstd::message_loop(async #body);
         }
     )
-    .into()
+    .into();
+
+    generate_handle_reply_if_required(code)
 }

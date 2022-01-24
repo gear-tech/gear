@@ -1,0 +1,13 @@
+[package]
+name = "demo-async-init"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
+futures = { version = "0.3", default-features = false, features = ["alloc"] }

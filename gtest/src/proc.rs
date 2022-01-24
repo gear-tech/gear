@@ -1,11 +1,10 @@
-use crate::check::ProgramStorage;
+use crate::check::ExecutionContext;
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
-use gear_core::message::MessageId;
 use gear_core::{
-    message::{IncomingMessage, Message},
+    message::{IncomingMessage, Message, MessageId},
     program::{Program, ProgramId},
 };
 use regex::Regex;
@@ -13,6 +12,8 @@ use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::{
     fmt::Write,
+    io::Error as IoError,
+    io::ErrorKind as IoErrorKind,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -81,17 +82,6 @@ impl From<InitMessage> for Dispatch {
     }
 }
 
-pub fn message_to_dispatch(message: Message) -> Dispatch {
-    Dispatch {
-        kind: if message.reply().is_none() {
-            DispatchKind::Handle
-        } else {
-            DispatchKind::HandleReply
-        },
-        message,
-    }
-}
-
 pub fn init_program<E, JH>(
     message: InitMessage,
     block_info: BlockInfo,
@@ -99,7 +89,7 @@ pub fn init_program<E, JH>(
 ) -> anyhow::Result<()>
 where
     E: Environment<Ext>,
-    JH: JournalHandler + CollectState + ProgramStorage,
+    JH: JournalHandler + CollectState + ExecutionContext,
 {
     let program = Program::new(message.id, message.code.clone())?;
 
@@ -125,13 +115,14 @@ pub fn init_fixture<E, JH>(
 ) -> anyhow::Result<()>
 where
     E: Environment<Ext>,
-    JH: JournalHandler + CollectState + ProgramStorage,
+    JH: JournalHandler + CollectState + ExecutionContext,
 {
     let mut nonce = 1;
 
     for program in &test.programs {
         let program_path = program.path.clone();
-        let code = std::fs::read(&program_path)?;
+        let code = std::fs::read(&program_path)
+            .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", program_path, e)))?;
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
@@ -246,7 +237,7 @@ pub fn run<JH, E>(
     journal_handler: &mut JH,
 ) -> Vec<(State, anyhow::Result<()>)>
 where
-    JH: JournalHandler + CollectState,
+    JH: JournalHandler + CollectState + ExecutionContext,
     E: Environment<Ext>,
 {
     let mut results = Vec::new();
@@ -266,7 +257,7 @@ where
 
                 let res = core_processor::process::<E>(
                     program.clone(),
-                    message_to_dispatch(m),
+                    journal_handler.message_to_dispatch(m),
                     BlockInfo { height, timestamp },
                 );
 
@@ -291,7 +282,7 @@ where
 
             let res = core_processor::process::<E>(
                 program.clone(),
-                message_to_dispatch(m),
+                journal_handler.message_to_dispatch(m),
                 BlockInfo {
                     height: counter,
                     timestamp,
