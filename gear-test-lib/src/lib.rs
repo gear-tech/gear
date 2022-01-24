@@ -45,4 +45,24 @@ mod tests {
         ping_pong.send_bytes("NOT PING");
         sys.assert_log_empty();
     }
+
+    #[test]
+    fn name2() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let ping_pong = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_ping.wasm",
+        );
+
+        ping_pong.send_bytes("INIT");
+        sys.assert_log_empty();
+
+        ping_pong.send_bytes("PING");
+        sys.assert_log_bytes(1, "PONG");
+
+        ping_pong.send_bytes("NOT PING");
+        sys.assert_log_empty();
+    }
 }

@@ -1,6 +1,8 @@
 use codec::Encode;
+use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{message::Message, program::ProgramId};
+use std::io::Write;
 use std::{fmt::Debug, sync::Mutex};
 
 use crate::{manager::ExtManager, program::ProgramIdWrapper};
@@ -13,10 +15,6 @@ impl Default for System {
     }
 }
 
-use colored::Colorize;
-
-use std::io::Write;
-
 impl System {
     pub fn new() -> Self {
         Default::default()
@@ -27,8 +25,9 @@ impl System {
             .format(|buf, record| {
                 writeln!(
                     buf,
-                    "[{}] {}",
+                    "[{} {}] {}",
                     record.level().to_string().blue(),
+                    std::thread::current().name().unwrap_or("unknown").white(),
                     record.args().to_string().replacen("DEBUG: ", "", 1).white()
                 )
             })
