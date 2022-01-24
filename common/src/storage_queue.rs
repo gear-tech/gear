@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use codec::{Decode, Encode};
+use codec::{Codec, Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_std::borrow::Cow;
@@ -28,20 +28,20 @@ fn key_with_prefix(prefix: &[u8], key: &[u8]) -> Vec<u8> {
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-struct Node<T: Encode + Decode> {
+struct Node<T: Codec> {
     value: T,
     next: Option<H256>,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-pub struct StorageQueue<T: Decode + Encode> {
+pub struct StorageQueue<T: Codec> {
     prefix: Cow<'static, [u8]>,
     head: Option<H256>,
     tail: Option<H256>,
     _marker: PhantomData<T>,
 }
 
-impl<T: Decode + Encode> StorageQueue<T> {
+impl<T: Codec> StorageQueue<T> {
     pub fn get(prefix: impl Into<Cow<'static, [u8]>>) -> Self {
         let prefix: Cow<'static, [u8]> = prefix.into();
 
@@ -151,9 +151,9 @@ impl<T: Decode + Encode> StorageQueue<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Iterator<T: Decode + Encode>(Option<H256>, Cow<'static, [u8]>, PhantomData<T>);
+pub struct Iterator<T: Codec>(Option<H256>, Cow<'static, [u8]>, PhantomData<T>);
 
-impl<T: Decode + Encode> sp_std::iter::Iterator for Iterator<T> {
+impl<T: Codec> sp_std::iter::Iterator for Iterator<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -177,7 +177,7 @@ impl<T: Decode + Encode> sp_std::iter::Iterator for Iterator<T> {
     }
 }
 
-impl<T: Decode + Encode> sp_std::iter::IntoIterator for StorageQueue<T> {
+impl<T: Codec> sp_std::iter::IntoIterator for StorageQueue<T> {
     type Item = T;
     type IntoIter = Iterator<T>;
 
