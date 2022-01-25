@@ -24,6 +24,7 @@
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
 
+#[cfg(feature = "alloc")]
 extern crate galloc;
 
 mod async_runtime;

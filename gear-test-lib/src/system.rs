@@ -1,11 +1,9 @@
+use crate::{manager::ExtManager, program::ProgramIdWrapper};
 use codec::Encode;
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{message::Message, program::ProgramId};
-use std::io::Write;
-use std::{fmt::Debug, sync::Mutex};
-
-use crate::{manager::ExtManager, program::ProgramIdWrapper};
+use std::{fmt::Debug, io::Write, sync::Mutex, thread};
 
 pub struct System(pub(crate) Mutex<ExtManager>);
 
@@ -21,13 +19,13 @@ impl System {
     }
 
     pub fn init_logger(&self) {
-        let _ = Builder::from_env(Env::default().filter_or("gwasm", "gwasm=debug"))
+        let _ = Builder::from_env(Env::default().default_filter_or("gwasm=debug"))
             .format(|buf, record| {
                 writeln!(
                     buf,
                     "[{} {}] {}",
                     record.level().to_string().blue(),
-                    std::thread::current().name().unwrap_or("unknown").white(),
+                    thread::current().name().unwrap_or("unknown").white(),
                     record.args().to_string().replacen("DEBUG: ", "", 1).white()
                 )
             })
@@ -38,6 +36,10 @@ impl System {
 
     pub fn send_message(&self, message: Message) {
         self.0.lock().unwrap().run_message(message)
+    }
+
+    pub fn spend_blocks(&self, amount: u32) {
+        self.0.lock().unwrap().block_info.height += amount;
     }
 
     pub fn set_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
@@ -87,6 +89,18 @@ impl System {
     pub fn assert_log_empty(&self) {
         if !self.0.lock().unwrap().log.is_empty() {
             panic!("Log is not empty");
+        }
+    }
+
+    pub fn assert_run_success(&self) {
+        if self.0.lock().unwrap().failed {
+            panic!("Last run was failed!");
+        }
+    }
+
+    pub fn assert_run_failed(&self) {
+        if !self.0.lock().unwrap().failed {
+            panic!("Last run was success!");
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::WasmProgram;
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
@@ -6,8 +7,6 @@ use gear_core::{
     program::{Program as CoreProgram, ProgramId},
 };
 use std::collections::{BTreeMap, VecDeque};
-
-use crate::program::WasmProgram;
 
 #[derive(Clone, Debug)]
 pub(crate) enum ProgramState {
