@@ -205,6 +205,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-async-init"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "demo-async-multisig"
 version = "0.1.0"
 dependencies = [

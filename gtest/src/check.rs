@@ -22,7 +22,7 @@ use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVa
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use core_processor::{
-    common::{CollectState, JournalHandler},
+    common::{CollectState, Dispatch, JournalHandler},
     Ext,
 };
 use derive_more::Display;
@@ -47,8 +47,10 @@ use std::{
 
 const FILTER_ENV: &str = "RUST_LOG";
 
-pub trait ProgramStorage {
+pub trait ExecutionContext {
     fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId);
+
+    fn message_to_dispatch(&self, message: Message) -> Dispatch;
 }
 
 pub struct FixtureLogger {
@@ -438,7 +440,7 @@ fn run_fixture<JH, E>(
     skip_memory: bool,
 ) -> ColoredString
 where
-    JH: JournalHandler + CollectState + ProgramStorage,
+    JH: JournalHandler + CollectState + ExecutionContext,
     E: Environment<Ext>,
 {
     match proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
@@ -542,7 +544,7 @@ pub fn check_main<JH, E, F>(
     ext: Option<Box<dyn Fn() -> sp_io::TestExternalities + Send + Sync + 'static>>,
 ) -> anyhow::Result<()>
 where
-    JH: JournalHandler + CollectState + ProgramStorage,
+    JH: JournalHandler + CollectState + ExecutionContext,
     E: Environment<Ext>,
     F: Fn() -> JH + std::marker::Sync + std::marker::Send,
 {

@@ -39,7 +39,7 @@ pub use async_runtime::{message_loop, record_reply};
 pub use common::errors;
 pub use common::handlers::*;
 pub use common::primitives::*;
-pub use gstd_codegen::async_main;
+pub use gstd_codegen::{async_init, async_main};
 
 pub use prelude::*;
 
