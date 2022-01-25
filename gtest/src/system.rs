@@ -3,13 +3,13 @@ use codec::Encode;
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{message::Message, program::ProgramId};
-use std::{fmt::Debug, io::Write, sync::Mutex, thread};
+use std::{cell::RefCell, fmt::Debug, io::Write, thread};
 
-pub struct System(pub(crate) Mutex<ExtManager>);
+pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl Default for System {
     fn default() -> Self {
-        Self(Mutex::new(ExtManager::new()))
+        Self(RefCell::new(ExtManager::new()))
     }
 }
 
@@ -35,17 +35,17 @@ impl System {
     }
 
     pub fn send_message(&self, message: Message) {
-        self.0.lock().unwrap().run_message(message)
+        self.0.borrow_mut().run_message(message)
     }
 
     pub fn spend_blocks(&self, amount: u32) {
-        self.0.lock().unwrap().block_info.height += amount;
+        self.0.borrow_mut().block_info.height += amount;
     }
 
     pub fn set_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
         let program_id: ProgramId = user.clone().into().into();
 
-        let mut system = self.0.lock().unwrap();
+        let mut system = self.0.borrow_mut();
 
         if system.programs.contains_key(&program_id) {
             panic!(
@@ -60,13 +60,13 @@ impl System {
     pub fn assert_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
         let program_id: ProgramId = user.clone().into().into();
 
-        if self.0.lock().unwrap().user != program_id {
+        if self.0.borrow().user != program_id {
             panic!("User {:?} isn't actual user", user)
         }
     }
 
     pub fn get_user(&self) -> ProgramId {
-        self.0.lock().unwrap().user
+        self.0.borrow().user
     }
 
     pub fn assert_log<E: Encode>(&self, from: u64, payload: E) {
@@ -74,10 +74,9 @@ impl System {
     }
 
     pub fn assert_log_bytes<T: AsRef<[u8]>>(&self, from: u64, payload: T) {
-        let manager = self.0.lock().unwrap();
         let source = ProgramId::from(from);
 
-        for log in &manager.log {
+        for log in &self.0.borrow().log {
             if log.source() == source && log.payload() == payload.as_ref().to_vec() {
                 return;
             }
@@ -87,19 +86,19 @@ impl System {
     }
 
     pub fn assert_log_empty(&self) {
-        if !self.0.lock().unwrap().log.is_empty() {
+        if !self.0.borrow().log.is_empty() {
             panic!("Log is not empty");
         }
     }
 
     pub fn assert_run_success(&self) {
-        if self.0.lock().unwrap().failed {
+        if self.0.borrow().failed {
             panic!("Last run was failed!");
         }
     }
 
     pub fn assert_run_failed(&self) {
-        if !self.0.lock().unwrap().failed {
+        if !self.0.borrow().failed {
             panic!("Last run was success!");
         }
     }

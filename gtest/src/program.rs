@@ -8,7 +8,7 @@ use gear_core::{
     program::{Program as CoreProgram, ProgramId},
 };
 use path_clean::PathClean;
-use std::{env, fmt::Debug, fs, path::Path, sync::Mutex};
+use std::{cell::RefCell, env, fmt::Debug, fs, path::Path};
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Vec<u8>, &'static str>;
@@ -58,7 +58,7 @@ impl From<&str> for ProgramIdWrapper {
 }
 
 pub struct Program<'a> {
-    manager: &'a Mutex<ExtManager>,
+    manager: &'a RefCell<ExtManager>,
     id: ProgramId,
 }
 
@@ -70,9 +70,9 @@ impl<'a> Program<'a> {
     ) -> Self {
         let program_id: ProgramId = id.clone().into().into();
 
-        let mut sys = system.0.lock().unwrap();
-
-        if sys
+        if system
+            .0
+            .borrow_mut()
             .programs
             .insert(program_id, (program, ProgramState::Uninitialized(None)))
             .is_some()
@@ -90,7 +90,7 @@ impl<'a> Program<'a> {
     }
 
     pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
-        let nonce = system.0.lock().unwrap().free_id_nonce();
+        let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::mock_with_id(system, nonce, mock)
     }
@@ -104,7 +104,7 @@ impl<'a> Program<'a> {
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
-        let nonce = system.0.lock().unwrap().free_id_nonce();
+        let nonce = system.0.borrow_mut().free_id_nonce();
 
         Self::from_file_with_id(system, nonce, path)
     }
@@ -134,7 +134,7 @@ impl<'a> Program<'a> {
     }
 
     pub fn send_bytes<T: AsRef<[u8]>>(&self, payload: T) {
-        let mut system = self.manager.lock().unwrap();
+        let mut system = self.manager.borrow_mut();
 
         let message = Message::new(
             MessageId::from(system.fetch_inc_message_nonce()),
