@@ -7,6 +7,7 @@ use gear_core::{
     program::{Program as CoreProgram, ProgramId},
 };
 use std::collections::{BTreeMap, VecDeque};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Debug)]
 pub(crate) enum ProgramState {
@@ -49,6 +50,13 @@ impl ExtManager {
             msg_nonce: 1,
             id_nonce: 1,
             user: 100001.into(),
+            block_info: BlockInfo {
+                height: 0,
+                timestamp: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards")
+                    .as_secs(),
+            },
             ..Default::default()
         }
     }

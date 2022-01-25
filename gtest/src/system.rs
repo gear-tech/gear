@@ -40,6 +40,7 @@ impl System {
 
     pub fn spend_blocks(&self, amount: u32) {
         self.0.borrow_mut().block_info.height += amount;
+        self.0.borrow_mut().block_info.timestamp += amount as u64;
     }
 
     pub fn set_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
