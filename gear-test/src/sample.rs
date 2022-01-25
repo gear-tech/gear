@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module describes structural "bricks" of tests in [spec](https://github.com/gear-tech/gear/tree/master/gtest/spec) directory .
+//! Module describes structural "bricks" of tests in [spec](https://github.com/gear-tech/gear/tree/master/gear-test/spec) directory .
 //!
 //! For now tests are defined in "yaml" format and parsed into models defined in the module by using [serde_yaml](https://docs.serde.rs/serde_yaml/index.html).
 
