@@ -2149,20 +2149,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gear-test-lib"
-version = "0.1.0"
-dependencies = [
- "colored",
- "env_logger 0.9.0",
- "gear-backend-wasmtime",
- "gear-core",
- "gear-core-processor",
- "hex",
- "parity-scale-codec",
- "path-clean",
-]
-
-[[package]]
 name = "generic-array"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2291,6 +2277,20 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "syn",
+]
+
+[[package]]
+name = "gtest"
+version = "0.1.0"
+dependencies = [
+ "colored",
+ "env_logger 0.9.0",
+ "gear-backend-wasmtime",
+ "gear-core",
+ "gear-core-processor",
+ "hex",
+ "parity-scale-codec",
+ "path-clean",
 ]
 
 [[package]]
