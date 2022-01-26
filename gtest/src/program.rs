@@ -26,19 +26,6 @@ impl<T: Into<ProgramIdWrapper> + Clone> PartialEq<T> for ProgramIdWrapper {
     }
 }
 
-// impl From<ProgramIdWrapper> for ProgramId {
-//     fn from(other: ProgramIdWrapper) -> ProgramId {
-//         other.0
-//     }
-// }
-
-#[test]
-fn name() {
-    let id: ProgramIdWrapper = 0.into();
-
-    assert_eq!(id, 0);
-}
-
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
         Self(other.into())
