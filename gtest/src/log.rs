@@ -135,8 +135,10 @@ pub struct RunResult {
 }
 
 impl RunResult {
-    pub fn contains(&self, log: &Log) -> bool {
-        self.log.iter().any(|e| e == log)
+    pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
+        let log = log.clone().into();
+
+        self.log.iter().any(|e| e == &log)
     }
 
     pub fn log(&self) -> &Vec<CoreLog> {
