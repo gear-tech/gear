@@ -1,4 +1,8 @@
-use crate::WasmProgram;
+use crate::{
+    log::{CoreLog, RunResult},
+    program::WasmProgram,
+    DEFAULT_USER,
+};
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
@@ -40,8 +44,10 @@ pub(crate) struct ExtManager {
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
     // Last run info
+    pub(crate) msg_id: MessageId,
     pub(crate) log: Vec<Message>,
-    pub(crate) failed: bool,
+    pub(crate) main_failed: bool,
+    pub(crate) others_failed: bool,
 }
 
 impl ExtManager {
@@ -49,7 +55,7 @@ impl ExtManager {
         Self {
             msg_nonce: 1,
             id_nonce: 1,
-            user: 100001.into(),
+            user: DEFAULT_USER.into(),
             block_info: BlockInfo {
                 height: 0,
                 timestamp: SystemTime::now()
@@ -74,8 +80,8 @@ impl ExtManager {
         self.id_nonce
     }
 
-    pub(crate) fn run_message(&mut self, message: Message) {
-        self.clear();
+    pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
+        self.clear(message.id());
 
         if self.programs.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
@@ -202,57 +208,83 @@ impl ExtManager {
                 }
             }
         }
+
+        RunResult {
+            log: self
+                .log
+                .clone()
+                .into_iter()
+                .map(CoreLog::from_message)
+                .collect(),
+            main_failed: true,
+            others_failed: true,
+        }
     }
 
-    fn clear(&mut self) {
+    fn clear(&mut self, msg_id: MessageId) {
+        self.msg_id = msg_id;
         self.log.clear();
-        self.failed = false;
+        self.main_failed = false;
+        self.others_failed = false;
 
         if !self.message_queue.is_empty() {
             panic!("Message queue isn't empty");
         }
     }
 
+    fn append_failed(&mut self, msg_id: MessageId, failed: bool) {
+        if self.msg_id == msg_id {
+            self.main_failed = self.main_failed || failed;
+        } else {
+            self.others_failed = self.others_failed || failed;
+        }
+    }
+
     fn init_success(&mut self, message_id: MessageId, program_id: ProgramId) {
-        self.programs
+        let (_, state) = self
+            .programs
             .get_mut(&program_id)
-            .expect("Can't find existing program")
-            .1 = ProgramState::Initialized;
+            .expect("Can't find existing program");
+
+        *state = ProgramState::Initialized;
 
         if let Some(ids) = self.wait_init_list.remove(&program_id) {
             for id in ids {
                 self.wake_message(message_id, program_id, id);
             }
         }
+
+        self.append_failed(message_id, false);
     }
 
-    fn init_failure(&mut self, program_id: ProgramId) {
-        self.programs
+    fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
+        let (_, state) = self
+            .programs
             .get_mut(&program_id)
-            .expect("Can't find existing program")
-            .1 = ProgramState::FailedInitialization
+            .expect("Can't find existing program");
+
+        *state = ProgramState::FailedInitialization;
+
+        self.append_failed(message_id, true);
     }
 }
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
-        self.failed = self.failed
-            || matches!(
-                outcome,
-                DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. }
-            );
-
         match outcome {
+            DispatchOutcome::MessageTrap { message_id, .. } => self.append_failed(message_id, true),
+            DispatchOutcome::Success(message_id) => self.append_failed(message_id, false),
+            DispatchOutcome::InitFailure {
+                message_id,
+                program_id,
+                ..
+            } => self.init_failure(message_id, program_id),
             DispatchOutcome::InitSuccess {
                 message_id,
                 program,
                 ..
             } => self.init_success(message_id, program.id()),
-
-            DispatchOutcome::InitFailure { program_id, .. } => self.init_failure(program_id),
-
-            _ => {}
-        };
+        }
     }
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {

@@ -1,8 +1,7 @@
-use crate::{manager::ExtManager, program::ProgramIdWrapper};
-use codec::Encode;
+use crate::{log::RunResult, manager::ExtManager, program::ProgramIdWrapper};
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{message::Message, program::ProgramId};
+use gear_core::message::Message;
 use std::{cell::RefCell, fmt::Debug, io::Write, thread};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
@@ -34,7 +33,7 @@ impl System {
             .try_init();
     }
 
-    pub fn send_message(&self, message: Message) {
+    pub fn send_message(&self, message: Message) -> RunResult {
         self.0.borrow_mut().run_message(message)
     }
 
@@ -44,7 +43,7 @@ impl System {
     }
 
     pub fn set_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
-        let program_id: ProgramId = user.clone().into().into();
+        let program_id = user.clone().into().0;
 
         let mut system = self.0.borrow_mut();
 
@@ -58,49 +57,7 @@ impl System {
         system.user = program_id;
     }
 
-    pub fn assert_user<I: Into<ProgramIdWrapper> + Clone + Debug>(&self, user: I) {
-        let program_id: ProgramId = user.clone().into().into();
-
-        if self.0.borrow().user != program_id {
-            panic!("User {:?} isn't actual user", user)
-        }
-    }
-
-    pub fn get_user(&self) -> ProgramId {
-        self.0.borrow().user
-    }
-
-    pub fn assert_log<E: Encode>(&self, from: u64, payload: E) {
-        self.assert_log_bytes(from, payload.encode())
-    }
-
-    pub fn assert_log_bytes<T: AsRef<[u8]>>(&self, from: u64, payload: T) {
-        let source = ProgramId::from(from);
-
-        for log in &self.0.borrow().log {
-            if log.source() == source && log.payload() == payload.as_ref().to_vec() {
-                return;
-            }
-        }
-
-        panic!("Log not found");
-    }
-
-    pub fn assert_log_empty(&self) {
-        if !self.0.borrow().log.is_empty() {
-            panic!("Log is not empty");
-        }
-    }
-
-    pub fn assert_run_success(&self) {
-        if self.0.borrow().failed {
-            panic!("Last run was failed!");
-        }
-    }
-
-    pub fn assert_run_failed(&self) {
-        if !self.0.borrow().failed {
-            panic!("Last run was success!");
-        }
+    pub fn user(&self) -> ProgramIdWrapper {
+        ProgramIdWrapper(self.0.borrow().user)
     }
 }

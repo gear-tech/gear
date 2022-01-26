@@ -1,4 +1,5 @@
 use crate::{
+    log::RunResult,
     manager::{ExtManager, Program as InnerProgram, ProgramState},
     system::System,
 };
@@ -19,10 +20,23 @@ pub trait WasmProgram: Debug {
 #[derive(Clone, Debug)]
 pub struct ProgramIdWrapper(pub(crate) ProgramId);
 
-impl From<ProgramIdWrapper> for ProgramId {
-    fn from(other: ProgramIdWrapper) -> ProgramId {
-        other.0
+impl<T: Into<ProgramIdWrapper> + Clone> PartialEq<T> for ProgramIdWrapper {
+    fn eq(&self, other: &T) -> bool {
+        self.0.eq(&other.clone().into().0)
     }
+}
+
+// impl From<ProgramIdWrapper> for ProgramId {
+//     fn from(other: ProgramIdWrapper) -> ProgramId {
+//         other.0
+//     }
+// }
+
+#[test]
+fn name() {
+    let id: ProgramIdWrapper = 0.into();
+
+    assert_eq!(id, 0);
 }
 
 impl From<u64> for ProgramIdWrapper {
@@ -68,7 +82,7 @@ impl<'a> Program<'a> {
         id: I,
         program: InnerProgram,
     ) -> Self {
-        let program_id: ProgramId = id.clone().into().into();
+        let program_id = id.clone().into().0;
 
         if system
             .0
@@ -119,7 +133,7 @@ impl<'a> Program<'a> {
             .join(path)
             .clean();
 
-        let program_id: ProgramId = id.clone().into().into();
+        let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
 
@@ -129,11 +143,11 @@ impl<'a> Program<'a> {
         Self::program_with_id(system, id, InnerProgram::Core(program))
     }
 
-    pub fn send<C: Codec>(&self, payload: C) {
+    pub fn send<C: Codec>(&self, payload: C) -> RunResult {
         self.send_bytes(payload.encode())
     }
 
-    pub fn send_bytes<T: AsRef<[u8]>>(&self, payload: T) {
+    pub fn send_bytes<T: AsRef<[u8]>>(&self, payload: T) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
         let message = Message::new(
