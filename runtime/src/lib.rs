@@ -605,8 +605,9 @@ impl_runtime_apis! {
             account_id: AccountId,
             program_id: ProgramId,
             payload: Vec<u8>,
+            kind: Vec<u8>,
         ) -> Option<u64> {
-            Gear::get_gas_spent(account_id.into_origin(), program_id, payload)
+            Gear::get_gas_spent(account_id.into_origin(), program_id, payload, kind.into())
         }
     }
 

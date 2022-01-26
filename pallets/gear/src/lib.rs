@@ -18,6 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -70,10 +72,7 @@ pub mod pallet {
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
-    use sp_std::{
-        collections::{btree_map::BTreeMap, vec_deque::VecDeque},
-        prelude::*,
-    };
+    use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
     pub trait Config:
@@ -303,60 +302,64 @@ pub mod pallet {
             Ok(message)
         }
 
-        pub fn get_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> Option<u64> {
-            let mut ext_manager = ExtManager::<T>::default();
+        pub fn get_gas_spent(
+            source: H256,
+            dest: H256,
+            payload: Vec<u8>,
+            kind: DispatchKind,
+        ) -> Option<u64> {
+            let ext_manager = ExtManager::<T>::default();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let mut messages: VecDeque<Message> = VecDeque::from([Message {
+            let reply = match kind {
+                DispatchKind::HandleReply => Some((H256::zero(), 0)), // TODO: Are we to pass the real ID?
+                _ => None,
+            };
+
+            let message = Message {
                 id: common::next_message_id(&payload),
                 source,
                 dest,
                 gas_limit: u64::MAX,
                 payload,
                 value: 0,
-                reply: None,
-            }]);
+                reply,
+            };
 
             let mut gas_burned = 0;
+            let mut gas_to_send = 0;
 
-            while let Some(message) = messages.pop_front() {
-                let program = ext_manager.get_program(message.dest).or(None)?;
+            // TODO: Do we need to get the code's ID instead of program's for init?
+            let program = ext_manager.get_program(message.dest)?;
 
-                let kind = if message.reply.is_none() {
-                    DispatchKind::Handle
-                } else {
-                    DispatchKind::HandleReply
-                };
+            let dispatch = Dispatch {
+                kind,
+                message: message.into(),
+            };
 
-                let dispatch = Dispatch {
-                    kind,
-                    message: message.into(),
-                };
+            let journal =
+                core_processor::process::<SandboxEnvironment<Ext>>(program, dispatch, block_info);
 
-                let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    program, dispatch, block_info,
-                );
-
-                for note in &journal {
-                    match note {
-                        JournalNote::GasBurned { amount, .. } => {
-                            gas_burned = gas_burned.saturating_add(*amount)
-                        }
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                            ..
-                        }) => return None,
-                        _ => {}
+            for note in &journal {
+                match note {
+                    JournalNote::GasBurned { amount, .. } => {
+                        gas_burned = gas_burned.saturating_add(*amount)
                     }
+                    JournalNote::SendMessage { message, .. } => {
+                        gas_to_send = gas_to_send.saturating_add(message.gas_limit)
+                    }
+                    JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
+                        return None
+                    }
+                    _ => (),
                 }
-
-                core_processor::handle_journal(journal, &mut ext_manager);
             }
 
-            Some(gas_burned)
+            Some(gas_burned.saturating_add(gas_to_send))
         }
 
         pub(crate) fn decrease_gas_allowance(gas_charge: u64) {

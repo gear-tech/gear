@@ -38,6 +38,7 @@ pub trait GearApi<BlockHash, AccountId, ProgramId> {
         account_id: AccountId,
         program_id: ProgramId,
         payload: Bytes,
+        kind: String,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex>;
 }
@@ -91,6 +92,7 @@ where
         account_id: AccountId,
         program_id: ProgramId,
         payload: Bytes,
+        kind: String,
         at: Option<<Block as BlockT>::Hash>,
     ) -> Result<NumberOrHex> {
         let api = self.client.runtime_api();
@@ -99,7 +101,7 @@ where
 			self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(&at, account_id, program_id, payload.to_vec())
+            .get_gas_spent(&at, account_id, program_id, payload.to_vec(), kind.into())
             .map_err(|e| RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
                 message: "Unable to get gas spent.".into(),

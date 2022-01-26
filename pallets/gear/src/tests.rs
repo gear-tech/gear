@@ -18,6 +18,7 @@
 
 use codec::Encode;
 use common::{self, GasToFeeConverter, Origin as _};
+use core_processor::common::DispatchKind;
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
@@ -349,12 +350,20 @@ fn block_gas_limit_works() {
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
 
         // Count gas needed to process programs with default payload
-        let expected_gas_msg_to_pid1 =
-            GearPallet::<Test>::get_gas_spent(USER_1.into_origin(), pid1, EMPTY_PAYLOAD.to_vec())
-                .expect("internal error: get gas spent (pid1) failed");
-        let expected_gas_msg_to_pid2 =
-            GearPallet::<Test>::get_gas_spent(USER_1.into_origin(), pid2, EMPTY_PAYLOAD.to_vec())
-                .expect("internal error: get gas spent (pid2) failed");
+        let expected_gas_msg_to_pid1 = GearPallet::<Test>::get_gas_spent(
+            USER_1.into_origin(),
+            pid1,
+            EMPTY_PAYLOAD.to_vec(),
+            DispatchKind::Handle,
+        )
+        .expect("internal error: get gas spent (pid1) failed");
+        let expected_gas_msg_to_pid2 = GearPallet::<Test>::get_gas_spent(
+            USER_1.into_origin(),
+            pid2,
+            EMPTY_PAYLOAD.to_vec(),
+            DispatchKind::Handle,
+        )
+        .expect("internal error: get gas spent (pid2) failed");
 
         // TrapInHandle code kind is used because processing default payload in its
         // context requires such an amount of gas, that the following assertion can be passed.
@@ -878,6 +887,7 @@ fn claim_value_from_mailbox_works() {
                 USER_1.into_origin(),
                 prog_id,
                 EMPTY_PAYLOAD.to_vec(),
+                DispatchKind::Handle,
             )
             .expect("program exists and not faulty"),
         );

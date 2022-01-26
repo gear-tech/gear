@@ -27,6 +27,6 @@ sp_api::decl_runtime_apis! {
     AccountId: Codec,
     ProgramId: Codec,
     {
-        fn get_gas_spent(account_id: AccountId, program_id: ProgramId, payload: Vec<u8>) -> Option<u64>;
+        fn get_gas_spent(account_id: AccountId, program_id: ProgramId, payload: Vec<u8>, kind: Vec<u8>) -> Option<u64>;
     }
 }
