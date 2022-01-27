@@ -1,4 +1,8 @@
-use crate::{log::RunResult, manager::ExtManager};
+use crate::{
+    log::RunResult,
+    manager::ExtManager,
+    program::{Program, ProgramIdWrapper},
+};
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::message::Message;
@@ -37,10 +41,9 @@ impl System {
                 } else {
                     writeln!(
                         buf,
-                        "[{} {} from {}] {}",
-                        lvl.blue(),
+                        "[{} {}] {}",
+                        target.red(),
                         thread::current().name().unwrap_or("unknown").white(),
-                        target.white(),
                         msg.white()
                     )
                 }
@@ -57,5 +60,12 @@ impl System {
     pub fn spend_blocks(&self, amount: u32) {
         self.0.borrow_mut().block_info.height += amount;
         self.0.borrow_mut().block_info.timestamp += amount as u64;
+    }
+
+    pub fn get_program<ID: Into<ProgramIdWrapper>>(&'_ self, id: ID) -> Program<'_> {
+        Program {
+            manager: &self.0,
+            id: id.into().0,
+        }
     }
 }

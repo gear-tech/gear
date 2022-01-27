@@ -15,7 +15,7 @@ pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
     fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
-    fn debug(&mut self, data: &'static str) {
+    fn debug(&mut self, data: &str) {
         logger::debug!(target: "gwasm", "DEBUG: {}", data);
     }
 }
@@ -62,8 +62,8 @@ impl From<&str> for ProgramIdWrapper {
 }
 
 pub struct Program<'a> {
-    manager: &'a RefCell<ExtManager>,
-    id: ProgramId,
+    pub(crate) manager: &'a RefCell<ExtManager>,
+    pub(crate) id: ProgramId,
 }
 
 impl<'a> Program<'a> {

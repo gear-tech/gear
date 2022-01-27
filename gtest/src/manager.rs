@@ -189,6 +189,8 @@ impl ExtManager {
                             }
                         }
                         Err(expl) => {
+                            mock.debug(expl);
+
                             if let DispatchKind::Init = kind {
                                 self.message_dispatched(DispatchOutcome::InitFailure {
                                     message_id,
