@@ -908,8 +908,10 @@ fn claim_value_from_mailbox_works() {
             expected_claimer_balance
         );
 
+        // We send 10M of gas in the program (see `ProgramCodeKind::OutgoingWithValueInHandle` WAT code).
+        let gas_to_send = 10_000_000;
         // Gas left returns to sender from consuming of value tree while claiming.
-        let expected_sender_balance = sender_balance - value_sent - gas_burned;
+        let expected_sender_balance = sender_balance - value_sent - gas_burned + gas_to_send;
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_2),
             expected_sender_balance
