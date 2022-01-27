@@ -20,13 +20,30 @@ impl System {
     pub fn init_logger(&self) {
         let _ = Builder::from_env(Env::default().default_filter_or("gwasm=debug"))
             .format(|buf, record| {
-                writeln!(
-                    buf,
-                    "[{} {}] {}",
-                    record.level().to_string().blue(),
-                    thread::current().name().unwrap_or("unknown").white(),
-                    record.args().to_string().replacen("DEBUG: ", "", 1).white()
-                )
+                let lvl = record.level().to_string().to_uppercase();
+                let target = record.target().to_string();
+                let mut msg = record.args().to_string();
+
+                if target == "gwasm" {
+                    msg = msg.replacen("DEBUG: ", "", 1);
+
+                    writeln!(
+                        buf,
+                        "[{} {}] {}",
+                        lvl.blue(),
+                        thread::current().name().unwrap_or("unknown").white(),
+                        msg.white()
+                    )
+                } else {
+                    writeln!(
+                        buf,
+                        "[{} {} from {}] {}",
+                        lvl.blue(),
+                        thread::current().name().unwrap_or("unknown").white(),
+                        target.white(),
+                        msg.white()
+                    )
+                }
             })
             .format_target(false)
             .format_timestamp(None)

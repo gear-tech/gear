@@ -2289,6 +2289,7 @@ dependencies = [
  "gear-core",
  "gear-core-processor",
  "hex",
+ "log",
  "parity-scale-codec",
  "path-clean",
 ]

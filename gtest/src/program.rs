@@ -12,9 +12,12 @@ use path_clean::PathClean;
 use std::{cell::RefCell, env, fmt::Debug, fs, path::Path};
 
 pub trait WasmProgram: Debug {
-    fn init(&mut self, payload: Vec<u8>) -> Result<Vec<u8>, &'static str>;
-    fn handle(&mut self, payload: Vec<u8>) -> Result<Vec<u8>, &'static str>;
-    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Vec<u8>, &'static str>;
+    fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn handle(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn handle_reply(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
+    fn debug(&mut self, data: &'static str) {
+        logger::debug!(target: "gwasm", "DEBUG: {}", data);
+    }
 }
 
 #[derive(Clone, Debug)]

@@ -80,6 +80,29 @@ impl ExtManager {
         self.id_nonce
     }
 
+    fn entry_point(message: &Message, state: &mut ProgramState) -> Option<DispatchKind> {
+        message
+            .reply()
+            .map(|_| DispatchKind::HandleReply)
+            .or_else(|| {
+                if let ProgramState::Uninitialized(message_id) = state {
+                    if let Some(id) = message_id {
+                        if *id == message.id() {
+                            Some(DispatchKind::Init)
+                        } else {
+                            None
+                        }
+                    } else {
+                        *message_id = Some(message.id());
+
+                        Some(DispatchKind::Init)
+                    }
+                } else {
+                    Some(DispatchKind::Handle)
+                }
+            })
+    }
+
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
         self.prepare_for(message.id());
 
@@ -105,26 +128,7 @@ impl ExtManager {
                 )
             }
 
-            let kind = if let Some(kind) = message
-                .reply()
-                .map(|_| DispatchKind::HandleReply)
-                .or_else(|| {
-                    if let ProgramState::Uninitialized(message_id) = state {
-                        if let Some(id) = message_id {
-                            if *id == message.id() {
-                                Some(DispatchKind::Init)
-                            } else {
-                                None
-                            }
-                        } else {
-                            *message_id = Some(message.id());
-
-                            Some(DispatchKind::Init)
-                        }
-                    } else {
-                        Some(DispatchKind::Handle)
-                    }
-                }) {
+            let kind = if let Some(kind) = Self::entry_point(&message, state) {
                 kind
             } else {
                 self.wait_init_list
@@ -154,56 +158,71 @@ impl ExtManager {
                 Program::Mock(mock) => {
                     let payload = message.payload().to_vec();
 
-                    let reply_payload = match kind {
+                    let response = match kind {
                         DispatchKind::Init => mock.init(payload),
                         DispatchKind::Handle => mock.handle(payload),
                         DispatchKind::HandleReply => mock.handle_reply(payload),
                     };
 
-                    let (bytes, exit_code) = match reply_payload {
-                        Ok(payload) => {
+                    let message_id = message.id();
+                    let program_id = message.dest();
+
+                    match response {
+                        Ok(reply) => {
                             if let DispatchKind::Init = kind {
-                                self.init_success(message.id(), message.dest());
+                                self.init_success(message_id, program_id)
                             }
 
-                            (payload, 0)
+                            if let Some(payload) = reply {
+                                let nonce = self.fetch_inc_message_nonce();
+
+                                self.send_message(
+                                    message_id,
+                                    Message::new_reply(
+                                        nonce.into(),
+                                        program_id,
+                                        message.source(),
+                                        payload.into(),
+                                        message.gas_limit(),
+                                        0,
+                                        message.id(),
+                                        0,
+                                    ),
+                                );
+                            }
                         }
-                        Err(trap) => {
+                        Err(expl) => {
                             if let DispatchKind::Init = kind {
                                 self.message_dispatched(DispatchOutcome::InitFailure {
-                                    message_id: message.id(),
-                                    program_id: message.dest(),
+                                    message_id,
+                                    program_id,
                                     origin: message.source(),
-                                    reason: "Err(_) returned in function",
-                                })
+                                    reason: expl,
+                                });
                             } else {
                                 self.message_dispatched(DispatchOutcome::MessageTrap {
-                                    message_id: message.id(),
-                                    program_id: message.dest(),
-                                    trap: Some("Err(_) returned in function"),
+                                    message_id,
+                                    program_id,
+                                    trap: Some(expl),
                                 })
                             }
 
-                            (trap.as_bytes().to_vec(), 1)
+                            let nonce = self.fetch_inc_message_nonce();
+
+                            self.send_message(
+                                message_id,
+                                Message::new_reply(
+                                    nonce.into(),
+                                    program_id,
+                                    message.source(),
+                                    Default::default(),
+                                    message.gas_limit(),
+                                    0,
+                                    message.id(),
+                                    1,
+                                ),
+                            );
                         }
-                    };
-
-                    let nonce = self.fetch_inc_message_nonce();
-
-                    if exit_code != 0 || !bytes.is_empty() {
-                        self.send_message(
-                            message.id(),
-                            Message::new_reply(
-                                nonce.into(),
-                                message.dest(),
-                                message.source(),
-                                bytes.into(),
-                                message.gas_limit(),
-                                0,
-                                message.id(),
-                                exit_code,
-                            ),
-                        );
                     }
                 }
             }
@@ -229,8 +248,8 @@ impl ExtManager {
         }
     }
 
-    fn mark_failed(&mut self, msg_id: &MessageId) {
-        if &self.msg_id == msg_id {
+    fn mark_failed(&mut self, msg_id: MessageId) {
+        if self.msg_id == msg_id {
             self.main_failed = true;
         } else {
             self.others_failed = true;
@@ -252,10 +271,10 @@ impl ExtManager {
         }
     }
 
-    fn init_failure(&mut self, message_id: &MessageId, program_id: &ProgramId) {
+    fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
         let (_, state) = self
             .programs
-            .get_mut(program_id)
+            .get_mut(&program_id)
             .expect("Can't find existing program");
 
         *state = ProgramState::FailedInitialization;
@@ -267,13 +286,13 @@ impl ExtManager {
 impl JournalHandler for ExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
-            DispatchOutcome::MessageTrap { message_id, .. } => self.mark_failed(&message_id),
+            DispatchOutcome::MessageTrap { message_id, .. } => self.mark_failed(message_id),
             DispatchOutcome::Success(_) => {}
             DispatchOutcome::InitFailure {
                 message_id,
                 program_id,
                 ..
-            } => self.init_failure(&message_id, &program_id),
+            } => self.init_failure(message_id, program_id),
             DispatchOutcome::InitSuccess {
                 message_id,
                 program,
