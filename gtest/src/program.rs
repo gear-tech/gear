@@ -53,8 +53,8 @@ impl From<&str> for ProgramIdWrapper {
 
         let mut bytes = [0u8; 32];
 
-        if hex::encode_to_slice(id, &mut bytes).is_err() {
-            panic!("Invalid identifier: {:?}. It's not 32 bytes len", other)
+        if hex::decode_to_slice(id, &mut bytes).is_err() {
+            panic!("Invalid identifier: {:?}", other)
         }
 
         Self(bytes.into())
@@ -133,16 +133,20 @@ impl<'a> Program<'a> {
         Self::program_with_id(system, id, InnerProgram::Core(program))
     }
 
-    pub fn send<C: Codec>(&self, payload: C) -> RunResult {
-        self.send_bytes(payload.encode())
+    pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
+        self.send_bytes(from, payload.encode())
     }
 
-    pub fn send_bytes<T: AsRef<[u8]>>(&self, payload: T) -> RunResult {
+    pub fn send_bytes<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
+        &self,
+        from: ID,
+        payload: T,
+    ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
         let message = Message::new(
             MessageId::from(system.fetch_inc_message_nonce()),
-            system.user,
+            from.into().0,
             self.id,
             payload.as_ref().to_vec().into(),
             u64::MAX,

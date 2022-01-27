@@ -1,7 +1,6 @@
 use crate::{
     log::{CoreLog, RunResult},
     program::WasmProgram,
-    DEFAULT_USER,
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
@@ -34,7 +33,6 @@ pub(crate) struct ExtManager {
     // Messaging and programs meta
     pub(crate) msg_nonce: u64,
     pub(crate) id_nonce: u64,
-    pub(crate) user: ProgramId,
 
     // State
     pub(crate) programs: BTreeMap<ProgramId, (Program, ProgramState)>,
@@ -55,7 +53,6 @@ impl ExtManager {
         Self {
             msg_nonce: 1,
             id_nonce: 1,
-            user: DEFAULT_USER.into(),
             block_info: BlockInfo {
                 height: 0,
                 timestamp: SystemTime::now()
