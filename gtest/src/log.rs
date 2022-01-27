@@ -1,6 +1,7 @@
 use crate::program::ProgramIdWrapper;
-use codec::Codec;
+use codec::{Codec, Encode};
 use gear_core::{message::Message, program::ProgramId};
+use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
@@ -18,6 +19,27 @@ impl CoreLog {
             payload: other.payload.into_raw(),
             exit_code: other.reply.map(|(_, code)| Some(code)).unwrap_or_default(),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct DecodedCoreLog<T: Codec + Debug> {
+    source: ProgramId,
+    dest: ProgramId,
+    payload: T,
+    exit_code: Option<i32>,
+}
+
+impl<T: Codec + Debug> DecodedCoreLog<T> {
+    pub(crate) fn try_from_log(log: CoreLog) -> Option<Self> {
+        let payload = T::decode(&mut log.payload.as_ref()).ok()?;
+
+        Some(Self {
+            source: log.source,
+            dest: log.dest,
+            payload,
+            exit_code: log.exit_code,
+        })
     }
 }
 
@@ -57,7 +79,7 @@ impl Log {
         log
     }
 
-    pub fn payload<C: Codec>(self, payload: C) -> Self {
+    pub fn payload<E: Encode>(self, payload: E) -> Self {
         self.payload_bytes(payload.encode())
     }
 
@@ -89,6 +111,25 @@ impl Log {
         self.dest = Some(dest.into().0);
 
         self
+    }
+}
+
+impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
+    fn eq(&self, other: &DecodedCoreLog<T>) -> bool {
+        let core_log = CoreLog {
+            source: other.source,
+            dest: other.dest,
+            payload: other.payload.encode(),
+            exit_code: other.exit_code,
+        };
+
+        core_log.eq(self)
+    }
+}
+
+impl<T: Codec + Debug> PartialEq<Log> for DecodedCoreLog<T> {
+    fn eq(&self, other: &Log) -> bool {
+        other.eq(self)
     }
 }
 
@@ -151,5 +192,13 @@ impl RunResult {
 
     pub fn others_failed(&self) -> bool {
         self.others_failed
+    }
+
+    pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {
+        self.log
+            .clone()
+            .into_iter()
+            .flat_map(DecodedCoreLog::try_from_log)
+            .collect()
     }
 }
