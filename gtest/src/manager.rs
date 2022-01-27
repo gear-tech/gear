@@ -81,7 +81,7 @@ impl ExtManager {
     }
 
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
-        self.clear(message.id());
+        self.prepare_for(message.id());
 
         if self.programs.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
@@ -209,19 +209,16 @@ impl ExtManager {
             }
         }
 
+        let log = self.log.clone();
+
         RunResult {
-            log: self
-                .log
-                .clone()
-                .into_iter()
-                .map(CoreLog::from_message)
-                .collect(),
-            main_failed: true,
-            others_failed: true,
+            main_failed: self.main_failed,
+            others_failed: self.others_failed,
+            log: log.into_iter().map(CoreLog::from_message).collect(),
         }
     }
 
-    fn clear(&mut self, msg_id: MessageId) {
+    fn prepare_for(&mut self, msg_id: MessageId) {
         self.msg_id = msg_id;
         self.log.clear();
         self.main_failed = false;
@@ -232,11 +229,11 @@ impl ExtManager {
         }
     }
 
-    fn append_failed(&mut self, msg_id: MessageId, failed: bool) {
-        if self.msg_id == msg_id {
-            self.main_failed = self.main_failed || failed;
+    fn mark_failed(&mut self, msg_id: &MessageId) {
+        if &self.msg_id == msg_id {
+            self.main_failed = true;
         } else {
-            self.others_failed = self.others_failed || failed;
+            self.others_failed = true;
         }
     }
 
@@ -253,32 +250,30 @@ impl ExtManager {
                 self.wake_message(message_id, program_id, id);
             }
         }
-
-        self.append_failed(message_id, false);
     }
 
-    fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
+    fn init_failure(&mut self, message_id: &MessageId, program_id: &ProgramId) {
         let (_, state) = self
             .programs
-            .get_mut(&program_id)
+            .get_mut(program_id)
             .expect("Can't find existing program");
 
         *state = ProgramState::FailedInitialization;
 
-        self.append_failed(message_id, true);
+        self.mark_failed(message_id);
     }
 }
 
 impl JournalHandler for ExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
-            DispatchOutcome::MessageTrap { message_id, .. } => self.append_failed(message_id, true),
-            DispatchOutcome::Success(message_id) => self.append_failed(message_id, false),
+            DispatchOutcome::MessageTrap { message_id, .. } => self.mark_failed(&message_id),
+            DispatchOutcome::Success(_) => {}
             DispatchOutcome::InitFailure {
                 message_id,
                 program_id,
                 ..
-            } => self.init_failure(message_id, program_id),
+            } => self.init_failure(&message_id, &program_id),
             DispatchOutcome::InitSuccess {
                 message_id,
                 program,
