@@ -349,6 +349,9 @@ fn block_gas_limit_works() {
         run_to_block(2, Some(remaining_weight));
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
 
+        // We send 10M of gas from inside the program (see `ProgramCodeKind::OutgoingWithValueInHandle` WAT code).
+        let gas_to_send = 10_000_000;
+
         // Count gas needed to process programs with default payload
         let expected_gas_msg_to_pid1 = GearPallet::<Test>::get_gas_spent(
             USER_1.into_origin(),
@@ -356,7 +359,8 @@ fn block_gas_limit_works() {
             EMPTY_PAYLOAD.to_vec(),
             DispatchKind::Handle,
         )
-        .expect("internal error: get gas spent (pid1) failed");
+        .expect("internal error: get gas spent (pid1) failed")
+            - gas_to_send;
         let expected_gas_msg_to_pid2 = GearPallet::<Test>::get_gas_spent(
             USER_1.into_origin(),
             pid2,
@@ -908,7 +912,7 @@ fn claim_value_from_mailbox_works() {
             expected_claimer_balance
         );
 
-        // We send 10M of gas in the program (see `ProgramCodeKind::OutgoingWithValueInHandle` WAT code).
+        // We send 10M of gas from inside the program (see `ProgramCodeKind::OutgoingWithValueInHandle` WAT code).
         let gas_to_send = 10_000_000;
         // Gas left returns to sender from consuming of value tree while claiming.
         let expected_sender_balance = sender_balance - value_sent - gas_burned + gas_to_send;
