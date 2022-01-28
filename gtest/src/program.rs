@@ -144,9 +144,15 @@ impl<'a> Program<'a> {
     ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
+        let source = from.into().0;
+
+        if system.programs.contains_key(&source) {
+            panic!("Sending messages allowed only from users id");
+        }
+
         let message = Message::new(
             MessageId::from(system.fetch_inc_message_nonce()),
-            from.into().0,
+            source,
             self.id,
             payload.as_ref().to_vec().into(),
             u64::MAX,
