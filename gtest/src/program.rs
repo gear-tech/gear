@@ -29,6 +29,12 @@ impl<T: Into<ProgramIdWrapper> + Clone> PartialEq<T> for ProgramIdWrapper {
     }
 }
 
+impl From<ProgramId> for ProgramIdWrapper {
+    fn from(other: ProgramId) -> Self {
+        Self(other)
+    }
+}
+
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
         Self(other.into())
@@ -160,5 +166,9 @@ impl<'a> Program<'a> {
         );
 
         system.run_message(message)
+    }
+
+    pub fn id(&self) -> ProgramId {
+        self.id
     }
 }
