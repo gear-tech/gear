@@ -22,13 +22,14 @@ use alloc::boxed::Box;
 use core::any::Any;
 
 use gear_core::memory::{Error, Memory, PageNumber};
+use sp_sandbox::SandboxMemory;
 
 /// Wrapper for sp_sandbox::Memory.
-pub struct MemoryWrap(sp_sandbox::Memory);
+pub struct MemoryWrap(sp_sandbox::default_executor::Memory);
 
 impl MemoryWrap {
     /// Wrap sp_sandbox::Memory for Memory trait.
-    pub fn new(mem: sp_sandbox::Memory) -> Self {
+    pub fn new(mem: sp_sandbox::default_executor::Memory) -> Self {
         MemoryWrap(mem)
     }
 }
@@ -88,7 +89,7 @@ mod tests {
     use gear_core::memory::MemoryContext;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
-        use sp_sandbox::Memory as WasmMemory;
+        use sp_sandbox::SandboxMemory as WasmMemory;
 
         let memory = MemoryWrap::new(
             WasmMemory::new(static_pages, Some(max_pages)).expect("Memory creation failed"),
