@@ -16,32 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Declares modules, attributes, public re-exports.
-//! Gear libs are `#![no_std]`, which makes them lightweight.
+//! Crate defines functionality to test wasm programs.
+//!
+//! You have several ways to test smart contracts. This crate provides developers with an opportunity
+//! to define test strategies in some *test.yaml* file. Crate's test runner will run all the tests and return found errors in case they
+//! occurred. One of the main usages of the current crate is done by Gear [node](../gear_node/index.html): when running node executable you can define run
+//! options and one of them is to run tests. One of the main features of such run is that node's key-value storage will be used.
 
-#![no_std]
-#![cfg_attr(target_arch = "wasm32", feature(alloc_error_handler))]
-#![cfg_attr(feature = "strict", deny(warnings))]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
-
-#[cfg(target_arch = "wasm32")]
-extern crate galloc;
-
-mod async_runtime;
-mod common;
-pub mod exec;
-pub mod lock;
-pub mod macros;
-pub mod msg;
-pub mod prelude;
-
-pub use async_runtime::{message_loop, record_reply};
-pub use common::errors;
-pub use common::handlers::*;
-pub use common::primitives::*;
-pub use gstd_codegen::{async_init, async_main};
-
-pub use prelude::*;
-
-#[cfg(feature = "debug")]
-pub use gcore::ext;
+pub mod address;
+pub mod check;
+pub mod js;
+pub mod manager;
+pub mod proc;
+pub mod sample;

@@ -146,7 +146,7 @@ impl MetaData {
 
         match self {
             Self::CodecBytes(bytes) => {
-                script_path.push(PathBuf::from("gtest/src/js/decode.js"));
+                script_path.push(PathBuf::from("gear-test/src/js/decode.js"));
                 let bytes = call_node(
                     script_path,
                     vec![
@@ -167,7 +167,7 @@ impl MetaData {
             }
 
             Self::Json(json) => {
-                script_path.push(PathBuf::from("gtest/src/js/encode.js"));
+                script_path.push(PathBuf::from("gear-test/src/js/encode.js"));
                 let bytes = hex::decode(call_node(
                     script_path,
                     vec!["-p", path, "-t", &meta_type.to_string(), "-j", &json],

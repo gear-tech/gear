@@ -15,7 +15,7 @@ test_usage() {
 
     gear           run workspace tests
     js             run metadata js tests
-    gtest          run gtest testing tool,
+    gtest          run gear-test testing tool,
                    you can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
     ntest          run node testsuite
     pallet         run pallet-gear tests
@@ -57,7 +57,7 @@ gtest() {
 
   if [ -z "$YAMLS" ]
   then
-    YAMLS="$ROOT_DIR/gtest/spec/*.yaml $ROOT_DIR/gtest/spec_no_rpc/*.yaml"
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_rpc/*.yaml"
   fi
 
   cargo run --package gear-test --release -- $YAMLS "$@"
@@ -65,7 +65,7 @@ gtest() {
 
 # $1 - ROOT DIR
 ntest() {
-  cargo run --package gear-node --release -- runtests "$1"/gtest/spec/*.yaml
+  cargo run --package gear-node --release -- runtests "$1"/gear-test/spec/*.yaml
 }
 
 pallet_test() {

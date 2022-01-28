@@ -1,7 +1,7 @@
 # rpc-test
 ### Command-line tool to test Gear node with YAML files.
 
-#### Some YAML templates are defined in [code/](https://github.com/gear-tech/gear/tree/master/gtest/spec "spec/") directory.
+#### Some YAML templates are defined in [code/](https://github.com/gear-tech/gear/tree/master/gear-test/spec "spec/") directory.
 
 #### Install dependecies:
 - `npm i`
