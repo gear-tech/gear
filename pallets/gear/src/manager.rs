@@ -287,6 +287,11 @@ where
             BalanceStatus::Free,
         );
     }
+
+    fn kill_dispatch(&mut self, _killed_id: ProgramId, _value_destination: ProgramId) {
+        todo!()
+    }
+
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 

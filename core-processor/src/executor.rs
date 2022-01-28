@@ -138,6 +138,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         config: settings.config,
         error_explanation: None,
         waited: false,
+        killed_argument: None,
     };
 
     let initial_pages = program.get_pages();
@@ -162,6 +163,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         DispatchResultKind::Trap(explanation)
     } else if ext.waited {
         DispatchResultKind::Wait
+    } else if let Some(address) = ext.killed_argument {
+        DispatchResultKind::Kill(address)
     } else {
         DispatchResultKind::Success
     };
