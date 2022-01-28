@@ -18,4 +18,4 @@ scale-info = { version = "1.0.0", default-features = false, features = ["derive"
 futures = { version = "0.3", default-features = false, features = ["alloc"] }
 
 [features]
-debug = ["gcore/debug"]
+debug = ["galloc/debug", "gcore/debug"]
