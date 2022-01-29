@@ -46,13 +46,13 @@ pub use pallet_gear::manager::ExtManager;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
-    construct_runtime, parameter_types,
-    traits::{FindAuthor, KeyOwnerProofSystem, Randomness},
-    weights::{
-        constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-        IdentityFee, Weight,
-    },
-    StorageValue,
+	construct_runtime, parameter_types,
+	traits::{ConstU128, ConstU32, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo},
+	weights::{
+		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
+		IdentityFee, Weight,
+	},
+	StorageValue,
 };
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
@@ -92,7 +92,7 @@ pub type Index = u32;
 pub type Hash = H256;
 
 /// Digest item type.
-pub type DigestItem = generic::DigestItem<Hash>;
+pub type DigestItem = generic::DigestItem;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -327,6 +327,7 @@ impl pallet_utility::Config for Runtime {
     type Event = Event;
     type Call = Call;
     type WeightInfo = ();
+    type PalletsOrigin = OriginCaller;
 }
 
 pub struct GasConverter;
