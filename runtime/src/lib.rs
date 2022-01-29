@@ -269,7 +269,6 @@ impl FindAuthor<AccountId> for AuraAccountAdapter {
     where
         I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
     {
-        use core::convert::TryFrom;
         pallet_aura::AuraAuthorId::<Runtime>::find_author(digests)
             .and_then(|k| AccountId::try_from(k.as_ref()).ok())
     }
