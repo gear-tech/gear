@@ -17,8 +17,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 name = "gear-node"
 
 [dependencies]
+clap = { version = "3.0", features = ["derive"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
-structopt = "0.3.26"
 hex-literal = "0.3.4"
 
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-latest", features = [

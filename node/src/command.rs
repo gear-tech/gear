@@ -21,7 +21,7 @@ use crate::{
     cli::{Cli, Subcommand},
     service,
 };
-use runtime_runtime::Block;
+use gear_runtime::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 
