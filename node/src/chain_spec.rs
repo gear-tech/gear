@@ -87,6 +87,7 @@ pub fn development_config() -> Result<ChainSpec, String> {
         None,
         // Protocol ID
         None,
+        // Fork ID
         None,
         // Properties
         None,
@@ -138,8 +139,9 @@ pub fn local_testnet_config() -> Result<ChainSpec, String> {
         None,
         // Protocol ID
         None,
-        // Properties
+        // Fork ID
         None,
+        // Properties
         None,
         // Extensions
         None,
@@ -211,10 +213,11 @@ pub fn staging_testnet_config() -> Result<ChainSpec, String> {
         None,
         // Protocol ID
         None,
+        // Fork ID
+        None,
         // Properties
         None,
         // Extensions
-        None,
         None,
     ))
 }
