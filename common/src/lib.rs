@@ -76,8 +76,9 @@ pub struct Program {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct KilledProgram {
-    pub hash: Vec<u8>,
     pub program_id: H256,
+    pub program: Program,
+    pub pages_hash: Vec<u8>,
     pub wait_list: Vec<Message>,
 }
 
@@ -96,8 +97,9 @@ pub fn kill_program(program_id: H256) -> Result<(), ProgramNotFound> {
     let previous_key = prefix.clone();
 
     let killed_program = KilledProgram {
-        hash: program.using_encoded(sp_io::hashing::blake2_256).to_vec(),
         program_id,
+        pages_hash: get_program_pages(program_id, program.persistent_pages.clone()).using_encoded(sp_io::hashing::blake2_256).to_vec(),
+        program,
         wait_list: PrefixIterator::<_, ()>::new(
             prefix,
             previous_key,
