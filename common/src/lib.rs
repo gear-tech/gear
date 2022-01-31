@@ -25,6 +25,7 @@ pub mod value_tree;
 use codec::{Decode, Encode};
 use frame_support::{
     dispatch::DispatchError,
+    storage::PrefixIterator,
     weights::{IdentityFee, WeightToFeePolynomial},
 };
 use primitive_types::H256;
@@ -38,6 +39,7 @@ pub use storage_queue::Iterator;
 use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
+pub const STORAGE_KILLED_PROGRAM_PREFIX: &[u8] = b"g::killed_prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
@@ -70,6 +72,44 @@ pub struct Program {
     pub code_hash: H256,
     pub nonce: u64,
     pub state: ProgramState,
+}
+
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub struct KilledProgram {
+    pub hash: Vec<u8>,
+    pub program_id: H256,
+    pub wait_list: Vec<Message>,
+}
+
+fn decode_message_tuple(_: &[u8], value: &[u8]) -> Result<(Message, u32), codec::Error> {
+    <(Message, u32)>::decode(&mut &*value)
+}
+
+#[derive(Debug)]
+pub struct ProgramNotFound;
+
+pub fn kill_program(program_id: H256) -> Result<(), ProgramNotFound> {
+    let program = get_program(program_id)
+        .ok_or(ProgramNotFound)?;
+
+    let prefix = wait_prefix(program_id);
+    let previous_key = prefix.clone();
+
+    let killed_program = KilledProgram {
+        hash: program.using_encoded(sp_io::hashing::blake2_256).to_vec(),
+        program_id,
+        wait_list: PrefixIterator::<_, ()>::new(
+            prefix,
+            previous_key,
+            decode_message_tuple,
+        ).drain().map(|(m, _)| m).collect(),
+    };
+
+    remove_program(program_id);
+
+    sp_io::storage::set(&killed_program_key(program_id), &killed_program.encode());
+
+    Ok(())
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
@@ -162,6 +202,13 @@ fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
+fn killed_program_key(id: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(STORAGE_KILLED_PROGRAM_PREFIX);
+    id.encode_to(&mut key);
+    key
+}
+
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
         CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
@@ -185,13 +232,16 @@ fn page_key(id: H256, page: u32) -> Vec<u8> {
     key
 }
 
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
     key.extend(b"::");
+    key
+}
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+    let mut key = wait_prefix(prog_id);
     msg_id.encode_to(&mut key);
-
     key
 }
 
@@ -454,6 +504,7 @@ pub fn code_exists(code_hash: H256) -> bool {
 
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_KILLED_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
