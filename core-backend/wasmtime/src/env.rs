@@ -58,7 +58,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_to_i32("gr_exit_code", funcs::exit_code);
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);
-        result.add_func_i32("gr_kill", funcs::kill);
+        result.add_func_i32("gr_exit", funcs::exit);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32("gr_program_id", funcs::program_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);

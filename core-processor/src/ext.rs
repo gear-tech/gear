@@ -45,7 +45,7 @@ pub struct Ext {
     /// Flag signaling whether the execution interrupts and goes to the waiting state.
     pub waited: bool,
     /// TODO
-    pub killed_argument: Option<ProgramId>,
+    pub exit_argument: Option<ProgramId>,
 }
 
 impl Ext {
@@ -175,11 +175,11 @@ impl EnvExt for Ext {
         self.message_context.current().source()
     }
 
-    fn kill(&mut self, address: ProgramId) -> Result<(), &'static str> {
-        if let Some(_) = self.killed_argument {
-            Err("Cannot call `kill' twice")
+    fn exit(&mut self, address: ProgramId) -> Result<(), &'static str> {
+        if let Some(_) = self.exit_argument {
+            Err("Cannot call `exit' twice")
         } else {
-            self.killed_argument = Some(address);
+            self.exit_argument = Some(address);
             Ok(())
         }
     }

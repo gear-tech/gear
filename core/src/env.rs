@@ -89,7 +89,7 @@ pub trait Ext {
     fn source(&mut self) -> ProgramId;
 
     /// Kill the program and transfer all available value to the address.
-    fn kill(&mut self, address: ProgramId) -> Result<(), &'static str>;
+    fn exit(&mut self, address: ProgramId) -> Result<(), &'static str>;
 
     /// Get the id of the message currently being handled.
     fn message_id(&mut self) -> MessageId;
@@ -238,7 +238,7 @@ mod tests {
         fn source(&mut self) -> ProgramId {
             ProgramId::from(0)
         }
-        fn kill(&mut self, _address: ProgramId) -> Result<(), &'static str> {
+        fn exit(&mut self, _address: ProgramId) -> Result<(), &'static str> {
             Ok(())
         }
         fn message_id(&mut self) -> MessageId {

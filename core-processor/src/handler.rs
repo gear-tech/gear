@@ -26,7 +26,7 @@ pub fn handle_journal(
 ) {
     let mut page_updates = BTreeMap::new();
     let mut nonces = BTreeMap::new();
-    let mut kill_list = vec![];
+    let mut exit_list = vec![];
 
     for note in journal.into_iter() {
         match note {
@@ -36,10 +36,10 @@ pub fn handle_journal(
                 origin,
                 amount,
             } => handler.gas_burned(message_id, origin, amount),
-            JournalNote::KillDispatch {
-                killed_id,
+            JournalNote::ExitDispatch {
+                id_exited,
                 value_destination,
-            } => kill_list.push((killed_id, value_destination)),
+            } => exit_list.push((id_exited, value_destination)),
             JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
             JournalNote::SendMessage {
                 message_id,
@@ -75,7 +75,7 @@ pub fn handle_journal(
         }
     }
 
-    for (killed_id, value_destination) in kill_list {
-        handler.kill_dispatch(killed_id, value_destination);
+    for (id_exited, value_destination) in exit_list {
+        handler.exit_dispatch(id_exited, value_destination);
     }
 }

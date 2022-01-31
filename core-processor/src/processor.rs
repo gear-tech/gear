@@ -165,14 +165,14 @@ pub fn process<E: Environment<Ext>>(
 
             journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch));
         }
-        DispatchResultKind::Kill(value_destination) => {
+        DispatchResultKind::Exit(value_destination) => {
             journal.push(JournalNote::GasBurned {
                 message_id,
                 origin,
                 amount: dispatch_result.gas_amount.burned(),
             });
 
-            journal.push(JournalNote::KillDispatch{ killed_id: program_id, value_destination });
+            journal.push(JournalNote::ExitDispatch{ id_exited: program_id, value_destination });
         }
     }
 

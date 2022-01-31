@@ -39,7 +39,7 @@ pub use storage_queue::Iterator;
 use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
-pub const STORAGE_KILLED_PROGRAM_PREFIX: &[u8] = b"g::killed_prog::";
+pub const STORAGE_EXITED_PROGRAM_PREFIX: &[u8] = b"g::exited_prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
@@ -75,7 +75,7 @@ pub struct Program {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct KilledProgram {
+pub struct ExitedProgram {
     pub program_id: H256,
     pub program: Program,
     pub pages_hash: Vec<u8>,
@@ -89,14 +89,14 @@ fn decode_message_tuple(_: &[u8], value: &[u8]) -> Result<(Message, u32), codec:
 #[derive(Debug)]
 pub struct ProgramNotFound;
 
-pub fn kill_program(program_id: H256) -> Result<(), ProgramNotFound> {
+pub fn exit_program(program_id: H256) -> Result<(), ProgramNotFound> {
     let program = get_program(program_id)
         .ok_or(ProgramNotFound)?;
 
     let prefix = wait_prefix(program_id);
     let previous_key = prefix.clone();
 
-    let killed_program = KilledProgram {
+    let exited_program = ExitedProgram {
         program_id,
         pages_hash: get_program_pages(program_id, program.persistent_pages.clone()).using_encoded(sp_io::hashing::blake2_256).to_vec(),
         program,
@@ -109,7 +109,7 @@ pub fn kill_program(program_id: H256) -> Result<(), ProgramNotFound> {
 
     remove_program(program_id);
 
-    sp_io::storage::set(&killed_program_key(program_id), &killed_program.encode());
+    sp_io::storage::set(&exited_program_key(program_id), &exited_program.encode());
 
     Ok(())
 }
@@ -204,9 +204,9 @@ fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
-fn killed_program_key(id: H256) -> Vec<u8> {
+fn exited_program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
-    key.extend(STORAGE_KILLED_PROGRAM_PREFIX);
+    key.extend(STORAGE_EXITED_PROGRAM_PREFIX);
     id.encode_to(&mut key);
     key
 }
@@ -506,7 +506,7 @@ pub fn code_exists(code_hash: H256) -> bool {
 
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
-    sp_io::storage::clear_prefix(STORAGE_KILLED_PROGRAM_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_EXITED_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);

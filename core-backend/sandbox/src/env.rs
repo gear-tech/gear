@@ -482,7 +482,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
             Ok(ReturnValue::Value(Value::I64(gas_available as i64)))
         }
 
-        fn kill<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
+        fn exit<E: Ext>(ctx: &mut Runtime<E>, args: &[Value]) -> Result<ReturnValue, HostError> {
             let value_to_ptr: i32 = match args[0] {
                 Value::I32(val) => val,
                 _ => return Err(HostError),
@@ -492,7 +492,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
                 .ext
                 .with(|ext: &mut E| {
                     let value_to: ProgramId = funcs::get_id(ext, value_to_ptr).into();
-                    ext.kill(value_to)
+                    ext.exit(value_to)
                 })
                 .map(|_| Ok(ReturnValue::Unit))
                 .map_err(|err| {
@@ -636,7 +636,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_reply_push", reply_push);
         env_builder.add_host_func("env", "gr_debug", debug);
         env_builder.add_host_func("env", "gr_gas_available", gas_available);
-        env_builder.add_host_func("env", "gr_kill", kill);
+        env_builder.add_host_func("env", "gr_exit", exit);
         env_builder.add_host_func("env", "gr_msg_id", msg_id);
         env_builder.add_host_func("env", "gr_wait", wait);
         env_builder.add_host_func("env", "gr_wake", wake);

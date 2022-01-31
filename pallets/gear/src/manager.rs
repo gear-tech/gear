@@ -288,9 +288,9 @@ where
         );
     }
 
-    fn kill_dispatch(&mut self, killed_id: ProgramId, value_destination: ProgramId) {
-        let program_id = killed_id.into_origin();
-        common::kill_program(program_id).expect("kill_dispatch: program should be in the storage");
+    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        let program_id = id_exited.into_origin();
+        common::exit_program(program_id).expect("program should be in the storage");
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id);
         let balance = T::Currency::total_balance(program_account);
@@ -299,7 +299,7 @@ where
                 &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
                 balance,
                 ExistenceRequirement::AllowDeath,
-            ).expect("kill_dispatch: balance is not zero; should not fail");
+            ).expect("balance is not zero; should not fail");
         }
     }
 

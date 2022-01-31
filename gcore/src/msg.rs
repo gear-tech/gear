@@ -31,7 +31,7 @@ use crate::{ActorId, MessageId};
 mod sys {
     extern "C" {
         pub fn gr_exit_code() -> i32;
-        pub fn gr_kill(program_id_ptr: *const u8) -> !;
+        pub fn gr_exit(program_id_ptr: *const u8) -> !;
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
         pub fn gr_reply(
@@ -107,9 +107,9 @@ pub fn id() -> MessageId {
 }
 
 /// TODO
-pub fn kill(value_to: ActorId) -> ! {
+pub fn exit(value_to: ActorId) -> ! {
     unsafe {
-        sys::gr_kill(value_to.as_slice().as_ptr())
+        sys::gr_exit(value_to.as_slice().as_ptr())
     }
 }
 
