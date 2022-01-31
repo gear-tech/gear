@@ -102,6 +102,7 @@ pub mod pallet {
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
+    #[pallet::without_storage_info]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 

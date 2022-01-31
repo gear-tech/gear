@@ -20,7 +20,11 @@
 
 use super::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec};
-use sp_sandbox::{EnvironmentDefinitionBuilder, HostError, Instance, ReturnValue, Value};
+use sp_sandbox::SandboxInstance;
+use sp_sandbox::{
+    default_executor::Instance, HostError, ReturnValue, SandboxEnvironmentBuilder, SandboxMemory,
+    Value,
+};
 
 use gear_backend_common::funcs;
 use gear_core::env::{Ext, LaterExt};
@@ -588,12 +592,15 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
 
         self.ext.set(ext);
 
-        let mem = match memory.as_any().downcast_ref::<sp_sandbox::Memory>() {
+        let mem = match memory
+            .as_any()
+            .downcast_ref::<sp_sandbox::default_executor::Memory>()
+        {
             Some(mem) => mem,
             None => panic!("Memory is not sp_sandbox::Memory"),
         };
 
-        let mut env_builder = EnvironmentDefinitionBuilder::new();
+        let mut env_builder = sp_sandbox::default_executor::EnvironmentDefinitionBuilder::new();
         env_builder.add_memory("env", "memory", mem.clone());
         env_builder.add_host_func("env", "alloc", alloc);
         env_builder.add_host_func("env", "free", free);
@@ -657,7 +664,7 @@ impl<E: Ext + 'static> SandboxEnvironment<E> {
 
     /// Create memory inside this environment.
     pub(crate) fn create_memory_inner(&self, total_pages: u32) -> MemoryWrap {
-        MemoryWrap::new(sp_sandbox::Memory::new(total_pages, None).expect("Create env memory fail"))
+        MemoryWrap::new(SandboxMemory::new(total_pages, None).expect("Create env memory fail"))
     }
 
     fn run_inner(

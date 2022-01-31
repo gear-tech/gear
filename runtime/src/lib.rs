@@ -47,7 +47,9 @@ pub use pallet_gear::manager::ExtManager;
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
     construct_runtime, parameter_types,
-    traits::{FindAuthor, KeyOwnerProofSystem, Randomness},
+    traits::{
+        ConstU128, ConstU32, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+    },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
         IdentityFee, Weight,
@@ -92,7 +94,7 @@ pub type Index = u32;
 pub type Hash = H256;
 
 /// Digest item type.
-pub type DigestItem = generic::DigestItem<Hash>;
+pub type DigestItem = generic::DigestItem;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -129,6 +131,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
+    state_version: 1,
 };
 
 /// This determines the average expected block time that we are targeting.
@@ -223,18 +226,15 @@ impl frame_system::Config for Runtime {
     type SS58Prefix = SS58Prefix;
     /// The set code logic, just the default since we're not a parachain.
     type OnSetCode = ();
+    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 impl pallet_randomness_collective_flip::Config for Runtime {}
 
-parameter_types! {
-    pub const MaxAuthorities: u32 = 32;
-}
-
 impl pallet_aura::Config for Runtime {
     type AuthorityId = AuraId;
     type DisabledValidators = ();
-    type MaxAuthorities = MaxAuthorities;
+    type MaxAuthorities = ConstU32<32>;
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -254,6 +254,7 @@ impl pallet_grandpa::Config for Runtime {
     type HandleEquivocation = ();
 
     type WeightInfo = ();
+    type MaxAuthorities = ConstU32<32>;
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -270,7 +271,6 @@ impl FindAuthor<AccountId> for AuraAccountAdapter {
     where
         I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
     {
-        use core::convert::TryFrom;
         pallet_aura::AuraAuthorId::<Runtime>::find_author(digests)
             .and_then(|k| AccountId::try_from(k.as_ref()).ok())
     }
@@ -294,7 +294,7 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Runtime {
-    type MaxLocks = MaxLocks;
+    type MaxLocks = ConstU32<50>;
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
     /// The type for recording an account's balance.
@@ -302,7 +302,7 @@ impl pallet_balances::Config for Runtime {
     /// The ubiquitous event type.
     type Event = Event;
     type DustRemoval = ();
-    type ExistentialDeposit = ExistentialDeposit;
+    type ExistentialDeposit = ConstU128<500>;
     type AccountStore = System;
     type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
 }
@@ -314,6 +314,7 @@ parameter_types! {
 impl pallet_transaction_payment::Config for Runtime {
     type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
     type TransactionByteFee = TransactionByteFee;
+    type OperationalFeeMultiplier = ConstU8<5>;
     type WeightToFee = IdentityFee<Balance>;
     type FeeMultiplierUpdate = ();
 }
@@ -327,6 +328,7 @@ impl pallet_utility::Config for Runtime {
     type Event = Event;
     type Call = Call;
     type WeightInfo = ();
+    type PalletsOrigin = OriginCaller;
 }
 
 pub struct GasConverter;
@@ -393,21 +395,21 @@ construct_runtime!(
         NodeBlock = opaque::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Aura: pallet_aura::{Pallet, Config<T>},
-        Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
-        Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Utility: pallet_utility::{Pallet, Call, Storage, Event},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
+        System: frame_system,
+        RandomnessCollectiveFlip: pallet_randomness_collective_flip,
+        Timestamp: pallet_timestamp,
+        Aura: pallet_aura,
+        Grandpa: pallet_grandpa,
+        Balances: pallet_balances,
+        TransactionPayment: pallet_transaction_payment,
+        Sudo: pallet_sudo,
+        Utility: pallet_utility,
+        Authorship: pallet_authorship,
+        Gear: pallet_gear,
+        Usage: pallet_usage,
 
         // Only available with "debug-mode" feature on
-        GearDebug: pallet_gear_debug::{Pallet, Call, Storage, Event<T>},
+        GearDebug: pallet_gear_debug,
     }
 );
 
@@ -418,18 +420,18 @@ construct_runtime!(
         NodeBlock = opaque::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Aura: pallet_aura::{Pallet, Config<T>},
-        Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
-        Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Utility: pallet_utility::{Pallet, Call, Storage, Event},
-        Authorship: pallet_authorship::{Pallet, Storage},
-        Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
-        Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
+        System: frame_system,
+        RandomnessCollectiveFlip: pallet_randomness_collective_flip,
+        Timestamp: pallet_timestamp,
+        Aura: pallet_aura,
+        Grandpa: pallet_grandpa,
+        Balances: pallet_balances,
+        TransactionPayment: pallet_transaction_payment,
+        Sudo: pallet_sudo,
+        Utility: pallet_utility,
+        Authorship: pallet_authorship,
+        Gear: pallet_gear,
+        Usage: pallet_usage,
     }
 );
 
@@ -445,6 +447,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
+    frame_system::CheckNonZeroSender<Runtime>,
     frame_system::CheckSpecVersion<Runtime>,
     frame_system::CheckTxVersion<Runtime>,
     frame_system::CheckGenesis<Runtime>,
@@ -455,17 +458,13 @@ pub type SignedExtra = (
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
-/// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-/// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
     Runtime,
     Block,
     frame_system::ChainContext<Runtime>,
     Runtime,
-    AllPallets,
+    AllPalletsWithSystem,
 >;
 
 impl_runtime_apis! {

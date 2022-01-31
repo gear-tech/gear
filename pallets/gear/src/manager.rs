@@ -280,12 +280,14 @@ where
 
         self.gas_handler.spend(message_id, amount);
 
-        let _ = T::Currency::repatriate_reserved(
-            &<T::AccountId as Origin>::from_origin(origin.into_origin()),
-            &Authorship::<T>::author(),
-            charge,
-            BalanceStatus::Free,
-        );
+        if let Some(author) = Authorship::<T>::author() {
+            let _ = T::Currency::repatriate_reserved(
+                &<T::AccountId as Origin>::from_origin(origin.into_origin()),
+                &author,
+                charge,
+                BalanceStatus::Free,
+            );
+        }
     }
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
