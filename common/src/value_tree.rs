@@ -19,8 +19,10 @@
 //! This presents how some finite value maybe split over some (later abstract) nodes which then
 //! gets consumed individually and/or get refunded to the upper nodes.
 
-use super::{traits::*, GAS_VALUE_PREFIX};
-use codec::{Decode, Encode};
+#![allow(deprecated)]
+
+use super::{DAGBasedLedger, GAS_VALUE_PREFIX};
+use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
     traits::{Imbalance, SameOrOther, TryDrop},
@@ -30,7 +32,7 @@ use scale_info::TypeInfo;
 use sp_std::borrow::Cow;
 use sp_std::prelude::*;
 
-#[derive(Clone, Decode, Debug, Encode, TypeInfo)]
+#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub enum ValueOrigin {
     External(H256),
     Local(H256),
@@ -44,7 +46,8 @@ impl Default for ValueOrigin {
     }
 }
 
-#[derive(Clone, Default, Decode, Debug, Encode, TypeInfo)]
+#[deprecated(note = "will be removed soon")]
+#[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub struct ValueNode {
     pub origin: ValueOrigin,
     pub refs: u32,
@@ -299,6 +302,7 @@ impl ValueView {
     }
 }
 
+#[deprecated(note = "will be removed soon")]
 #[derive(Default)]
 pub struct ValueTreeGasHandler;
 

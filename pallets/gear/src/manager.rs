@@ -27,7 +27,7 @@ use core_processor::common::{
 };
 use frame_support::{
     storage::PrefixIterator,
-    traits::{BalanceStatus, ExistenceRequirement, Imbalance, ReservableCurrency},
+    traits::{BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency},
 };
 use gear_core::{
     memory::PageNumber,
@@ -342,7 +342,7 @@ where
                 dispatch.message.id,
                 dispatch.message.gas_limit,
             );
-            common::queue_message(dispatch);
+            common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be

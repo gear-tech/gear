@@ -43,7 +43,7 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{Dispatch, GasPrice, Message, PaymentProvider, Program};
+    use common::{Dispatch, GasPrice, Message, Origin, PaymentProvider, Program};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -264,12 +264,11 @@ pub mod pallet {
                          message_id,
                      }| {
                         common::remove_waiting_message(program_id, message_id).and_then(|(dispatch, bn)| {
-                            let Dispatch { msg, _kind } = dispatch;
                             let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
                             let chargeable_amount =
                                 T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-                            match <T as pallet_gear::Config>::GasHandler::get(msg.id) {
+                            match <T as pallet_gear::Config>::GasHandler::get(dispatch.message.id) {
                                 Some((msg_gas_balance, origin)) => {
                                     let usable_gas = msg_gas_balance
                                         .saturating_sub(T::TrapReplyExistentialGasLimit::get());
@@ -277,7 +276,7 @@ pub mod pallet {
                                     let new_free_gas = usable_gas.saturating_sub(chargeable_amount);
 
                                     let actual_fee = usable_gas.saturating_sub(new_free_gas);
-                                    Some((actual_fee, origin, msg, msg_gas_balance))
+                                    Some((actual_fee, origin, dispatch, msg_gas_balance))
                                 },
                                 _ => {
                                     log::warn!(
@@ -289,11 +288,12 @@ pub mod pallet {
                         })
                     },
                 )
-                .for_each(|(fee, origin, mut msg, msg_gas_balance)| {
-                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg.id, fee) {
+                .for_each(|(fee, origin, mut dispatch, msg_gas_balance)| {
+                    let msg_id = dispatch.message.id;
+                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id, fee) {
                         log::error!(
                             "Error spending {:?} gas from {:?}: {:?}",
-                            fee, msg.id, e
+                            fee, msg_id, e
                         );
                         return;
                     };
@@ -314,7 +314,7 @@ pub mod pallet {
                             }
                             if let Some(author) = Authorship::<T>::author() {
                                 if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                    gas_tree.origin(),
+                                    origin,
                                     &author,
                                     validator_reward,
                                 ) {
@@ -325,7 +325,7 @@ pub mod pallet {
                         _ => {
                             if let Some(author) = Authorship::<T>::author() {
                                 if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                    gas_tree.origin(),
+                                    origin,
                                     &author,
                                     total_reward,
                                 ) {
@@ -335,7 +335,7 @@ pub mod pallet {
                         }
                     };
 
-                    let program_id = msg.dest;
+                    let program_id = dispatch.message.dest;
                     let new_msg_gas_balance = msg_gas_balance.saturating_sub(fee);
                     if new_msg_gas_balance <= T::TrapReplyExistentialGasLimit::get() {
                         match common::get_program(program_id) {
@@ -351,22 +351,22 @@ pub mod pallet {
                                 let trap_message = Message {
                                     id: trap_message_id,
                                     source: program_id,
-                                    dest: message.source,
+                                    dest: dispatch.message.source,
                                     payload: vec![],
                                     gas_limit: new_msg_gas_balance,
                                     value: 0,
-                                    reply: Some((message.id, core_processor::ERR_EXIT_CODE)),
+                                    reply: Some((msg_id, core_processor::ERR_EXIT_CODE)),
                                 };
 
-                                let dispatch = Dispatch::new_reply(trap_message);
+                                let reply_dispatch = Dispatch::new_reply(trap_message);
 
                                 // Enqueue the trap reply message
                                 let _ = <T as pallet_gear::Config>::GasHandler::split(
-                                    msg.id,
+                                    msg_id,
                                     trap_message_id,
                                     new_msg_gas_balance
                                 );
-                                common::queue_dispatch(dispatch);
+                                common::queue_dispatch(reply_dispatch);
 
                                 // Save back the program with incremented nonce
                                 common::set_program(program_id, program, Default::default());
@@ -381,14 +381,11 @@ pub mod pallet {
                     } else {
                         // Message still got enough gas limit and may keep waiting.
                         // Updating gas limit value and re-inserting the message into wait list.
-                        msg.gas_limit = new_msg_gas_balance;
+                        dispatch.message.gas_limit = new_msg_gas_balance;
                         common::insert_waiting_message(
                             program_id,
-                            message.id,
-                            Dispatch {
-                                message,
-                                kind
-                            },
+                            msg_id,
+                            dispatch,
                             current_block.saturated_into(),
                         );
                     }

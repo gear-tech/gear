@@ -113,7 +113,7 @@ runtime-benchmarks = [
 	"hex-literal",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
-	# "pallet-gear/runtime-benchmarks",
+	"pallet-gear/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
 debug-mode = [

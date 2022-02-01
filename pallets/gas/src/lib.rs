@@ -31,7 +31,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Decode, Debug, Encode, TypeInfo)]
+#[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub enum ValueOrigin {
     External(H256),
     Local(H256),
@@ -45,7 +45,7 @@ impl Default for ValueOrigin {
     }
 }
 
-#[derive(Clone, Default, Decode, Debug, Encode, TypeInfo)]
+#[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub struct ValueNode {
     pub origin: ValueOrigin,
     pub refs: u32,
@@ -87,7 +87,7 @@ pub mod pallet {
         /// Account doesn't have enough funds to complete operation.
         InsufficientBalance,
 
-        /// Value node doesnt' exist for a key
+        /// Value node doesn't exist for a key
         NodeNotFound,
     }
 
@@ -318,7 +318,7 @@ mod imbalances {
     use sp_std::{marker::PhantomData, mem};
 
     /// Opaque, move-only struct with private field to denote that value has been created
-    /// without any equal and opposit accounting
+    /// without any equal and opposite accounting
     #[derive(RuntimeDebug, PartialEq, Eq)]
     pub struct PositiveImbalance<T: Config>(u64, PhantomData<T>);
 
