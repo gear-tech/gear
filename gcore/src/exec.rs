@@ -27,6 +27,7 @@ mod sys {
     extern "C" {
         pub fn gr_block_height() -> u32;
         pub fn gr_block_timestamp() -> u64;
+        pub fn gr_exit(program_id_ptr: *const u8) -> !;
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
         pub fn gr_wait() -> !;
@@ -78,6 +79,13 @@ pub fn block_height() -> u32 {
 /// ```
 pub fn block_timestamp() -> u64 {
     unsafe { sys::gr_block_timestamp() }
+}
+
+/// TODO
+pub fn exit(value_to: ActorId) -> ! {
+    unsafe {
+        sys::gr_exit(value_to.as_slice().as_ptr())
+    }
 }
 
 /// Get the current value of the gas available for execution.

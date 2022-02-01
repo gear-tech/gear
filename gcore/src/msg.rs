@@ -31,7 +31,6 @@ use crate::{ActorId, MessageId};
 mod sys {
     extern "C" {
         pub fn gr_exit_code() -> i32;
-        pub fn gr_exit(program_id_ptr: *const u8) -> !;
         pub fn gr_msg_id(val: *mut u8);
         pub fn gr_read(at: u32, len: u32, dest: *mut u8);
         pub fn gr_reply(
@@ -104,13 +103,6 @@ pub fn id() -> MessageId {
     let mut msg_id = MessageId::default();
     unsafe { sys::gr_msg_id(msg_id.0.as_mut_ptr()) }
     msg_id
-}
-
-/// TODO
-pub fn exit(value_to: ActorId) -> ! {
-    unsafe {
-        sys::gr_exit(value_to.as_slice().as_ptr())
-    }
 }
 
 /// Get a payload of the message currently being processed.

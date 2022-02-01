@@ -74,6 +74,11 @@
 use crate::{ActorId, MessageId};
 pub use gcore::exec::{block_height, block_timestamp, gas_available};
 
+/// TODO
+pub fn exit(value_destination: ActorId) -> ! {
+    gcore::exec::exit(value_destination.into())
+}
+
 /// Pause the current message handling.
 ///
 /// If the message handling needs to be paused, i.e. to wait for another
