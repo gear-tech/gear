@@ -4172,6 +4172,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "tests-distributor",
+ "tests-exit-handle",
  "tests-exit-init",
  "tests-init-wait",
  "wabt",
@@ -7471,6 +7472,14 @@ dependencies = [
  "parity-scale-codec",
  "substrate-wasm-builder",
  "tests-common",
+]
+
+[[package]]
+name = "tests-exit-handle"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+ "substrate-wasm-builder",
 ]
 
 [[package]]

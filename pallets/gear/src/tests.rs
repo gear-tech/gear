@@ -1360,9 +1360,10 @@ fn exit_init() {
     new_test_ext().execute_with(|| {
         System::reset_events();
 
+        let code = WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1).into(),
-            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            code.clone(),
             vec![],
             Vec::new(),
             10_000_000u64,
@@ -1373,38 +1374,50 @@ fn exit_init() {
 
         run_to_block(2, None);
 
-        assert!(!Gear::is_failed(program_id));
         assert!(!Gear::is_initialized(program_id));
 
-        let actual_n = Gear::mailbox(USER_1)
-            .map(|t| {
-                t.into_values().fold(0usize, |i, _| {
-                    i + 1
-                })
-            })
-            .unwrap_or(0);
+        utils::test_exit_common(USER_1, program_id, code);
+    })
+}
 
-        assert_eq!(actual_n, 0);
+#[test]
+fn exit_handle() {
+    use tests_exit_handle::WASM_BINARY_BLOATY;
 
-        // Program id should be kept
-        assert_noop!(GearPallet::<Test>::submit_program(
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1).into(),
-            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            code.clone(),
             vec![],
             Vec::new(),
             10_000_000u64,
             0u128
-        ), Error::<Test>::ProgramAlreadyExists);
+        ));
 
-        // but program can be submitted again with different salt
-        assert_ok!(GearPallet::<Test>::submit_program(
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(program_id));
+
+        assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
-            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
-            vec![1, 2, 3],
-            Vec::new(),
+            program_id,
+            vec![],
             10_000_000u64,
             0u128
         ));
+
+        run_to_block(3, None);
+
+        utils::test_exit_common(USER_1, program_id, code);
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_failed(program_id));
     })
 }
 
@@ -1413,7 +1426,7 @@ mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
 
-    use super::{assert_ok, pallet, run_to_block, GearPallet, SystemPallet, Mailbox, Origin, Test, Event, MockEvent, MessageInfo};
+    use super::{assert_ok, assert_noop, pallet, run_to_block, Error, Gear, GearPallet, SystemPallet, Mailbox, Origin, Test, Event, MockEvent, MessageInfo};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
@@ -1549,6 +1562,40 @@ mod utils {
         };
 
         program_id
+    }
+
+    pub(super) fn test_exit_common(account: AccountId, program_id: H256, code: Vec<u8>) {
+        assert!(!Gear::is_failed(program_id));
+
+        let actual_n = Gear::mailbox(account)
+            .map(|t| {
+                t.into_values().fold(0usize, |i, _| {
+                    i + 1
+                })
+            })
+            .unwrap_or(0);
+
+        assert_eq!(actual_n, 0);
+
+        // Program id should be kept
+        assert_noop!(GearPallet::<Test>::submit_program(
+            Origin::signed(account).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ), Error::<Test>::ProgramAlreadyExists);
+
+        // but program can be submitted again with different salt
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(account).into(),
+            code,
+            vec![1, 2, 3],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ));
     }
 
     #[derive(Debug, Copy, Clone)]
