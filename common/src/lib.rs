@@ -370,6 +370,10 @@ pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
 }
 
+pub fn exited_program_exists(id: H256) -> bool {
+    sp_io::storage::exists(&exited_program_key(id))
+}
+
 pub fn dequeue_message() -> Option<Message> {
     let mut message_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     message_queue.dequeue()
