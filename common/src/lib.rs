@@ -78,7 +78,7 @@ pub struct Program {
 pub struct ExitedProgram {
     pub program_id: H256,
     pub program: Program,
-    pub pages_hash: Vec<u8>,
+    pub pages_hash: H256,
     pub wait_list: Vec<Message>,
 }
 
@@ -98,7 +98,7 @@ pub fn exit_program(program_id: H256) -> Result<(), ProgramNotFound> {
 
     let exited_program = ExitedProgram {
         program_id,
-        pages_hash: get_program_pages(program_id, program.persistent_pages.clone()).using_encoded(sp_io::hashing::blake2_256).to_vec(),
+        pages_hash: get_program_pages(program_id, program.persistent_pages.clone()).using_encoded(sp_io::hashing::blake2_256).into(),
         program,
         wait_list: PrefixIterator::<_, ()>::new(
             prefix,
