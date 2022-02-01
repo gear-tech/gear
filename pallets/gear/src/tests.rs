@@ -1352,12 +1352,68 @@ fn wake_messages_after_program_inited() {
     })
 }
 
+#[test]
+fn exit_init() {
+    use tests_exit_init::WASM_BINARY_BLOATY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(!Gear::is_failed(program_id));
+        assert!(!Gear::is_initialized(program_id));
+
+        let actual_n = Gear::mailbox(USER_1)
+            .map(|t| {
+                t.into_values().fold(0usize, |i, _| {
+                    i + 1
+                })
+            })
+            .unwrap_or(0);
+
+        assert_eq!(actual_n, 0);
+
+        // Program id should be kept
+        assert_noop!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ), Error::<Test>::ProgramAlreadyExists);
+
+        // but program can be submitted again with different salt
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec(),
+            vec![1, 2, 3],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ));
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
 
-    use super::{assert_ok, pallet, run_to_block, GearPallet, Mailbox, Origin, Test};
+    use super::{assert_ok, pallet, run_to_block, GearPallet, SystemPallet, Mailbox, Origin, Test, Event, MockEvent, MessageInfo};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
@@ -1476,6 +1532,23 @@ mod utils {
         let mut id = program_id.to_vec();
         id.extend_from_slice(&program_nonce.to_le_bytes());
         sp_io::hashing::blake2_256(&id).into()
+    }
+
+    pub(super) fn get_last_program_id() -> H256 {
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        let MessageInfo { program_id, .. } = match event {
+            Event::InitMessageEnqueued(info) => info,
+            _ => unreachable!("expect Event::InitMessageEnqueued"),
+        };
+
+        program_id
     }
 
     #[derive(Debug, Copy, Clone)]

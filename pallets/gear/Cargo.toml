@@ -47,6 +47,7 @@ gear-core = { path = "../../core" }
 hex-literal = "0.3.4"
 tests-distributor = { path = "../../tests/distributor" }
 tests-init-wait = { path = "../../tests/init-wait" }
+tests-exit-init = { path = "../../tests/exit-init" }
 
 [features]
 default = ['std']
