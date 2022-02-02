@@ -197,7 +197,7 @@ fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl 
     }
 }
 
-fn check_messages(
+pub fn check_messages(
     progs_n_paths: &[(&str, ProgramId)],
     messages: &[Message],
     expected_messages: &[sample::Message],
@@ -419,7 +419,7 @@ fn check_memory(
     }
 }
 
-fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
+pub fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
     let file = fs::File::open(path.as_ref())
         .map_err(|e| anyhow::anyhow!("Error loading '{}': {}", path.as_ref().display(), e))?;
     let u = serde_yaml::from_reader(file)

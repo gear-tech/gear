@@ -26,7 +26,7 @@ fn encode_hex(bytes: &[u8]) -> String {
     s
 }
 
-fn parse_payload(payload: String) -> String {
+pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
     let ss58_regex = Regex::new(r"\{(?P<id>[A-Za-z0-9]+)\}").unwrap();

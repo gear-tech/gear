@@ -2089,6 +2089,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "gear-runtime",
+ "gear-runtime-test-cli",
  "gear-test-cli",
  "hex-literal",
  "jsonrpc-core",
@@ -2170,6 +2171,46 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "wabt",
+]
+
+[[package]]
+name = "gear-runtime-test-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-backend-sandbox",
+ "gear-common",
+ "gear-core",
+ "gear-core-processor",
+ "gear-runtime",
+ "gear-test",
+ "hex",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-gear-debug",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "primitive-types",
+ "rand 0.8.4",
+ "regex",
+ "sc-cli",
+ "sc-service",
+ "scale-info",
+ "serde",
+ "serde_json",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]

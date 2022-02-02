@@ -66,6 +66,7 @@ frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/gear
 # Internal
 gear-runtime = { path = "../runtime" }
 gear-test-cli = { path = "../utils/gear-test-cli" }
+gear-runtime-test-cli = { path = "../utils/gear-runtime-test-cli" }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
