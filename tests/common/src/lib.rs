@@ -18,7 +18,7 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use core_processor::{
-    common::{Dispatch, DispatchKind, DispatchOutcome, JournalHandler, ProcessResult},
+    common::{Dispatch, DispatchKind, DispatchOutcome, JournalHandler},
     configs::BlockInfo,
     Ext,
 };
@@ -267,9 +267,7 @@ impl<'a> JournalHandler for Journal<'a> {
                     RunResult::Trap(trap.unwrap_or("No message").to_string()),
                 );
             }
-            DispatchOutcome::InitSuccess { program, .. } => {
-                self.context.programs.insert(program.id(), program);
-            }
+            DispatchOutcome::InitSuccess { .. } => {}
             DispatchOutcome::InitFailure {
                 program_id,
                 message_id,
@@ -397,23 +395,19 @@ impl RunnerContext {
         };
         let message_id = dispatch.message.id;
 
-        let journal = {
-            let program = self
-                .programs
-                .remove(&new_program_id)
-                .expect("Program not found");
-            let ProcessResult { program, journal } =
-                core_processor::process::<WasmtimeEnvironment<Ext>>(
-                    program,
-                    dispatch,
-                    BlockInfo {
-                        height: 1,
-                        timestamp: 1,
-                    },
-                );
-            self.programs.insert(program.id(), program);
-            journal
-        };
+        let program = self
+            .programs
+            .get(&new_program_id)
+            .expect("Program not found");
+
+        let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
+            program.clone(),
+            dispatch,
+            BlockInfo {
+                height: 1,
+                timestamp: 1,
+            },
+        );
 
         core_processor::handle_journal(journal, &mut Journal { context: self });
 

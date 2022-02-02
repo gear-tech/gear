@@ -219,9 +219,9 @@ where
             CoreDispatchOutcome::InitSuccess {
                 message_id,
                 origin,
-                program,
+                program_id,
             } => {
-                let program_id = program.id().into_origin();
+                let program_id = program_id.into_origin();
                 let event = Event::InitSuccess(MessageInfo {
                     message_id: message_id.into_origin(),
                     origin: origin.into_origin(),

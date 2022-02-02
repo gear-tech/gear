@@ -51,7 +51,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         Ok(code) => code,
         _ => {
             return Err(ExecutionError {
-                program,
+                program_id: program.id(),
                 gas_amount: gas_counter.into(),
                 reason: "Cannot instrument code with gas-counting instructions.",
             })
@@ -64,7 +64,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
-                program,
+                program_id: program.id(),
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for initial memory.",
             });
@@ -74,7 +74,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
-                program,
+                program_id: program.id(),
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for loading memory.",
             });
@@ -86,7 +86,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         Ok(mem) => mem,
         Err(e) => {
             return Err(ExecutionError {
-                program,
+                program_id: program.id(),
                 gas_amount: gas_counter.into(),
                 reason: e,
             })
@@ -103,7 +103,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
             if gas_counter.charge(amount) != ChargeResult::Enough {
                 return Err(ExecutionError {
-                    program,
+                    program_id: program.id(),
                     gas_amount: gas_counter.into(),
                     reason: "Not enough gas for grow memory size.",
                 });
@@ -162,7 +162,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
-                program,
+                program_id: program.id(),
                 gas_amount: e.gas_amount,
                 reason: e.reason,
             })
@@ -212,7 +212,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
     // Output.
     Ok(DispatchResult {
         kind,
-        program,
         dispatch,
         outgoing,
         awakening: info.awakening,

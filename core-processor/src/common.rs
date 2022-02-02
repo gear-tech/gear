@@ -96,8 +96,6 @@ pub struct DispatchResult {
     /// Kind of the dispatch.
     pub kind: DispatchResultKind,
 
-    /// Program returned with the dispatch result.
-    pub program: Program,
     /// Original dispatch.
     pub dispatch: Dispatch,
 
@@ -123,7 +121,7 @@ impl DispatchResult {
 
     /// Return dispatch target program id.
     pub fn program_id(&self) -> ProgramId {
-        self.program.id()
+        self.dispatch.message.dest()
     }
 
     /// Return dispatch source program id.
@@ -166,8 +164,8 @@ pub enum DispatchOutcome {
         message_id: MessageId,
         /// Original actor.
         origin: ProgramId,
-        /// Program that was successsfully initialized.
-        program: Program,
+        /// Id of the program that was successfully initialized.
+        program_id: ProgramId,
     },
     /// Message was an initialization failure.
     InitFailure {
@@ -281,18 +279,18 @@ pub trait JournalHandler {
     );
 }
 
-/// Result of the message processing.
-pub struct ProcessResult {
-    /// Program that was used to process the message.
-    pub program: Program,
-    /// List of journal notes.
-    pub journal: Vec<JournalNote>,
-}
+// /// Result of the message processing
+// pub struct ProcessResult {
+//     /// Program that was used to process the message.
+//     pub program: Program,
+//     /// List of journal notes.
+//     pub journal: Vec<JournalNote>,
+// }
 
 /// Execution error.
 pub struct ExecutionError {
-    /// Program that generated execution error.
-    pub program: Program,
+    /// Id of the program that generated execution error.
+    pub program_id: ProgramId,
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
