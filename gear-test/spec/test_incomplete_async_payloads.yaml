@@ -40,6 +40,10 @@ fixtures:
               kind: utf-8
               value: OK REPLY
           - destination: 1000001
-            exitCode: 1
+            payload:
+              kind: utf-8
+              value: I'll not be sent
           - destination: 1000001
-            exitCode: 1
+            payload:
+              kind: utf-8
+              value: I'll not be sent

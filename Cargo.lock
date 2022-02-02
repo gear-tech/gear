@@ -1954,7 +1954,6 @@ name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cfg-if 1.0.0",
  "gear-backend-common",
  "gear-core",
  "log",

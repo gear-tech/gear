@@ -2,7 +2,7 @@
 
 use gstd::{debug, msg, prelude::*};
 
-const GAS_LIMIT: u64 = 10_000_000;
+const GAS_LIMIT: u64 = 50_000_000;
 
 #[gstd::async_main]
 async fn main() {
@@ -17,7 +17,7 @@ async fn main() {
                 .await
                 .expect("Error in async message processing");
             // Got panic here without message
-            msg::reply("I'll not be sent", GAS_LIMIT, 0);
+            msg::reply_bytes("I'll not be sent", GAS_LIMIT, 0);
         }
         "err reply" => {
             debug!("err reply processing");
@@ -26,7 +26,7 @@ async fn main() {
                 .await
                 .expect("Error in async message processing");
             // Got panic here without message
-            msg::reply("I'll not be sent", GAS_LIMIT, 0);
+            msg::reply_bytes("I'll not be sent", GAS_LIMIT, 0);
         }
         "ok common" => {
             debug!("ok common processing");
