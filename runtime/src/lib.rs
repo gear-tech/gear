@@ -43,7 +43,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 use gear_common::Origin as GearOrigin;
-pub use pallet_gear::manager::ExtManager;
+pub use pallet_gear::manager::{ExtManager, HandleKind};
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
@@ -600,14 +600,14 @@ impl_runtime_apis! {
     }
 
     // Here we implement our custom runtime API.
-    impl pallet_gear_rpc_runtime_api::GearApi<Block, AccountId, ProgramId> for Runtime {
+    impl pallet_gear_rpc_runtime_api::GearApi<Block, AccountId, ProgramId, HandleKind> for Runtime {
         fn get_gas_spent(
             account_id: AccountId,
             program_id: ProgramId,
             payload: Vec<u8>,
-            kind: Vec<u8>,
+            kind: HandleKind,
         ) -> Option<u64> {
-            Gear::get_gas_spent(account_id.into_origin(), program_id, payload, kind.into())
+            Gear::get_gas_spent(account_id.into_origin(), program_id, payload, kind)
         }
     }
 

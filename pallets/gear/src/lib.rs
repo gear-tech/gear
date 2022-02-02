@@ -68,7 +68,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::program::Program;
-    use manager::ExtManager;
+    use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
@@ -306,7 +306,7 @@ pub mod pallet {
             source: H256,
             dest: H256,
             payload: Vec<u8>,
-            kind: DispatchKind,
+            kind: HandleKind,
         ) -> Option<u64> {
             let ext_manager = ExtManager::<T>::default();
 
@@ -316,7 +316,7 @@ pub mod pallet {
             };
 
             let reply = match kind {
-                DispatchKind::HandleReply => Some((H256::zero(), 0)), // TODO: Are we to pass the real ID?
+                HandleKind::Reply(msg_id, exit_code) => Some((msg_id, exit_code)),
                 _ => None,
             };
 
@@ -337,7 +337,7 @@ pub mod pallet {
             let program = ext_manager.get_program(message.dest)?;
 
             let dispatch = Dispatch {
-                kind,
+                kind: kind.into(),
                 message: message.into(),
             };
 
@@ -347,13 +347,13 @@ pub mod pallet {
             for note in &journal {
                 match note {
                     JournalNote::GasBurned { amount, .. } => {
-                        gas_burned = gas_burned.saturating_add(*amount)
+                        gas_burned = gas_burned.saturating_add(*amount);
                     }
                     JournalNote::SendMessage { message, .. } => {
-                        gas_to_send = gas_to_send.saturating_add(message.gas_limit)
+                        gas_to_send = gas_to_send.saturating_add(message.gas_limit);
                     }
                     JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
-                        return None
+                        return None;
                     }
                     _ => (),
                 }

@@ -20,12 +20,14 @@ use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
     Pallet, ProgramsLimbo,
 };
+use codec::{Decode, Encode};
 use common::{
     value_tree::{ConsumeResult, ValueView},
     GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
-    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
+    CollectState, Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalHandler,
+    State,
 };
 use frame_support::{
     storage::PrefixIterator,
@@ -33,10 +35,12 @@ use frame_support::{
 };
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{ExitCode, Message, MessageId},
     program::{Program, ProgramId},
 };
 use primitive_types::H256;
+#[cfg(feature = "std")]
+use serde::Deserialize;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, vec_deque::VecDeque},
@@ -47,6 +51,24 @@ use sp_std::{
 pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
     _phantom: PhantomData<T>,
     gas_handler: GH,
+}
+
+#[cfg_attr(feature = "std", derive(Deserialize))]
+#[derive(Decode, Encode)]
+pub enum HandleKind {
+    Init,
+    Handle,
+    Reply(H256, ExitCode),
+}
+
+impl From<HandleKind> for DispatchKind {
+    fn from(kind: HandleKind) -> Self {
+        match kind {
+            HandleKind::Init => DispatchKind::Init,
+            HandleKind::Handle => DispatchKind::Handle,
+            HandleKind::Reply(..) => DispatchKind::HandleReply,
+        }
+    }
 }
 
 pub trait GasHandler {

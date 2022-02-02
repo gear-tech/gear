@@ -21,7 +21,7 @@
 use codec::Codec;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
-pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
+pub use pallet_gear_rpc_runtime_api::{GearApi as GearRuntimeApi, HandleKind};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
@@ -31,14 +31,14 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 #[rpc]
-pub trait GearApi<BlockHash, AccountId, ProgramId> {
+pub trait GearApi<BlockHash, AccountId, ProgramId, HandleKind> {
     #[rpc(name = "gear_getGasSpent")]
     fn get_gas_spent(
         &self,
         account_id: AccountId,
         program_id: ProgramId,
         payload: Bytes,
-        kind: String,
+        kind: HandleKind,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex>;
 }
@@ -78,21 +78,22 @@ impl From<Error> for i64 {
     }
 }
 
-impl<C, Block, AccountId, ProgramId> GearApi<<Block as BlockT>::Hash, AccountId, ProgramId>
-    for Gear<C, Block>
+impl<C, Block, AccountId, ProgramId>
+    GearApi<<Block as BlockT>::Hash, AccountId, ProgramId, HandleKind> for Gear<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-    C::Api: GearRuntimeApi<Block, AccountId, ProgramId>,
+    C::Api: GearRuntimeApi<Block, AccountId, ProgramId, HandleKind>,
     AccountId: Codec,
     ProgramId: Codec + Copy,
+    HandleKind: Codec,
 {
     fn get_gas_spent(
         &self,
         account_id: AccountId,
         program_id: ProgramId,
         payload: Bytes,
-        kind: String,
+        kind: HandleKind,
         at: Option<<Block as BlockT>::Hash>,
     ) -> Result<NumberOrHex> {
         let api = self.client.runtime_api();
@@ -101,7 +102,7 @@ where
 			self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(&at, account_id, program_id, payload.to_vec(), kind.into())
+            .get_gas_spent(&at, account_id, program_id, payload.to_vec(), kind)
             .map_err(|e| RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
                 message: "Unable to get gas spent.".into(),

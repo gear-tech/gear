@@ -18,13 +18,13 @@
 
 use codec::Encode;
 use common::{self, GasToFeeConverter, Origin as _};
-use core_processor::common::DispatchKind;
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use pallet_balances::{self, Pallet as BalancesPallet};
 use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
 use super::{
+    manager::HandleKind,
     mock::{
         new_test_ext, run_to_block, Event as MockEvent, Gear, Origin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
@@ -357,7 +357,7 @@ fn block_gas_limit_works() {
             USER_1.into_origin(),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
-            DispatchKind::Handle,
+            HandleKind::Handle,
         )
         .expect("internal error: get gas spent (pid1) failed")
             - gas_to_send;
@@ -365,7 +365,7 @@ fn block_gas_limit_works() {
             USER_1.into_origin(),
             pid2,
             EMPTY_PAYLOAD.to_vec(),
-            DispatchKind::Handle,
+            HandleKind::Handle,
         )
         .expect("internal error: get gas spent (pid2) failed");
 
@@ -891,7 +891,7 @@ fn claim_value_from_mailbox_works() {
                 USER_1.into_origin(),
                 prog_id,
                 EMPTY_PAYLOAD.to_vec(),
-                DispatchKind::Handle,
+                HandleKind::Handle,
             )
             .expect("program exists and not faulty"),
         );

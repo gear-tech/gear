@@ -19,14 +19,16 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Codec;
+pub use pallet_gear::manager::HandleKind;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    pub trait GearApi<AccountId, ProgramId>
+    pub trait GearApi<AccountId, ProgramId, HandleKind>
     where
-    AccountId: Codec,
-    ProgramId: Codec,
+        AccountId: Codec,
+        ProgramId: Codec,
+        HandleKind: Codec,
     {
-        fn get_gas_spent(account_id: AccountId, program_id: ProgramId, payload: Vec<u8>, kind: Vec<u8>) -> Option<u64>;
+        fn get_gas_spent(account_id: AccountId, program_id: ProgramId, payload: Vec<u8>, kind: HandleKind) -> Option<u64>;
     }
 }

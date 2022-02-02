@@ -52,16 +52,6 @@ impl DispatchKind {
     }
 }
 
-impl From<Vec<u8>> for DispatchKind {
-    fn from(v: Vec<u8>) -> Self {
-        match &v[..] {
-            b"init" => DispatchKind::Init,
-            b"handle_reply" => DispatchKind::HandleReply,
-            _ => DispatchKind::Handle,
-        }
-    }
-}
-
 /// Dispatch.
 ///
 /// Message plus information of entry point.
