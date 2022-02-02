@@ -26,7 +26,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{Environment, ExecutionReport};
+use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
     gas::{self, ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
@@ -122,11 +122,13 @@ pub fn execute_wasm<E: Environment<Ext>>(
         (0..program.static_pages()).map(Into::into).collect()
     };
 
+    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
+
     // Creating memory context.
     let memory_context = MemoryContext::new(
         program.id(),
         memory.clone(),
-        allocations.clone(),
+        allocations,
         program.static_pages().into(),
         settings.max_pages(),
     );
@@ -152,7 +154,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     // Running backend.
-    let ExecutionReport { termination, info } = match env.setup_and_execute(
+    let BackendReport { termination, info } = match env.setup_and_execute(
         ext,
         &instrumented_code,
         initial_pages,
@@ -170,13 +172,27 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     // Parsing outcome.
-    // TODO: add logging for "Trap during execution: {}, explanation: {}"
-    let kind: DispatchResultKind = termination.into();
+    let kind = match termination {
+        TerminationReason::Success => DispatchResultKind::Success,
+        TerminationReason::Manual { wait: false } => DispatchResultKind::Success,
+        TerminationReason::Manual { wait: true } => DispatchResultKind::Wait,
+        TerminationReason::Trap {
+            explanation,
+            description,
+        } => {
+            log::debug!(
+                "Trap during execution.\nDescription: {:?}.\nExplanation: {:?}",
+                description,
+                explanation.unwrap_or("None"),
+            );
+
+            DispatchResultKind::Trap(explanation)
+        }
+    };
 
     // Updating program memory
     let mut page_update = BTreeMap::new();
 
-    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
     let actual_max_page = info
         .pages
         .iter()

@@ -57,12 +57,12 @@ pub struct ExtInfo {
     pub trap_explanation: Option<&'static str>,
 }
 
-pub struct ExecutionReport {
+pub struct BackendReport {
     pub termination: TerminationReason,
     pub info: ExtInfo,
 }
 
-pub struct ExecutionFail {
+pub struct BackendError {
     pub reason: &'static str,
     pub gas_amount: GasAmount,
     pub description: Option<String>,
@@ -76,7 +76,7 @@ pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
-    ) -> Result<ExecutionReport, ExecutionFail>;
+    ) -> Result<BackendReport, BackendError>;
 
     fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str>;
 }

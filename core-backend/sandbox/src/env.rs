@@ -23,7 +23,7 @@ use alloc::{boxed::Box, collections::BTreeMap, format};
 use anyhow::Result;
 use core::marker::PhantomData;
 use gear_backend_common::{
-    funcs as common_funcs, Environment, ExecutionFail, ExecutionReport, ExtInfo, TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -114,13 +114,13 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
-    ) -> Result<ExecutionReport, ExecutionFail> {
+    ) -> Result<BackendReport, BackendError> {
         let env_builder = match self.setup(memory) {
             Ok(builder) => builder,
             Err(e) => {
                 let info: ExtInfo = ext.into();
 
-                return Err(ExecutionFail {
+                return Err(BackendError {
                     reason: e,
                     description: None,
                     gas_amount: info.gas_amount,
@@ -133,7 +133,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         let mut instance = Instance::new(binary, &env_builder, &mut runtime).map_err(|e| {
             let info: ExtInfo = runtime.ext.unset().into();
 
-            ExecutionFail {
+            BackendError {
                 reason: "Unable to instanciate module",
                 description: Some(format!("{:?}", e)),
                 gas_amount: info.gas_amount,
@@ -144,7 +144,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         memory.set_pages(memory_pages).map_err(|e| {
             let info: ExtInfo = runtime.ext.unset().into();
 
-            ExecutionFail {
+            BackendError {
                 reason: "Unable to set module memory",
                 description: Some(format!("{:?}", e)),
                 gas_amount: info.gas_amount,
@@ -172,7 +172,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
 
         let info: ExtInfo = runtime.ext.unset().into();
 
-        Ok(ExecutionReport { termination, info })
+        Ok(BackendReport { termination, info })
     }
 
     fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str> {

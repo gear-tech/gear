@@ -22,7 +22,7 @@ use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
 use anyhow::Result;
 use gear_backend_common::{
-    funcs, Environment, ExecutionFail, ExecutionReport, ExtInfo, TerminationReason,
+    funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -336,11 +336,11 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
         memory: &dyn Memory,
         entry_point: &str,
-    ) -> Result<ExecutionReport, ExecutionFail> {
+    ) -> Result<BackendReport, BackendError> {
         // TODO: split this
         let (_, ext) = self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point);
 
-        Ok(ExecutionReport {
+        Ok(BackendReport {
             // TODO: remove this...
             termination: TerminationReason::Success,
             info: ext.into(),
