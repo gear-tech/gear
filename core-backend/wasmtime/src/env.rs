@@ -18,19 +18,19 @@
 
 //! Wasmtime environment for running a module.
 
-use wasmtime::{Extern, Func, Instance, Module, Store, Trap};
-
-use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
-use alloc::string::ToString;
-use alloc::vec::Vec;
-
 use crate::memory::MemoryWrap;
-
-use gear_core::env::{Ext, LaterExt};
-use gear_core::memory::{Memory, PageBuf, PageNumber};
-
-use gear_backend_common::funcs;
+use alloc::{boxed::Box, collections::BTreeMap, string::ToString, vec::Vec};
+use anyhow::Result;
+use gear_backend_common::{
+    funcs, Environment, ExecutionFail, ExecutionReport, ExtInfo, TerminationReason,
+};
+use gear_core::{
+    env::{Ext, LaterExt},
+    memory::{Memory, PageBuf, PageNumber},
+};
+use wasmtime::{
+    Extern, Func, Instance, Limits, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
+};
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
@@ -46,7 +46,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
     pub fn new() -> Self {
         let mut result = Self {
             store: Store::default(),
-            ext: LaterExt::new(),
+            ext: Default::default(),
             funcs: BTreeMap::new(),
         };
 
@@ -119,17 +119,6 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         let ext = self.ext.unset();
 
         (result, ext)
-    }
-
-    /// Create memory inside this environment.
-    pub fn create_memory_inner(&self, total_pages: u32) -> MemoryWrap {
-        MemoryWrap::new(
-            wasmtime::Memory::new(
-                &self.store,
-                wasmtime::MemoryType::new(wasmtime::Limits::at_least(total_pages)),
-            )
-            .expect("Create env memory fail"),
-        )
     }
 
     fn run_inner(
@@ -339,23 +328,29 @@ impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
     }
 }
 
-impl<E: Ext> gear_backend_common::Environment<E> for WasmtimeEnvironment<E> {
-    fn new() -> Self {
-        Self::new()
-    }
-
-    fn setup_and_run(
+impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
+    fn setup_and_execute(
         &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        memory: &dyn gear_core::memory::Memory,
+        memory: &dyn Memory,
         entry_point: &str,
-    ) -> (anyhow::Result<()>, E) {
-        self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point)
+    ) -> Result<ExecutionReport, ExecutionFail> {
+        // TODO: split this
+        let (_, ext) = self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point);
+
+        Ok(ExecutionReport {
+            // TODO: remove this...
+            termination: TerminationReason::Success,
+            info: ext.into(),
+        })
     }
 
-    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory> {
-        Box::new(self.create_memory_inner(total_pages))
+    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str> {
+        Ok(Box::new(MemoryWrap::new(
+            WasmtimeMemory::new(&self.store, MemoryType::new(Limits::at_least(total_pages)))
+                .map_err(|_| "Create env memory fail")?,
+        )))
     }
 }

@@ -20,8 +20,10 @@
 
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::{self, Debug, Formatter},
     vec::Vec,
 };
+use gear_backend_common::TerminationReason;
 use gear_core::{
     gas::GasAmount,
     memory::PageNumber,
@@ -71,6 +73,22 @@ pub enum DispatchResultKind {
     Trap(Option<&'static str>),
     /// Wait dispatch.
     Wait,
+}
+
+impl From<TerminationReason> for DispatchResultKind {
+    fn from(other: TerminationReason) -> Self {
+        match other {
+            TerminationReason::Success => Self::Success,
+            TerminationReason::Trap { explanation, .. } => Self::Trap(explanation),
+            TerminationReason::Manual { wait } => {
+                if wait {
+                    Self::Wait
+                } else {
+                    Self::Success
+                }
+            }
+        }
+    }
 }
 
 /// Result of the specific dispatch.
@@ -294,8 +312,8 @@ pub struct State {
     pub current_failed: bool,
 }
 
-impl alloc::fmt::Debug for State {
-    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
+impl Debug for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
             .field("message_queue", &self.message_queue)
             .field("log", &self.log)
