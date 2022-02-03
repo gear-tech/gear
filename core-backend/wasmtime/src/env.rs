@@ -325,7 +325,6 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             let mut reason = None;
 
             if let Some(trap) = e.downcast_ref::<Trap>() {
-
                 let trap = trap.to_string();
 
                 log::debug!("{:?}", trap);
