@@ -47,41 +47,6 @@ use sc_service::Configuration;
 use sp_core::H256;
 use sp_keyring::AccountKeyring;
 
-// pub fn new_test_ext() -> sp_io::TestExternalities {
-//     frame_system::GenesisConfig::default()
-//         .build_storage::<Runtime>()
-//         .unwrap()
-//         .into()
-// }
-
-fn get_message_queue() -> Vec<Message> {
-    #[derive(Decode)]
-    struct Node {
-        value: Message,
-        next: Option<H256>,
-    }
-
-    let mq_head_key = [gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
-    let mut message_queue = vec![];
-
-    if let Some(head) = sp_io::storage::get(&mq_head_key) {
-        let mut next_id = H256::from_slice(&head[..]);
-        loop {
-            let next_node_key = [gear_common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-            if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                message_queue.push(current_node.value);
-                match current_node.next {
-                    Some(h) => next_id = h,
-                    None => break,
-                }
-            }
-        }
-    }
-
-    message_queue
-}
-
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
@@ -94,6 +59,7 @@ impl GearRuntimeTestCmd {
             for fixture in &test.fixtures {
                 new_test_ext()
                     .execute_with(|| {
+                        let mut errors = vec![];
                         let mut snapshots = Vec::new();
                         pallet_gear_debug::DebugMode::<Test>::put(true);
                         let mut programs = BTreeMap::new();
@@ -143,7 +109,7 @@ impl GearRuntimeTestCmd {
                             // let message_id = MessageId::from(nonce);
                             // let id = program.id.to_program_id();
 
-                            println!("init: {:?}", init_message);
+                            // println!("init: {:?}", init_message);
                             let res = GearPallet::<Test>::submit_program(
                                 crate::mock::Origin::signed(USER_1),
                                 code.clone(),
@@ -152,7 +118,7 @@ impl GearRuntimeTestCmd {
                                 program.init_gas_limit.unwrap_or(5_000_000_000),
                                 program.init_value.unwrap_or(0) as u128,
                             );
-                            log::debug!("init extrinsic: {:?}", res);
+                            // log::debug!("init extrinsic: {:?}", res);
                         }
                         log::info!("programs: {:?}", &programs);
                         for message in &fixture.messages {
@@ -209,56 +175,54 @@ impl GearRuntimeTestCmd {
                                 _ => (),
                             }
                         }
-
+                        let mut expected_log = vec![];
                         for exp in &fixture.expected {
-                            if let Some(steps) = exp.step {
-                                while snapshots.len() < programs.len() + steps {
-                                    log::info!("step: {:?}", &steps);
-                                    run_to_block(System::block_number() + 1, None);
-                                    let mut events = System::events();
-                                    for event in events {
-                                        match &event.event {
-                                            crate::mock::Event::GearDebug(snapshot) => {
-                                                // snapshots.push(snapshot);
-                                                match snapshot {
-                                                    pallet_gear_debug::Event::DebugDataSnapshot(
-                                                        snapshot,
-                                                    ) => {
-                                                        println!("Got snapshot {:?}", snapshot);
-                                                        snapshots.push(snapshot.clone());
-                                                    }
-                                                    _ => println!("{:?}", &event.event),
+                            while !gear_common::StorageQueue::<gear_common::Message>::get(
+                                gear_common::STORAGE_MESSAGE_PREFIX,
+                            )
+                            .is_empty()
+                            {
+                                run_to_block(System::block_number() + 1, None);
+                                let mut events = System::events();
+                                for event in events {
+                                    match &event.event {
+                                        crate::mock::Event::GearDebug(snapshot) => {
+                                            // snapshots.push(snapshot);
+                                            match snapshot {
+                                                pallet_gear_debug::Event::DebugDataSnapshot(
+                                                    snapshot,
+                                                ) => {
+                                                    // println!("Got snapshot {:?}", snapshot);
+                                                    snapshots.push(snapshot.clone());
                                                 }
+                                                _ => (),
                                             }
-                                            _ => (),
                                         }
-                                    }
-                                    // println!("snapshots: {:#?}", &snapshots);
-                                    System::reset_events();
-                                    if sp_io::storage::get(
-                                        &[gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat(),
-                                    )
-                                    .is_none()
-                                    {
-                                        break;
+                                        _ => (),
                                     }
                                 }
-                            } else {
-                                while !gear_common::StorageQueue::<gear_common::Message>::get(
-                                    gear_common::STORAGE_MESSAGE_PREFIX,
-                                )
-                                .is_empty()
-                                {
-                                    let message_queue = get_message_queue();
-                                    log::info!("MQ: {:?}", &message_queue);
-                                    run_to_block(System::block_number() + 1, None);
-                                }
+                                // println!("snapshots: {:#?}", &snapshots);
+                                // if sp_io::storage::get(
+                                //     &[gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat(),
+                                // )
+                                // .is_none()
+                                // {
+                                //     break;
+                                // }
+                                run_to_block(System::block_number() + 1, None);
+                                System::reset_events();
                             }
 
                             if let Some(mut expected_messages) = exp.messages.clone() {
                                 let mut message_queue: Vec<Message> = if let Some(step) = exp.step {
+                                    println!(
+                                        "snapshots.len() = {}, step({}), progs({})",
+                                        snapshots.len(),
+                                        step,
+                                        test.programs.len()
+                                    );
                                     snapshots
-                                        .last()
+                                        .get(step - 1)
                                         .unwrap()
                                         .message_queue
                                         .iter()
@@ -274,36 +238,72 @@ impl GearRuntimeTestCmd {
                                         .collect()
                                 };
 
-                                let res = gear_test::check::check_messages(
+                                expected_messages.iter_mut().for_each(|msg| {
+                                    msg.destination = gear_test::address::Address::H256(
+                                        programs[&msg.destination.to_program_id()],
+                                    )
+                                });
+
+                                if let Err(msg_errors) = gear_test::check::check_messages(
                                     &progs_n_paths,
                                     &message_queue,
                                     &expected_messages,
-                                );
+                                ) {
+                                    errors.push(format!("step: {:?}", exp.step));
+                                    errors.extend(
+                                        msg_errors
+                                            .into_iter()
+                                            .map(|err| format!("Messages check [{}]", err)),
+                                    );
+                                }
 
-                                println!("res: {:#?}", &message_queue);
-                                println!("res: {:#?}", res);
+                                // println!("res: {:#?}", &message_queue);
+                                // println!("res: {:#?}", res);
                             }
                             // let user_id = &<T::AccountId as Origin>::from_origin(USER_1);
                             if let Some(log) = &exp.log {
-                                let mailbox = GearPallet::<Test>::mailbox(USER_1);
-                                log::info!("mailbox: {:?}", &mailbox);
-                                if let Some(mailbox) = mailbox {
-                                    log::info!("Some(mailbox): {:?}", &mailbox);
-                                    let messages: Vec<Message> = mailbox
-                                        .values()
-                                        .map(|msg| Message::from(msg.clone()))
-                                        .collect();
-
-                                    let res = gear_test::check::check_messages(
-                                        &progs_n_paths,
-                                        &messages,
-                                        &log,
-                                    );
-                                    println!("res: {:#?}", res);
-                                }
+                                expected_log.append(&mut log.clone());
                             }
                         }
+                        let mailbox = GearPallet::<Test>::mailbox(USER_1);
+                        log::info!("mailbox: {:?}", &mailbox);
+                        if let Some(mailbox) = mailbox {
+                            log::info!("Some(mailbox): {:?}", &mailbox);
+
+                            let messages: Vec<Message> = mailbox
+                                .values()
+                                .map(|msg| Message::from(msg.clone()))
+                                .collect();
+
+                            for message in &messages {
+                                if let Ok(utf8) = core::str::from_utf8(message.payload()) {
+                                    println!("log({})", utf8)
+                                }
+                            }
+
+                            if let Err(log_errors) = gear_test::check::check_messages(
+                                &progs_n_paths,
+                                &messages,
+                                &expected_log,
+                            ) {
+                                errors.extend(
+                                    log_errors
+                                        .into_iter()
+                                        .map(|err| format!("Log check [{}]", err)),
+                                );
+                            }
+                            // errors.push(res);
+                        }
+
+                        if !errors.is_empty() {
+                            errors.insert(0, "\n".to_string());
+                            // total_failed.fetch_add(1, Ordering::SeqCst);
+                            println!("{}", errors.join("\n"));
+                        } else {
+                            println!("Ok");
+                        }
                         gear_common::reset_storage();
+                        pallet_gear::Mailbox::<Test>::drain();
                         Ok(())
                     })
                     .map_err(|e: anyhow::Error| sc_cli::Error::Application(e.into()))?;
