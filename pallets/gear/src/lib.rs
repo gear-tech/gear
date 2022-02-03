@@ -333,8 +333,11 @@ pub mod pallet {
             let mut gas_burned = 0;
             let mut gas_to_send = 0;
 
-            // TODO: Do we need to get the code's ID instead of program's for init?
-            let program = ext_manager.get_program(message.dest)?;
+            let program = if let HandleKind::Init = kind {
+                ext_manager.get_program_from_code(dest)?
+            } else {
+                ext_manager.get_program(message.dest)?
+            };
 
             let dispatch = Dispatch {
                 kind: kind.into(),

@@ -175,6 +175,11 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
+    pub fn get_program_from_code(&self, code_hash: H256) -> Option<gear_core::program::Program> {
+        common::get_code(code_hash)
+            .and_then(|code| Program::new(ProgramId::from_origin(code_hash), code).ok())
+    }
+
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
         common::native::get_program(ProgramId::from_origin(id))
     }
