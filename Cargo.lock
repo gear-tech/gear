@@ -1570,7 +1570,7 @@ dependencies = [
  "futures-timer",
  "log",
  "num-traits",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "scale-info",
 ]
@@ -1617,7 +1617,7 @@ name = "fork-tree"
 version = "3.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
 ]
 
 [[package]]
@@ -1639,7 +1639,7 @@ dependencies = [
  "frame-system",
  "linregress",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "paste",
  "scale-info",
  "sp-api",
@@ -1664,7 +1664,7 @@ dependencies = [
  "handlebars",
  "linked-hash-map",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-cli",
  "sc-client-db",
  "sc-executor",
@@ -1684,7 +1684,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "frame-support",
  "frame-system",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -1700,7 +1700,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ed5e5c346de62ca5c184b4325a6600d1eaca210666e4606fe4e449574978d0"
 dependencies = [
  "cfg-if 1.0.0",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "serde",
 ]
@@ -1716,7 +1716,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "once_cell",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "paste",
  "scale-info",
  "serde",
@@ -1775,7 +1775,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "frame-support",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "serde",
  "sp-core",
@@ -1793,7 +1793,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-core",
  "sp-runtime",
@@ -1805,7 +1805,7 @@ name = "frame-system-rpc-runtime-api"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api",
 ]
 
@@ -2046,7 +2046,7 @@ dependencies = [
  "frame-support",
  "gear-core",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "primitive-types",
  "scale-info",
  "sp-arithmetic",
@@ -2064,7 +2064,7 @@ dependencies = [
  "derive_more",
  "hashbrown 0.12.0",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-wasm 0.42.2",
  "pwasm-utils",
  "wabt",
@@ -2078,7 +2078,7 @@ dependencies = [
  "gear-backend-common",
  "gear-core",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
 ]
 
 [[package]]
@@ -2152,7 +2152,7 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-usage",
  "pallet-utility",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "primitive-types",
  "scale-info",
  "serde",
@@ -2188,7 +2188,7 @@ dependencies = [
  "gear-core-processor",
  "hex",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 3.0.0",
  "rayon",
  "regex",
  "serde",
@@ -2213,7 +2213,7 @@ dependencies = [
  "gear-runtime",
  "gear-test",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "regex",
  "sc-cli",
  "sc-service",
@@ -2343,7 +2343,7 @@ dependencies = [
  "gcore",
  "gstd-codegen",
  "hex",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "primitive-types",
  "scale-info",
 ]
@@ -2367,7 +2367,7 @@ dependencies = [
  "gear-core-processor",
  "hex",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "path-clean",
 ]
 
@@ -2676,7 +2676,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "161ebdfec3c8e3b52bf61c4f3550a1eea4f9579d10dc1b936f3171ebdcd6c443"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
 ]
 
 [[package]]
@@ -4249,7 +4249,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-timestamp",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-application-crypto",
  "sp-consensus-aura",
@@ -4265,7 +4265,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-authorship",
  "sp-runtime",
@@ -4281,7 +4281,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-runtime",
  "sp-std",
@@ -4304,7 +4304,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-timestamp",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-wasm 0.42.2",
  "primitive-types",
  "scale-info",
@@ -4337,7 +4337,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-timestamp",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-wasm 0.42.2",
  "primitive-types",
  "scale-info",
@@ -4358,7 +4358,7 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "pallet-gear-rpc-runtime-api",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api",
  "sp-blockchain",
  "sp-core",
@@ -4371,7 +4371,7 @@ name = "pallet-gear-rpc-runtime-api"
 version = "2.0.0"
 dependencies = [
  "pallet-gear",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api",
  "sp-core",
  "sp-std",
@@ -4388,7 +4388,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-session",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-application-crypto",
  "sp-core",
@@ -4407,7 +4407,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "frame-support",
  "frame-system",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "safe-mix",
  "scale-info",
  "sp-runtime",
@@ -4424,7 +4424,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "pallet-timestamp",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -4442,7 +4442,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "frame-support",
  "frame-system",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-io",
  "sp-runtime",
@@ -4458,7 +4458,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-inherents",
  "sp-io",
@@ -4474,7 +4474,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "frame-support",
  "frame-system",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "serde",
  "smallvec",
@@ -4493,7 +4493,7 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "pallet-transaction-payment-rpc-runtime-api",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api",
  "sp-blockchain",
  "sp-core",
@@ -4507,7 +4507,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "pallet-transaction-payment",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api",
  "sp-runtime",
 ]
@@ -4529,7 +4529,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gear",
  "pallet-timestamp",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-wasm 0.42.2",
  "parking_lot",
  "primitive-types",
@@ -4550,7 +4550,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "frame-support",
  "frame-system",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-core",
  "sp-io",
@@ -4587,8 +4587,20 @@ dependencies = [
  "bitvec 0.20.1",
  "byte-slice-cast",
  "impl-trait-for-tuples",
- "parity-scale-codec-derive",
+ "parity-scale-codec-derive 2.3.1",
  "serde",
+]
+
+[[package]]
+name = "parity-scale-codec"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a7f3fcf5e45fc28b84dcdab6b983e77f197ec01f325a33f404ba6855afd1070"
+dependencies = [
+ "arrayvec 0.7.0",
+ "byte-slice-cast",
+ "impl-trait-for-tuples",
+ "parity-scale-codec-derive 3.0.0",
 ]
 
 [[package]]
@@ -4596,6 +4608,18 @@ name = "parity-scale-codec-derive"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1557010476e0595c9b568d16dcfb81b93cdeb157612726f5170d31aa707bed27"
+dependencies = [
+ "proc-macro-crate 1.1.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "parity-scale-codec-derive"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c6e626dc84025ff56bf1476ed0e30d10c84d7f89a475ef46ebabee1095a8fba"
 dependencies = [
  "proc-macro-crate 1.1.0",
  "proc-macro2",
@@ -5563,7 +5587,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-block-builder",
  "sc-client-api",
  "sc-proposer-metrics",
@@ -5583,7 +5607,7 @@ name = "sc-block-builder"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-client-api",
  "sp-api",
  "sp-block-builder",
@@ -5601,7 +5625,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "impl-trait-for-tuples",
  "memmap2 0.5.2",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-chain-spec-derive",
  "sc-network",
  "sc-telemetry",
@@ -5635,7 +5659,7 @@ dependencies = [
  "libp2p",
  "log",
  "names",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "rand 0.7.3",
  "regex",
  "rpassword",
@@ -5669,7 +5693,7 @@ dependencies = [
  "futures 0.3.19",
  "hash-db",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "sc-executor",
  "sc-transaction-pool-api",
@@ -5700,7 +5724,7 @@ dependencies = [
  "linked-hash-map",
  "log",
  "parity-db",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "sc-client-api",
  "sc-state-db",
@@ -5745,7 +5769,7 @@ dependencies = [
  "async-trait",
  "futures 0.3.19",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-block-builder",
  "sc-client-api",
  "sc-consensus",
@@ -5775,7 +5799,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-client-api",
  "sc-consensus",
  "sc-telemetry",
@@ -5800,7 +5824,7 @@ dependencies = [
  "libsecp256k1",
  "log",
  "lru 0.6.6",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "sc-executor-common",
  "sc-executor-wasmi",
@@ -5825,7 +5849,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "environmental",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-allocator",
  "sp-core",
  "sp-maybe-compressed-blob",
@@ -5842,7 +5866,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-allocator",
  "sc-executor-common",
  "scoped-tls",
@@ -5860,7 +5884,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "libc",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-wasm 0.42.2",
  "sc-allocator",
  "sc-executor-common",
@@ -5882,7 +5906,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "rand 0.8.4",
  "sc-block-builder",
@@ -5963,7 +5987,7 @@ dependencies = [
  "linked_hash_set",
  "log",
  "lru 0.7.2",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "pin-project 1.0.10",
  "prost",
@@ -6020,7 +6044,7 @@ dependencies = [
  "hyper-rustls",
  "num_cpus",
  "once_cell",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "rand 0.7.3",
  "sc-client-api",
@@ -6066,7 +6090,7 @@ dependencies = [
  "jsonrpc-core",
  "jsonrpc-pubsub",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "sc-block-builder",
  "sc-chain-spec",
@@ -6098,7 +6122,7 @@ dependencies = [
  "jsonrpc-derive",
  "jsonrpc-pubsub",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "sc-chain-spec",
  "sc-transaction-pool-api",
@@ -6143,7 +6167,7 @@ dependencies = [
  "jsonrpc-core",
  "jsonrpc-pubsub",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-util-mem",
  "parking_lot",
  "pin-project 1.0.10",
@@ -6199,7 +6223,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-util-mem",
  "parity-util-mem-derive",
  "parking_lot",
@@ -6276,7 +6300,7 @@ dependencies = [
  "futures-timer",
  "linked-hash-map",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-util-mem",
  "parking_lot",
  "retain_mut",
@@ -6328,7 +6352,7 @@ dependencies = [
  "bitvec 0.20.1",
  "cfg-if 1.0.0",
  "derive_more",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info-derive",
  "serde",
 ]
@@ -6726,7 +6750,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "hash-db",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api-proc-macro",
  "sp-core",
  "sp-runtime",
@@ -6753,7 +6777,7 @@ name = "sp-application-crypto"
 version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "serde",
  "sp-core",
@@ -6768,7 +6792,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "integer-sqrt",
  "num-traits",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "serde",
  "sp-debug-derive",
@@ -6782,7 +6806,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "async-trait",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-inherents",
  "sp-runtime",
  "sp-std",
@@ -6793,7 +6817,7 @@ name = "sp-block-builder"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api",
  "sp-inherents",
  "sp-runtime",
@@ -6808,7 +6832,7 @@ dependencies = [
  "futures 0.3.19",
  "log",
  "lru 0.7.2",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "sp-api",
  "sp-consensus",
@@ -6827,7 +6851,7 @@ dependencies = [
  "futures 0.3.19",
  "futures-timer",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-core",
  "sp-inherents",
  "sp-runtime",
@@ -6843,7 +6867,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "async-trait",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-api",
  "sp-application-crypto",
@@ -6860,7 +6884,7 @@ name = "sp-consensus-slots"
 version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "serde",
  "sp-arithmetic",
@@ -6888,7 +6912,7 @@ dependencies = [
  "log",
  "merlin",
  "num-traits",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-util-mem",
  "parking_lot",
  "primitive-types",
@@ -6964,7 +6988,7 @@ version = "0.10.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "environmental",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-std",
  "sp-storage",
 ]
@@ -6976,7 +7000,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "finality-grandpa",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "serde",
  "sp-api",
@@ -6994,7 +7018,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-core",
  "sp-runtime",
  "sp-std",
@@ -7010,7 +7034,7 @@ dependencies = [
  "hash-db",
  "libsecp256k1",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "sp-core",
  "sp-externalities",
@@ -7044,7 +7068,7 @@ dependencies = [
  "async-trait",
  "futures 0.3.19",
  "merlin",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "schnorrkel",
  "serde",
@@ -7100,7 +7124,7 @@ dependencies = [
  "hash256-std-hasher",
  "impl-trait-for-tuples",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-util-mem",
  "paste",
  "rand 0.7.3",
@@ -7119,7 +7143,7 @@ version = "4.1.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "impl-trait-for-tuples",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "primitive-types",
  "sp-externalities",
  "sp-runtime-interface-proc-macro",
@@ -7148,7 +7172,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-core",
  "sp-io",
  "sp-std",
@@ -7170,7 +7194,7 @@ name = "sp-session"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-api",
  "sp-core",
@@ -7184,7 +7208,7 @@ name = "sp-staking"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-runtime",
  "sp-std",
@@ -7198,7 +7222,7 @@ dependencies = [
  "hash-db",
  "log",
  "num-traits",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parking_lot",
  "rand 0.7.3",
  "smallvec",
@@ -7224,7 +7248,7 @@ version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "impl-serde",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "ref-cast",
  "serde",
  "sp-debug-derive",
@@ -7252,7 +7276,7 @@ dependencies = [
  "async-trait",
  "futures-timer",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-api",
  "sp-inherents",
  "sp-runtime",
@@ -7265,7 +7289,7 @@ name = "sp-tracing"
 version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-std",
  "tracing",
  "tracing-core",
@@ -7288,7 +7312,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "async-trait",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-core",
  "sp-inherents",
@@ -7304,7 +7328,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "hash-db",
  "memory-db",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "scale-info",
  "sp-core",
  "sp-std",
@@ -7318,7 +7342,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
  "impl-serde",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-wasm 0.42.2",
  "scale-info",
  "serde",
@@ -7334,7 +7358,7 @@ name = "sp-version-proc-macro"
 version = "4.0.0-dev"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "proc-macro2",
  "quote",
  "syn",
@@ -7347,7 +7371,7 @@ source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d2
 dependencies = [
  "impl-trait-for-tuples",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-std",
  "wasmi",
  "wasmtime 0.33.0",
@@ -7463,7 +7487,7 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "log",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sc-client-api",
  "sc-rpc-api",
  "sc-transaction-pool-api",
@@ -7572,7 +7596,7 @@ name = "tests-btree"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "substrate-wasm-builder",
  "tests-common",
 ]
@@ -7585,7 +7609,7 @@ dependencies = [
  "gear-core",
  "gear-core-processor",
  "gstd",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
 ]
 
 [[package]]
@@ -7594,7 +7618,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",
  "gstd",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "substrate-wasm-builder",
  "tests-common",
 ]
@@ -7612,7 +7636,7 @@ name = "tests-messages"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "substrate-wasm-builder",
  "tests-common",
 ]
@@ -7623,7 +7647,7 @@ version = "0.1.0"
 dependencies = [
  "env_logger 0.9.0",
  "gstd",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "substrate-wasm-builder",
  "tests-common",
 ]
@@ -7634,7 +7658,7 @@ version = "0.1.0"
 dependencies = [
  "gear-core",
  "gstd",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "substrate-wasm-builder",
  "tests-common",
 ]
