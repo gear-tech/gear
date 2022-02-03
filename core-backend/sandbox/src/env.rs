@@ -19,7 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{funcs, memory::MemoryWrap};
-use alloc::{boxed::Box, collections::BTreeMap, format};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String};
 use core::marker::PhantomData;
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
@@ -150,7 +150,11 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             }
         })?;
 
-        let termination = if let Err(e) = instance.invoke(entry_point, &[], &mut runtime) {
+        let res = instance.invoke(entry_point, &[], &mut runtime);
+
+        let info: ExtInfo = runtime.ext.unset().into();
+
+        let termination = if res.is_err() {
             let mut reason = None;
 
             if let Some(trap) = runtime.trap {
@@ -162,14 +166,12 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
-                explanation: runtime.trap,
-                description: Some(format!("{:?}", e)),
+                explanation: info.trap_explanation,
+                description: runtime.trap.map(String::from),
             })
         } else {
             TerminationReason::Success
         };
-
-        let info: ExtInfo = runtime.ext.unset().into();
 
         Ok(BackendReport { termination, info })
     }
