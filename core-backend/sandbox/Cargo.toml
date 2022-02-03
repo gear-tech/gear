@@ -11,3 +11,7 @@ gear-backend-common = { path = "../common" }
 
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 log = { version = "0.4.14", default-features = false }
+
+[features]
+default = ["std"]
+std = ["sp-sandbox/std", "log/std"]

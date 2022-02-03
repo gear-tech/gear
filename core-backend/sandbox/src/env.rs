@@ -28,7 +28,10 @@ use gear_core::{
     env::{Ext, LaterExt},
     memory::{Memory, PageBuf, PageNumber},
 };
-use sp_sandbox::{EnvironmentDefinitionBuilder, Instance, Memory as SandboxMemory};
+use sp_sandbox::{
+    default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
+    SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
+};
 
 /// Environment to run one module at a time providing Ext.
 pub struct SandboxEnvironment<E: Ext>(PhantomData<E>);
@@ -63,7 +66,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
     ) -> Result<EnvironmentDefinitionBuilder<Runtime<E>>, &'static str> {
         let mem = memory
             .as_any()
-            .downcast_ref::<SandboxMemory>()
+            .downcast_ref::<DefaultExecutorMemory>()
             .ok_or("Memory is not SandboxMemory")?;
 
         let mut env_builder = EnvironmentDefinitionBuilder::new();

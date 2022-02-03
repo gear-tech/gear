@@ -20,13 +20,13 @@ mod command;
 mod manager;
 
 /// The `runtests` command used to test gear with yaml.
-#[derive(Debug, structopt::StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct GearTestCmd {
     /// Input dir/file with yaml for testing.
-    #[structopt(parse(from_os_str))]
+    #[clap(parse(from_os_str))]
     pub input: Vec<std::path::PathBuf>,
 
     #[allow(missing_docs)]
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub shared_params: sc_cli::SharedParams,
 }

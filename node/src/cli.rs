@@ -17,21 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use sc_cli::RunCmd;
-use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Parser)]
 pub struct Cli {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     pub subcommand: Option<Subcommand>,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub run: RunCmd,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
     /// Key management cli utilities
+    #[clap(subcommand)]
     Key(sc_cli::KeySubcommand),
+
     /// Build a chain specification.
     BuildSpec(sc_cli::BuildSpecCmd),
 
@@ -53,10 +54,10 @@ pub enum Subcommand {
     /// Revert the chain to a previous state.
     Revert(sc_cli::RevertCmd),
 
-    /// The custom benchmark subcommmand benchmarking runtime pallets.
-    #[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
+    /// The custom benchmark subcommand benchmarking runtime pallets.
+    #[clap(name = "benchmark", about = "Benchmark runtime pallets.")]
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-    #[structopt(name = "runtests", about = "Run gear tests with yaml.")]
+    #[clap(name = "runtests", about = "Run gear tests with yaml.")]
     GearTest(gear_test_cli::GearTestCmd),
 }
