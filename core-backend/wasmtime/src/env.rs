@@ -20,7 +20,6 @@
 
 use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
-use anyhow::Result;
 use gear_backend_common::{
     funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
@@ -327,7 +326,6 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             if let Some(trap) = e.downcast_ref::<Trap>() {
                 let trap = trap.to_string();
 
-                log::debug!("{:?}", trap);
                 if funcs::is_wait_trap(&trap) {
                     reason = Some(TerminationReason::Manual { wait: true });
                 } else if funcs::is_exit_trap(&trap) {

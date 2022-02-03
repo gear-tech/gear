@@ -20,7 +20,6 @@
 
 use crate::{funcs, memory::MemoryWrap};
 use alloc::{boxed::Box, collections::BTreeMap, format};
-use anyhow::Result;
 use core::marker::PhantomData;
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,

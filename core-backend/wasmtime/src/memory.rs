@@ -20,7 +20,6 @@
 
 use alloc::boxed::Box;
 use core::any::Any;
-
 use gear_core::memory::{Error, Memory, PageNumber};
 
 /// Wrapper for wasmtime memory.

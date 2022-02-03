@@ -24,6 +24,7 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    string::String,
     vec::Vec,
 };
 use gear_backend_common::{BackendReport, Environment, TerminationReason};
@@ -44,6 +45,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
     let Dispatch { kind, message } = dispatch.clone();
 
+    let program_id = program.id();
+
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(message.gas_limit());
 
@@ -51,7 +54,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         Ok(code) => code,
         _ => {
             return Err(ExecutionError {
-                program_id: program.id(),
+                program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Cannot instrument code with gas-counting instructions.",
             })
@@ -64,7 +67,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
-                program_id: program.id(),
+                program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for initial memory.",
             });
@@ -74,7 +77,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
-                program_id: program.id(),
+                program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for loading memory.",
             });
@@ -86,7 +89,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         Ok(mem) => mem,
         Err(e) => {
             return Err(ExecutionError {
-                program_id: program.id(),
+                program_id,
                 gas_amount: gas_counter.into(),
                 reason: e,
             })
@@ -103,7 +106,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
             if gas_counter.charge(amount) != ChargeResult::Enough {
                 return Err(ExecutionError {
-                    program_id: program.id(),
+                    program_id,
                     gas_amount: gas_counter.into(),
                     reason: "Not enough gas for grow memory size.",
                 });
@@ -126,7 +129,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
     // Creating memory context.
     let memory_context = MemoryContext::new(
-        program.id(),
+        program_id,
         memory.clone(),
         allocations,
         program.static_pages().into(),
@@ -137,7 +140,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let message_context = MessageContext::new(
         message.clone().into(),
         BlakeMessageIdGenerator {
-            program_id: program.id(),
+            program_id,
             nonce: program.message_nonce(),
         },
     );
@@ -164,7 +167,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
-                program_id: program.id(),
+                program_id,
                 gas_amount: e.gas_amount,
                 reason: e.reason,
             })
@@ -181,8 +184,9 @@ pub fn execute_wasm<E: Environment<Ext>>(
             description,
         } => {
             log::debug!(
-                "Trap during execution.\nDescription: {:?}.\nExplanation: {:?}",
-                description,
+                "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
+                program_id,
+                description.unwrap_or_else(|| String::from("None")),
                 explanation.unwrap_or("None"),
             );
 
