@@ -30,9 +30,6 @@ use gear_core::{
     message::{IncomingMessage, Message},
     program::{Program, ProgramId},
 };
-use gear_core_processor::Ext;
-use gear_runtime::Runtime;
-use gear_test::check::check_messages;
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -45,20 +42,20 @@ use rand::Rng;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
-use sp_keyring::AccountKeyring;
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         for input in &self.input {
             let test = read_test_from_file(input).unwrap();
-            log::info!("Test {:?}", input.file_name().unwrap());
+            println!("Test {:?}", input.file_name().unwrap());
 
             let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
 
             for fixture in &test.fixtures {
                 new_test_ext()
                     .execute_with(|| {
+                        println!("Fixture {}", fixture.title);
                         let mut errors = vec![];
                         let mut snapshots = Vec::new();
                         pallet_gear_debug::DebugMode::<Test>::put(true);
@@ -122,6 +119,7 @@ impl GearRuntimeTestCmd {
                         }
                         log::info!("programs: {:?}", &programs);
                         for message in &fixture.messages {
+                            // Set custom source
                             let payload = match &message.payload {
                                 Some(PayloadVariant::Utf8(s)) => {
                                     parse_payload(s.clone()).as_bytes().to_vec()
@@ -159,6 +157,24 @@ impl GearRuntimeTestCmd {
 
                             let gas_limit = message.gas_limit.unwrap_or(5_000_000_000);
 
+                            // TODO: force queue message if custom source
+                            // if let Some(source) = &message.source {
+                            //     if programs.contains_key(&source.to_program_id()) {
+                            //         let msg = gear_common::Message {
+                            //             id: todo!(),
+                            //             source: todo!(),
+                            //             dest: todo!(),
+                            //             payload,
+                            //             gas_limit,
+                            //             value: todo!(),
+                            //             reply: todo!(),
+                            //         }
+                            //         gear_common::queue_message(message)
+                            //     }
+                            // } else {
+                            //     USER_1
+                            // };
+
                             match message.destination {
                                 gear_test::address::Address::ProgramId(_) => {
                                     log::info!(
@@ -183,7 +199,7 @@ impl GearRuntimeTestCmd {
                             .is_empty()
                             {
                                 run_to_block(System::block_number() + 1, None);
-                                let mut events = System::events();
+                                let events = System::events();
                                 for event in events {
                                     match &event.event {
                                         crate::mock::Event::GearDebug(snapshot) => {
@@ -214,15 +230,18 @@ impl GearRuntimeTestCmd {
                             }
 
                             if let Some(mut expected_messages) = exp.messages.clone() {
-                                let mut message_queue: Vec<Message> = if let Some(step) = exp.step {
+                                let message_queue: Vec<Message> = if let Some(step) = exp.step {
                                     println!(
                                         "snapshots.len() = {}, step({}), progs({})",
                                         snapshots.len(),
                                         step,
                                         test.programs.len()
                                     );
+                                    if step == 0 {
+                                        continue;
+                                    }
                                     snapshots
-                                        .get(step - 1)
+                                        .get((step + test.programs.len()) - 1)
                                         .unwrap()
                                         .message_queue
                                         .iter()
@@ -265,13 +284,17 @@ impl GearRuntimeTestCmd {
                                 expected_log.append(&mut log.clone());
                             }
                         }
-                        let mailbox = GearPallet::<Test>::mailbox(USER_1);
-                        log::info!("mailbox: {:?}", &mailbox);
-                        if let Some(mailbox) = mailbox {
+                        let mut mailbox: Vec<gear_common::Message> = vec![];
+                        pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
+                            for msg in user_mailbox.values() {
+                                mailbox.push(msg.clone())
+                            }
+                        });
+                        if expected_log.len() > 0 {
                             log::info!("Some(mailbox): {:?}", &mailbox);
 
                             let messages: Vec<Message> = mailbox
-                                .values()
+                                .iter()
                                 .map(|msg| Message::from(msg.clone()))
                                 .collect();
 
@@ -292,9 +315,7 @@ impl GearRuntimeTestCmd {
                                         .map(|err| format!("Log check [{}]", err)),
                                 );
                             }
-                            // errors.push(res);
                         }
-
                         if !errors.is_empty() {
                             errors.insert(0, "\n".to_string());
                             // total_failed.fetch_add(1, Ordering::SeqCst);
