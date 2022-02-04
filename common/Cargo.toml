@@ -8,7 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
+primitive-types = { version = "0.11.0", default-features = false, features = ["scale-info"] }
 log = "0.4.14"
 
 # Internal deps
