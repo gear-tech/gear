@@ -246,7 +246,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
 
         let module = Module::new(self.store.engine(), binary).map_err(|e| BackendError {
             reason: "Unable to create module",
-            description: Some(e.to_string()),
+            description: Some(e.to_string().into()),
             gas_amount: self.ext.unset().into().gas_amount,
         })?;
 
@@ -258,7 +258,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
                         reason: "Non-env imports are not supported",
                         description: import
                             .name()
-                            .map(|v| format!("Function {:?} is not env", v)),
+                            .map(|v| format!("Function {:?} is not env", v).into()),
                         gas_amount: self.ext.unset().into().gas_amount,
                     })
                 } else {
@@ -291,7 +291,8 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             .map(|(name, host_function)| {
                 host_function.ok_or_else(|| BackendError {
                     reason: "Missing import",
-                    description: name.map(|v| format!("Function {:?} definition wasn't found", v)),
+                    description: name
+                        .map(|v| format!("Function {:?} definition wasn't found", v).into()),
                     gas_amount: self.ext.unset().into().gas_amount,
                 })
             })
@@ -299,20 +300,20 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
 
         let instance = Instance::new(&self.store, &module, &externs).map_err(|e| BackendError {
             reason: "Unable to create instance",
-            description: Some(e.to_string()),
+            description: Some(e.to_string().into()),
             gas_amount: self.ext.unset().into().gas_amount,
         })?;
 
         // Set module memory.
         memory.set_pages(memory_pages).map_err(|e| BackendError {
             reason: "Unable to set module memory",
-            description: Some(format!("{:?}", e)),
+            description: Some(format!("{:?}", e).into()),
             gas_amount: self.ext.unset().into().gas_amount,
         })?;
 
         let entry_func = instance.get_func(entry_point).ok_or_else(|| BackendError {
             reason: "Unable to find function export",
-            description: Some(format!("Failed to find `{}` function export", entry_point)),
+            description: Some(format!("Failed to find `{}` function export", entry_point).into()),
             gas_amount: self.ext.unset().into().gas_amount,
         })?;
 
@@ -335,7 +336,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
                 explanation: info.trap_explanation,
-                description: Some(format!("{:?}", e)),
+                description: Some(e.to_string().into()),
             })
         } else {
             TerminationReason::Success

@@ -19,7 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{funcs, memory::MemoryWrap};
-use alloc::{boxed::Box, collections::BTreeMap, format, string::String};
+use alloc::{boxed::Box, collections::BTreeMap, format};
 use core::marker::PhantomData;
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
@@ -137,7 +137,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
 
             BackendError {
                 reason: "Unable to instanciate module",
-                description: Some(format!("{:?}", e)),
+                description: Some(format!("{:?}", e).into()),
                 gas_amount: info.gas_amount,
             }
         })?;
@@ -148,7 +148,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
 
             BackendError {
                 reason: "Unable to set module memory",
-                description: Some(format!("{:?}", e)),
+                description: Some(format!("{:?}", e).into()),
                 gas_amount: info.gas_amount,
             }
         })?;
@@ -170,7 +170,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
                 explanation: info.trap_explanation,
-                description: runtime.trap.map(String::from),
+                description: runtime.trap.map(Into::into),
             })
         } else {
             TerminationReason::Success

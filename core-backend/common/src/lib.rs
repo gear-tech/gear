@@ -24,7 +24,7 @@ extern crate alloc;
 
 pub mod funcs;
 
-use alloc::{boxed::Box, collections::BTreeMap, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -35,11 +35,11 @@ use gear_core::{
 pub const WAIT_TRAP_STR: &str = "wait";
 pub const EXIT_TRAP_STR: &str = "exit";
 
-pub enum TerminationReason {
+pub enum TerminationReason<'a> {
     Success,
     Trap {
         explanation: Option<&'static str>,
-        description: Option<String>,
+        description: Option<Cow<'a, str>>,
     },
     Manual {
         wait: bool,
@@ -57,15 +57,15 @@ pub struct ExtInfo {
     pub trap_explanation: Option<&'static str>,
 }
 
-pub struct BackendReport {
-    pub termination: TerminationReason,
+pub struct BackendReport<'a> {
+    pub termination: TerminationReason<'a>,
     pub info: ExtInfo,
 }
 
-pub struct BackendError {
-    pub reason: &'static str,
+pub struct BackendError<'a> {
     pub gas_amount: GasAmount,
-    pub description: Option<String>,
+    pub reason: &'static str,
+    pub description: Option<Cow<'a, str>>,
 }
 
 pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {

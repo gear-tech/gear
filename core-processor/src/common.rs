@@ -262,14 +262,6 @@ pub trait JournalHandler {
     );
 }
 
-// /// Result of the message processing
-// pub struct ProcessResult {
-//     /// Program that was used to process the message.
-//     pub program: Program,
-//     /// List of journal notes.
-//     pub journal: Vec<JournalNote>,
-// }
-
 /// Execution error.
 pub struct ExecutionError {
     /// Id of the program that generated execution error.

@@ -24,7 +24,6 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::String,
     vec::Vec,
 };
 use gear_backend_common::{BackendReport, Environment, TerminationReason};
@@ -41,7 +40,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    let mut env = <E as Default>::default();
+    let mut env: E = Default::default();
 
     let Dispatch { kind, message } = dispatch.clone();
 
@@ -176,17 +175,18 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
     // Parsing outcome.
     let kind = match termination {
-        TerminationReason::Success => DispatchResultKind::Success,
-        TerminationReason::Manual { wait: false } => DispatchResultKind::Success,
+        TerminationReason::Success | TerminationReason::Manual { wait: false } => {
+            DispatchResultKind::Success
+        }
         TerminationReason::Manual { wait: true } => DispatchResultKind::Wait,
         TerminationReason::Trap {
             explanation,
             description,
         } => {
             log::debug!(
-                "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
+                "💥 Trap during execution of {}\n❓ Description: {}📔 Explanation: {}",
                 program_id,
-                description.unwrap_or_else(|| String::from("None")),
+                description.unwrap_or_else(|| "None".into()),
                 explanation.unwrap_or("None"),
             );
 
