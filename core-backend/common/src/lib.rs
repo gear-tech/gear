@@ -24,23 +24,59 @@ extern crate alloc;
 
 pub mod funcs;
 
-use alloc::{boxed::Box, collections::BTreeMap};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_core::{
     env::Ext,
+    gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber},
+    message::{MessageId, OutgoingMessage, ReplyMessage},
 };
 
-pub trait Environment<E: Ext>: Default + Sized {
-    fn new() -> Self;
+pub const WAIT_TRAP_STR: &str = "wait";
+pub const EXIT_TRAP_STR: &str = "exit";
 
-    fn setup_and_run(
+pub enum TerminationReason<'a> {
+    Success,
+    Trap {
+        explanation: Option<&'static str>,
+        description: Option<Cow<'a, str>>,
+    },
+    Manual {
+        wait: bool,
+    },
+}
+
+pub struct ExtInfo {
+    pub gas_amount: GasAmount,
+    pub pages: BTreeMap<PageNumber, Vec<u8>>,
+    pub outgoing: Vec<OutgoingMessage>,
+    pub reply: Option<ReplyMessage>,
+    pub awakening: Vec<MessageId>,
+    pub nonce: u64,
+
+    pub trap_explanation: Option<&'static str>,
+}
+
+pub struct BackendReport<'a> {
+    pub termination: TerminationReason<'a>,
+    pub info: ExtInfo,
+}
+
+pub struct BackendError<'a> {
+    pub gas_amount: GasAmount,
+    pub reason: &'static str,
+    pub description: Option<Cow<'a, str>>,
+}
+
+pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
+    fn setup_and_execute(
         &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        memory: &dyn gear_core::memory::Memory,
+        memory: &dyn Memory,
         entry_point: &str,
-    ) -> (anyhow::Result<()>, E);
+    ) -> Result<BackendReport, BackendError>;
 
-    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory>;
+    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str>;
 }

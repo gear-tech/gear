@@ -20,11 +20,13 @@ use crate::{
     configs::{AllocationsConfig, BlockInfo},
     id::BlakeMessageIdGenerator,
 };
+use alloc::{collections::BTreeMap, vec};
+use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter},
+    gas::{ChargeResult, GasAmount, GasCounter},
     memory::{MemoryContext, PageNumber},
-    message::{ExitCode, MessageContext, MessageId, OutgoingPacket, ReplyPacket},
+    message::{ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
     program::ProgramId,
 };
 
@@ -44,6 +46,40 @@ pub struct Ext {
     pub error_explanation: Option<&'static str>,
     /// Flag signaling whether the execution interrupts and goes to the waiting state.
     pub waited: bool,
+}
+
+impl From<Ext> for ExtInfo {
+    fn from(ext: Ext) -> ExtInfo {
+        let mut pages = BTreeMap::new();
+
+        for page in ext.memory_context.allocations().clone() {
+            let mut buf = vec![0u8; PageNumber::size()];
+            ext.get_mem(page.offset(), &mut buf);
+            pages.insert(page, buf);
+        }
+
+        let nonce = ext.message_context.nonce();
+
+        let MessageState {
+            outgoing,
+            reply,
+            awakening,
+        } = ext.message_context.into_state();
+
+        let gas_amount: GasAmount = ext.gas_counter.into();
+
+        let trap_explanation = ext.error_explanation;
+
+        ExtInfo {
+            gas_amount,
+            pages,
+            outgoing,
+            reply,
+            awakening,
+            nonce,
+            trap_explanation,
+        }
+    }
 }
 
 impl Ext {

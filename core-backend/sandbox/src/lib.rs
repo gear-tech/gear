@@ -23,6 +23,7 @@
 extern crate alloc;
 
 pub mod env;
+pub mod funcs;
 pub mod memory;
 
 pub use env::SandboxEnvironment;

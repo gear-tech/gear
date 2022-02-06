@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{
-        Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote, ProcessResult,
-    },
+    common::{Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote},
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
@@ -33,7 +31,7 @@ pub fn process<E: Environment<Ext>>(
     program: Program,
     dispatch: Dispatch,
     block_info: BlockInfo,
-) -> ProcessResult {
+) -> Vec<JournalNote> {
     let mut journal = Vec::new();
     let execution_settings = ExecutionSettings::new(block_info);
 
@@ -74,10 +72,7 @@ pub fn process<E: Environment<Ext>>(
                 });
                 journal.push(JournalNote::MessageConsumed(message_id));
 
-                return ProcessResult {
-                    journal,
-                    program: e.program,
-                };
+                return journal;
             }
         };
 
@@ -103,7 +98,7 @@ pub fn process<E: Environment<Ext>>(
                     DispatchOutcome::InitSuccess {
                         message_id,
                         origin,
-                        program: dispatch_result.program.clone(),
+                        program_id,
                     },
                 ))
             } else {
@@ -180,10 +175,7 @@ pub fn process<E: Environment<Ext>>(
         })
     }
 
-    ProcessResult {
-        program: dispatch_result.program,
-        journal,
-    }
+    journal
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
@@ -196,13 +188,10 @@ pub fn process_many<E: Environment<Ext>>(
 
     for dispatch in dispatches {
         let program = programs
-            .remove(&dispatch.message.dest())
+            .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let ProcessResult {
-            mut program,
-            journal: current_journal,
-        } = process::<E>(program, dispatch, block_info);
+        let current_journal = process::<E>(program.clone(), dispatch, block_info);
 
         for note in &current_journal {
             match note {
@@ -219,8 +208,6 @@ pub fn process_many<E: Environment<Ext>>(
                 _ => continue,
             }
         }
-
-        programs.insert(program.id(), program);
 
         journal.extend(current_journal);
     }
