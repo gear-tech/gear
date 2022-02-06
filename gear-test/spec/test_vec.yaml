@@ -16,7 +16,6 @@ fixtures:
         payload:
           kind: i32
           value: 10000
-        gas_limit: 100000000000
     expected:
       - step: 2
         messages:
