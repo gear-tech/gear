@@ -25,7 +25,8 @@ use common::{
     GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
-    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
+    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, SendValueKind,
+    State,
 };
 use frame_support::{
     storage::PrefixIterator,
@@ -188,7 +189,7 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
-    fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
+    fn message_dispatched(&mut self, outcome: CoreDispatchOutcome, send_value_kind: SendValueKind) {
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => Event::MessageDispatched(DispatchOutcome {
                 message_id: message_id.into_origin(),
@@ -265,10 +266,29 @@ where
                     Reason::Dispatch(reason.as_bytes().to_vec()),
                 )
             }
+            CoreDispatchOutcome::Skip(message_id) => todo!(),
         };
+
+        match send_value_kind {
+            SendValueKind::FurtherToDestination { from, to, value } => {
+                let from = <T::AccountId as Origin>::from_origin(from.into_origin());
+                let to = <T::AccountId as Origin>::from_origin(to.into_origin());
+                let _ = T::Currency::repatriate_reserved(
+                    &from,
+                    &to,
+                    value.unique_saturated_into(),
+                    BalanceStatus::Free,
+                );
+            }
+            SendValueKind::BackToSource { from, value } => {
+                T::Currency::unreserve(&from, value.unique_saturated_into());
+            }
+            SendValueKind::None => {}
+        }
 
         Pallet::<T>::deposit_event(event);
     }
+
     fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64) {
         let message_id = message_id.into_origin();
 
@@ -289,6 +309,7 @@ where
             );
         }
     }
+
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 
@@ -311,9 +332,22 @@ where
         log::debug!("Sending message {:?} from {:?}", message, message_id);
 
         if common::program_exists(message.dest) {
-            self.gas_handler
-                .split(message_id, message.id, message.gas_limit);
-            common::queue_message(message);
+            let mut pass = true;
+            {
+                // Some checks, to make logic of sending message by programs similar to the logic of extrinsics.
+                if message.value != 0 {
+                    reserve_success = T::Currency::reserve(
+                        &<T::AccountId as Origin>::from_origin(message.source),
+                        message.value.unique_saturated_into(),
+                    )
+                    .is_ok();
+                }
+            }
+            if pass {
+                self.gas_handler
+                    .split(message_id, message.id, message.gas_limit);
+                common::queue_message(message);
+            }
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be

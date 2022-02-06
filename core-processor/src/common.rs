@@ -172,13 +172,69 @@ pub enum DispatchOutcome {
     },
     /// Message was a success.
     Success(MessageId),
+    /// Message must be skipped
+    Skip(MessageId),
+}
+
+/// Type of value send, derived from the message `value` field.
+#[derive(Clone, Copy, Debug)]
+pub enum SendValueKind {
+    /// No value send required in the message
+    None,
+    /// Message value send recipe.
+    ///
+    /// This kind is for messages, which were executed successfully.
+    FurtherToDestination {
+        /// Value send origin
+        from: ProgramId,
+        /// Value send destination
+        to: ProgramId,
+        /// Value amount
+        value: u128,
+    },
+    /// Reserved amount of `value` must be unreserved.
+    ///
+    /// This kind is for messages, which weren't executed or failed during execution.
+    BackToSource {
+        /// Who reserved the value
+        from: ProgramId,
+        /// Amount to unreserve
+        value: u128,
+    },
+}
+
+/// `SendValueKind` factory
+///
+/// Wraps message `value`.
+pub(crate) struct SendValueKindFactory(u128);
+
+impl SendValueKindFactory {
+    pub(crate) fn new(message_value: u128) -> Self {
+        Self(message_value)
+    }
+
+    pub(crate) fn send_further(self, from: ProgramId, to: ProgramId) -> SendValueKind {
+        let SendValueKindFactory(value) = self;
+        if value == 0 {
+            return SendValueKind::None;
+        }
+        SendValueKind::FurtherToDestination { from, to, value }
+    }
+
+    pub(crate) fn send_back(self, from: ProgramId) -> SendValueKind {
+        let SendValueKindFactory(value) = self;
+        if value == 0 {
+            return SendValueKind::None;
+        }
+        SendValueKind::BackToSource { from, value }
+    }
 }
 
 /// Journal record for the state update.
 #[derive(Clone, Debug)]
 pub enum JournalNote {
     /// Message was successfully dispatched.
-    MessageDispatched(DispatchOutcome),
+    MessageDispatched(DispatchOutcome, SendValueKind),
     /// Some gas was burned.
     GasBurned {
         /// Message id in which gas was burned.
@@ -235,7 +291,7 @@ pub enum JournalNote {
 /// Something that can update state.
 pub trait JournalHandler {
     /// Process message dispatch.
-    fn message_dispatched(&mut self, outcome: DispatchOutcome);
+    fn message_dispatched(&mut self, outcome: DispatchOutcome, send_value_kind: SendValueKind);
     /// Process gas burned.
     fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64);
     /// Process message consumed.

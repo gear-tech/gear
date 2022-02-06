@@ -29,7 +29,9 @@ pub fn handle_journal(
 
     for note in journal.into_iter() {
         match note {
-            JournalNote::MessageDispatched(outcome) => handler.message_dispatched(outcome),
+            JournalNote::MessageDispatched(outcome, send_value_kind) => {
+                handler.message_dispatched(outcome, send_value_kind)
+            }
             JournalNote::GasBurned {
                 message_id,
                 origin,

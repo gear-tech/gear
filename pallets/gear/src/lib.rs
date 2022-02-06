@@ -211,6 +211,7 @@ pub mod pallet {
     pub type Mailbox<T: Config> =
         StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
 
+    // todo [sab] remove
     #[pallet::storage]
     pub type ProgramsLimbo<T: Config> = StorageMap<_, Identity, H256, H256>;
 
@@ -292,11 +293,11 @@ pub mod pallet {
 
             if message.value > 0 {
                 // Assuming the programs has enough balance
-                T::Currency::transfer(
+                T::Currency::repatriate_reserved(
                     &<T::AccountId as Origin>::from_origin(message.source),
                     user_id,
                     message.value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
+                    BalanceStatus::Free,
                 )?;
             }
 
@@ -682,6 +683,7 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
+            // todo [sab] remove
             // Check that the message is not intended for a failed program
             ensure!(
                 !Self::is_failed(destination),
@@ -690,13 +692,11 @@ pub mod pallet {
 
             let message_id = common::next_message_id(&payload);
 
-            // Since messages are guaranteed to be dispatched, we transfer value immediately
-            T::Currency::transfer(
-                &who,
-                &<T::AccountId as Origin>::from_origin(destination),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
+            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+            // That's because destination can fail to be initialized, while this dispatch message is next
+            // in the queue.
+            T::Currency::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             if common::program_exists(destination) {
                 let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
@@ -784,13 +784,11 @@ pub mod pallet {
             let original_message = Self::remove_and_claim_from_mailbox(&who, reply_to_id)?;
             let destination = original_message.source;
 
-            // Since messages are guaranteed to be dispatched, we transfer value immediately
-            T::Currency::transfer(
-                &who,
-                &<T::AccountId as Origin>::from_origin(destination),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
+            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+            // That's because destination can fail to be initialized, while this dispatch message is next
+            // in the queue.
+            T::Currency::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let message_id = common::next_message_id(&payload);
 
@@ -860,6 +858,7 @@ pub mod pallet {
         ///
         /// Emits the following events:
         /// - `ProgramRemoved(id)` when successful.
+        // todo [sab]
         #[pallet::weight(<T as Config>::WeightInfo::remove_stale_program())]
         pub fn remove_stale_program(
             origin: OriginFor<T>,

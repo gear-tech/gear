@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote},
+    common::{
+        Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote,
+        SendValueKind, SendValueKindFactory,
+    },
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
@@ -38,6 +41,9 @@ pub fn process<E: Environment<Ext>>(
     let message_id = dispatch.message.id();
     let origin = dispatch.message.source();
     let program_id = program.id();
+    assert_eq!(program_id, dispatch.message.dest());
+
+    let send_value_factory = SendValueKindFactory::new(dispatch.message.value());
 
     let kind = dispatch.kind;
 
@@ -45,6 +51,7 @@ pub fn process<E: Environment<Ext>>(
         match executor::execute_wasm::<E>(program, dispatch, execution_settings) {
             Ok(res) => res,
             Err(e) => {
+                let send_value = send_value_factory.send_back(origin);
                 if let DispatchKind::Init = kind {
                     journal.push(JournalNote::MessageDispatched(
                         DispatchOutcome::InitFailure {
@@ -53,6 +60,7 @@ pub fn process<E: Environment<Ext>>(
                             program_id,
                             reason: e.reason,
                         },
+                        send_value,
                     ));
                 } else {
                     // TODO: generate trap reply here
@@ -62,6 +70,7 @@ pub fn process<E: Environment<Ext>>(
                             program_id,
                             trap: Some(e.reason),
                         },
+                        send_value,
                     ))
                 };
 
@@ -93,6 +102,7 @@ pub fn process<E: Environment<Ext>>(
 
     match dispatch_result.kind {
         DispatchResultKind::Success => {
+            let send_value = send_value_factory.send_further(origin, program_id);
             if let DispatchKind::Init = kind {
                 journal.push(JournalNote::MessageDispatched(
                     DispatchOutcome::InitSuccess {
@@ -100,11 +110,13 @@ pub fn process<E: Environment<Ext>>(
                         origin,
                         program_id,
                     },
+                    send_value,
                 ))
             } else {
-                journal.push(JournalNote::MessageDispatched(DispatchOutcome::Success(
-                    message_id,
-                )));
+                journal.push(JournalNote::MessageDispatched(
+                    DispatchOutcome::Success(message_id),
+                    send_value,
+                ));
             };
 
             journal.push(JournalNote::GasBurned {
@@ -115,6 +127,7 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::MessageConsumed(message_id));
         }
         DispatchResultKind::Trap(trap) => {
+            let send_value = send_value_factory.send_back(origin);
             if let Some(message) = dispatch_result.trap_reply(dispatch_result.gas_amount.left()) {
                 journal.push(JournalNote::SendMessage {
                     message_id,
@@ -130,6 +143,7 @@ pub fn process<E: Environment<Ext>>(
                         program_id,
                         reason: trap.unwrap_or_default(),
                     },
+                    send_value,
                 ))
             } else {
                 journal.push(JournalNote::MessageDispatched(
@@ -138,6 +152,7 @@ pub fn process<E: Environment<Ext>>(
                         program_id,
                         trap,
                     },
+                    send_value,
                 ));
             }
 
