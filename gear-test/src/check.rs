@@ -112,9 +112,9 @@ pub struct DisplayedPayload(Vec<u8>);
 impl fmt::Display for DisplayedPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Ok(utf8) = std::str::from_utf8(&self.0[..]) {
-            write!(f, "utf-8 ({})", utf8)
+            write!(f, "utf-8 ({}) bytes(0x{})", utf8, hex::encode(&self.0))
         } else {
-            write!(f, "bytes ({:?})", &self.0[..])
+            write!(f, "bytes (0x{})", hex::encode(&self.0))
         }
     }
 }
