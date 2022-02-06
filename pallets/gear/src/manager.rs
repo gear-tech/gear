@@ -59,17 +59,7 @@ pub enum HandleKind {
     Handle(H256),
     Reply(H256, ExitCode),
 }
-/*
-impl From<HandleKind> for DispatchKind {
-    fn from(kind: HandleKind) -> Self {
-        match kind {
-            HandleKind::Init(..) => DispatchKind::Init,
-            HandleKind::Handle(..) => DispatchKind::Handle,
-            HandleKind::Reply(..) => DispatchKind::HandleReply,
-        }
-    }
-}
-*/
+
 pub trait GasHandler {
     fn spend(&mut self, message_id: H256, amount: u64);
     fn consume(&mut self, message_id: H256) -> ConsumeResult;
