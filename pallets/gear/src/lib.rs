@@ -319,7 +319,7 @@ pub mod pallet {
             };
 
             let (dest, reply) = match kind {
-                HandleKind::Init(..) => (H256::zero(), None), // TODO: Consider calculate hash of code
+                HandleKind::Init(ref code) => (sp_io::hashing::blake2_256(code).into(), None),
                 HandleKind::Handle(dest) => (dest, None),
                 HandleKind::Reply(msg_id, exit_code) => {
                     let msg = Self::get_from_mailbox(source, msg_id)?;
