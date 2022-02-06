@@ -233,18 +233,6 @@ benchmarks! {
         assert!(common::dequeue_message().is_some());
     }
 
-    remove_stale_program {
-        let caller: T::AccountId = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
-        let code = generate_wasm2(16_i32).unwrap();
-        let program_id = account::<T::AccountId>("program", 16, 0).into_origin();
-        set_program(program_id, code, 1_u32, 0_u64);
-        ProgramsLimbo::<T>::insert(program_id, caller.clone().into_origin());
-    }: _(RawOrigin::Signed(caller), program_id)
-    verify {
-        assert!(!ProgramsLimbo::<T>::contains_key(program_id));
-    }
-
     initial_allocation {
         let q in 1 .. MAX_PAGES;
         let caller: T::AccountId = account("caller", 0, 0);

@@ -18,7 +18,7 @@
 
 use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
-    Pallet, ProgramsLimbo,
+    Pallet,
 };
 use common::{
     value_tree::{ConsumeResult, ValueView},
@@ -250,12 +250,20 @@ where
                 let program_id = program_id.into_origin();
                 let origin = origin.into_origin();
 
-                ProgramsLimbo::<T>::insert(program_id, origin);
-                log::info!(
-                    target: "runtime::gear",
-                    "👻 Program {} will stay in limbo until explicitly removed",
-                    program_id
-                );
+                // Some messages addressed to the program could be processed
+                // in the queue before init message. For example, that could
+                // happen when init message had more gas limit then rest block
+                // gas allowance, but a dispatch message to the program was
+                // dequeued. The other case is async init.
+                common::waiting_init_take_messages(program_id)
+                    .into_iter()
+                    .for_each(|m_id| {
+                        if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
+                            common::queue_message(m);
+                        }
+                    });
+
+                common::remove_program(program_id);
 
                 Event::InitFailure(
                     MessageInfo {
@@ -266,7 +274,9 @@ where
                     Reason::Dispatch(reason.as_bytes().to_vec()),
                 )
             }
-            CoreDispatchOutcome::Skip(message_id) => todo!(),
+            CoreDispatchOutcome::Skip(message_id) => {
+                Event::MessageSkipped(message_id.into_origin())
+            }
         };
 
         match send_value_kind {

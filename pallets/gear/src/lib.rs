@@ -134,6 +134,8 @@ pub mod pallet {
         CodeSaved(H256),
         /// Pallet associated storage has been wiped.
         DatabaseWiped,
+        /// Message was skipped
+        MessageSkipped(H256),
     }
 
     // Gear pallet error.
@@ -210,10 +212,6 @@ pub mod pallet {
     #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
         StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
-
-    // todo [sab] remove
-    #[pallet::storage]
-    pub type ProgramsLimbo<T: Config> = StorageMap<_, Identity, H256, H256>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -371,12 +369,6 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
-        /// Returns true if a program resulted in an error during initialization
-        /// but hasn't been explicitly removed from storage by its creator
-        pub fn is_failed(program_id: H256) -> bool {
-            ProgramsLimbo::<T>::get(program_id).is_some()
-        }
-
         /// Message Queue processing.
         ///
         /// Can emit the following events:
@@ -402,48 +394,50 @@ pub mod pallet {
                 }
 
                 let program_id = message.dest;
+                let program = ext_manager.get_program(program_id);
+                let kind = if let Some(program) = program {
+                    let state = common::get_program_state(program_id).expect("program exists");
+                    if let Some(kind) =
+                        message
+                            .reply
+                            .map(|_| DispatchKind::HandleReply)
+                            .or(match state {
+                                ProgramState::Initialized => Some(DispatchKind::Handle),
+                                ProgramState::Uninitialized { message_id } => {
+                                    if message_id == message.id {
+                                        Some(DispatchKind::Init)
+                                    } else {
+                                        None
+                                    }
+                                }
+                            })
+                    {
+                        kind
+                    } else {
+                        Self::deposit_event(Event::AddedToWaitList(message.clone()));
+                        common::waiting_init_append_message_id(program_id, message.id);
+                        common::insert_waiting_message(
+                            program_id,
+                            message.id,
+                            message,
+                            block_info.height,
+                        );
 
-                let (program, state) = if let Some(data) = ext_manager
-                    .get_program(program_id)
-                    .and_then(|p| common::get_program_state(program_id).map(|s| (p, s)))
-                {
-                    data
+                        continue;
+                    }
                 } else {
+                    // Destination program doesn't exist. That could happen, when dispatch message
+                    // for the destination was in queue along with init message. So init message was
+                    // processed and failed. In that case, dispatch message should be handled anyway,
+                    // but not executed.
+
                     log::warn!(
                         "Couldn't find program: {:?}, message with id: {:?} will be skipped",
                         message.dest,
                         message.id,
                     );
-                    // TODO: make error event log record
-                    continue;
-                };
 
-                let kind = if let Some(kind) =
-                    message
-                        .reply
-                        .map(|_| DispatchKind::HandleReply)
-                        .or(match state {
-                            ProgramState::Initialized => Some(DispatchKind::Handle),
-                            ProgramState::Uninitialized { message_id } => {
-                                if message_id == message.id {
-                                    Some(DispatchKind::Init)
-                                } else {
-                                    None
-                                }
-                            }
-                        }) {
-                    kind
-                } else {
-                    Self::deposit_event(Event::AddedToWaitList(message.clone()));
-                    common::waiting_init_append_message_id(program_id, message.id);
-                    common::insert_waiting_message(
-                        program_id,
-                        message.id,
-                        message,
-                        block_info.height,
-                    );
-
-                    continue;
+                    DispatchKind::None
                 };
 
                 let dispatch = Dispatch {
@@ -683,13 +677,6 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            // todo [sab] remove
-            // Check that the message is not intended for a failed program
-            ensure!(
-                !Self::is_failed(destination),
-                Error::<T>::ProgramIsNotInitialized
-            );
-
             let message_id = common::next_message_id(&payload);
 
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
@@ -845,49 +832,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Removes stale program.
-        ///
-        /// The origin must be Signed and be the original creator of the program that
-        /// got stuck in the "limbo" due to initialization failure.
-        ///
-        /// The gas and balance stored at the program's account will be transferred back
-        /// to the original origin.
-        ///
-        /// Parameters:
-        /// - `program_id`: the id of the program being removed.
-        ///
-        /// Emits the following events:
-        /// - `ProgramRemoved(id)` when successful.
-        // todo [sab]
-        #[pallet::weight(<T as Config>::WeightInfo::remove_stale_program())]
-        pub fn remove_stale_program(
-            origin: OriginFor<T>,
-            program_id: H256,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            if let Some(author) = ProgramsLimbo::<T>::get(program_id) {
-                if who.clone().into_origin() == author {
-                    ProgramsLimbo::<T>::remove(program_id);
-
-                    let account_id = &<T::AccountId as Origin>::from_origin(program_id);
-
-                    // Remove program from program storage
-                    common::remove_program(program_id);
-
-                    // Complete transfer of the leftover balance back to the original sender
-                    T::Currency::transfer(
-                        account_id,
-                        &who,
-                        T::Currency::free_balance(account_id),
-                        ExistenceRequirement::AllowDeath,
-                    )?;
-                }
-            }
-
-            Ok(().into())
-        }
-
         #[frame_support::transactional]
         #[pallet::weight(T::DbWeight::get().writes(1))]
         pub fn claim_value_from_mailbox(
@@ -908,7 +852,6 @@ pub mod pallet {
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
             <Mailbox<T>>::remove_all(None);
-            ProgramsLimbo::<T>::remove_all(None);
             common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);

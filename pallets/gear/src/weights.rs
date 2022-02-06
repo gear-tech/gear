@@ -49,7 +49,6 @@ pub trait WeightInfo {
     fn submit_program(c: u32, p: u32) -> Weight;
     fn send_message(p: u32) -> Weight;
     fn send_reply(p: u32) -> Weight;
-    fn remove_stale_program() -> Weight;
 }
 
 pub struct GearWeight<T>(PhantomData<T>);
@@ -82,12 +81,6 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
             .saturating_add(T::DbWeight::get().reads(5_u64))
             .saturating_add(T::DbWeight::get().writes(5_u64))
     }
-
-    fn remove_stale_program() -> Weight {
-        (64_000_000_u64)
-            .saturating_add(T::DbWeight::get().reads(4_u64))
-            .saturating_add(T::DbWeight::get().writes(4_u64))
-    }
 }
 
 // For backwards compatibility and tests
@@ -117,9 +110,5 @@ impl WeightInfo for () {
         (0_u64)
             .saturating_add(RocksDbWeight::get().writes(4_u64))
             .saturating_add(MESSAGE_PER_BYTE.saturating_mul(p as Weight))
-    }
-
-    fn remove_stale_program() -> Weight {
-        (0_u64).saturating_add(RocksDbWeight::get().writes(4_u64))
     }
 }

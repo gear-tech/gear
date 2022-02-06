@@ -27,23 +27,63 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
-use gear_core::program::{Program, ProgramId};
+use gear_core::{
+    message::{self, Message},
+    program::{Program, ProgramId},
+};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E: Environment<Ext>>(
-    program: Program,
+    program: Option<Program>,
     dispatch: Dispatch,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
-    let execution_settings = ExecutionSettings::new(block_info);
 
     let message_id = dispatch.message.id();
     let origin = dispatch.message.source();
-    let program_id = program.id();
-    assert_eq!(program_id, dispatch.message.dest());
 
     let send_value_factory = SendValueKindFactory::new(dispatch.message.value());
+
+    if program.is_none() {
+        assert!(matches!(dispatch.kind, DispatchKind::None));
+
+        let send_value = send_value_factory.send_back(origin);
+
+        // Reply back to the message `origin`
+        let reply_message = Message::new_reply(
+            crate::id::next_system_reply_message_id(origin, message_id),
+            dispatch.message.dest(),
+            origin,
+            Default::default(),
+            dispatch.message.gas_limit(),
+            // must be 0!
+            0,
+            message_id,
+            crate::ERR_EXIT_CODE,
+        );
+
+        // Reply message destination could not have `handle_reply` method.
+        // TODO [discuss before merge]: If it's not intended to instantiate `Program` with `handle_reply` method existence check,
+        // then such system reply message should not be sent for programs without `handle_reply`, because execution of such messages
+        // will take gas for loading memory. It seems to be stealing gas from users for a reply message, that the user didn't want to
+        // handle in the program.
+        journal.push(JournalNote::SendMessage {
+            message_id,
+            message: reply_message,
+        });
+        journal.push(JournalNote::MessageDispatched(
+            CoreDispatchOutcome::Skip(message_id),
+            send_value,
+        ));
+        journal.push(JournalNote::MessageConsumed(message_id));
+
+        todo!("todo [sab] return")
+    }
+
+    let program = program.expect("was checked before");
+    let program_id = program.id();
+    assert_eq!(program_id, dispatch.message.dest());
 
     let kind = dispatch.kind;
 

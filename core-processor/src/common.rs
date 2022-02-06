@@ -33,6 +33,10 @@ use gear_core::{
 /// Type of wasm execution entry point.
 #[derive(Clone, Copy, Debug)]
 pub enum DispatchKind {
+    /// NO dispatch should be invoked
+    ///
+    /// Message with such kind should be skipped
+    None,
     /// Initialization.
     Init,
     /// Handle.
@@ -48,6 +52,7 @@ impl DispatchKind {
             Self::Init => "init",
             Self::Handle => "handle",
             Self::HandleReply => "handle_reply",
+            _ => unreachable!("method called for None entry"),
         }
     }
 }

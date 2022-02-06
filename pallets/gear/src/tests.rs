@@ -1352,6 +1352,69 @@ fn wake_messages_after_program_inited() {
     })
 }
 
+// Old version code  put to mailbox the message, which has limbo prog dest, when message initiator was user. That could happen when user submitted program and then sent a message to it using extrinsics.
+// When his messages were processed, if init failed here https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L373, then the next message (which is a dispatch message to limbo program)
+// would have been added to mailbox (https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L471).
+// However, if the dispatch message initiator was a program, then we reached the branch https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L507.
+// This is because message transition from MQ to storage (common queue) happens in `process_queue`, so if init message processing and ended up successfully, then *program was added* to the storage,
+// otherwise storage wasn't changed. So program storage contained only initialized constructable programs.
+//
+// In a new version the last invariant was violated. Constructable program is added to the storage despite being faulty (will fail during init). So now user messages to such program will be added
+// to the storage and during processing will reach https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L434. They are falsely recognized as messages to be woken.
+// Same stuff happens to messages, sent from programs.
+// limbo (yes, when send dispatch message we check that program exists in storage, but in a new version we add programs to the storage before `process_queue` runs both failing and non-failing init msgs for the added program). That's how user
+// dispatch messages can reach https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L409. Program initiated msgs work as in old code version.
+//
+// These are problems for the current block processing. In the next block both user and program (my version) messages will be skipped.
+//
+// Unfortunately both old and new code suffer from the same problem. They both can send value to limbo programs
+// (old https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L744, new https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L693)/
+// and the worst thing that this value is lost (not returned anyhow). Yes, we can return gas and value for such messages (for example, by accumulating values here https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L877).
+#[test]
+fn test_message_processing_for_non_existing_destination() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let program_id = submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("todo");
+        // After running, first message will end up with init failure, so destination address won't exist.
+        // However, message to that non existing address will be in message queue. So, we test that this message is not executed.
+        let reply_to_id = compute_user_message_id(EMPTY_PAYLOAD, 0);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            program_id,
+            EMPTY_PAYLOAD.to_vec(),
+            10_000,
+            100
+        ));
+        run_to_block(2, None);
+
+        // todo [sab]
+
+        // let expected_dequeued = 2;
+        // let expected_dispatched = 0;
+        // let expected_failure_init = 1;
+
+        // let mut actual_dequeued = 0;
+        // let mut actual_dispatched = 0;
+        // let mut actual_failure_init = 0;
+
+        // SystemPallet::<Test>::events()
+        //     .iter()
+        //     .for_each(|e| match e.event {
+        //         MockEvent::Gear(Event::MessagesDequeued(num)) => actual_dequeued += num,
+        //         MockEvent::Gear(Event::MessageDispatched(_)) => actual_dispatched += 1,
+        //         MockEvent::Gear(Event::InitFailure(..)) => actual_failure_init += 1,
+        //         _ => {}
+        //     });
+
+        // println!("{:?}", SystemPallet::<Test>::events());
+
+        // assert_eq!(expected_dequeued, actual_dequeued);
+        // assert_eq!(expected_dispatched, actual_dispatched);
+        // assert_eq!(expected_failure_init, actual_failure_init);
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
