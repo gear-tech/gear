@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
+use std::ffi::OsStr;
 
 // use crate::manager::RuntestsExtManager;
 use crate::mock::{
@@ -34,6 +35,7 @@ use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
     proc::*,
+    sample,
     sample::PayloadVariant,
 };
 use pallet_gear::Pallet as GearPallet;
@@ -43,12 +45,147 @@ use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
 
+struct TestProgram {
+    id: ProgramId,
+    chain_id: H256,
+    code: Vec<u8>,
+    init_payload: Vec<u8>,
+}
+
+fn init_fixture<'a>(
+    test: &'a sample::Test,
+    fixture: &sample::Fixture,
+    programs: &BTreeMap<ProgramId, H256>,
+    progs_n_paths: &mut Vec<(&'a str, ProgramId)>,
+) -> anyhow::Result<()> {
+    for program in &test.programs {
+        log::info!("programs: {:?}", &programs);
+        let program_path = program.path.clone();
+        let code = std::fs::read(&program_path).unwrap();
+        let mut init_message = Vec::new();
+        if let Some(init_msg) = &program.init_message {
+            init_message = match init_msg {
+                PayloadVariant::Utf8(s) => parse_payload(s.clone(), Some(&programs)).into_bytes(),
+                PayloadVariant::Custom(v) => {
+                    let meta_type = MetaType::InitInput;
+
+                    let payload = parse_payload(
+                        serde_json::to_string(&v).expect("Cannot convert to string"),
+                        Some(&programs),
+                    );
+
+                    let json = MetaData::Json(payload);
+
+                    let wasm = program_path.replace(".wasm", ".meta.wasm");
+
+                    json.convert(&wasm, &meta_type)
+                        .expect("Unable to get bytes")
+                        .into_bytes()
+                }
+                _ => init_msg.clone().into_raw(),
+            }
+        }
+
+        // let message_id = MessageId::from(nonce);
+        // let id = program.id.to_program_id();
+
+        // println!("init: {:?}", init_message);
+        if let Err(e) = GearPallet::<Test>::submit_program(
+            crate::mock::Origin::signed(USER_1),
+            code.clone(),
+            program.id.to_program_id().as_slice().to_vec(),
+            init_message,
+            program.init_gas_limit.unwrap_or(5_000_000_000),
+            program.init_value.unwrap_or(0) as u128,
+        ) {
+            return Err(anyhow::format_err!("Init fixture err: {:?}", e));
+        }
+        // log::debug!("init extrinsic: {:?}", res);
+    }
+
+    for message in &fixture.messages {
+        // Set custom source
+        let payload = match &message.payload {
+            Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone(), Some(&programs))
+                .as_bytes()
+                .to_vec(),
+            Some(PayloadVariant::Custom(v)) => {
+                let meta_type = MetaType::HandleInput;
+
+                let payload = parse_payload(
+                    serde_json::to_string(&v).expect("Cannot convert to string"),
+                    Some(&programs),
+                );
+
+                let json = MetaData::Json(payload);
+
+                let wasm = test
+                    .programs
+                    .iter()
+                    .filter(|p| p.id == message.destination)
+                    .last()
+                    .expect("Program not found")
+                    .path
+                    .clone()
+                    .replace(".wasm", ".meta.wasm");
+
+                json.convert(&wasm, &meta_type)
+                    .expect("Unable to get bytes")
+                    .into_bytes()
+            }
+            _ => message
+                .payload
+                .as_ref()
+                .map(|payload| payload.clone().into_raw())
+                .unwrap_or_default(),
+        };
+
+        let gas_limit = message.gas_limit.unwrap_or(5_000_000_000);
+
+        // TODO: force queue message if custom source
+        // if let Some(source) = &message.source {
+        //     if programs.contains_key(&source.to_program_id()) {
+        //         let msg = gear_common::Message {
+        //             id: todo!(),
+        //             source: todo!(),
+        //             dest: todo!(),
+        //             payload,
+        //             gas_limit,
+        //             value: todo!(),
+        //             reply: todo!(),
+        //         }
+        //         gear_common::queue_message(message)
+        //     }
+        // } else {
+        //     USER_1
+        // };
+
+        match message.destination {
+            gear_test::address::Address::ProgramId(_) => {
+                log::info!(
+                    "{:?}",
+                    GearPallet::<Test>::send_message(
+                        crate::mock::Origin::signed(USER_1).into(),
+                        programs[&message.destination.to_program_id()],
+                        payload,
+                        gas_limit, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
+                        message.value.unwrap_or(0),
+                    )
+                );
+            }
+            _ => (),
+        }
+    }
+
+    Ok(())
+}
+
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         for input in &self.input {
-            let test = read_test_from_file(input).unwrap();
-            println!("Test {:?}", input.file_name().unwrap());
+            let test = read_test_from_file(input).map_err(|e| e.to_string())?;
+            println!("Test {:?}", input.file_name().unwrap_or(&OsStr::new("_")));
 
             let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
 
@@ -59,138 +196,30 @@ impl GearRuntimeTestCmd {
                         let mut errors = vec![];
                         let mut snapshots = Vec::new();
                         pallet_gear_debug::DebugMode::<Test>::put(true);
-                        let mut programs = BTreeMap::new();
+                        let mut programs: BTreeMap<ProgramId, H256> = test
+                            .programs
+                            .iter()
+                            .map(|program| {
+                                let program_path = program.path.clone();
+                                let code = std::fs::read(&program_path).unwrap();
 
-                        for program in &test.programs {
-                            let program_path = program.path.clone();
-                            let code = std::fs::read(&program_path)?;
+                                let salt = program.id.to_program_id().as_slice().to_vec();
+                                let mut data = Vec::new();
+                                // TODO #512
+                                code.encode_to(&mut data);
+                                salt.encode_to(&mut data);
 
-                            let random_bytes = rand::thread_rng().gen::<[u8; 32]>().to_vec();
-                            let mut data = Vec::new();
-                            // TODO #512
-                            code.encode_to(&mut data);
-                            random_bytes.encode_to(&mut data);
+                                // Make sure there is no program with such id in program storage
+                                let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
-                            // Make sure there is no program with such id in program storage
-                            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+                                progs_n_paths
+                                    .push((program.path.as_ref(), ProgramId::from(id.as_bytes())));
 
-                            programs.insert(program.id.to_program_id(), id);
-                            progs_n_paths
-                                .push((program.path.as_ref(), ProgramId::from(id.as_bytes())));
-                            let mut init_message = Vec::new();
-                            if let Some(init_msg) = &program.init_message {
-                                init_message = match init_msg {
-                                    PayloadVariant::Utf8(s) => {
-                                        parse_payload(s.clone()).into_bytes()
-                                    }
-                                    PayloadVariant::Custom(v) => {
-                                        let meta_type = MetaType::InitInput;
+                                (program.id.to_program_id(), id)
+                            })
+                            .collect();
+                        init_fixture(&test, fixture, &programs, &mut progs_n_paths);
 
-                                        let payload = parse_payload(
-                                            serde_json::to_string(&v)
-                                                .expect("Cannot convert to string"),
-                                        );
-
-                                        let json = MetaData::Json(payload);
-
-                                        let wasm = program_path.replace(".wasm", ".meta.wasm");
-
-                                        json.convert(&wasm, &meta_type)
-                                            .expect("Unable to get bytes")
-                                            .into_bytes()
-                                    }
-                                    _ => init_msg.clone().into_raw(),
-                                }
-                            }
-
-                            // let message_id = MessageId::from(nonce);
-                            // let id = program.id.to_program_id();
-
-                            // println!("init: {:?}", init_message);
-                            let res = GearPallet::<Test>::submit_program(
-                                crate::mock::Origin::signed(USER_1),
-                                code.clone(),
-                                random_bytes,
-                                init_message,
-                                program.init_gas_limit.unwrap_or(5_000_000_000),
-                                program.init_value.unwrap_or(0) as u128,
-                            );
-                            // log::debug!("init extrinsic: {:?}", res);
-                        }
-                        log::info!("programs: {:?}", &programs);
-                        for message in &fixture.messages {
-                            // Set custom source
-                            let payload = match &message.payload {
-                                Some(PayloadVariant::Utf8(s)) => {
-                                    parse_payload(s.clone()).as_bytes().to_vec()
-                                }
-                                Some(PayloadVariant::Custom(v)) => {
-                                    let meta_type = MetaType::HandleInput;
-
-                                    let payload = parse_payload(
-                                        serde_json::to_string(&v)
-                                            .expect("Cannot convert to string"),
-                                    );
-
-                                    let json = MetaData::Json(payload);
-
-                                    let wasm = test
-                                        .programs
-                                        .iter()
-                                        .filter(|p| p.id == message.destination)
-                                        .last()
-                                        .expect("Program not found")
-                                        .path
-                                        .clone()
-                                        .replace(".wasm", ".meta.wasm");
-
-                                    json.convert(&wasm, &meta_type)
-                                        .expect("Unable to get bytes")
-                                        .into_bytes()
-                                }
-                                _ => message
-                                    .payload
-                                    .as_ref()
-                                    .map(|payload| payload.clone().into_raw())
-                                    .unwrap_or_default(),
-                            };
-
-                            let gas_limit = message.gas_limit.unwrap_or(5_000_000_000);
-
-                            // TODO: force queue message if custom source
-                            // if let Some(source) = &message.source {
-                            //     if programs.contains_key(&source.to_program_id()) {
-                            //         let msg = gear_common::Message {
-                            //             id: todo!(),
-                            //             source: todo!(),
-                            //             dest: todo!(),
-                            //             payload,
-                            //             gas_limit,
-                            //             value: todo!(),
-                            //             reply: todo!(),
-                            //         }
-                            //         gear_common::queue_message(message)
-                            //     }
-                            // } else {
-                            //     USER_1
-                            // };
-
-                            match message.destination {
-                                gear_test::address::Address::ProgramId(_) => {
-                                    log::info!(
-                                        "{:?}",
-                                        GearPallet::<Test>::send_message(
-                                            crate::mock::Origin::signed(USER_1).into(),
-                                            programs[&message.destination.to_program_id()],
-                                            payload,
-                                            gas_limit, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-                                            message.value.unwrap_or(0),
-                                        )
-                                    );
-                                }
-                                _ => (),
-                            }
-                        }
                         let mut expected_log = vec![];
                         for exp in &fixture.expected {
                             while !gear_common::StorageQueue::<gear_common::Message>::get(
