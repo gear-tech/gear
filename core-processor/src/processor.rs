@@ -78,8 +78,10 @@ pub fn process<E: Environment<Ext>>(
         ));
         journal.push(JournalNote::MessageConsumed(message_id));
 
-        todo!("todo [sab] return")
+        return journal
     }
+
+    let execution_settings = ExecutionSettings::new(block_info);
 
     let program = program.expect("was checked before");
     let program_id = program.id();
