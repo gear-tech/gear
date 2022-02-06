@@ -23,12 +23,11 @@ pub use pallet_gear::manager::HandleKind;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    pub trait GearApi<AccountId, ProgramId, HandleKind>
+    pub trait GearApi<ActorId, HandleKind>
     where
-        AccountId: Codec,
-        ProgramId: Codec,
+        ActorId: Codec,
         HandleKind: Codec,
     {
-        fn get_gas_spent(account_id: AccountId, program_id: ProgramId, payload: Vec<u8>, kind: HandleKind) -> Option<u64>;
+        fn get_gas_spent(source: ActorId, kind: HandleKind, payload: Vec<u8>) -> Option<u64>;
     }
 }

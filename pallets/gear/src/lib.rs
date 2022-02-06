@@ -261,6 +261,14 @@ pub mod pallet {
             });
         }
 
+        pub fn get_from_mailbox(user: H256, message_id: H256) -> Option<common::Message> {
+            let user_id = &<T::AccountId as Origin>::from_origin(user);
+
+            <Mailbox<T>>::try_get(user_id)
+                .ok()
+                .and_then(|mut messages| messages.remove(&message_id))
+        }
+
         pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<common::Message> {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
@@ -302,12 +310,7 @@ pub mod pallet {
             Ok(message)
         }
 
-        pub fn get_gas_spent(
-            source: H256,
-            dest: H256,
-            payload: Vec<u8>,
-            kind: HandleKind,
-        ) -> Option<u64> {
+        pub fn get_gas_spent(source: H256, kind: HandleKind, payload: Vec<u8>) -> Option<u64> {
             let ext_manager = ExtManager::<T>::default();
 
             let block_info = BlockInfo {
@@ -315,9 +318,13 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let reply = match kind {
-                HandleKind::Reply(msg_id, exit_code) => Some((msg_id, exit_code)),
-                _ => None,
+            let (dest, reply) = match kind {
+                HandleKind::Init(..) => (H256::zero(), None), // TODO: Consider calculate hash of code
+                HandleKind::Handle(dest) => (dest, None),
+                HandleKind::Reply(msg_id, exit_code) => {
+                    let msg = Self::get_from_mailbox(source, msg_id)?;
+                    (msg.source, Some((msg_id, exit_code)))
+                }
             };
 
             let message = Message {
@@ -333,14 +340,22 @@ pub mod pallet {
             let mut gas_burned = 0;
             let mut gas_to_send = 0;
 
-            let program = if let HandleKind::Init = kind {
-                ext_manager.get_program_from_code(dest)?
-            } else {
-                ext_manager.get_program(message.dest)?
+            let (kind, program) = match kind {
+                HandleKind::Init(code) => {
+                    // TODO: Add a fee for the code sumbitting to the gas spent.
+                    (
+                        DispatchKind::Init,
+                        ext_manager.program_from_code(dest, code)?,
+                    )
+                }
+                HandleKind::Handle(dest) => (DispatchKind::Handle, ext_manager.get_program(dest)?),
+                HandleKind::Reply(..) => {
+                    (DispatchKind::HandleReply, ext_manager.get_program(dest)?)
+                }
             };
 
             let dispatch = Dispatch {
-                kind: kind.into(),
+                kind,
                 message: message.into(),
             };
 

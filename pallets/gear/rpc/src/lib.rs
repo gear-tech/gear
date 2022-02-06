@@ -31,14 +31,13 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 #[rpc]
-pub trait GearApi<BlockHash, AccountId, ProgramId, HandleKind> {
+pub trait GearApi<BlockHash, ActorId, HandleKind> {
     #[rpc(name = "gear_getGasSpent")]
     fn get_gas_spent(
         &self,
-        account_id: AccountId,
-        program_id: ProgramId,
-        payload: Bytes,
+        source: ActorId,
         kind: HandleKind,
+        payload: Bytes,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex>;
 }
@@ -78,22 +77,20 @@ impl From<Error> for i64 {
     }
 }
 
-impl<C, Block, AccountId, ProgramId>
-    GearApi<<Block as BlockT>::Hash, AccountId, ProgramId, HandleKind> for Gear<C, Block>
+impl<C, Block, ActorId, HandleKind> GearApi<<Block as BlockT>::Hash, ActorId, HandleKind>
+    for Gear<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-    C::Api: GearRuntimeApi<Block, AccountId, ProgramId, HandleKind>,
-    AccountId: Codec,
-    ProgramId: Codec + Copy,
+    C::Api: GearRuntimeApi<Block, ActorId, HandleKind>,
+    ActorId: Codec,
     HandleKind: Codec,
 {
     fn get_gas_spent(
         &self,
-        account_id: AccountId,
-        program_id: ProgramId,
-        payload: Bytes,
+        source: ActorId,
         kind: HandleKind,
+        payload: Bytes,
         at: Option<<Block as BlockT>::Hash>,
     ) -> Result<NumberOrHex> {
         let api = self.client.runtime_api();
@@ -102,7 +99,7 @@ where
 			self.client.info().best_hash));
 
         let runtime_api_result = api
-            .get_gas_spent(&at, account_id, program_id, payload.to_vec(), kind)
+            .get_gas_spent(&at, source, kind, payload.to_vec())
             .map_err(|e| RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
                 message: "Unable to get gas spent.".into(),

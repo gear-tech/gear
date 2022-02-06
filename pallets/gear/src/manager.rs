@@ -26,8 +26,7 @@ use common::{
     GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
-    CollectState, Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalHandler,
-    State,
+    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
 use frame_support::{
     storage::PrefixIterator,
@@ -56,21 +55,21 @@ pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
 #[cfg_attr(feature = "std", derive(Deserialize))]
 #[derive(Decode, Encode)]
 pub enum HandleKind {
-    Init,
-    Handle,
+    Init(Vec<u8>),
+    Handle(H256),
     Reply(H256, ExitCode),
 }
-
+/*
 impl From<HandleKind> for DispatchKind {
     fn from(kind: HandleKind) -> Self {
         match kind {
-            HandleKind::Init => DispatchKind::Init,
-            HandleKind::Handle => DispatchKind::Handle,
+            HandleKind::Init(..) => DispatchKind::Init,
+            HandleKind::Handle(..) => DispatchKind::Handle,
             HandleKind::Reply(..) => DispatchKind::HandleReply,
         }
     }
 }
-
+*/
 pub trait GasHandler {
     fn spend(&mut self, message_id: H256, amount: u64);
     fn consume(&mut self, message_id: H256) -> ConsumeResult;
@@ -175,9 +174,12 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
-    pub fn get_program_from_code(&self, code_hash: H256) -> Option<gear_core::program::Program> {
-        common::get_code(code_hash)
-            .and_then(|code| Program::new(ProgramId::from_origin(code_hash), code).ok())
+    pub fn program_from_code(
+        &self,
+        id: H256,
+        code: Vec<u8>,
+    ) -> Option<gear_core::program::Program> {
+        Program::new(ProgramId::from_origin(id), code).ok()
     }
 
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {

@@ -355,17 +355,15 @@ fn block_gas_limit_works() {
         // Count gas needed to process programs with default payload
         let expected_gas_msg_to_pid1 = GearPallet::<Test>::get_gas_spent(
             USER_1.into_origin(),
-            pid1,
+            HandleKind::Handle(pid1),
             EMPTY_PAYLOAD.to_vec(),
-            HandleKind::Handle,
         )
         .expect("internal error: get gas spent (pid1) failed")
             - gas_to_send;
         let expected_gas_msg_to_pid2 = GearPallet::<Test>::get_gas_spent(
             USER_1.into_origin(),
-            pid2,
+            HandleKind::Handle(pid2),
             EMPTY_PAYLOAD.to_vec(),
-            HandleKind::Handle,
         )
         .expect("internal error: get gas spent (pid2) failed");
 
@@ -889,9 +887,8 @@ fn claim_value_from_mailbox_works() {
         let gas_burned = GasConverter::gas_to_fee(
             GearPallet::<Test>::get_gas_spent(
                 USER_1.into_origin(),
-                prog_id,
+                HandleKind::Handle(prog_id),
                 EMPTY_PAYLOAD.to_vec(),
-                HandleKind::Handle,
             )
             .expect("program exists and not faulty"),
         );
