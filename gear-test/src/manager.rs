@@ -81,11 +81,10 @@ impl JournalHandler for InMemoryExtManager {
         self.current_failed = match outcome {
             DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. } => true,
             DispatchOutcome::Success(_) => false,
-            DispatchOutcome::InitSuccess { ref program, .. } => {
-                let id = program.id();
-                let waiting_messages = self.waiting_init.borrow_mut().remove(&id);
+            DispatchOutcome::InitSuccess { program_id, .. } => {
+                let waiting_messages = self.waiting_init.borrow_mut().remove(&program_id);
                 for m_id in waiting_messages.iter().flatten() {
-                    if let Some(msg) = self.wait_list.remove(&(id, *m_id)) {
+                    if let Some(msg) = self.wait_list.remove(&(program_id, *m_id)) {
                         self.message_queue.push_back(msg);
                     }
                 }

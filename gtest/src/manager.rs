@@ -143,12 +143,11 @@ impl ExtManager {
 
             match prog {
                 Program::Core(program) => {
-                    let ProcessResult { journal, .. } =
-                        core_processor::process::<WasmtimeEnvironment<Ext>>(
-                            program.clone(),
-                            Dispatch { kind, message },
-                            self.block_info,
-                        );
+                    let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
+                        program.clone(),
+                        Dispatch { kind, message },
+                        self.block_info,
+                    );
 
                     core_processor::handle_journal(journal, self);
                 }
@@ -294,9 +293,9 @@ impl JournalHandler for ExtManager {
             } => self.init_failure(message_id, program_id),
             DispatchOutcome::InitSuccess {
                 message_id,
-                program,
+                program_id,
                 ..
-            } => self.init_success(message_id, program.id()),
+            } => self.init_success(message_id, program_id),
         }
     }
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}

@@ -778,9 +778,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.0.13"
+version = "3.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08799f92c961c7a1cf0cc398a9073da99e21ce388b46372c37f3191f2f3eed3e"
+checksum = "b63edc3f163b3c71ec8aa23f9bd6070f77edbf3d1d198b164afa90ff00e4ec62"
 dependencies = [
  "atty",
  "bitflags",
@@ -2003,25 +2003,17 @@ version = "0.1.0"
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "cfg-if 1.0.0",
  "gear-core",
  "log",
- "num-derive",
- "num-traits",
 ]
 
 [[package]]
 name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "cfg-if 1.0.0",
  "gear-backend-common",
  "gear-core",
  "log",
- "num-derive",
- "num-traits",
  "sp-sandbox",
 ]
 
@@ -2029,13 +2021,8 @@ dependencies = [
 name = "gear-backend-wasmtime"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "cfg-if 1.0.0",
  "gear-backend-common",
  "gear-core",
- "log",
- "num-derive",
- "num-traits",
  "wasmtime 0.27.0",
 ]
 
@@ -4130,17 +4117,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26873667bbbb7c5182d4a37c1add32cdf09f841af72da53318fdb81543c15085"
 dependencies = [
  "num-traits",
-]
-
-[[package]]
-name = "num-derive"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

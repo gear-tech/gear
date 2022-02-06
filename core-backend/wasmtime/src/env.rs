@@ -18,19 +18,18 @@
 
 //! Wasmtime environment for running a module.
 
-use wasmtime::{Extern, Func, Instance, Module, Store, Trap};
-
-use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
-use alloc::string::ToString;
-use alloc::vec::Vec;
-
 use crate::memory::MemoryWrap;
-
-use gear_core::env::{Ext, LaterExt};
-use gear_core::memory::{Memory, PageBuf, PageNumber};
-
-use gear_backend_common::funcs;
+use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
+use gear_backend_common::{
+    funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
+};
+use gear_core::{
+    env::{Ext, LaterExt},
+    memory::{Memory, PageBuf, PageNumber},
+};
+use wasmtime::{
+    Extern, Func, Instance, Limits, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
+};
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
@@ -46,7 +45,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
     pub fn new() -> Self {
         let mut result = Self {
             store: Store::default(),
-            ext: LaterExt::new(),
+            ext: Default::default(),
             funcs: BTreeMap::new(),
         };
 
@@ -76,111 +75,6 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32("gr_wake", funcs::wake);
 
         result
-    }
-
-    /// Setup external environment and run closure.
-    ///
-    /// Setup external environment by providing `ext`, run nenwly initialized instance created from
-    /// provided `module`, do anything inside a `func` delegate.
-    ///
-    /// This will also set the beginning of the memory region to the `static_area` content _after_
-    /// creatig instance.
-    pub fn setup_and_run_inner(
-        &mut self,
-        ext: E,
-        binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        memory: &dyn Memory,
-        entry_point: &str,
-    ) -> (anyhow::Result<()>, E) {
-        let module = Module::new(self.store.engine(), binary).expect("Error creating module");
-
-        self.ext.set(ext);
-
-        let result = self.run_inner(module, memory_pages, memory, move |instance| {
-            let result = instance
-                .get_func(entry_point)
-                .ok_or_else(|| {
-                    anyhow::format_err!("failed to find `{}` function export", entry_point)
-                })
-                .and_then(|entry_func| entry_func.call(&[]))
-                .map(|_| ());
-            if let Err(e) = &result {
-                if let Some(trap) = e.downcast_ref::<Trap>() {
-                    if funcs::is_exit_trap(&trap.to_string()) {
-                        // We don't propagate a trap when exit
-                        return Ok(());
-                    }
-                }
-            }
-            result
-        });
-
-        let ext = self.ext.unset();
-
-        (result, ext)
-    }
-
-    /// Create memory inside this environment.
-    pub fn create_memory_inner(&self, total_pages: u32) -> MemoryWrap {
-        MemoryWrap::new(
-            wasmtime::Memory::new(
-                &self.store,
-                wasmtime::MemoryType::new(wasmtime::Limits::at_least(total_pages)),
-            )
-            .expect("Create env memory fail"),
-        )
-    }
-
-    fn run_inner(
-        &mut self,
-        module: Module,
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        memory: &dyn Memory,
-        func: impl FnOnce(Instance) -> anyhow::Result<()>,
-    ) -> anyhow::Result<()> {
-        let mut imports = module
-            .imports()
-            .map(|import| {
-                if import.module() != "env" {
-                    Err(anyhow::anyhow!("Non-env imports are not supported"))
-                } else {
-                    Ok((import.name(), Option::<Extern>::None))
-                }
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-
-        for (ref import_name, ref mut ext) in imports.iter_mut() {
-            if let Some(name) = import_name {
-                *ext = match *name {
-                    "memory" => {
-                        let mem = match memory.as_any().downcast_ref::<wasmtime::Memory>() {
-                            Some(mem) => mem,
-                            None => panic!("Memory is not wasmtime::Memory"),
-                        };
-                        Some(wasmtime::Extern::Memory(Clone::clone(mem)))
-                    }
-                    key if self.funcs.contains_key(key) => Some(self.funcs[key].clone().into()),
-                    _ => continue,
-                }
-            }
-        }
-
-        let externs = imports
-            .into_iter()
-            .map(|(_, host_function)| {
-                host_function.ok_or_else(|| anyhow::anyhow!("Missing import"))
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-
-        let instance = Instance::new(&self.store, &module, &externs)?;
-
-        // Set module memory.
-        memory
-            .set_pages(memory_pages)
-            .map_err(|e| anyhow::anyhow!("Can't set module memory: {:?}", e))?;
-
-        func(instance)
     }
 
     fn add_func<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
@@ -339,23 +233,122 @@ impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
     }
 }
 
-impl<E: Ext> gear_backend_common::Environment<E> for WasmtimeEnvironment<E> {
-    fn new() -> Self {
-        Self::new()
-    }
-
-    fn setup_and_run(
+impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
+    fn setup_and_execute(
         &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        memory: &dyn gear_core::memory::Memory,
+        memory: &dyn Memory,
         entry_point: &str,
-    ) -> (anyhow::Result<()>, E) {
-        self.setup_and_run_inner(ext, binary, memory_pages, memory, entry_point)
+    ) -> Result<BackendReport, BackendError> {
+        self.ext.set(ext);
+
+        let module = Module::new(self.store.engine(), binary).map_err(|e| BackendError {
+            reason: "Unable to create module",
+            description: Some(e.to_string().into()),
+            gas_amount: self.ext.unset().into().gas_amount,
+        })?;
+
+        let mut imports = module
+            .imports()
+            .map(|import| {
+                if import.module() != "env" {
+                    Err(BackendError {
+                        reason: "Non-env imports are not supported",
+                        description: import
+                            .name()
+                            .map(|v| format!("Function {:?} is not env", v).into()),
+                        gas_amount: self.ext.unset().into().gas_amount,
+                    })
+                } else {
+                    Ok((import.name(), Option::<Extern>::None))
+                }
+            })
+            .collect::<Result<Vec<_>, BackendError>>()?;
+
+        for (import_name, ref mut ext) in imports.iter_mut() {
+            if let Some(name) = import_name {
+                *ext = match *name {
+                    "memory" => match memory.as_any().downcast_ref::<WasmtimeMemory>() {
+                        Some(mem) => Some(Extern::Memory(mem.clone())),
+                        _ => {
+                            return Err(BackendError {
+                                reason: "Memory is not wasmtime::Memory",
+                                description: None,
+                                gas_amount: self.ext.unset().into().gas_amount,
+                            })
+                        }
+                    },
+                    key if self.funcs.contains_key(key) => Some(self.funcs[key].clone().into()),
+                    _ => continue,
+                }
+            }
+        }
+
+        let externs = imports
+            .into_iter()
+            .map(|(name, host_function)| {
+                host_function.ok_or_else(|| BackendError {
+                    reason: "Missing import",
+                    description: name
+                        .map(|v| format!("Function {:?} definition wasn't found", v).into()),
+                    gas_amount: self.ext.unset().into().gas_amount,
+                })
+            })
+            .collect::<Result<Vec<_>, BackendError>>()?;
+
+        let instance = Instance::new(&self.store, &module, &externs).map_err(|e| BackendError {
+            reason: "Unable to create instance",
+            description: Some(e.to_string().into()),
+            gas_amount: self.ext.unset().into().gas_amount,
+        })?;
+
+        // Set module memory.
+        memory.set_pages(memory_pages).map_err(|e| BackendError {
+            reason: "Unable to set module memory",
+            description: Some(format!("{:?}", e).into()),
+            gas_amount: self.ext.unset().into().gas_amount,
+        })?;
+
+        let entry_func = instance.get_func(entry_point).ok_or_else(|| BackendError {
+            reason: "Unable to find function export",
+            description: Some(format!("Failed to find `{}` function export", entry_point).into()),
+            gas_amount: self.ext.unset().into().gas_amount,
+        })?;
+
+        let res = entry_func.call(&[]);
+
+        let info: ExtInfo = self.ext.unset().into();
+
+        let termination = if let Err(e) = &res {
+            let mut reason = None;
+
+            if let Some(trap) = e.downcast_ref::<Trap>() {
+                let trap = trap.to_string();
+
+                if funcs::is_wait_trap(&trap) {
+                    reason = Some(TerminationReason::Manual { wait: true });
+                } else if funcs::is_exit_trap(&trap) {
+                    reason = Some(TerminationReason::Manual { wait: false });
+                }
+            }
+
+            reason.unwrap_or_else(|| TerminationReason::Trap {
+                explanation: info.trap_explanation,
+                description: Some(e.to_string().into()),
+            })
+        } else {
+            TerminationReason::Success
+        };
+
+        Ok(BackendReport { termination, info })
     }
 
-    fn create_memory(&self, total_pages: u32) -> Box<dyn Memory> {
-        Box::new(self.create_memory_inner(total_pages))
+    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str> {
+        Ok(Box::new(MemoryWrap::new(
+            WasmtimeMemory::new(&self.store, MemoryType::new(Limits::at_least(total_pages)))
+                .map_err(|_| "Create env memory fail")?,
+        )))
     }
 }
