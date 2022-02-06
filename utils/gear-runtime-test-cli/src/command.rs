@@ -259,6 +259,9 @@ impl GearRuntimeTestCmd {
                             }
 
                             if let Some(mut expected_messages) = exp.messages.clone() {
+                                if expected_messages.is_empty() {
+                                    break;
+                                }
                                 let message_queue: Vec<Message> = if let Some(step) = exp.step {
                                     println!(
                                         "snapshots.len() = {}, step({}), progs({})",
