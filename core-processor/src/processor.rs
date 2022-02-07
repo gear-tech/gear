@@ -17,14 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote},
+    common::{
+        Dispatch, DispatchKind, DispatchOutcome, DispatchResult, DispatchResultKind, JournalNote,
+    },
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
-use gear_core::program::{Program, ProgramId};
+use gear_core::{
+    message::Message,
+    program::{Program, ProgramId},
+};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E: Environment<Ext>>(
@@ -32,150 +37,23 @@ pub fn process<E: Environment<Ext>>(
     dispatch: Dispatch,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
-    let mut journal = Vec::new();
     let execution_settings = ExecutionSettings::new(block_info);
+    let initial_nonce = program.message_nonce();
 
-    let message_id = dispatch.message.id();
-    let origin = dispatch.message.source();
-    let program_id = program.id();
-
-    let kind = dispatch.kind;
-
-    let mut dispatch_result =
-        match executor::execute_wasm::<E>(program, dispatch, execution_settings) {
-            Ok(res) => res,
-            Err(e) => {
-                if let DispatchKind::Init = kind {
-                    journal.push(JournalNote::MessageDispatched(
-                        DispatchOutcome::InitFailure {
-                            message_id,
-                            origin,
-                            program_id,
-                            reason: e.reason,
-                        },
-                    ));
-                } else {
-                    // TODO: generate trap reply here
-                    journal.push(JournalNote::MessageDispatched(
-                        DispatchOutcome::MessageTrap {
-                            message_id,
-                            program_id,
-                            trap: Some(e.reason),
-                        },
-                    ))
-                };
-
-                journal.push(JournalNote::GasBurned {
-                    message_id,
-                    origin,
-                    amount: e.gas_amount.burned(),
-                });
-                journal.push(JournalNote::MessageConsumed(message_id));
-
-                return journal;
+    match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
+        Ok(res) => match res.kind {
+            DispatchResultKind::Trap(reason) => {
+                process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
             }
-        };
-
-    for message in dispatch_result.outgoing.clone() {
-        journal.push(JournalNote::SendMessage {
-            message_id,
-            message,
-        });
+            _ => process_success(res),
+        },
+        Err(e) => process_error(
+            dispatch,
+            initial_nonce,
+            e.gas_amount.burned(),
+            Some(e.reason),
+        ),
     }
-
-    for awakening_id in dispatch_result.awakening.clone() {
-        journal.push(JournalNote::WakeMessage {
-            message_id,
-            program_id,
-            awakening_id,
-        });
-    }
-
-    match dispatch_result.kind {
-        DispatchResultKind::Success => {
-            if let DispatchKind::Init = kind {
-                journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::InitSuccess {
-                        message_id,
-                        origin,
-                        program_id,
-                    },
-                ))
-            } else {
-                journal.push(JournalNote::MessageDispatched(DispatchOutcome::Success(
-                    message_id,
-                )));
-            };
-
-            journal.push(JournalNote::GasBurned {
-                message_id,
-                origin,
-                amount: dispatch_result.gas_amount.burned(),
-            });
-            journal.push(JournalNote::MessageConsumed(message_id));
-        }
-        DispatchResultKind::Trap(trap) => {
-            if let Some(message) = dispatch_result.trap_reply(dispatch_result.gas_amount.left()) {
-                journal.push(JournalNote::SendMessage {
-                    message_id,
-                    message,
-                })
-            }
-
-            if let DispatchKind::Init = kind {
-                journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::InitFailure {
-                        message_id,
-                        origin,
-                        program_id,
-                        reason: trap.unwrap_or_default(),
-                    },
-                ))
-            } else {
-                journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::MessageTrap {
-                        message_id,
-                        program_id,
-                        trap,
-                    },
-                ));
-            }
-
-            journal.push(JournalNote::GasBurned {
-                message_id,
-                origin,
-                amount: dispatch_result.gas_amount.burned(),
-            });
-
-            journal.push(JournalNote::MessageConsumed(message_id));
-        }
-        DispatchResultKind::Wait => {
-            journal.push(JournalNote::GasBurned {
-                message_id,
-                origin,
-                amount: dispatch_result.gas_amount.burned(),
-            });
-
-            dispatch_result.dispatch.message.gas_limit = dispatch_result.gas_amount.left();
-
-            journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch));
-        }
-    }
-
-    journal.push(JournalNote::UpdateNonce {
-        program_id,
-        nonce: dispatch_result.nonce,
-    });
-
-    for (page_number, data) in dispatch_result.page_update {
-        journal.push(JournalNote::UpdatePage {
-            program_id,
-            page_number,
-            data,
-        })
-    }
-
-    journal
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
@@ -211,6 +89,151 @@ pub fn process_many<E: Environment<Ext>>(
 
         journal.extend(current_journal);
     }
+
+    journal
+}
+
+/// Helper function for reply generation
+fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<Message> {
+    if let Some((_, exit_code)) = message.reply() {
+        if exit_code != 0 {
+            return None;
+        }
+    };
+
+    let new_message_id = crate::id::next_message_id(message.dest(), nonce);
+
+    Some(Message::new_reply(
+        new_message_id,
+        message.dest(),
+        message.source(),
+        Default::default(),
+        gas_limit,
+        0,
+        message.id(),
+        crate::ERR_EXIT_CODE,
+    ))
+}
+
+/// Helper function for journal creation in trap/error case
+fn process_error(
+    dispatch: Dispatch,
+    initial_nonce: u64,
+    gas_burned: u64,
+    err: Option<&'static str>,
+) -> Vec<JournalNote> {
+    let mut journal = Vec::new();
+
+    let Dispatch { kind, message } = dispatch;
+    let message_id = message.id();
+    let origin = message.source();
+    let program_id = message.dest();
+    let gas_left = message.gas_limit() - gas_burned;
+
+    journal.push(JournalNote::GasBurned {
+        message_id,
+        origin,
+        amount: gas_burned,
+    });
+
+    if let Some(message) = generate_trap_reply(&message, gas_left, initial_nonce) {
+        journal.push(JournalNote::SendMessage {
+            message_id,
+            message,
+        });
+        journal.push(JournalNote::UpdateNonce {
+            program_id,
+            nonce: initial_nonce + 1,
+        });
+    }
+
+    let outcome = match kind {
+        DispatchKind::Init => DispatchOutcome::InitFailure {
+            message_id,
+            origin,
+            program_id,
+            reason: err.unwrap_or_default(),
+        },
+        _ => DispatchOutcome::MessageTrap {
+            message_id,
+            program_id,
+            trap: err,
+        },
+    };
+
+    journal.push(JournalNote::MessageDispatched(outcome));
+    journal.push(JournalNote::MessageConsumed(message_id));
+
+    journal
+}
+
+/// Helper function for journal creation in success case
+fn process_success(res: DispatchResult) -> Vec<JournalNote> {
+    let mut journal = Vec::new();
+
+    let message_id = res.message_id();
+    let origin = res.message_source();
+    let program_id = res.program_id();
+
+    journal.push(JournalNote::GasBurned {
+        message_id,
+        origin,
+        amount: res.gas_amount.burned(),
+    });
+
+    for msg in res.outgoing {
+        journal.push(JournalNote::SendMessage {
+            message_id,
+            message: msg,
+        });
+    }
+
+    for awakening_id in res.awakening {
+        journal.push(JournalNote::WakeMessage {
+            message_id,
+            program_id,
+            awakening_id,
+        });
+    }
+
+    journal.push(JournalNote::UpdateNonce {
+        program_id,
+        nonce: res.nonce,
+    });
+
+    for (page_number, data) in res.page_update {
+        journal.push(JournalNote::UpdatePage {
+            program_id,
+            page_number,
+            data,
+        })
+    }
+
+    match res.kind {
+        DispatchResultKind::Wait => {
+            let mut dispatch = res.dispatch;
+            dispatch.message.gas_limit = res.gas_amount.left();
+
+            journal.push(JournalNote::WaitDispatch(dispatch));
+        }
+        DispatchResultKind::Success => {
+            let outcome = match res.dispatch.kind {
+                DispatchKind::Init => DispatchOutcome::InitSuccess {
+                    message_id,
+                    origin,
+                    program_id,
+                },
+                _ => DispatchOutcome::Success(message_id),
+            };
+
+            journal.push(JournalNote::MessageDispatched(outcome));
+            journal.push(JournalNote::MessageConsumed(message_id));
+        }
+        // Handled in other function
+        _ => {
+            unreachable!()
+        }
+    };
 
     journal
 }
