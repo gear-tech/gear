@@ -157,10 +157,6 @@ pub mod pallet {
         ///
         /// The user tried to reply on message that was not found in his personal mailbox.
         NoMessageInMailbox,
-        /// Program is not initialized.
-        ///
-        /// Occurs if a message is sent to a program that is in an uninitialized state.
-        ProgramIsNotInitialized,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
@@ -337,7 +333,9 @@ pub mod pallet {
                 };
 
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    Some(program), dispatch, block_info,
+                    Some(program),
+                    dispatch,
+                    block_info,
                 );
 
                 for note in &journal {
@@ -346,8 +344,8 @@ pub mod pallet {
                             gas_burned = gas_burned.saturating_add(*amount)
                         }
                         JournalNote::MessageDispatched(
-                            CoreDispatchOutcome::MessageTrap {..},
-                            _
+                            CoreDispatchOutcome::MessageTrap { .. },
+                            _,
                         ) => return None,
                         _ => {}
                     }

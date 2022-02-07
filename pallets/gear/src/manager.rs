@@ -339,26 +339,27 @@ where
     fn send_message(&mut self, message_id: MessageId, message: Message) {
         let message_id = message_id.into_origin();
         let mut message: common::Message = message.into();
+        if message.value != 0
+            && T::Currency::reserve(
+                &<T::AccountId as Origin>::from_origin(message.source),
+                message.value.unique_saturated_into(),
+            )
+            .is_err()
+        {
+            log::debug!(
+                "Message (from: {:?}) {:?} will be skipped",
+                message_id,
+                message
+            );
+            return;
+        }
 
         log::debug!("Sending message {:?} from {:?}", message, message_id);
 
         if common::program_exists(message.dest) {
-            let mut pass = true;
-            {
-                // Some checks, to make logic of sending message by programs similar to the logic of extrinsics.
-                if message.value != 0 {
-                    pass = T::Currency::reserve(
-                        &<T::AccountId as Origin>::from_origin(message.source),
-                        message.value.unique_saturated_into(),
-                    )
-                    .is_ok();
-                }
-            }
-            if pass {
-                self.gas_handler
-                    .split(message_id, message.id, message.gas_limit);
-                common::queue_message(message);
-            }
+            self.gas_handler
+                .split(message_id, message.id, message.gas_limit);
+            common::queue_message(message);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be

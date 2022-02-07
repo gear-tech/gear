@@ -134,7 +134,19 @@ fn send_message_works() {
             BalancesPallet::<Test>::free_balance(USER_1),
             user1_initial_balance - mail_value
         );
-        // The recipient has already received the funds
+        // The recipient has not received the funds, they are in the mailbox
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_2),
+            user2_initial_balance
+        );
+
+        let message_id = compute_user_message_id(EMPTY_PAYLOAD, 2);
+        assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
+            Origin::signed(USER_2).into(),
+            message_id
+        ));
+
+        // The recipient has received funds
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_2),
             user2_initial_balance + mail_value
@@ -182,7 +194,10 @@ fn send_message_expected_failure() {
         );
 
         // Because destination is user, no gas will be reserved
-        assert!(matches!(Mailbox::<Test>::remove_all(None), sp_io::KillStorageResult::AllRemoved(_)));
+        assert!(matches!(
+            Mailbox::<Test>::remove_all(None),
+            sp_io::KillStorageResult::AllRemoved(_)
+        ));
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(LOW_BALANCE_USER).into(),
             USER_1.into_origin(),
@@ -535,14 +550,14 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        // assert!(!Gear::is_failed(program_id));
+        assert!(common::program_exists(program_id));
 
         run_to_block(2, None);
 
         assert!(Gear::is_initialized(program_id));
-        // assert!(!Gear::is_failed(program_id));
+        assert!(common::program_exists(program_id));
 
-        // Submitting second program, which fails on initialization, therefore goes to limbo.
+        // Submitting second program, which fails on initialization, therefore is deleted
         let program_id = {
             let res = submit_program_default(USER_1, ProgramCodeKind::GreedyInit);
             assert_ok!(res);
@@ -550,34 +565,13 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        // assert!(!Gear::is_failed(program_id));
+        assert!(common::program_exists(program_id));
 
         run_to_block(3, None);
 
         assert!(!Gear::is_initialized(program_id));
-        // while at the same time being stuck in "limbo"
-        // assert!(Gear::is_failed(program_id));
-
-        // Program author is allowed to remove the program and reclaim funds
-        // An attempt to remove a program on behalf of another account will make no changes
-        // assert_ok!(GearPallet::<Test>::remove_stale_program(
-        //     // Not the author
-        //     Origin::signed(LOW_BALANCE_USER).into(),
-        //     program_id,
-        // ));
-        // Program in the storage
-        assert!(common::get_program(program_id).is_some());
-        // and is still in the limbo
-        // assert!(GearPallet::<Test>::is_failed(program_id));
-
-        // assert_ok!(GearPallet::<Test>::remove_stale_program(
-        //     Origin::signed(USER_1).into(),
-        //     program_id,
-        // ));
-        // Program not in the storage
-        assert!(common::get_program(program_id).is_none());
-        // This time the program has been removed from limbo
-        // assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
+        // while at the same time is deleted
+        assert!(!common::program_exists(program_id));
     })
 }
 
@@ -652,11 +646,7 @@ fn events_logging_works() {
                 SystemPallet::<Test>::assert_has_event(
                     Event::InitFailure(init_msg_info, Reason::Dispatch(init_failure_reason)).into(),
                 );
-                // Sending messages to failed-to-init programs shouldn't be allowed
-                assert_noop!(
-                    send_default_message(USER_1, program_id),
-                    Error::<Test>::ProgramIsNotInitialized
-                );
+                assert!(!common::program_exists(program_id));
                 continue;
             }
 
@@ -763,20 +753,15 @@ fn send_reply_failure_to_claim_from_mailbox() {
             Error::<Test>::NoMessageInMailbox
         );
 
-        // caution: runs to block 2
-        let reply_to_id = setup_mailbox_test_state(USER_1);
+        let prog_id = {
+            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+        populate_mailbox_from_program(prog_id, USER_1, 2, 0, 20_000_000, 0);
 
-        // Program doesn't have enough balance: 1000 units of currency is claimed by `USER_1` first
-        assert_noop!(
-            GearPallet::<Test>::send_reply(
-                Origin::signed(USER_1).into(),
-                reply_to_id,
-                EMPTY_PAYLOAD.to_vec(),
-                5_000_000,
-                0
-            ),
-            pallet_balances::Error::<Test>::InsufficientBalance
-        );
+        // Program didn't have enough balance, so it's message with value was skipped
+        assert!(!Mailbox::<Test>::contains_key(USER_1));
     })
 }
 
@@ -793,6 +778,19 @@ fn send_reply_value_claiming_works() {
         // This value is actually a constants in WAT. Alternatively can be read from Mailbox.
         let locked_value = 1000;
 
+        // Top up program's account so it could send value in message
+        // When program sends message, message value (if not 0) is reserved.
+        // If value can't be reserved, message is skipped.
+        let send_to_program_amount = locked_value * 2;
+        assert_ok!(
+            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
+                &USER_1,
+                &AccountId::from_origin(prog_id),
+                send_to_program_amount,
+                frame_support::traits::ExistenceRequirement::AllowDeath
+            )
+        );
+
         let mut next_block = 2;
         let mut program_nonce = 0u64;
 
@@ -805,7 +803,6 @@ fn send_reply_value_claiming_works() {
             let reply_to_id = populate_mailbox_from_program(
                 prog_id,
                 USER_1,
-                USER_1,
                 next_block,
                 program_nonce,
                 20_000_000,
@@ -814,16 +811,7 @@ fn send_reply_value_claiming_works() {
             program_nonce += 1;
             next_block += 1;
 
-            // Top up program's account so it could send value in message
-            let send_to_program_amount = locked_value * 2;
-            assert_ok!(
-                <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
-                    &USER_1,
-                    &AccountId::from_origin(prog_id),
-                    send_to_program_amount,
-                    frame_support::traits::ExistenceRequirement::AllowDeath
-                )
-            );
+            assert!(Mailbox::<Test>::contains_key(USER_1));
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
             assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
@@ -839,13 +827,14 @@ fn send_reply_value_claiming_works() {
             let user_expected_balance =
                 user_balance - value_to_reply - GasConverter::gas_to_fee(gas_limit_to_reply)
                     + locked_value;
+
             assert_eq!(
                 BalancesPallet::<Test>::free_balance(USER_1),
                 user_expected_balance
             );
             assert_eq!(
                 BalancesPallet::<Test>::reserved_balance(USER_1),
-                GasConverter::gas_to_fee(gas_limit_to_reply)
+                GasConverter::gas_to_fee(gas_limit_to_reply) + value_to_reply
             );
         }
     })
@@ -870,9 +859,10 @@ fn claim_value_from_mailbox_works() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-
+        increase_prog_balance_for_mailbox_test(USER_3, prog_id);
         let reply_to_id =
-            populate_mailbox_from_program(prog_id, USER_2, USER_1, 2, 0, gas_sent, value_sent);
+            populate_mailbox_from_program(prog_id, USER_2, 2, 0, gas_sent, value_sent);
+        assert!(Mailbox::<Test>::contains_key(USER_1));
 
         let gas_burned = GasConverter::gas_to_fee(
             GearPallet::<Test>::get_gas_spent(prog_id, EMPTY_PAYLOAD.to_vec())
@@ -1353,33 +1343,15 @@ fn wake_messages_after_program_inited() {
     })
 }
 
-// Old version code  put to mailbox the message, which has limbo prog dest, when message initiator was user. That could happen when user submitted program and then sent a message to it using extrinsics.
-// When his messages were processed, if init failed here https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L373, then the next message (which is a dispatch message to limbo program)
-// would have been added to mailbox (https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L471).
-// However, if the dispatch message initiator was a program, then we reached the branch https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L507.
-// This is because message transition from MQ to storage (common queue) happens in `process_queue`, so if init message processing and ended up successfully, then *program was added* to the storage,
-// otherwise storage wasn't changed. So program storage contained only initialized constructable programs.
-//
-// In a new version the last invariant was violated. Constructable program is added to the storage despite being faulty (will fail during init). So now user messages to such program will be added
-// to the storage and during processing will reach https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L434. They are falsely recognized as messages to be woken.
-// Same stuff happens to messages, sent from programs.
-// limbo (yes, when send dispatch message we check that program exists in storage, but in a new version we add programs to the storage before `process_queue` runs both failing and non-failing init msgs for the added program). That's how user
-// dispatch messages can reach https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L409. Program initiated msgs work as in old code version.
-//
-// These are problems for the current block processing. In the next block both user and program (my version) messages will be skipped.
-//
-// Unfortunately both old and new code suffer from the same problem. They both can send value to limbo programs
-// (old https://github.com/gear-tech/gear/blob/2ce4945f5a300f8fec370077bf7cbe85db7fd403/pallets/gear/src/lib.rs#L744, new https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L693)/
-// and the worst thing that this value is lost (not returned anyhow). Yes, we can return gas and value for such messages (for example, by accumulating values here https://github.com/gear-tech/gear/blob/7e996d14fb6e48f0763b08b05ae077849dea544a/pallets/gear/src/lib.rs#L877).
 #[test]
 fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("todo");
+        let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
+
         // After running, first message will end up with init failure, so destination address won't exist.
         // However, message to that non existing address will be in message queue. So, we test that this message is not executed.
-        let reply_to_id = compute_user_message_id(EMPTY_PAYLOAD, 0);
-
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
             program_id,
@@ -1387,32 +1359,18 @@ fn test_message_processing_for_non_existing_destination() {
             10_000,
             100
         ));
+        assert!(!Mailbox::<Test>::contains_key(USER_1));
+
         run_to_block(2, None);
+        // system reply message
+        assert!(Mailbox::<Test>::contains_key(USER_1));
+        println!("{:?}", Mailbox::<Test>::get(USER_1));
 
-        // todo [sab]
+        let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
+        assert_eq!(user_balance_before, user_balance_after);
 
-        // let expected_dequeued = 2;
-        // let expected_dispatched = 0;
-        // let expected_failure_init = 1;
-
-        // let mut actual_dequeued = 0;
-        // let mut actual_dispatched = 0;
-        // let mut actual_failure_init = 0;
-
-        // SystemPallet::<Test>::events()
-        //     .iter()
-        //     .for_each(|e| match e.event {
-        //         MockEvent::Gear(Event::MessagesDequeued(num)) => actual_dequeued += num,
-        //         MockEvent::Gear(Event::MessageDispatched(_)) => actual_dispatched += 1,
-        //         MockEvent::Gear(Event::InitFailure(..)) => actual_failure_init += 1,
-        //         _ => {}
-        //     });
-
-        // println!("{:?}", SystemPallet::<Test>::events());
-
-        // assert_eq!(expected_dequeued, actual_dequeued);
-        // assert_eq!(expected_dispatched, actual_dispatched);
-        // assert_eq!(expected_failure_init, actual_failure_init);
+        let skipped_message_id = compute_user_message_id(EMPTY_PAYLOAD, 1);
+        SystemPallet::<Test>::assert_has_event(Event::MessageSkipped(skipped_message_id).into());
     })
 }
 
@@ -1421,7 +1379,9 @@ mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
 
-    use super::{assert_ok, pallet, run_to_block, GearPallet, Mailbox, Origin, Test};
+    use common::Origin as _;
+
+    use super::{assert_ok, pallet, run_to_block, BalancesPallet, GearPallet, Origin, Test};
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
@@ -1453,14 +1413,15 @@ mod utils {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
-        populate_mailbox_from_program(prog_id, user, user, 2, 0, 20_000_000, 0)
+
+        increase_prog_balance_for_mailbox_test(user, prog_id);
+        populate_mailbox_from_program(prog_id, user, 2, 0, 20_000_000, 0)
     }
 
     // Puts message from `prog_id` for the `user` in mailbox and returns its id
     pub(super) fn populate_mailbox_from_program(
         prog_id: H256,
         sender: AccountId,
-        claimer: AccountId,
         block_num: BlockNumber,
         program_nonce: u64,
         gas_limit: u64,
@@ -1486,9 +1447,37 @@ mod utils {
             );
         }
 
-        assert!(Mailbox::<Test>::contains_key(claimer));
-
         compute_program_message_id(prog_id.as_bytes(), program_nonce)
+    }
+
+    pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: H256) {
+        let expected_code_hash: H256 = sp_io::hashing::blake2_256(
+            ProgramCodeKind::OutgoingWithValueInHandle
+                .to_bytes()
+                .as_slice(),
+        )
+        .into();
+        let actual_code_hash = common::get_program(program_id)
+            .map(|prog| prog.code_hash)
+            .expect("invalid program address for the test");
+        assert_eq!(
+            expected_code_hash, actual_code_hash,
+            "invalid program code for the test"
+        );
+
+        // This value is actually a constants in `ProgramCodeKind::OutgoingWithValueInHandle` wat. Alternatively can be read from Mailbox.
+        let locked_value = 1000;
+
+        // When program sends message, message value (if not 0) is reserved.
+        // If value can't be reserved, message is skipped.
+        assert_ok!(
+            <BalancesPallet::<Test> as frame_support::traits::Currency<_>>::transfer(
+                &sender,
+                &AccountId::from_origin(program_id),
+                locked_value,
+                frame_support::traits::ExistenceRequirement::AllowDeath
+            )
+        );
     }
 
     // Submits program with default options (salt, gas limit, value, payload)

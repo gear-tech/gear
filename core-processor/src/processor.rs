@@ -78,7 +78,7 @@ pub fn process<E: Environment<Ext>>(
         ));
         journal.push(JournalNote::MessageConsumed(message_id));
 
-        return journal
+        return journal;
     }
 
     let execution_settings = ExecutionSettings::new(block_info);
