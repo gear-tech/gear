@@ -93,6 +93,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_debug", funcs::debug);
         env_builder.add_host_func("env", "gr_gas_available", funcs::gas_available);
         env_builder.add_host_func("env", "gr_msg_id", funcs::msg_id);
+        env_builder.add_host_func("env", "gr_leave", funcs::leave);
         env_builder.add_host_func("env", "gr_wait", funcs::wait);
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
         env_builder.add_host_func("env", "gas", funcs::gas);
@@ -163,7 +164,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             if let Some(trap) = runtime.trap {
                 if common_funcs::is_wait_trap(trap) {
                     reason = Some(TerminationReason::Manual { wait: true });
-                } else if common_funcs::is_exit_trap(trap) {
+                } else if common_funcs::is_leave_trap(trap) {
                     reason = Some(TerminationReason::Manual { wait: false });
                 }
             };
