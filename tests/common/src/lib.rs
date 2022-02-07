@@ -284,6 +284,10 @@ impl<'a> JournalHandler for Journal<'a> {
         };
     }
 
+    fn exit_dispatch(&mut self, _id_exited: ProgramId, _value_destination: ProgramId) {
+        unimplemented!()
+    }
+
     fn gas_burned(&mut self, message_id: MessageId, _origin: ProgramId, amount: u64) {
         self.context.gas_spent.insert(message_id, amount);
     }

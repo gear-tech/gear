@@ -83,9 +83,7 @@ pub fn block_timestamp() -> u64 {
 
 /// TODO
 pub fn exit(value_to: ActorId) -> ! {
-    unsafe {
-        sys::gr_exit(value_to.as_slice().as_ptr())
-    }
+    unsafe { sys::gr_exit(value_to.as_slice().as_ptr()) }
 }
 
 /// Get the current value of the gas available for execution.

@@ -90,21 +90,21 @@ fn decode_message_tuple(_: &[u8], value: &[u8]) -> Result<(Message, u32), codec:
 pub struct ProgramNotFound;
 
 pub fn exit_program(program_id: H256) -> Result<(), ProgramNotFound> {
-    let program = get_program(program_id)
-        .ok_or(ProgramNotFound)?;
+    let program = get_program(program_id).ok_or(ProgramNotFound)?;
 
     let prefix = wait_prefix(program_id);
     let previous_key = prefix.clone();
 
     let exited_program = ExitedProgram {
         program_id,
-        pages_hash: get_program_pages(program_id, program.persistent_pages.clone()).using_encoded(sp_io::hashing::blake2_256).into(),
+        pages_hash: get_program_pages(program_id, program.persistent_pages.clone())
+            .using_encoded(sp_io::hashing::blake2_256)
+            .into(),
         program,
-        wait_list: PrefixIterator::<_, ()>::new(
-            prefix,
-            previous_key,
-            decode_message_tuple,
-        ).drain().map(|(m, _)| m).collect(),
+        wait_list: PrefixIterator::<_, ()>::new(prefix, previous_key, decode_message_tuple)
+            .drain()
+            .map(|(m, _)| m)
+            .collect(),
     };
 
     remove_program(program_id);

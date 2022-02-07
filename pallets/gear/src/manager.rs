@@ -29,7 +29,7 @@ use core_processor::common::{
 };
 use frame_support::{
     storage::PrefixIterator,
-    traits::{BalanceStatus, ReservableCurrency, Currency, ExistenceRequirement},
+    traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
 };
 use gear_core::{
     memory::PageNumber,
@@ -295,11 +295,13 @@ where
         let program_account = &<T::AccountId as Origin>::from_origin(program_id);
         let balance = T::Currency::total_balance(program_account);
         if !balance.is_zero() {
-            T::Currency::transfer(program_account,
+            T::Currency::transfer(
+                program_account,
                 &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
                 balance,
                 ExistenceRequirement::AllowDeath,
-            ).expect("balance is not zero; should not fail");
+            )
+            .expect("balance is not zero; should not fail");
         }
     }
 

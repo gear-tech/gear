@@ -176,7 +176,7 @@ impl EnvExt for Ext {
     }
 
     fn exit(&mut self, address: ProgramId) -> Result<(), &'static str> {
-        if let Some(_) = self.exit_argument {
+        if self.exit_argument.is_some() {
             Err("Cannot call `exit' twice")
         } else {
             self.exit_argument = Some(address);

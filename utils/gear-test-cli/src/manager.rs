@@ -106,6 +106,11 @@ where
         }
         self.inner.message_dispatched(outcome)
     }
+
+    fn exit_dispatch(&mut self, _id_exited: ProgramId, _value_destination: ProgramId) {
+        unimplemented!()
+    }
+
     fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64) {
         self.inner.gas_burned(message_id, origin, amount)
     }

@@ -191,9 +191,12 @@ pub enum JournalNote {
         /// Amount of gas burned.
         amount: u64,
     },
-    /// 
+    /// Exit the program.
     ExitDispatch {
+        /// Id of the program called `exit`.
         id_exited: ProgramId,
+        /// Address where all remaining value of the program should
+        /// be transferred to.
         value_destination: ProgramId,
     },
     /// Message was handled and no longer exists.

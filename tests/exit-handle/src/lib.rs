@@ -21,6 +21,5 @@ mod wasm {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn init() {
-    }
+    pub unsafe extern "C" fn init() {}
 }

@@ -172,7 +172,10 @@ pub fn process<E: Environment<Ext>>(
                 amount: dispatch_result.gas_amount.burned(),
             });
 
-            journal.push(JournalNote::ExitDispatch{ id_exited: program_id, value_destination });
+            journal.push(JournalNote::ExitDispatch {
+                id_exited: program_id,
+                value_destination,
+            });
         }
     }
 
