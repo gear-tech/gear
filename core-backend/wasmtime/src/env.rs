@@ -71,6 +71,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_into_i32("gr_size", funcs::size);
         result.add_func_i32("gr_source", funcs::source);
         result.add_func_i32("gr_value", funcs::value);
+        result.add_func("gr_leave", funcs::leave);
         result.add_func("gr_wait", funcs::wait);
         result.add_func_i32("gr_wake", funcs::wake);
 
@@ -329,7 +330,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
 
                 if funcs::is_wait_trap(&trap) {
                     reason = Some(TerminationReason::Manual { wait: true });
-                } else if funcs::is_exit_trap(&trap) {
+                } else if funcs::is_leave_trap(&trap) {
                     reason = Some(TerminationReason::Manual { wait: false });
                 }
             }

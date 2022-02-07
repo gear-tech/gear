@@ -44,8 +44,6 @@ pub struct Ext {
     pub config: AllocationsConfig,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
-    /// Flag signaling whether the execution interrupts and goes to the waiting state.
-    pub waited: bool,
 }
 
 impl From<Ext> for ExtInfo {
@@ -274,19 +272,20 @@ impl EnvExt for Ext {
         self.message_context.current().value()
     }
 
+    fn leave(&mut self) -> Result<(), &'static str> {
+        let result = self
+            .message_context
+            .check_uncommitted()
+            .map_err(|_| "There are uncommited messages when leaving");
+
+        self.return_and_store_err(result)
+    }
+
     fn wait(&mut self) -> Result<(), &'static str> {
         let result = self
             .message_context
             .check_uncommitted()
-            .map_err(|_| "There are uncommited messages when passing to waiting state")
-            .and_then(|_| {
-                if self.waited {
-                    Err("Cannot pass to the waiting state twice")
-                } else {
-                    self.waited = true;
-                    Ok(())
-                }
-            });
+            .map_err(|_| "There are uncommited messages when passing to waiting state");
 
         self.return_and_store_err(result)
     }
