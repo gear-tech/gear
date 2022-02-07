@@ -136,6 +136,8 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             }
         };
 
+        log::debug!("process program {:?}", ext.program_id());
+
         // In case any page buf is none we suppose that it's candidate to be lazy page
         let lazy_pages_enabled = if !memory_pages.iter().any(|(_, buf)| buf.is_none()) {
             log::debug!("lazy-pages: there is no pages to be lazy");
