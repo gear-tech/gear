@@ -77,9 +77,6 @@ pub type Signature = MultiSignature;
 /// to the public key of our transaction signing scheme.
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
-/// Some way of identifying an actor on the chain.
-pub type ActorId = H256;
-
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
 pub type AccountIndex = u32;
@@ -599,7 +596,7 @@ impl_runtime_apis! {
     }
 
     // Here we implement our custom runtime API.
-    impl pallet_gear_rpc_runtime_api::GearApi<Block, H256, HandleKind> for Runtime {
+    impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
         fn get_gas_spent(
             account_id: H256,
             kind: HandleKind,

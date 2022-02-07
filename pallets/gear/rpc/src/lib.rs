@@ -18,28 +18,65 @@
 
 //! RPC interface for the gear module.
 
-use codec::Codec;
 use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
 use jsonrpc_derive::rpc;
 pub use pallet_gear_rpc_runtime_api::{GearApi as GearRuntimeApi, HandleKind};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
-use sp_core::Bytes;
+use sp_core::{Bytes, H256};
 use sp_rpc::number::NumberOrHex;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::convert::TryInto;
 use std::sync::Arc;
 
 #[rpc]
-pub trait GearApi<BlockHash, ActorId, HandleKind> {
-    #[rpc(name = "gear_getGasSpent")]
+pub trait GearApi<BlockHash> {
     fn get_gas_spent(
         &self,
-        source: ActorId,
+        source: H256,
         kind: HandleKind,
         payload: Bytes,
         at: Option<BlockHash>,
     ) -> Result<NumberOrHex>;
+
+    #[rpc(name = "gear_getInitGasSpent")]
+    fn get_init_gas_spent(
+        &self,
+        source: H256,
+        code: Bytes,
+        payload: Bytes,
+        at: Option<BlockHash>,
+    ) -> Result<NumberOrHex> {
+        self.get_gas_spent(source, HandleKind::Init(code.to_vec()), payload, at)
+    }
+
+    #[rpc(name = "gear_getHandleGasSpent")]
+    fn get_handle_gas_spent(
+        &self,
+        source: H256,
+        dest: H256,
+        payload: Bytes,
+        at: Option<BlockHash>,
+    ) -> Result<NumberOrHex> {
+        self.get_gas_spent(source, HandleKind::Handle(dest), payload, at)
+    }
+
+    #[rpc(name = "gear_getReplyGasSpent")]
+    fn get_reply_gas_spent(
+        &self,
+        source: H256,
+        message_id: H256,
+        exit_code: i32,
+        payload: Bytes,
+        at: Option<BlockHash>,
+    ) -> Result<NumberOrHex> {
+        self.get_gas_spent(
+            source,
+            HandleKind::Reply(message_id, exit_code),
+            payload,
+            at,
+        )
+    }
 }
 
 /// A struct that implements the [`GearApi`].
@@ -77,18 +114,15 @@ impl From<Error> for i64 {
     }
 }
 
-impl<C, Block, ActorId, HandleKind> GearApi<<Block as BlockT>::Hash, ActorId, HandleKind>
-    for Gear<C, Block>
+impl<C, Block> GearApi<<Block as BlockT>::Hash> for Gear<C, Block>
 where
     Block: BlockT,
     C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
-    C::Api: GearRuntimeApi<Block, ActorId, HandleKind>,
-    ActorId: Codec,
-    HandleKind: Codec,
+    C::Api: GearRuntimeApi<Block>,
 {
     fn get_gas_spent(
         &self,
-        source: ActorId,
+        source: H256,
         kind: HandleKind,
         payload: Bytes,
         at: Option<<Block as BlockT>::Hash>,

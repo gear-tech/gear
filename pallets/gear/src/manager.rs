@@ -38,8 +38,6 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 use primitive_types::H256;
-#[cfg(feature = "std")]
-use serde::Deserialize;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::{
     collections::{btree_map::BTreeMap, vec_deque::VecDeque},
@@ -52,7 +50,6 @@ pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
     gas_handler: GH,
 }
 
-#[cfg_attr(feature = "std", derive(Deserialize))]
 #[derive(Decode, Encode)]
 pub enum HandleKind {
     Init(Vec<u8>),
