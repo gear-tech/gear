@@ -90,13 +90,15 @@ impl InitProgram {
             .map(|msg| msg.into_ext(context))
             .unwrap_or_else(|| MessageBuilder::from(()).into_ext(context));
 
+        let new_program_id = self.program_id.unwrap_or_else(|| context.next_program_id());
+
         InitializeProgramInfo {
-            new_program_id: self.program_id.unwrap_or_else(|| context.next_program_id()),
+            new_program_id,
             code: self.code,
             message: Message {
                 id: message.id,
                 source: self.source_id.unwrap_or_else(ProgramId::system),
-                dest: self.program_id.unwrap_or_else(|| context.next_program_id()),
+                dest: new_program_id,
                 payload: message.payload.into(),
                 gas_limit: message.gas_limit,
                 value: message.value,
