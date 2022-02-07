@@ -10,6 +10,7 @@ anyhow = "1.0.52"
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 hex = "0.4.3"
+colored = "2.0.0"
 regex = "1.4"
 rand = "0.8.0"
 clap = { version = "3.0", features = ["derive"] }

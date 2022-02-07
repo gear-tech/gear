@@ -26,11 +26,13 @@ use crate::mock::{
 };
 use crate::GearRuntimeTestCmd;
 use codec::{Decode, Encode};
+use colored::{ColoredString, Colorize};
 use gear_common::Origin as _;
 use gear_core::{
     message::{IncomingMessage, Message},
     program::{Program, ProgramId},
 };
+use gear_test::address::Address;
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -60,6 +62,10 @@ fn init_fixture<'a>(
 ) -> anyhow::Result<()> {
     for program in &test.programs {
         log::info!("programs: {:?}", &programs);
+        match program.id {
+            Address::ProgramId(_) => (),
+            _ => return Err(anyhow::anyhow!("Program custom id - Skip")),
+        }
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path).unwrap();
         let mut init_message = Vec::new();
@@ -159,6 +165,9 @@ fn init_fixture<'a>(
         // } else {
         //     USER_1
         // };
+        if message.source.is_some() {
+            return Err(anyhow::anyhow!("Message custom source - Skip"));
+        }
 
         match message.destination {
             gear_test::address::Address::ProgramId(_) => {
@@ -180,187 +189,216 @@ fn init_fixture<'a>(
     Ok(())
 }
 
+fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> ColoredString {
+    let mut snapshots = Vec::new();
+    let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
+    pallet_gear_debug::DebugMode::<Test>::put(true);
+    let mut programs: BTreeMap<ProgramId, H256> = test
+        .programs
+        .iter()
+        .map(|program| {
+            let program_path = program.path.clone();
+            let code = std::fs::read(&program_path).unwrap();
+
+            let salt = program.id.to_program_id().as_slice().to_vec();
+            let mut data = Vec::new();
+            // TODO #512
+            code.encode_to(&mut data);
+            salt.encode_to(&mut data);
+
+            // Make sure there is no program with such id in program storage
+            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+
+            progs_n_paths.push((program.path.as_ref(), ProgramId::from(id.as_bytes())));
+
+            (program.id.to_program_id(), id)
+        })
+        .collect();
+
+    match init_fixture(&test, fixture, &programs, &mut progs_n_paths) {
+        Ok(()) => {
+            let mut errors = vec![];
+            let mut expected_log = vec![];
+            for exp in &fixture.expected {
+                while !gear_common::StorageQueue::<gear_common::Message>::get(
+                    gear_common::STORAGE_MESSAGE_PREFIX,
+                )
+                .is_empty()
+                {
+                    run_to_block(System::block_number() + 1, None);
+                    let events = System::events();
+                    for event in events {
+                        match &event.event {
+                            crate::mock::Event::GearDebug(snapshot) => {
+                                // snapshots.push(snapshot);
+                                match snapshot {
+                                    pallet_gear_debug::Event::DebugDataSnapshot(snapshot) => {
+                                        // println!("Got snapshot {:?}", snapshot);
+                                        snapshots.push(snapshot.clone());
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                    // println!("snapshots: {:#?}", &snapshots);
+                    // if sp_io::storage::get(
+                    //     &[gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat(),
+                    // )
+                    // .is_none()
+                    // {
+                    //     break;
+                    // }
+                    run_to_block(System::block_number() + 1, None);
+                    System::reset_events();
+                }
+
+                if let Some(mut expected_messages) = exp.messages.clone() {
+                    if expected_messages.is_empty() {
+                        break;
+                    }
+                    let message_queue: Vec<Message> = if let Some(step) = exp.step {
+                        println!(
+                            "snapshots.len() = {}, step({}), progs({})",
+                            snapshots.len(),
+                            step,
+                            test.programs.len()
+                        );
+                        if step == 0 {
+                            continue;
+                        }
+                        snapshots
+                            .get((step + test.programs.len()) - 1)
+                            .unwrap()
+                            .message_queue
+                            .iter()
+                            .map(|msg| Message::from(msg.clone()))
+                            .collect()
+                    } else {
+                        snapshots
+                            .last()
+                            .unwrap()
+                            .message_queue
+                            .iter()
+                            .map(|msg| Message::from(msg.clone()))
+                            .collect()
+                    };
+
+                    expected_messages.iter_mut().for_each(|msg| {
+                        msg.destination = gear_test::address::Address::H256(
+                            programs[&msg.destination.to_program_id()],
+                        )
+                    });
+
+                    if let Err(msg_errors) = gear_test::check::check_messages(
+                        &progs_n_paths,
+                        &message_queue,
+                        &expected_messages,
+                    ) {
+                        errors.push(format!("step: {:?}", exp.step));
+                        errors.extend(
+                            msg_errors
+                                .into_iter()
+                                .map(|err| format!("Messages check [{}]", err)),
+                        );
+                    }
+
+                    // println!("res: {:#?}", &message_queue);
+                    // println!("res: {:#?}", res);
+                }
+                // let user_id = &<T::AccountId as Origin>::from_origin(USER_1);
+                if let Some(log) = &exp.log {
+                    expected_log.append(&mut log.clone());
+                }
+            }
+            let mut mailbox: Vec<gear_common::Message> = vec![];
+            pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
+                for msg in user_mailbox.values() {
+                    mailbox.push(msg.clone())
+                }
+            });
+            if expected_log.len() > 0 {
+                log::info!("Some(mailbox): {:?}", &mailbox);
+
+                let messages: Vec<Message> = mailbox
+                    .iter()
+                    .map(|msg| Message::from(msg.clone()))
+                    .collect();
+
+                for message in &messages {
+                    if let Ok(utf8) = core::str::from_utf8(message.payload()) {
+                        println!("log({})", utf8)
+                    }
+                }
+
+                if let Err(log_errors) =
+                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log)
+                {
+                    errors.extend(
+                        log_errors
+                            .into_iter()
+                            .map(|err| format!("Log check [{}]", err)),
+                    );
+                }
+            }
+
+            if !errors.is_empty() {
+                errors.insert(0, "\n".to_string());
+                // total_failed.fetch_add(1, Ordering::SeqCst);
+                errors.join("\n").bright_red()
+            } else {
+                "Ok".bright_green()
+            }
+        }
+        Err(e) => {
+            // total_failed += 1;
+            format!("Initialization error ({})", e).bright_red()
+        }
+    }
+}
+
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
-        for input in &self.input {
-            let test = read_test_from_file(input).map_err(|e| e.to_string())?;
-            println!("Test {:?}", input.file_name().unwrap_or(&OsStr::new("_")));
+        let mut tests = vec![];
+        for path in &self.input {
+            if path.is_dir() {
+                for entry in path.read_dir().expect("read_dir call failed").flatten() {
+                    tests.push(read_test_from_file(entry.path()).map_err(|e| e.to_string())?);
+                }
+            } else {
+                tests.push(read_test_from_file(path).map_err(|e| e.to_string())?);
+            }
+        }
+        log::info!("tests: {:?}", tests.len());
 
-            let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
+        let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
+        let mut total_failed = 0;
+
+        println!("Total fixtures: {}", total_fixtures);
+
+        for test in &tests {
+            // let test = read_test_from_file(input).map_err(|e| e.to_string())?;
+            // println!("Test {:?}", test.ti);
 
             for fixture in &test.fixtures {
-                new_test_ext()
-                    .execute_with(|| {
-                        println!("Fixture {}", fixture.title);
-                        let mut errors = vec![];
-                        let mut snapshots = Vec::new();
-                        pallet_gear_debug::DebugMode::<Test>::put(true);
-                        let mut programs: BTreeMap<ProgramId, H256> = test
-                            .programs
-                            .iter()
-                            .map(|program| {
-                                let program_path = program.path.clone();
-                                let code = std::fs::read(&program_path).unwrap();
+                new_test_ext().execute_with(|| {
+                    let output = run_fixture(&test, &fixture);
+                    gear_common::reset_storage();
+                    pallet_gear::Mailbox::<Test>::drain();
 
-                                let salt = program.id.to_program_id().as_slice().to_vec();
-                                let mut data = Vec::new();
-                                // TODO #512
-                                code.encode_to(&mut data);
-                                salt.encode_to(&mut data);
-
-                                // Make sure there is no program with such id in program storage
-                                let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
-
-                                progs_n_paths
-                                    .push((program.path.as_ref(), ProgramId::from(id.as_bytes())));
-
-                                (program.id.to_program_id(), id)
-                            })
-                            .collect();
-                        init_fixture(&test, fixture, &programs, &mut progs_n_paths);
-
-                        let mut expected_log = vec![];
-                        for exp in &fixture.expected {
-                            while !gear_common::StorageQueue::<gear_common::Message>::get(
-                                gear_common::STORAGE_MESSAGE_PREFIX,
-                            )
-                            .is_empty()
-                            {
-                                run_to_block(System::block_number() + 1, None);
-                                let events = System::events();
-                                for event in events {
-                                    match &event.event {
-                                        crate::mock::Event::GearDebug(snapshot) => {
-                                            // snapshots.push(snapshot);
-                                            match snapshot {
-                                                pallet_gear_debug::Event::DebugDataSnapshot(
-                                                    snapshot,
-                                                ) => {
-                                                    // println!("Got snapshot {:?}", snapshot);
-                                                    snapshots.push(snapshot.clone());
-                                                }
-                                                _ => (),
-                                            }
-                                        }
-                                        _ => (),
-                                    }
-                                }
-                                // println!("snapshots: {:#?}", &snapshots);
-                                // if sp_io::storage::get(
-                                //     &[gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat(),
-                                // )
-                                // .is_none()
-                                // {
-                                //     break;
-                                // }
-                                run_to_block(System::block_number() + 1, None);
-                                System::reset_events();
-                            }
-
-                            if let Some(mut expected_messages) = exp.messages.clone() {
-                                if expected_messages.is_empty() {
-                                    break;
-                                }
-                                let message_queue: Vec<Message> = if let Some(step) = exp.step {
-                                    println!(
-                                        "snapshots.len() = {}, step({}), progs({})",
-                                        snapshots.len(),
-                                        step,
-                                        test.programs.len()
-                                    );
-                                    if step == 0 {
-                                        continue;
-                                    }
-                                    snapshots
-                                        .get((step + test.programs.len()) - 1)
-                                        .unwrap()
-                                        .message_queue
-                                        .iter()
-                                        .map(|msg| Message::from(msg.clone()))
-                                        .collect()
-                                } else {
-                                    snapshots
-                                        .last()
-                                        .unwrap()
-                                        .message_queue
-                                        .iter()
-                                        .map(|msg| Message::from(msg.clone()))
-                                        .collect()
-                                };
-
-                                expected_messages.iter_mut().for_each(|msg| {
-                                    msg.destination = gear_test::address::Address::H256(
-                                        programs[&msg.destination.to_program_id()],
-                                    )
-                                });
-
-                                if let Err(msg_errors) = gear_test::check::check_messages(
-                                    &progs_n_paths,
-                                    &message_queue,
-                                    &expected_messages,
-                                ) {
-                                    errors.push(format!("step: {:?}", exp.step));
-                                    errors.extend(
-                                        msg_errors
-                                            .into_iter()
-                                            .map(|err| format!("Messages check [{}]", err)),
-                                    );
-                                }
-
-                                // println!("res: {:#?}", &message_queue);
-                                // println!("res: {:#?}", res);
-                            }
-                            // let user_id = &<T::AccountId as Origin>::from_origin(USER_1);
-                            if let Some(log) = &exp.log {
-                                expected_log.append(&mut log.clone());
-                            }
-                        }
-                        let mut mailbox: Vec<gear_common::Message> = vec![];
-                        pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
-                            for msg in user_mailbox.values() {
-                                mailbox.push(msg.clone())
-                            }
-                        });
-                        if expected_log.len() > 0 {
-                            log::info!("Some(mailbox): {:?}", &mailbox);
-
-                            let messages: Vec<Message> = mailbox
-                                .iter()
-                                .map(|msg| Message::from(msg.clone()))
-                                .collect();
-
-                            for message in &messages {
-                                if let Ok(utf8) = core::str::from_utf8(message.payload()) {
-                                    println!("log({})", utf8)
-                                }
-                            }
-
-                            if let Err(log_errors) = gear_test::check::check_messages(
-                                &progs_n_paths,
-                                &messages,
-                                &expected_log,
-                            ) {
-                                errors.extend(
-                                    log_errors
-                                        .into_iter()
-                                        .map(|err| format!("Log check [{}]", err)),
-                                );
-                            }
-                        }
-                        if !errors.is_empty() {
-                            errors.insert(0, "\n".to_string());
-                            // total_failed.fetch_add(1, Ordering::SeqCst);
-                            println!("{}", errors.join("\n"));
-                        } else {
-                            println!("Ok");
-                        }
-                        gear_common::reset_storage();
-                        pallet_gear::Mailbox::<Test>::drain();
-                        Ok(())
-                    })
-                    .map_err(|e: anyhow::Error| sc_cli::Error::Application(e.into()))?;
+                    println!("Fixture {}: {}", fixture.title.bold(), output);
+                    if !output.contains("Ok") && !output.contains("Skip") {
+                        total_failed += 1;
+                    }
+                });
             }
+        }
+        if total_failed == 0 {
+            return Ok(());
+        } else {
+            return Err(format!("{} tests failed", total_failed).into());
         }
         Ok(())
     }
