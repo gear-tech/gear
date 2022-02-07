@@ -1108,12 +1108,10 @@ fn messages_to_uninitialized_program_wait() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        // assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
 
         assert!(!Gear::is_initialized(program_id));
-        // assert!(!Gear::is_failed(program_id));
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(1).into(),
@@ -1160,7 +1158,6 @@ fn uninitialized_program_should_accept_replies() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        // assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
 
@@ -1188,7 +1185,6 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(3, None);
 
         assert!(Gear::is_initialized(program_id));
-        // assert!(!Gear::is_failed(program_id));
     })
 }
 

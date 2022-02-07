@@ -248,7 +248,7 @@ pub fn process_many<E: Environment<Ext>>(
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        // todo [sab] TMP FIX    
+        // todo [sab] TMP FIX
         let current_journal = process::<E>(Some(program.clone()), dispatch, block_info);
 
         for note in &current_journal {

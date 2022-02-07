@@ -33,7 +33,7 @@ use gear_core::{
 /// Type of wasm execution entry point.
 #[derive(Clone, Copy, Debug)]
 pub enum DispatchKind {
-    /// NO dispatch should be invoked
+    /// NO method should be invoked
     ///
     /// Message with such kind should be skipped
     None,
