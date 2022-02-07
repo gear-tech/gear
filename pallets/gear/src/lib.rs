@@ -342,7 +342,8 @@ pub mod pallet {
 
             let (kind, program) = match kind {
                 HandleKind::Init(code) => {
-                    // TODO: Add a fee for the code sumbitting to the gas spent.
+                    gas_burned = gas_burned
+                        .saturating_add(<T as Config>::WeightInfo::submit_code(code.len() as u32));
                     (
                         DispatchKind::Init,
                         ext_manager.program_from_code(dest, code)?,
