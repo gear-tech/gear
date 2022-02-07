@@ -3,6 +3,9 @@ title: Async-duplicates-sync
 programs:
   - id: 1
     path: target/wasm32-unknown-unknown/release/demo_sync_duplicate.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
 
   - id: 2
     path: target/wasm32-unknown-unknown/release/demo_ping.wasm
