@@ -22,8 +22,6 @@
 //! During execution data from storage is loaded for all pages, which has been accesed.
 //! See also [handle_sigsegv].
 
-// #![allow(dead_code)]
-
 use std::{cell::RefCell, collections::BTreeMap};
 
 use gear_core::memory::{PageNumber, PAGE_SIZE};

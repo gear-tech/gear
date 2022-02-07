@@ -30,7 +30,7 @@ pub use sp_std::vec::Vec;
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    /// Allpy mprotect syscall for given list of wasm pages.
+    /// Apply mprotect syscall for given list of wasm pages.
     fn mprotect_wasm_pages(
         from_ptr: u64,
         pages_nums: &[u32],
