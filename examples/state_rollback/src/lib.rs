@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{msg, prelude::*};
+use gstd::{exec, msg, prelude::*};
 
 static mut MESSAGE: Option<String> = None;
 
@@ -21,6 +21,10 @@ pub unsafe extern "C" fn handle() {
 
         if message == "panic" {
             panic!();
+        };
+
+        if message == "leave" {
+            exec::leave();
         }
     }
 }

@@ -42,3 +42,47 @@ fixtures:
             payload:
               kind: utf-8
               value: B
+
+  - title: state-saving
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "A"
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "leave"
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "B"
+
+    expected:
+      - allowError: true
+        log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: EMPTY
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: A
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: A
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: leave
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: leave
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: B
