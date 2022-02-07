@@ -19,7 +19,7 @@
 use crate::{
     common::{
         Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote,
-        SendValueKindFactory,
+        SendValueNoteFactory,
     },
     configs::{BlockInfo, ExecutionSettings},
     executor,
@@ -43,12 +43,10 @@ pub fn process<E: Environment<Ext>>(
     let message_id = dispatch.message.id();
     let origin = dispatch.message.source();
 
-    let send_value_factory = SendValueKindFactory::new(dispatch.message.value());
+    let send_value_factory = SendValueNoteFactory::new(dispatch.message.value());
 
     if program.is_none() {
         assert!(matches!(dispatch.kind, DispatchKind::None));
-
-        let send_value = send_value_factory.send_back(origin);
 
         // Reply back to the message `origin`
         let reply_message = Message::new_reply(
@@ -63,20 +61,17 @@ pub fn process<E: Environment<Ext>>(
             crate::ERR_EXIT_CODE,
         );
 
-        // Reply message destination could not have `handle_reply` method.
-        // TODO [discuss before merge]: If it's not intended to instantiate `Program` with `handle_reply` method existence check,
-        // then such system reply message should not be sent for programs without `handle_reply`, because execution of such messages
-        // will take gas for loading memory. It seems to be stealing gas from users for a reply message, that the user didn't want to
-        // handle in the program.
         journal.push(JournalNote::SendMessage {
             message_id,
             message: reply_message,
         });
         journal.push(JournalNote::MessageDispatched(
             DispatchOutcome::Skip(message_id),
-            send_value,
         ));
         journal.push(JournalNote::MessageConsumed(message_id));
+        if let Some(note) = send_value_factory.try_send_back(origin) {
+            journal.push(note);
+        }
 
         return journal;
     }
@@ -93,7 +88,6 @@ pub fn process<E: Environment<Ext>>(
         match executor::execute_wasm::<E>(program, dispatch, execution_settings) {
             Ok(res) => res,
             Err(e) => {
-                let send_value = send_value_factory.send_back(origin);
                 if let DispatchKind::Init = kind {
                     journal.push(JournalNote::MessageDispatched(
                         DispatchOutcome::InitFailure {
@@ -102,7 +96,6 @@ pub fn process<E: Environment<Ext>>(
                             program_id,
                             reason: e.reason,
                         },
-                        send_value,
                     ));
                 } else {
                     // TODO: generate trap reply here
@@ -112,7 +105,6 @@ pub fn process<E: Environment<Ext>>(
                             program_id,
                             trap: Some(e.reason),
                         },
-                        send_value,
                     ))
                 };
 
@@ -122,6 +114,9 @@ pub fn process<E: Environment<Ext>>(
                     amount: e.gas_amount.burned(),
                 });
                 journal.push(JournalNote::MessageConsumed(message_id));
+                if let Some(note) = send_value_factory.try_send_back(origin) {
+                    journal.push(note);
+                }
 
                 return journal;
             }
@@ -142,9 +137,10 @@ pub fn process<E: Environment<Ext>>(
         });
     }
 
+    let mut send_value_note = None;
     match dispatch_result.kind {
         DispatchResultKind::Success => {
-            let send_value = send_value_factory.send_further(origin, program_id);
+            send_value_note = send_value_factory.try_send_further(origin, program_id);
             if let DispatchKind::Init = kind {
                 journal.push(JournalNote::MessageDispatched(
                     DispatchOutcome::InitSuccess {
@@ -152,12 +148,10 @@ pub fn process<E: Environment<Ext>>(
                         origin,
                         program_id,
                     },
-                    send_value,
                 ))
             } else {
                 journal.push(JournalNote::MessageDispatched(
                     DispatchOutcome::Success(message_id),
-                    send_value,
                 ));
             };
 
@@ -169,7 +163,7 @@ pub fn process<E: Environment<Ext>>(
             journal.push(JournalNote::MessageConsumed(message_id));
         }
         DispatchResultKind::Trap(trap) => {
-            let send_value = send_value_factory.send_back(origin);
+            send_value_note = send_value_factory.try_send_back(origin);
             if let Some(message) = dispatch_result.trap_reply(dispatch_result.gas_amount.left()) {
                 journal.push(JournalNote::SendMessage {
                     message_id,
@@ -185,7 +179,6 @@ pub fn process<E: Environment<Ext>>(
                         program_id,
                         reason: trap.unwrap_or_default(),
                     },
-                    send_value,
                 ))
             } else {
                 journal.push(JournalNote::MessageDispatched(
@@ -194,7 +187,6 @@ pub fn process<E: Environment<Ext>>(
                         program_id,
                         trap,
                     },
-                    send_value,
                 ));
             }
 
@@ -217,6 +209,10 @@ pub fn process<E: Environment<Ext>>(
 
             journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch));
         }
+    }
+
+    if let Some(note) = send_value_note {
+        journal.push(note);
     }
 
     journal.push(JournalNote::UpdateNonce {

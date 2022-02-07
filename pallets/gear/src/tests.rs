@@ -1360,7 +1360,6 @@ fn test_message_processing_for_non_existing_destination() {
         run_to_block(2, None);
         // system reply message
         assert!(Mailbox::<Test>::contains_key(USER_1));
-        println!("{:?}", Mailbox::<Test>::get(USER_1));
 
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);

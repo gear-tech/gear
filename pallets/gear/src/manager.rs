@@ -25,8 +25,7 @@ use common::{
     GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
-    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, SendValueKind,
-    State,
+    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
 use frame_support::{
     storage::PrefixIterator,
@@ -189,7 +188,7 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
-    fn message_dispatched(&mut self, outcome: CoreDispatchOutcome, send_value_kind: SendValueKind) {
+    fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => Event::MessageDispatched(DispatchOutcome {
                 message_id: message_id.into_origin(),
@@ -278,24 +277,6 @@ where
                 Event::MessageSkipped(message_id.into_origin())
             }
         };
-
-        match send_value_kind {
-            SendValueKind::FurtherToDestination { from, to, value } => {
-                let from = <T::AccountId as Origin>::from_origin(from.into_origin());
-                let to = <T::AccountId as Origin>::from_origin(to.into_origin());
-                let _ = T::Currency::repatriate_reserved(
-                    &from,
-                    &to,
-                    value.unique_saturated_into(),
-                    BalanceStatus::Free,
-                );
-            }
-            SendValueKind::BackToSource { from, value } => {
-                let from = <T::AccountId as Origin>::from_origin(from.into_origin());
-                T::Currency::unreserve(&from, value.unique_saturated_into());
-            }
-            SendValueKind::None => {}
-        }
 
         Pallet::<T>::deposit_event(event);
     }
@@ -434,5 +415,30 @@ where
 
             common::set_program_persistent_pages(program_id, persistent_pages);
         };
+    }
+
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+        let from = from.into_origin();
+        if let Some(to) = to {
+            let to = to.into_origin();
+            log::debug!(
+                "Value send of amount {:?} from {:?} to {:?}",
+                value,
+                from,
+                to
+            );
+            let from = <T::AccountId as Origin>::from_origin(from);
+            let to = <T::AccountId as Origin>::from_origin(to);
+            let _ = T::Currency::repatriate_reserved(
+                &from,
+                &to,
+                value.unique_saturated_into(),
+                BalanceStatus::Free,
+            );
+            return;
+        }
+        log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
+        let from = <T::AccountId as Origin>::from_origin(from);
+        T::Currency::unreserve(&from, value.unique_saturated_into());
     }
 }

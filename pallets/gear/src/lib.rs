@@ -343,10 +343,9 @@ pub mod pallet {
                         JournalNote::GasBurned { amount, .. } => {
                             gas_burned = gas_burned.saturating_add(*amount)
                         }
-                        JournalNote::MessageDispatched(
-                            CoreDispatchOutcome::MessageTrap { .. },
-                            _,
-                        ) => return None,
+                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                            ..
+                        }) => return None,
                         _ => {}
                     }
                 }

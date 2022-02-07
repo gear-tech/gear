@@ -29,8 +29,8 @@ pub fn handle_journal(
 
     for note in journal.into_iter() {
         match note {
-            JournalNote::MessageDispatched(outcome, send_value_kind) => {
-                handler.message_dispatched(outcome, send_value_kind)
+            JournalNote::MessageDispatched(outcome) => {
+                handler.message_dispatched(outcome)
             }
             JournalNote::GasBurned {
                 message_id,
@@ -59,6 +59,7 @@ pub fn handle_journal(
                 let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
                 entry.insert(page_number, data);
             }
+            JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value)
         }
     }
 
