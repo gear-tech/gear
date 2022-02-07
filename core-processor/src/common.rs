@@ -111,31 +111,6 @@ impl DispatchResult {
     pub fn message_source(&self) -> ProgramId {
         self.dispatch.message.source()
     }
-
-    /// Generate trap reply if original message is a trap.
-    pub fn trap_reply(&mut self, gas_limit: u64) -> Option<Message> {
-        if let Some((_, exit_code)) = self.dispatch.message.reply() {
-            if exit_code != 0 {
-                return None;
-            }
-        };
-
-        let nonce = self.nonce;
-        self.nonce += 1;
-
-        let message = Message::new_reply(
-            crate::id::next_message_id(self.program_id(), nonce),
-            self.program_id(),
-            self.message_source(),
-            Default::default(),
-            gas_limit,
-            0,
-            self.message_id(),
-            crate::ERR_EXIT_CODE,
-        );
-
-        Some(message)
-    }
 }
 
 /// Dispatch outcome of the specific message.
