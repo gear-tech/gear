@@ -17,7 +17,7 @@ hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 log = "0.4.14"
-parity-scale-codec = { version = "*", features = ["derive"], default-features = false }
+parity-scale-codec = { version = "2.2.0", features = ["derive"], default-features = false }
 sp-keyring = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-core = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
