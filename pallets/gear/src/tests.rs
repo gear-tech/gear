@@ -162,10 +162,12 @@ fn send_message_expected_failure() {
         };
         run_to_block(2, None);
 
-        assert_noop!(
-            send_default_message(LOW_BALANCE_USER, program_id),
-            Error::<Test>::ProgramIsNotInitialized
-        );
+        // Assert program doesn't exist
+        assert!(!common::program_exists(program_id));
+
+        // Check message to such program goes to mailbox (destination doesn't exist)
+        assert_ok!(send_default_message(USER_1, program_id));
+        assert!(Mailbox::<Test>::contains_key(USER_1));
 
         // Submit valid program and test failing actions on it
         let program_id = {
@@ -179,17 +181,16 @@ fn send_message_expected_failure() {
             Error::<Test>::NotEnoughBalanceForReserve
         );
 
-        // Value transfer is attempted if `value` field is greater than 0
-        assert_noop!(
-            GearPallet::<Test>::send_message(
-                Origin::signed(LOW_BALANCE_USER).into(),
-                USER_1.into_origin(),
-                EMPTY_PAYLOAD.to_vec(),
-                1, // gas limit must be greater than 0 to have changed the state during reserve()
-                100
-            ),
-            pallet_balances::Error::<Test>::InsufficientBalance
-        );
+        // Because destination is user, no gas will be reserved
+        assert!(matches!(Mailbox::<Test>::remove_all(None), sp_io::KillStorageResult::AllRemoved(_)));
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(LOW_BALANCE_USER).into(),
+            USER_1.into_origin(),
+            EMPTY_PAYLOAD.to_vec(),
+            1000,
+            1
+        ));
+        assert!(Mailbox::<Test>::contains_key(USER_1));
 
         // Gas limit too high
         let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
@@ -534,12 +535,12 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        // assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
 
         assert!(Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        // assert!(!Gear::is_failed(program_id));
 
         // Submitting second program, which fails on initialization, therefore goes to limbo.
         let program_id = {
@@ -549,34 +550,34 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        // assert!(!Gear::is_failed(program_id));
 
         run_to_block(3, None);
 
         assert!(!Gear::is_initialized(program_id));
         // while at the same time being stuck in "limbo"
-        assert!(Gear::is_failed(program_id));
+        // assert!(Gear::is_failed(program_id));
 
         // Program author is allowed to remove the program and reclaim funds
         // An attempt to remove a program on behalf of another account will make no changes
-        assert_ok!(GearPallet::<Test>::remove_stale_program(
-            // Not the author
-            Origin::signed(LOW_BALANCE_USER).into(),
-            program_id,
-        ));
+        // assert_ok!(GearPallet::<Test>::remove_stale_program(
+        //     // Not the author
+        //     Origin::signed(LOW_BALANCE_USER).into(),
+        //     program_id,
+        // ));
         // Program in the storage
         assert!(common::get_program(program_id).is_some());
         // and is still in the limbo
-        assert!(GearPallet::<Test>::is_failed(program_id));
+        // assert!(GearPallet::<Test>::is_failed(program_id));
 
-        assert_ok!(GearPallet::<Test>::remove_stale_program(
-            Origin::signed(USER_1).into(),
-            program_id,
-        ));
+        // assert_ok!(GearPallet::<Test>::remove_stale_program(
+        //     Origin::signed(USER_1).into(),
+        //     program_id,
+        // ));
         // Program not in the storage
         assert!(common::get_program(program_id).is_none());
         // This time the program has been removed from limbo
-        assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
+        // assert!(crate::ProgramsLimbo::<Test>::get(program_id).is_none());
     })
 }
 
@@ -1117,12 +1118,12 @@ fn messages_to_uninitialized_program_wait() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        // assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        // assert!(!Gear::is_failed(program_id));
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(1).into(),
@@ -1169,7 +1170,7 @@ fn uninitialized_program_should_accept_replies() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        // assert!(!Gear::is_failed(program_id));
 
         run_to_block(2, None);
 
@@ -1197,7 +1198,7 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(3, None);
 
         assert!(Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        // assert!(!Gear::is_failed(program_id));
     })
 }
 

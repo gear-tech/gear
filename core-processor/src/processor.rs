@@ -19,7 +19,7 @@
 use crate::{
     common::{
         Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote,
-        SendValueKind, SendValueKindFactory,
+        SendValueKindFactory,
     },
     configs::{BlockInfo, ExecutionSettings},
     executor,
@@ -28,7 +28,7 @@ use crate::{
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::{self, Message},
+    message::Message,
     program::{Program, ProgramId},
 };
 
@@ -73,7 +73,7 @@ pub fn process<E: Environment<Ext>>(
             message: reply_message,
         });
         journal.push(JournalNote::MessageDispatched(
-            CoreDispatchOutcome::Skip(message_id),
+            DispatchOutcome::Skip(message_id),
             send_value,
         ));
         journal.push(JournalNote::MessageConsumed(message_id));
@@ -248,7 +248,8 @@ pub fn process_many<E: Environment<Ext>>(
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal = process::<E>(program.clone(), dispatch, block_info);
+        // todo [sab] TMP FIX    
+        let current_journal = process::<E>(Some(program.clone()), dispatch, block_info);
 
         for note in &current_journal {
             match note {

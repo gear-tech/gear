@@ -61,7 +61,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
+        traits::{BalanceStatus, Currency, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -337,7 +337,7 @@ pub mod pallet {
                 };
 
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    program, dispatch, block_info,
+                    Some(program), dispatch, block_info,
                 );
 
                 for note in &journal {
@@ -345,9 +345,10 @@ pub mod pallet {
                         JournalNote::GasBurned { amount, .. } => {
                             gas_burned = gas_burned.saturating_add(*amount)
                         }
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                            ..
-                        }) => return None,
+                        JournalNote::MessageDispatched(
+                            CoreDispatchOutcome::MessageTrap {..},
+                            _
+                        ) => return None,
                         _ => {}
                     }
                 }
@@ -395,7 +396,7 @@ pub mod pallet {
 
                 let program_id = message.dest;
                 let program = ext_manager.get_program(program_id);
-                let kind = if let Some(program) = program {
+                let kind = if program.is_some() {
                     let state = common::get_program_state(program_id).expect("program exists");
                     if let Some(kind) =
                         message
