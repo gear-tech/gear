@@ -82,9 +82,25 @@ pub fn block_timestamp() -> u64 {
     unsafe { sys::gr_block_timestamp() }
 }
 
-/// TODO
-pub fn exit(value_to: ActorId) -> ! {
-    unsafe { sys::gr_exit(value_to.as_slice().as_ptr()) }
+/// Terminate the execution of a program. This is similiar to `std::process::exit`.
+/// `value_destination` specifies the address where all available program's
+/// value should be transferred to.
+/// Program's ID and hash of its memory pages are stored for later
+/// restoration.
+/// Maybe called in `init` method as well.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     exec::exit(msg::source());
+/// }
+/// ```
+pub fn exit(value_destination: ActorId) -> ! {
+    unsafe { sys::gr_exit(value_destination.as_slice().as_ptr()) }
 }
 
 /// Get the current value of the gas available for execution.

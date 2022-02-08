@@ -88,7 +88,7 @@ pub trait Ext {
     /// Get the source of the message currently being handled.
     fn source(&mut self) -> ProgramId;
 
-    /// Kill the program and transfer all available value to the address.
+    /// Terminate the program and transfer all available value to the address.
     fn exit(&mut self, address: ProgramId) -> Result<(), &'static str>;
 
     /// Get the id of the message currently being handled.

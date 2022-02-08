@@ -72,7 +72,7 @@ pub enum DispatchResultKind {
     Trap(Option<&'static str>),
     /// Wait dispatch.
     Wait,
-    /// Exit dispatch
+    /// Exit dispatch.
     Exit(ProgramId),
 }
 

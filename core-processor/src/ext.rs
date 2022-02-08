@@ -44,7 +44,7 @@ pub struct Ext {
     pub config: AllocationsConfig,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
-    /// TODO
+    /// Contains argument to the `exit` if it was called.
     pub exit_argument: Option<ProgramId>,
 }
 
