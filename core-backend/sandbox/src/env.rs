@@ -28,11 +28,11 @@ use gear_core::{
     env::{Ext, LaterExt},
     memory::{Memory, PageBuf, PageNumber},
 };
+use gear_runtime_interface as gear_ri;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
     SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
 };
-use gear_runtime_interface as gear_ri;
 
 use common::Origin;
 use core::convert::TryFrom;

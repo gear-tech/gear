@@ -27,13 +27,13 @@ use frame_support::{
     dispatch::DispatchError,
     weights::{IdentityFee, WeightToFeePolynomial},
 };
+use gear_runtime_interface as gear_ri;
 use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;
-use gear_runtime_interface as gear_ri;
 
 pub use storage_queue::Iterator;
 use storage_queue::StorageQueue;
