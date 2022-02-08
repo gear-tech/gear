@@ -24,7 +24,5 @@ mod command;
 mod rpc;
 
 fn main() -> sc_cli::Result<()> {
-    // gear_lazy_pages::set_lazy_pages_signals();
-
     command::run()
 }

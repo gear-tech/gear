@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Runtime insterface for gear node
+//! Runtime interface for gear node
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
