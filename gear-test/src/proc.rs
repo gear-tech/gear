@@ -20,14 +20,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-fn encode_hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(s, "{:02x}", b).expect("Format failed")
-    }
-    s
-}
-
 pub fn parse_payload(payload: String, programs: Option<&BTreeMap<ProgramId, H256>>) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
@@ -40,35 +32,62 @@ pub fn parse_payload(payload: String, programs: Option<&BTreeMap<ProgramId, H256
         if let Some(programs) = programs {
             s = s.replace(
                 &caps[0],
-                &encode_hex(programs[&ProgramId::from(id)].as_bytes()),
+                &hex::encode(programs[&ProgramId::from(id)].as_bytes()),
             );
         } else {
-            s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+            s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_slice()));
         }
     }
 
     while let Some(caps) = account_regex.captures(&s) {
         let id = &caps["id"];
-        s = s.replace(
-            &caps[0],
-            &encode_hex(
-                ProgramId::from_slice(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
+        if let Some(programs) = programs {
+            s = s.replace(
+                &caps[0],
+                &hex::encode(
+                    programs[&ProgramId::from_slice(
+                        Keyring::from_str(id).unwrap().to_h256_public().as_bytes(),
+                    )]
+                        .as_bytes(),
+                ),
+            );
+        } else {
+            s = s.replace(
+                &caps[0],
+                &hex::encode(
+                    ProgramId::from_slice(
+                        Keyring::from_str(id).unwrap().to_h256_public().as_bytes(),
+                    )
                     .as_slice(),
-            ),
-        );
+                ),
+            );
+        }
     }
 
     while let Some(caps) = ss58_regex.captures(&s) {
         let id = &caps["id"];
-        s = s.replace(
-            &caps[0],
-            &encode_hex(
-                ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
-                    .as_slice(),
-            ),
-        );
+        if let Some(programs) = programs {
+            s = s.replace(
+                &caps[0],
+                &hex::encode(
+                    programs[&ProgramId::from_slice(
+                        Public::from_ss58check(id).unwrap().as_bytes_ref(),
+                    )]
+                        .as_bytes(),
+                ),
+            );
+        } else {
+            s = s.replace(
+                &caps[0],
+                &hex::encode(
+                    ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
+                        .as_slice(),
+                ),
+            );
+        }
     }
 
+    println!("parse_payload: {}", &s);
     s
 }
 

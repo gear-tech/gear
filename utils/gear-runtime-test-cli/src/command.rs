@@ -41,7 +41,7 @@ use gear_test::{
     sample::PayloadVariant,
 };
 use pallet_gear::Pallet as GearPallet;
-use pallet_gear_debug::Pallet as GearDebugPallet;
+use pallet_gear_debug::{DebugData, Pallet as GearDebugPallet};
 use rand::Rng;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
@@ -59,13 +59,14 @@ fn init_fixture<'a>(
     fixture: &sample::Fixture,
     programs: &BTreeMap<ProgramId, H256>,
     progs_n_paths: &mut Vec<(&'a str, ProgramId)>,
+    snapshots: &mut Vec<DebugData>,
 ) -> anyhow::Result<()> {
     for program in &test.programs {
         log::info!("programs: {:?}", &programs);
-        match program.id {
-            Address::ProgramId(_) => (),
-            _ => return Err(anyhow::anyhow!("Program custom id - Skip")),
-        }
+        // match program.id {
+        //     Address::ProgramId(_) => (),
+        //     _ => return Err(anyhow::anyhow!("Program custom id - Skip")),
+        // }
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path).unwrap();
         let mut init_message = Vec::new();
@@ -106,7 +107,30 @@ fn init_fixture<'a>(
         ) {
             return Err(anyhow::format_err!("Init fixture err: {:?}", e));
         }
-        // log::debug!("init extrinsic: {:?}", res);
+        while !gear_common::StorageQueue::<gear_common::Message>::get(
+            gear_common::STORAGE_MESSAGE_PREFIX,
+        )
+        .is_empty()
+        {
+            run_to_block(System::block_number() + 1, None);
+            let events = System::events();
+            for event in events {
+                match &event.event {
+                    crate::mock::Event::GearDebug(snapshot) => {
+                        // snapshots.push(snapshot);
+                        match snapshot {
+                            pallet_gear_debug::Event::DebugDataSnapshot(snapshot) => {
+                                // println!("Got snapshot {:?}", snapshot);
+                                snapshots.push(snapshot.clone());
+                            }
+                            _ => (),
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            System::reset_events();
+        }
     }
 
     for message in &fixture.messages {
@@ -169,21 +193,16 @@ fn init_fixture<'a>(
             return Err(anyhow::anyhow!("Message custom source - Skip"));
         }
 
-        match message.destination {
-            gear_test::address::Address::ProgramId(_) => {
-                log::info!(
-                    "{:?}",
-                    GearPallet::<Test>::send_message(
-                        crate::mock::Origin::signed(USER_1).into(),
-                        programs[&message.destination.to_program_id()],
-                        payload,
-                        gas_limit, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
-                        message.value.unwrap_or(0),
-                    )
-                );
-            }
-            _ => (),
-        }
+        log::info!(
+            "{:?}",
+            GearPallet::<Test>::send_message(
+                crate::mock::Origin::signed(USER_1).into(),
+                programs[&message.destination.to_program_id()],
+                payload,
+                gas_limit,
+                message.value.unwrap_or(0),
+            )
+        );
     }
 
     Ok(())
@@ -215,10 +234,23 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
         })
         .collect();
 
-    match init_fixture(&test, fixture, &programs, &mut progs_n_paths) {
+    match init_fixture(
+        &test,
+        fixture,
+        &programs,
+        &mut progs_n_paths,
+        &mut snapshots,
+    ) {
         Ok(()) => {
             let mut errors = vec![];
             let mut expected_log = vec![];
+            let mut mailbox: Vec<gear_common::Message> = vec![];
+            pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
+                for msg in user_mailbox.values() {
+                    mailbox.push(msg.clone())
+                }
+            });
+
             for exp in &fixture.expected {
                 while !gear_common::StorageQueue::<gear_common::Message>::get(
                     gear_common::STORAGE_MESSAGE_PREFIX,
@@ -242,16 +274,12 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                             _ => (),
                         }
                     }
-                    // println!("snapshots: {:#?}", &snapshots);
-                    // if sp_io::storage::get(
-                    //     &[gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat(),
-                    // )
-                    // .is_none()
-                    // {
-                    //     break;
-                    // }
-                    run_to_block(System::block_number() + 1, None);
                     System::reset_events();
+                    pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
+                        for msg in user_mailbox.values() {
+                            mailbox.push(msg.clone())
+                        }
+                    });
                 }
 
                 if let Some(mut expected_messages) = exp.messages.clone() {
@@ -295,6 +323,7 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                         &progs_n_paths,
                         &message_queue,
                         &expected_messages,
+                        Some(&programs),
                     ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
@@ -312,12 +341,6 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                     expected_log.append(&mut log.clone());
                 }
             }
-            let mut mailbox: Vec<gear_common::Message> = vec![];
-            pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
-                for msg in user_mailbox.values() {
-                    mailbox.push(msg.clone())
-                }
-            });
             if expected_log.len() > 0 {
                 log::info!("Some(mailbox): {:?}", &mailbox);
 
@@ -332,9 +355,12 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                     }
                 }
 
-                if let Err(log_errors) =
-                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log)
-                {
+                if let Err(log_errors) = gear_test::check::check_messages(
+                    &progs_n_paths,
+                    &messages,
+                    &expected_log,
+                    Some(&programs),
+                ) {
                     errors.extend(
                         log_errors
                             .into_iter()
