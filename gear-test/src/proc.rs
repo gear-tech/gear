@@ -21,7 +21,7 @@ use std::{
 fn encode_hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for &b in bytes {
-        write!(&mut s, "{:02x}", b).expect("Format failed")
+        write!(s, "{:02x}", b).expect("Format failed")
     }
     s
 }
@@ -101,9 +101,9 @@ where
 
     journal_handler.store_program(program.clone(), message.message.id());
 
-    let res = core_processor::process::<E>(program, message.into(), block_info);
+    let journal = core_processor::process::<E>(program, message.into(), block_info);
 
-    core_processor::handle_journal(res.journal, journal_handler);
+    core_processor::handle_journal(journal, journal_handler);
 
     Ok(())
 }
@@ -255,13 +255,13 @@ where
             if let Some(m) = state.message_queue.pop_front() {
                 let program = state.programs.get(&m.dest()).expect("Can't find program");
 
-                let res = core_processor::process::<E>(
+                let journal = core_processor::process::<E>(
                     program.clone(),
                     journal_handler.message_to_dispatch(m),
                     BlockInfo { height, timestamp },
                 );
 
-                core_processor::handle_journal(res.journal, journal_handler);
+                core_processor::handle_journal(journal, journal_handler);
 
                 log::debug!("step: {}", step_no + 1);
             }
@@ -280,7 +280,7 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let res = core_processor::process::<E>(
+            let journal = core_processor::process::<E>(
                 program.clone(),
                 journal_handler.message_to_dispatch(m),
                 BlockInfo {
@@ -290,7 +290,7 @@ where
             );
             counter += 1;
 
-            core_processor::handle_journal(res.journal, journal_handler);
+            core_processor::handle_journal(journal, journal_handler);
 
             state = journal_handler.collect();
             log::debug!("{:?}", state);

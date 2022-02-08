@@ -18,7 +18,7 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use core_processor::{
-    common::{Dispatch, DispatchKind, DispatchOutcome, JournalHandler, ProcessResult},
+    common::{Dispatch, DispatchKind, DispatchOutcome, JournalHandler},
     configs::BlockInfo,
     Ext,
 };
@@ -90,13 +90,15 @@ impl InitProgram {
             .map(|msg| msg.into_ext(context))
             .unwrap_or_else(|| MessageBuilder::from(()).into_ext(context));
 
+        let new_program_id = self.program_id.unwrap_or_else(|| context.next_program_id());
+
         InitializeProgramInfo {
-            new_program_id: self.program_id.unwrap_or_else(|| context.next_program_id()),
+            new_program_id,
             code: self.code,
             message: Message {
                 id: message.id,
                 source: self.source_id.unwrap_or_else(ProgramId::system),
-                dest: self.program_id.unwrap_or_else(|| context.next_program_id()),
+                dest: new_program_id,
                 payload: message.payload.into(),
                 gas_limit: message.gas_limit,
                 value: message.value,
@@ -267,9 +269,7 @@ impl<'a> JournalHandler for Journal<'a> {
                     RunResult::Trap(trap.unwrap_or("No message").to_string()),
                 );
             }
-            DispatchOutcome::InitSuccess { program, .. } => {
-                self.context.programs.insert(program.id(), program);
-            }
+            DispatchOutcome::InitSuccess { .. } => {}
             DispatchOutcome::InitFailure {
                 program_id,
                 message_id,
@@ -401,23 +401,19 @@ impl RunnerContext {
         };
         let message_id = dispatch.message.id;
 
-        let journal = {
-            let program = self
-                .programs
-                .remove(&new_program_id)
-                .expect("Program not found");
-            let ProcessResult { program, journal } =
-                core_processor::process::<WasmtimeEnvironment<Ext>>(
-                    program,
-                    dispatch,
-                    BlockInfo {
-                        height: 1,
-                        timestamp: 1,
-                    },
-                );
-            self.programs.insert(program.id(), program);
-            journal
-        };
+        let program = self
+            .programs
+            .get(&new_program_id)
+            .expect("Program not found");
+
+        let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
+            program.clone(),
+            dispatch,
+            BlockInfo {
+                height: 1,
+                timestamp: 1,
+            },
+        );
 
         core_processor::handle_journal(journal, &mut Journal { context: self });
 

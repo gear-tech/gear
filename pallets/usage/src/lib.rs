@@ -305,21 +305,25 @@ pub mod pallet {
                             ) {
                                 log::warn!("Failed to repatriate reserved amount: {:?}", e);
                             }
-                            if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                gas_tree.origin(),
-                                &Authorship::<T>::author(),
-                                validator_reward,
-                            ) {
-                                log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                            if let Some(author) = Authorship::<T>::author() {
+                                if let Err(e) = T::PaymentProvider::withhold_reserved(
+                                    gas_tree.origin(),
+                                    &author,
+                                    validator_reward,
+                                ) {
+                                    log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                                }
                             }
                         }
                         _ => {
-                            if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                gas_tree.origin(),
-                                &Authorship::<T>::author(),
-                                T::GasConverter::gas_to_fee(actual_fee),
-                            ) {
-                                log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                            if let Some(author) = Authorship::<T>::author() {
+                                if let Err(e) = T::PaymentProvider::withhold_reserved(
+                                    gas_tree.origin(),
+                                    &author,
+                                    T::GasConverter::gas_to_fee(actual_fee),
+                                ) {
+                                    log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                                }
                             }
                         }
                     };

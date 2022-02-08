@@ -20,6 +20,7 @@
 
 use alloc::{
     collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::{self, Debug, Formatter},
     vec::Vec,
 };
 use gear_core::{
@@ -80,8 +81,6 @@ pub struct DispatchResult {
     /// Kind of the dispatch.
     pub kind: DispatchResultKind,
 
-    /// Program returned with the dispatch result.
-    pub program: Program,
     /// Original dispatch.
     pub dispatch: Dispatch,
 
@@ -107,37 +106,12 @@ impl DispatchResult {
 
     /// Return dispatch target program id.
     pub fn program_id(&self) -> ProgramId {
-        self.program.id()
+        self.dispatch.message.dest()
     }
 
     /// Return dispatch source program id.
     pub fn message_source(&self) -> ProgramId {
         self.dispatch.message.source()
-    }
-
-    /// Generate trap reply if original message is a trap.
-    pub fn trap_reply(&mut self, gas_limit: u64) -> Option<Message> {
-        if let Some((_, exit_code)) = self.dispatch.message.reply() {
-            if exit_code != 0 {
-                return None;
-            }
-        };
-
-        let nonce = self.nonce;
-        self.nonce += 1;
-
-        let message = Message::new_reply(
-            crate::id::next_message_id(self.program_id(), nonce),
-            self.program_id(),
-            self.message_source(),
-            Default::default(),
-            gas_limit,
-            0,
-            self.message_id(),
-            crate::ERR_EXIT_CODE,
-        );
-
-        Some(message)
     }
 }
 
@@ -150,8 +124,8 @@ pub enum DispatchOutcome {
         message_id: MessageId,
         /// Original actor.
         origin: ProgramId,
-        /// Program that was successsfully initialized.
-        program: Program,
+        /// Id of the program that was successfully initialized.
+        program_id: ProgramId,
     },
     /// Message was an initialization failure.
     InitFailure {
@@ -275,18 +249,10 @@ pub trait JournalHandler {
     );
 }
 
-/// Result of the message processing.
-pub struct ProcessResult {
-    /// Program that was used to process the message.
-    pub program: Program,
-    /// List of journal notes.
-    pub journal: Vec<JournalNote>,
-}
-
 /// Execution error.
 pub struct ExecutionError {
-    /// Program that generated execution error.
-    pub program: Program,
+    /// Id of the program that generated execution error.
+    pub program_id: ProgramId,
     /// Gas amount of the execution.
     pub gas_amount: GasAmount,
     /// Error text.
@@ -306,8 +272,8 @@ pub struct State {
     pub current_failed: bool,
 }
 
-impl alloc::fmt::Debug for State {
-    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> alloc::fmt::Result {
+impl Debug for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
             .field("message_queue", &self.message_queue)
             .field("log", &self.log)

@@ -102,6 +102,7 @@ pub mod pallet {
         <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
     #[pallet::pallet]
+    #[pallet::without_storage_info]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
@@ -336,11 +337,11 @@ pub mod pallet {
                     message: message.into(),
                 };
 
-                let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                let journal = core_processor::process::<SandboxEnvironment<Ext>>(
                     program, dispatch, block_info,
                 );
 
-                for note in &res.journal {
+                for note in &journal {
                     match note {
                         JournalNote::GasBurned { amount, .. } => {
                             gas_burned = gas_burned.saturating_add(*amount)
@@ -352,7 +353,7 @@ pub mod pallet {
                     }
                 }
 
-                core_processor::handle_journal(res.journal, &mut ext_manager);
+                core_processor::handle_journal(journal, &mut ext_manager);
             }
 
             Some(gas_burned)
@@ -449,11 +450,11 @@ pub mod pallet {
                     message: message.into(),
                 };
 
-                let res = core_processor::process::<SandboxEnvironment<Ext>>(
+                let journal = core_processor::process::<SandboxEnvironment<Ext>>(
                     program, dispatch, block_info,
                 );
 
-                core_processor::handle_journal(res.journal, &mut ext_manager);
+                core_processor::handle_journal(journal, &mut ext_manager);
 
                 total_handled += 1;
 

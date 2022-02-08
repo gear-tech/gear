@@ -24,15 +24,13 @@ use crate::{
 };
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    vec,
     vec::Vec,
 };
-use gear_backend_common::Environment;
+use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
-    env::Ext as EnvExt,
-    gas::{ChargeResult, GasAmount, GasCounter},
+    gas::{self, ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
-    message::{MessageContext, MessageState},
+    message::MessageContext,
     program::Program,
 };
 
@@ -42,18 +40,20 @@ pub fn execute_wasm<E: Environment<Ext>>(
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    let mut env = E::new();
+    let mut env: E = Default::default();
 
     let Dispatch { kind, message } = dispatch.clone();
+
+    let program_id = program.id();
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(message.gas_limit());
 
-    let instrumented_code = match gear_core::gas::instrument(program.code()) {
+    let instrumented_code = match gas::instrument(program.code()) {
         Ok(code) => code,
-        Err(_) => {
+        _ => {
             return Err(ExecutionError {
-                program,
+                program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Cannot instrument code with gas-counting instructions.",
             })
@@ -62,27 +62,38 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
     // Charging for initial or loaded pages.
     if program.get_pages().is_empty() {
-        if gas_counter.charge(settings.init_cost() * program.static_pages() as u64)
-            != ChargeResult::Enough
-        {
+        let amount = settings.init_cost() * program.static_pages() as u64;
+
+        if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
-                program,
+                program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for initial memory.",
             });
         };
-    } else if gas_counter.charge(settings.load_page_cost() * program.get_pages().len() as u64)
-        != ChargeResult::Enough
-    {
-        return Err(ExecutionError {
-            program,
-            gas_amount: gas_counter.into(),
-            reason: "Not enough gas for loading memory.",
-        });
-    };
+    } else {
+        let amount = settings.load_page_cost() * program.get_pages().len() as u64;
+
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: "Not enough gas for loading memory.",
+            });
+        };
+    }
 
     // Creating memory.
-    let memory = env.create_memory(program.static_pages());
+    let memory = match env.create_memory(program.static_pages()) {
+        Ok(mem) => mem,
+        Err(e) => {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: e,
+            })
+        }
+    };
 
     // Charging gas for future growths.
     if let Some(max_page) = program.get_pages().iter().next_back() {
@@ -94,7 +105,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
             if gas_counter.charge(amount) != ChargeResult::Enough {
                 return Err(ExecutionError {
-                    program,
+                    program_id,
                     gas_amount: gas_counter.into(),
                     reason: "Not enough gas for grow memory size.",
                 });
@@ -104,18 +115,22 @@ pub fn execute_wasm<E: Environment<Ext>>(
         }
     }
 
+    let initial_pages = program.get_pages();
+
     // Getting allocations.
-    let allocations: BTreeSet<PageNumber> = if !program.get_pages().is_empty() {
-        program.get_pages().keys().cloned().collect()
+    let allocations: BTreeSet<PageNumber> = if !initial_pages.is_empty() {
+        initial_pages.keys().cloned().collect()
     } else {
         (0..program.static_pages()).map(Into::into).collect()
     };
 
+    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
+
     // Creating memory context.
     let memory_context = MemoryContext::new(
-        program.id(),
+        program_id,
         memory.clone(),
-        allocations.clone(),
+        allocations,
         program.static_pages().into(),
         settings.max_pages(),
     );
@@ -124,7 +139,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let message_context = MessageContext::new(
         message.clone().into(),
         BlakeMessageIdGenerator {
-            program_id: program.id(),
+            program_id,
             nonce: program.message_nonce(),
         },
     );
@@ -137,94 +152,92 @@ pub fn execute_wasm<E: Environment<Ext>>(
         block_info: settings.block_info,
         config: settings.config,
         error_explanation: None,
-        waited: false,
         exit_argument: None,
     };
 
-    let initial_pages = program.get_pages();
-
     // Running backend.
-    let (res, mut ext) = env.setup_and_run(
+    let BackendReport { termination, info } = match env.setup_and_execute(
         ext,
         &instrumented_code,
         initial_pages,
         &*memory,
         kind.into_entry(),
-    );
+    ) {
+        Ok(report) => report,
+        Err(e) => {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: e.gas_amount,
+                reason: e.reason,
+            })
+        }
+    };
 
     // Parsing outcome.
-    let kind = if let Err(e) = res {
-        let explanation = ext.error_explanation.take();
-        log::debug!(
-            "Trap during execution: {}, explanation: {}",
-            e,
-            explanation.unwrap_or("None")
-        );
-        DispatchResultKind::Trap(explanation)
-    } else if ext.waited {
-        DispatchResultKind::Wait
-    } else if let Some(address) = ext.exit_argument {
-        DispatchResultKind::Exit(address)
-    } else {
-        DispatchResultKind::Success
+    let kind = match termination {
+        TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
+        TerminationReason::Leave | TerminationReason::Success => {
+            DispatchResultKind::Success
+        }
+        TerminationReason::Trap {
+            explanation,
+            description,
+        } => {
+            log::debug!(
+                "💥 Trap during execution of {}\n❓ Description: {}📔 Explanation: {}",
+                program_id,
+                description.unwrap_or_else(|| "None".into()),
+                explanation.unwrap_or("None"),
+            );
+
+            DispatchResultKind::Trap(explanation)
+        }
+        TerminationReason::Wait => DispatchResultKind::Wait,
     };
 
     // Updating program memory
     let mut page_update = BTreeMap::new();
-    let persistent_pages = ext.memory_context.allocations().clone();
 
-    for page in &persistent_pages {
-        let mut buf = vec![0u8; PageNumber::size()];
-        ext.get_mem(page.offset(), &mut buf);
+    let actual_max_page = info
+        .pages
+        .iter()
+        .last()
+        .map(|(page, _)| page.raw())
+        .expect("Can't fail");
+
+    for (page, data) in info.pages {
         let mut need_update = true;
-        if let Some(data) = initial_pages.get(page) {
-            need_update = *data.to_vec() != buf;
+        if let Some(initial_data) = initial_pages.get(&page) {
+            need_update = *initial_data.to_vec() != data;
         }
         if need_update {
-            page_update.insert(*page, Some(buf));
+            page_update.insert(page, Some(data));
         }
     }
-
-    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
-    let actual_max_page = persistent_pages.iter().last().expect("Can't fail").raw();
 
     for removed_page in (actual_max_page + 1)..=prev_max_page {
         page_update.insert(removed_page.into(), None);
     }
 
-    // Storing outgoing messages from message state.
+    // Storing outgoing messages.
     let mut outgoing = Vec::new();
 
-    // Getting message nonce for program
-    let nonce = ext.message_context.nonce();
-
-    // Storing messages state
-    let MessageState {
-        outgoing: outgoing_from_state,
-        reply,
-        awakening,
-    } = ext.message_context.into_state();
-
-    for outgoing_msg in outgoing_from_state {
-        outgoing.push(outgoing_msg.into_message(program.id()));
+    for msg in info.outgoing {
+        outgoing.push(msg.into_message(program.id()));
     }
 
-    if let Some(reply_message) = reply {
+    if let Some(reply_message) = info.reply {
         outgoing.push(reply_message.into_message(message.id(), program.id(), message.source()));
     }
-
-    // Getting read-only gas counter
-    let gas_amount: GasAmount = ext.gas_counter.into();
 
     // Output.
     Ok(DispatchResult {
         kind,
-        program,
         dispatch,
         outgoing,
-        awakening,
-        gas_amount,
+        awakening: info.awakening,
+        gas_amount: info.gas_amount,
         page_update,
-        nonce,
+        nonce: info.nonce,
     })
 }

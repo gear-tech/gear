@@ -3,6 +3,9 @@ title: Incomplete-async-payloads
 programs:
   - id: 1
     path: target/wasm32-unknown-unknown/release/demo_incomplete_async_payloads.wasm
+    init_message:
+      kind: utf-8
+      value: "{2}"
 
   - id: 2
     path: target/wasm32-unknown-unknown/release/demo_ping.wasm
@@ -14,32 +17,42 @@ fixtures:
       - destination: 1
         payload:
           kind: utf-8
-          value: err common
-      - destination: 1
-        payload:
-          kind: utf-8
-          value: err reply
-      - destination: 1
-        payload:
-          kind: utf-8
           value: ok common
       - destination: 1
         payload:
           kind: utf-8
           value: ok reply
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: err common
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: err reply
 
     expected:
       - allowError: true
         log:
+          # from "ok common"
           - destination: 1000001
             payload:
               kind: utf-8
               value: OK PING
+          # from "ok reply"
           - destination: 1000001
             payload:
               kind: utf-8
               value: OK REPLY
+          # from "err common"
           - destination: 1000001
-            exitCode: 1
+            exitCode: 1 # In future should be "STORED COMMON"
+          # from "err reply"
           - destination: 1000001
-            exitCode: 1
+            payload:
+              kind: utf-8
+              value: I'll be sent
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: REPLY # stripped payload. should be "STORED REPLY"

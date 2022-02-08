@@ -1,0 +1,88 @@
+title: State-rollback
+
+programs:
+  - id: 1
+    path: target/wasm32-unknown-unknown/release/demo_state_rollback.wasm
+
+fixtures:
+  - title: state-rollback
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "A"
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "panic"
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "B"
+
+    expected:
+      - allowError: true
+        log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: EMPTY
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: A
+          - destination: 1000001
+            exitCode: 1
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: A
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: B
+
+  - title: state-saving
+
+    messages:
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "A"
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "leave"
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: "B"
+
+    expected:
+      - allowError: true
+        log:
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: EMPTY
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: A
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: A
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: leave
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: leave
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: B

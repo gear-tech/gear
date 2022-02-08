@@ -219,9 +219,9 @@ where
             CoreDispatchOutcome::InitSuccess {
                 message_id,
                 origin,
-                program,
+                program_id,
             } => {
-                let program_id = program.id().into_origin();
+                let program_id = program_id.into_origin();
                 let event = Event::InitSuccess(MessageInfo {
                     message_id: message_id.into_origin(),
                     origin: origin.into_origin(),
@@ -280,12 +280,14 @@ where
 
         self.gas_handler.spend(message_id, amount);
 
-        let _ = T::Currency::repatriate_reserved(
-            &<T::AccountId as Origin>::from_origin(origin.into_origin()),
-            &Authorship::<T>::author(),
-            charge,
-            BalanceStatus::Free,
-        );
+        if let Some(author) = Authorship::<T>::author() {
+            let _ = T::Currency::repatriate_reserved(
+                &<T::AccountId as Origin>::from_origin(origin.into_origin()),
+                &author,
+                charge,
+                BalanceStatus::Free,
+            );
+        }
     }
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {

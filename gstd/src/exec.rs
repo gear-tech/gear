@@ -79,6 +79,25 @@ pub fn exit(value_destination: ActorId) -> ! {
     gcore::exec::exit(value_destination.into())
 }
 
+/// Terminate the current message handling.
+///
+/// For cases when the message handling needs to be terminated with state
+/// saving.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::exec;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     exec::leave();
+/// }
+/// ```
+pub fn leave() -> ! {
+    gcore::exec::leave()
+}
+
 /// Pause the current message handling.
 ///
 /// If the message handling needs to be paused, i.e. to wait for another
