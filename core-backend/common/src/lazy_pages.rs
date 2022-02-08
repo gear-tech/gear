@@ -18,10 +18,10 @@
 
 //! Lazy pages support runtime functions
 
+use crate::ExtInfo;
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use common::Origin;
 use core::convert::TryFrom;
-use crate::ExtInfo;
 use gear_core::env::{Ext, LaterExt};
 use gear_core::memory::{PageBuf, PageNumber};
 use gear_runtime_interface as gear_ri;

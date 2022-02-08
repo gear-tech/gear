@@ -18,17 +18,15 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::{
-    funcs,
-    memory::MemoryWrap,
-};
+use crate::{funcs, memory::MemoryWrap};
 use alloc::{boxed::Box, collections::BTreeMap, format};
 use common::Origin;
 use core::convert::TryFrom;
 use core::marker::PhantomData;
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
+    funcs as common_funcs,
     lazy_pages::{self, LazyPagesEnabled},
+    BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},

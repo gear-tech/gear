@@ -22,7 +22,7 @@ use core::{
     convert::{TryFrom, TryInto},
     slice::Iter,
 };
-use gear_backend_common::{funcs, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR, lazy_pages};
+use gear_backend_common::{funcs, lazy_pages, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
     message::{MessageId, OutgoingPacket, ReplyPacket},
