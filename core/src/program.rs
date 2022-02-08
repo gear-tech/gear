@@ -236,13 +236,13 @@ impl Program {
     #[allow(clippy::borrowed_box)]
     pub fn get_page_data(&self, page: PageNumber) -> Option<&Box<PageBuf>> {
         let res = self.persistent_pages.get(&page);
-        res.expect("There is no data for page").as_ref()
+        res.expect("Page must be in persistent_pages").as_ref()
     }
 
     /// Get mut reference to memory page.
     pub fn get_page_mut(&mut self, page: PageNumber) -> Option<&mut Box<PageBuf>> {
         let res = self.persistent_pages.get_mut(&page);
-        res.expect("There is no data for page").as_mut()
+        res.expect("Page must be in persistent_pages; mut").as_mut()
     }
 
     /// Clear static area of this program.
