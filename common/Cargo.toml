@@ -22,7 +22,7 @@ sp-runtime = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substr
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-arithmetic = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-gear-ri = { path = "../ri", default-features = false }
+gear-runtime-interface = { path = "../runtime-interface", default-features = false }
 
 [features]
 default = ["std"]
@@ -36,5 +36,5 @@ std = [
     "sp-arithmetic/std",
     "frame-support/std",
     "primitive-types/std",
-    "gear-ri/std",
+    "gear-runtime-interface/std",
 ]

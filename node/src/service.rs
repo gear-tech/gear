@@ -27,6 +27,7 @@ use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_consensus::SlotData;
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
+use gear_runtime_interface as gear_ri;
 
 // Our native executor instance.
 pub struct ExecutorDispatch;

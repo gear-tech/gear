@@ -1,5 +1,5 @@
 [package]
-name = "gear-ri"
+name = "gear-runtime-interface"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 description = "Gear Runtime Interface"

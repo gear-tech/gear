@@ -29,6 +29,7 @@ use gear_core::{
     program::ProgramId,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
+use gear_runtime_interface as gear_ri;
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
 

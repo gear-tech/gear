@@ -1967,7 +1967,7 @@ dependencies = [
  "gear-backend-common",
  "gear-common",
  "gear-core",
- "gear-ri",
+ "gear-runtime-interface",
  "log",
  "sp-io",
  "sp-sandbox",
@@ -1988,7 +1988,7 @@ version = "0.1.0"
 dependencies = [
  "frame-support",
  "gear-core",
- "gear-ri",
+ "gear-runtime-interface",
  "log",
  "parity-scale-codec",
  "primitive-types",
@@ -2047,8 +2047,8 @@ dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "gear-lazy-pages",
- "gear-ri",
  "gear-runtime",
+ "gear-runtime-interface",
  "gear-test-cli",
  "hex-literal",
  "jsonrpc-core",
@@ -2087,20 +2087,6 @@ dependencies = [
  "sp-transaction-pool",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
-]
-
-[[package]]
-name = "gear-ri"
-version = "0.1.0"
-dependencies = [
- "errno",
- "gear-core",
- "gear-lazy-pages",
- "libc",
- "log",
- "page_size",
- "sp-runtime-interface",
- "sp-std",
 ]
 
 [[package]]
@@ -2149,6 +2135,20 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "wabt",
+]
+
+[[package]]
+name = "gear-runtime-interface"
+version = "0.1.0"
+dependencies = [
+ "errno",
+ "gear-core",
+ "gear-lazy-pages",
+ "libc",
+ "log",
+ "page_size",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
