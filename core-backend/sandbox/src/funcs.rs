@@ -22,13 +22,12 @@ use core::{
     convert::{TryFrom, TryInto},
     slice::Iter,
 };
-use gear_backend_common::{funcs, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use gear_backend_common::{funcs, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR, lazy_pages};
 use gear_core::{
     env::Ext,
     message::{MessageId, OutgoingPacket, ReplyPacket},
     program::ProgramId,
 };
-use gear_runtime_interface as gear_ri;
 use sp_sandbox::{HostError, ReturnValue, Value};
 
 pub(crate) type SyscallOutput = Result<ReturnValue, HostError>;
@@ -212,16 +211,11 @@ pub fn alloc<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
     // So, if lazy-pages are enabled we remove protections from lazy-pages
     // and returns it back for new wasm memory buffer pages.
     // Also we correct lazy-pages info if need.
-    let mut mem_addr = 0;
-    let mut lazy_pages = alloc::vec::Vec::new();
-    if ctx.lazy_pages_enabled {
-        mem_addr = ctx
-            .ext
-            .with(|ext| ext.get_wasm_memory_begin_addr())
-            .expect("Must be corrrect");
-        lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
-        gear_ri::gear_ri::mprotect_wasm_pages(mem_addr as u64, &lazy_pages, true, true, false);
-    }
+    let mem_addr = if ctx.lazy_pages_enabled.is_some() {
+        lazy_pages::remove_lazy_pages_prot(ctx.ext.clone())
+    } else {
+        0
+    };
 
     let ptr = ctx.ext.with(|ext| ext.alloc(pages.into())).and_then(|v| {
         v.map(|v| {
@@ -231,26 +225,8 @@ pub fn alloc<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
         })
     });
 
-    if ctx.lazy_pages_enabled && ptr.is_ok() {
-        let new_mem_addr = ctx
-            .ext
-            .with(|ext| ext.get_wasm_memory_begin_addr())
-            .expect("Must be corrrect");
-        if new_mem_addr != mem_addr {
-            log::debug!(
-                "sandbox executor changed wasm mem buff: from {:#x} to {:#x}",
-                mem_addr,
-                new_mem_addr
-            );
-            gear_ri::gear_ri::set_wasm_mem_begin_addr(new_mem_addr as u64);
-        }
-        gear_ri::gear_ri::mprotect_wasm_pages(
-            new_mem_addr as u64,
-            &lazy_pages,
-            false,
-            false,
-            false,
-        );
+    if ctx.lazy_pages_enabled.is_some() && ptr.is_ok() {
+        lazy_pages::protect_lazy_pages_and_set_wasm_mem(ctx.ext.clone(), mem_addr);
     }
 
     ptr.map(|res| ReturnValue::Value(Value::I32(res as i32)))

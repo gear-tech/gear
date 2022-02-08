@@ -23,6 +23,7 @@
 extern crate alloc;
 
 pub mod funcs;
+pub mod lazy_pages;
 
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_core::{
