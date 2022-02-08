@@ -20,6 +20,7 @@ use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
     Pallet, ProgramsLimbo,
 };
+use codec::{Decode, Encode};
 use common::{
     value_tree::{ConsumeResult, ValueView},
     GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
@@ -33,7 +34,7 @@ use frame_support::{
 };
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{ExitCode, Message, MessageId},
     program::{Program, ProgramId},
 };
 use primitive_types::H256;
@@ -47,6 +48,13 @@ use sp_std::{
 pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
     _phantom: PhantomData<T>,
     gas_handler: GH,
+}
+
+#[derive(Decode, Encode)]
+pub enum HandleKind {
+    Init(Vec<u8>),
+    Handle(H256),
+    Reply(H256, ExitCode),
 }
 
 pub trait GasHandler {
@@ -153,6 +161,14 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
+    pub fn program_from_code(
+        &self,
+        id: H256,
+        code: Vec<u8>,
+    ) -> Option<gear_core::program::Program> {
+        Program::new(ProgramId::from_origin(id), code).ok()
+    }
+
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
         common::native::get_program(ProgramId::from_origin(id))
     }

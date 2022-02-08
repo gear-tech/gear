@@ -22,7 +22,7 @@
 
 use std::sync::Arc;
 
-use gear_runtime::{opaque::Block, AccountId, Balance, Index, ProgramId};
+use gear_runtime::{opaque::Block, AccountId, Balance, Index};
 pub use sc_rpc_api::DenyUnsafe;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
@@ -47,7 +47,7 @@ where
     C: Send + Sync + 'static,
     C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-    C::Api: pallet_gear_rpc::GearRuntimeApi<Block, ProgramId>,
+    C::Api: pallet_gear_rpc::GearRuntimeApi<Block>,
     C::Api: BlockBuilder<Block>,
     P: TransactionPool + 'static,
 {

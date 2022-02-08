@@ -18,12 +18,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::Codec;
+pub use pallet_gear::manager::HandleKind;
+use sp_core::H256;
 use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
-    pub trait GearApi<ProgramId>
-    where ProgramId: Codec {
-        fn get_gas_spent(program_id: ProgramId, payload: Vec<u8>) -> Option<u64>;
+    pub trait GearApi {
+        fn get_gas_spent(source: H256, kind: HandleKind, payload: Vec<u8>) -> Option<u64>;
     }
 }

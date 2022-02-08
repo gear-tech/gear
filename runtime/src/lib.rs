@@ -42,7 +42,7 @@ use sp_std::prelude::*;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-pub use pallet_gear::manager::ExtManager;
+pub use pallet_gear::manager::{ExtManager, HandleKind};
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
@@ -76,9 +76,6 @@ pub type Signature = MultiSignature;
 /// Some way of identifying an account on the chain. We intentionally make it equivalent
 /// to the public key of our transaction signing scheme.
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
-
-/// Some way of identifying a program on the chain.
-pub type ProgramId = H256;
 
 /// The type for looking up accounts. We don't expect more than 4 billion of them, but you
 /// never know...
@@ -599,12 +596,13 @@ impl_runtime_apis! {
     }
 
     // Here we implement our custom runtime API.
-    impl pallet_gear_rpc_runtime_api::GearApi<Block, ProgramId> for Runtime {
+    impl pallet_gear_rpc_runtime_api::GearApi<Block> for Runtime {
         fn get_gas_spent(
-            program_id: ProgramId,
+            account_id: H256,
+            kind: HandleKind,
             payload: Vec<u8>,
         ) -> Option<u64> {
-            Gear::get_gas_spent(program_id, payload)
+            Gear::get_gas_spent(account_id, kind, payload)
         }
     }
 

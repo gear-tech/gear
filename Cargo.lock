@@ -3274,7 +3274,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8772c7a99088221bb7ca9c5c0574bf55046a7ab4c319f3619b275f28c8fb87a"
 dependencies = [
  "bytes 1.1.0",
- "curve25519-dalek 3.2.0",
+ "curve25519-dalek 3.0.2",
  "futures 0.3.21",
  "lazy_static",
  "libp2p-core",
