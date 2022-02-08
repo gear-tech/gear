@@ -82,9 +82,9 @@ pub fn block_timestamp() -> u64 {
     unsafe { sys::gr_block_timestamp() }
 }
 
-/// Terminate the execution of a program. This is similiar to `std::process::exit`.
-/// `value_destination` specifies the address where all available program's
-/// value should be transferred to.
+/// Terminate the execution of a program. This is similiar to
+/// `std::process::exit`. `value_destination` specifies the address where all
+/// available program's value should be transferred to.
 /// Program's ID and hash of its memory pages are stored for later
 /// restoration.
 /// Maybe called in `init` method as well.

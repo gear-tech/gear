@@ -93,6 +93,11 @@ impl JournalHandler for InMemoryExtManager {
             }
         };
     }
+
+    fn exit_dispatch(&mut self, _id_exited: ProgramId, _value_destination: ProgramId) {
+        unimplemented!()
+    }
+
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {
         if let Some(index) = self

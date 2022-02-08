@@ -176,9 +176,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     // Parsing outcome.
     let kind = match termination {
         TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
-        TerminationReason::Leave | TerminationReason::Success => {
-            DispatchResultKind::Success
-        }
+        TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
         TerminationReason::Trap {
             explanation,
             description,
