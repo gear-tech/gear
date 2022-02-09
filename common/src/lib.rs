@@ -22,10 +22,12 @@ pub mod native;
 pub mod storage_queue;
 pub mod value_tree;
 
+mod exit;
+pub use exit::{exit_program, ProgramNotFound, exited_program_exists};
+
 use codec::{Decode, Encode};
 use frame_support::{
     dispatch::DispatchError,
-    storage::PrefixIterator,
     weights::{IdentityFee, WeightToFeePolynomial},
 };
 use primitive_types::H256;
@@ -72,46 +74,6 @@ pub struct Program {
     pub code_hash: H256,
     pub nonce: u64,
     pub state: ProgramState,
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct ExitedProgram {
-    pub program_id: H256,
-    pub program: Program,
-    pub pages_hash: H256,
-    pub wait_list: Vec<Message>,
-}
-
-fn decode_message_tuple(_: &[u8], value: &[u8]) -> Result<(Message, u32), codec::Error> {
-    <(Message, u32)>::decode(&mut &*value)
-}
-
-#[derive(Debug)]
-pub struct ProgramNotFound;
-
-pub fn exit_program(program_id: H256) -> Result<(), ProgramNotFound> {
-    let program = get_program(program_id).ok_or(ProgramNotFound)?;
-
-    let prefix = wait_prefix(program_id);
-    let previous_key = prefix.clone();
-
-    let exited_program = ExitedProgram {
-        program_id,
-        pages_hash: get_program_pages(program_id, program.persistent_pages.clone())
-            .using_encoded(sp_io::hashing::blake2_256)
-            .into(),
-        program,
-        wait_list: PrefixIterator::<_, ()>::new(prefix, previous_key, decode_message_tuple)
-            .drain()
-            .map(|(m, _)| m)
-            .collect(),
-    };
-
-    remove_program(program_id);
-
-    sp_io::storage::set(&exited_program_key(program_id), &exited_program.encode());
-
-    Ok(())
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
@@ -204,13 +166,6 @@ fn program_key(id: H256) -> Vec<u8> {
     key
 }
 
-fn exited_program_key(id: H256) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend(STORAGE_EXITED_PROGRAM_PREFIX);
-    id.encode_to(&mut key);
-    key
-}
-
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
         CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
@@ -241,6 +196,7 @@ pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
     key.extend(b"::");
     key
 }
+
 pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     let mut key = wait_prefix(prog_id);
     msg_id.encode_to(&mut key);
@@ -368,10 +324,6 @@ pub fn remove_program(id: H256) {
 
 pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
-}
-
-pub fn exited_program_exists(id: H256) -> bool {
-    sp_io::storage::exists(&exited_program_key(id))
 }
 
 pub fn dequeue_message() -> Option<Message> {
