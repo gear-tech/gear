@@ -18,19 +18,13 @@
 
 use std::collections::BTreeMap;
 
-use crate::mock::{
-    new_test_ext, run_to_block, Event as MockEvent, Gear, System, Test, BLOCK_AUTHOR,
-    LOW_BALANCE_USER, USER_1,
-};
+use crate::mock::{new_test_ext, run_to_block, System, Test, USER_1};
 use crate::GearRuntimeTestCmd;
-use codec::{Decode, Encode};
+use codec::Encode;
 use colored::{ColoredString, Colorize};
-use gear_common::Origin as _;
-use gear_core::{
-    message::{IncomingMessage, Message},
-    program::{Program, ProgramId},
-};
-use gear_test::address::Address;
+
+use gear_core::{message::Message, program::ProgramId};
+
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -44,11 +38,11 @@ use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
 
-fn init_fixture<'a>(
-    test: &'a sample::Test,
-    fixture: &sample::Fixture,
+fn init_fixture(
+    test: &'_ sample::Test,
+    _fixture: &sample::Fixture,
     programs: &BTreeMap<ProgramId, H256>,
-    progs_n_paths: &mut Vec<(&'a str, ProgramId)>,
+    _progs_n_paths: &mut [(&'_ str, ProgramId)],
     snapshots: &mut Vec<DebugData>,
 ) -> anyhow::Result<()> {
     for program in &test.programs {
@@ -62,13 +56,13 @@ fn init_fixture<'a>(
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
-                PayloadVariant::Utf8(s) => parse_payload(s.clone(), Some(&programs)).into_bytes(),
+                PayloadVariant::Utf8(s) => parse_payload(s.clone(), Some(programs)).into_bytes(),
                 PayloadVariant::Custom(v) => {
                     let meta_type = MetaType::InitInput;
 
                     let payload = parse_payload(
                         serde_json::to_string(&v).expect("Cannot convert to string"),
-                        Some(&programs),
+                        Some(programs),
                     );
 
                     let json = MetaData::Json(payload);
@@ -105,18 +99,12 @@ fn init_fixture<'a>(
             run_to_block(System::block_number() + 1, None);
             let events = System::events();
             for event in events {
-                match &event.event {
-                    crate::mock::Event::GearDebug(snapshot) => {
-                        // snapshots.push(snapshot);
-                        match snapshot {
-                            pallet_gear_debug::Event::DebugDataSnapshot(snapshot) => {
-                                // println!("Got snapshot {:?}", snapshot);
-                                snapshots.push(snapshot.clone());
-                            }
-                            _ => (),
-                        }
-                    }
-                    _ => (),
+                if let crate::mock::Event::GearDebug(
+                    pallet_gear_debug::Event::DebugDataSnapshot(snapshot),
+                ) = &event.event
+                {
+                    // snapshots.push(snapshot);
+                    snapshots.push(snapshot.clone());
                 }
             }
             System::reset_events();
@@ -126,11 +114,11 @@ fn init_fixture<'a>(
     Ok(())
 }
 
-fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> ColoredString {
+fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredString {
     let mut snapshots = Vec::new();
     let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
     pallet_gear_debug::DebugMode::<Test>::put(true);
-    let mut programs: BTreeMap<ProgramId, H256> = test
+    let programs: BTreeMap<ProgramId, H256> = test
         .programs
         .iter()
         .map(|program| {
@@ -164,13 +152,7 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
     pallet_gear_debug::ProgramsMap::<Test>::put(programs_map);
     pallet_gear_debug::RemapId::<Test>::put(true);
 
-    match init_fixture(
-        &test,
-        fixture,
-        &programs,
-        &mut progs_n_paths,
-        &mut snapshots,
-    ) {
+    match init_fixture(test, fixture, &programs, &mut progs_n_paths, &mut snapshots) {
         Ok(()) => {
             let mut errors = vec![];
             let mut expected_log = vec![];
@@ -246,7 +228,7 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                 log::info!(
                     "{:?}",
                     GearPallet::<Test>::send_message(
-                        crate::mock::Origin::signed(USER_1).into(),
+                        crate::mock::Origin::signed(USER_1),
                         programs[&message.destination.to_program_id()],
                         payload,
                         gas_limit,
@@ -264,18 +246,12 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                 run_to_block(System::block_number() + 1, None);
                 let events = System::events();
                 for event in events {
-                    match &event.event {
-                        crate::mock::Event::GearDebug(snapshot) => {
-                            // snapshots.push(snapshot);
-                            match snapshot {
-                                pallet_gear_debug::Event::DebugDataSnapshot(snapshot) => {
-                                    // println!("Got snapshot {:?}", snapshot);
-                                    snapshots.push(snapshot.clone());
-                                }
-                                _ => (),
-                            }
-                        }
-                        _ => (),
+                    if let crate::mock::Event::GearDebug(
+                        pallet_gear_debug::Event::DebugDataSnapshot(snapshot),
+                    ) = &event.event
+                    {
+                        // snapshots.push(snapshot);
+                        snapshots.push(snapshot.clone());
                     }
                 }
                 System::reset_events();
@@ -352,7 +328,7 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                     expected_log.append(&mut log.clone());
                 }
             }
-            if expected_log.len() > 0 {
+            if !expected_log.is_empty() {
                 log::info!("Some(mailbox): {:?}", &mailbox);
 
                 let messages: Vec<Message> = mailbox
@@ -421,7 +397,7 @@ impl GearRuntimeTestCmd {
 
             for fixture in &test.fixtures {
                 new_test_ext().execute_with(|| {
-                    let output = run_fixture(&test, &fixture);
+                    let output = run_fixture(test, fixture);
                     gear_common::reset_storage();
                     pallet_gear::Mailbox::<Test>::drain();
 
