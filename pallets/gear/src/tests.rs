@@ -548,12 +548,12 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(common::program_exists(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         run_to_block(2, None);
 
         assert!(Gear::is_initialized(program_id));
-        assert!(common::program_exists(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         // Submitting second program, which fails on initialization, therefore is deleted
         let program_id = {
@@ -563,7 +563,7 @@ fn program_lifecycle_works() {
         };
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(common::program_exists(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         run_to_block(3, None);
 
@@ -1110,10 +1110,12 @@ fn messages_to_uninitialized_program_wait() {
         };
 
         assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         run_to_block(2, None);
 
         assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(1).into(),
