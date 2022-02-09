@@ -4349,6 +4349,7 @@ dependencies = [
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",
+ "hex",
  "hex-literal",
  "log",
  "pallet-authorship",

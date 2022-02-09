@@ -13,7 +13,6 @@ use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::collections::BTreeMap;
 use std::{
-    fmt::Write,
     io::Error as IoError,
     io::ErrorKind as IoErrorKind,
     str::FromStr,
@@ -29,39 +28,18 @@ pub fn parse_payload(payload: String, programs: Option<&BTreeMap<ProgramId, H256
     let mut s = payload;
     while let Some(caps) = program_id_regex.captures(&s) {
         let id = caps["id"].parse::<u64>().unwrap();
-        if let Some(programs) = programs {
-            s = s.replace(
-                &caps[0],
-                &hex::encode(programs[&ProgramId::from(id)].as_bytes()),
-            );
-        } else {
-            s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_slice()));
-        }
+        s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_slice()));
     }
 
     while let Some(caps) = account_regex.captures(&s) {
         let id = &caps["id"];
-        if let Some(programs) = programs {
-            s = s.replace(
-                &caps[0],
-                &hex::encode(
-                    programs[&ProgramId::from_slice(
-                        Keyring::from_str(id).unwrap().to_h256_public().as_bytes(),
-                    )]
-                        .as_bytes(),
-                ),
-            );
-        } else {
-            s = s.replace(
-                &caps[0],
-                &hex::encode(
-                    ProgramId::from_slice(
-                        Keyring::from_str(id).unwrap().to_h256_public().as_bytes(),
-                    )
+        s = s.replace(
+            &caps[0],
+            &hex::encode(
+                ProgramId::from_slice(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
                     .as_slice(),
-                ),
-            );
-        }
+            ),
+        );
     }
 
     while let Some(caps) = ss58_regex.captures(&s) {
@@ -87,7 +65,6 @@ pub fn parse_payload(payload: String, programs: Option<&BTreeMap<ProgramId, H256
         }
     }
 
-    println!("parse_payload: {}", &s);
     s
 }
 

@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
-use std::ffi::OsStr;
 
-// use crate::manager::RuntestsExtManager;
 use crate::mock::{
     new_test_ext, run_to_block, Event as MockEvent, Gear, System, Test, BLOCK_AUTHOR,
     LOW_BALANCE_USER, USER_1,
@@ -41,18 +39,10 @@ use gear_test::{
     sample::PayloadVariant,
 };
 use pallet_gear::Pallet as GearPallet;
-use pallet_gear_debug::{DebugData, Pallet as GearDebugPallet};
-use rand::Rng;
+use pallet_gear_debug::DebugData;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
-
-struct TestProgram {
-    id: ProgramId,
-    chain_id: H256,
-    code: Vec<u8>,
-    init_payload: Vec<u8>,
-}
 
 fn init_fixture<'a>(
     test: &'a sample::Test,
@@ -133,78 +123,6 @@ fn init_fixture<'a>(
         }
     }
 
-    for message in &fixture.messages {
-        // Set custom source
-        let payload = match &message.payload {
-            Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone(), Some(&programs))
-                .as_bytes()
-                .to_vec(),
-            Some(PayloadVariant::Custom(v)) => {
-                let meta_type = MetaType::HandleInput;
-
-                let payload = parse_payload(
-                    serde_json::to_string(&v).expect("Cannot convert to string"),
-                    Some(&programs),
-                );
-
-                let json = MetaData::Json(payload);
-
-                let wasm = test
-                    .programs
-                    .iter()
-                    .filter(|p| p.id == message.destination)
-                    .last()
-                    .expect("Program not found")
-                    .path
-                    .clone()
-                    .replace(".wasm", ".meta.wasm");
-
-                json.convert(&wasm, &meta_type)
-                    .expect("Unable to get bytes")
-                    .into_bytes()
-            }
-            _ => message
-                .payload
-                .as_ref()
-                .map(|payload| payload.clone().into_raw())
-                .unwrap_or_default(),
-        };
-
-        let gas_limit = message.gas_limit.unwrap_or(5_000_000_000);
-
-        // TODO: force queue message if custom source
-        // if let Some(source) = &message.source {
-        //     if programs.contains_key(&source.to_program_id()) {
-        //         let msg = gear_common::Message {
-        //             id: todo!(),
-        //             source: todo!(),
-        //             dest: todo!(),
-        //             payload,
-        //             gas_limit,
-        //             value: todo!(),
-        //             reply: todo!(),
-        //         }
-        //         gear_common::queue_message(message)
-        //     }
-        // } else {
-        //     USER_1
-        // };
-        if message.source.is_some() {
-            return Err(anyhow::anyhow!("Message custom source - Skip"));
-        }
-
-        log::info!(
-            "{:?}",
-            GearPallet::<Test>::send_message(
-                crate::mock::Origin::signed(USER_1).into(),
-                programs[&message.destination.to_program_id()],
-                payload,
-                gas_limit,
-                message.value.unwrap_or(0),
-            )
-        );
-    }
-
     Ok(())
 }
 
@@ -234,6 +152,18 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
         })
         .collect();
 
+    let programs_map: BTreeMap<H256, H256> = programs
+        .iter()
+        .map(|(k, v)| (H256::from_slice(k.as_slice()), *v))
+        .collect();
+
+    for id in programs_map.keys() {
+        sp_io::storage::set(&gear_common::program_key(*id), &[]);
+    }
+
+    pallet_gear_debug::ProgramsMap::<Test>::put(programs_map);
+    pallet_gear_debug::RemapId::<Test>::put(true);
+
     match init_fixture(
         &test,
         fixture,
@@ -251,42 +181,117 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                 }
             });
 
-            for exp in &fixture.expected {
-                while !gear_common::StorageQueue::<gear_common::Message>::get(
-                    gear_common::STORAGE_MESSAGE_PREFIX,
-                )
-                .is_empty()
-                {
-                    run_to_block(System::block_number() + 1, None);
-                    let events = System::events();
-                    for event in events {
-                        match &event.event {
-                            crate::mock::Event::GearDebug(snapshot) => {
-                                // snapshots.push(snapshot);
-                                match snapshot {
-                                    pallet_gear_debug::Event::DebugDataSnapshot(snapshot) => {
-                                        // println!("Got snapshot {:?}", snapshot);
-                                        snapshots.push(snapshot.clone());
-                                    }
-                                    _ => (),
-                                }
-                            }
-                            _ => (),
-                        }
+            for message in &fixture.messages {
+                // Set custom source
+                let payload = match &message.payload {
+                    Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone(), Some(&programs))
+                        .as_bytes()
+                        .to_vec(),
+                    Some(PayloadVariant::Custom(v)) => {
+                        let meta_type = MetaType::HandleInput;
+
+                        let payload = parse_payload(
+                            serde_json::to_string(&v).expect("Cannot convert to string"),
+                            Some(&programs),
+                        );
+
+                        let json = MetaData::Json(payload);
+
+                        let wasm = test
+                            .programs
+                            .iter()
+                            .filter(|p| p.id == message.destination)
+                            .last()
+                            .expect("Program not found")
+                            .path
+                            .clone()
+                            .replace(".wasm", ".meta.wasm");
+
+                        json.convert(&wasm, &meta_type)
+                            .expect("Unable to get bytes")
+                            .into_bytes()
                     }
-                    System::reset_events();
-                    pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
-                        for msg in user_mailbox.values() {
-                            mailbox.push(msg.clone())
-                        }
-                    });
+                    _ => message
+                        .payload
+                        .as_ref()
+                        .map(|payload| payload.clone().into_raw())
+                        .unwrap_or_default(),
+                };
+
+                let gas_limit = message
+                    .gas_limit
+                    .unwrap_or(GearPallet::<Test>::gas_allowance() / fixture.messages.len() as u64);
+
+                // TODO: force queue message if custom source
+                // if let Some(source) = &message.source {
+                //     if programs.contains_key(&source.to_program_id()) {
+                //         let msg = gear_common::Message {
+                //             id: todo!(),
+                //             source: todo!(),
+                //             dest: todo!(),
+                //             payload,
+                //             gas_limit,
+                //             value: todo!(),
+                //             reply: todo!(),
+                //         }
+                //         gear_common::queue_message(message)
+                //     }
+                // } else {
+                //     USER_1
+                // };
+                if message.source.is_some() {
+                    return "Message custom source - Skip".bright_yellow();
                 }
 
+                log::info!(
+                    "{:?}",
+                    GearPallet::<Test>::send_message(
+                        crate::mock::Origin::signed(USER_1).into(),
+                        programs[&message.destination.to_program_id()],
+                        payload,
+                        gas_limit,
+                        message.value.unwrap_or(0),
+                    )
+                );
+            }
+
+            while !gear_common::StorageQueue::<gear_common::Message>::get(
+                gear_common::STORAGE_MESSAGE_PREFIX,
+            )
+            .is_empty()
+            {
+                // println!("strage queue: {:?", sp_io::storage::get());
+                run_to_block(System::block_number() + 1, None);
+                let events = System::events();
+                for event in events {
+                    match &event.event {
+                        crate::mock::Event::GearDebug(snapshot) => {
+                            // snapshots.push(snapshot);
+                            match snapshot {
+                                pallet_gear_debug::Event::DebugDataSnapshot(snapshot) => {
+                                    // println!("Got snapshot {:?}", snapshot);
+                                    snapshots.push(snapshot.clone());
+                                }
+                                _ => (),
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+                System::reset_events();
+                pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
+                    for msg in user_mailbox.values() {
+                        mailbox.push(msg.clone())
+                    }
+                });
+            }
+
+            for exp in &fixture.expected {
                 if let Some(mut expected_messages) = exp.messages.clone() {
                     if expected_messages.is_empty() {
                         break;
                     }
-                    let message_queue: Vec<Message> = if let Some(step) = exp.step {
+                    let mut message_queue: Vec<Message> = if let Some(step) = exp.step {
                         println!(
                             "snapshots.len() = {}, step({}), progs({})",
                             snapshots.len(),
@@ -312,6 +317,12 @@ fn run_fixture<'a>(test: &'a sample::Test, fixture: &sample::Fixture) -> Colored
                             .map(|msg| Message::from(msg.clone()))
                             .collect()
                     };
+
+                    message_queue.iter_mut().for_each(|msg| {
+                        if let Some(id) = programs.get(&msg.dest) {
+                            msg.dest = ProgramId::from(id.as_bytes());
+                        }
+                    });
 
                     expected_messages.iter_mut().for_each(|msg| {
                         msg.destination = gear_test::address::Address::H256(

@@ -8,10 +8,10 @@ programs:
       value:
         threshold: 0
         # Eve
-        destination: "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"
+        destination: "0x{eve}"
         signatories:
           # bob's Account Id
-          - "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+          - "0x{bob}"
 
   - id: 2
     path: target/wasm32-unknown-unknown/release/demo_async_multisig.wasm
@@ -20,13 +20,13 @@ programs:
       value:
         threshold: 4
         # bob
-        destination: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+        destination: "0x{bob}"
         signatories:
           # bob, eve & alice
-          - "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
-          - "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"
-          - "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
-          - "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+          - "0x{bob}"
+          - "0x{eve}"
+          - "0x{alice}"
+          - "0x{alice}"
 
   - id: 3
     path: target/wasm32-unknown-unknown/release/demo_async_multisig.wasm
@@ -35,14 +35,14 @@ programs:
       value:
         threshold: 2
         # bob
-        destination: "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+        destination: "0x{bob}"
         signatories:
           # bob, eve & alice
-          - "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
-          - "0xe659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"
-          - "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
-          - "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
-          - "0x8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"
+          - "0x{bob}"
+          - "0x{eve}"
+          - "0x{alice}"
+          - "0x{alice}"
+          - "0x{bob}"
 
   - id:
       kind: account

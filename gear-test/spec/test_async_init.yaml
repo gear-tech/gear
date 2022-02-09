@@ -127,6 +127,11 @@ fixtures:
             init: true
             payload: *init
 
+      - step: 7
+        messages:
+          - destination: 1
+            payload: *ping
+
       - step: 8
         messages:
           - destination:
