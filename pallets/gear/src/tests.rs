@@ -174,12 +174,10 @@ fn send_message_expected_failure() {
         };
         run_to_block(2, None);
 
-        // Assert program doesn't exist
-        assert!(!common::program_exists(program_id));
-
-        // Check message to such program goes to mailbox (destination doesn't exist)
-        assert_ok!(send_default_message(USER_1, program_id));
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert_noop!(
+            send_default_message(LOW_BALANCE_USER, program_id),
+            Error::<Test>::ProgramIsTerminated
+        );
 
         // Submit valid program and test failing actions on it
         let program_id = {
@@ -570,8 +568,8 @@ fn program_lifecycle_works() {
         run_to_block(3, None);
 
         assert!(!Gear::is_initialized(program_id));
-        // while at the same time is deleted
-        assert!(!common::program_exists(program_id));
+        // while at the same time is terminated
+        assert!(Gear::is_terminated(program_id));
     })
 }
 
@@ -646,7 +644,11 @@ fn events_logging_works() {
                 SystemPallet::<Test>::assert_has_event(
                     Event::InitFailure(init_msg_info, Reason::Dispatch(init_failure_reason)).into(),
                 );
-                assert!(!common::program_exists(program_id));
+                // Sending messages to failed-to-init programs shouldn't be allowed
+                assert_noop!(
+                    send_default_message(USER_1, program_id),
+                    Error::<Test>::ProgramIsTerminated
+                );
                 continue;
             }
 
@@ -1158,6 +1160,7 @@ fn uninitialized_program_should_accept_replies() {
         };
 
         assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         run_to_block(2, None);
 
@@ -1373,6 +1376,7 @@ mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
+    use sp_std::convert::TryFrom;
 
     use common::Origin as _;
 
@@ -1435,6 +1439,8 @@ mod utils {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
                 common::get_program(prog_id)
+                    .map(|p| common::Program::try_from(p).ok())
+                    .flatten()
                     .expect("program must exist")
                     .code_hash,
                 sp_io::hashing::blake2_256(&expected_code).into(),
@@ -1453,6 +1459,8 @@ mod utils {
         )
         .into();
         let actual_code_hash = common::get_program(program_id)
+            .map(|p| common::Program::try_from(p).ok())
+            .flatten()
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
         assert_eq!(

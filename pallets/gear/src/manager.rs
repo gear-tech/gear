@@ -22,7 +22,7 @@ use crate::{
 };
 use common::{
     value_tree::{ConsumeResult, ValueView},
-    GasToFeeConverter, Origin, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
+    GasToFeeConverter, Origin, ProgramWithStatus, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
     CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
@@ -117,9 +117,9 @@ where
             STORAGE_PROGRAM_PREFIX.to_vec(),
             |key, _| Ok(H256::from_slice(key)),
         )
-        .map(|k| {
-            let program = self.get_program(k).expect("Can't fail");
-            (program.id(), program)
+        .filter_map(|k| {
+            let program = common::get_program(k).expect("Can't fail");
+            program.try_into_native(k).ok().map(|p| (p.id(), p))
         })
         .collect();
 
@@ -153,10 +153,6 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
-    pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
-        common::native::get_program(ProgramId::from_origin(id))
-    }
-
     pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
@@ -262,7 +258,7 @@ where
                         }
                     });
 
-                common::remove_program(program_id);
+                common::set_program_terminated_status(program_id);
 
                 Event::InitFailure(
                     MessageInfo {
@@ -402,7 +398,10 @@ where
         let program_id = program_id.into_origin();
         let page_number = page_number.raw();
 
-        if let Some(prog) = common::get_program(program_id) {
+        let program = common::get_program(program_id)
+            .expect("page update guaranteed to be called only for existing and active program");
+
+        if let ProgramWithStatus::Active(prog) = program {
             let mut persistent_pages = prog.persistent_pages;
 
             if let Some(data) = data {

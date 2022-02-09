@@ -51,7 +51,8 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, GasToFeeConverter, Message, Origin, ProgramState, GAS_VALUE_PREFIX,
+        self, CodeMetadata, GasToFeeConverter, Message, Origin, ProgramState, ProgramWithStatus,
+        GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -157,6 +158,10 @@ pub mod pallet {
         ///
         /// The user tried to reply on message that was not found in his personal mailbox.
         NoMessageInMailbox,
+        /// Program is terminated
+        ///
+        /// Program init ended up with failure, so such message destination is unavailable anymore
+        ProgramIsTerminated,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
@@ -319,7 +324,9 @@ pub mod pallet {
             let mut gas_burned = 0;
 
             while let Some(message) = messages.pop_front() {
-                let program = ext_manager.get_program(message.dest).or(None)?;
+                let program: Program = common::get_program(message.dest)
+                    .map(|prog_with_status| prog_with_status.try_into_native(message.dest).ok())
+                    .flatten()?;
 
                 let kind = if message.reply.is_none() {
                     DispatchKind::Handle
@@ -362,8 +369,15 @@ pub mod pallet {
 
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: H256) -> bool {
-            common::get_program_state(program_id)
-                .map(|s| matches!(s, ProgramState::Initialized))
+            common::get_program(program_id)
+                .map(|p| p.is_initialized())
+                .unwrap_or(false)
+        }
+
+        /// Returns true if a program has terminated status
+        pub fn is_terminated(program_id: H256) -> bool {
+            common::get_program(program_id)
+                .map(|p| p.is_terminated())
                 .unwrap_or(false)
         }
 
@@ -392,8 +406,32 @@ pub mod pallet {
                 }
 
                 let program_id = message.dest;
-                let program = ext_manager.get_program(program_id);
-                let kind = if program.is_some() {
+                let maybe_active_program = {
+                    let maybe_active_program = common::get_program(program_id)
+                        .expect("program with id got from message is guaranteed to exist");
+
+                    // Check whether message should be added to the wait list
+                    if let ProgramWithStatus::Active(ref prog) = maybe_active_program {
+                        let is_for_wait_list = message.reply.is_none()
+                            && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != message.id);
+                        if is_for_wait_list {
+                            Self::deposit_event(Event::AddedToWaitList(message.clone()));
+                            common::waiting_init_append_message_id(program_id, message.id);
+                            common::insert_waiting_message(
+                                program_id,
+                                message.id,
+                                message,
+                                block_info.height,
+                            );
+
+                            continue;
+                        }
+                    }
+
+                    maybe_active_program.try_into_native(program_id).ok()
+                };
+
+                let kind = if maybe_active_program.is_some() {
                     let state = common::get_program_state(program_id).expect("program exists");
                     if let Some(kind) =
                         message
@@ -444,7 +482,9 @@ pub mod pallet {
                 };
 
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    program, dispatch, block_info,
+                    maybe_active_program,
+                    dispatch,
+                    block_info,
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);
@@ -673,6 +713,11 @@ pub mod pallet {
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            ensure!(
+                !Self::is_terminated(destination),
+                Error::<T>::ProgramIsTerminated
             );
 
             let message_id = common::next_message_id(&payload);

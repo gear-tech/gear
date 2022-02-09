@@ -16,14 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use sp_std::convert::TryInto;
+
 use gear_core::{
     message::{Message as CoreMessage, MessageId},
-    program::{Program, ProgramId},
+    program::{Program as CoreProgram, ProgramId},
 };
 
 use primitive_types::H256;
 
-use crate::{Message, Origin};
+use crate::{Message, Origin, Program, ProgramWithStatus, ProgramError};
 
 impl Origin for MessageId {
     fn into_origin(self) -> H256 {
@@ -81,6 +83,17 @@ impl From<Message> for CoreMessage {
     }
 }
 
+impl ProgramWithStatus {
+    pub fn try_into_native(self, id: H256) -> Result<CoreProgram, ProgramError> {
+        let program: Program = self.try_into()?;
+        let persistent_pages = crate::get_program_pages(id, program.persistent_pages).ok_or(ProgramError::FailedToGetProgramData)?;
+        let code = crate::get_code(program.code_hash).ok_or(ProgramError::FailedToGetProgramData)?;
+        let native_program = 
+            CoreProgram::from_parts(ProgramId::from_origin(id), code, program.static_pages, program.nonce, persistent_pages);
+        Ok(native_program)
+    }
+}
+
 pub fn queue_message(message: CoreMessage) {
     crate::queue_message(message.into())
 }
@@ -89,20 +102,7 @@ pub fn dequeue_message() -> Option<CoreMessage> {
     crate::dequeue_message().map(Into::into)
 }
 
-pub fn get_program(id: ProgramId) -> Option<Program> {
-    if let Some(prog) = crate::get_program(id.into_origin()) {
-        let persistent_pages = crate::get_program_pages(id.into_origin(), prog.persistent_pages);
-        if let Some(code) = crate::get_code(prog.code_hash) {
-            let program =
-                Program::from_parts(id, code, prog.static_pages, prog.nonce, persistent_pages);
-            return Some(program);
-        }
-    }
-
-    None
-}
-
-pub fn set_program(program: Program) {
+pub fn set_program(program: CoreProgram) {
     let code_hash = sp_io::hashing::blake2_256(program.code()).into();
     // This code is only used in tests and is redundant for
     // production. TODO to be fixed in #512
@@ -128,10 +128,6 @@ pub fn set_program(program: Program) {
             .map(|(num, buf)| (num.raw(), buf.to_vec()))
             .collect(),
     );
-}
-
-pub fn remove_program(id: ProgramId) {
-    crate::remove_program(H256::from_slice(id.as_slice()));
 }
 
 pub fn program_exists(id: ProgramId) -> bool {

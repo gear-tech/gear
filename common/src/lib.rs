@@ -33,6 +33,7 @@ use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 use sp_std::prelude::*;
+use sp_std::convert::TryFrom;
 
 pub use storage_queue::Iterator;
 use storage_queue::StorageQueue;
@@ -50,6 +51,8 @@ pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
 pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
+use ProgramWithStatus::Active;
+
 pub type ExitCode = i32;
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
@@ -64,12 +67,61 @@ pub struct Message {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub enum ProgramWithStatus {
+    Active(Program),
+    Terminated
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ProgramError {
+    FailedToGetProgramData,
+    ProgramIsTerminated
+}
+
+impl ProgramWithStatus {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Active(_))
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        matches!(self,  Active(Program { state: ProgramState::Initialized, .. }))
+    }
+
+    pub fn is_terminated(&self) -> bool {
+        matches!(self, ProgramWithStatus::Terminated)
+    }
+}
+
+impl TryFrom<ProgramWithStatus> for Program {
+    type Error = ProgramError;
+
+    fn try_from(prog_with_status: ProgramWithStatus) -> Result<Program, Self::Error> {
+        match prog_with_status {
+            ProgramWithStatus::Active(p) => Ok(p),
+            ProgramWithStatus::Terminated => Err(ProgramError::ProgramIsTerminated)
+        }
+    }
+}
+
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct Program {
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub nonce: u64,
     pub state: ProgramState,
+}
+
+/// Enumeration contains variants for program state.
+#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub enum ProgramState {
+    /// `init` method of a program has not yet finished its execution so
+    /// the program is not considered as initialized. All messages to such a
+    /// program go to the wait list.
+    /// `message_id` contains identifier of the initialization message.
+    Uninitialized { message_id: H256 },
+    /// Program has been successfully initialized and can process messages.
+    Initialized,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
@@ -215,28 +267,31 @@ pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
         .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
 }
 
-/// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub enum ProgramState {
-    /// `init` method of a program has not yet finished its execution so
-    /// the program is not considered as initialized. All messages to such a
-    /// program go to the wait list.
-    /// `message_id` contains identifier of the initialization message.
-    Uninitialized { message_id: H256 },
-    /// Program has been successfully initialized and can process messages.
-    Initialized,
-}
-
+// tmp [sab] remove later
 pub fn get_program_state(id: H256) -> Option<ProgramState> {
-    get_program(id).map(|p| p.state)
+    get_program(id)
+        .map(|p| p.try_into().ok())
+        .flatten()
+        .map(|p: Program| p.state)
 }
 
 pub fn set_program_initialized(id: H256) {
-    if let Some(mut p) = get_program(id) {
+    if let Some(Active(mut p)) = get_program(id) {
         if !matches!(p.state, ProgramState::Initialized) {
             p.state = ProgramState::Initialized;
-            sp_io::storage::set(&program_key(id), &p.encode());
+            sp_io::storage::set(&program_key(id), &Active(p).encode());
         }
+    }
+}
+
+pub fn set_program_terminated_status(id: H256) {
+    if let Some(Active(program)) = get_program(id) {
+        release_code(program.code_hash);
+        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
+        pages_prefix.extend(&program_key(id));
+        sp_io::storage::clear_prefix(&pages_prefix, None);
+        sp_io::storage::set(&program_key(id), &ProgramWithStatus::Terminated.encode());
+        // messages in wait list for the program shouldn't be managed here
     }
 }
 
@@ -274,44 +329,36 @@ fn release_code(code_hash: H256) {
     set_code_refs(code_hash, new_refs)
 }
 
-pub fn get_program(id: H256) -> Option<Program> {
+pub fn get_program(id: H256) -> Option<ProgramWithStatus> {
     sp_io::storage::get(&program_key(id))
-        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
+        .map(|val| ProgramWithStatus::decode(&mut &val[..]).expect("values encoded correctly"))
 }
 
-pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> BTreeMap<u32, Vec<u8>> {
+pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32, Vec<u8>>> {
     let mut persistent_pages = BTreeMap::new();
     for page_num in pages {
         let key = page_key(id, page_num);
 
         persistent_pages.insert(
             page_num,
-            sp_io::storage::get(&key).expect("values encoded correctly"),
+            sp_io::storage::get(&key)?,
         );
     }
-    persistent_pages
+    Some(persistent_pages)
 }
 
 pub fn set_program(id: H256, program: Program, persistent_pages: BTreeMap<u32, Vec<u8>>) {
     if !program_exists(id) {
+        // Code is saved to the storage before actually program is!
+        // So here we add code ref to some existing code.
+        assert!(code_exists(program.code_hash));
         add_code_ref(program.code_hash);
     }
     for (page_num, page_buf) in persistent_pages {
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
     }
-    sp_io::storage::set(&program_key(id), &program.encode())
-}
-
-pub fn remove_program(id: H256) {
-    if let Some(program) = get_program(id) {
-        release_code(program.code_hash);
-    }
-    let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-    pages_prefix.extend(&program_key(id));
-    sp_io::storage::clear_prefix(&pages_prefix, None);
-    sp_io::storage::clear_prefix(&program_key(id), None);
-    sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
+    sp_io::storage::set(&program_key(id), &Active(program).encode())
 }
 
 pub fn program_exists(id: H256) -> bool {
@@ -381,22 +428,16 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
 }
 
 pub fn set_program_nonce(id: H256, nonce: u64) {
-    if let Some(mut prog) = sp_io::storage::get(&program_key(id))
-        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
-    {
+    if let Some(Active(mut prog)) = get_program(id) {
         prog.nonce = nonce;
-
-        sp_io::storage::set(&program_key(id), &prog.encode())
+        sp_io::storage::set(&program_key(id), &Active(prog).encode())
     }
 }
 
 pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>) {
-    if let Some(mut prog) = sp_io::storage::get(&program_key(id))
-        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
-    {
+    if let Some(Active(mut prog)) = get_program(id) {
         prog.persistent_pages = persistent_pages;
-
-        sp_io::storage::set(&program_key(id), &prog.encode())
+        sp_io::storage::set(&program_key(id), &Active(prog).encode())
     }
 }
 
@@ -474,6 +515,12 @@ mod tests {
         });
     }
 
+    fn get_active_program(id: H256) -> Option<Program> {
+        get.program(id)
+            .map(|p| p.try_into().ok())
+            .flatten()
+    }
+
     #[test]
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
@@ -490,7 +537,7 @@ mod tests {
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
-            assert_eq!(get_program(program_id).unwrap(), program);
+            assert_eq!(get_active_program(program_id).unwrap(), program);
             assert_eq!(get_code(program.code_hash).unwrap(), code);
         });
     }
@@ -531,12 +578,12 @@ mod tests {
             );
             assert_eq!(get_code_refs(code_hash), 2u32);
 
-            remove_program(H256::from_low_u64_be(1));
+            release_code(H256::from_low_u64_be(1));
             assert_eq!(get_code_refs(code_hash), 1u32);
 
             assert!(get_code(code_hash).is_some());
 
-            remove_program(H256::from_low_u64_be(2));
+            release_code(H256::from_low_u64_be(2));
             assert_eq!(get_code_refs(code_hash), 0u32);
 
             assert!(get_code(code_hash).is_none());
