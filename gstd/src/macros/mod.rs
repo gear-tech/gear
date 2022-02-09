@@ -44,4 +44,11 @@ pub mod util {
             bytes.as_ref().len() as _,
         ]))
     }
+
+    pub fn to_leak_ptr(bytes: impl Into<Vec<u8>>) -> *mut [i32; 2] {
+        let bytes = bytes.into();
+        let ptr = Box::into_raw(Box::new([bytes.as_ptr() as _, bytes.len() as _]));
+        core::mem::forget(bytes);
+        ptr
+    }
 }

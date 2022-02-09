@@ -66,6 +66,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"primitive-types/std",
+	"serde/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

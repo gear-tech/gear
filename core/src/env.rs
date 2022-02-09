@@ -111,6 +111,9 @@ pub trait Ext {
     /// Reads memory contents at the given offset into a buffer.
     fn get_mem(&self, ptr: usize, buffer: &mut [u8]);
 
+    /// Interrupt the program, saving it's state.
+    fn leave(&mut self) -> Result<(), &'static str>;
+
     /// Access currently handled message payload.
     fn msg(&mut self) -> &[u8];
 
@@ -263,6 +266,9 @@ mod tests {
         }
         fn value(&self) -> u128 {
             0
+        }
+        fn leave(&mut self) -> Result<(), &'static str> {
+            Ok(())
         }
         fn wait(&mut self) -> Result<(), &'static str> {
             Ok(())

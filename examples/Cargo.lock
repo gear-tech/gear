@@ -421,6 +421,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-state-rollback"
+version = "0.1.0"
+dependencies = [
+ "gstd",
+]
+
+[[package]]
 name = "demo-sum"
 version = "0.1.0"
 dependencies = [
