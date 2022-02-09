@@ -23,7 +23,7 @@ pub mod storage_queue;
 pub mod value_tree;
 
 mod exit;
-pub use exit::{exit_program, ProgramNotFound, exited_program_exists};
+pub use exit::{exit_program, exited_program_exists, ProgramNotFound};
 
 use codec::{Decode, Encode};
 use frame_support::{
