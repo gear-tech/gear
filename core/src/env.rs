@@ -95,7 +95,7 @@ pub trait Ext {
     fn program_id(&self) -> ProgramId;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_wasm_memory_begin_addr(&mut self) -> usize;
+    fn get_wasm_memory_begin_addr(&self) -> usize;
 
     /// Free specific memory page.
     ///
@@ -247,7 +247,7 @@ mod tests {
         fn program_id(&self) -> ProgramId {
             0.into()
         }
-        fn get_wasm_memory_begin_addr(&mut self) -> usize {
+        fn get_wasm_memory_begin_addr(&self) -> usize {
             0usize
         }
         fn free(&mut self, _ptr: PageNumber) -> Result<(), &'static str> {

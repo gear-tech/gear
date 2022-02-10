@@ -19,8 +19,8 @@
 use crate::{
     configs::{AllocationsConfig, BlockInfo},
     id::BlakeMessageIdGenerator,
+    lazy_pages,
 };
-use alloc::{collections::BTreeMap, vec};
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
@@ -42,20 +42,14 @@ pub struct Ext {
     pub block_info: BlockInfo,
     /// Allocations config.
     pub config: AllocationsConfig,
+    /// Lazy pages is enabled ?
+    pub lazy_pages_enabled: Option<lazy_pages::LazyPagesEnabled>,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
 }
 
 impl From<Ext> for ExtInfo {
     fn from(ext: Ext) -> ExtInfo {
-        let mut pages = BTreeMap::new();
-
-        for page in ext.memory_context.allocations().clone() {
-            let mut buf = vec![0u8; PageNumber::size()];
-            ext.get_mem(page.offset(), &mut buf);
-            pages.insert(page, buf);
-        }
-
         let nonce = ext.message_context.nonce();
 
         let MessageState {
@@ -70,7 +64,7 @@ impl From<Ext> for ExtInfo {
 
         ExtInfo {
             gas_amount,
-            pages,
+            pages: ext.memory_context.allocations().clone(),
             outgoing,
             reply,
             awakening,
@@ -101,6 +95,18 @@ impl EnvExt for Ext {
 
         let old_mem_size = self.memory_context.memory().size().raw();
 
+        // New pages allocation may change wasm memory buffer location.
+        // So, if lazy-pages are enabled we remove protections from lazy-pages
+        // and returns it back for new wasm memory buffer pages.
+        // Also we correct lazy-pages info if need.
+        let old_mem_addr = if self.lazy_pages_enabled.is_some() {
+            let mem_addr = self.get_wasm_memory_begin_addr();
+            lazy_pages::remove_lazy_pages_prot(mem_addr);
+            mem_addr
+        } else {
+            0
+        };
+
         let result = self
             .memory_context
             .alloc(pages_num)
@@ -108,6 +114,11 @@ impl EnvExt for Ext {
 
         if result.is_err() {
             return self.return_and_store_err(result);
+        }
+
+        if self.lazy_pages_enabled.is_some() {
+            let new_mem_addr = self.get_wasm_memory_begin_addr();
+            lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr);
         }
 
         // Returns back greedily used gas for grow
@@ -299,7 +310,7 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn get_wasm_memory_begin_addr(&mut self) -> usize {
+    fn get_wasm_memory_begin_addr(&self) -> usize {
         self.memory_context.memory().get_wasm_memory_begin_addr()
     }
 }

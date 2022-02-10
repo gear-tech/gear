@@ -20,12 +20,8 @@
 
 use crate::{funcs, memory::MemoryWrap};
 use alloc::{boxed::Box, collections::BTreeMap, format};
-use common::Origin;
-use core::convert::TryFrom;
-use core::marker::PhantomData;
 use gear_backend_common::{
     funcs as common_funcs,
-    lazy_pages::{self, LazyPagesEnabled},
     BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
 use gear_core::{
@@ -38,42 +34,59 @@ use sp_sandbox::{
 };
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E: Ext>(PhantomData<E>);
+pub struct SandboxEnvironment<E: Ext + Into<ExtInfo>> {
+    runtime: Option<Runtime<E>>,
+    instance: Option<Instance<Runtime<E>>>,
+}
 
-impl<E: Ext> Default for SandboxEnvironment<E> {
+impl<E: Ext + Into<ExtInfo>> Default for SandboxEnvironment<E> {
     fn default() -> Self {
-        Self(PhantomData)
+        Self {
+            runtime: None,
+            instance: None,
+        }
     }
 }
 
 pub struct Runtime<E: Ext + Into<ExtInfo>> {
     pub(crate) ext: LaterExt<E>,
-    pub(crate) lazy_pages_enabled: Option<LazyPagesEnabled>,
     pub(crate) trap: Option<&'static str>,
 }
 
 impl<E: Ext + Into<ExtInfo> + 'static> Runtime<E> {
-    fn new(ext: E, lazy_pages_enabled: Option<LazyPagesEnabled>) -> Self {
+    fn new(ext: E) -> Self {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
 
         Self {
             ext: later_ext,
-            lazy_pages_enabled,
             trap: None,
         }
     }
 }
 
-impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
+impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> {
     fn setup(
-        &self,
+        &mut self,
+        ext: E,
+        binary: &[u8],
+        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
-    ) -> Result<EnvironmentDefinitionBuilder<Runtime<E>>, &'static str> {
-        let mem = memory
+    ) -> Result<(), BackendError<'static>> {
+        let mem = match memory
             .as_any()
             .downcast_ref::<DefaultExecutorMemory>()
-            .ok_or("Memory is not SandboxMemory")?;
+        {
+            Some(x) => x,
+            None => {
+                let info: ExtInfo = ext.into();
+                return Err(BackendError {
+                    reason: "Memory is not SandboxMemory",
+                    description: None,
+                    gas_amount: info.gas_amount,
+                })
+            }
+        };
 
         let mut env_builder = EnvironmentDefinitionBuilder::new();
 
@@ -104,61 +117,9 @@ impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
         env_builder.add_host_func("env", "gas", funcs::gas);
 
-        Ok(env_builder)
-    }
-}
+        let mut runtime = Runtime::new(ext);
 
-impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> {
-    /// Setup external environment and run closure.
-    ///
-    /// Setup external environment by providing `ext`, run nenwly initialized instance created from
-    /// provided `module`, do anything inside a `func` delegate.
-    ///
-    /// This will also set the beginning of the memory region to the `static_area` content _after_
-    /// creatig instance.
-    fn setup_and_execute(
-        &mut self,
-        ext: E,
-        binary: &[u8],
-        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        memory: &dyn Memory,
-        entry_point: &str,
-    ) -> Result<BackendReport, BackendError> {
-        let env_builder = match self.setup(memory) {
-            Ok(builder) => builder,
-            Err(e) => {
-                let info: ExtInfo = ext.into();
-
-                return Err(BackendError {
-                    reason: e,
-                    description: None,
-                    gas_amount: info.gas_amount,
-                });
-            }
-        };
-
-        log::debug!("process program {:?}", ext.program_id());
-
-        let (lazy_pages_enabled, has_no_data_pages) =
-            lazy_pages::try_to_enable_lazy_pages(memory_pages);
-        if lazy_pages_enabled.is_none() && has_no_data_pages.is_some() {
-            // In case we don't enable lazy-pages, then we loads data for all pages, which has no data.
-            let prog_id_hash = ext.program_id().into_origin();
-            memory_pages
-                .iter_mut()
-                .filter(|(_x, y)| y.is_none())
-                .for_each(|(x, y)| {
-                    let data = common::get_program_page_data(prog_id_hash, x.raw())
-                        .expect("Page data must be in storage");
-                    *y = Option::from(Box::from(PageBuf::try_from(data).expect(
-                        "Must be able to convert vec to PageBuf, may be vec has wrong size",
-                    )));
-                });
-        }
-
-        let mut runtime = Runtime::new(ext, lazy_pages_enabled);
-
-        let mut instance = Instance::new(binary, &env_builder, &mut runtime).map_err(|e| {
+        let instance = Instance::new(binary, &env_builder, &mut runtime).map_err(|e| {
             let info: ExtInfo = runtime.ext.unset().into();
             BackendError {
                 reason: "Unable to instanciate module",
@@ -178,15 +139,27 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             }
         })?;
 
-        if runtime.lazy_pages_enabled.is_some() {
-            lazy_pages::protect_pages_and_init_info(memory_pages, runtime.ext.clone());
-        }
+        self.runtime.replace(runtime);
+        self.instance.replace(instance);
 
-        let res = instance.invoke(entry_point, &[], &mut runtime);
+        Ok(())
+    }
 
-        if runtime.lazy_pages_enabled.is_some() {
-            lazy_pages::post_execution_actions(memory_pages, runtime.ext.clone());
-        }
+    /// Setup external environment and run closure.
+    ///
+    /// Setup external environment by providing `ext`, run nenwly initialized instance created from
+    /// provided `module`, do anything inside a `func` delegate.
+    ///
+    /// This will also set the beginning of the memory region to the `static_area` content _after_
+    /// creatig instance.
+    fn execute(
+        &mut self,
+        entry_point: &str,
+    ) -> Result<BackendReport, BackendError> {
+        let instance = self.instance.as_mut().expect("Must have instance");
+        let runtime = self.runtime.as_mut().expect("Must have runtime");
+
+        let res = instance.invoke(entry_point, &[], runtime);
 
         let info: ExtInfo = runtime.ext.unset().into();
 

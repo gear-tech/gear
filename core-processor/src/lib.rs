@@ -32,6 +32,7 @@ mod ext;
 mod handler;
 mod id;
 mod processor;
+mod lazy_pages;
 
 /// Error exit code.
 pub const ERR_EXIT_CODE: i32 = 1;

@@ -22,7 +22,7 @@ use core::{
     convert::{TryFrom, TryInto},
     slice::Iter,
 };
-use gear_backend_common::{funcs, lazy_pages, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use gear_backend_common::{funcs, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
     message::{MessageId, OutgoingPacket, ReplyPacket},
@@ -207,16 +207,6 @@ pub fn alloc<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
 
     let pages: u32 = pop_i32(&mut args)?;
 
-    // New pages allocation may change wasm memory buffer location.
-    // So, if lazy-pages are enabled we remove protections from lazy-pages
-    // and returns it back for new wasm memory buffer pages.
-    // Also we correct lazy-pages info if need.
-    let mem_addr = if ctx.lazy_pages_enabled.is_some() {
-        lazy_pages::remove_lazy_pages_prot(ctx.ext.clone())
-    } else {
-        0
-    };
-
     let ptr = ctx.ext.with(|ext| ext.alloc(pages.into())).and_then(|v| {
         v.map(|v| {
             let ptr = v.raw();
@@ -224,10 +214,6 @@ pub fn alloc<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
             ptr
         })
     });
-
-    if ctx.lazy_pages_enabled.is_some() && ptr.is_ok() {
-        lazy_pages::protect_lazy_pages_and_set_wasm_mem(ctx.ext.clone(), mem_addr);
-    }
 
     ptr.map(|res| ReturnValue::Value(Value::I32(res as i32)))
         .map_err(|err| {

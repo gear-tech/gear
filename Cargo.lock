@@ -2021,7 +2021,9 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "gear-backend-common",
+ "gear-common",
  "gear-core",
+ "gear-runtime-interface",
  "log",
  "parity-scale-codec",
 ]

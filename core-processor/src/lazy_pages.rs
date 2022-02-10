@@ -18,26 +18,26 @@
 
 //! Lazy pages support runtime functions
 
-use crate::ExtInfo;
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use common::Origin;
 use core::convert::TryFrom;
-use gear_core::env::{Ext, LaterExt};
 use gear_core::memory::{PageBuf, PageNumber};
+use gear_core::program::ProgramId;
 use gear_runtime_interface as gear_ri;
 
+#[derive(Clone)]
 pub struct LazyPagesEnabled;
 pub struct HasNoDataPages;
 
 /// Try to enable and initialize lazy pages env
 pub fn try_to_enable_lazy_pages(
-    memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
 ) -> (Option<LazyPagesEnabled>, Option<HasNoDataPages>) {
     // Each page which has no data in `memory_pages` is supposed to be lazy page candidate
     if !memory_pages.iter().any(|(_, buf)| buf.is_none()) {
         log::debug!("lazy-pages: there is no pages to be lazy");
         (None, None)
-    } else if cfg!(feature = "disable_lazy_pages")
+    } else if !cfg!(feature = "lazy-pages")
         || cfg!(target_family = "wasm")
         || !gear_ri::gear_ri::init_lazy_pages()
     {
@@ -53,24 +53,17 @@ pub fn try_to_enable_lazy_pages(
 }
 
 /// Protect and save storage keys for pages which has no data
-pub fn protect_pages_and_init_info<E>(
+pub fn protect_pages_and_init_info(
     memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ext: LaterExt<E>,
-) where
-    E: Ext + Into<ExtInfo> + 'static,
-{
+    prog_id: ProgramId,
+    wasm_mem_begin_addr: usize,
+) {
     let lazy_pages = memory_pages
         .iter()
         .filter(|(_num, buf)| buf.is_none())
         .map(|(num, _buf)| num.raw())
         .collect::<Vec<u32>>();
-    let prog_id_hash = ext
-        .with(|ext| ext.program_id())
-        .expect("Must be correct")
-        .into_origin();
-    let wasm_mem_begin_addr = ext
-        .with(|ext| ext.get_wasm_memory_begin_addr())
-        .expect("Must be correct");
+    let prog_id_hash = prog_id.into_origin();
 
     gear_ri::gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr as u64);
 
@@ -88,12 +81,10 @@ pub fn protect_pages_and_init_info<E>(
 }
 
 /// Lazy pages contract post execution actions
-pub fn post_execution_actions<E>(
+pub fn post_execution_actions(
     memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ext: LaterExt<E>,
-) where
-    E: Ext + Into<ExtInfo> + 'static,
-{
+    wasm_mem_begin_addr: usize,
+) {
     // Loads data for released lazy pages. Data which was before execution.
     let released_pages = gear_ri::gear_ri::get_released_pages();
     released_pages.into_iter().for_each(|page| {
@@ -107,36 +98,29 @@ pub fn post_execution_actions<E>(
     });
 
     // Removes protections from lazy pages
-    let wasm_mem_begin_addr = ext
-        .with(|ext| ext.get_wasm_memory_begin_addr())
-        .expect("Must be correct") as u64;
     let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
-    gear_ri::gear_ri::mprotect_wasm_pages(wasm_mem_begin_addr, &lazy_pages, true, true, false);
+    gear_ri::gear_ri::mprotect_wasm_pages(
+        wasm_mem_begin_addr as u64,
+        &lazy_pages,
+        true,
+        true,
+        false,
+    );
 
     gear_ri::gear_ri::reset_lazy_pages_info();
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot<E: Ext + Into<ExtInfo>>(ext: LaterExt<E>) -> usize {
-    let mem_addr = ext
-        .with(|ext| ext.get_wasm_memory_begin_addr())
-        .expect("Must be correct");
+pub fn remove_lazy_pages_prot(mem_addr: usize) {
     let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
     gear_ri::gear_ri::mprotect_wasm_pages(mem_addr as u64, &lazy_pages, true, true, false);
-    mem_addr
 }
 
 /// Protect lazy-pages and set new wasm mem addr if it has been changed
-pub fn protect_lazy_pages_and_set_wasm_mem<E: Ext + Into<ExtInfo>>(
-    ext: LaterExt<E>,
-    old_mem_addr: usize,
-) {
-    let new_mem_addr = ext
-        .with(|ext| ext.get_wasm_memory_begin_addr())
-        .expect("Must be correct");
+pub fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_addr: usize) {
     if new_mem_addr != old_mem_addr {
         log::debug!(
-            "sandbox executor has changed wasm mem buff: from {:#x} to {:#x}",
+            "backend executor has changed wasm mem buff: from {:#x} to {:#x}",
             old_mem_addr,
             new_mem_addr
         );

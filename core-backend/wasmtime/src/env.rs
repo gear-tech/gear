@@ -36,6 +36,7 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
     store: wasmtime::Store,
     ext: LaterExt<E>,
     funcs: BTreeMap<&'static str, Func>,
+    instance: Option<Instance>,
 }
 
 impl<E: Ext + 'static> WasmtimeEnvironment<E> {
@@ -47,6 +48,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
             store: Store::default(),
             ext: Default::default(),
             funcs: BTreeMap::new(),
+            instance: None,
         };
 
         result.add_func_i32_to_u32("alloc", funcs::alloc);
@@ -235,14 +237,13 @@ impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
 }
 
 impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
-    fn setup_and_execute(
+    fn setup(
         &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
-        entry_point: &str,
-    ) -> Result<BackendReport, BackendError> {
+    ) -> Result<(), BackendError<'static>> {
         self.ext.set(ext);
 
         let module = Module::new(self.store.engine(), binary).map_err(|e| BackendError {
@@ -311,6 +312,14 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             description: Some(format!("{:?}", e).into()),
             gas_amount: self.ext.unset().into().gas_amount,
         })?;
+
+        self.instance.replace(instance);
+
+        Ok(())
+    }
+
+    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
+        let instance = self.instance.as_mut().expect("Must have instance");
 
         let entry_func = instance.get_func(entry_point).ok_or_else(|| BackendError {
             reason: "Unable to find function export",

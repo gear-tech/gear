@@ -23,9 +23,13 @@
 extern crate alloc;
 
 pub mod funcs;
-pub mod lazy_pages;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
 use gear_core::{
     env::Ext,
     gas::GasAmount,
@@ -49,7 +53,7 @@ pub enum TerminationReason<'a> {
 
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
-    pub pages: BTreeMap<PageNumber, Vec<u8>>,
+    pub pages: BTreeSet<PageNumber>,
     pub outgoing: Vec<OutgoingMessage>,
     pub reply: Option<ReplyMessage>,
     pub awakening: Vec<MessageId>,
@@ -70,14 +74,15 @@ pub struct BackendError<'a> {
 }
 
 pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
-    fn setup_and_execute(
+    fn setup(
         &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
-        entry_point: &str,
-    ) -> Result<BackendReport, BackendError>;
+    ) -> Result<(), BackendError<'static>>;
+
+    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
 
     fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str>;
 }

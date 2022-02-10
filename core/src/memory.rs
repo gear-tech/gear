@@ -117,9 +117,8 @@ pub trait Memory: Any {
     /// Set memory pages from PageBuf map, grow if possible.
     fn set_pages(&self, pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>) -> Result<(), Error> {
         for (num, buf) in pages {
-            let s = self.size() - 1.into();
-            if s < *num {
-                self.grow(*num - s)?;
+            if self.size() <= *num {
+                return Err(Error::MemoryAccessError);
             }
             if let Some(buf) = buf {
                 self.write(num.offset(), &buf[..])?;
