@@ -2054,6 +2054,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "pwasm-utils",
+ "scale-info",
  "wabt",
 ]
 

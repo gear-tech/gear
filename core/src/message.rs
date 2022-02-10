@@ -25,6 +25,7 @@ use core::fmt;
 
 use crate::program::ProgramId;
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// Message payload.
 #[derive(Clone, Debug, Decode, Default, Encode, derive_more::From, PartialEq, Eq)]
@@ -749,6 +750,39 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Rc::try_unwrap(state)
             .expect("Calling drain with references to the memory context left")
             .into_inner()
+    }
+}
+
+/// Dispatch.
+///
+/// Message plus information of entry point.
+#[derive(Clone, Debug)]
+pub struct Dispatch {
+    /// Kind of dispatch.
+    pub kind: DispatchKind,
+    /// Message to be dispatched.
+    pub message: Message,
+}
+
+/// Type of wasm execution entry point.
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, TypeInfo)]
+pub enum DispatchKind {
+    /// Initialization.
+    Init,
+    /// Handle.
+    Handle,
+    /// Handle reply.
+    HandleReply,
+}
+
+impl DispatchKind {
+    /// Convert into entry point (function name).
+    pub fn into_entry(self) -> &'static str {
+        match self {
+            Self::Init => "init",
+            Self::Handle => "handle",
+            Self::HandleReply => "handle_reply",
+        }
     }
 }
 

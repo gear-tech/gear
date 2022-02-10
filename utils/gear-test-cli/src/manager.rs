@@ -5,7 +5,7 @@ use gear_core::{
     program::ProgramId,
 };
 use gear_core_processor::common::{
-    CollectState, Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalHandler,
+    CollectState, Dispatch, EntryPoint, DispatchOutcome as CoreDispatchOutcome, JournalHandler,
     State,
 };
 use gear_runtime::{pallet_gear::Config, ExtManager};
@@ -29,15 +29,15 @@ where
 
     fn message_to_dispatch(&self, message: Message) -> Dispatch {
         let kind = if message.reply.is_some() {
-            DispatchKind::HandleReply
+            EntryPoint::HandleReply
         } else {
             match gear_common::get_program_state(message.dest().into_origin())
                 .expect("Program should be in the storage")
             {
-                ProgramState::Initialized => DispatchKind::Handle,
+                ProgramState::Initialized => EntryPoint::Handle,
                 ProgramState::Uninitialized { message_id } => {
                     assert_eq!(message_id, message.id().into_origin());
-                    DispatchKind::Init
+                    EntryPoint::Init
                 }
             }
         };
@@ -89,19 +89,19 @@ where
             CoreDispatchOutcome::InitSuccess { message_id, .. } => {
                 self.current_failed = false;
 
-                if let Some(next_message) = gear_common::message_iter().next() {
+                if let Some(next_message) = gear_common::dispatch_iter().next() {
                     if next_message.id == message_id.into_origin() {
-                        gear_common::dequeue_message();
+                        gear_common::dequeue_dispatch();
                     }
                 }
             }
             CoreDispatchOutcome::Success(_) => {
                 self.current_failed = false;
-                let _ = gear_common::dequeue_message();
+                let _ = gear_common::dequeue_dispatch();
             }
             CoreDispatchOutcome::MessageTrap { .. } => {
                 self.current_failed = true;
-                let _ = gear_common::dequeue_message();
+                let _ = gear_common::dequeue_dispatch();
             }
         }
         self.inner.message_dispatched(outcome)
@@ -112,7 +112,7 @@ where
     fn message_consumed(&mut self, message_id: MessageId) {
         self.inner.message_consumed(message_id)
     }
-    fn send_message(&mut self, message_id: MessageId, message: Message) {
+    fn send_dispatch(&mut self, message_id: MessageId, message: Message) {
         let program_id = message.dest().into_origin();
         match gear_common::get_program_state(program_id) {
             None => self.log.push(message.clone()),
@@ -135,14 +135,14 @@ where
             }
         }
 
-        self.inner.send_message(message_id, message);
+        self.inner.send_dispatch(message_id, message);
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.current_failed = false;
 
-        if let Some(next_message) = gear_common::message_iter().next() {
+        if let Some(next_message) = gear_common::dispatch_iter().next() {
             if next_message.id == dispatch.message.id().into_origin() {
-                gear_common::dequeue_message();
+                gear_common::dequeue_dispatch();
             }
         }
 

@@ -26,47 +26,9 @@ use alloc::{
 use gear_core::{
     gas::GasAmount,
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Message, MessageId, Dispatch},
     program::{Program, ProgramId},
 };
-
-/// Type of wasm execution entry point.
-#[derive(Clone, Copy, Debug)]
-pub enum DispatchKind {
-    /// NO method should be invoked
-    ///
-    /// Message with such kind should be skipped
-    None,
-    /// Initialization.
-    Init,
-    /// Handle.
-    Handle,
-    /// Handle reply.
-    HandleReply,
-}
-
-impl DispatchKind {
-    /// Convert into entry point (function name).
-    pub fn into_entry(self) -> &'static str {
-        match self {
-            Self::Init => "init",
-            Self::Handle => "handle",
-            Self::HandleReply => "handle_reply",
-            _ => unreachable!("method called for None entry"),
-        }
-    }
-}
-
-/// Dispatch.
-///
-/// Message plus information of entry point.
-#[derive(Clone, Debug)]
-pub struct Dispatch {
-    /// Kind of dispatch.
-    pub kind: DispatchKind,
-    /// Message to be dispatched.
-    pub message: Message,
-}
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -88,7 +50,7 @@ pub struct DispatchResult {
     pub dispatch: Dispatch,
 
     /// List of generated outgoing messages.
-    pub outgoing: Vec<Message>,
+    pub outgoing: Vec<Dispatch>,
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
 
@@ -240,12 +202,12 @@ pub enum JournalNote {
     ///
     /// This should be the last update involving this message id.
     MessageConsumed(MessageId),
-    /// Message was generated.
-    SendMessage {
+    /// Dispatch was generated.
+    SendDispatch {
         /// Message id of the message that generated this message.
         message_id: MessageId,
-        /// New message that was generated.
-        message: Message,
+        /// New message with entry point that was generated.
+        dispatch: Dispatch,
     },
     /// Put this dispatch in the wait list.
     WaitDispatch(Dispatch),
@@ -297,8 +259,8 @@ pub trait JournalHandler {
     fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64);
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
-    /// Process send message.
-    fn send_message(&mut self, message_id: MessageId, message: Message);
+    /// Process send dispatch.
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch);
     /// Process send message.
     fn wait_dispatch(&mut self, dispatch: Dispatch);
     /// Process send message.

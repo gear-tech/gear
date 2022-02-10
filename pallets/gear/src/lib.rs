@@ -51,11 +51,11 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, GasToFeeConverter, Message, Origin, ProgramState, ProgramWithStatus,
-        GAS_VALUE_PREFIX,
+        self, CodeMetadata, Dispatch, GasToFeeConverter, Message, Origin, ProgramState,
+        ProgramWithStatus, GAS_VALUE_PREFIX,
     };
     use core_processor::{
-        common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
+        common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
         configs::BlockInfo,
         Ext,
     };
@@ -66,7 +66,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::program::Program;
+    use gear_core::{message::DispatchKind, program::Program};
     use manager::ExtManager;
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -324,9 +324,10 @@ pub mod pallet {
             let mut gas_burned = 0;
 
             while let Some(message) = messages.pop_front() {
-                let program: Program = common::get_program(message.dest)
-                    .map(|prog_with_status| prog_with_status.try_into_native(message.dest).ok())
-                    .flatten()?;
+                let program: Program =
+                    common::get_program(message.dest).and_then(|prog_with_status| {
+                        prog_with_status.try_into_native(message.dest).ok()
+                    })?;
 
                 let kind = if message.reply.is_none() {
                     DispatchKind::Handle
@@ -334,14 +335,11 @@ pub mod pallet {
                     DispatchKind::HandleReply
                 };
 
-                let dispatch = Dispatch {
-                    kind,
-                    message: message.into(),
-                };
+                let dispatch = Dispatch { kind, message };
 
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
                     Some(program),
-                    dispatch,
+                    dispatch.into(),
                     block_info,
                 );
 
@@ -398,29 +396,32 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            while let Some(message) = common::dequeue_message() {
+            while let Some(dispatch) = common::dequeue_dispatch() {
                 // Check whether we have enough of gas allowed for message processing
-                if message.gas_limit > GasAllowance::<T>::get() {
-                    common::queue_message(message);
+                if dispatch.message.gas_limit > GasAllowance::<T>::get() {
+                    common::queue_dispatch(dispatch);
                     break;
                 }
 
-                let program_id = message.dest;
                 let maybe_active_program = {
+                    let program_id = dispatch.message.dest;
+                    let current_message_id = dispatch.message.id;
+                    let maybe_message_reply = dispatch.message.reply;
+
                     let maybe_active_program = common::get_program(program_id)
                         .expect("program with id got from message is guaranteed to exist");
 
                     // Check whether message should be added to the wait list
                     if let ProgramWithStatus::Active(ref prog) = maybe_active_program {
-                        let is_for_wait_list = message.reply.is_none()
-                            && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != message.id);
+                        let is_for_wait_list = maybe_message_reply.is_none()
+                            && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id);
                         if is_for_wait_list {
-                            Self::deposit_event(Event::AddedToWaitList(message.clone()));
-                            common::waiting_init_append_message_id(program_id, message.id);
+                            Self::deposit_event(Event::AddedToWaitList(dispatch.message.clone()));
+                            common::waiting_init_append_message_id(program_id, current_message_id);
                             common::insert_waiting_message(
                                 program_id,
-                                message.id,
-                                message,
+                                current_message_id,
+                                dispatch,
                                 block_info.height,
                             );
 
@@ -431,59 +432,9 @@ pub mod pallet {
                     maybe_active_program.try_into_native(program_id).ok()
                 };
 
-                let kind = if maybe_active_program.is_some() {
-                    let state = common::get_program_state(program_id).expect("program exists");
-                    if let Some(kind) =
-                        message
-                            .reply
-                            .map(|_| DispatchKind::HandleReply)
-                            .or(match state {
-                                ProgramState::Initialized => Some(DispatchKind::Handle),
-                                ProgramState::Uninitialized { message_id } => {
-                                    if message_id == message.id {
-                                        Some(DispatchKind::Init)
-                                    } else {
-                                        None
-                                    }
-                                }
-                            })
-                    {
-                        kind
-                    } else {
-                        Self::deposit_event(Event::AddedToWaitList(message.clone()));
-                        common::waiting_init_append_message_id(program_id, message.id);
-                        common::insert_waiting_message(
-                            program_id,
-                            message.id,
-                            message,
-                            block_info.height,
-                        );
-
-                        continue;
-                    }
-                } else {
-                    // Destination program doesn't exist. That could happen, when dispatch message
-                    // for the destination was in queue along with init message. So init message was
-                    // processed and failed. In that case, dispatch message should be handled anyway,
-                    // but not executed.
-
-                    log::warn!(
-                        "Couldn't find program: {:?}, message with id: {:?} will be skipped",
-                        message.dest,
-                        message.id,
-                    );
-
-                    DispatchKind::None
-                };
-
-                let dispatch = Dispatch {
-                    kind,
-                    message: message.into(),
-                };
-
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
                     maybe_active_program,
-                    dispatch,
+                    dispatch.into(),
                     block_info,
                 );
 
@@ -662,7 +613,7 @@ pub mod pallet {
                 gas_limit,
             );
 
-            common::queue_message(common::Message {
+            let message = common::Message {
                 id: init_message_id,
                 source: origin,
                 dest: id,
@@ -670,6 +621,10 @@ pub mod pallet {
                 gas_limit,
                 value: value.unique_saturated_into(),
                 reply: None,
+            };
+            common::queue_dispatch(Dispatch {
+                kind: DispatchKind::Init,
+                message,
             });
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
@@ -753,8 +708,10 @@ pub mod pallet {
                     value: value.unique_saturated_into(),
                     reply: None,
                 };
-
-                common::queue_message(message);
+                common::queue_dispatch(Dispatch {
+                    kind: DispatchKind::Handle,
+                    message,
+                });
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,
@@ -847,8 +804,10 @@ pub mod pallet {
                     value: value.unique_saturated_into(),
                     reply: Some((reply_to_id, 0)),
                 };
-
-                common::queue_message(message);
+                common::queue_dispatch(Dispatch {
+                    kind: DispatchKind::HandleReply,
+                    message,
+                });
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,

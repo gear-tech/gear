@@ -213,7 +213,7 @@ where
             message_source = source.to_program_id();
         }
 
-        journal_handler.send_message(
+        journal_handler.send_dispatch(
             Default::default(),
             Message {
                 id: message_id,

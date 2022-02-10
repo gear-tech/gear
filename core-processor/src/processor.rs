@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        Dispatch, DispatchKind, DispatchOutcome, DispatchResultKind, JournalNote,
+        DispatchOutcome, DispatchResultKind, JournalNote,
         SendValueNoteFactory,
     },
     configs::{BlockInfo, ExecutionSettings},
@@ -28,7 +28,7 @@ use crate::{
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::Message,
+    message::{Message, Dispatch, DispatchKind},
     program::{Program, ProgramId},
 };
 
@@ -46,8 +46,6 @@ pub fn process<E: Environment<Ext>>(
     let send_value_factory = SendValueNoteFactory::new(dispatch.message.value());
 
     if program.is_none() {
-        assert!(matches!(dispatch.kind, DispatchKind::None));
-
         // Reply back to the message `origin`
         let reply_message = Message::new_reply(
             crate::id::next_system_reply_message_id(origin, message_id),
@@ -61,9 +59,12 @@ pub fn process<E: Environment<Ext>>(
             crate::ERR_EXIT_CODE,
         );
 
-        journal.push(JournalNote::SendMessage {
+        journal.push(JournalNote::SendDispatch {
             message_id,
-            message: reply_message,
+            dispatch: Dispatch {
+                kind: DispatchKind::HandleReply,
+                message: reply_message,
+            }
         });
         journal.push(JournalNote::MessageDispatched(
             DispatchOutcome::Skip(message_id),
@@ -122,10 +123,10 @@ pub fn process<E: Environment<Ext>>(
             }
         };
 
-    for message in dispatch_result.outgoing.clone() {
-        journal.push(JournalNote::SendMessage {
+    for dispatch in dispatch_result.outgoing.clone() {
+        journal.push(JournalNote::SendDispatch {
             message_id,
-            message,
+            dispatch,
         });
     }
 
@@ -165,9 +166,12 @@ pub fn process<E: Environment<Ext>>(
         DispatchResultKind::Trap(trap) => {
             send_value_note = send_value_factory.try_send_back(origin);
             if let Some(message) = dispatch_result.trap_reply(dispatch_result.gas_amount.left()) {
-                journal.push(JournalNote::SendMessage {
+                journal.push(JournalNote::SendDispatch {
                     message_id,
-                    message,
+                    dispatch: Dispatch {
+                        kind: DispatchKind::HandleReply,
+                        message
+                    },
                 })
             }
 

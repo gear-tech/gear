@@ -25,7 +25,7 @@ use common::{
     GasToFeeConverter, Origin, ProgramWithStatus, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
-    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
+    CollectState, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
 use frame_support::{
     storage::PrefixIterator,
@@ -33,7 +33,7 @@ use frame_support::{
 };
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Dispatch, MessageId},
     program::{Program, ProgramId},
 };
 use primitive_types::H256;
@@ -123,7 +123,8 @@ where
         })
         .collect();
 
-        let message_queue: VecDeque<_> = common::message_iter().map(Into::into).collect();
+        // todo [sab] check how used
+        let message_queue: VecDeque<_> = common::dispatch_iter().map(Into::into).collect();
 
         State {
             message_queue,
@@ -228,7 +229,7 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            common::queue_message(m);
+                            common::queue_dispatch(m);
                         }
                     });
 
@@ -254,7 +255,7 @@ where
                     .into_iter()
                     .for_each(|m_id| {
                         if let Some((m, _)) = common::remove_waiting_message(program_id, m_id) {
-                            common::queue_message(m);
+                            common::queue_dispatch(m);
                         }
                     });
 
@@ -313,49 +314,54 @@ where
         }
     }
 
-    fn send_message(&mut self, message_id: MessageId, message: Message) {
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
         let message_id = message_id.into_origin();
-        let mut message: common::Message = message.into();
-        if message.value != 0
+        let mut dispatch: common::Dispatch = dispatch.into();
+
+        if dispatch.message.value != 0
             && T::Currency::reserve(
-                &<T::AccountId as Origin>::from_origin(message.source),
-                message.value.unique_saturated_into(),
+                &<T::AccountId as Origin>::from_origin(dispatch.message.source),
+                dispatch.message.value.unique_saturated_into(),
             )
             .is_err()
         {
             log::debug!(
                 "Message (from: {:?}) {:?} will be skipped",
                 message_id,
-                message
+                dispatch.message
             );
             return;
         }
 
-        log::debug!("Sending message {:?} from {:?}", message, message_id);
+        log::debug!(
+            "Sending message {:?} from {:?}",
+            dispatch.message,
+            message_id
+        );
 
-        if common::program_exists(message.dest) {
+        if common::program_exists(dispatch.message.dest) {
             self.gas_handler
-                .split(message_id, message.id, message.gas_limit);
-            common::queue_message(message);
+                .split(message_id, dispatch.message.id, dispatch.message.gas_limit);
+            common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            if message.gas_limit > 0 {
-                message.gas_limit = 0;
+            if dispatch.message.gas_limit > 0 {
+                dispatch.message.gas_limit = 0;
             }
-            Pallet::<T>::insert_to_mailbox(message.dest, message.clone());
-            Pallet::<T>::deposit_event(Event::Log(message));
+            Pallet::<T>::insert_to_mailbox(dispatch.message.dest, dispatch.message.clone());
+            Pallet::<T>::deposit_event(Event::Log(dispatch.message));
         }
     }
 
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        let message: common::Message = dispatch.message.into();
-
+        let dispatch: common::Dispatch = dispatch.into();
+        let common::Dispatch { message, .. } = dispatch.clone();
         common::insert_waiting_message(
             message.dest,
             message.id,
-            message.clone(),
+            dispatch.clone(),
             <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
         );
 
@@ -373,7 +379,7 @@ where
         if let Some((msg, _)) =
             common::remove_waiting_message(program_id.into_origin(), awakening_id)
         {
-            common::queue_message(msg);
+            common::queue_dispatch(msg);
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {

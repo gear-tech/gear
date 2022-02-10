@@ -43,8 +43,9 @@ pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
     use common::{
-        value_tree::ValueView, GasToFeeConverter, Message, PaymentProvider, GAS_VALUE_PREFIX,
+        value_tree::ValueView, GasToFeeConverter, Message, PaymentProvider, GAS_VALUE_PREFIX, ProgramWithStatus,
     };
+    use gear_core::message::DispatchKind;
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -330,7 +331,7 @@ pub mod pallet {
 
                     if new_free_gas_limit == 0 {
                         match common::get_program(program_id) {
-                            Some(mut program) => {
+                            Some(ProgramWithStatus::Active(mut program)) => {
                                 // Generate trap reply
 
                                 // Account for the fact that original gas balance of the message could have
@@ -352,21 +353,21 @@ pub mod pallet {
                                     gas_limit: trap_gas,
                                     value: 0,
                                     reply: Some((msg.id, core_processor::ERR_EXIT_CODE)),
+                                    entry_point: Some(DispatchKind::HandleReply),
                                 };
 
                                 // Enqueue the trap reply message
                                 let _ = gas_tree.split_off(trap_message.id, trap_gas);
-                                common::queue_message(trap_message);
+                                common::queue_dispatch(trap_message);
 
                                 // Save back the program with incremented nonce
                                 common::set_program(program_id, program, Default::default());
                             }
                             _ => {
-                                // Must be unreachable: there shouldn't be dangling messages in the WL
-                                // if the associated program has been killed.
-                                // TODO: ensure the above statement always holds:
-                                // https://github.com/gear-tech/gear/issues/507
-                                log::warn!("Failed to find a program with ID: {:?}", program_id);
+                                unreachable!(
+                                    "program with {:?} id was terminated and messages to it were remove from WL",
+                                    program_id
+                                )
                             }
                         }
                         // "There is always an associated program for a message in wait list",

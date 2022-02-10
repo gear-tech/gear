@@ -42,6 +42,7 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
         let blk_num = i % (bn as u64) + 1;
         let user_id = i % num_users + 1;
         let gas_limit = gas_limits[i as usize];
+        // todo [sab]
         common::insert_waiting_message(
             prog_id.clone(),
             msg_id.clone(),
@@ -432,7 +433,7 @@ fn trap_reply_message_is_sent() {
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let msg = common::dequeue_message().unwrap();
+        let msg = common::dequeue_dispatch().unwrap();
         assert_eq!(msg.source, 1.into_origin());
         assert_eq!(msg.dest, 1.into_origin());
         assert_eq!(msg.gas_limit, 1000);
@@ -447,7 +448,7 @@ fn trap_reply_message_is_sent() {
         );
 
         // Second trap reply message
-        let msg = common::dequeue_message().unwrap();
+        let msg = common::dequeue_dispatch().unwrap();
         assert_eq!(msg.source, 2.into_origin());
         assert_eq!(msg.dest, 2.into_origin());
         assert_eq!(msg.gas_limit, 500);

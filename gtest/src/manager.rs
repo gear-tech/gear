@@ -172,7 +172,7 @@ impl ExtManager {
                             if let Some(payload) = reply {
                                 let nonce = self.fetch_inc_message_nonce();
 
-                                self.send_message(
+                                self.send_dispatch(
                                     message_id,
                                     Message::new_reply(
                                         nonce.into(),
@@ -207,7 +207,7 @@ impl ExtManager {
 
                             let nonce = self.fetch_inc_message_nonce();
 
-                            self.send_message(
+                            self.send_dispatch(
                                 message_id,
                                 Message::new_reply(
                                     nonce.into(),
@@ -308,7 +308,7 @@ impl JournalHandler for ExtManager {
             self.message_queue.remove(index);
         }
     }
-    fn send_message(&mut self, _message_id: MessageId, message: Message) {
+    fn send_dispatch(&mut self, _message_id: MessageId, message: Message) {
         if self.programs.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
         } else {

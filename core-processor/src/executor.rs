@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{Dispatch, DispatchResult, DispatchResultKind, ExecutionError},
+    common::{DispatchResult, DispatchResultKind, ExecutionError},
     configs::ExecutionSettings,
     ext::Ext,
     id::BlakeMessageIdGenerator,
@@ -30,7 +30,7 @@ use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
     gas::{self, ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
-    message::MessageContext,
+    message::{Dispatch, MessageContext, DispatchKind},
     program::Program,
 };
 
@@ -218,15 +218,21 @@ pub fn execute_wasm<E: Environment<Ext>>(
         page_update.insert(removed_page.into(), None);
     }
 
-    // Storing outgoing messages.
+    // Storing outgoing dispatches
     let mut outgoing = Vec::new();
 
     for msg in info.outgoing {
-        outgoing.push(msg.into_message(program.id()));
+        outgoing.push(Dispatch {
+            kind: DispatchKind::Handle,
+            message: msg.into_message(program.id())
+        });
     }
 
     if let Some(reply_message) = info.reply {
-        outgoing.push(reply_message.into_message(message.id(), program.id(), message.source()));
+        outgoing.push(Dispatch {
+            kind: DispatchKind::HandleReply,
+            message: reply_message.into_message(message.id(), program.id(), message.source()),
+        });
     }
 
     // Output.

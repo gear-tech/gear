@@ -18,14 +18,14 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use core_processor::{
-    common::{Dispatch, DispatchKind, DispatchOutcome, JournalHandler},
+    common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
     Ext,
 };
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Message, MessageId, DispatchKind, Dispatch},
     program::{Program, ProgramId},
 };
 use std::collections::{BTreeMap, HashSet};
@@ -288,7 +288,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn message_consumed(&mut self, _message_id: MessageId) {}
 
-    fn send_message(&mut self, _origin: MessageId, message: Message) {
+    fn send_dispatch(&mut self, _origin: MessageId, message: Message) {
         match message.reply {
             Some((message_id, 0)) => {
                 self.context.outcomes.insert(message_id, RunResult::Normal);

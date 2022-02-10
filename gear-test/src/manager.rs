@@ -103,7 +103,7 @@ impl JournalHandler for InMemoryExtManager {
             self.message_queue.remove(index);
         }
     }
-    fn send_message(&mut self, _message_id: MessageId, message: Message) {
+    fn send_dispatch(&mut self, _message_id: MessageId, message: Message) {
         let id = message.dest();
         if self.programs.borrow().contains_key(&id) {
             let mut borrowed_list = self.waiting_init.borrow_mut();

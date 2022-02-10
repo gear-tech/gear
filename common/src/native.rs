@@ -16,16 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sp_std::convert::TryInto;
-
 use gear_core::{
-    message::{Message as CoreMessage, MessageId},
+    message::{Message as CoreMessage, MessageId, Dispatch as CoreDispatch},
     program::{Program as CoreProgram, ProgramId},
 };
 
 use primitive_types::H256;
 
-use crate::{Message, Origin, Program, ProgramWithStatus, ProgramError};
+use crate::{Dispatch, Message, Origin};
 
 impl Origin for MessageId {
     fn into_origin(self) -> H256 {
@@ -83,23 +81,24 @@ impl From<Message> for CoreMessage {
     }
 }
 
-impl ProgramWithStatus {
-    pub fn try_into_native(self, id: H256) -> Result<CoreProgram, ProgramError> {
-        let program: Program = self.try_into()?;
-        let persistent_pages = crate::get_program_pages(id, program.persistent_pages).ok_or(ProgramError::FailedToGetProgramData)?;
-        let code = crate::get_code(program.code_hash).ok_or(ProgramError::FailedToGetProgramData)?;
-        let native_program = 
-            CoreProgram::from_parts(ProgramId::from_origin(id), code, program.static_pages, program.nonce, persistent_pages);
-        Ok(native_program)
+impl From<Dispatch> for CoreDispatch {
+    fn from(dispatch: Dispatch) -> Self {
+        let Dispatch { kind, message } = dispatch;
+        Self {
+            kind,
+            message: message.into(),
+        }
     }
 }
 
-pub fn queue_message(message: CoreMessage) {
-    crate::queue_message(message.into())
-}
-
-pub fn dequeue_message() -> Option<CoreMessage> {
-    crate::dequeue_message().map(Into::into)
+impl From<CoreDispatch> for Dispatch {
+    fn from(dispatch: CoreDispatch) -> Self {
+        let CoreDispatch { kind, message } = dispatch;
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
 }
 
 pub fn set_program(program: CoreProgram) {
@@ -128,30 +127,4 @@ pub fn set_program(program: CoreProgram) {
             .map(|(num, buf)| (num.raw(), buf.to_vec()))
             .collect(),
     );
-}
-
-pub fn program_exists(id: ProgramId) -> bool {
-    crate::program_exists(H256::from_slice(id.as_slice()))
-}
-
-pub fn insert_waiting_message(
-    prog_id: ProgramId,
-    msg_id: MessageId,
-    message: CoreMessage,
-    bn: u32,
-) {
-    crate::insert_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
-        message.into(),
-        bn,
-    );
-}
-
-pub fn remove_waiting_message(prog_id: ProgramId, msg_id: MessageId) -> Option<(CoreMessage, u32)> {
-    crate::remove_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
-    )
-    .map(|(msg, bn)| (msg.into(), bn))
 }

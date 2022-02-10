@@ -38,10 +38,10 @@ pub fn handle_journal(
                 amount,
             } => handler.gas_burned(message_id, origin, amount),
             JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
-            JournalNote::SendMessage {
+            JournalNote::SendDispatch {
                 message_id,
-                message,
-            } => handler.send_message(message_id, message),
+                dispatch,
+            } => handler.send_dispatch(message_id, dispatch),
             JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
             JournalNote::WakeMessage {
                 message_id,
