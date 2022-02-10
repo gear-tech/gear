@@ -166,7 +166,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
             .for_each(|(x, y)| {
                 let data = common::get_program_page_data(prog_id_hash, x.raw())
                     .expect("Page data must be in storage");
-                *y = Option::from(Box::from(PageBuf::try_from(data).expect(
+                y.replace(Box::from(PageBuf::try_from(data).expect(
                     "Must be able to convert vec to PageBuf, may be vec has wrong size",
                 )));
             });
@@ -265,7 +265,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
             memory.read(page.offset(), &mut data);
             page_update.insert(page, Some(data));
             log::trace!(
-                "Page {} is a new page - will be updated in storage",
+                "Page {} is a new page - will be upload to storage",
                 page.raw()
             );
         };

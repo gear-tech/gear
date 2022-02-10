@@ -42,7 +42,7 @@ pub struct Ext {
     pub block_info: BlockInfo,
     /// Allocations config.
     pub config: AllocationsConfig,
-    /// Lazy pages is enabled ?
+    /// Is lazy-pages mode enabled ?
     pub lazy_pages_enabled: Option<lazy_pages::LazyPagesEnabled>,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
