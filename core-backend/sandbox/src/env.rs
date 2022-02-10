@@ -21,8 +21,7 @@
 use crate::{funcs, memory::MemoryWrap};
 use alloc::{boxed::Box, collections::BTreeMap, format};
 use gear_backend_common::{
-    funcs as common_funcs,
-    BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -73,10 +72,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
     ) -> Result<(), BackendError<'static>> {
-        let mem = match memory
-            .as_any()
-            .downcast_ref::<DefaultExecutorMemory>()
-        {
+        let mem = match memory.as_any().downcast_ref::<DefaultExecutorMemory>() {
             Some(x) => x,
             None => {
                 let info: ExtInfo = ext.into();
@@ -84,7 +80,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
                     reason: "Memory is not SandboxMemory",
                     description: None,
                     gas_amount: info.gas_amount,
-                })
+                });
             }
         };
 
@@ -152,10 +148,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
     ///
     /// This will also set the beginning of the memory region to the `static_area` content _after_
     /// creatig instance.
-    fn execute(
-        &mut self,
-        entry_point: &str,
-    ) -> Result<BackendReport, BackendError> {
+    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
         let instance = self.instance.as_mut().expect("Must have instance");
         let runtime = self.runtime.as_mut().expect("Must have runtime");
 

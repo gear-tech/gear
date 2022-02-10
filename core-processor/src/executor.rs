@@ -30,9 +30,8 @@ use alloc::{
 };
 use common::Origin;
 use core::convert::TryFrom;
-use gear_backend_common::{funcs::program_id, BackendReport, Environment, TerminationReason};
+use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
-    env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter},
     memory::{MemoryContext, PageBuf, PageNumber, PAGE_SIZE},
     message::MessageContext,
@@ -80,7 +79,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         let max_page = max_page.0.raw();
 
         // Charging gas for mem size
-        let amount = settings.mem_grow_cost() * (max_page as u64 + 1 - program.static_pages() as u64);
+        let amount =
+            settings.mem_grow_cost() * (max_page as u64 + 1 - program.static_pages() as u64);
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
                 program_id,
