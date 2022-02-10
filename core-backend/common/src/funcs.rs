@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{EXIT_TRAP_STR, WAIT_TRAP_STR};
+use crate::{LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use alloc::{string::String, vec, vec::Vec};
 use gear_core::{
     env::{Ext, LaterExt},
@@ -269,6 +269,14 @@ pub fn value<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static st
     move |value_ptr: i32| ext.with(|ext: &mut E| set_u128(ext, value_ptr as usize, ext.value()))
 }
 
+pub fn leave<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
+    move || {
+        let _ = ext.with(|ext: &mut E| ext.leave())?;
+        // Intentionally return an error to break the execution
+        Err(LEAVE_TRAP_STR)
+    }
+}
+
 pub fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
     move || {
         let _ = ext.with(|ext: &mut E| ext.wait())?;
@@ -291,8 +299,8 @@ pub fn is_wait_trap(trap: &str) -> bool {
     trap.starts_with(WAIT_TRAP_STR)
 }
 
-pub fn is_exit_trap(trap: &str) -> bool {
-    trap.starts_with(EXIT_TRAP_STR)
+pub fn is_leave_trap(trap: &str) -> bool {
+    trap.starts_with(LEAVE_TRAP_STR)
 }
 
 pub fn get_id<E: Ext>(ext: &E, ptr: usize) -> [u8; 32] {

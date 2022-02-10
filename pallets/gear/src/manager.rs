@@ -20,6 +20,7 @@ use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
     Pallet,
 };
+use codec::{Decode, Encode};
 use common::{
     value_tree::{ConsumeResult, ValueView},
     GasToFeeConverter, Origin, ProgramWithStatus, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
@@ -33,7 +34,7 @@ use frame_support::{
 };
 use gear_core::{
     memory::PageNumber,
-    message::{Dispatch, MessageId},
+    message::{Dispatch, ExitCode, Message, MessageId},
     program::{Program, ProgramId},
 };
 use primitive_types::H256;
@@ -47,6 +48,13 @@ use sp_std::{
 pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
     _phantom: PhantomData<T>,
     gas_handler: GH,
+}
+
+#[derive(Decode, Encode)]
+pub enum HandleKind {
+    Init(Vec<u8>),
+    Handle(H256),
+    Reply(H256, ExitCode),
 }
 
 pub trait GasHandler {
@@ -154,6 +162,14 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
+    pub fn program_from_code(
+        &self,
+        id: H256,
+        code: Vec<u8>,
+    ) -> Option<gear_core::program::Program> {
+        Program::new(ProgramId::from_origin(id), code).ok()
+    }
+
     pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()

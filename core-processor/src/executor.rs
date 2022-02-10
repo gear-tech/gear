@@ -152,7 +152,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
         block_info: settings.block_info,
         config: settings.config,
         error_explanation: None,
-        waited: false,
     };
 
     // Running backend.

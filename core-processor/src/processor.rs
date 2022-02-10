@@ -18,8 +18,7 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResultKind, JournalNote,
-        SendValueNoteFactory,
+        DispatchOutcome, DispatchResultKind, JournalNote, SendValueNoteFactory,
     },
     configs::{BlockInfo, ExecutionSettings},
     executor,
@@ -38,201 +37,23 @@ pub fn process<E: Environment<Ext>>(
     dispatch: Dispatch,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
-    let mut journal = Vec::new();
-
-    let message_id = dispatch.message.id();
-    let origin = dispatch.message.source();
-
-    let send_value_factory = SendValueNoteFactory::new(dispatch.message.value());
-
-    if program.is_none() {
-        // Reply back to the message `origin`
-        let reply_message = Message::new_reply(
-            crate::id::next_system_reply_message_id(origin, message_id),
-            dispatch.message.dest(),
-            origin,
-            Default::default(),
-            dispatch.message.gas_limit(),
-            // must be 0!
-            0,
-            message_id,
-            crate::ERR_EXIT_CODE,
-        );
-
-        journal.push(JournalNote::SendDispatch {
-            message_id,
-            dispatch: Dispatch {
-                kind: DispatchKind::HandleReply,
-                message: reply_message,
-            }
-        });
-        journal.push(JournalNote::MessageDispatched(
-            DispatchOutcome::Skip(message_id),
-        ));
-        journal.push(JournalNote::MessageConsumed(message_id));
-        if let Some(note) = send_value_factory.try_send_back(origin) {
-            journal.push(note);
-        }
-
-        return journal;
-    }
-
     let execution_settings = ExecutionSettings::new(block_info);
+    let initial_nonce = program.message_nonce();
 
-    let program = program.expect("was checked before");
-    let program_id = program.id();
-    assert_eq!(program_id, dispatch.message.dest());
-
-    let kind = dispatch.kind;
-
-    let mut dispatch_result =
-        match executor::execute_wasm::<E>(program, dispatch, execution_settings) {
-            Ok(res) => res,
-            Err(e) => {
-                if let DispatchKind::Init = kind {
-                    journal.push(JournalNote::MessageDispatched(
-                        DispatchOutcome::InitFailure {
-                            message_id,
-                            origin,
-                            program_id,
-                            reason: e.reason,
-                        },
-                    ));
-                } else {
-                    // TODO: generate trap reply here
-                    journal.push(JournalNote::MessageDispatched(
-                        DispatchOutcome::MessageTrap {
-                            message_id,
-                            program_id,
-                            trap: Some(e.reason),
-                        },
-                    ))
-                };
-
-                journal.push(JournalNote::GasBurned {
-                    message_id,
-                    origin,
-                    amount: e.gas_amount.burned(),
-                });
-                journal.push(JournalNote::MessageConsumed(message_id));
-                if let Some(note) = send_value_factory.try_send_back(origin) {
-                    journal.push(note);
-                }
-
-                return journal;
+    match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
+        Ok(res) => match res.kind {
+            DispatchResultKind::Trap(reason) => {
+                process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
             }
-        };
-
-    for dispatch in dispatch_result.outgoing.clone() {
-        journal.push(JournalNote::SendDispatch {
-            message_id,
+            _ => process_success(res),
+        },
+        Err(e) => process_error(
             dispatch,
-        });
+            initial_nonce,
+            e.gas_amount.burned(),
+            Some(e.reason),
+        ),
     }
-
-    for awakening_id in dispatch_result.awakening.clone() {
-        journal.push(JournalNote::WakeMessage {
-            message_id,
-            program_id,
-            awakening_id,
-        });
-    }
-
-    let mut send_value_note = None;
-    match dispatch_result.kind {
-        DispatchResultKind::Success => {
-            send_value_note = send_value_factory.try_send_further(origin, program_id);
-            if let DispatchKind::Init = kind {
-                journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::InitSuccess {
-                        message_id,
-                        origin,
-                        program_id,
-                    },
-                ))
-            } else {
-                journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::Success(message_id),
-                ));
-            };
-
-            journal.push(JournalNote::GasBurned {
-                message_id,
-                origin,
-                amount: dispatch_result.gas_amount.burned(),
-            });
-            journal.push(JournalNote::MessageConsumed(message_id));
-        }
-        DispatchResultKind::Trap(trap) => {
-            send_value_note = send_value_factory.try_send_back(origin);
-            if let Some(message) = dispatch_result.trap_reply(dispatch_result.gas_amount.left()) {
-                journal.push(JournalNote::SendDispatch {
-                    message_id,
-                    dispatch: Dispatch {
-                        kind: DispatchKind::HandleReply,
-                        message
-                    },
-                })
-            }
-
-            if let DispatchKind::Init = kind {
-                journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::InitFailure {
-                        message_id,
-                        origin,
-                        program_id,
-                        reason: trap.unwrap_or_default(),
-                    },
-                ))
-            } else {
-                journal.push(JournalNote::MessageDispatched(
-                    DispatchOutcome::MessageTrap {
-                        message_id,
-                        program_id,
-                        trap,
-                    },
-                ));
-            }
-
-            journal.push(JournalNote::GasBurned {
-                message_id,
-                origin,
-                amount: dispatch_result.gas_amount.burned(),
-            });
-
-            journal.push(JournalNote::MessageConsumed(message_id));
-        }
-        DispatchResultKind::Wait => {
-            journal.push(JournalNote::GasBurned {
-                message_id,
-                origin,
-                amount: dispatch_result.gas_amount.burned(),
-            });
-
-            dispatch_result.dispatch.message.gas_limit = dispatch_result.gas_amount.left();
-
-            journal.push(JournalNote::WaitDispatch(dispatch_result.dispatch));
-        }
-    }
-
-    if let Some(note) = send_value_note {
-        journal.push(note);
-    }
-
-    journal.push(JournalNote::UpdateNonce {
-        program_id,
-        nonce: dispatch_result.nonce,
-    });
-
-    for (page_number, data) in dispatch_result.page_update {
-        journal.push(JournalNote::UpdatePage {
-            program_id,
-            page_number,
-            data,
-        })
-    }
-
-    journal
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
@@ -269,6 +90,220 @@ pub fn process_many<E: Environment<Ext>>(
 
         journal.extend(current_journal);
     }
+
+    journal
+}
+
+/// Helper function for reply generation
+/// todo [sab] нужно единообразие в системных reply сообщеиях тут и в скипе
+fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<Message> {
+    if let Some((_, exit_code)) = message.reply() {
+        if exit_code != 0 {
+            return None;
+        }
+    };
+
+    let new_message_id = crate::id::next_message_id(message.dest(), nonce);
+
+    Some(Message::new_reply(
+        new_message_id,
+        message.dest(),
+        message.source(),
+        Default::default(),
+        gas_limit,
+        0,
+        message.id(),
+        crate::ERR_EXIT_CODE,
+    ))
+}
+
+/// Helper function for journal creation in message skip case
+fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
+    // Number of notes is predetermined
+    let mut journal = Vec::with_capacity(4);
+
+    let message_id = dispatch.message.id();
+    let origin = dispatch.message.source();
+    let value = dispatch.message.value();
+
+    // Reply back to the message `origin`
+    let reply_message = Message::new_reply(
+        crate::id::next_system_reply_message_id(origin, message_id),
+        dispatch.message.dest(),
+        origin,
+        Default::default(),
+        dispatch.message.gas_limit(),
+        // must be 0!
+        0,
+        message_id,
+        crate::ERR_EXIT_CODE,
+    );
+    journal.push(JournalNote::SendDispatch {
+        message_id,
+        dispatch: Dispatch {
+            kind: DispatchKind::HandleReply,
+            message: reply_message,
+        }
+    });
+
+    journal.push(JournalNote::MessageDispatched(
+        DispatchOutcome::Skip(message_id),
+    ));
+
+    journal.push(JournalNote::MessageConsumed(message_id));
+
+    if value != 0 {
+        // Send back value
+        journal.push(JournalNote::SendValue {
+            from: origin,
+            to: None,
+            value
+        });
+    }
+
+    journal
+}
+
+/// Helper function for journal creation in trap/error case
+fn process_error(
+    dispatch: Dispatch,
+    initial_nonce: u64,
+    gas_burned: u64,
+    err: Option<&'static str>,
+) -> Vec<JournalNote> {
+    let mut journal = Vec::new();
+
+    let Dispatch { kind, message } = dispatch;
+    let message_id = message.id();
+    let origin = message.source();
+    let program_id = message.dest();
+    let gas_left = message.gas_limit() - gas_burned;
+    let value = dispatch.message.value();
+
+    journal.push(JournalNote::GasBurned {
+        message_id,
+        origin,
+        amount: gas_burned,
+    });
+
+    if let Some(message) = generate_trap_reply(&message, gas_left, initial_nonce) {
+        journal.push(JournalNote::SendDispatch {
+            message_id,
+            dispatch: Dispatch {
+                kind: DispatchKind::HandleReply,
+                message,
+            },
+        });
+        journal.push(JournalNote::UpdateNonce {
+            program_id,
+            nonce: initial_nonce + 1,
+        });
+    }
+
+    let outcome = match kind {
+        DispatchKind::Init => DispatchOutcome::InitFailure {
+            message_id,
+            origin,
+            program_id,
+            reason: err.unwrap_or_default(),
+        },
+        _ => DispatchOutcome::MessageTrap {
+            message_id,
+            program_id,
+            trap: err,
+        },
+    };
+
+    journal.push(JournalNote::MessageDispatched(outcome));
+    journal.push(JournalNote::MessageConsumed(message_id));
+
+    if value != 0 {
+        // Send back value
+        journal.push(JournalNote::SendValue {
+            from: origin,
+            to: None,
+            value
+        });
+    }
+
+    journal
+}
+
+/// Helper function for journal creation in success case
+fn process_success(res: DispatchResult) -> Vec<JournalNote> {
+    let mut journal = Vec::new();
+
+    let message_id = res.message_id();
+    let origin = res.message_source();
+    let program_id = res.program_id();
+
+    journal.push(JournalNote::GasBurned {
+        message_id,
+        origin,
+        amount: res.gas_amount.burned(),
+    });
+
+    for dispatch in res.outgoing {
+        journal.push(JournalNote::SendDispatch {
+            message_id,
+            dispatch,
+        });
+    }
+
+    for awakening_id in res.awakening {
+        journal.push(JournalNote::WakeMessage {
+            message_id,
+            program_id,
+            awakening_id,
+        });
+    }
+
+    journal.push(JournalNote::UpdateNonce {
+        program_id,
+        nonce: res.nonce,
+    });
+
+    for (page_number, data) in res.page_update {
+        journal.push(JournalNote::UpdatePage {
+            program_id,
+            page_number,
+            data,
+        })
+    }
+
+    match res.kind {
+        DispatchResultKind::Wait => {
+            let mut dispatch = res.dispatch;
+            dispatch.message.gas_limit = res.gas_amount.left();
+
+            journal.push(JournalNote::WaitDispatch(dispatch));
+        }
+        DispatchResultKind::Success => {
+            let outcome = match res.dispatch.kind {
+                DispatchKind::Init => DispatchOutcome::InitSuccess {
+                    message_id,
+                    origin,
+                    program_id,
+                },
+                _ => DispatchOutcome::Success(message_id),
+            };
+
+            journal.push(JournalNote::MessageDispatched(outcome));
+            journal.push(JournalNote::MessageConsumed(message_id));
+            if value != 0 {
+                // Send value further
+                journal.push(JournalNote::SendValue {
+                    from: origin,
+                    to: Some(program_id),
+                    value
+                });
+            }
+        }
+        // Handled in other function
+        _ => {
+            unreachable!()
+        }
+    };
 
     journal
 }

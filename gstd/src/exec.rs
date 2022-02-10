@@ -74,6 +74,25 @@
 use crate::{ActorId, MessageId};
 pub use gcore::exec::{block_height, block_timestamp, gas_available};
 
+/// Terminate the current message handling.
+///
+/// For cases when the message handling needs to be terminated with state
+/// saving.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::exec;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     exec::leave();
+/// }
+/// ```
+pub fn leave() -> ! {
+    gcore::exec::leave()
+}
+
 /// Pause the current message handling.
 ///
 /// If the message handling needs to be paused, i.e. to wait for another

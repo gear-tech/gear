@@ -29,6 +29,7 @@ mod sys {
         pub fn gr_block_timestamp() -> u64;
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
+        pub fn gr_leave() -> !;
         pub fn gr_wait() -> !;
         pub fn gr_wake(waker_id_ptr: *const u8);
     }
@@ -102,6 +103,25 @@ pub fn block_timestamp() -> u64 {
 /// ```
 pub fn gas_available() -> u64 {
     unsafe { sys::gr_gas_available() }
+}
+
+/// Terminate the current message handling.
+///
+/// For cases when the message handling needs to be terminated with state
+/// saving.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::exec;
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     exec::leave();
+/// }
+/// ```
+pub fn leave() -> ! {
+    unsafe { sys::gr_leave() }
 }
 
 /// Pause the current message handling.

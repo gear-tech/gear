@@ -1,10 +1,28 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::env::Runtime;
 use alloc::{string::String, vec};
 use core::{
     convert::{TryFrom, TryInto},
     slice::Iter,
 };
-use gear_backend_common::{funcs, ExtInfo, WAIT_TRAP_STR};
+use gear_backend_common::{funcs, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
     message::{MessageId, OutgoingPacket, ReplyPacket},
@@ -439,6 +457,19 @@ pub fn value<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
             ctx.trap = Some(err);
             HostError
         })
+}
+
+pub fn leave<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
+    let _: Result<ReturnValue, HostError> = ctx
+        .ext
+        .with(|ext| ext.leave())
+        .map(|_| return_none())
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })?;
+    ctx.trap = Some(LEAVE_TRAP_STR);
+    Err(HostError)
 }
 
 pub fn wait<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {

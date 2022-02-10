@@ -18,6 +18,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -67,14 +69,11 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{message::DispatchKind, program::Program};
-    use manager::ExtManager;
+    use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
-    use sp_std::{
-        collections::{btree_map::BTreeMap, vec_deque::VecDeque},
-        prelude::*,
-    };
+    use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
     pub trait Config:
@@ -262,6 +261,14 @@ pub mod pallet {
             });
         }
 
+        pub fn get_from_mailbox(user: H256, message_id: H256) -> Option<common::Message> {
+            let user_id = &<T::AccountId as Origin>::from_origin(user);
+
+            <Mailbox<T>>::try_get(user_id)
+                .ok()
+                .and_then(|mut messages| messages.remove(&message_id))
+        }
+
         pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<common::Message> {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
@@ -303,25 +310,50 @@ pub mod pallet {
             Ok(message)
         }
 
-        pub fn get_gas_spent(dest: H256, payload: Vec<u8>) -> Option<u64> {
-            let mut ext_manager = ExtManager::<T>::default();
+        pub fn get_gas_spent(source: H256, kind: HandleKind, payload: Vec<u8>) -> Option<u64> {
+            let ext_manager = ExtManager::<T>::default();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let mut messages: VecDeque<Message> = VecDeque::from([Message {
+            let (dest, reply) = match kind {
+                HandleKind::Init(ref code) => (sp_io::hashing::blake2_256(code).into(), None),
+                HandleKind::Handle(dest) => (dest, None),
+                HandleKind::Reply(msg_id, exit_code) => {
+                    let msg = Self::get_from_mailbox(source, msg_id)?;
+                    (msg.source, Some((msg_id, exit_code)))
+                }
+            };
+
+            let message = Message {
                 id: common::next_message_id(&payload),
-                source: 100001.into_origin(),
+                source,
                 dest,
                 gas_limit: u64::MAX,
                 payload,
                 value: 0,
-                reply: None,
-            }]);
+                reply,
+            };
 
             let mut gas_burned = 0;
+            let mut gas_to_send = 0;
+
+            let (kind, program) = match kind {
+                HandleKind::Init(code) => {
+                    gas_burned = gas_burned
+                        .saturating_add(<T as Config>::WeightInfo::submit_code(code.len() as u32));
+                    (
+                        DispatchKind::Init,
+                        ext_manager.program_from_code(dest, code)?,
+                    )
+                }
+                HandleKind::Handle(dest) => (DispatchKind::Handle, ext_manager.get_program(dest)?),
+                HandleKind::Reply(..) => {
+                    (DispatchKind::HandleReply, ext_manager.get_program(dest)?)
+                }
+            };
 
             while let Some(message) = messages.pop_front() {
                 let program: Program =
@@ -346,19 +378,20 @@ pub mod pallet {
                 for note in &journal {
                     match note {
                         JournalNote::GasBurned { amount, .. } => {
-                            gas_burned = gas_burned.saturating_add(*amount)
+                            gas_burned = gas_burned.saturating_add(*amount);
                         }
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
-                            ..
-                        }) => return None,
-                        _ => {}
+                        JournalNote::SendMessage { message, .. } => {
+                            gas_to_send = gas_to_send.saturating_add(message.gas_limit);
+                        }
+                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
+                            return None;
+                        }
+                        _ => (),
                     }
                 }
-
-                core_processor::handle_journal(journal, &mut ext_manager);
             }
-
-            Some(gas_burned)
+                
+            Some(gas_burned.saturating_add(gas_to_send))
         }
 
         pub(crate) fn decrease_gas_allowance(gas_charge: u64) {

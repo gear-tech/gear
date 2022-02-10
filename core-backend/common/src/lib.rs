@@ -32,8 +32,8 @@ use gear_core::{
     message::{MessageId, OutgoingMessage, ReplyMessage},
 };
 
+pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
-pub const EXIT_TRAP_STR: &str = "exit";
 
 pub enum TerminationReason<'a> {
     Success,
