@@ -36,7 +36,7 @@ use sp_std::prelude::*;
 use sp_std::convert::TryFrom;
 
 use gear_core::{
-    program::{ProgramId, Program as CoreProgram},
+    program::{ProgramId, Program as NativeProgram},
     message::DispatchKind
 };
 
@@ -67,11 +67,10 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
-    // todo [sab] constructors, handle, handle_reply, _init
-    pub fn new(message: Message, entry_point: DispatchKind) -> Self {
+    pub fn new(message: Message, kind: DispatchKind) -> Self {
         Dispatch {
             message,
-            kind: entry_point
+            kind,
         }
     }
 }
@@ -100,12 +99,12 @@ pub enum ProgramError {
 }
 
 impl ProgramWithStatus {
-    pub fn try_into_native(self, id: H256) -> Result<CoreProgram, ProgramError> {
+    pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
         let program: Program = self.try_into()?;
         let persistent_pages = crate::get_program_pages(id, program.persistent_pages).ok_or(ProgramError::FailedToGetProgramData)?;
         let code = crate::get_code(program.code_hash).ok_or(ProgramError::FailedToGetProgramData)?;
         let native_program =
-            CoreProgram::from_parts(ProgramId::from_origin(id), code, program.static_pages, program.nonce, persistent_pages);
+            NativeProgram::from_parts(ProgramId::from_origin(id), code, program.static_pages, program.nonce, persistent_pages);
         Ok(native_program)
     }
 
@@ -297,14 +296,6 @@ pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
         .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
 }
 
-// tmp [sab] remove later
-pub fn get_program_state(id: H256) -> Option<ProgramState> {
-    get_program(id)
-        .map(|p| p.try_into().ok())
-        .flatten()
-        .map(|p: Program| p.state)
-}
-
 pub fn set_program_initialized(id: H256) {
     if let Some(Active(mut p)) = get_program(id) {
         if !matches!(p.state, ProgramState::Initialized) {
@@ -406,8 +397,8 @@ pub fn queue_dispatch(dispatch: Dispatch) {
     dispatch_queue.queue(dispatch, id);
 }
 
-pub fn dispatch_iter() -> Iterator<Message> {
-    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
+pub fn message_iter() -> Iterator<Message> {
+    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter().map(|d| d.message)
 }
 
 pub fn nonce_fetch_inc() -> u128 {

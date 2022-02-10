@@ -131,8 +131,7 @@ where
         })
         .collect();
 
-        // todo [sab] check how used
-        let message_queue: VecDeque<_> = common::dispatch_iter().map(Into::into).collect();
+        let message_queue: VecDeque<_> = common::message_iter().map(Into::into).collect();
 
         State {
             message_queue,

@@ -19,7 +19,8 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, value_tree::ValueView, Message, Origin as _, GAS_VALUE_PREFIX};
+use common::{self, value_tree::ValueView, Message, Origin as _, GAS_VALUE_PREFIX, Dispatch};
+use gear_core::message::DispatchKind;
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use hex_literal::hex;
@@ -42,18 +43,21 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
         let blk_num = i % (bn as u64) + 1;
         let user_id = i % num_users + 1;
         let gas_limit = gas_limits[i as usize];
-        // todo [sab]
+        let message = Message {
+            id: msg_id,
+            source: user_id.into_origin(),
+            dest: prog_id,
+            payload: vec![],
+            gas_limit: gas_limit,
+            value: 0_u128,
+            reply: None,
+        };
         common::insert_waiting_message(
             prog_id.clone(),
             msg_id.clone(),
-            Message {
-                id: msg_id,
-                source: user_id.into_origin(),
-                dest: prog_id,
-                payload: vec![],
-                gas_limit: gas_limit,
-                value: 0_u128,
-                reply: None,
+            Dispatch {
+                kind: DispatchKind::Handle,
+                message
             },
             blk_num.try_into().unwrap(),
         );

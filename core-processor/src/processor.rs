@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResultKind, JournalNote, SendValueNoteFactory,
+        DispatchOutcome, DispatchResultKind, JournalNote,
     },
     configs::{BlockInfo, ExecutionSettings},
     executor,
@@ -69,7 +69,6 @@ pub fn process_many<E: Environment<Ext>>(
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        // todo [sab] TMP FIX
         let current_journal = process::<E>(Some(program.clone()), dispatch, block_info);
 
         for note in &current_journal {
@@ -140,10 +139,7 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
     );
     journal.push(JournalNote::SendDispatch {
         message_id,
-        dispatch: Dispatch {
-            kind: DispatchKind::HandleReply,
-            message: reply_message,
-        }
+        dispatch: Dispatch::handle_reply(reply_message),
     });
 
     journal.push(JournalNote::MessageDispatched(
@@ -189,10 +185,7 @@ fn process_error(
     if let Some(message) = generate_trap_reply(&message, gas_left, initial_nonce) {
         journal.push(JournalNote::SendDispatch {
             message_id,
-            dispatch: Dispatch {
-                kind: DispatchKind::HandleReply,
-                message,
-            },
+            dispatch: Dispatch::handle_reply(message),
         });
         journal.push(JournalNote::UpdateNonce {
             program_id,

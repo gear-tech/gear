@@ -764,6 +764,29 @@ pub struct Dispatch {
     pub message: Message,
 }
 
+impl Dispatch {
+    pub fn init(message: Message) -> Self {
+        Dispatch {
+            message,
+            kind: DispatchKind::Init,
+        }
+    }
+
+    pub fn handle(message: Message) -> Self {
+        Dispatch {
+            message,
+            kind: DispatchKind::Handle,
+        }
+    }
+
+    pub fn handle_reply(message: Message) -> Self {
+        Dispatch {
+            message,
+            kind: DispatchKind::HandleReply,
+        }
+    }
+}
+
 /// Type of wasm execution entry point.
 #[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum DispatchKind {

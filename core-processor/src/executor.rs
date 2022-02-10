@@ -221,17 +221,13 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let mut outgoing = Vec::new();
 
     for msg in info.outgoing {
-        outgoing.push(Dispatch {
-            kind: DispatchKind::Handle,
-            message: msg.into_message(program.id())
-        });
+        outgoing.push(Dispatch::handle(msg.into_message(program_id)));
     }
 
     if let Some(reply_message) = info.reply {
-        outgoing.push(Dispatch {
-            kind: DispatchKind::HandleReply,
-            message: reply_message.into_message(message.id(), program.id(), message.source()),
-        });
+        outgoing.push(Dispatch::handle_reply(
+            reply_message.into_message(message.id(), program_id, message.source()),
+        ));
     }
 
     // Output.

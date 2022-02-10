@@ -89,7 +89,7 @@ where
             CoreDispatchOutcome::InitSuccess { message_id, .. } => {
                 self.current_failed = false;
 
-                if let Some(next_message) = gear_common::dispatch_iter().next() {
+                if let Some(next_message) = gear_common::message_iter().next() {
                     if next_message.id == message_id.into_origin() {
                         gear_common::dequeue_dispatch();
                     }
@@ -140,7 +140,7 @@ where
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.current_failed = false;
 
-        if let Some(next_message) = gear_common::dispatch_iter().next() {
+        if let Some(next_message) = gear_common::message_iter().next() {
             if next_message.id == dispatch.message.id().into_origin() {
                 gear_common::dequeue_dispatch();
             }
