@@ -37,23 +37,26 @@ pub fn process<E: Environment<Ext>>(
     dispatch: Dispatch,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
-    let execution_settings = ExecutionSettings::new(block_info);
-    let initial_nonce = program.message_nonce();
-
-    match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
-        Ok(res) => match res.kind {
-            DispatchResultKind::Trap(reason) => {
-                process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
-            }
-            _ => process_success(res),
-        },
-        Err(e) => process_error(
-            dispatch,
-            initial_nonce,
-            e.gas_amount.burned(),
-            Some(e.reason),
-        ),
+    if let Some(program) = program {
+        let execution_settings = ExecutionSettings::new(block_info);
+        let initial_nonce = program.message_nonce();
+    
+        match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
+            Ok(res) => match res.kind {
+                DispatchResultKind::Trap(reason) => {
+                    process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
+                }
+                _ => process_success(res),
+            },
+            Err(e) => process_error(
+                dispatch,
+                initial_nonce,
+                e.gas_amount.burned(),
+                Some(e.reason),
+            ),
+        }
     }
+    process_skip(dispatch)
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
@@ -88,73 +91,6 @@ pub fn process_many<E: Environment<Ext>>(
         }
 
         journal.extend(current_journal);
-    }
-
-    journal
-}
-
-/// Helper function for reply generation
-/// todo [sab] нужно единообразие в системных reply сообщеиях тут и в скипе
-fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<Message> {
-    if let Some((_, exit_code)) = message.reply() {
-        if exit_code != 0 {
-            return None;
-        }
-    };
-
-    let new_message_id = crate::id::next_message_id(message.dest(), nonce);
-
-    Some(Message::new_reply(
-        new_message_id,
-        message.dest(),
-        message.source(),
-        Default::default(),
-        gas_limit,
-        0,
-        message.id(),
-        crate::ERR_EXIT_CODE,
-    ))
-}
-
-/// Helper function for journal creation in message skip case
-fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
-    // Number of notes is predetermined
-    let mut journal = Vec::with_capacity(4);
-
-    let message_id = dispatch.message.id();
-    let origin = dispatch.message.source();
-    let value = dispatch.message.value();
-
-    // Reply back to the message `origin`
-    let reply_message = Message::new_reply(
-        crate::id::next_system_reply_message_id(origin, message_id),
-        dispatch.message.dest(),
-        origin,
-        Default::default(),
-        dispatch.message.gas_limit(),
-        // must be 0!
-        0,
-        message_id,
-        crate::ERR_EXIT_CODE,
-    );
-    journal.push(JournalNote::SendDispatch {
-        message_id,
-        dispatch: Dispatch::handle_reply(reply_message),
-    });
-
-    journal.push(JournalNote::MessageDispatched(
-        DispatchOutcome::Skip(message_id),
-    ));
-
-    journal.push(JournalNote::MessageConsumed(message_id));
-
-    if value != 0 {
-        // Send back value
-        journal.push(JournalNote::SendValue {
-            from: origin,
-            to: None,
-            value
-        });
     }
 
     journal
@@ -299,4 +235,71 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     };
 
     journal
+}
+
+/// Helper function for journal creation in message skip case
+fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
+    // Number of notes is predetermined
+    let mut journal = Vec::with_capacity(4);
+
+    let Dispatch {message, ..} = dispatch;
+
+    let value = dispatch.message.value();
+
+    // Reply back to the message `source`
+    // Todo [sab] how to use properly generate_trap_reply
+    let reply_message = Message::new_reply(
+        crate::id::next_system_reply_message_id(message.dest(), message.id()),
+        message.dest(),
+        message.source(),
+        Default::default(),
+        message.gas_limit(),
+        // must be 0!
+        0,
+        message.id(),
+        crate::ERR_EXIT_CODE,
+    );
+    journal.push(JournalNote::SendDispatch {
+        message_id,
+        dispatch: Dispatch::handle_reply(reply_message),
+    });
+
+    journal.push(JournalNote::MessageDispatched(
+        DispatchOutcome::Skip(message_id),
+    ));
+
+    journal.push(JournalNote::MessageConsumed(message_id));
+
+    if value != 0 {
+        // Send back value
+        journal.push(JournalNote::SendValue {
+            from: origin,
+            to: None,
+            value
+        });
+    }
+
+    journal
+}
+
+/// Helper function for reply generation
+fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<Message> {
+    if let Some((_, exit_code)) = message.reply() {
+        if exit_code != 0 {
+            return None;
+        }
+    };
+
+    let new_message_id = crate::id::next_message_id(message.dest(), nonce);
+
+    Some(Message::new_reply(
+        new_message_id,
+        message.dest(),
+        message.source(),
+        Default::default(),
+        gas_limit,
+        0,
+        message.id(),
+        crate::ERR_EXIT_CODE,
+    ))
 }
