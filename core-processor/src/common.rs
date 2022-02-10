@@ -123,47 +123,6 @@ pub enum DispatchOutcome {
     Skip(MessageId),
 }
 
-/// `JournalNote::SendValue` factory.
-/// 
-/// Wraps sending value amount
-/// 
-/// TODO: Remove when proper send value in core backend is implemented
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct SendValueNoteFactory(u128);
-
-impl SendValueNoteFactory {
-    pub(crate) fn new(value: u128) -> Self {
-        Self(value)
-    }
-
-    pub(crate) fn try_send_further(self, from: ProgramId, to: ProgramId) -> Option<JournalNote> {
-        let SendValueNoteFactory(value) = self;
-        if value == 0 {
-            return None;
-        }
-
-        Some(JournalNote::SendValue {
-            from,
-            to: Some(to),
-            value,
-        })
-    }
-
-    pub(crate) fn try_send_back(self, from: ProgramId) -> Option<JournalNote> {
-        let SendValueNoteFactory(value) = self;
-        if value == 0 {
-            return None;
-        }
-
-        Some(JournalNote::SendValue {
-            from,
-            to: None,
-            value,
-        })
-    }  
-}
-
-
 /// Journal record for the state update.
 #[derive(Clone, Debug)]
 pub enum JournalNote {
