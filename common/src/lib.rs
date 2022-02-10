@@ -397,8 +397,9 @@ pub fn queue_dispatch(dispatch: Dispatch) {
     dispatch_queue.queue(dispatch, id);
 }
 
-pub fn message_iter() -> Iterator<Message> {
-    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter().map(|d| d.message)
+// todo [sab] maybe dispatch iterator
+pub fn message_iter() -> impl sp_std::iter::Iterator<Item = Message> {
+    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter().map(|d: Dispatch| d.message)
 }
 
 pub fn nonce_fetch_inc() -> u128 {

@@ -45,7 +45,7 @@ pub mod pallet {
     use common::{
         value_tree::ValueView, GasToFeeConverter, Message, PaymentProvider, GAS_VALUE_PREFIX, ProgramWithStatus,
     };
-    use gear_core::message::DispatchKind;
+    use gear_core::message::Dispatch;
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -353,12 +353,13 @@ pub mod pallet {
                                     gas_limit: trap_gas,
                                     value: 0,
                                     reply: Some((msg.id, core_processor::ERR_EXIT_CODE)),
-                                    entry_point: Some(DispatchKind::HandleReply),
                                 };
+
+                                let dispatch = Dispatch::handle_reply(trap_message);
 
                                 // Enqueue the trap reply message
                                 let _ = gas_tree.split_off(trap_message.id, trap_gas);
-                                common::queue_dispatch(trap_message);
+                                common::queue_dispatch(dispatch);
 
                                 // Save back the program with incremented nonce
                                 common::set_program(program_id, program, Default::default());

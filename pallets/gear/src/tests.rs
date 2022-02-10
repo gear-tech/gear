@@ -1458,8 +1458,7 @@ mod utils {
             let expected_code = ProgramCodeKind::OutgoingWithValueInHandle.to_bytes();
             assert_eq!(
                 common::get_program(prog_id)
-                    .map(|p| common::Program::try_from(p).ok())
-                    .flatten()
+                    .and_then(|p| common::Program::try_from(p).ok())
                     .expect("program must exist")
                     .code_hash,
                 sp_io::hashing::blake2_256(&expected_code).into(),
@@ -1478,8 +1477,7 @@ mod utils {
         )
         .into();
         let actual_code_hash = common::get_program(program_id)
-            .map(|p| common::Program::try_from(p).ok())
-            .flatten()
+            .and_then(|p| common::Program::try_from(p).ok())
             .map(|prog| prog.code_hash)
             .expect("invalid program address for the test");
         assert_eq!(

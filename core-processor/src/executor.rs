@@ -30,7 +30,7 @@ use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
     gas::{self, ChargeResult, GasCounter},
     memory::{MemoryContext, PageNumber},
-    message::{Dispatch, MessageContext, DispatchKind},
+    message::{Dispatch, MessageContext},
     program::Program,
 };
 

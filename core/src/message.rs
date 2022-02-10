@@ -765,6 +765,7 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
+    /// Create init dispatch
     pub fn init(message: Message) -> Self {
         Dispatch {
             message,
@@ -772,6 +773,7 @@ impl Dispatch {
         }
     }
 
+    /// Create handle dispatch
     pub fn handle(message: Message) -> Self {
         Dispatch {
             message,
@@ -779,6 +781,7 @@ impl Dispatch {
         }
     }
 
+    /// Create handle reply dispatch
     pub fn handle_reply(message: Message) -> Self {
         Dispatch {
             message,

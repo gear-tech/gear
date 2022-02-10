@@ -18,7 +18,7 @@
 
 use crate::{
     common::{
-        DispatchOutcome, DispatchResultKind, JournalNote,
+        DispatchOutcome, DispatchResultKind, JournalNote, DispatchResult,
     },
     configs::{BlockInfo, ExecutionSettings},
     executor,
@@ -44,11 +44,11 @@ pub fn process<E: Environment<Ext>>(
         match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
             Ok(res) => match res.kind {
                 DispatchResultKind::Trap(reason) => {
-                    process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
+                    return process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason);
                 }
-                _ => process_success(res),
+                _ => return process_success(res),
             },
-            Err(e) => process_error(
+            Err(e) => return process_error(
                 dispatch,
                 initial_nonce,
                 e.gas_amount.burned(),
@@ -57,6 +57,7 @@ pub fn process<E: Environment<Ext>>(
         }
     }
     process_skip(dispatch)
+    
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
@@ -110,7 +111,7 @@ fn process_error(
     let origin = message.source();
     let program_id = message.dest();
     let gas_left = message.gas_limit() - gas_burned;
-    let value = dispatch.message.value();
+    let value = message.value();
 
     journal.push(JournalNote::GasBurned {
         message_id,
@@ -165,6 +166,7 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     let message_id = res.message_id();
     let origin = res.message_source();
     let program_id = res.program_id();
+    let value = res.message_value();
 
     journal.push(JournalNote::GasBurned {
         message_id,
@@ -244,19 +246,20 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
 
     let Dispatch {message, ..} = dispatch;
 
-    let value = dispatch.message.value();
+    let message_id = message.id();
+    let value = message.value();
 
     // Reply back to the message `source`
     // Todo [sab] how to use properly generate_trap_reply
     let reply_message = Message::new_reply(
-        crate::id::next_system_reply_message_id(message.dest(), message.id()),
+        crate::id::next_system_reply_message_id(message.dest(), message_id),
         message.dest(),
         message.source(),
         Default::default(),
         message.gas_limit(),
         // must be 0!
         0,
-        message.id(),
+        message_id,
         crate::ERR_EXIT_CODE,
     );
     journal.push(JournalNote::SendDispatch {
@@ -273,7 +276,7 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
     if value != 0 {
         // Send back value
         journal.push(JournalNote::SendValue {
-            from: origin,
+            from: message.source(),
             to: None,
             value
         });

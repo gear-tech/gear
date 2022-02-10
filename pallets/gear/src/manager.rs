@@ -34,7 +34,7 @@ use frame_support::{
 };
 use gear_core::{
     memory::PageNumber,
-    message::{Dispatch, ExitCode, Message, MessageId},
+    message::{Dispatch, ExitCode, MessageId},
     program::{Program, ProgramId},
 };
 use primitive_types::H256;
@@ -167,6 +167,15 @@ where
         code: Vec<u8>,
     ) -> Option<gear_core::program::Program> {
         Program::new(ProgramId::from_origin(id), code).ok()
+    }
+
+    /// # Caution
+    /// By calling this function we can't differ whether `None` returned, because
+    /// program with `id` doesn't exist or it's terminated
+    pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
+        common::get_program(id).and_then(|prog_with_status| {
+            prog_with_status.try_into_native(id).ok()
+        })
     }
 
     pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {

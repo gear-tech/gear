@@ -355,39 +355,26 @@ pub mod pallet {
                 }
             };
 
-            while let Some(message) = messages.pop_front() {
-                let program: Program =
-                    common::get_program(message.dest).and_then(|prog_with_status| {
-                        prog_with_status.try_into_native(message.dest).ok()
-                    })?;
+            let dispatch = Dispatch { kind, message };
 
-                let kind = if message.reply.is_none() {
-                    DispatchKind::Handle
-                } else {
-                    DispatchKind::HandleReply
-                };
+            let journal = core_processor::process::<SandboxEnvironment<Ext>>(
+                Some(program),
+                dispatch.into(),
+                block_info,
+            );
 
-                let dispatch = Dispatch { kind, message };
-
-                let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    Some(program),
-                    dispatch.into(),
-                    block_info,
-                );
-
-                for note in &journal {
-                    match note {
-                        JournalNote::GasBurned { amount, .. } => {
-                            gas_burned = gas_burned.saturating_add(*amount);
-                        }
-                        JournalNote::SendMessage { message, .. } => {
-                            gas_to_send = gas_to_send.saturating_add(message.gas_limit);
-                        }
-                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
-                            return None;
-                        }
-                        _ => (),
+            for note in &journal {
+                match note {
+                    JournalNote::GasBurned { amount, .. } => {
+                        gas_burned = gas_burned.saturating_add(*amount);
                     }
+                    JournalNote::SendDispatch { dispatch, .. } => {
+                        gas_to_send = gas_to_send.saturating_add(dispatch.message.gas_limit());
+                    }
+                    JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
+                        return None;
+                    }
+                    _ => (),
                 }
             }
                 
