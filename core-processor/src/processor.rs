@@ -221,6 +221,7 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
 
             journal.push(JournalNote::MessageDispatched(outcome));
             journal.push(JournalNote::MessageConsumed(message_id));
+
             if value != 0 {
                 // Send value further
                 journal.push(JournalNote::SendValue {
@@ -266,13 +267,11 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
         message_id,
         dispatch: Dispatch::handle_reply(reply_message),
     });
-
     journal.push(JournalNote::MessageDispatched(
         DispatchOutcome::Skip(message_id),
     ));
-
     journal.push(JournalNote::MessageConsumed(message_id));
-
+    
     if value != 0 {
         // Send back value
         journal.push(JournalNote::SendValue {

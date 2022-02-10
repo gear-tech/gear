@@ -125,10 +125,7 @@ where
             STORAGE_PROGRAM_PREFIX.to_vec(),
             |key, _| Ok(H256::from_slice(key)),
         )
-        .filter_map(|k| {
-            let program = common::get_program(k).expect("Can't fail");
-            program.try_into_native(k).ok().map(|p| (p.id(), p))
-        })
+        .filter_map(|k| self.get_program(k).map(|p| (p.id(), p)))
         .collect();
 
         let message_queue: VecDeque<_> = common::message_iter().map(Into::into).collect();
@@ -381,15 +378,18 @@ where
 
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         let dispatch: common::Dispatch = dispatch.into();
-        let common::Dispatch { message, .. } = dispatch.clone();
+
+        let dest = dispatch.message.dest;
+        let message_id = dispatch.message.id;
+
         common::insert_waiting_message(
-            message.dest,
-            message.id,
+            dest,
+            message_id,
             dispatch.clone(),
             <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
         );
 
-        Pallet::<T>::deposit_event(Event::AddedToWaitList(message));
+        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch.message));
     }
 
     fn wake_message(

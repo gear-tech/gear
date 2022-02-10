@@ -377,7 +377,7 @@ pub mod pallet {
                     _ => (),
                 }
             }
-                
+
             Some(gas_burned.saturating_add(gas_to_send))
         }
 
