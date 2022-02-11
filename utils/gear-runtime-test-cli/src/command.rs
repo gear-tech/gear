@@ -43,7 +43,7 @@ use sc_service::Configuration;
 use sp_core::H256;
 
 impl GearRuntimeTestCmd {
-    /// Runs tests from `.yaml` files.
+    /// Runs tests from `.yaml` files using the Gear pallet for interaction.
     pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
         let mut tests = vec![];
         for path in &self.input {
@@ -128,12 +128,14 @@ fn init_fixture(
         ) {
             return Err(anyhow::format_err!("Submit program error: {:?}", e));
         }
+
+        // Initialize programs
         while !gear_common::StorageQueue::<Message>::get(gear_common::STORAGE_MESSAGE_PREFIX)
             .is_empty()
         {
             run_to_block(System::block_number() + 1, None);
-            let events = System::events();
-            for event in events {
+            // Parse data from events
+            for event in System::events() {
                 if let crate::mock::Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(
                     snapshot,
                 )) = &event.event
@@ -156,6 +158,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     let mut snapshots = Vec::new();
     let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
     pallet_gear_debug::DebugMode::<Test>::put(true);
+
+    // Find out future program ids
     let programs: BTreeMap<ProgramId, H256> = test
         .programs
         .iter()
@@ -169,7 +173,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             code.encode_to(&mut data);
             salt.encode_to(&mut data);
 
-            // Make sure there is no program with such id in program storage
             let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
 
             progs_n_paths.push((program.path.as_ref(), ProgramId::from(id.as_bytes())));
@@ -183,10 +186,12 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         .map(|(k, v)| (H256::from_slice(k.as_slice()), *v))
         .collect();
 
+    // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
     for id in programs_map.keys() {
         sp_io::storage::set(&gear_common::program_key(*id), &[]);
     }
 
+    // Enable remapping of the source and destination of messages
     pallet_gear_debug::ProgramsMap::<Test>::put(programs_map);
     pallet_gear_debug::RemapId::<Test>::put(true);
     let mut mailbox: Vec<Message> = vec![];
@@ -198,7 +203,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             let mut expected_log = vec![];
 
             for message in &fixture.messages {
-                // Set custom source
                 let payload = match &message.payload {
                     Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
                     Some(PayloadVariant::Custom(v)) => {
@@ -266,6 +270,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         message.value.unwrap_or(0),
                     )
                 );
+
+                // After initialization the last snapshot is empty, so we get MQ after sending messages
                 snapshots.last_mut().unwrap().message_queue = get_message_queue();
             }
 
@@ -273,8 +279,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 .is_empty()
             {
                 run_to_block(System::block_number() + 1, None);
-                let events = System::events();
-                for event in events {
+                // Parse data from events
+                for event in System::events() {
                     if let crate::mock::Event::GearDebug(
                         pallet_gear_debug::Event::DebugDataSnapshot(snapshot),
                     ) = &event.event
@@ -342,6 +348,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     expected_log.append(&mut log.clone());
                 }
             }
+
             if !expected_log.is_empty() {
                 log::info!("mailbox: {:?}", &mailbox);
 
@@ -369,14 +376,12 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
             if !errors.is_empty() {
                 errors.insert(0, "\n".to_string());
-                // total_failed.fetch_add(1, Ordering::SeqCst);
                 errors.join("\n").bright_red()
             } else {
                 "Ok".bright_green()
             }
         }
         Err(e) => {
-            // total_failed += 1;
             format!("Initialization error ({})", e).bright_red()
         }
     }
