@@ -35,8 +35,6 @@ use gear_core::{
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
-use sp_core::H256;
-use std::collections::BTreeMap;
 use std::{
     collections::HashMap,
     fmt, fs,
@@ -203,7 +201,6 @@ pub fn check_messages(
     progs_n_paths: &[(&str, ProgramId)],
     messages: &[Message],
     expected_messages: &[sample::Message],
-    programs: Option<&BTreeMap<ProgramId, H256>>,
 ) -> Result<(), Vec<MessagesError>> {
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
@@ -244,7 +241,6 @@ pub fn check_messages(
 
                                 let json = MetaData::Json(proc::parse_payload(
                                     serde_json::to_string(&v).expect("Cannot convert to string"),
-                                    programs,
                                 ));
 
                                 let bytes = json
@@ -467,9 +463,7 @@ where
                 if !skip_messages {
                     if let Some(messages) = &exp.messages {
                         let msgs: Vec<Message> = final_state.message_queue.into_iter().collect();
-                        if let Err(msg_errors) =
-                            check_messages(progs_n_paths, &msgs, messages, None)
-                        {
+                        if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(
                                 msg_errors
@@ -486,9 +480,7 @@ where
                         }
                     }
 
-                    if let Err(log_errors) =
-                        check_messages(progs_n_paths, &final_state.log, log, None)
-                    {
+                    if let Err(log_errors) = check_messages(progs_n_paths, &final_state.log, log) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
                             log_errors

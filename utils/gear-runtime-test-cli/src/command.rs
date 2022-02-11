@@ -20,11 +20,13 @@ use std::collections::BTreeMap;
 
 use crate::mock::{new_test_ext, run_to_block, System, Test, USER_1};
 use crate::GearRuntimeTestCmd;
-use codec::Encode;
+use codec::{Decode, Encode};
 use colored::{ColoredString, Colorize};
 
-use gear_core::{message::Message, program::ProgramId};
+use gear_core::message::Message as CoreMessage;
+use gear_core::program::ProgramId;
 
+use gear_common::Message;
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -38,32 +40,74 @@ use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
 
+impl GearRuntimeTestCmd {
+    /// Runs tests from `.yaml` files.
+    pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
+        let mut tests = vec![];
+        for path in &self.input {
+            if path.is_dir() {
+                for entry in path.read_dir().expect("read_dir call failed").flatten() {
+                    tests.push(read_test_from_file(entry.path()).map_err(|e| e.to_string())?);
+                }
+            } else {
+                tests.push(read_test_from_file(path).map_err(|e| e.to_string())?);
+            }
+        }
+        log::info!("tests: {:?}", tests.len());
+
+        let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
+        let mut total_failed = 0;
+
+        println!("Total fixtures: {}", total_fixtures);
+
+        for test in &tests {
+            // let test = read_test_from_file(input).map_err(|e| e.to_string())?;
+            // println!("Test {:?}", test.ti);
+
+            for fixture in &test.fixtures {
+                new_test_ext().execute_with(|| {
+                    let output = run_fixture(test, fixture);
+                    gear_common::reset_storage();
+                    pallet_gear::Mailbox::<Test>::drain();
+
+                    println!("Fixture {}: {}", fixture.title.bold(), output);
+                    if !output.contains("Ok") && !output.contains("Skip") {
+                        total_failed += 1;
+                    }
+                });
+            }
+        }
+        if total_failed == 0 {
+            Ok(())
+        } else {
+            Err(format!("{} tests failed", total_failed).into())
+        }
+    }
+}
+
+impl CliConfiguration for GearRuntimeTestCmd {
+    fn shared_params(&self) -> &SharedParams {
+        &self.shared_params
+    }
+}
+
 fn init_fixture(
     test: &'_ sample::Test,
-    _fixture: &sample::Fixture,
-    programs: &BTreeMap<ProgramId, H256>,
-    _progs_n_paths: &mut [(&'_ str, ProgramId)],
     snapshots: &mut Vec<DebugData>,
+    mailbox: &mut Vec<Message>,
 ) -> anyhow::Result<()> {
     for program in &test.programs {
-        log::info!("programs: {:?}", &programs);
-        // match program.id {
-        //     Address::ProgramId(_) => (),
-        //     _ => return Err(anyhow::anyhow!("Program custom id - Skip")),
-        // }
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path).unwrap();
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
-                PayloadVariant::Utf8(s) => parse_payload(s.clone(), Some(programs)).into_bytes(),
+                PayloadVariant::Utf8(s) => parse_payload(s.clone()).into_bytes(),
                 PayloadVariant::Custom(v) => {
                     let meta_type = MetaType::InitInput;
 
-                    let payload = parse_payload(
-                        serde_json::to_string(&v).expect("Cannot convert to string"),
-                        Some(programs),
-                    );
+                    let payload =
+                        parse_payload(serde_json::to_string(&v).expect("Cannot convert to string"));
 
                     let json = MetaData::Json(payload);
 
@@ -77,10 +121,6 @@ fn init_fixture(
             }
         }
 
-        // let message_id = MessageId::from(nonce);
-        // let id = program.id.to_program_id();
-
-        // println!("init: {:?}", init_message);
         if let Err(e) = GearPallet::<Test>::submit_program(
             crate::mock::Origin::signed(USER_1),
             code.clone(),
@@ -89,22 +129,23 @@ fn init_fixture(
             program.init_gas_limit.unwrap_or(5_000_000_000),
             program.init_value.unwrap_or(0) as u128,
         ) {
-            return Err(anyhow::format_err!("Init fixture err: {:?}", e));
+            return Err(anyhow::format_err!("Submit program error: {:?}", e));
         }
-        while !gear_common::StorageQueue::<gear_common::Message>::get(
-            gear_common::STORAGE_MESSAGE_PREFIX,
-        )
-        .is_empty()
+        while !gear_common::StorageQueue::<Message>::get(gear_common::STORAGE_MESSAGE_PREFIX)
+            .is_empty()
         {
             run_to_block(System::block_number() + 1, None);
             let events = System::events();
             for event in events {
-                if let crate::mock::Event::GearDebug(
-                    pallet_gear_debug::Event::DebugDataSnapshot(snapshot),
-                ) = &event.event
+                if let crate::mock::Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(
+                    snapshot,
+                )) = &event.event
                 {
-                    // snapshots.push(snapshot);
                     snapshots.push(snapshot.clone());
+                }
+
+                if let crate::mock::Event::Gear(pallet_gear::Event::Log(msg)) = &event.event {
+                    mailbox.push(msg.clone());
                 }
             }
             System::reset_events();
@@ -151,30 +192,23 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     pallet_gear_debug::ProgramsMap::<Test>::put(programs_map);
     pallet_gear_debug::RemapId::<Test>::put(true);
+    let mut mailbox: Vec<Message> = vec![];
 
-    match init_fixture(test, fixture, &programs, &mut progs_n_paths, &mut snapshots) {
+    match init_fixture(test, &mut snapshots, &mut mailbox) {
         Ok(()) => {
+            log::info!("programs: {:?}", &programs);
             let mut errors = vec![];
             let mut expected_log = vec![];
-            let mut mailbox: Vec<gear_common::Message> = vec![];
-            pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
-                for msg in user_mailbox.values() {
-                    mailbox.push(msg.clone())
-                }
-            });
 
             for message in &fixture.messages {
                 // Set custom source
                 let payload = match &message.payload {
-                    Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone(), Some(&programs))
-                        .as_bytes()
-                        .to_vec(),
+                    Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
                     Some(PayloadVariant::Custom(v)) => {
                         let meta_type = MetaType::HandleInput;
 
                         let payload = parse_payload(
                             serde_json::to_string(&v).expect("Cannot convert to string"),
-                            Some(&programs),
                         );
 
                         let json = MetaData::Json(payload);
@@ -207,7 +241,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 // TODO: force queue message if custom source
                 // if let Some(source) = &message.source {
                 //     if programs.contains_key(&source.to_program_id()) {
-                //         let msg = gear_common::Message {
+                //         let msg = Message {
                 //             id: todo!(),
                 //             source: todo!(),
                 //             dest: todo!(),
@@ -235,12 +269,11 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         message.value.unwrap_or(0),
                     )
                 );
+                snapshots.last_mut().unwrap().message_queue = get_message_queue();
             }
 
-            while !gear_common::StorageQueue::<gear_common::Message>::get(
-                gear_common::STORAGE_MESSAGE_PREFIX,
-            )
-            .is_empty()
+            while !gear_common::StorageQueue::<Message>::get(gear_common::STORAGE_MESSAGE_PREFIX)
+                .is_empty()
             {
                 // println!("strage queue: {:?", sp_io::storage::get());
                 run_to_block(System::block_number() + 1, None);
@@ -250,16 +283,14 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         pallet_gear_debug::Event::DebugDataSnapshot(snapshot),
                     ) = &event.event
                     {
-                        // snapshots.push(snapshot);
                         snapshots.push(snapshot.clone());
+                    }
+
+                    if let crate::mock::Event::Gear(pallet_gear::Event::Log(msg)) = &event.event {
+                        mailbox.push(msg.clone());
                     }
                 }
                 System::reset_events();
-                pallet_gear::Mailbox::<Test>::drain().for_each(|(_, user_mailbox)| {
-                    for msg in user_mailbox.values() {
-                        mailbox.push(msg.clone())
-                    }
-                });
             }
 
             for exp in &fixture.expected {
@@ -267,22 +298,19 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     if expected_messages.is_empty() {
                         break;
                     }
-                    let mut message_queue: Vec<Message> = if let Some(step) = exp.step {
-                        println!(
-                            "snapshots.len() = {}, step({}), progs({})",
-                            snapshots.len(),
-                            step,
-                            test.programs.len()
-                        );
-                        if step == 0 {
-                            continue;
-                        }
+                    let mut message_queue: Vec<CoreMessage> = if let Some(step) = exp.step {
+                        // println!(
+                        //     "snapshots.len() = {}, step({}), progs({})",
+                        //     snapshots.len(),
+                        //     step,
+                        //     test.programs.len()
+                        // );
                         snapshots
                             .get((step + test.programs.len()) - 1)
                             .unwrap()
                             .message_queue
                             .iter()
-                            .map(|msg| Message::from(msg.clone()))
+                            .map(|msg| CoreMessage::from(msg.clone()))
                             .collect()
                     } else {
                         snapshots
@@ -290,7 +318,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                             .unwrap()
                             .message_queue
                             .iter()
-                            .map(|msg| Message::from(msg.clone()))
+                            .map(|msg| CoreMessage::from(msg.clone()))
                             .collect()
                     };
 
@@ -310,7 +338,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         &progs_n_paths,
                         &message_queue,
                         &expected_messages,
-                        Some(&programs),
                     ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
@@ -319,21 +346,18 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                                 .map(|err| format!("Messages check [{}]", err)),
                         );
                     }
-
-                    // println!("res: {:#?}", &message_queue);
-                    // println!("res: {:#?}", res);
                 }
-                // let user_id = &<T::AccountId as Origin>::from_origin(USER_1);
+
                 if let Some(log) = &exp.log {
                     expected_log.append(&mut log.clone());
                 }
             }
             if !expected_log.is_empty() {
-                log::info!("Some(mailbox): {:?}", &mailbox);
+                log::info!("mailbox: {:?}", &mailbox);
 
-                let messages: Vec<Message> = mailbox
+                let messages: Vec<CoreMessage> = mailbox
                     .iter()
-                    .map(|msg| Message::from(msg.clone()))
+                    .map(|msg| CoreMessage::from(msg.clone()))
                     .collect();
 
                 for message in &messages {
@@ -342,12 +366,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     }
                 }
 
-                if let Err(log_errors) = gear_test::check::check_messages(
-                    &progs_n_paths,
-                    &messages,
-                    &expected_log,
-                    Some(&programs),
-                ) {
+                if let Err(log_errors) =
+                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log)
+                {
                     errors.extend(
                         log_errors
                             .into_iter()
@@ -371,54 +392,30 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     }
 }
 
-impl GearRuntimeTestCmd {
-    /// Runs tests from `.yaml` files.
-    pub fn run(&self, _config: Configuration) -> sc_cli::Result<()> {
-        let mut tests = vec![];
-        for path in &self.input {
-            if path.is_dir() {
-                for entry in path.read_dir().expect("read_dir call failed").flatten() {
-                    tests.push(read_test_from_file(entry.path()).map_err(|e| e.to_string())?);
+fn get_message_queue() -> Vec<Message> {
+    #[derive(Decode, Encode)]
+    struct Node {
+        value: Message,
+        next: Option<H256>,
+    }
+
+    let mq_head_key = [gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
+    let mut message_queue = vec![];
+
+    if let Some(head) = sp_io::storage::get(&mq_head_key) {
+        let mut next_id = H256::from_slice(&head[..]);
+        loop {
+            let next_node_key = [gear_common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
+            if let Some(bytes) = sp_io::storage::get(&next_node_key) {
+                let current_node = Node::decode(&mut &bytes[..]).unwrap();
+                message_queue.push(current_node.value);
+                match current_node.next {
+                    Some(h) => next_id = h,
+                    None => break,
                 }
-            } else {
-                tests.push(read_test_from_file(path).map_err(|e| e.to_string())?);
             }
         }
-        log::info!("tests: {:?}", tests.len());
-
-        let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
-        let mut total_failed = 0;
-
-        println!("Total fixtures: {}", total_fixtures);
-
-        for test in &tests {
-            // let test = read_test_from_file(input).map_err(|e| e.to_string())?;
-            // println!("Test {:?}", test.ti);
-
-            for fixture in &test.fixtures {
-                new_test_ext().execute_with(|| {
-                    let output = run_fixture(test, fixture);
-                    gear_common::reset_storage();
-                    pallet_gear::Mailbox::<Test>::drain();
-
-                    println!("Fixture {}: {}", fixture.title.bold(), output);
-                    if !output.contains("Ok") && !output.contains("Skip") {
-                        total_failed += 1;
-                    }
-                });
-            }
-        }
-        if total_failed == 0 {
-            return Ok(());
-        } else {
-            return Err(format!("{} tests failed", total_failed).into());
-        }
-        Ok(())
     }
-}
 
-impl CliConfiguration for GearRuntimeTestCmd {
-    fn shared_params(&self) -> &SharedParams {
-        &self.shared_params
-    }
+    message_queue
 }

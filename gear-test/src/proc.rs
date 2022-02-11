@@ -8,10 +8,8 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 use regex::Regex;
-use sp_core::H256;
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
-use std::collections::BTreeMap;
 use std::{
     io::Error as IoError,
     io::ErrorKind as IoErrorKind,
@@ -19,7 +17,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub fn parse_payload(payload: String, programs: Option<&BTreeMap<ProgramId, H256>>) -> String {
+pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
     let ss58_regex = Regex::new(r"\{(?P<id>[A-Za-z0-9]+)\}").unwrap();
@@ -44,25 +42,13 @@ pub fn parse_payload(payload: String, programs: Option<&BTreeMap<ProgramId, H256
 
     while let Some(caps) = ss58_regex.captures(&s) {
         let id = &caps["id"];
-        if let Some(programs) = programs {
-            s = s.replace(
-                &caps[0],
-                &hex::encode(
-                    programs[&ProgramId::from_slice(
-                        Public::from_ss58check(id).unwrap().as_bytes_ref(),
-                    )]
-                        .as_bytes(),
-                ),
-            );
-        } else {
-            s = s.replace(
-                &caps[0],
-                &hex::encode(
-                    ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
-                        .as_slice(),
-                ),
-            );
-        }
+        s = s.replace(
+            &caps[0],
+            &hex::encode(
+                ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
+                    .as_slice(),
+            ),
+        );
     }
 
     s
@@ -131,14 +117,12 @@ where
         let mut init_message = Vec::new();
         if let Some(init_msg) = &program.init_message {
             init_message = match init_msg {
-                PayloadVariant::Utf8(s) => parse_payload(s.clone(), None).into_bytes(),
+                PayloadVariant::Utf8(s) => parse_payload(s.clone()).into_bytes(),
                 PayloadVariant::Custom(v) => {
                     let meta_type = MetaType::InitInput;
 
-                    let payload = parse_payload(
-                        serde_json::to_string(&v).expect("Cannot convert to string"),
-                        None,
-                    );
+                    let payload =
+                        parse_payload(serde_json::to_string(&v).expect("Cannot convert to string"));
 
                     let json = MetaData::Json(payload);
 
@@ -182,14 +166,12 @@ where
 
     for message in &fixture.messages {
         let payload = match &message.payload {
-            Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone(), None).as_bytes().to_vec(),
+            Some(PayloadVariant::Utf8(s)) => parse_payload(s.clone()).as_bytes().to_vec(),
             Some(PayloadVariant::Custom(v)) => {
                 let meta_type = MetaType::HandleInput;
 
-                let payload = parse_payload(
-                    serde_json::to_string(&v).expect("Cannot convert to string"),
-                    None,
-                );
+                let payload =
+                    parse_payload(serde_json::to_string(&v).expect("Cannot convert to string"));
 
                 let json = MetaData::Json(payload);
 

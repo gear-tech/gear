@@ -187,27 +187,16 @@ pub mod pallet {
                         let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
                         for (k, v) in programs_map.iter() {
                             if *k == current_node.value.dest {
-                                // log::info!(
-                                //     "dest {} -> {}",
-                                //     hex::encode(&current_node.value.dest),
-                                //     hex::encode(&v)
-                                // );
                                 current_node.value.dest = *v;
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
 
                             if *v == current_node.value.source {
-                                // log::info!(
-                                //     "src {} -> {}",
-                                //     hex::encode(&current_node.value.source),
-                                //     hex::encode(&k)
-                                // );
                                 current_node.value.source = *k;
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
                         }
 
-                        // is_first = false;
                         match current_node.next {
                             Some(h) => next_id = h,
                             None => break,
