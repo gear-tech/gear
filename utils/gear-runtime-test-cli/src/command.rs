@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::mock::{new_test_ext, run_to_block, System, Test, USER_1};
 use crate::GearRuntimeTestCmd;
@@ -36,6 +37,7 @@ use gear_test::{
 };
 use pallet_gear::Pallet as GearPallet;
 use pallet_gear_debug::DebugData;
+use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
@@ -53,18 +55,13 @@ impl GearRuntimeTestCmd {
                 tests.push(read_test_from_file(path).map_err(|e| e.to_string())?);
             }
         }
-        log::info!("tests: {:?}", tests.len());
 
         let total_fixtures: usize = tests.iter().map(|t| t.fixtures.len()).sum();
-        let mut total_failed = 0;
+        let total_failed = AtomicUsize::new(0);
 
         println!("Total fixtures: {}", total_fixtures);
-
-        for test in &tests {
-            // let test = read_test_from_file(input).map_err(|e| e.to_string())?;
-            // println!("Test {:?}", test.ti);
-
-            for fixture in &test.fixtures {
+        tests.par_iter().for_each(|test| {
+            test.fixtures.par_iter().for_each(|fixture| {
                 new_test_ext().execute_with(|| {
                     let output = run_fixture(test, fixture);
                     gear_common::reset_storage();
@@ -72,15 +69,15 @@ impl GearRuntimeTestCmd {
 
                     println!("Fixture {}: {}", fixture.title.bold(), output);
                     if !output.contains("Ok") && !output.contains("Skip") {
-                        total_failed += 1;
+                        total_failed.fetch_add(1, Ordering::SeqCst);
                     }
                 });
-            }
-        }
-        if total_failed == 0 {
+            });
+        });
+        if total_failed.load(Ordering::SeqCst) == 0 {
             Ok(())
         } else {
-            Err(format!("{} tests failed", total_failed).into())
+            Err(format!("{} tests failed", total_failed.load(Ordering::SeqCst)).into())
         }
     }
 }
@@ -275,7 +272,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             while !gear_common::StorageQueue::<Message>::get(gear_common::STORAGE_MESSAGE_PREFIX)
                 .is_empty()
             {
-                // println!("strage queue: {:?", sp_io::storage::get());
                 run_to_block(System::block_number() + 1, None);
                 let events = System::events();
                 for event in events {
@@ -299,12 +295,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         break;
                     }
                     let mut message_queue: Vec<CoreMessage> = if let Some(step) = exp.step {
-                        // println!(
-                        //     "snapshots.len() = {}, step({}), progs({})",
-                        //     snapshots.len(),
-                        //     step,
-                        //     test.programs.len()
-                        // );
                         snapshots
                             .get((step + test.programs.len()) - 1)
                             .unwrap()
@@ -362,7 +352,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 for message in &messages {
                     if let Ok(utf8) = core::str::from_utf8(message.payload()) {
-                        println!("log({})", utf8)
+                        log::info!("log({})", utf8)
                     }
                 }
 

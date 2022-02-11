@@ -2186,6 +2186,7 @@ dependencies = [
  "parity-scale-codec",
  "primitive-types",
  "rand 0.8.4",
+ "rayon",
  "regex",
  "sc-cli",
  "sc-service",
