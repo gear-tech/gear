@@ -381,9 +381,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 "Ok".bright_green()
             }
         }
-        Err(e) => {
-            format!("Initialization error ({})", e).bright_red()
-        }
+        Err(e) => format!("Initialization error ({})", e).bright_red(),
     }
 }
 
