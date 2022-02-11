@@ -137,8 +137,7 @@ jobs:
         run: ./scripts/gear.sh test ntest
 
       - name: "Test: Process node runtime testsuite"
-        run: |
-          run: ./scripts/gear.sh test rtest
+        run: ./scripts/gear.sh test rtest
 
       - name: "Cache: Pack"
         continue-on-error: true
