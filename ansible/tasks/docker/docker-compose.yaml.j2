@@ -10,7 +10,7 @@ services:
     image: schernovgear/gear:nightly
     volumes:
       - "/home/ec2-user/gear-data/:/gear/"
-    command: gear-node --base-path /gear/  --prometheus-external --offchain-worker=Never {% if rpc is not defined %} --validator {% endif %} {% if rpc is defined %} --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all {% endif %} {% if bootnodeId is defined %} --bootnodes /ip4/{{ bootnode }}/tcp/30333/p2p/{{ bootnodeId }} {% endif %}
+    command: gear-node --base-path /gear/  --prometheus-external {% if rpc is not defined %} --validator {% endif %} {% if rpc is defined %} --unsafe-ws-external --unsafe-rpc-external --rpc-methods Unsafe --rpc-cors all {% endif %} {% if bootnodeId is defined %} --bootnodes /ip4/{{ bootnode }}/tcp/30333/p2p/{{ bootnodeId }} {% endif %}
 
 volumes:
   gear-data:
