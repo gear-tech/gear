@@ -1395,11 +1395,7 @@ fn exit_init() {
         assert!(!Gear::is_initialized(program_id));
 
         let actual_n = Gear::mailbox(USER_1)
-            .map(|t| {
-                t.into_values().fold(0usize, |i, _| {
-                    i + 1
-                })
-            })
+            .map(|t| t.into_values().fold(0usize, |i, _| i + 1))
             .unwrap_or(0);
 
         assert_eq!(actual_n, 0);
@@ -1453,11 +1449,7 @@ fn exit_handle() {
         assert!(!Gear::is_failed(program_id));
 
         let actual_n = Gear::mailbox(USER_1)
-            .map(|t| {
-                t.into_values().fold(0usize, |i, _| {
-                    i + 1
-                })
-            })
+            .map(|t| t.into_values().fold(0usize, |i, _| i + 1))
             .unwrap_or(0);
 
         assert_eq!(actual_n, 0);
@@ -1482,7 +1474,10 @@ mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
 
-    use super::{assert_ok, pallet, run_to_block, GearPallet, SystemPallet, Mailbox, Origin, Test, Event, MockEvent, MessageInfo};
+    use super::{
+        assert_ok, pallet, run_to_block, Event, GearPallet, Mailbox, MessageInfo, MockEvent,
+        Origin, SystemPallet, Test,
+    };
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
