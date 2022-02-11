@@ -4290,6 +4290,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-processor",
+ "gear-runtime-interface",
  "hex-literal",
  "log",
  "pallet-authorship",

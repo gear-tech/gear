@@ -24,6 +24,7 @@ common = { package = "gear-common", path = "../../common", default-features = fa
 core-processor = { package = "gear-core-processor", path = "../../core-processor", features = ["lazy-pages"] }
 gear-core = { path = "../../core" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
+gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }

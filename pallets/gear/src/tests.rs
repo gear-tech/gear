@@ -20,6 +20,7 @@ use codec::Encode;
 use common::{self, GasToFeeConverter, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
+use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 use tests_distributor::{Request, WASM_BINARY_BLOATY};
 
@@ -296,6 +297,96 @@ fn unused_gas_released_back_works() {
             user1_initial_balance - user1_actual_msgs_spends
         );
     })
+}
+
+#[test]
+fn lazy_pages() {
+    // This test access different pages in linear wasm memory
+    // and check that lazy-pages (see gear-lazy-pages) works correct:
+    // For each page, which has been loaded from storage <=> page has been accessed.
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+        (import "env" "alloc" (func $alloc (param i32) (result i32)))
+		(export "handle" (func $handle))
+		(export "init" (func $init))
+		(func $init
+            ;; allocate 9 pages in init, so mem will contain 10 pages
+            i32.const 0x0
+            i32.const 0x9
+            call $alloc
+            i32.store
+        )
+        (func $handle
+            ;; write access page 0
+            i32.const 0x0
+            i32.const 0x42
+            i32.store
+
+            ;; write access page 2
+            i32.const 0x20000
+            i32.const 0x42
+            i32.store
+
+            ;; read access page 5
+            i32.const 0x0
+            i32.const 0x50000
+            i32.load
+            i32.store
+
+            ;; write access page 8 and 9 by one store
+            i32.const 0x8fffc
+            i64.const 0xffffffffffffffff
+            i64.store
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let pid = {
+            let code = ProgramCodeKind::Custom(wat).to_bytes();
+            let salt = DEFAULT_SALT.to_vec();
+            let prog_id = generate_program_id(&code, &salt);
+            let res = GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                code,
+                salt,
+                EMPTY_PAYLOAD.to_vec(),
+                5_000_000,
+                0,
+            )
+            .map(|_| prog_id);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        run_to_block(2, Some(10_000_000));
+        log::debug!("submit done {:?}", pid);
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+
+        let res = GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            pid,
+            EMPTY_PAYLOAD.to_vec(),
+            1_000_000,
+            100,
+        );
+        log::debug!("res = {:?}", res);
+        assert_ok!(res);
+
+        run_to_block(3, Some(10_000_000));
+
+        // Dirty hack: lazy pages info is stored in thread local static variables,
+        // so after contract execution lazy-pages information
+        // remains correct and we can use it here.
+        let released_pages = gear_ri::gear_ri::get_released_pages();
+        let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
+
+        // checks not accessed pages
+        assert_eq!(lazy_pages, [1, 3, 4, 6, 7]);
+        // checks accessed pages
+        assert_eq!(released_pages, [0, 2, 5, 8, 9]);
+    });
 }
 
 #[test]

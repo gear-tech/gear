@@ -65,6 +65,8 @@ pub fn protect_pages_and_init_info(
         .collect::<Vec<u32>>();
     let prog_id_hash = prog_id.into_origin();
 
+    gear_ri::gear_ri::reset_lazy_pages_info();
+
     gear_ri::gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr as u64);
 
     lazy_pages.iter().for_each(|p| {
@@ -107,7 +109,6 @@ pub fn post_execution_actions(
         false,
     );
 
-    gear_ri::gear_ri::reset_lazy_pages_info();
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
