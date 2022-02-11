@@ -25,7 +25,7 @@ use core_processor::{
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId, DispatchKind, Dispatch},
+    message::{Dispatch, DispatchKind, Message, MessageId},
     program::{Program, ProgramId},
 };
 use std::collections::{BTreeMap, HashSet};
@@ -260,7 +260,7 @@ struct Journal<'a> {
 impl<'a> JournalHandler for Journal<'a> {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
-            DispatchOutcome::Success(_) => {}
+            DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => {}
             DispatchOutcome::MessageTrap {
                 message_id, trap, ..
             } => {
@@ -290,8 +290,8 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn message_consumed(&mut self, _message_id: MessageId) {}
 
-    fn send_dispatch(&mut self, _origin: MessageId, message: Message) {
-        match message.reply {
+    fn send_dispatch(&mut self, _origin: MessageId, dispatch: Dispatch) {
+        match dispatch.message.reply {
             Some((message_id, 0)) => {
                 self.context.outcomes.insert(message_id, RunResult::Normal);
             }
@@ -303,14 +303,10 @@ impl<'a> JournalHandler for Journal<'a> {
             _ => {}
         }
 
-        if self.context.programs.contains_key(&message.dest) {
-            let kind = match message.reply {
-                Some(_) => DispatchKind::HandleReply,
-                None => DispatchKind::Handle,
-            };
-            self.context.message_queue.push(Dispatch { kind, message });
+        if self.context.programs.contains_key(&dispatch.message.dest) {
+            self.context.message_queue.push(dispatch);
         } else {
-            self.context.log.push(message);
+            self.context.log.push(dispatch.message);
         }
     }
 
@@ -359,6 +355,10 @@ impl<'a> JournalHandler for Journal<'a> {
             program.remove_page(page_number);
         }
     }
+
+    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
+        todo!("https://github.com/gear-tech/gear/issues/644")
+    }
 }
 
 impl RunnerContext {
@@ -403,7 +403,7 @@ impl RunnerContext {
             .expect("Program not found");
 
         let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
-            program.clone(),
+            Some(program.clone()),
             dispatch,
             BlockInfo {
                 height: 1,

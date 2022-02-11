@@ -32,12 +32,12 @@ use scale_info::TypeInfo;
 use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use sp_std::prelude::*;
 use sp_std::convert::TryFrom;
+use sp_std::prelude::*;
 
 use gear_core::{
-    program::{ProgramId, Program as NativeProgram},
-    message::DispatchKind
+    message::DispatchKind,
+    program::{Program as NativeProgram, ProgramId},
 };
 
 pub use storage_queue::Iterator;
@@ -67,11 +67,9 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
-    pub fn new(message: Message, kind: DispatchKind) -> Self {
-        Dispatch {
-            message,
-            kind,
-        }
+    pub fn handle_reply(message: Message) -> Self {
+        let kind = DispatchKind::HandleReply;
+        Dispatch { message, kind }
     }
 }
 
@@ -89,22 +87,29 @@ pub struct Message {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum ProgramWithStatus {
     Active(Program),
-    Terminated
+    Terminated,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum ProgramError {
     FailedToGetProgramData,
-    ProgramIsTerminated
+    ProgramIsTerminated,
 }
 
 impl ProgramWithStatus {
     pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
         let program: Program = self.try_into()?;
-        let persistent_pages = crate::get_program_pages(id, program.persistent_pages).ok_or(ProgramError::FailedToGetProgramData)?;
-        let code = crate::get_code(program.code_hash).ok_or(ProgramError::FailedToGetProgramData)?;
-        let native_program =
-            NativeProgram::from_parts(ProgramId::from_origin(id), code, program.static_pages, program.nonce, persistent_pages);
+        let persistent_pages = crate::get_program_pages(id, program.persistent_pages)
+            .ok_or(ProgramError::FailedToGetProgramData)?;
+        let code =
+            crate::get_code(program.code_hash).ok_or(ProgramError::FailedToGetProgramData)?;
+        let native_program = NativeProgram::from_parts(
+            ProgramId::from_origin(id),
+            code,
+            program.static_pages,
+            program.nonce,
+            persistent_pages,
+        );
         Ok(native_program)
     }
 
@@ -113,7 +118,13 @@ impl ProgramWithStatus {
     }
 
     pub fn is_initialized(&self) -> bool {
-        matches!(self,  Active(Program { state: ProgramState::Initialized, .. }))
+        matches!(
+            self,
+            Active(Program {
+                state: ProgramState::Initialized,
+                ..
+            })
+        )
     }
 
     pub fn is_terminated(&self) -> bool {
@@ -127,7 +138,7 @@ impl TryFrom<ProgramWithStatus> for Program {
     fn try_from(prog_with_status: ProgramWithStatus) -> Result<Program, Self::Error> {
         match prog_with_status {
             ProgramWithStatus::Active(p) => Ok(p),
-            ProgramWithStatus::Terminated => Err(ProgramError::ProgramIsTerminated)
+            ProgramWithStatus::Terminated => Err(ProgramError::ProgramIsTerminated),
         }
     }
 }
@@ -360,10 +371,7 @@ pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32,
     for page_num in pages {
         let key = page_key(id, page_num);
 
-        persistent_pages.insert(
-            page_num,
-            sp_io::storage::get(&key)?,
-        );
+        persistent_pages.insert(page_num, sp_io::storage::get(&key)?);
     }
     Some(persistent_pages)
 }
@@ -399,7 +407,9 @@ pub fn queue_dispatch(dispatch: Dispatch) {
 
 // todo [sab] maybe dispatch iterator
 pub fn message_iter() -> impl sp_std::iter::Iterator<Item = Message> {
-    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter().map(|d: Dispatch| d.message)
+    StorageQueue::get(STORAGE_MESSAGE_PREFIX)
+        .into_iter()
+        .map(|d: Dispatch| d.message)
 }
 
 pub fn nonce_fetch_inc() -> u128 {
@@ -482,7 +492,8 @@ pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: Dispat
 
 pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(Dispatch, u32)> {
     let id = wait_key(dest_prog_id, msg_id);
-    let msg = sp_io::storage::get(&id).and_then(|val| <(Dispatch, u32)>::decode(&mut &val[..]).ok());
+    let msg =
+        sp_io::storage::get(&id).and_then(|val| <(Dispatch, u32)>::decode(&mut &val[..]).ok());
 
     if msg.is_some() {
         sp_io::storage::clear(&id);
@@ -538,9 +549,7 @@ mod tests {
     }
 
     fn get_active_program(id: H256) -> Option<Program> {
-        get_program(id)
-            .map(|p| p.try_into().ok())
-            .flatten()
+        get_program(id).and_then(|p| p.try_into().ok())
     }
 
     #[test]

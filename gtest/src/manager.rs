@@ -6,7 +6,7 @@ use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Dispatch, DispatchKind, Message, MessageId},
     program::{Program as CoreProgram, ProgramId},
 };
 use std::collections::{BTreeMap, VecDeque};
@@ -144,7 +144,7 @@ impl ExtManager {
             match prog {
                 Program::Core(program) => {
                     let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
-                        program.clone(),
+                        Some(program.clone()),
                         Dispatch { kind, message },
                         self.block_info,
                     );
@@ -172,18 +172,19 @@ impl ExtManager {
                             if let Some(payload) = reply {
                                 let nonce = self.fetch_inc_message_nonce();
 
+                                let reply_message = Message::new_reply(
+                                    nonce.into(),
+                                    program_id,
+                                    message.source(),
+                                    payload.into(),
+                                    message.gas_limit(),
+                                    0,
+                                    message.id(),
+                                    0,
+                                );
                                 self.send_dispatch(
                                     message_id,
-                                    Message::new_reply(
-                                        nonce.into(),
-                                        program_id,
-                                        message.source(),
-                                        payload.into(),
-                                        message.gas_limit(),
-                                        0,
-                                        message.id(),
-                                        0,
-                                    ),
+                                    Dispatch::handle_reply(reply_message),
                                 );
                             }
                         }
@@ -207,19 +208,17 @@ impl ExtManager {
 
                             let nonce = self.fetch_inc_message_nonce();
 
-                            self.send_dispatch(
-                                message_id,
-                                Message::new_reply(
-                                    nonce.into(),
-                                    program_id,
-                                    message.source(),
-                                    Default::default(),
-                                    message.gas_limit(),
-                                    0,
-                                    message.id(),
-                                    1,
-                                ),
+                            let reply_message = Message::new_reply(
+                                nonce.into(),
+                                program_id,
+                                message.source(),
+                                Default::default(),
+                                message.gas_limit(),
+                                0,
+                                message.id(),
+                                1,
                             );
+                            self.send_dispatch(message_id, Dispatch::handle_reply(reply_message));
                         }
                     }
                 }
@@ -285,7 +284,7 @@ impl JournalHandler for ExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
             DispatchOutcome::MessageTrap { message_id, .. } => self.mark_failed(message_id),
-            DispatchOutcome::Success(_) => {}
+            DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => {}
             DispatchOutcome::InitFailure {
                 message_id,
                 program_id,
@@ -308,7 +307,8 @@ impl JournalHandler for ExtManager {
             self.message_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, message: Message) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+        let Dispatch { message, .. } = dispatch;
         if self.programs.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
         } else {
@@ -358,5 +358,8 @@ impl JournalHandler for ExtManager {
         } else {
             panic!("Program not found in storage");
         }
+    }
+    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
+        todo!("https://github.com/gear-tech/gear/issues/644")
     }
 }

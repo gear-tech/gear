@@ -22,7 +22,7 @@ use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVa
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use core_processor::{
-    common::{CollectState, Dispatch, JournalHandler},
+    common::{CollectState, JournalHandler},
     Ext,
 };
 use derive_more::Display;
@@ -30,7 +30,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::{
     memory::PAGE_SIZE,
-    message::{Message, MessageId},
+    message::{Dispatch, Message, MessageId},
     program::{Program, ProgramId},
 };
 use log::{Log, Metadata, Record, SetLoggerError};

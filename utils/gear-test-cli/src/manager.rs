@@ -5,7 +5,7 @@ use gear_core::{
     program::ProgramId,
 };
 use gear_core_processor::common::{
-    CollectState, Dispatch, EntryPoint, DispatchOutcome as CoreDispatchOutcome, JournalHandler,
+    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, EntryPoint, JournalHandler,
     State,
 };
 use gear_runtime::{pallet_gear::Config, ExtManager};

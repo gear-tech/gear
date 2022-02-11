@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    message::{Message as CoreMessage, MessageId, Dispatch as CoreDispatch},
+    message::{Dispatch as CoreDispatch, Message as CoreMessage, MessageId},
     program::{Program as CoreProgram, ProgramId},
 };
 

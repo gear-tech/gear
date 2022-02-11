@@ -170,9 +170,8 @@ where
     /// By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
-        common::get_program(id).and_then(|prog_with_status| {
-            prog_with_status.try_into_native(id).ok()
-        })
+        common::get_program(id)
+            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())
     }
 
     pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {

@@ -19,10 +19,10 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, value_tree::ValueView, Message, Origin as _, GAS_VALUE_PREFIX, Dispatch};
-use gear_core::message::DispatchKind;
+use common::{self, value_tree::ValueView, Dispatch, Message, Origin as _, GAS_VALUE_PREFIX};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
+use gear_core::message::DispatchKind;
 use hex_literal::hex;
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
@@ -57,7 +57,7 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
             msg_id.clone(),
             Dispatch {
                 kind: DispatchKind::Handle,
-                message
+                message,
             },
             blk_num.try_into().unwrap(),
         );

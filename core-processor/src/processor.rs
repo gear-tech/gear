@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{
-        DispatchOutcome, DispatchResultKind, JournalNote, DispatchResult,
-    },
+    common::{DispatchOutcome, DispatchResult, DispatchResultKind, JournalNote},
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
@@ -27,7 +25,7 @@ use crate::{
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::{Message, Dispatch, DispatchKind},
+    message::{Dispatch, DispatchKind, Message},
     program::{Program, ProgramId},
 };
 
@@ -40,24 +38,24 @@ pub fn process<E: Environment<Ext>>(
     if let Some(program) = program {
         let execution_settings = ExecutionSettings::new(block_info);
         let initial_nonce = program.message_nonce();
-    
-        match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
+
+        let ret = match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
             Ok(res) => match res.kind {
                 DispatchResultKind::Trap(reason) => {
-                    return process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason);
+                    process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
                 }
-                _ => return process_success(res),
+                _ => process_success(res),
             },
-            Err(e) => return process_error(
+            Err(e) => process_error(
                 dispatch,
                 initial_nonce,
                 e.gas_amount.burned(),
                 Some(e.reason),
             ),
-        }
+        };
+        return ret;
     }
     process_skip(dispatch)
-    
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
@@ -152,7 +150,7 @@ fn process_error(
         journal.push(JournalNote::SendValue {
             from: origin,
             to: None,
-            value
+            value,
         });
     }
 
@@ -227,7 +225,7 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
                 journal.push(JournalNote::SendValue {
                     from: origin,
                     to: Some(program_id),
-                    value
+                    value,
                 });
             }
         }
@@ -245,7 +243,7 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
     // Number of notes is predetermined
     let mut journal = Vec::with_capacity(4);
 
-    let Dispatch {message, ..} = dispatch;
+    let Dispatch { message, .. } = dispatch;
 
     let message_id = message.id();
     let value = message.value();
@@ -267,17 +265,17 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
         message_id,
         dispatch: Dispatch::handle_reply(reply_message),
     });
-    journal.push(JournalNote::MessageDispatched(
-        DispatchOutcome::Skip(message_id),
-    ));
+    journal.push(JournalNote::MessageDispatched(DispatchOutcome::Skip(
+        message_id,
+    )));
     journal.push(JournalNote::MessageConsumed(message_id));
-    
+
     if value != 0 {
         // Send back value
         journal.push(JournalNote::SendValue {
             from: message.source(),
             to: None,
-            value
+            value,
         });
     }
 

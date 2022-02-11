@@ -26,7 +26,7 @@ use alloc::{
 use gear_core::{
     gas::GasAmount,
     memory::PageNumber,
-    message::{Message, MessageId, Dispatch},
+    message::{Dispatch, Message, MessageId},
     program::{Program, ProgramId},
 };
 
@@ -184,7 +184,7 @@ pub enum JournalNote {
         /// Value beneficiary,
         to: Option<ProgramId>,
         /// Value amount
-        value: u128
+        value: u128,
     },
 }
 

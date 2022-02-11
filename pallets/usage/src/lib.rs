@@ -43,16 +43,15 @@ pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
     use common::{
-        value_tree::ValueView, GasToFeeConverter, Message, PaymentProvider, GAS_VALUE_PREFIX, ProgramWithStatus,
+        value_tree::ValueView, Dispatch, GasToFeeConverter, Message, Origin, PaymentProvider,
+        ProgramWithStatus, GAS_VALUE_PREFIX,
     };
-    use gear_core::message::Dispatch;
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
         traits::{Currency, Get, ReservableCurrency},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
-    use primitive_types::H256;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -185,7 +184,7 @@ pub mod pallet {
             if !sp_io::offchain::is_validator() {
                 log::debug!(
                     target: "runtime::usage",
-                    "Skipping offchain worker at {:?}: not a validator.",
+                    "Skipping offchain worker at {:?}:messagedator.",
                     now,
                 );
                 return;
@@ -271,10 +270,11 @@ pub mod pallet {
                         common::remove_waiting_message(program_id, message_id)
                     },
                 )
-                .for_each(|(msg, bn)| {
-                    let program_id = msg.dest;
+                .for_each(|(dispatch, bn)| {
+                    let Dispatch { message, kind } = dispatch;
+                    let program_id = message.dest;
 
-                    let mut gas_tree = ValueView::get(GAS_VALUE_PREFIX, msg.id)
+                    let mut gas_tree = ValueView::get(GAS_VALUE_PREFIX, message.id)
                         .expect("A message in wait list must have an associated value tree");
                     let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
                     let full_fee = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
@@ -344,21 +344,21 @@ pub mod pallet {
                                 let trap_message_id = core_processor::next_message_id(
                                     program_id.as_ref().into(),
                                     program.nonce,
-                                );
+                                ).into_origin();
                                 let trap_message = Message {
-                                    id: H256::from_slice(trap_message_id.as_slice()),
+                                    id: trap_message_id,
                                     source: program_id,
-                                    dest: msg.source,
+                                    dest: message.source,
                                     payload: vec![],
                                     gas_limit: trap_gas,
                                     value: 0,
-                                    reply: Some((msg.id, core_processor::ERR_EXIT_CODE)),
+                                    reply: Some((message.id, core_processor::ERR_EXIT_CODE)),
                                 };
 
                                 let dispatch = Dispatch::handle_reply(trap_message);
 
                                 // Enqueue the trap reply message
-                                let _ = gas_tree.split_off(trap_message.id, trap_gas);
+                                let _ = gas_tree.split_off(trap_message_id, trap_gas);
                                 common::queue_dispatch(dispatch);
 
                                 // Save back the program with incremented nonce
@@ -375,8 +375,11 @@ pub mod pallet {
                     } else {
                         common::insert_waiting_message(
                             program_id,
-                            msg.id,
-                            msg,
+                            message.id,
+                            Dispatch {
+                                message,
+                                kind
+                            },
                             current_block.saturated_into(),
                         );
                     }

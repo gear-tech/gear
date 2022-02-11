@@ -19,7 +19,7 @@
 use core_processor::common::*;
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Dispatch, DispatchKind, Message, MessageId},
     program::{Program, ProgramId},
 };
 use std::cell::RefCell;
@@ -80,7 +80,7 @@ impl JournalHandler for InMemoryExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         self.current_failed = match outcome {
             DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. } => true,
-            DispatchOutcome::Success(_) => false,
+            DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
                 let waiting_messages = self.waiting_init.borrow_mut().remove(&program_id);
                 for m_id in waiting_messages.iter().flatten() {
@@ -103,7 +103,8 @@ impl JournalHandler for InMemoryExtManager {
             self.message_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, message: Message) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+        let Dispatch { message, .. } = dispatch;
         let id = message.dest();
         if self.programs.borrow().contains_key(&id) {
             let mut borrowed_list = self.waiting_init.borrow_mut();
@@ -156,5 +157,8 @@ impl JournalHandler for InMemoryExtManager {
         } else {
             panic!("Program not found in storage");
         }
+    }
+    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
+        todo!("TODO https://github.com/gear-tech/gear/issues/644")
     }
 }

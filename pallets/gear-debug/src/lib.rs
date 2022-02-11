@@ -143,7 +143,8 @@ pub mod pallet {
                         persistent_pages: common::get_program_pages(
                             program_id,
                             program.persistent_pages,
-                        ).expect("program exists in storage, so pages do"),
+                        )
+                        .expect("program exists in storage, so pages do"),
                         code_hash: program.code_hash,
                         nonce: program.nonce,
                     })

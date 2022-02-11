@@ -4,7 +4,7 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::{IncomingMessage, Message, MessageId},
+    message::{Dispatch, DispatchKind, IncomingMessage, Message, MessageId},
     program::{Program, ProgramId},
 };
 use regex::Regex;
@@ -101,7 +101,7 @@ where
 
     journal_handler.store_program(program.clone(), message.message.id());
 
-    let journal = core_processor::process::<E>(program, message.into(), block_info);
+    let journal = core_processor::process::<E>(Some(program), message.into(), block_info);
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -213,18 +213,16 @@ where
             message_source = source.to_program_id();
         }
 
-        journal_handler.send_dispatch(
-            Default::default(),
-            Message {
-                id: message_id,
-                source: message_source,
-                dest: message.destination.to_program_id(),
-                payload: payload.into(),
-                gas_limit,
-                value: message.value.unwrap_or_default() as _,
-                reply: None,
-            },
-        );
+        let message = Message {
+            id: message_id,
+            source: message_source,
+            dest: message.destination.to_program_id(),
+            payload: payload.into(),
+            gas_limit,
+            value: message.value.unwrap_or_default() as _,
+            reply: None,
+        };
+        journal_handler.send_dispatch(Default::default(), Dispatch::handle(message));
 
         nonce += 1;
     }
@@ -256,7 +254,7 @@ where
                 let program = state.programs.get(&m.dest()).expect("Can't find program");
 
                 let journal = core_processor::process::<E>(
-                    program.clone(),
+                    Some(program.clone()),
                     journal_handler.message_to_dispatch(m),
                     BlockInfo { height, timestamp },
                 );
@@ -281,7 +279,7 @@ where
                 .unwrap_or(0) as u64;
 
             let journal = core_processor::process::<E>(
-                program.clone(),
+                Some(program.clone()),
                 journal_handler.message_to_dispatch(m),
                 BlockInfo {
                     height: counter,
