@@ -30,20 +30,22 @@ use gear_core::{
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber},
     message::{MessageId, OutgoingMessage, ReplyMessage},
+    program::ProgramId,
 };
 
+pub const EXIT_TRAP_STR: &str = "exit";
 pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
 
 pub enum TerminationReason<'a> {
+    Exit(ProgramId),
+    Leave,
     Success,
     Trap {
         explanation: Option<&'static str>,
         description: Option<Cow<'a, str>>,
     },
-    Manual {
-        wait: bool,
-    },
+    Wait,
 }
 
 pub struct ExtInfo {
@@ -55,6 +57,8 @@ pub struct ExtInfo {
     pub nonce: u64,
 
     pub trap_explanation: Option<&'static str>,
+
+    pub exit_argument: Option<ProgramId>,
 }
 
 pub struct BackendReport<'a> {

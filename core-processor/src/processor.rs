@@ -210,6 +210,12 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     }
 
     match res.kind {
+        DispatchResultKind::Exit(value_destination) => {
+            journal.push(JournalNote::ExitDispatch {
+                id_exited: program_id,
+                value_destination,
+            });
+        }
         DispatchResultKind::Wait => {
             let mut dispatch = res.dispatch;
             dispatch.message.gas_limit = res.gas_amount.left();

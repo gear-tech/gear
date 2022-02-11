@@ -44,6 +44,8 @@ pub struct Ext {
     pub config: AllocationsConfig,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
+    /// Contains argument to the `exit` if it was called.
+    pub exit_argument: Option<ProgramId>,
 }
 
 impl From<Ext> for ExtInfo {
@@ -76,6 +78,7 @@ impl From<Ext> for ExtInfo {
             awakening,
             nonce,
             trap_explanation,
+            exit_argument: ext.exit_argument,
         }
     }
 }
@@ -205,6 +208,15 @@ impl EnvExt for Ext {
 
     fn source(&mut self) -> ProgramId {
         self.message_context.current().source()
+    }
+
+    fn exit(&mut self, address: ProgramId) -> Result<(), &'static str> {
+        if self.exit_argument.is_some() {
+            Err("Cannot call `exit' twice")
+        } else {
+            self.exit_argument = Some(address);
+            Ok(())
+        }
     }
 
     fn message_id(&mut self) -> MessageId {

@@ -57,6 +57,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_to_i32("gr_exit_code", funcs::exit_code);
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);
+        result.add_func_i32("gr_exit", funcs::exit);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32("gr_program_id", funcs::program_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
@@ -323,17 +324,21 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         let info: ExtInfo = self.ext.unset().into();
 
         let termination = if let Err(e) = &res {
-            let mut reason = None;
-
-            if let Some(trap) = e.downcast_ref::<Trap>() {
+            let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
                 let trap = trap.to_string();
 
-                if funcs::is_wait_trap(&trap) {
-                    reason = Some(TerminationReason::Manual { wait: true });
+                if let Some(value_dest) = info.exit_argument {
+                    Some(TerminationReason::Exit(value_dest))
+                } else if funcs::is_wait_trap(&trap) {
+                    Some(TerminationReason::Wait)
                 } else if funcs::is_leave_trap(&trap) {
-                    reason = Some(TerminationReason::Manual { wait: false });
+                    Some(TerminationReason::Leave)
+                } else {
+                    None
                 }
-            }
+            } else {
+                None
+            };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
                 explanation: info.trap_explanation,

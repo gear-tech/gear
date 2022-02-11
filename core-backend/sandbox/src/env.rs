@@ -76,6 +76,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "free", funcs::free);
         env_builder.add_host_func("env", "gr_block_height", funcs::block_height);
         env_builder.add_host_func("env", "gr_block_timestamp", funcs::block_timestamp);
+        env_builder.add_host_func("env", "gr_exit", funcs::exit);
         env_builder.add_host_func("env", "gr_exit_code", funcs::exit_code);
         env_builder.add_host_func("env", "gr_send", funcs::send);
         env_builder.add_host_func("env", "gr_send_commit", funcs::send_commit);
@@ -159,14 +160,18 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         let info: ExtInfo = runtime.ext.unset().into();
 
         let termination = if res.is_err() {
-            let mut reason = None;
-
-            if let Some(trap) = runtime.trap {
-                if common_funcs::is_wait_trap(trap) {
-                    reason = Some(TerminationReason::Manual { wait: true });
+            let reason = if let Some(trap) = runtime.trap {
+                if let Some(value_dest) = info.exit_argument {
+                    Some(TerminationReason::Exit(value_dest))
+                } else if common_funcs::is_wait_trap(trap) {
+                    Some(TerminationReason::Wait)
                 } else if common_funcs::is_leave_trap(trap) {
-                    reason = Some(TerminationReason::Manual { wait: false });
+                    Some(TerminationReason::Leave)
+                } else {
+                    None
                 }
+            } else {
+                None
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {

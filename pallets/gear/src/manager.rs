@@ -30,7 +30,7 @@ use core_processor::common::{
 };
 use frame_support::{
     storage::PrefixIterator,
-    traits::{BalanceStatus, ReservableCurrency},
+    traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
 };
 use gear_core::{
     memory::PageNumber,
@@ -38,7 +38,7 @@ use gear_core::{
     program::{Program, ProgramId},
 };
 use primitive_types::H256;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{
     collections::{btree_map::BTreeMap, vec_deque::VecDeque},
     marker::PhantomData,
@@ -305,6 +305,24 @@ where
             );
         }
     }
+
+    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        let program_id = id_exited.into_origin();
+        common::remove_program(program_id);
+
+        let program_account = &<T::AccountId as Origin>::from_origin(program_id);
+        let balance = T::Currency::total_balance(program_account);
+        if !balance.is_zero() {
+            T::Currency::transfer(
+                program_account,
+                &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
+                balance,
+                ExistenceRequirement::AllowDeath,
+            )
+            .expect("balance is not zero; should not fail");
+        }
+    }
+
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 
