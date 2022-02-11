@@ -30,6 +30,8 @@ header() {
 }
 
 show() {
+  cargo --version
+  rustup --version
   rustup show
 
   bold && printf "node.js\n-------\n\n" && normal
