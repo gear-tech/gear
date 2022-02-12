@@ -28,7 +28,7 @@ use gear_core::message::Message as CoreMessage;
 use gear_core::program::Program as CoreProgram;
 use gear_core::program::ProgramId;
 
-use gear_common::Message;
+use gear_common::{Message, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -131,9 +131,7 @@ fn init_fixture(
         }
 
         // Initialize programs
-        while !gear_common::StorageQueue::<Message>::get(gear_common::STORAGE_MESSAGE_PREFIX)
-            .is_empty()
-        {
+        while !gear_common::StorageQueue::<Message>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
             run_to_block(System::block_number() + 1, None);
             // Parse data from events
             for event in System::events() {
@@ -236,49 +234,54 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         .unwrap_or_default(),
                 };
 
+                let dest = programs[&message.destination.to_program_id()];
+
                 let gas_limit = message
                     .gas_limit
                     .unwrap_or(GearPallet::<Test>::gas_allowance() / fixture.messages.len() as u64);
 
-                // TODO: force queue message if custom source
-                // if let Some(source) = &message.source {
-                //     if programs.contains_key(&source.to_program_id()) {
-                //         let msg = Message {
-                //             id: todo!(),
-                //             source: todo!(),
-                //             dest: todo!(),
-                //             payload,
-                //             gas_limit,
-                //             value: todo!(),
-                //             reply: todo!(),
-                //         }
-                //         gear_common::queue_message(message)
-                //     }
-                // } else {
-                //     USER_1
-                // };
-                if message.source.is_some() {
-                    return "Message custom source - Skip".bright_yellow();
-                }
+                let value = message.value.unwrap_or(0);
 
-                log::info!(
-                    "{:?}",
-                    GearPallet::<Test>::send_message(
-                        crate::mock::Origin::signed(USER_1),
-                        programs[&message.destination.to_program_id()],
+                // Force push to MQ if msg.source.is_some()
+                if let Some(source) = &message.source {
+                    let source = H256::from_slice(source.to_program_id().as_slice());
+                    let id = gear_common::next_message_id(&payload);
+
+                    let _ = gear_common::value_tree::ValueView::get_or_create(
+                        GAS_VALUE_PREFIX,
+                        source,
+                        id,
+                        gas_limit,
+                    );
+
+                    let msg = Message {
+                        id,
+                        source,
+                        dest,
                         payload,
                         gas_limit,
-                        message.value.unwrap_or(0),
-                    )
-                );
+                        value,
+                        reply: None,
+                    };
+                    gear_common::queue_message(msg)
+                } else {
+                    log::info!(
+                        "{:?}",
+                        GearPallet::<Test>::send_message(
+                            crate::mock::Origin::signed(USER_1),
+                            dest,
+                            payload,
+                            gas_limit,
+                            value,
+                        )
+                    );
+                }
 
                 // After initialization the last snapshot is empty, so we get MQ after sending messages
                 snapshots.last_mut().unwrap().message_queue = get_message_queue();
             }
 
-            while !gear_common::StorageQueue::<Message>::get(gear_common::STORAGE_MESSAGE_PREFIX)
-                .is_empty()
-            {
+            while !gear_common::StorageQueue::<Message>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
                 run_to_block(System::block_number() + 1, None);
                 // Parse data from events
                 for event in System::events() {
@@ -423,13 +426,13 @@ fn get_message_queue() -> Vec<Message> {
         next: Option<H256>,
     }
 
-    let mq_head_key = [gear_common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
+    let mq_head_key = [STORAGE_MESSAGE_PREFIX, b"head"].concat();
     let mut message_queue = vec![];
 
     if let Some(head) = sp_io::storage::get(&mq_head_key) {
         let mut next_id = H256::from_slice(&head[..]);
         loop {
-            let next_node_key = [gear_common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
+            let next_node_key = [STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
             if let Some(bytes) = sp_io::storage::get(&next_node_key) {
                 let current_node = Node::decode(&mut &bytes[..]).unwrap();
                 message_queue.push(current_node.value);
