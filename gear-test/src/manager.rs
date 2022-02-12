@@ -164,7 +164,7 @@ impl JournalHandler for InMemoryExtManager {
         {
             prog.set_message_nonce(nonce);
         } else {
-            // panic!("Can't update nonce for terminated program");
+            panic!("Can't update nonce for terminated program");
         }
     }
     fn update_page(
@@ -184,7 +184,7 @@ impl JournalHandler for InMemoryExtManager {
                 prog.remove_page(page_number);
             }
         } else {
-            // panic!("Can't update page for terminated program");
+            panic!("Can't update page for terminated program");
         }
     }
     fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
