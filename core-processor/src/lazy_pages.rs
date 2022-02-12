@@ -108,7 +108,6 @@ pub fn post_execution_actions(
         true,
         false,
     );
-
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
