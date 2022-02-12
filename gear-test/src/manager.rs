@@ -29,11 +29,11 @@ use crate::check::ExecutionContext;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
-    message_queue: VecDeque<Message>,
+    dispatch_queue: VecDeque<Dispatch>,
     log: Vec<Message>,
     programs: RefCell<BTreeMap<ProgramId, Option<Program>>>,
     waiting_init: RefCell<BTreeMap<ProgramId, Vec<MessageId>>>,
-    wait_list: BTreeMap<(ProgramId, MessageId), Message>,
+    wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     current_failed: bool,
 }
 
@@ -41,8 +41,8 @@ impl InMemoryExtManager {
     fn move_waiting_msgs_to_mq(&mut self, program_id: ProgramId) {
         let waiting_messages = self.waiting_init.borrow_mut().remove(&program_id);
         for m_id in waiting_messages.iter().flatten() {
-            if let Some(msg) = self.wait_list.remove(&(program_id, *m_id)) {
-                self.message_queue.push_back(msg);
+            if let Some(dispatch) = self.wait_list.remove(&(program_id, *m_id)) {
+                self.dispatch_queue.push_back(dispatch);
             }
         }
     }
@@ -71,13 +71,14 @@ impl ExecutionContext for InMemoryExtManager {
 impl CollectState for InMemoryExtManager {
     fn collect(&self) -> State {
         let InMemoryExtManager {
-            message_queue,
+            dispatch_queue,
             log,
             programs,
             current_failed,
             ..
         } = self.clone();
 
+        let message_queue = dispatch_queue.into_iter().map(|d| d.message).collect();
         let programs = programs.
             into_inner()
             .into_iter()
@@ -115,33 +116,32 @@ impl JournalHandler for InMemoryExtManager {
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
     fn message_consumed(&mut self, message_id: MessageId) {
         if let Some(index) = self
-            .message_queue
+            .dispatch_queue
             .iter()
-            .position(|msg| msg.id() == message_id)
+            .position(|d| d.message.id() == message_id)
         {
-            self.message_queue.remove(index);
+            self.dispatch_queue.remove(index);
         }
     }
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
-        let Dispatch { message, .. } = dispatch;
-        let id = message.dest();
-        if self.programs.borrow().contains_key(&id) {
-            let mut borrowed_list = self.waiting_init.borrow_mut();
-            if let (None, Some(list)) = (message.reply(), borrowed_list.get_mut(&id)) {
-                list.push(message.id);
-                self.wait_list.insert((id, message.id), message);
+        let dest = dispatch.message.dest();
+        if self.programs.borrow().contains_key(&dest) {
+            if let (DispatchKind::Handle, Some(list)) = (dispatch.kind, self.waiting_init.borrow_mut().get_mut(&dest)) {
+                let message_id = dispatch.message.id();
+                list.push(message_id);
+                self.wait_list.insert((dest, message_id), dispatch);
             } else {
-                self.message_queue.push_back(message);
+                self.dispatch_queue.push_back(dispatch);
             }
         } else {
-            self.log.push(message);
+            self.log.push(dispatch.message);
         }
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.message_consumed(dispatch.message.id());
         self.wait_list.insert(
             (dispatch.message.dest(), dispatch.message.id()),
-            dispatch.message,
+            dispatch,
         );
     }
     fn wake_message(
@@ -150,8 +150,8 @@ impl JournalHandler for InMemoryExtManager {
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
-            self.message_queue.push_back(msg);
+        if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
+            self.dispatch_queue.push_back(dispatch);
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
