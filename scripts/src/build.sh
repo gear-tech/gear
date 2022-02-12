@@ -58,11 +58,11 @@ examples_build() {
 
   if  [ -n "$has_yamls" ]
   then
-    if ! command -v perl &> /dev/null
-    then
-      echo "Can not parse yamls without \"perl\" installed =("
-      exit 1
-    fi
+    # if ! command -v perl &> /dev/null
+    # then
+    #   echo "Can not parse yamls without \"perl\" installed =("
+    #   exit 1
+    # fi
 
     YAMLS=$(echo $1 | perl -ne 'print $1 if /yamls=(.*)/s')
     shift

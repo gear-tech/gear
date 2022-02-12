@@ -251,10 +251,10 @@ where
                 .unwrap_or(0) as u64;
 
             if let Some(m) = state.message_queue.pop_front() {
-                let program = state.programs.get(&m.dest()).expect("Can't find program");
+                let program = state.programs.get(&m.dest).cloned();
 
                 let journal = core_processor::process::<E>(
-                    Some(program.clone()),
+                    program,
                     journal_handler.message_to_dispatch(m),
                     BlockInfo { height, timestamp },
                 );
@@ -271,7 +271,7 @@ where
     } else {
         let mut counter = 0;
         while let Some(m) = state.message_queue.pop_front() {
-            let program = state.programs.get(&m.dest()).expect("Can't find program");
+            let program = state.programs.get(&m.dest()).cloned();
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -279,7 +279,7 @@ where
                 .unwrap_or(0) as u64;
 
             let journal = core_processor::process::<E>(
-                Some(program.clone()),
+                program,
                 journal_handler.message_to_dispatch(m),
                 BlockInfo {
                     height: counter,

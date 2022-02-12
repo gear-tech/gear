@@ -254,7 +254,7 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
         crate::id::next_system_reply_message_id(message.dest(), message_id),
         message.dest(),
         message.source(),
-        Default::default(),
+        b"skip".to_vec().into(),
         message.gas_limit(),
         // must be 0!
         0,

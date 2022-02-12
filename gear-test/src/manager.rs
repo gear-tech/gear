@@ -31,16 +31,27 @@ use crate::check::ExecutionContext;
 pub struct InMemoryExtManager {
     message_queue: VecDeque<Message>,
     log: Vec<Message>,
-    programs: RefCell<BTreeMap<ProgramId, Program>>,
+    programs: RefCell<BTreeMap<ProgramId, Option<Program>>>,
     waiting_init: RefCell<BTreeMap<ProgramId, Vec<MessageId>>>,
     wait_list: BTreeMap<(ProgramId, MessageId), Message>,
     current_failed: bool,
 }
 
+impl InMemoryExtManager {
+    fn move_waiting_msgs_to_mq(&mut self, program_id: ProgramId) {
+        let waiting_messages = self.waiting_init.borrow_mut().remove(&program_id);
+        for m_id in waiting_messages.iter().flatten() {
+            if let Some(msg) = self.wait_list.remove(&(program_id, *m_id)) {
+                self.message_queue.push_back(msg);
+            }
+        }
+    }
+}
+
 impl ExecutionContext for InMemoryExtManager {
     fn store_program(&self, program: gear_core::program::Program, _init_message_id: MessageId) {
         self.waiting_init.borrow_mut().insert(program.id(), vec![]);
-        self.programs.borrow_mut().insert(program.id(), program);
+        self.programs.borrow_mut().insert(program.id(), Some(program));
     }
 
     fn message_to_dispatch(&self, message: Message) -> Dispatch {
@@ -67,10 +78,16 @@ impl CollectState for InMemoryExtManager {
             ..
         } = self.clone();
 
+        let programs = programs.
+            into_inner()
+            .into_iter()
+            .filter_map(|(id, p_opt)| p_opt.map(|p| (id, p)))
+            .collect();
+
         State {
             message_queue,
             log,
-            programs: programs.into_inner(),
+            programs,
             current_failed,
         }
     }
@@ -79,16 +96,18 @@ impl CollectState for InMemoryExtManager {
 impl JournalHandler for InMemoryExtManager {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         self.current_failed = match outcome {
-            DispatchOutcome::MessageTrap { .. } | DispatchOutcome::InitFailure { .. } => true,
+            DispatchOutcome::MessageTrap { .. } => true,
+            DispatchOutcome::InitFailure { program_id, .. } => {
+                self.move_waiting_msgs_to_mq(program_id);
+                if let Some(prog) = self.programs.borrow_mut().get_mut(&program_id) {
+                    // Program is now considered terminated (in opposite to active). But not deleted from the state.
+                    *prog = None;
+                }
+                true
+            },
             DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
-                let waiting_messages = self.waiting_init.borrow_mut().remove(&program_id);
-                for m_id in waiting_messages.iter().flatten() {
-                    if let Some(msg) = self.wait_list.remove(&(program_id, *m_id)) {
-                        self.message_queue.push_back(msg);
-                    }
-                }
-
+                self.move_waiting_msgs_to_mq(program_id);
                 false
             }
         };
@@ -136,10 +155,11 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        if let Some(prog) = self.programs.borrow_mut().get_mut(&program_id) {
+        let mut programs = self.programs.borrow_mut();
+        if let Some(prog) = programs.get_mut(&program_id).expect("Program not found in storage") {
             prog.set_message_nonce(nonce);
         } else {
-            panic!("Program not found in storage");
+            // panic!("Can't update nonce for terminated program");
         }
     }
     fn update_page(
@@ -148,14 +168,15 @@ impl JournalHandler for InMemoryExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        if let Some(prog) = self.programs.borrow_mut().get_mut(&program_id) {
+        let mut programs = self.programs.borrow_mut();
+        if let Some(prog) = programs.get_mut(&program_id).expect("Program not found in storage") {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {
                 prog.remove_page(page_number);
             }
         } else {
-            panic!("Program not found in storage");
+            // panic!("Can't update page for terminated program");
         }
     }
     fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
