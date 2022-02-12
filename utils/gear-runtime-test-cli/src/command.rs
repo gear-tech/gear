@@ -25,6 +25,7 @@ use codec::{Decode, Encode};
 use colored::{ColoredString, Colorize};
 
 use gear_core::message::Message as CoreMessage;
+use gear_core::program::Program as CoreProgram;
 use gear_core::program::ProgramId;
 
 use gear_common::Message;
@@ -296,27 +297,41 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
 
             for exp in &fixture.expected {
+                let snapshot: DebugData = if let Some(step) = exp.step {
+                    if snapshots.len() < (step + test.programs.len()) {
+                        Default::default()
+                    } else {
+                        snapshots[(step + test.programs.len()) - 1].clone()
+                    }
+                } else {
+                    snapshots.last().unwrap().clone()
+                };
+
+                let mut message_queue: Vec<CoreMessage> = snapshot
+                    .message_queue
+                    .iter()
+                    .map(|msg| CoreMessage::from(msg.clone()))
+                    .collect();
+                let mut progs = snapshot
+                    .programs
+                    .iter()
+                    .map(|p| {
+                        CoreProgram::from_parts(
+                            *programs.iter().find(|(_, v)| v == &&p.id).unwrap().0,
+                            vec![],
+                            p.static_pages,
+                            p.nonce,
+                            p.persistent_pages.clone(),
+                        )
+                    })
+                    .collect();
+
+                // let mut progs = vec![];
+
                 if let Some(mut expected_messages) = exp.messages.clone() {
                     if expected_messages.is_empty() {
                         break;
                     }
-                    let mut message_queue: Vec<CoreMessage> = if let Some(step) = exp.step {
-                        snapshots
-                            .get((step + test.programs.len()) - 1)
-                            .unwrap()
-                            .message_queue
-                            .iter()
-                            .map(|msg| CoreMessage::from(msg.clone()))
-                            .collect()
-                    } else {
-                        snapshots
-                            .last()
-                            .unwrap()
-                            .message_queue
-                            .iter()
-                            .map(|msg| CoreMessage::from(msg.clone()))
-                            .collect()
-                    };
 
                     message_queue.iter_mut().for_each(|msg| {
                         if let Some(id) = programs.get(&msg.dest) {
@@ -341,6 +356,22 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                                 .into_iter()
                                 .map(|err| format!("Messages check [{}]", err)),
                         );
+                    }
+                }
+
+                if let Some(expected_memory) = &exp.memory {
+                    if let Err(mem_errors) =
+                        gear_test::check::check_memory(&mut progs, expected_memory)
+                    {
+                        errors.push(format!("step: {:?}", exp.step));
+                        errors.extend(mem_errors);
+                    }
+                }
+
+                if let Some(alloc) = &exp.allocations {
+                    if let Err(alloc_errors) = gear_test::check::check_allocations(&progs, alloc) {
+                        errors.push(format!("step: {:?}", exp.step));
+                        errors.extend(alloc_errors);
                     }
                 }
 

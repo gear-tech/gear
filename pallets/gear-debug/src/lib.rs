@@ -74,7 +74,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {}
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramDetails {
         pub id: H256,
         pub static_pages: u32,
@@ -83,7 +83,7 @@ pub mod pallet {
         pub nonce: u64,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct DebugData {
         pub message_queue: Vec<Message>,
         pub programs: Vec<ProgramDetails>,

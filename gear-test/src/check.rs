@@ -311,14 +311,14 @@ pub fn check_messages(
     }
 }
 
-fn check_allocations(
+pub fn check_allocations(
     programs: &[Program],
     expected_allocations: &[sample::Allocations],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
     for exp in expected_allocations {
-        let target_program_id = ProgramId::from(exp.program_id);
+        let target_program_id = exp.id.to_program_id();
         if let Some(program) = programs.iter().find(|p| p.id() == target_program_id) {
             let actual_pages = program
                 .get_pages()
@@ -337,7 +337,7 @@ fn check_allocations(
                             "Expectation error (Allocation page count does not match, expected: {}; actual: {}. Program id: {})",
                             expected_page_count,
                             actual_pages.len(),
-                            exp.program_id,
+                            exp.id.to_program_id(),
                         ));
                     }
                 }
@@ -356,7 +356,7 @@ fn check_allocations(
                             "Expectation error (Following allocation pages expected: {:?}; actual: {:?}. Program id: {})",
                             expected_pages,
                             actual_pages,
-                            exp.program_id,
+                            exp.id.to_program_id(),
                         ))
                     }
                 }
@@ -370,7 +370,7 @@ fn check_allocations(
                             errors.push(format!(
                                 "Expectation error (Allocation page {} expected, but not found. Program id: {})",
                                 expected_page,
-                                exp.program_id,
+                                exp.id.to_program_id(),
                             ));
                         }
                     }
@@ -379,7 +379,7 @@ fn check_allocations(
         } else {
             errors.push(format!(
                 "Expectation error (Program id not found: {})",
-                exp.program_id
+                exp.id.to_program_id()
             ))
         }
     }
@@ -391,14 +391,14 @@ fn check_allocations(
     }
 }
 
-fn check_memory(
+pub fn check_memory(
     program_storage: &mut Vec<Program>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
         for p in &mut *program_storage {
-            if p.id() == ProgramId::from(case.program_id) {
+            if p.id() == case.id.to_program_id() {
                 let page = case.address / PAGE_SIZE;
                 if let Some(page_buf) = p.get_page((page as u32).into()) {
                     if page_buf[case.address - page * PAGE_SIZE
