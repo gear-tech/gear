@@ -51,7 +51,9 @@ impl InMemoryExtManager {
 impl ExecutionContext for InMemoryExtManager {
     fn store_program(&self, program: gear_core::program::Program, _init_message_id: MessageId) {
         self.waiting_init.borrow_mut().insert(program.id(), vec![]);
-        self.programs.borrow_mut().insert(program.id(), Some(program));
+        self.programs
+            .borrow_mut()
+            .insert(program.id(), Some(program));
     }
 
     fn message_to_dispatch(&self, message: Message) -> Dispatch {
@@ -79,8 +81,8 @@ impl CollectState for InMemoryExtManager {
         } = self.clone();
 
         let message_queue = dispatch_queue.into_iter().map(|d| d.message).collect();
-        let programs = programs.
-            into_inner()
+        let programs = programs
+            .into_inner()
             .into_iter()
             .filter_map(|(id, p_opt)| p_opt.map(|p| (id, p)))
             .collect();
@@ -105,7 +107,7 @@ impl JournalHandler for InMemoryExtManager {
                     *prog = None;
                 }
                 true
-            },
+            }
             DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
                 self.move_waiting_msgs_to_mq(program_id);
@@ -126,7 +128,9 @@ impl JournalHandler for InMemoryExtManager {
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         let dest = dispatch.message.dest();
         if self.programs.borrow().contains_key(&dest) {
-            if let (DispatchKind::Handle, Some(list)) = (dispatch.kind, self.waiting_init.borrow_mut().get_mut(&dest)) {
+            if let (DispatchKind::Handle, Some(list)) =
+                (dispatch.kind, self.waiting_init.borrow_mut().get_mut(&dest))
+            {
                 let message_id = dispatch.message.id();
                 list.push(message_id);
                 self.wait_list.insert((dest, message_id), dispatch);
@@ -139,10 +143,8 @@ impl JournalHandler for InMemoryExtManager {
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.message_consumed(dispatch.message.id());
-        self.wait_list.insert(
-            (dispatch.message.dest(), dispatch.message.id()),
-            dispatch,
-        );
+        self.wait_list
+            .insert((dispatch.message.dest(), dispatch.message.id()), dispatch);
     }
     fn wake_message(
         &mut self,
@@ -156,7 +158,10 @@ impl JournalHandler for InMemoryExtManager {
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
         let mut programs = self.programs.borrow_mut();
-        if let Some(prog) = programs.get_mut(&program_id).expect("Program not found in storage") {
+        if let Some(prog) = programs
+            .get_mut(&program_id)
+            .expect("Program not found in storage")
+        {
             prog.set_message_nonce(nonce);
         } else {
             // panic!("Can't update nonce for terminated program");
@@ -169,7 +174,10 @@ impl JournalHandler for InMemoryExtManager {
         data: Option<Vec<u8>>,
     ) {
         let mut programs = self.programs.borrow_mut();
-        if let Some(prog) = programs.get_mut(&program_id).expect("Program not found in storage") {
+        if let Some(prog) = programs
+            .get_mut(&program_id)
+            .expect("Program not found in storage")
+        {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {
