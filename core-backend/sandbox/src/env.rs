@@ -69,7 +69,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         &mut self,
         ext: E,
         binary: &[u8],
-        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
     ) -> Result<(), BackendError<'static>> {
         let mem = match memory.as_any().downcast_ref::<DefaultExecutorMemory>() {

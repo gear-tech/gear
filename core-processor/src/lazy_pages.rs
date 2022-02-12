@@ -129,3 +129,8 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_
     let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
     gear_ri::gear_ri::mprotect_wasm_pages(new_mem_addr as u64, &lazy_pages, false, false, false);
 }
+
+/// Returns list of current lazy pages numbers
+pub fn get_lazy_pages_numbers() -> Vec<u32> {
+    gear_ri::gear_ri::get_wasm_lazy_pages_numbers()
+}

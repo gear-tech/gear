@@ -175,7 +175,10 @@ pub unsafe fn init_lazy_pages() -> bool {
     if cfg!(target_os = "linux") {
         let res = signal::sigaction(signal::SIGSEGV, &sig_action);
         if let Err(err_no) = res {
-            log::error!("Cannot set sigsegv handler: {}", errno::Errno(err_no as i32));
+            log::error!(
+                "Cannot set sigsegv handler: {}",
+                errno::Errno(err_no as i32)
+            );
             return false;
         }
     } else if cfg!(target_os = "macos") {

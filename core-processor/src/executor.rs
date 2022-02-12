@@ -33,7 +33,7 @@ use core::convert::TryFrom;
 use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
     gas::{self, ChargeResult, GasCounter},
-    memory::{MemoryContext, PageBuf, PageNumber, PAGE_SIZE},
+    memory::{MemoryContext, PageBuf, PageNumber},
     message::MessageContext,
     program::Program,
 };
@@ -132,8 +132,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
         (0..program.static_pages()).map(Into::into).collect()
     };
 
-    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
-
     // Creating memory context.
     let memory_context = MemoryContext::new(
         program_id,
@@ -212,6 +210,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     };
 
     if lazy_pages_enabled.is_some() {
+        // accessed lazy pages old data will be added to `initial_pages`
         lazy_pages::post_execution_actions(initial_pages, memory.get_wasm_memory_begin_addr());
     }
 
@@ -236,34 +235,23 @@ pub fn execute_wasm<E: Environment<Ext>>(
         }
     };
 
-    // Updating program memory
     let mut page_update = BTreeMap::new();
 
-    let actual_max_page = info
-        .pages
-        .iter()
-        .last()
-        .expect("Must have some pages")
-        .raw();
-
-    for page in info.pages {
+    // changed and new pages data will be updated in storage
+    for (page, new_data) in info.accessed_pages {
         if let Some(initial_data) = initial_pages.get(&page) {
-            // if page has no buf in inital pages - means page has not been accessed - no reasons to update.
-            if let Some(initial_data) = initial_data {
-                let mut data = alloc::vec![0u8; PAGE_SIZE];
-                memory.read(page.offset(), &mut data);
-                if !data.eq(initial_data.as_ref()) {
-                    page_update.insert(page, Some(data));
-                    log::trace!(
-                        "Page {} has been changed - will be updated in storage",
-                        page.raw()
-                    );
-                }
+            let old_data = initial_data
+                .as_ref()
+                .expect("Must have data for all accessed pages");
+            if !new_data.eq(old_data.as_ref()) {
+                page_update.insert(page, Some(new_data));
+                log::trace!(
+                    "Page {} has been changed - will be updated in storage",
+                    page.raw()
+                );
             }
         } else {
-            let mut data = alloc::vec![0u8; PAGE_SIZE];
-            memory.read(page.offset(), &mut data);
-            page_update.insert(page, Some(data));
+            page_update.insert(page, Some(new_data));
             log::trace!(
                 "Page {} is a new page - will be upload to storage",
                 page.raw()
@@ -271,9 +259,14 @@ pub fn execute_wasm<E: Environment<Ext>>(
         };
     }
 
-    for removed_page in (actual_max_page + 1)..=prev_max_page {
-        page_update.insert(removed_page.into(), None);
-    }
+    // freed pages will be removed from storage
+    let current_pages = &info.pages;
+    initial_pages
+        .iter()
+        .filter(|(page, _)| !current_pages.contains(*page))
+        .for_each(|(removed_page, _)| {
+            page_update.insert(*removed_page, None);
+        });
 
     // Storing outgoing messages.
     let mut outgoing = Vec::new();

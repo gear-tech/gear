@@ -21,6 +21,8 @@ use crate::{
     id::BlakeMessageIdGenerator,
     lazy_pages,
 };
+use alloc::collections::BTreeMap;
+use alloc::vec;
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
@@ -50,6 +52,21 @@ pub struct Ext {
 
 impl From<Ext> for ExtInfo {
     fn from(ext: Ext) -> ExtInfo {
+        let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
+        let mut accessed_pages_numbers = ext.memory_context.allocations().clone();
+
+        // accessed pages are all pages except current lazy pages
+        lazy_pages_numbers.into_iter().for_each(|p| {
+            accessed_pages_numbers.remove(&p.into());
+        });
+
+        let mut accessed_pages = BTreeMap::new();
+        for page in accessed_pages_numbers {
+            let mut buf = vec![0u8; PageNumber::size()];
+            ext.get_mem(page.offset(), &mut buf);
+            accessed_pages.insert(page, buf);
+        }
+
         let nonce = ext.message_context.nonce();
 
         let MessageState {
@@ -65,6 +82,7 @@ impl From<Ext> for ExtInfo {
         ExtInfo {
             gas_amount,
             pages: ext.memory_context.allocations().clone(),
+            accessed_pages,
             outgoing,
             reply,
             awakening,

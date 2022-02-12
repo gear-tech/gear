@@ -241,7 +241,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         &mut self,
         ext: E,
         binary: &[u8],
-        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
     ) -> Result<(), BackendError<'static>> {
         self.ext.set(ext);
