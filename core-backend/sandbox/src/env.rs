@@ -141,13 +141,6 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
         Ok(())
     }
 
-    /// Setup external environment and run closure.
-    ///
-    /// Setup external environment by providing `ext`, run nenwly initialized instance created from
-    /// provided `module`, do anything inside a `func` delegate.
-    ///
-    /// This will also set the beginning of the memory region to the `static_area` content _after_
-    /// creatig instance.
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
         let instance = self.instance.as_mut().expect("Must have instance");
         let runtime = self.runtime.as_mut().expect("Must have runtime");

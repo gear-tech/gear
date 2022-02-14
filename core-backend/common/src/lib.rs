@@ -75,6 +75,8 @@ pub struct BackendError<'a> {
 }
 
 pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
+    /// Setup external environment, provide `ext`, set the beginning of the memory region
+    /// to the `static_area` content after creatig instance.
     fn setup(
         &mut self,
         ext: E,
@@ -83,7 +85,10 @@ pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
         memory: &dyn Memory,
     ) -> Result<(), BackendError<'static>>;
 
+    /// Run setuped instance starting at `entry_point` - wasm export function name.
+    /// NOTE: expternal environment must be setuped.
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
 
+    /// Create internal representation of wasm memory with size `total_pages`
     fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str>;
 }

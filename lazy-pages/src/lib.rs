@@ -45,8 +45,8 @@ thread_local! {
 
 /// Sigsegv (or sigbus for macos) handler.
 /// Before contract execution some pages from wasm memory buffer are protected,
-/// and connot be accessed anyhow. When wasm executer tries to access one of these pages,
-/// OS emit sigsegv or sigbus. Here we handle this signal.
+/// and cannot be accessed anyhow. When wasm executer tries to access one of these pages,
+/// OS emits sigsegv or sigbus. We handle the signal in this function.
 /// Using OS signal info, we identify memory location and wasm page.
 /// We remove read and write protections for page,
 /// then we load wasm page data from storage to wasm page memory location.
