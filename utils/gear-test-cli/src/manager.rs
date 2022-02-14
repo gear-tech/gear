@@ -1,12 +1,11 @@
-use gear_common::{Origin, ProgramState};
+use gear_common::Origin;
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Dispatch, DispatchKind, Message, MessageId},
     program::ProgramId,
 };
 use gear_core_processor::common::{
-    CollectState, Dispatch, DispatchOutcome as CoreDispatchOutcome, EntryPoint, JournalHandler,
-    State,
+    CollectState, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
 };
 use gear_runtime::{pallet_gear::Config, ExtManager};
 use gear_test::check::ExecutionContext;
@@ -25,24 +24,6 @@ where
     fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId) {
         self.inner
             .set_program(program, init_message_id.into_origin());
-    }
-
-    fn message_to_dispatch(&self, message: Message) -> Dispatch {
-        let kind = if message.reply.is_some() {
-            EntryPoint::HandleReply
-        } else {
-            match gear_common::get_program_state(message.dest().into_origin())
-                .expect("Program should be in the storage")
-            {
-                ProgramState::Initialized => EntryPoint::Handle,
-                ProgramState::Uninitialized { message_id } => {
-                    assert_eq!(message_id, message.id().into_origin());
-                    EntryPoint::Init
-                }
-            }
-        };
-
-        Dispatch { kind, message }
     }
 }
 
@@ -83,19 +64,25 @@ where
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         match outcome {
-            CoreDispatchOutcome::InitFailure { .. } => {
+            CoreDispatchOutcome::InitFailure { message_id, .. } => {
                 self.current_failed = true;
-            }
-            CoreDispatchOutcome::InitSuccess { message_id, .. } => {
-                self.current_failed = false;
 
-                if let Some(next_message) = gear_common::message_iter().next() {
-                    if next_message.id == message_id.into_origin() {
+                if let Some(dispatch) = gear_common::dispatch_iter().next() {
+                    if dispatch.message.id == message_id.into_origin() {
                         gear_common::dequeue_dispatch();
                     }
                 }
             }
-            CoreDispatchOutcome::Success(_) => {
+            CoreDispatchOutcome::InitSuccess { message_id, .. } => {
+                self.current_failed = false;
+
+                if let Some(dispatch) = gear_common::dispatch_iter().next() {
+                    if dispatch.message.id == message_id.into_origin() {
+                        gear_common::dequeue_dispatch();
+                    }
+                }
+            }
+            CoreDispatchOutcome::Success(_) | CoreDispatchOutcome::Skip(_) => {
                 self.current_failed = false;
                 let _ = gear_common::dequeue_dispatch();
             }
@@ -112,36 +99,30 @@ where
     fn message_consumed(&mut self, message_id: MessageId) {
         self.inner.message_consumed(message_id)
     }
-    fn send_dispatch(&mut self, message_id: MessageId, message: Message) {
-        let program_id = message.dest().into_origin();
-        match gear_common::get_program_state(program_id) {
-            None => self.log.push(message.clone()),
-            Some(state) => {
-                if let (None, ProgramState::Uninitialized { message_id }) = (message.reply(), state)
-                {
-                    assert_ne!(message_id, message.id().into_origin());
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
+        let program_id = dispatch.message.dest().into_origin();
 
-                    let message_id = message.id().into_origin();
+        match gear_common::get_program(program_id) {
+            Some(prog) => {
+                if matches!(dispatch.kind, DispatchKind::Handle) && prog.is_uninitialized() {
+                    let message_id = message_id.into_origin();
                     gear_common::waiting_init_append_message_id(program_id, message_id);
-                    gear_common::insert_waiting_message(
-                        program_id,
-                        message_id,
-                        message.into(),
-                        // TODO: retrieve block number
-                        0,
-                    );
+                    gear_common::insert_waiting_message(program_id, message_id, dispatch.into(), 0);
+
                     return;
                 }
             }
-        }
+            None => self.log.push(dispatch.message.clone()),
+        };
 
-        self.inner.send_dispatch(message_id, message);
+        self.inner.send_dispatch(message_id, dispatch);
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.current_failed = false;
 
-        if let Some(next_message) = gear_common::message_iter().next() {
-            if next_message.id == dispatch.message.id().into_origin() {
+        let current_message_id = dispatch.message.id().into_origin();
+        if let Some(next_dispatch) = gear_common::dispatch_iter().next() {
+            if next_dispatch.message.id == current_message_id {
                 gear_common::dequeue_dispatch();
             }
         }
@@ -167,5 +148,8 @@ where
         data: Option<Vec<u8>>,
     ) {
         self.inner.update_page(program_id, page_number, data)
+    }
+    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
+        todo!("TODO https://github.com/gear-tech/gear/issues/644")
     }
 }

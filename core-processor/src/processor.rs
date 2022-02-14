@@ -86,7 +86,7 @@ pub fn process_many<E: Environment<Ext>>(
                             program.remove_page(*page_number);
                         }
                     }
-                    _ => {},
+                    _ => {}
                 }
             }
         }

@@ -179,7 +179,7 @@ mod tests {
 
     use crate::{CoreLog, System};
 
-    use super::{ProgramIdWrapper, Program};
+    use super::{Program, ProgramIdWrapper};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -188,7 +188,10 @@ mod tests {
 
         let user_id = 100;
 
-        let prog = Program::from_file(&sys, "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm");
+        let prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+        );
 
         let handle_msg_payload = String::from("payload");
         let run_result = prog.send(user_id, handle_msg_payload);
@@ -204,7 +207,7 @@ mod tests {
                 0,
                 0,
                 Default::default(),
-                1
+                1,
             );
             CoreLog::from_message(msg)
         };

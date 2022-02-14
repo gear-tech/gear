@@ -250,12 +250,12 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            if let Some(m) = state.message_queue.pop_front() {
-                let program = state.programs.get(&m.dest).cloned();
+            if let Some(dispatch) = state.dispatch_queue.pop_front() {
+                let program = state.programs.get(&dispatch.message.dest()).cloned();
 
                 let journal = core_processor::process::<E>(
                     program,
-                    journal_handler.message_to_dispatch(m),
+                    dispatch,
                     BlockInfo { height, timestamp },
                 );
 
@@ -270,8 +270,8 @@ where
         }
     } else {
         let mut counter = 0;
-        while let Some(m) = state.message_queue.pop_front() {
-            let program = state.programs.get(&m.dest()).cloned();
+        while let Some(dispatch) = state.dispatch_queue.pop_front() {
+            let program = state.programs.get(&dispatch.message.dest()).cloned();
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -280,7 +280,7 @@ where
 
             let journal = core_processor::process::<E>(
                 program,
-                journal_handler.message_to_dispatch(m),
+                dispatch,
                 BlockInfo {
                     height: counter,
                     timestamp,

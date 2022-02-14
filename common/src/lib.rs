@@ -117,6 +117,10 @@ impl ProgramWithStatus {
         matches!(self, Active(_))
     }
 
+    pub fn is_terminated(&self) -> bool {
+        matches!(self, ProgramWithStatus::Terminated)
+    }
+
     pub fn is_initialized(&self) -> bool {
         matches!(
             self,
@@ -127,8 +131,14 @@ impl ProgramWithStatus {
         )
     }
 
-    pub fn is_terminated(&self) -> bool {
-        matches!(self, ProgramWithStatus::Terminated)
+    pub fn is_uninitialized(&self) -> bool {
+        matches!(
+            self,
+            Active(Program {
+                state: ProgramState::Uninitialized { .. },
+                ..
+            })
+        )
     }
 }
 
@@ -405,11 +415,8 @@ pub fn queue_dispatch(dispatch: Dispatch) {
     dispatch_queue.queue(dispatch, id);
 }
 
-// todo [sab] maybe dispatch iterator
-pub fn message_iter() -> impl sp_std::iter::Iterator<Item = Message> {
-    StorageQueue::get(STORAGE_MESSAGE_PREFIX)
-        .into_iter()
-        .map(|d: Dispatch| d.message)
+pub fn dispatch_iter() -> Iterator<Dispatch> {
+    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
 
 pub fn nonce_fetch_inc() -> u128 {

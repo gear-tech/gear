@@ -236,7 +236,7 @@ pub struct ExecutionError {
 /// In-memory state.
 pub struct State {
     /// Message queue.
-    pub message_queue: VecDeque<Message>,
+    pub dispatch_queue: VecDeque<Dispatch>,
     /// Log records.
     pub log: Vec<Message>,
     /// State of each program.
@@ -248,7 +248,7 @@ pub struct State {
 impl Debug for State {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
-            .field("message_queue", &self.message_queue)
+            .field("dispatch_queue", &self.dispatch_queue)
             .field("log", &self.log)
             .field(
                 "programs",

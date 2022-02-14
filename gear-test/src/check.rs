@@ -30,7 +30,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::{
     memory::PAGE_SIZE,
-    message::{Dispatch, Message, MessageId},
+    message::{Message, MessageId},
     program::{Program, ProgramId},
 };
 use log::{Log, Metadata, Record, SetLoggerError};
@@ -49,8 +49,6 @@ const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
     fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId);
-
-    fn message_to_dispatch(&self, message: Message) -> Dispatch;
 }
 
 pub struct FixtureLogger {
@@ -491,7 +489,11 @@ where
 
                 if !skip_messages {
                     if let Some(messages) = &exp.messages {
-                        let msgs: Vec<Message> = final_state.message_queue.into_iter().collect();
+                        let msgs: Vec<_> = final_state
+                            .dispatch_queue
+                            .into_iter()
+                            .map(|d| d.message)
+                            .collect();
                         if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(

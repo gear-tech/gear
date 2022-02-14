@@ -55,19 +55,6 @@ impl ExecutionContext for InMemoryExtManager {
             .borrow_mut()
             .insert(program.id(), Some(program));
     }
-
-    fn message_to_dispatch(&self, message: Message) -> Dispatch {
-        Dispatch {
-            kind: if message.reply.is_some() {
-                DispatchKind::HandleReply
-            } else if self.waiting_init.borrow().contains_key(&message.dest()) {
-                DispatchKind::Init
-            } else {
-                DispatchKind::Handle
-            },
-            message,
-        }
-    }
 }
 
 impl CollectState for InMemoryExtManager {
@@ -80,7 +67,6 @@ impl CollectState for InMemoryExtManager {
             ..
         } = self.clone();
 
-        let message_queue = dispatch_queue.into_iter().map(|d| d.message).collect();
         let programs = programs
             .into_inner()
             .into_iter()
@@ -88,7 +74,7 @@ impl CollectState for InMemoryExtManager {
             .collect();
 
         State {
-            message_queue,
+            dispatch_queue,
             log,
             programs,
             current_failed,

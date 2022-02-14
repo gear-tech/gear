@@ -39,11 +39,7 @@ use gear_core::{
 };
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
-use sp_std::{
-    collections::{btree_map::BTreeMap, vec_deque::VecDeque},
-    marker::PhantomData,
-    prelude::*,
-};
+use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 
 pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
     _phantom: PhantomData<T>,
@@ -128,10 +124,10 @@ where
         .filter_map(|k| self.get_program(k).map(|p| (p.id(), p)))
         .collect();
 
-        let message_queue: VecDeque<_> = common::message_iter().map(Into::into).collect();
+        let dispatch_queue = common::dispatch_iter().map(Into::into).collect();
 
         State {
-            message_queue,
+            dispatch_queue,
             programs,
             ..Default::default()
         }
@@ -338,6 +334,7 @@ where
         let message_id = message_id.into_origin();
         let mut dispatch: common::Dispatch = dispatch.into();
 
+        // TODO reserve call must be infallible in https://github.com/gear-tech/gear/issues/644
         if dispatch.message.value != 0
             && T::Currency::reserve(
                 &<T::AccountId as Origin>::from_origin(dispatch.message.source),
@@ -399,10 +396,10 @@ where
     ) {
         let awakening_id = awakening_id.into_origin();
 
-        if let Some((msg, _)) =
+        if let Some((dispatch, _)) =
             common::remove_waiting_message(program_id.into_origin(), awakening_id)
         {
-            common::queue_dispatch(msg);
+            common::queue_dispatch(dispatch);
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {

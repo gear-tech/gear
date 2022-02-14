@@ -248,7 +248,7 @@ pub struct RunnerContext {
     used_program_ids: HashSet<ProgramId>,
     message_id: u64,
     used_message_ids: HashSet<MessageId>,
-    message_queue: Vec<Dispatch>,
+    dispatch_queue: Vec<Dispatch>,
     log: Vec<Message>,
     outcomes: BTreeMap<MessageId, RunResult>,
     gas_spent: BTreeMap<MessageId, u64>,
@@ -299,7 +299,7 @@ impl<'a> JournalHandler for Journal<'a> {
         }
 
         if self.context.programs.contains_key(&dispatch.message.dest) {
-            self.context.message_queue.push(dispatch);
+            self.context.dispatch_queue.push(dispatch);
         } else {
             self.context.log.push(dispatch.message);
         }
@@ -318,7 +318,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
         // only wake messages from program that owns them
         if program_id == dispatch.message.dest {
-            self.context.message_queue.push(dispatch);
+            self.context.dispatch_queue.push(dispatch);
         } else {
             self.context.wait_list.insert(message_id, dispatch);
         }
@@ -333,8 +333,6 @@ impl<'a> JournalHandler for Journal<'a> {
 
         if let Some(prog) = maybe_program {
             prog.set_message_nonce(nonce);
-        } else {
-            unreachable!("Update nonce can'be called for terminated program");
         }
     }
 
@@ -551,14 +549,14 @@ impl RunnerContext {
     }
 
     fn run(&mut self, message: Message) {
-        self.message_queue.push(Dispatch {
+        self.dispatch_queue.push(Dispatch {
             message,
             kind: DispatchKind::Handle,
         });
 
-        while !self.message_queue.is_empty() {
+        while !self.dispatch_queue.is_empty() {
             let journal = {
-                let messages = std::mem::take(&mut self.message_queue);
+                let messages = std::mem::take(&mut self.dispatch_queue);
                 let programs = self.programs.clone();
 
                 core_processor::process_many::<WasmtimeEnvironment<Ext>>(
@@ -593,7 +591,7 @@ impl Default for RunnerContext {
             used_program_ids: HashSet::new(),
             message_id: 1,
             used_message_ids: HashSet::new(),
-            message_queue: Vec::new(),
+            dispatch_queue: Vec::new(),
             log: Vec::new(),
             outcomes: BTreeMap::new(),
             gas_spent: BTreeMap::new(),
