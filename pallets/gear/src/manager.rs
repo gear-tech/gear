@@ -173,8 +173,14 @@ where
         common::native::get_program(ProgramId::from_origin(id))
     }
 
-    /// Used only after init
     pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
+        // TODO: This method is used only before program init, so program has no persistent pages.
+        assert!(
+            program.get_pages().is_empty(),
+            "Must has empty persistent pages, has {:?}",
+            program.get_pages()
+        );
+
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
