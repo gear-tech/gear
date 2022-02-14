@@ -149,8 +149,6 @@ impl JournalHandler for InMemoryExtManager {
             .expect("Program not found in storage")
         {
             prog.set_message_nonce(nonce);
-        } else {
-            unreachable!("Can't update nonce for terminated program");
         }
     }
     fn update_page(
