@@ -54,7 +54,7 @@ pub mod pallet {
 
     use common::{
         self, CodeMetadata, Dispatch, GasToFeeConverter, Message, Origin, ProgramState,
-        ProgramWithStatus, GAS_VALUE_PREFIX,
+        Program, GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -432,7 +432,7 @@ pub mod pallet {
                         .expect("program with id got from message is guaranteed to exist");
 
                     // Check whether message should be added to the wait list
-                    if let ProgramWithStatus::Active(ref prog) = maybe_active_program {
+                    if let Program::Active(ref prog) = maybe_active_program {
                         let is_for_wait_list = maybe_message_reply.is_none()
                             && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id);
                         if is_for_wait_list {

@@ -43,7 +43,8 @@ use gear_core::{
 pub use storage_queue::Iterator;
 use storage_queue::StorageQueue;
 
-use ProgramWithStatus::Active;
+// `Active` variant is frequently used in this module
+use Program::Active;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -85,8 +86,8 @@ pub struct Message {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub enum ProgramWithStatus {
-    Active(Program),
+pub enum Program {
+    Active(ActiveProgram),
     Terminated,
 }
 
@@ -96,9 +97,9 @@ pub enum ProgramError {
     ProgramIsTerminated,
 }
 
-impl ProgramWithStatus {
+impl Program {
     pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
-        let program: Program = self.try_into()?;
+        let program: ActiveProgram = self.try_into()?;
         let persistent_pages = crate::get_program_pages(id, program.persistent_pages)
             .ok_or(ProgramError::FailedToGetProgramData)?;
         let code =
@@ -118,13 +119,13 @@ impl ProgramWithStatus {
     }
 
     pub fn is_terminated(&self) -> bool {
-        matches!(self, ProgramWithStatus::Terminated)
+        matches!(self, Program::Terminated)
     }
 
     pub fn is_initialized(&self) -> bool {
         matches!(
             self,
-            Active(Program {
+            Active(ActiveProgram {
                 state: ProgramState::Initialized,
                 ..
             })
@@ -134,7 +135,7 @@ impl ProgramWithStatus {
     pub fn is_uninitialized(&self) -> bool {
         matches!(
             self,
-            Active(Program {
+            Active(ActiveProgram {
                 state: ProgramState::Uninitialized { .. },
                 ..
             })
@@ -142,19 +143,19 @@ impl ProgramWithStatus {
     }
 }
 
-impl TryFrom<ProgramWithStatus> for Program {
+impl TryFrom<Program> for ActiveProgram {
     type Error = ProgramError;
 
-    fn try_from(prog_with_status: ProgramWithStatus) -> Result<Program, Self::Error> {
+    fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
         match prog_with_status {
-            ProgramWithStatus::Active(p) => Ok(p),
-            ProgramWithStatus::Terminated => Err(ProgramError::ProgramIsTerminated),
+            Program::Active(p) => Ok(p),
+            Program::Terminated => Err(ProgramError::ProgramIsTerminated),
         }
     }
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct Program {
+pub struct ActiveProgram {
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
@@ -332,7 +333,7 @@ pub fn set_program_terminated_status(id: H256) {
         let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
         pages_prefix.extend(&program_key(id));
         sp_io::storage::clear_prefix(&pages_prefix, None);
-        sp_io::storage::set(&program_key(id), &ProgramWithStatus::Terminated.encode());
+        sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
         // messages in wait list for the program shouldn't be managed here
     }
 }
@@ -371,9 +372,9 @@ fn release_code(code_hash: H256) {
     set_code_refs(code_hash, new_refs)
 }
 
-pub fn get_program(id: H256) -> Option<ProgramWithStatus> {
+pub fn get_program(id: H256) -> Option<Program> {
     sp_io::storage::get(&program_key(id))
-        .map(|val| ProgramWithStatus::decode(&mut &val[..]).expect("values encoded correctly"))
+        .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
 }
 
 pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32, Vec<u8>>> {
@@ -386,7 +387,7 @@ pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32,
     Some(persistent_pages)
 }
 
-pub fn set_program(id: H256, program: Program, persistent_pages: BTreeMap<u32, Vec<u8>>) {
+pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<u32, Vec<u8>>) {
     if !program_exists(id) {
         // Code is saved to the storage before actually program is!
         // So here we add code ref to some existing code.
@@ -555,7 +556,7 @@ mod tests {
         });
     }
 
-    fn get_active_program(id: H256) -> Option<Program> {
+    fn get_active_program(id: H256) -> Option<ActiveProgram> {
         get_program(id).and_then(|p| p.try_into().ok())
     }
 
@@ -565,7 +566,7 @@ mod tests {
             let code = b"pretended wasm code".to_vec();
             let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
             let program_id = H256::from_low_u64_be(1);
-            let program = Program {
+            let program = ActiveProgram {
                 static_pages: 256,
                 persistent_pages: Default::default(),
                 code_hash,
@@ -592,7 +593,7 @@ mod tests {
 
             set_program(
                 H256::from_low_u64_be(1),
-                Program {
+                ActiveProgram {
                     static_pages: 256,
                     persistent_pages: Default::default(),
                     code_hash,
@@ -605,7 +606,7 @@ mod tests {
 
             set_program(
                 H256::from_low_u64_be(2),
-                Program {
+                ActiveProgram {
                     static_pages: 128,
                     persistent_pages: Default::default(),
                     code_hash,

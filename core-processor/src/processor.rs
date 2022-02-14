@@ -251,7 +251,6 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
     let value = message.value();
 
     // Reply back to the message `source`
-    // Todo [sab] how to use properly generate_trap_reply
     let reply_message = Message::new_reply(
         crate::id::next_system_reply_message_id(message.dest(), message_id),
         message.dest(),

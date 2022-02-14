@@ -110,7 +110,7 @@ pub fn set_program(program: CoreProgram) {
     }
     crate::set_program(
         H256::from_slice(program.id().as_slice()),
-        crate::Program {
+        crate::ActiveProgram {
             static_pages: program.static_pages(),
             persistent_pages: program
                 .get_pages()

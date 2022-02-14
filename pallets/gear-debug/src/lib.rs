@@ -37,7 +37,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Dispatch, ProgramWithStatus};
+    use common::{self, Dispatch, Program};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
@@ -130,18 +130,18 @@ pub mod pallet {
                 }
             }
 
-            let programs = PrefixIterator::<(H256, ProgramWithStatus)>::new(
+            let programs = PrefixIterator::<(H256, Program)>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 |key, mut value| {
                     assert_eq!(key.len(), 32);
                     let program_id = H256::from_slice(key);
-                    let program = ProgramWithStatus::decode(&mut value)?;
+                    let program = Program::decode(&mut value)?;
                     Ok((program_id, program))
                 },
             )
             .filter_map(|(id, prog)| prog.try_into().ok().map(|p| (id, p)))
-            .map(|(id, p): (H256, common::Program)| ProgramDetails {
+            .map(|(id, p): (H256, common::ActiveProgram)| ProgramDetails {
                 id,
                 static_pages: p.static_pages,
                 persistent_pages: common::get_program_pages(id, p.persistent_pages)

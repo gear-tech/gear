@@ -44,7 +44,7 @@ pub mod pallet {
     use super::*;
     use common::{
         value_tree::ValueView, Dispatch, GasToFeeConverter, Message, Origin, PaymentProvider,
-        ProgramWithStatus, GAS_VALUE_PREFIX,
+        Program, GAS_VALUE_PREFIX,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -184,7 +184,7 @@ pub mod pallet {
             if !sp_io::offchain::is_validator() {
                 log::debug!(
                     target: "runtime::usage",
-                    "Skipping offchain worker at {:?}:messagedator.",
+                    "Skipping offchain worker at {:?}: not a validator.",
                     now,
                 );
                 return;
@@ -331,7 +331,7 @@ pub mod pallet {
 
                     if new_free_gas_limit == 0 {
                         match common::get_program(program_id) {
-                            Some(ProgramWithStatus::Active(mut program)) => {
+                            Some(Program::Active(mut program)) => {
                                 // Generate trap reply
 
                                 // Account for the fact that original gas balance of the message could have

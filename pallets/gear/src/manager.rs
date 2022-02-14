@@ -23,7 +23,7 @@ use crate::{
 use codec::{Decode, Encode};
 use common::{
     value_tree::{ConsumeResult, ValueView},
-    GasToFeeConverter, Origin, ProgramWithStatus, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
+    GasToFeeConverter, Origin, Program, GAS_VALUE_PREFIX, STORAGE_PROGRAM_PREFIX,
 };
 use core_processor::common::{
     CollectState, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
@@ -183,7 +183,7 @@ where
 
         common::set_code(code_hash, program.code());
 
-        let program = common::Program {
+        let program = common::ActiveProgram {
             static_pages: program.static_pages(),
             nonce: program.message_nonce(),
             persistent_pages: persistent_pages.keys().copied().collect(),
@@ -427,7 +427,7 @@ where
         let program = common::get_program(program_id)
             .expect("page update guaranteed to be called only for existing and active program");
 
-        if let ProgramWithStatus::Active(prog) = program {
+        if let Program::Active(prog) = program {
             let mut persistent_pages = prog.persistent_pages;
 
             if let Some(data) = data {
