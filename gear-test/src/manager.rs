@@ -38,7 +38,7 @@ pub struct InMemoryExtManager {
 }
 
 impl InMemoryExtManager {
-    fn move_waiting_msgs_to_mq(&mut self, program_id: ProgramId) {
+    fn move_waiting_msgs_to_queue(&mut self, program_id: ProgramId) {
         let waiting_messages = self.waiting_init.borrow_mut().remove(&program_id);
         for m_id in waiting_messages.iter().flatten() {
             if let Some(dispatch) = self.wait_list.remove(&(program_id, *m_id)) {
@@ -101,7 +101,7 @@ impl JournalHandler for InMemoryExtManager {
         self.current_failed = match outcome {
             DispatchOutcome::MessageTrap { .. } => true,
             DispatchOutcome::InitFailure { program_id, .. } => {
-                self.move_waiting_msgs_to_mq(program_id);
+                self.move_waiting_msgs_to_queue(program_id);
                 if let Some(prog) = self.programs.borrow_mut().get_mut(&program_id) {
                     // Program is now considered terminated (in opposite to active). But not deleted from the state.
                     *prog = None;
@@ -110,7 +110,7 @@ impl JournalHandler for InMemoryExtManager {
             }
             DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
-                self.move_waiting_msgs_to_mq(program_id);
+                self.move_waiting_msgs_to_queue(program_id);
                 false
             }
         };

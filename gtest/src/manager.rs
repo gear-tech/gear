@@ -118,13 +118,6 @@ impl ExtManager {
                 .get_mut(&message.dest())
                 .expect("Somehow message queue contains message for user");
 
-            if let ProgramState::FailedInitialization = state {
-                panic!(
-                    "Program with id {} failed it's initialization, so can't receive messages",
-                    message.dest(),
-                )
-            }
-
             let kind = if let Some(kind) = Self::entry_point(&message, state) {
                 kind
             } else {
@@ -143,8 +136,14 @@ impl ExtManager {
 
             match prog {
                 Program::Core(program) => {
+                    let program = if let ProgramState::FailedInitialization = state {
+                        None
+                    } else {
+                        Some(program.clone())
+                    };
+
                     let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
-                        Some(program.clone()),
+                        program,
                         Dispatch { kind, message },
                         self.block_info,
                     );
@@ -261,11 +260,7 @@ impl ExtManager {
 
         *state = ProgramState::Initialized;
 
-        if let Some(ids) = self.wait_init_list.remove(&program_id) {
-            for id in ids {
-                self.wake_message(message_id, program_id, id);
-            }
-        }
+        self.move_waiting_msgs_to_queue(message_id, program_id);
     }
 
     fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
@@ -276,7 +271,16 @@ impl ExtManager {
 
         *state = ProgramState::FailedInitialization;
 
+        self.move_waiting_msgs_to_queue(message_id, program_id);
         self.mark_failed(message_id);
+    }
+
+    fn move_waiting_msgs_to_queue(&mut self, message_id: MessageId, program_id: ProgramId) {
+        if let Some(ids) = self.wait_init_list.remove(&program_id) {
+            for id in ids {
+                self.wake_message(message_id, program_id, id);
+            }
+        }
     }
 }
 
