@@ -60,7 +60,7 @@ pub fn process<E: Environment<Ext>>(
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
 pub fn process_many<E: Environment<Ext>>(
-    mut programs: BTreeMap<ProgramId, Program>,
+    mut programs: BTreeMap<ProgramId, Option<Program>>,
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
@@ -71,21 +71,23 @@ pub fn process_many<E: Environment<Ext>>(
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal = process::<E>(Some(program.clone()), dispatch, block_info);
+        let current_journal = process::<E>(program.clone(), dispatch, block_info);
 
         for note in &current_journal {
-            match note {
-                JournalNote::UpdateNonce { nonce, .. } => program.set_message_nonce(*nonce),
-                JournalNote::UpdatePage {
-                    page_number, data, ..
-                } => {
-                    if let Some(data) = data {
-                        program.set_page(*page_number, data).expect("Can't fail");
-                    } else {
-                        program.remove_page(*page_number);
+            if let Some(program) = program {
+                match note {
+                    JournalNote::UpdateNonce { nonce, .. } => program.set_message_nonce(*nonce),
+                    JournalNote::UpdatePage {
+                        page_number, data, ..
+                    } => {
+                        if let Some(data) = data {
+                            program.set_page(*page_number, data).expect("Can't fail");
+                        } else {
+                            program.remove_page(*page_number);
+                        }
                     }
+                    _ => {},
                 }
-                _ => continue,
             }
         }
 

@@ -241,7 +241,8 @@ pub enum Error {
 }
 
 pub struct RunnerContext {
-    programs: BTreeMap<ProgramId, Program>,
+    // Existing key can have a None value, which declares that program is terminated (like being in limbo).
+    programs: BTreeMap<ProgramId, Option<Program>>,
     wait_list: BTreeMap<MessageId, Dispatch>,
     program_id: u64,
     used_program_ids: HashSet<ProgramId>,
@@ -270,16 +271,10 @@ impl<'a> JournalHandler for Journal<'a> {
                 );
             }
             DispatchOutcome::InitSuccess { .. } => {}
-            DispatchOutcome::InitFailure {
-                program_id,
-                message_id,
-                reason,
-                ..
-            } => {
-                panic!(
-                    "Init failure (pid: {:?}, mid: {:?}): {:?}",
-                    program_id, message_id, reason
-                );
+            DispatchOutcome::InitFailure { program_id, .. } => {
+                if let Some(prog) = self.context.programs.get_mut(&program_id) {
+                    *prog = None;
+                }
             }
         };
     }
@@ -330,11 +325,17 @@ impl<'a> JournalHandler for Journal<'a> {
     }
 
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        self.context
+        let maybe_program = self
+            .context
             .programs
             .get_mut(&program_id)
-            .expect("program not found")
-            .set_message_nonce(nonce);
+            .expect("program not found");
+
+        if let Some(prog) = maybe_program {
+            prog.set_message_nonce(nonce);
+        } else {
+            unreachable!("Update nonce can'be called for terminated program");
+        }
     }
 
     fn update_page(
@@ -349,10 +350,14 @@ impl<'a> JournalHandler for Journal<'a> {
             .get_mut(&program_id)
             .expect("program not found");
 
-        if let Some(data) = data {
-            let _ = program.set_page(page_number, &data);
+        if let Some(program) = program {
+            if let Some(data) = data {
+                let _ = program.set_page(page_number, &data);
+            } else {
+                program.remove_page(page_number);
+            }
         } else {
-            program.remove_page(page_number);
+            unreachable!("Update page can'be called for terminated program");
         }
     }
 
@@ -388,7 +393,7 @@ impl RunnerContext {
 
         // store program
         let program = Program::new(new_program_id, code).expect("Failed to create program");
-        self.programs.insert(new_program_id, program);
+        self.programs.insert(new_program_id, Some(program.clone()));
 
         // generate disspatch
         let dispatch = Dispatch {
@@ -397,13 +402,8 @@ impl RunnerContext {
         };
         let message_id = dispatch.message.id;
 
-        let program = self
-            .programs
-            .get(&new_program_id)
-            .expect("Program not found");
-
         let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
-            Some(program.clone()),
+            Some(program),
             dispatch,
             BlockInfo {
                 height: 1,
