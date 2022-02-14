@@ -191,7 +191,7 @@ benchmarks! {
         let value = 10_000_u32;
     }: _(RawOrigin::Signed(caller), code, salt, payload, 100_000_000_u64, value.into())
     verify {
-        assert!(common::dequeue_message().is_some());
+        assert!(common::dequeue_dispatch().is_some());
     }
 
     send_message {
@@ -204,7 +204,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_message().is_some());
+        assert!(common::dequeue_dispatch().is_some());
     }
 
     send_reply {
@@ -230,7 +230,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_message().is_some());
+        assert!(common::dequeue_dispatch().is_some());
     }
 
     initial_allocation {
@@ -244,7 +244,7 @@ benchmarks! {
         crate::Pallet::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_message().is_none());
+        assert!(common::dequeue_dispatch().is_none());
     }
 
     alloc_in_handle {
@@ -258,7 +258,7 @@ benchmarks! {
         crate::Pallet::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_message().is_none());
+        assert!(common::dequeue_dispatch().is_none());
     }
 }
 

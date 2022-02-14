@@ -21,7 +21,8 @@
 use super::*;
 use crate::mock::*;
 use codec::Encode;
-use common::{self, Message, Origin as _};
+use common::{self, Dispatch, Message, Origin as _};
+use gear_core::message::DispatchKind;
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
 use sp_core::H256;
@@ -104,7 +105,7 @@ fn debug_mode_works() {
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
-                message_queue: vec![],
+                dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
                     static_pages: 16,
@@ -132,7 +133,7 @@ fn debug_mode_works() {
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
-                message_queue: vec![],
+                dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_1,
@@ -181,25 +182,31 @@ fn debug_mode_works() {
 
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
-                message_queue: vec![
+                dispatch_queue: vec![
                     // message will have reverse order since the first one requeued to the end
-                    Message {
-                        id: message_id_2,
-                        source: 1.into_origin(),
-                        dest: program_id_2,
-                        payload: vec![],
-                        gas_limit: 1_000_000,
-                        value: 0,
-                        reply: None,
+                    Dispatch {
+                        kind: DispatchKind::Handle,
+                        message: Message {
+                            id: message_id_2,
+                            source: 1.into_origin(),
+                            dest: program_id_2,
+                            payload: vec![],
+                            gas_limit: 1_000_000,
+                            value: 0,
+                            reply: None,
+                        },
                     },
-                    Message {
-                        id: message_id_1,
-                        source: 1.into_origin(),
-                        dest: program_id_1,
-                        payload: vec![],
-                        gas_limit: 1_000_000,
-                        value: 0,
-                        reply: None,
+                    Dispatch {
+                        kind: DispatchKind::Handle,
+                        message: Message {
+                            id: message_id_1,
+                            source: 1.into_origin(),
+                            dest: program_id_1,
+                            payload: vec![],
+                            gas_limit: 1_000_000,
+                            value: 0,
+                            reply: None,
+                        },
                     },
                 ],
                 programs: vec![
@@ -228,7 +235,7 @@ fn debug_mode_works() {
         // only programs left!
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
-                message_queue: vec![],
+                dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_1,

@@ -37,7 +37,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Message};
+    use common::{self, Dispatch, ProgramWithStatus};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
@@ -84,7 +84,7 @@ pub mod pallet {
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
     pub struct DebugData {
-        pub message_queue: Vec<Message>,
+        pub dispatch_queue: Vec<Dispatch>,
         pub programs: Vec<ProgramDetails>,
     }
 
@@ -107,12 +107,12 @@ pub mod pallet {
         fn do_snapshot() {
             #[derive(Decode)]
             struct Node {
-                value: Message,
+                value: Dispatch,
                 next: Option<H256>,
             }
 
             let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
-            let mut message_queue = vec![];
+            let mut dispatch_queue = vec![];
 
             if let Some(head) = sp_io::storage::get(&mq_head_key) {
                 let mut next_id = H256::from_slice(&head[..]);
@@ -121,7 +121,7 @@ pub mod pallet {
                         [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
                     if let Some(bytes) = sp_io::storage::get(&next_node_key) {
                         let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        message_queue.push(current_node.value);
+                        dispatch_queue.push(current_node.value);
                         match current_node.next {
                             Some(h) => next_id = h,
                             None => break,
@@ -130,30 +130,29 @@ pub mod pallet {
                 }
             }
 
-            let programs = PrefixIterator::<ProgramDetails>::new(
+            let programs = PrefixIterator::<(H256, ProgramWithStatus)>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 |key, mut value| {
                     assert_eq!(key.len(), 32);
                     let program_id = H256::from_slice(key);
-                    let program = common::Program::decode(&mut value)?;
-                    Ok(ProgramDetails {
-                        id: program_id,
-                        static_pages: program.static_pages,
-                        persistent_pages: common::get_program_pages(
-                            program_id,
-                            program.persistent_pages,
-                        )
-                        .expect("program exists in storage, so pages do"),
-                        code_hash: program.code_hash,
-                        nonce: program.nonce,
-                    })
+                    let program = ProgramWithStatus::decode(&mut value)?;
+                    Ok((program_id, program))
                 },
             )
+            .filter_map(|(id, prog)| prog.try_into().ok().map(|p| (id, p)))
+            .map(|(id, p): (H256, common::Program)| ProgramDetails {
+                id,
+                static_pages: p.static_pages,
+                persistent_pages: common::get_program_pages(id, p.persistent_pages)
+                    .expect("active program exists, therefore pages do"),
+                code_hash: p.code_hash,
+                nonce: p.nonce,
+            })
             .collect();
 
             Self::deposit_event(Event::DebugDataSnapshot(DebugData {
-                message_queue,
+                dispatch_queue,
                 programs,
             }));
         }

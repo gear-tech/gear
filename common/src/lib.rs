@@ -616,12 +616,12 @@ mod tests {
             );
             assert_eq!(get_code_refs(code_hash), 2u32);
 
-            release_code(H256::from_low_u64_be(1));
+            release_code(code_hash);
             assert_eq!(get_code_refs(code_hash), 1u32);
 
             assert!(get_code(code_hash).is_some());
 
-            release_code(H256::from_low_u64_be(2));
+            release_code(code_hash);
             assert_eq!(get_code_refs(code_hash), 0u32);
 
             assert!(get_code(code_hash).is_none());
