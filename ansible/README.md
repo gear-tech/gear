@@ -6,7 +6,7 @@
 
 The compiled runtime code as well as the genesis block configuration (the initial network state) should be placed in a "chain spec" JSON file that would later be supplied as a command line argumnet to the ```gear-node``` command:
 ```bash
-./target/release/gear-test \
+./target/release/gear-node \
   --base-path /tmp/data \
   --chain=chain_spec.json \
   ...
