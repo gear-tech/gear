@@ -99,8 +99,8 @@ pub fn gas_available<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i64 {
 pub fn exit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |program_id_ptr: i32| {
         let _ = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr as u32 as _).into();
-            ext.exit(dest)
+            let value_dest: ProgramId = get_id(ext, program_id_ptr as u32 as _).into();
+            ext.exit(value_dest)
         })?;
 
         // Intentionally return an error to break the execution

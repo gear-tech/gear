@@ -210,11 +210,11 @@ impl EnvExt for Ext {
         self.message_context.current().source()
     }
 
-    fn exit(&mut self, address: ProgramId) -> Result<(), &'static str> {
+    fn exit(&mut self, value_destination: ProgramId) -> Result<(), &'static str> {
         if self.exit_argument.is_some() {
             Err("Cannot call `exit' twice")
         } else {
-            self.exit_argument = Some(address);
+            self.exit_argument = Some(value_destination);
             Ok(())
         }
     }

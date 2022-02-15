@@ -175,13 +175,13 @@ pub fn size<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) -> Sy
 }
 
 pub fn exit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
-    let value_to_ptr = pop_i32(&mut args.iter())?;
+    let value_dest_ptr = pop_i32(&mut args.iter())?;
 
     let _: Result<ReturnValue, HostError> = ctx
         .ext
         .with(|ext: &mut E| {
-            let value_to: ProgramId = funcs::get_id(ext, value_to_ptr).into();
-            ext.exit(value_to)
+            let value_dest: ProgramId = funcs::get_id(ext, value_dest_ptr).into();
+            ext.exit(value_dest)
         })
         .map(|_| Ok(ReturnValue::Unit))
         .map_err(|err| {

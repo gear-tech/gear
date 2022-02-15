@@ -27,7 +27,7 @@ mod sys {
     extern "C" {
         pub fn gr_block_height() -> u32;
         pub fn gr_block_timestamp() -> u64;
-        pub fn gr_exit(program_id_ptr: *const u8) -> !;
+        pub fn gr_exit(value_dest_ptr: *const u8) -> !;
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
         pub fn gr_leave() -> !;
