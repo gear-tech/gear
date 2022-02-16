@@ -360,7 +360,7 @@ impl<'a> JournalHandler for Journal<'a> {
     }
 
     fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
-        todo!("https://github.com/gear-tech/gear/issues/644")
+        todo!("TODO https://github.com/gear-tech/gear/issues/644")
     }
 }
 
