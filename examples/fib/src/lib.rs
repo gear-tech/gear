@@ -19,6 +19,10 @@ pub unsafe extern "C" fn handle() {
     MESSAGE_LOG.push(format!("New msg: {:?}", new_msg));
     debug!("fib gas_available: {}", exec::gas_available());
 
+    if new_msg > 1000 {
+        return;
+    }
+
     msg::send(
         msg::source(),
         make_fib(new_msg as usize)[new_msg as usize - 1],

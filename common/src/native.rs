@@ -124,7 +124,12 @@ pub fn set_program(program: CoreProgram) {
         program
             .get_pages()
             .iter()
-            .map(|(num, buf)| (num.raw(), buf.to_vec()))
+            .map(|(num, buf)| {
+                let buf = buf
+                    .as_ref()
+                    .expect("When set program, each page must have data");
+                (num.raw(), buf.to_vec())
+            })
             .collect(),
     );
 }

@@ -21,22 +21,26 @@ use crate::{
     configs::ExecutionSettings,
     ext::Ext,
     id::BlakeMessageIdGenerator,
+    lazy_pages,
 };
 use alloc::{
+    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
+use common::Origin;
+use core::convert::TryFrom;
 use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
     gas::{self, ChargeResult, GasCounter},
-    memory::{MemoryContext, PageNumber},
+    memory::{MemoryContext, PageBuf, PageNumber},
     message::{Dispatch, MessageContext},
     program::Program,
 };
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<E: Environment<Ext>>(
-    program: Program,
+    mut program: Program,
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
@@ -45,6 +49,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let Dispatch { kind, message } = dispatch.clone();
 
     let program_id = program.id();
+    log::debug!("process program {:?}", program_id);
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(message.gas_limit());
@@ -60,20 +65,9 @@ pub fn execute_wasm<E: Environment<Ext>>(
         }
     };
 
-    // Charging for initial or loaded pages.
-    if program.get_pages().is_empty() {
-        let amount = settings.init_cost() * program.static_pages() as u64;
-
-        if gas_counter.charge(amount) != ChargeResult::Enough {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: "Not enough gas for initial memory.",
-            });
-        };
-    } else {
+    let mem_size = if let Some(max_page) = program.get_pages().iter().next_back() {
+        // Charging gas for loaded pages
         let amount = settings.load_page_cost() * program.get_pages().len() as u64;
-
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
                 program_id,
@@ -81,10 +75,44 @@ pub fn execute_wasm<E: Environment<Ext>>(
                 reason: "Not enough gas for loading memory.",
             });
         };
-    }
+
+        let max_page = max_page.0.raw();
+
+        // Charging gas for mem size
+        let amount =
+            settings.mem_grow_cost() * (max_page as u64 + 1 - program.static_pages() as u64);
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: "Not enough gas for grow memory size.",
+            });
+        }
+
+        // +1 because pages numeration begins from 0
+        max_page + 1
+    } else {
+        // Charging gas for initial pages
+        let amount = settings.init_cost() * program.static_pages() as u64;
+        if gas_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: "Not enough gas for initial memory.",
+            });
+        };
+
+        program.static_pages()
+    };
+    assert!(
+        mem_size >= program.static_pages(),
+        "mem_size = {}, static_pages = {}",
+        mem_size,
+        program.static_pages()
+    );
 
     // Creating memory.
-    let memory = match env.create_memory(program.static_pages()) {
+    let memory = match env.create_memory(mem_size) {
         Ok(mem) => mem,
         Err(e) => {
             return Err(ExecutionError {
@@ -95,26 +123,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
         }
     };
 
-    // Charging gas for future growths.
-    if let Some(max_page) = program.get_pages().iter().next_back() {
-        let max_page_num = *max_page.0;
-        let mem_size = memory.size();
-
-        if max_page_num >= mem_size {
-            let amount = settings.mem_grow_cost() * ((max_page_num - mem_size).raw() as u64 + 1);
-
-            if gas_counter.charge(amount) != ChargeResult::Enough {
-                return Err(ExecutionError {
-                    program_id,
-                    gas_amount: gas_counter.into(),
-                    reason: "Not enough gas for grow memory size.",
-                });
-            }
-        } else {
-            assert!(max_page_num.raw() == mem_size.raw() - 1);
-        }
-    }
-
     let initial_pages = program.get_pages();
 
     // Getting allocations.
@@ -123,8 +131,6 @@ pub fn execute_wasm<E: Environment<Ext>>(
     } else {
         (0..program.static_pages()).map(Into::into).collect()
     };
-
-    let prev_max_page = allocations.iter().last().expect("Can't fail").raw();
 
     // Creating memory context.
     let memory_context = MemoryContext::new(
@@ -144,6 +150,26 @@ pub fn execute_wasm<E: Environment<Ext>>(
         },
     );
 
+    let initial_pages = program.get_pages_mut();
+
+    let (lazy_pages_enabled, has_no_data_pages) =
+        lazy_pages::try_to_enable_lazy_pages(initial_pages);
+
+    if lazy_pages_enabled.is_none() && has_no_data_pages.is_some() {
+        // In case we don't enable lazy-pages, then we loads data for all pages, which has no data, now.
+        let prog_id_hash = program_id.into_origin();
+        initial_pages
+            .iter_mut()
+            .filter(|(_x, y)| y.is_none())
+            .for_each(|(x, y)| {
+                let data = common::get_program_page_data(prog_id_hash, x.raw())
+                    .expect("Page data must be in storage");
+                y.replace(Box::from(PageBuf::try_from(data).expect(
+                    "Must be able to convert vec to PageBuf, may be vec has wrong size",
+                )));
+            });
+    }
+
     // Creating externalities.
     let ext = Ext {
         gas_counter,
@@ -151,17 +177,29 @@ pub fn execute_wasm<E: Environment<Ext>>(
         message_context,
         block_info: settings.block_info,
         config: settings.config,
+        lazy_pages_enabled: lazy_pages_enabled.clone(),
         error_explanation: None,
+        exit_argument: None,
     };
 
+    if let Err(err) = env.setup(ext, &instrumented_code, initial_pages, &*memory) {
+        return Err(ExecutionError {
+            program_id,
+            gas_amount: err.gas_amount,
+            reason: err.reason,
+        });
+    }
+
+    if lazy_pages_enabled.is_some() {
+        lazy_pages::protect_pages_and_init_info(
+            initial_pages,
+            program_id,
+            memory.get_wasm_memory_begin_addr(),
+        );
+    }
+
     // Running backend.
-    let BackendReport { termination, info } = match env.setup_and_execute(
-        ext,
-        &instrumented_code,
-        initial_pages,
-        &*memory,
-        kind.into_entry(),
-    ) {
+    let BackendReport { termination, info } = match env.execute(kind.into_entry()) {
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
@@ -172,12 +210,15 @@ pub fn execute_wasm<E: Environment<Ext>>(
         }
     };
 
+    if lazy_pages_enabled.is_some() {
+        // accessed lazy pages old data will be added to `initial_pages`
+        lazy_pages::post_execution_actions(initial_pages, memory.get_wasm_memory_begin_addr());
+    }
+
     // Parsing outcome.
     let kind = match termination {
-        TerminationReason::Success | TerminationReason::Manual { wait: false } => {
-            DispatchResultKind::Success
-        }
-        TerminationReason::Manual { wait: true } => DispatchResultKind::Wait,
+        TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
+        TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
         TerminationReason::Trap {
             explanation,
             description,
@@ -191,31 +232,41 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
             DispatchResultKind::Trap(explanation)
         }
+        TerminationReason::Wait => DispatchResultKind::Wait,
     };
 
-    // Updating program memory
     let mut page_update = BTreeMap::new();
 
-    let actual_max_page = info
-        .pages
-        .iter()
-        .last()
-        .map(|(page, _)| page.raw())
-        .expect("Can't fail");
-
-    for (page, data) in info.pages {
-        let mut need_update = true;
+    // changed and new pages data will be updated in storage
+    for (page, new_data) in info.accessed_pages {
         if let Some(initial_data) = initial_pages.get(&page) {
-            need_update = *initial_data.to_vec() != data;
-        }
-        if need_update {
-            page_update.insert(page, Some(data));
-        }
+            let old_data = initial_data
+                .as_ref()
+                .expect("Must have data for all accessed pages");
+            if !new_data.eq(old_data.as_ref()) {
+                page_update.insert(page, Some(new_data));
+                log::trace!(
+                    "Page {} has been changed - will be updated in storage",
+                    page.raw()
+                );
+            }
+        } else {
+            page_update.insert(page, Some(new_data));
+            log::trace!(
+                "Page {} is a new page - will be upload to storage",
+                page.raw()
+            );
+        };
     }
 
-    for removed_page in (actual_max_page + 1)..=prev_max_page {
-        page_update.insert(removed_page.into(), None);
-    }
+    // freed pages will be removed from storage
+    let current_pages = &info.pages;
+    initial_pages
+        .iter()
+        .filter(|(page, _)| !current_pages.contains(*page))
+        .for_each(|(removed_page, _)| {
+            page_update.insert(*removed_page, None);
+        });
 
     // Storing outgoing dispatches
     let mut outgoing = Vec::new();

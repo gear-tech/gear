@@ -18,6 +18,7 @@
 
 //! Module for programs.
 
+use alloc::collections::BTreeSet;
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
@@ -102,7 +103,7 @@ pub struct Program {
     /// Initial memory export size.
     static_pages: u32,
     /// Saved state of memory pages.
-    persistent_pages: BTreeMap<PageNumber, Box<PageBuf>>,
+    persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Message nonce
     message_nonce: u64,
 }
@@ -142,20 +143,15 @@ impl Program {
         code: Vec<u8>,
         static_pages: u32,
         message_nonce: u64,
-        pages: BTreeMap<u32, Vec<u8>>,
+        persistent_pages_numbers: BTreeSet<u32>,
     ) -> Self {
         Self {
             id,
             code,
             static_pages,
-            persistent_pages: pages
+            persistent_pages: persistent_pages_numbers
                 .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k.into(),
-                        Box::new(PageBuf::try_from(v).expect("Can't fail")),
-                    )
-                })
+                .map(|k| (k.into(), None))
                 .collect(),
             message_nonce,
         }
@@ -213,10 +209,10 @@ impl Program {
     pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<()> {
         self.persistent_pages.insert(
             page,
-            Box::new(
+            Option::from(Box::new(
                 PageBuf::try_from(buf)
                     .map_err(|err| anyhow::format_err!("TryFromSlice err: {}", err))?,
-            ),
+            )),
         );
         Ok(())
     }
@@ -227,19 +223,26 @@ impl Program {
     }
 
     /// Get reference to memory pages.
-    pub fn get_pages(&self) -> &BTreeMap<PageNumber, Box<PageBuf>> {
+    pub fn get_pages(&self) -> &BTreeMap<PageNumber, Option<Box<PageBuf>>> {
         &self.persistent_pages
+    }
+
+    /// Get mut reference to memory pages.
+    pub fn get_pages_mut(&mut self) -> &mut BTreeMap<PageNumber, Option<Box<PageBuf>>> {
+        &mut self.persistent_pages
     }
 
     /// Get reference to memory page.
     #[allow(clippy::borrowed_box)]
-    pub fn get_page(&self, page: PageNumber) -> Option<&Box<PageBuf>> {
-        self.persistent_pages.get(&page)
+    pub fn get_page_data(&self, page: PageNumber) -> Option<&Box<PageBuf>> {
+        let res = self.persistent_pages.get(&page);
+        res.expect("Page must be in persistent_pages").as_ref()
     }
 
     /// Get mut reference to memory page.
     pub fn get_page_mut(&mut self, page: PageNumber) -> Option<&mut Box<PageBuf>> {
-        self.persistent_pages.get_mut(&page)
+        let res = self.persistent_pages.get_mut(&page);
+        res.expect("Page must be in persistent_pages; mut").as_mut()
     }
 
     /// Clear static area of this program.

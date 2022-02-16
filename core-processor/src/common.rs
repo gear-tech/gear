@@ -39,6 +39,8 @@ pub enum DispatchResultKind {
     Trap(Option<&'static str>),
     /// Wait dispatch.
     Wait,
+    /// Exit dispatch.
+    Exit(ProgramId),
 }
 
 /// Result of the specific dispatch.
@@ -137,6 +139,14 @@ pub enum JournalNote {
         /// Amount of gas burned.
         amount: u64,
     },
+    /// Exit the program.
+    ExitDispatch {
+        /// Id of the program called `exit`.
+        id_exited: ProgramId,
+        /// Address where all remaining value of the program should
+        /// be transferred to.
+        value_destination: ProgramId,
+    },
     /// Message was handled and no longer exists.
     ///
     /// This should be the last update involving this message id.
@@ -196,6 +206,8 @@ pub trait JournalHandler {
     fn message_dispatched(&mut self, outcome: DispatchOutcome);
     /// Process gas burned.
     fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64);
+    /// Process exit dispatch.
+    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId);
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
     /// Process send dispatch.

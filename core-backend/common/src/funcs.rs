@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use crate::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use alloc::{string::String, vec, vec::Vec};
 use gear_core::{
     env::{Ext, LaterExt},
@@ -94,6 +94,18 @@ pub fn gas<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str>
 
 pub fn gas_available<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i64 {
     move || ext.with(|ext: &mut E| ext.gas_available()).unwrap_or(0) as i64
+}
+
+pub fn exit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |program_id_ptr: i32| {
+        let _ = ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let value_dest: ProgramId = get_id(ext, program_id_ptr as u32 as _).into();
+            ext.exit(value_dest)
+        })?;
+
+        // Intentionally return an error to break the execution
+        Err(EXIT_TRAP_STR)
+    }
 }
 
 pub fn msg_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {

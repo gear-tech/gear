@@ -30,7 +30,7 @@ use core_processor::common::{
 };
 use frame_support::{
     storage::PrefixIterator,
-    traits::{BalanceStatus, ReservableCurrency},
+    traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
 };
 use gear_core::{
     memory::PageNumber,
@@ -38,7 +38,7 @@ use gear_core::{
     program::{Program as NativeProgram, ProgramId},
 };
 use primitive_types::H256;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 
 pub struct ExtManager<T: Config, GH: GasHandler = ValueTreeGasHandler> {
@@ -167,10 +167,15 @@ where
     }
 
     pub fn set_program(&self, program: NativeProgram, message_id: H256) {
+        assert!(
+            program.get_pages().is_empty(),
+            "Must has empty persistent pages, has {:?}",
+            program.get_pages()
+        );
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
-            .map(|(k, v)| (k.raw(), v.to_vec()))
+            .map(|(k, v)| (k.raw(), v.as_ref().expect("Must have page data").to_vec()))
             .collect();
 
         let id = program.id().into_origin();
@@ -308,6 +313,24 @@ where
                 charge,
                 BalanceStatus::Free,
             );
+        }
+    }
+
+    // todo [sab]
+    fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
+        let program_id = id_exited.into_origin();
+        common::remove_program(program_id);
+
+        let program_account = &<T::AccountId as Origin>::from_origin(program_id);
+        let balance = T::Currency::total_balance(program_account);
+        if !balance.is_zero() {
+            T::Currency::transfer(
+                program_account,
+                &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
+                balance,
+                ExistenceRequirement::AllowDeath,
+            )
+            .expect("balance is not zero; should not fail");
         }
     }
 

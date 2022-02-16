@@ -397,7 +397,7 @@ fn check_memory(
         for p in &mut *program_storage {
             if p.id() == ProgramId::from(case.program_id) {
                 let page = case.address / PAGE_SIZE;
-                if let Some(page_buf) = p.get_page((page as u32).into()) {
+                if let Some(page_buf) = p.get_page_data((page as u32).into()) {
                     if page_buf[case.address - page * PAGE_SIZE
                         ..(case.address - page * PAGE_SIZE) + case.bytes.len()]
                         != case.bytes

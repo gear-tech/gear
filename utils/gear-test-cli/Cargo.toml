@@ -21,7 +21,7 @@ sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.g
 # Internal deps
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
-gear-core-processor = { path = "../../core-processor" }
+gear-core-processor = { path = "../../core-processor", features = ["lazy-pages"] }
 gear-runtime = { path = "../../runtime" }
 gear-test = { path = "../../gear-test" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox" }
