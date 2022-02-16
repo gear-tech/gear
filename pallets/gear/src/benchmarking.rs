@@ -153,7 +153,7 @@ fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
     // TODO set_program has redundant code set, that should be wiped off in #512
     common::set_program(
         program_id,
-        common::Program {
+        common::ActiveProgram {
             static_pages,
             persistent_pages: (0..static_pages).collect(),
             code_hash,

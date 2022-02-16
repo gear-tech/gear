@@ -53,8 +53,8 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, Dispatch, GasToFeeConverter, Message, Origin, ProgramState,
-        Program, GAS_VALUE_PREFIX,
+        self, CodeMetadata, Dispatch, GasToFeeConverter, Message, Origin, Program, ProgramState,
+        GAS_VALUE_PREFIX,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -68,7 +68,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::{message::DispatchKind, program::Program};
+    use gear_core::{message::DispatchKind, program::Program as NativeProgram};
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -605,7 +605,7 @@ pub mod pallet {
             );
 
             let H256(id_bytes) = id;
-            let program = Program::new(id_bytes.into(), code.to_vec())
+            let program = NativeProgram::new(id_bytes.into(), code.to_vec())
                 .map_err(|_| Error::<T>::FailedToConstructProgram)?;
 
             let reserve_fee = T::GasConverter::gas_to_fee(gas_limit);

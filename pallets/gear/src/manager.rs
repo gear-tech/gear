@@ -35,7 +35,7 @@ use frame_support::{
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, ExitCode, MessageId},
-    program::{Program, ProgramId},
+    program::{Program as NativeProgram, ProgramId},
 };
 use primitive_types::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
@@ -116,7 +116,7 @@ where
     GH: GasHandler,
 {
     fn collect(&self) -> State {
-        let programs: BTreeMap<ProgramId, Program> = PrefixIterator::<H256>::new(
+        let programs: BTreeMap<ProgramId, NativeProgram> = PrefixIterator::<H256>::new(
             STORAGE_PROGRAM_PREFIX.to_vec(),
             STORAGE_PROGRAM_PREFIX.to_vec(),
             |key, _| Ok(H256::from_slice(key)),
@@ -154,23 +154,19 @@ where
     T::AccountId: Origin,
     GH: GasHandler,
 {
-    pub fn program_from_code(
-        &self,
-        id: H256,
-        code: Vec<u8>,
-    ) -> Option<gear_core::program::Program> {
-        Program::new(ProgramId::from_origin(id), code).ok()
+    pub fn program_from_code(&self, id: H256, code: Vec<u8>) -> Option<NativeProgram> {
+        NativeProgram::new(ProgramId::from_origin(id), code).ok()
     }
 
     /// # Caution
     /// By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_program(&self, id: H256) -> Option<gear_core::program::Program> {
+    pub fn get_program(&self, id: H256) -> Option<NativeProgram> {
         common::get_program(id)
             .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())
     }
 
-    pub fn set_program(&self, program: gear_core::program::Program, message_id: H256) {
+    pub fn set_program(&self, program: NativeProgram, message_id: H256) {
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
