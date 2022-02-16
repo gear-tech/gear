@@ -475,6 +475,7 @@ where
         };
     }
 
+    // TODO reserve call must be infallible in https://github.com/gear-tech/gear/issues/644 sending less then 500 should revert execution (rollback state)
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         let from = from.into_origin();
         if let Some(to) = to {
