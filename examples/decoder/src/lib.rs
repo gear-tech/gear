@@ -51,6 +51,3 @@ pub unsafe extern "C" fn handle() {
 
     handle.commit(msg::source(), 10_000_000, 0);
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}

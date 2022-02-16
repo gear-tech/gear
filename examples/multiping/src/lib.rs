@@ -22,6 +22,3 @@ pub unsafe extern "C" fn handle() {
         msg::send_commit(handle, msg::source(), 10_000_000, 0);
     }
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}
