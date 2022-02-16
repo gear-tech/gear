@@ -58,6 +58,7 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
+    #[pallet::without_storage_info]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
@@ -73,7 +74,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {}
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramDetails {
         pub id: H256,
         pub static_pages: u32,
@@ -82,7 +83,7 @@ pub mod pallet {
         pub nonce: u64,
     }
 
-    #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
+    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct DebugData {
         pub message_queue: Vec<Message>,
         pub programs: Vec<ProgramDetails>,
@@ -91,6 +92,14 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn debug_mode)]
     pub type DebugMode<T> = StorageValue<_, bool, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn remap_program_id)]
+    pub type RemapId<T> = StorageValue<_, bool, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn programs_map)]
+    pub type ProgramsMap<T> = StorageValue<_, BTreeMap<H256, H256>, ValueQuery>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -103,14 +112,14 @@ pub mod pallet {
         fn on_finalize(_bn: BlockNumberFor<T>) {}
     }
 
+    #[derive(Decode, Encode)]
+    struct Node {
+        value: Message,
+        next: Option<H256>,
+    }
+
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
-            #[derive(Decode)]
-            struct Node {
-                value: Message,
-                next: Option<H256>,
-            }
-
             let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
             let mut message_queue = vec![];
 
@@ -159,6 +168,42 @@ pub mod pallet {
 
         fn is_enabled() -> bool {
             Self::debug_mode()
+        }
+
+        fn is_remap_id_enabled() -> bool {
+            Self::remap_program_id()
+        }
+
+        fn remap_id() {
+            let programs_map = ProgramsMap::<T>::get();
+            let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
+
+            if let Some(head) = sp_io::storage::get(&mq_head_key) {
+                let mut next_id = H256::from_slice(&head[..]);
+                loop {
+                    let next_node_key =
+                        [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
+                    if let Some(bytes) = sp_io::storage::get(&next_node_key) {
+                        let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
+                        for (k, v) in programs_map.iter() {
+                            if *k == current_node.value.dest {
+                                current_node.value.dest = *v;
+                                sp_io::storage::set(&next_node_key, &current_node.encode());
+                            }
+
+                            if *v == current_node.value.source {
+                                current_node.value.source = *k;
+                                sp_io::storage::set(&next_node_key, &current_node.encode());
+                            }
+                        }
+
+                        match current_node.next {
+                            Some(h) => next_id = h,
+                            None => break,
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -18,7 +18,7 @@ fixtures:
     expected:
       - allowError: true
         allocations:
-        - program_id: 1
+        - id: 1
           filter: dynamic
           # Allocates nothing, because rollbacks it's state
           page_count: 0

@@ -1,0 +1,49 @@
+[package]
+name = "gear-runtime-test-cli"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2018"
+license = "GPL-3.0"
+
+[dependencies]
+anyhow = "1.0.52"
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+hex = "0.4.3"
+colored = "2.0.0"
+regex = "1.4"
+rand = "0.8.0"
+clap = { version = "3.0", features = ["derive"] }
+log = { version = "0.4.14", default-features = false }
+serde = "1.0.133"
+serde_json = "*"
+primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
+rayon = "1.5"
+
+# Substrate deps
+frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-core = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-keyring = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-runtime = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-arithmetic = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+
+# Internal deps
+gear-common = { path = "../../common" }
+gear-core = { path = "../../core" }
+gear-core-processor = { path = "../../core-processor" }
+gear-runtime = { path = "../../runtime", features = ["debug-mode"] }
+gear-test = { path = "../../gear-test" }
+gear-backend-sandbox = { path = "../../core-backend/sandbox" }
+pallet-gear = { path = "../../pallets/gear" }
+pallet-gear-debug = { path = "../../pallets/gear-debug" }

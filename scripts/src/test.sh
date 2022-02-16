@@ -68,6 +68,10 @@ ntest() {
   cargo run --package gear-node --release -- runtests "$1"/gear-test/spec/*.yaml
 }
 
+rtest() {
+  cargo run --package gear-node --release -- runtime-spec-tests "$1"/gear-test/spec/*.yaml -l0
+}
+
 pallet_test() {
   cargo test -p pallet-gear "$@"
 }

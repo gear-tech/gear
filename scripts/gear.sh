@@ -306,6 +306,10 @@ case "$COMMAND" in
         header "Running node testsuite"
         ntest "$ROOT_DIR"; ;;
 
+      rtest)
+        header "Running node runtime testsuite"
+        rtest "$ROOT_DIR"; ;;
+
       pallet)
         header "Running pallet-gear tests"
         pallet_test "$@"; ;;

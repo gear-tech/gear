@@ -37,11 +37,17 @@ mod tests;
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
 pub trait DebugInfo {
+    fn is_remap_id_enabled() -> bool;
+    fn remap_id();
     fn do_snapshot();
     fn is_enabled() -> bool;
 }
 
 impl DebugInfo for () {
+    fn is_remap_id_enabled() -> bool {
+        false
+    }
+    fn remap_id() {}
     fn do_snapshot() {}
     fn is_enabled() -> bool {
         false
@@ -415,6 +421,9 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
+            if T::DebugInfo::is_remap_id_enabled() {
+                T::DebugInfo::remap_id();
+            }
             while let Some(message) = common::dequeue_message() {
                 // Check whether we have enough of gas allowed for message processing
                 if message.gas_limit > GasAllowance::<T>::get() {
@@ -482,6 +491,10 @@ pub mod pallet {
 
                 if T::DebugInfo::is_enabled() {
                     T::DebugInfo::do_snapshot();
+                }
+
+                if T::DebugInfo::is_remap_id_enabled() {
+                    T::DebugInfo::remap_id();
                 }
             }
 

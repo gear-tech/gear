@@ -3,6 +3,8 @@
 use gcore::msg;
 use gstd::prelude::*;
 
+static mut COUNTER: usize = 0;
+
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
     let new_msg =
@@ -14,13 +16,15 @@ pub unsafe extern "C" fn handle() {
         msg::reply_commit(10_000_000, 0);
     }
 
-    if new_msg == "PING PING PING" {
+    if new_msg == "PING PING PING" && COUNTER > 0 {
         let handle = msg::send_init();
         msg::send_push(&handle, b"PONG1");
         msg::send_push(&handle, b"PONG2");
         msg::send_push(&handle, b"PONG3");
         msg::send_commit(handle, msg::source(), 10_000_000, 0);
     }
+
+    COUNTER += 1;
 }
 
 #[no_mangle]

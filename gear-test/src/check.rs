@@ -112,9 +112,9 @@ pub struct DisplayedPayload(Vec<u8>);
 impl fmt::Display for DisplayedPayload {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Ok(utf8) = std::str::from_utf8(&self.0[..]) {
-            write!(f, "utf-8 ({})", utf8)
+            write!(f, "utf-8 ({}) bytes(0x{})", utf8, hex::encode(&self.0))
         } else {
-            write!(f, "bytes ({:?})", &self.0[..])
+            write!(f, "bytes (0x{})", hex::encode(&self.0))
         }
     }
 }
@@ -197,7 +197,7 @@ fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl 
     }
 }
 
-fn check_messages(
+pub fn check_messages(
     progs_n_paths: &[(&str, ProgramId)],
     messages: &[Message],
     expected_messages: &[sample::Message],
@@ -223,7 +223,7 @@ fn check_messages(
                     .payload
                     .as_mut()
                     .map(|payload| match payload {
-                        PayloadVariant::Custom(_) => {
+                        PayloadVariant::Custom(v) => {
                             if let Some(&(path, prog_id)) = progs_n_paths
                                 .iter()
                                 .find(|(_, prog_id)| source_n_dest.contains(prog_id))
@@ -239,8 +239,9 @@ fn check_messages(
 
                                 let path: String = path.replace(".wasm", ".meta.wasm");
 
-                                let json =
-                                    MetaData::Json(String::from_utf8(payload.to_bytes()).unwrap());
+                                let json = MetaData::Json(proc::parse_payload(
+                                    serde_json::to_string(&v).expect("Cannot convert to string"),
+                                ));
 
                                 let bytes = json
                                     .convert(&path, &meta_type)
@@ -310,14 +311,14 @@ fn check_messages(
     }
 }
 
-fn check_allocations(
+pub fn check_allocations(
     programs: &[Program],
     expected_allocations: &[sample::Allocations],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
     for exp in expected_allocations {
-        let target_program_id = ProgramId::from(exp.program_id);
+        let target_program_id = exp.id.to_program_id();
         if let Some(program) = programs.iter().find(|p| p.id() == target_program_id) {
             let actual_pages = program
                 .get_pages()
@@ -336,7 +337,7 @@ fn check_allocations(
                             "Expectation error (Allocation page count does not match, expected: {}; actual: {}. Program id: {})",
                             expected_page_count,
                             actual_pages.len(),
-                            exp.program_id,
+                            exp.id.to_program_id(),
                         ));
                     }
                 }
@@ -355,7 +356,7 @@ fn check_allocations(
                             "Expectation error (Following allocation pages expected: {:?}; actual: {:?}. Program id: {})",
                             expected_pages,
                             actual_pages,
-                            exp.program_id,
+                            exp.id.to_program_id(),
                         ))
                     }
                 }
@@ -369,7 +370,7 @@ fn check_allocations(
                             errors.push(format!(
                                 "Expectation error (Allocation page {} expected, but not found. Program id: {})",
                                 expected_page,
-                                exp.program_id,
+                                exp.id.to_program_id(),
                             ));
                         }
                     }
@@ -378,7 +379,7 @@ fn check_allocations(
         } else {
             errors.push(format!(
                 "Expectation error (Program id not found: {})",
-                exp.program_id
+                exp.id.to_program_id()
             ))
         }
     }
@@ -390,14 +391,14 @@ fn check_allocations(
     }
 }
 
-fn check_memory(
+pub fn check_memory(
     program_storage: &mut Vec<Program>,
     expected_memory: &[sample::BytesAt],
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
     for case in expected_memory {
         for p in &mut *program_storage {
-            if p.id() == ProgramId::from(case.program_id) {
+            if p.id() == case.id.to_program_id() {
                 let page = case.address / PAGE_SIZE;
                 if let Some(page_buf) = p.get_page_data((page as u32).into()) {
                     if page_buf[case.address - page * PAGE_SIZE
@@ -419,7 +420,7 @@ fn check_memory(
     }
 }
 
-fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
+pub fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
     let file = fs::File::open(path.as_ref())
         .map_err(|e| anyhow::anyhow!("Error loading '{}': {}", path.as_ref().display(), e))?;
     let u = serde_yaml::from_reader(file)

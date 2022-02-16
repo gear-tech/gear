@@ -18,14 +18,7 @@ fixtures:
           value: PING PING PING
 
     expected:
-      - step: 1
-        log:
-          - destination: 1000001
-            payload:
-              kind: utf-8
-              value: PONG
-      - step: 2
-        log:
+      - log:
           - destination: 1000001
             payload:
               kind: utf-8
