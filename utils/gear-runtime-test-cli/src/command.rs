@@ -19,16 +19,18 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::mock::{new_test_ext, run_to_block, System, Test, USER_1};
+use crate::util::{get_message_queue, new_test_ext, process_queue};
 use crate::GearRuntimeTestCmd;
-use codec::{Decode, Encode};
+use codec::{Encode};
 use colored::{ColoredString, Colorize};
+
+use gear_runtime::{Origin, Runtime};
 
 use gear_core::message::Message as CoreMessage;
 use gear_core::program::Program as CoreProgram;
 use gear_core::program::ProgramId;
 
-use gear_common::{Message, GAS_VALUE_PREFIX, STORAGE_MESSAGE_PREFIX};
+use gear_common::{Message, Origin as _, GAS_VALUE_PREFIX};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -42,6 +44,8 @@ use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
 use sp_core::H256;
+use sp_runtime::app_crypto::UncheckedFrom;
+use sp_runtime::AccountId32;
 
 impl GearRuntimeTestCmd {
     /// Runs tests from `.yaml` files using the Gear pallet for interaction.
@@ -66,7 +70,7 @@ impl GearRuntimeTestCmd {
                 new_test_ext().execute_with(|| {
                     let output = run_fixture(test, fixture);
                     gear_common::reset_storage();
-                    pallet_gear::Mailbox::<Test>::drain();
+                    pallet_gear::Mailbox::<Runtime>::drain();
 
                     println!("Fixture {}: {}", fixture.title.bold(), output);
                     if !output.contains("Ok") && !output.contains("Skip") {
@@ -119,8 +123,8 @@ fn init_fixture(
             }
         }
 
-        if let Err(e) = GearPallet::<Test>::submit_program(
-            crate::mock::Origin::signed(USER_1),
+        if let Err(e) = GearPallet::<Runtime>::submit_program(
+            Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
             code.clone(),
             program.id.to_program_id().as_slice().to_vec(),
             init_message,
@@ -140,7 +144,7 @@ fn init_fixture(
 fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredString {
     let mut snapshots = Vec::new();
     let mut progs_n_paths: Vec<(&str, ProgramId)> = vec![];
-    pallet_gear_debug::DebugMode::<Test>::put(true);
+    pallet_gear_debug::DebugMode::<Runtime>::put(true);
 
     // Find out future program ids
     let programs: BTreeMap<ProgramId, H256> = test
@@ -175,8 +179,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     }
 
     // Enable remapping of the source and destination of messages
-    pallet_gear_debug::ProgramsMap::<Test>::put(programs_map);
-    pallet_gear_debug::RemapId::<Test>::put(true);
+    pallet_gear_debug::ProgramsMap::<Runtime>::put(programs_map);
+    pallet_gear_debug::RemapId::<Runtime>::put(true);
     let mut mailbox: Vec<Message> = vec![];
 
     match init_fixture(test, &mut snapshots, &mut mailbox) {
@@ -220,9 +224,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 let dest = programs[&message.destination.to_program_id()];
 
-                let gas_limit = message
-                    .gas_limit
-                    .unwrap_or(GearPallet::<Test>::gas_allowance() / fixture.messages.len() as u64);
+                let gas_limit = message.gas_limit.unwrap_or(
+                    GearPallet::<Runtime>::gas_allowance() / fixture.messages.len() as u64,
+                );
 
                 let value = message.value.unwrap_or(0);
 
@@ -251,8 +255,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 } else {
                     log::info!(
                         "{:?}",
-                        GearPallet::<Test>::send_message(
-                            crate::mock::Origin::signed(USER_1),
+                        GearPallet::<Runtime>::send_message(
+                            Origin::from(Some(AccountId32::unchecked_from(
+                                1000001.into_origin()
+                            ))),
                             dest,
                             payload,
                             gas_limit,
@@ -355,7 +361,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 log::info!("mailbox: {:?}", &mailbox);
 
                 let messages: Vec<CoreMessage> = mailbox
-                    .iter()
+                    .iter_mut()
                     .map(|msg| CoreMessage::from(msg.clone()))
                     .collect();
 
@@ -384,53 +390,5 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
         }
         Err(e) => format!("Initialization error ({})", e).bright_red(),
-    }
-}
-
-fn get_message_queue() -> Vec<Message> {
-    #[derive(Decode, Encode)]
-    struct Node {
-        value: Message,
-        next: Option<H256>,
-    }
-
-    let mq_head_key = [STORAGE_MESSAGE_PREFIX, b"head"].concat();
-    let mut message_queue = vec![];
-
-    if let Some(head) = sp_io::storage::get(&mq_head_key) {
-        let mut next_id = H256::from_slice(&head[..]);
-        loop {
-            let next_node_key = [STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
-            if let Some(bytes) = sp_io::storage::get(&next_node_key) {
-                let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                message_queue.push(current_node.value);
-                match current_node.next {
-                    Some(h) => next_id = h,
-                    None => break,
-                }
-            }
-        }
-    }
-
-    message_queue
-}
-
-fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<Message>) {
-    while !gear_common::StorageQueue::<Message>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
-        run_to_block(System::block_number() + 1, None);
-        // Parse data from events
-        for event in System::events() {
-            if let crate::mock::Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(
-                snapshot,
-            )) = &event.event
-            {
-                snapshots.push(snapshot.clone());
-            }
-
-            if let crate::mock::Event::Gear(pallet_gear::Event::Log(msg)) = &event.event {
-                mailbox.push(msg.clone());
-            }
-        }
-        System::reset_events();
     }
 }

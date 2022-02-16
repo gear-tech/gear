@@ -42,8 +42,8 @@ pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "htt
 gear-common = { path = "../../common" }
 gear-core = { path = "../../core" }
 gear-core-processor = { path = "../../core-processor" }
-gear-runtime = { path = "../../runtime" }
+gear-runtime = { path = "../../runtime", features = ["debug-mode"] }
 gear-test = { path = "../../gear-test" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox" }
-pallet-gear = { path = "../../pallets/gear", default-features = false }
-pallet-gear-debug = { path = "../../pallets/gear-debug", default-features = false }
+pallet-gear = { path = "../../pallets/gear" }
+pallet-gear-debug = { path = "../../pallets/gear-debug" }

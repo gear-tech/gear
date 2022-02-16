@@ -17,8 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod command;
-// mod manager;
-mod mock;
+mod util;
 
 /// The `runtests` command used to test gear with yaml.
 #[derive(Debug, clap::Parser)]
