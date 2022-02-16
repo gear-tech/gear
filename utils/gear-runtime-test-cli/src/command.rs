@@ -131,23 +131,7 @@ fn init_fixture(
         }
 
         // Initialize programs
-        while !gear_common::StorageQueue::<Message>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
-            run_to_block(System::block_number() + 1, None);
-            // Parse data from events
-            for event in System::events() {
-                if let crate::mock::Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(
-                    snapshot,
-                )) = &event.event
-                {
-                    snapshots.push(snapshot.clone());
-                }
-
-                if let crate::mock::Event::Gear(pallet_gear::Event::Log(msg)) = &event.event {
-                    mailbox.push(msg.clone());
-                }
-            }
-            System::reset_events();
-        }
+        process_queue(snapshots, mailbox);
     }
 
     Ok(())
@@ -281,23 +265,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 snapshots.last_mut().unwrap().message_queue = get_message_queue();
             }
 
-            while !gear_common::StorageQueue::<Message>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
-                run_to_block(System::block_number() + 1, None);
-                // Parse data from events
-                for event in System::events() {
-                    if let crate::mock::Event::GearDebug(
-                        pallet_gear_debug::Event::DebugDataSnapshot(snapshot),
-                    ) = &event.event
-                    {
-                        snapshots.push(snapshot.clone());
-                    }
-
-                    if let crate::mock::Event::Gear(pallet_gear::Event::Log(msg)) = &event.event {
-                        mailbox.push(msg.clone());
-                    }
-                }
-                System::reset_events();
-            }
+            process_queue(&mut snapshots, &mut mailbox);
 
             for exp in &fixture.expected {
                 let snapshot: DebugData = if let Some(step) = exp.step {
@@ -445,4 +413,24 @@ fn get_message_queue() -> Vec<Message> {
     }
 
     message_queue
+}
+
+fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<Message>) {
+    while !gear_common::StorageQueue::<Message>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
+        run_to_block(System::block_number() + 1, None);
+        // Parse data from events
+        for event in System::events() {
+            if let crate::mock::Event::GearDebug(pallet_gear_debug::Event::DebugDataSnapshot(
+                snapshot,
+            )) = &event.event
+            {
+                snapshots.push(snapshot.clone());
+            }
+
+            if let crate::mock::Event::Gear(pallet_gear::Event::Log(msg)) = &event.event {
+                mailbox.push(msg.clone());
+            }
+        }
+        System::reset_events();
+    }
 }
