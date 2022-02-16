@@ -177,6 +177,6 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
-        todo!("TODO https://github.com/gear-tech/gear/issues/644")
+        // TODO https://github.com/gear-tech/gear/issues/644
     }
 }

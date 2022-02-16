@@ -168,8 +168,7 @@ where
         NativeProgram::new(ProgramId::from_origin(id), code).ok()
     }
 
-    /// # Caution
-    /// By calling this function we can't differ whether `None` returned, because
+    /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_program(&self, id: H256) -> Option<NativeProgram> {
         common::get_program(id)

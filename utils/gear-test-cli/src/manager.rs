@@ -154,7 +154,7 @@ where
     ) {
         self.inner.update_page(program_id, page_number, data)
     }
-    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
-        todo!("TODO https://github.com/gear-tech/gear/issues/644")
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+        self.inner.send_value(from, to, value);
     }
 }
