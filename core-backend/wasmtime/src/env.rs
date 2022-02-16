@@ -322,11 +322,17 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
         let instance = self.instance.as_mut().expect("Must have instance");
 
-        let entry_func = instance.get_func(entry_point).ok_or_else(|| BackendError {
-            reason: "Unable to find function export",
-            description: Some(format!("Failed to find `{}` function export", entry_point).into()),
-            gas_amount: self.ext.unset().into().gas_amount,
-        })?;
+        let entry_func = match instance.get_func(entry_point) {
+            // Entry function found
+            Some(f) => f,
+            // Entry function not found, so we mean this as empty function
+            _ => {
+                return Ok(BackendReport {
+                    termination: TerminationReason::Success,
+                    info: self.ext.unset().into(),
+                })
+            }
+        };
 
         let res = entry_func.call(&[]);
 
