@@ -43,9 +43,6 @@ use gear_core::{
 pub use storage_queue::Iterator;
 use storage_queue::StorageQueue;
 
-// `Active` variant is frequently used in this module
-use Program::Active;
-
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
@@ -68,7 +65,17 @@ pub struct Dispatch {
 }
 
 impl Dispatch {
-    pub fn handle_reply(message: Message) -> Self {
+    pub fn new_init(message: Message) -> Self {
+        let kind = DispatchKind::Init;
+        Dispatch { message, kind }
+    }
+
+    pub fn new_handle(message: Message) -> Self {
+        let kind = DispatchKind::Handle;
+        Dispatch { message, kind }
+    }
+
+    pub fn new_reply(message: Message) -> Self {
         let kind = DispatchKind::HandleReply;
         Dispatch { message, kind }
     }
@@ -93,17 +100,17 @@ pub enum Program {
 
 #[derive(Clone, Copy, Debug)]
 pub enum ProgramError {
-    FailedToGetProgramData,
-    ProgramIsTerminated,
+    PagesNotFound,
+    CodeHashNotFound,
+    IsTerminated,
 }
 
 impl Program {
     pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
         let program: ActiveProgram = self.try_into()?;
         let persistent_pages = crate::get_program_pages(id, program.persistent_pages)
-            .ok_or(ProgramError::FailedToGetProgramData)?;
-        let code =
-            crate::get_code(program.code_hash).ok_or(ProgramError::FailedToGetProgramData)?;
+            .ok_or(ProgramError::PagesNotFound)?;
+        let code = crate::get_code(program.code_hash).ok_or(ProgramError::CodeHashNotFound)?;
         let native_program = NativeProgram::from_parts(
             ProgramId::from_origin(id),
             code,
@@ -115,7 +122,7 @@ impl Program {
     }
 
     pub fn is_active(&self) -> bool {
-        matches!(self, Active(_))
+        matches!(self, Program::Active(_))
     }
 
     pub fn is_terminated(&self) -> bool {
@@ -125,7 +132,7 @@ impl Program {
     pub fn is_initialized(&self) -> bool {
         matches!(
             self,
-            Active(ActiveProgram {
+            Program::Active(ActiveProgram {
                 state: ProgramState::Initialized,
                 ..
             })
@@ -135,7 +142,7 @@ impl Program {
     pub fn is_uninitialized(&self) -> bool {
         matches!(
             self,
-            Active(ActiveProgram {
+            Program::Active(ActiveProgram {
                 state: ProgramState::Uninitialized { .. },
                 ..
             })
@@ -149,7 +156,7 @@ impl TryFrom<Program> for ActiveProgram {
     fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
         match prog_with_status {
             Program::Active(p) => Ok(p),
-            Program::Terminated => Err(ProgramError::ProgramIsTerminated),
+            Program::Terminated => Err(ProgramError::IsTerminated),
         }
     }
 }
@@ -319,16 +326,16 @@ pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
 }
 
 pub fn set_program_initialized(id: H256) {
-    if let Some(Active(mut p)) = get_program(id) {
+    if let Some(Program::Active(mut p)) = get_program(id) {
         if !matches!(p.state, ProgramState::Initialized) {
             p.state = ProgramState::Initialized;
-            sp_io::storage::set(&program_key(id), &Active(p).encode());
+            sp_io::storage::set(&program_key(id), &Program::Active(p).encode());
         }
     }
 }
 
 pub fn set_program_terminated_status(id: H256) {
-    if let Some(Active(program)) = get_program(id) {
+    if let Some(Program::Active(program)) = get_program(id) {
         release_code(program.code_hash);
         let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
         pages_prefix.extend(&program_key(id));
@@ -389,16 +396,13 @@ pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32,
 
 pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<u32, Vec<u8>>) {
     if !program_exists(id) {
-        // Code is saved to the storage before actually program is!
-        // So here we add code ref to some existing code.
-        assert!(code_exists(program.code_hash));
         add_code_ref(program.code_hash);
     }
     for (page_num, page_buf) in persistent_pages {
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
     }
-    sp_io::storage::set(&program_key(id), &Active(program).encode())
+    sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
 }
 
 pub fn program_exists(id: H256) -> bool {
@@ -468,16 +472,16 @@ pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
 }
 
 pub fn set_program_nonce(id: H256, nonce: u64) {
-    if let Some(Active(mut prog)) = get_program(id) {
+    if let Some(Program::Active(mut prog)) = get_program(id) {
         prog.nonce = nonce;
-        sp_io::storage::set(&program_key(id), &Active(prog).encode())
+        sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
     }
 }
 
 pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>) {
-    if let Some(Active(mut prog)) = get_program(id) {
+    if let Some(Program::Active(mut prog)) = get_program(id) {
         prog.persistent_pages = persistent_pages;
-        sp_io::storage::set(&program_key(id), &Active(prog).encode())
+        sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
     }
 }
 

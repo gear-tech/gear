@@ -456,10 +456,10 @@ where
                 value.unique_saturated_into(),
                 BalanceStatus::Free,
             );
-            return;
+        } else {
+            log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
+            let from = <T::AccountId as Origin>::from_origin(from);
+            T::Currency::unreserve(&from, value.unique_saturated_into());
         }
-        log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
-        let from = <T::AccountId as Origin>::from_origin(from);
-        T::Currency::unreserve(&from, value.unique_saturated_into());
     }
 }

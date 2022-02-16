@@ -355,7 +355,7 @@ pub mod pallet {
                                     reply: Some((message.id, core_processor::ERR_EXIT_CODE)),
                                 };
 
-                                let dispatch = Dispatch::handle_reply(trap_message);
+                                let dispatch = Dispatch::new_reply(trap_message);
 
                                 // Enqueue the trap reply message
                                 let _ = gas_tree.split_off(trap_message_id, trap_gas);

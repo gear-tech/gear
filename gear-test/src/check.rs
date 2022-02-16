@@ -526,12 +526,7 @@ where
                         .map(|address| address.to_program_id())
                         .collect();
                     // Final state returns only active programs
-                    let actual_prog_ids = final_state
-                        .programs
-                        .clone()
-                        .into_iter()
-                        .map(|(id, _)| id)
-                        .collect();
+                    let actual_prog_ids = final_state.programs.iter().map(|(id, _)| *id).collect();
                     if let Err(prog_id_errors) =
                         check_active_programs(actual_prog_ids, expected_prog_ids)
                     {

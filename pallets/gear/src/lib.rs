@@ -642,10 +642,7 @@ pub mod pallet {
                 value: value.unique_saturated_into(),
                 reply: None,
             };
-            common::queue_dispatch(Dispatch {
-                kind: DispatchKind::Init,
-                message,
-            });
+            common::queue_dispatch(Dispatch::new_init(message));
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id: init_message_id,
@@ -728,10 +725,7 @@ pub mod pallet {
                     value: value.unique_saturated_into(),
                     reply: None,
                 };
-                common::queue_dispatch(Dispatch {
-                    kind: DispatchKind::Handle,
-                    message,
-                });
+                common::queue_dispatch(Dispatch::new_handle(message));
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,
@@ -824,10 +818,7 @@ pub mod pallet {
                     value: value.unique_saturated_into(),
                     reply: Some((reply_to_id, 0)),
                 };
-                common::queue_dispatch(Dispatch {
-                    kind: DispatchKind::HandleReply,
-                    message,
-                });
+                common::queue_dispatch(Dispatch::new_reply(message));
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,

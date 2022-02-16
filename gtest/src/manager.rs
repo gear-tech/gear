@@ -181,10 +181,7 @@ impl ExtManager {
                                     message.id(),
                                     0,
                                 );
-                                self.send_dispatch(
-                                    message_id,
-                                    Dispatch::handle_reply(reply_message),
-                                );
+                                self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
                             }
                         }
                         Err(expl) => {
@@ -217,7 +214,7 @@ impl ExtManager {
                                 message.id(),
                                 1,
                             );
-                            self.send_dispatch(message_id, Dispatch::handle_reply(reply_message));
+                            self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
                         }
                     }
                 }

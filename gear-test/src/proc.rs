@@ -222,7 +222,7 @@ where
             value: message.value.unwrap_or_default() as _,
             reply: None,
         };
-        journal_handler.send_dispatch(Default::default(), Dispatch::handle(message));
+        journal_handler.send_dispatch(Default::default(), Dispatch::new_handle(message));
 
         nonce += 1;
     }

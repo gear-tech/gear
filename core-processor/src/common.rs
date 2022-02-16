@@ -141,7 +141,7 @@ pub enum JournalNote {
     ///
     /// This should be the last update involving this message id.
     MessageConsumed(MessageId),
-    /// Dispatch was generated.
+    /// Message was generated.
     SendDispatch {
         /// Message id of the message that generated this message.
         message_id: MessageId,

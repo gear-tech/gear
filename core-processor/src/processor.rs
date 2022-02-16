@@ -39,7 +39,7 @@ pub fn process<E: Environment<Ext>>(
         let execution_settings = ExecutionSettings::new(block_info);
         let initial_nonce = program.message_nonce();
 
-        let ret = match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
+        match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
             Ok(res) => match res.kind {
                 DispatchResultKind::Trap(reason) => {
                     process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
@@ -52,10 +52,10 @@ pub fn process<E: Environment<Ext>>(
                 e.gas_amount.burned(),
                 Some(e.reason),
             ),
-        };
-        return ret;
+        }
+    } else {
+        process_skip(dispatch)
     }
-    process_skip(dispatch)
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
@@ -122,7 +122,7 @@ fn process_error(
     if let Some(message) = generate_trap_reply(&message, gas_left, initial_nonce) {
         journal.push(JournalNote::SendDispatch {
             message_id,
-            dispatch: Dispatch::handle_reply(message),
+            dispatch: Dispatch::new_reply(message),
         });
         journal.push(JournalNote::UpdateNonce {
             program_id,
@@ -264,7 +264,7 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
     );
     journal.push(JournalNote::SendDispatch {
         message_id,
-        dispatch: Dispatch::handle_reply(reply_message),
+        dispatch: Dispatch::new_reply(reply_message),
     });
     journal.push(JournalNote::MessageDispatched(DispatchOutcome::Skip(
         message_id,

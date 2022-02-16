@@ -766,7 +766,7 @@ pub struct Dispatch {
 
 impl Dispatch {
     /// Create init dispatch
-    pub fn init(message: Message) -> Self {
+    pub fn new_init(message: Message) -> Self {
         Dispatch {
             message,
             kind: DispatchKind::Init,
@@ -774,7 +774,7 @@ impl Dispatch {
     }
 
     /// Create handle dispatch
-    pub fn handle(message: Message) -> Self {
+    pub fn new_handle(message: Message) -> Self {
         Dispatch {
             message,
             kind: DispatchKind::Handle,
@@ -782,7 +782,7 @@ impl Dispatch {
     }
 
     /// Create handle reply dispatch
-    pub fn handle_reply(message: Message) -> Self {
+    pub fn new_reply(message: Message) -> Self {
         Dispatch {
             message,
             kind: DispatchKind::HandleReply,
