@@ -488,12 +488,23 @@ where
             );
             let from = <T::AccountId as Origin>::from_origin(from);
             let to = <T::AccountId as Origin>::from_origin(to);
-            let _ = T::Currency::repatriate_reserved(
-                &from,
-                &to,
-                value.unique_saturated_into(),
-                BalanceStatus::Free,
-            );
+            if T::Currency::can_reserve(&to, T::Currency::minimum_balance()) {
+                // `to` account exists, so we can repatriate reserved value for it.
+                let _ = T::Currency::repatriate_reserved(
+                    &from,
+                    &to,
+                    value.unique_saturated_into(),
+                    BalanceStatus::Free,
+                );
+            } else {
+                T::Currency::unreserve(&from, value.unique_saturated_into());
+                let _ = T::Currency::transfer(
+                    &from,
+                    &to,
+                    value.unique_saturated_into(),
+                    ExistenceRequirement::AllowDeath,
+                );
+            }
         } else {
             log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
             let from = <T::AccountId as Origin>::from_origin(from);

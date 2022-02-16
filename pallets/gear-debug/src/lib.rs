@@ -114,18 +114,12 @@ pub mod pallet {
 
     #[derive(Decode, Encode)]
     struct Node {
-        value: Message,
+        value: Dispatch,
         next: Option<H256>,
     }
 
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
-            #[derive(Decode)]
-            struct Node {
-                value: Dispatch,
-                next: Option<H256>,
-            }
-
             let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
             let mut dispatch_queue = vec![];
 
@@ -192,13 +186,13 @@ pub mod pallet {
                     if let Some(bytes) = sp_io::storage::get(&next_node_key) {
                         let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
                         for (k, v) in programs_map.iter() {
-                            if *k == current_node.value.dest {
-                                current_node.value.dest = *v;
+                            if *k == current_node.value.message.dest {
+                                current_node.value.message.dest = *v;
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
 
-                            if *v == current_node.value.source {
-                                current_node.value.source = *k;
+                            if *v == current_node.value.message.source {
+                                current_node.value.message.source = *k;
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
                         }

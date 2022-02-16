@@ -5,7 +5,7 @@ programs:
   - id: 1
     source:
       kind: id
-      value: 100
+      value: 1000001
     path: target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm
     init_message:
       kind: utf-8
@@ -22,14 +22,13 @@ fixtures:
         payload:
           kind: utf-8
           value: unknown
-        gas_limit: 10000000005
 
     expected:
       # no active programs in the state
       - programs:
         log:
           # Trap in init generates trap reply
-          - destination: 100
+          - destination: 1000001
             source:
               kind: id
               value: 1
@@ -46,5 +45,4 @@ fixtures:
             payload:
               kind: utf-8
               value: "skip"
-            gas_limit: 10000000005
             value: 0

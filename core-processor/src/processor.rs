@@ -119,6 +119,15 @@ fn process_error(
         amount: gas_burned,
     });
 
+    if value != 0 {
+        // Send back value
+        journal.push(JournalNote::SendValue {
+            from: origin,
+            to: None,
+            value,
+        });
+    }
+
     if let Some(message) = generate_trap_reply(&message, gas_left, initial_nonce) {
         journal.push(JournalNote::SendDispatch {
             message_id,
@@ -147,15 +156,6 @@ fn process_error(
     journal.push(JournalNote::MessageDispatched(outcome));
     journal.push(JournalNote::MessageConsumed(message_id));
 
-    if value != 0 {
-        // Send back value
-        journal.push(JournalNote::SendValue {
-            from: origin,
-            to: None,
-            value,
-        });
-    }
-
     journal
 }
 
@@ -173,6 +173,15 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
         origin,
         amount: res.gas_amount.burned(),
     });
+
+    if value != 0 {
+        // Send value further
+        journal.push(JournalNote::SendValue {
+            from: origin,
+            to: Some(program_id),
+            value,
+        });
+    }
 
     for dispatch in res.outgoing {
         journal.push(JournalNote::SendDispatch {
@@ -227,15 +236,6 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
 
             journal.push(JournalNote::MessageDispatched(outcome));
             journal.push(JournalNote::MessageConsumed(message_id));
-
-            if value != 0 {
-                // Send value further
-                journal.push(JournalNote::SendValue {
-                    from: origin,
-                    to: Some(program_id),
-                    value,
-                });
-            }
         }
         // Handled in other function
         _ => {
@@ -255,6 +255,15 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
 
     let message_id = message.id();
     let value = message.value();
+
+    if value != 0 {
+        // Send back value
+        journal.push(JournalNote::SendValue {
+            from: message.source(),
+            to: None,
+            value,
+        });
+    }
 
     // Reply back to the message `source`
     let reply_message = Message::new_reply(
@@ -276,15 +285,6 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
         message_id,
     )));
     journal.push(JournalNote::MessageConsumed(message_id));
-
-    if value != 0 {
-        // Send back value
-        journal.push(JournalNote::SendValue {
-            from: message.source(),
-            to: None,
-            value,
-        });
-    }
 
     journal
 }
