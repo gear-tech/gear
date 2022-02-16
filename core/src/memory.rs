@@ -115,13 +115,14 @@ pub trait Memory: Any {
     fn data_ptr(&self) -> *mut u8;
 
     /// Set memory pages from PageBuf map, grow if possible.
-    fn set_pages(&self, pages: &BTreeMap<PageNumber, Box<PageBuf>>) -> Result<(), Error> {
+    fn set_pages(&self, pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>) -> Result<(), Error> {
         for (num, buf) in pages {
-            let s = self.size() - 1.into();
-            if s < *num {
-                self.grow(*num - s)?;
+            if self.size() <= *num {
+                return Err(Error::MemoryAccessError);
             }
-            self.write(num.offset(), &buf[..])?;
+            if let Some(buf) = buf {
+                self.write(num.offset(), &buf[..])?;
+            }
         }
         Ok(())
     }
@@ -131,13 +132,16 @@ pub trait Memory: Any {
 
     /// Downcast to exact memory type
     fn as_any(&self) -> &dyn Any;
+
+    /// Returns native addr of wasm memory buffer in wasm executor
+    fn get_wasm_memory_begin_addr(&self) -> usize;
 }
 
 /// Memory context for the running program.
 pub struct MemoryContext {
     program_id: ProgramId,
     memory: Box<dyn Memory>,
-    /// Pages which has been in storage.
+    /// Pages which has been in storage before execution
     init_allocations: BTreeSet<PageNumber>,
     allocations: BTreeSet<PageNumber>,
     max_pages: PageNumber,

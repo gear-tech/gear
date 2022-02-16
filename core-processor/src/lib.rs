@@ -31,6 +31,7 @@ mod executor;
 mod ext;
 mod handler;
 mod id;
+mod lazy_pages;
 mod processor;
 
 /// Error exit code.

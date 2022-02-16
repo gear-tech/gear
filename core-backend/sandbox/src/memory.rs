@@ -74,6 +74,10 @@ impl Memory for MemoryWrap {
     fn as_any(&self) -> &dyn Any {
         &self.0
     }
+
+    fn get_wasm_memory_begin_addr(&self) -> usize {
+        unsafe { self.0.get_buff() as usize }
+    }
 }
 
 impl Clone for MemoryWrap {

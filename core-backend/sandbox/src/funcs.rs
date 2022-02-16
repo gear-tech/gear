@@ -214,6 +214,7 @@ pub fn alloc<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
             ptr
         })
     });
+
     ptr.map(|res| ReturnValue::Value(Value::I32(res as i32)))
         .map_err(|err| {
             ctx.trap = Some(err);
