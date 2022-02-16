@@ -652,7 +652,7 @@ mod tests {
 
             assert!(get_code(code_hash).is_some());
 
-            remove_program(H256::from_low_u64_be(1)).unwrap();
+            remove_program(H256::from_low_u64_be(2)).unwrap();
             assert_eq!(get_code_refs(code_hash), 0u32);
 
             assert!(get_code(code_hash).is_none());
