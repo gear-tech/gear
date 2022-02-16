@@ -32,9 +32,11 @@ use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
-use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use sp_std::convert::TryFrom;
-use sp_std::prelude::*;
+use sp_std::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    convert::TryFrom,
+    prelude::*,
+};
 
 use gear_core::{
     message::DispatchKind,
@@ -101,7 +103,6 @@ pub enum Program {
 
 #[derive(Clone, Copy, Debug)]
 pub enum ProgramError {
-    PagesNotFound,
     CodeHashNotFound,
     IsTerminated,
 }
@@ -109,15 +110,13 @@ pub enum ProgramError {
 impl Program {
     pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
         let program: ActiveProgram = self.try_into()?;
-        let persistent_pages = crate::get_program_pages(id, program.persistent_pages)
-            .ok_or(ProgramError::PagesNotFound)?;
         let code = crate::get_code(program.code_hash).ok_or(ProgramError::CodeHashNotFound)?;
         let native_program = NativeProgram::from_parts(
             ProgramId::from_origin(id),
             code,
             program.static_pages,
             program.nonce,
-            persistent_pages,
+            program.persistent_pages,
         );
         Ok(native_program)
     }
@@ -335,15 +334,10 @@ pub fn set_program_initialized(id: H256) {
     }
 }
 
-pub fn set_program_terminated_status(id: H256) {
-    if let Some(Program::Active(program)) = get_program(id) {
-        release_code(program.code_hash);
-        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-        pages_prefix.extend(&program_key(id));
-        sp_io::storage::clear_prefix(&pages_prefix, None);
-        sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
-        // messages in wait list for the program shouldn't be managed here
-    }
+pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
+    clear_program_essential_data(id)?;
+    sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
+    Ok(())
 }
 
 fn get_code_refs(code_hash: H256) -> u32 {
@@ -416,6 +410,25 @@ pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<
         sp_io::storage::set(&key, &page_buf);
     }
     sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
+}
+
+pub fn remove_program(id: H256) -> Result<(), ProgramError> {
+    clear_program_essential_data(id)?;
+    sp_io::storage::clear_prefix(&program_key(id), None);
+    sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
+    Ok(())
+}
+
+fn clear_program_essential_data(id: H256) -> Result<(), ProgramError> {
+    if let Some(Program::Active(program)) = get_program(id) {
+        release_code(program.code_hash);
+        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
+        pages_prefix.extend(&program_key(id));
+        sp_io::storage::clear_prefix(&pages_prefix, None);
+        Ok(())
+    } else {
+        Err(ProgramError::IsTerminated)
+    }
 }
 
 pub fn program_exists(id: H256) -> bool {
@@ -634,12 +647,12 @@ mod tests {
             );
             assert_eq!(get_code_refs(code_hash), 2u32);
 
-            release_code(code_hash);
+            remove_program(H256::from_low_u64_be(1)).unwrap();
             assert_eq!(get_code_refs(code_hash), 1u32);
 
             assert!(get_code(code_hash).is_some());
 
-            release_code(code_hash);
+            remove_program(H256::from_low_u64_be(1)).unwrap();
             assert_eq!(get_code_refs(code_hash), 0u32);
 
             assert!(get_code(code_hash).is_none());

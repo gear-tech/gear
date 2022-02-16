@@ -1482,6 +1482,7 @@ fn test_message_processing_for_non_existing_destination() {
     })
 }
 
+#[test]
 fn exit_init() {
     use tests_exit_init::WASM_BINARY_BLOATY;
 
@@ -1503,7 +1504,7 @@ fn exit_init() {
 
         run_to_block(2, None);
 
-        assert!(!Gear::is_failed(program_id));
+        assert!(!Gear::is_terminated(program_id));
         assert!(!Gear::is_initialized(program_id));
 
         let actual_n = Gear::mailbox(USER_1)
@@ -1558,7 +1559,7 @@ fn exit_handle() {
 
         run_to_block(3, None);
 
-        assert!(!Gear::is_failed(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         let actual_n = Gear::mailbox(USER_1)
             .map(|t| t.into_values().fold(0usize, |i, _| i + 1))
@@ -1567,7 +1568,7 @@ fn exit_handle() {
         assert_eq!(actual_n, 0);
 
         assert!(!Gear::is_initialized(program_id));
-        assert!(!Gear::is_failed(program_id));
+        assert!(!Gear::is_terminated(program_id));
 
         // Program is removed and can be submitted again
         assert_ok!(GearPallet::<Test>::submit_program(
@@ -1587,11 +1588,11 @@ mod utils {
     use sp_core::H256;
     use sp_std::convert::TryFrom;
 
-    use common::Origin as _;
     use super::{
-        assert_ok, pallet, run_to_block, Event, BalancesPallet, GearPallet, Mailbox, MessageInfo, MockEvent,
+        assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MessageInfo, MockEvent,
         Origin, SystemPallet, Test,
     };
+    use common::Origin as _;
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";

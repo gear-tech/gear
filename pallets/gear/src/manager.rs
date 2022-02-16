@@ -122,6 +122,16 @@ where
             |key, _| Ok(H256::from_slice(key)),
         )
         .filter_map(|k| self.get_program(k).map(|p| (p.id(), p)))
+        .map(|(id, mut prog)| {
+            let pages_data = {
+                let page_numbers = prog.get_pages().keys().map(|k| k.raw()).collect();
+                let data = common::get_program_pages(id.into_origin(), page_numbers)
+                    .expect("active program exists, therefore pages do");
+                data.into_iter().map(|(k, v)| (k.into(), v)).collect()
+            };
+            let _ = prog.set_pages(pages_data);
+            (id, prog)
+        })
         .collect();
 
         let dispatch_queue = common::dispatch_iter().map(Into::into).collect();
@@ -276,7 +286,10 @@ where
                         }
                     });
 
-                common::set_program_terminated_status(program_id);
+                assert!(
+                    common::set_program_terminated_status(program_id).is_ok(),
+                    "only active program can cause init failure"
+                );
 
                 Event::InitFailure(
                     MessageInfo {
@@ -316,10 +329,12 @@ where
         }
     }
 
-    // todo [sab]
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
-        common::remove_program(program_id);
+        assert!(
+            common::remove_program(program_id).is_ok(),
+            "`exit` can be called only from active program"
+        );
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id);
         let balance = T::Currency::total_balance(program_account);
