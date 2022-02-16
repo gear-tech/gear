@@ -36,6 +36,7 @@ pub struct WasmtimeEnvironment<E: Ext + 'static> {
     store: wasmtime::Store,
     ext: LaterExt<E>,
     funcs: BTreeMap<&'static str, Func>,
+    instance: Option<Instance>,
 }
 
 impl<E: Ext + 'static> WasmtimeEnvironment<E> {
@@ -47,6 +48,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
             store: Store::default(),
             ext: Default::default(),
             funcs: BTreeMap::new(),
+            instance: None,
         };
 
         result.add_func_i32_to_u32("alloc", funcs::alloc);
@@ -57,6 +59,7 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_to_i32("gr_exit_code", funcs::exit_code);
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);
+        result.add_func_i32("gr_exit", funcs::exit);
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32("gr_program_id", funcs::program_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
@@ -235,14 +238,13 @@ impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
 }
 
 impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
-    fn setup_and_execute(
+    fn setup(
         &mut self,
         ext: E,
         binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
+        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
-        entry_point: &str,
-    ) -> Result<BackendReport, BackendError> {
+    ) -> Result<(), BackendError<'static>> {
         self.ext.set(ext);
 
         let module = Module::new(self.store.engine(), binary).map_err(|e| BackendError {
@@ -312,6 +314,14 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             gas_amount: self.ext.unset().into().gas_amount,
         })?;
 
+        self.instance.replace(instance);
+
+        Ok(())
+    }
+
+    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
+        let instance = self.instance.as_mut().expect("Must have instance");
+
         let entry_func = instance.get_func(entry_point).ok_or_else(|| BackendError {
             reason: "Unable to find function export",
             description: Some(format!("Failed to find `{}` function export", entry_point).into()),
@@ -323,17 +333,21 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         let info: ExtInfo = self.ext.unset().into();
 
         let termination = if let Err(e) = &res {
-            let mut reason = None;
-
-            if let Some(trap) = e.downcast_ref::<Trap>() {
+            let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
                 let trap = trap.to_string();
 
-                if funcs::is_wait_trap(&trap) {
-                    reason = Some(TerminationReason::Manual { wait: true });
+                if let Some(value_dest) = info.exit_argument {
+                    Some(TerminationReason::Exit(value_dest))
+                } else if funcs::is_wait_trap(&trap) {
+                    Some(TerminationReason::Wait)
                 } else if funcs::is_leave_trap(&trap) {
-                    reason = Some(TerminationReason::Manual { wait: false });
+                    Some(TerminationReason::Leave)
+                } else {
+                    None
                 }
-            }
+            } else {
+                None
+            };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
                 explanation: info.trap_explanation,

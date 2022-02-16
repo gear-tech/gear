@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::util::{get_message_queue, new_test_ext, process_queue};
 use crate::GearRuntimeTestCmd;
-use codec::{Encode};
+use codec::Encode;
 use colored::{ColoredString, Colorize};
 
 use gear_runtime::{Origin, Runtime};
@@ -68,8 +68,8 @@ impl GearRuntimeTestCmd {
         tests.par_iter().for_each(|test| {
             test.fixtures.par_iter().for_each(|fixture| {
                 new_test_ext().execute_with(|| {
-                    let output = run_fixture(test, fixture);
                     gear_common::reset_storage();
+                    let output = run_fixture(test, fixture);
                     pallet_gear::Mailbox::<Runtime>::drain();
 
                     println!("Fixture {}: {}", fixture.title.bold(), output);
@@ -256,9 +256,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     log::info!(
                         "{:?}",
                         GearPallet::<Runtime>::send_message(
-                            Origin::from(Some(AccountId32::unchecked_from(
-                                1000001.into_origin()
-                            ))),
+                            Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
                             dest,
                             payload,
                             gas_limit,
@@ -298,7 +296,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                             vec![],
                             p.static_pages,
                             p.nonce,
-                            p.persistent_pages.clone(),
+                            p.persistent_pages.keys().cloned().collect(),
                         )
                     })
                     .collect();

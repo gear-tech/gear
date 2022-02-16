@@ -70,6 +70,10 @@ impl Memory for MemoryWrap {
     fn as_any(&self) -> &dyn Any {
         &self.0
     }
+
+    fn get_wasm_memory_begin_addr(&self) -> usize {
+        panic!("Not implemented");
+    }
 }
 
 impl Clone for MemoryWrap {

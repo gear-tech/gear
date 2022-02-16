@@ -91,10 +91,14 @@ pub fn dequeue_message() -> Option<CoreMessage> {
 
 pub fn get_program(id: ProgramId) -> Option<Program> {
     if let Some(prog) = crate::get_program(id.into_origin()) {
-        let persistent_pages = crate::get_program_pages(id.into_origin(), prog.persistent_pages);
         if let Some(code) = crate::get_code(prog.code_hash) {
-            let program =
-                Program::from_parts(id, code, prog.static_pages, prog.nonce, persistent_pages);
+            let program = Program::from_parts(
+                id,
+                code,
+                prog.static_pages,
+                prog.nonce,
+                prog.persistent_pages,
+            );
             return Some(program);
         }
     }
@@ -125,7 +129,12 @@ pub fn set_program(program: Program) {
         program
             .get_pages()
             .iter()
-            .map(|(num, buf)| (num.raw(), buf.to_vec()))
+            .map(|(num, buf)| {
+                let buf = buf
+                    .as_ref()
+                    .expect("When set program, each page must have data");
+                (num.raw(), buf.to_vec())
+            })
             .collect(),
     );
 }

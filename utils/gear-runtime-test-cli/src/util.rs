@@ -16,20 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
-
 use codec::{Decode, Encode};
 
-use frame_system as system;
 use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
+use frame_system as system;
 
-use gear_runtime::{Gear, Runtime, System};
 use gear_common::{Message, Origin, STORAGE_MESSAGE_PREFIX};
+use gear_runtime::{Gear, Runtime, System};
 
 use pallet_gear_debug::DebugData;
 
 use sp_core::H256;
-use sp_runtime::{AccountId32, app_crypto::UncheckedFrom};
+use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
 pub fn get_message_queue() -> Vec<Message> {
     #[derive(Decode, Encode)]
@@ -86,12 +84,10 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         .unwrap();
 
     pallet_balances::GenesisConfig::<Runtime> {
-        balances: vec![
-            (
-                AccountId32::unchecked_from(1000001.into_origin()),
-                (<Runtime as pallet_gear::Config>::BlockGasLimit::get() * 10) as u128,
-            )
-        ],
+        balances: vec![(
+            AccountId32::unchecked_from(1000001.into_origin()),
+            (<Runtime as pallet_gear::Config>::BlockGasLimit::get() * 10) as u128,
+        )],
     }
     .assimilate_storage(&mut t)
     .unwrap();

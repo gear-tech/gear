@@ -45,7 +45,7 @@ gtest() {
 
   if  [ -n "$has_yamls" ]
   then
-    if ! command -v perl &> /dev/null
+    if ! hash perl 2>/dev/null
     then
       echo "Can not parse yamls without \"perl\" installed =("
       exit 1

@@ -27,6 +27,7 @@ mod sys {
     extern "C" {
         pub fn gr_block_height() -> u32;
         pub fn gr_block_timestamp() -> u64;
+        pub fn gr_exit(value_dest_ptr: *const u8) -> !;
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
         pub fn gr_leave() -> !;
@@ -79,6 +80,26 @@ pub fn block_height() -> u32 {
 /// ```
 pub fn block_timestamp() -> u64 {
     unsafe { sys::gr_block_timestamp() }
+}
+
+/// Terminate the execution of a program. The program and all corresponding data
+/// are removed from the storage. This is similiar to
+/// `std::process::exit`. `value_destination` specifies the address where all
+/// available to the program value should be transferred to.
+/// Maybe called in `init` method as well.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     exec::exit(msg::source());
+/// }
+/// ```
+pub fn exit(value_destination: ActorId) -> ! {
+    unsafe { sys::gr_exit(value_destination.as_slice().as_ptr()) }
 }
 
 /// Get the current value of the gas available for execution.

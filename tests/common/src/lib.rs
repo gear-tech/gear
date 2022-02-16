@@ -288,6 +288,10 @@ impl<'a> JournalHandler for Journal<'a> {
         self.context.gas_spent.insert(message_id, amount);
     }
 
+    fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
+        self.context.programs.remove(&id_exited);
+    }
+
     fn message_consumed(&mut self, _message_id: MessageId) {}
 
     fn send_message(&mut self, _origin: MessageId, message: Message) {

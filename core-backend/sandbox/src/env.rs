@@ -20,7 +20,6 @@
 
 use crate::{funcs, memory::MemoryWrap};
 use alloc::{boxed::Box, collections::BTreeMap, format};
-use core::marker::PhantomData;
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
@@ -34,11 +33,17 @@ use sp_sandbox::{
 };
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E: Ext>(PhantomData<E>);
+pub struct SandboxEnvironment<E: Ext + Into<ExtInfo>> {
+    runtime: Option<Runtime<E>>,
+    instance: Option<Instance<Runtime<E>>>,
+}
 
-impl<E: Ext> Default for SandboxEnvironment<E> {
+impl<E: Ext + Into<ExtInfo>> Default for SandboxEnvironment<E> {
     fn default() -> Self {
-        Self(PhantomData)
+        Self {
+            runtime: None,
+            instance: None,
+        }
     }
 }
 
@@ -48,7 +53,7 @@ pub struct Runtime<E: Ext + Into<ExtInfo>> {
 }
 
 impl<E: Ext + Into<ExtInfo> + 'static> Runtime<E> {
-    fn from_ext(ext: E) -> Self {
+    fn new(ext: E) -> Self {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
 
@@ -59,15 +64,25 @@ impl<E: Ext + Into<ExtInfo> + 'static> Runtime<E> {
     }
 }
 
-impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
+impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> {
     fn setup(
-        &self,
+        &mut self,
+        ext: E,
+        binary: &[u8],
+        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         memory: &dyn Memory,
-    ) -> Result<EnvironmentDefinitionBuilder<Runtime<E>>, &'static str> {
-        let mem = memory
-            .as_any()
-            .downcast_ref::<DefaultExecutorMemory>()
-            .ok_or("Memory is not SandboxMemory")?;
+    ) -> Result<(), BackendError<'static>> {
+        let mem = match memory.as_any().downcast_ref::<DefaultExecutorMemory>() {
+            Some(x) => x,
+            None => {
+                let info: ExtInfo = ext.into();
+                return Err(BackendError {
+                    reason: "Memory is not SandboxMemory",
+                    description: None,
+                    gas_amount: info.gas_amount,
+                });
+            }
+        };
 
         let mut env_builder = EnvironmentDefinitionBuilder::new();
 
@@ -76,6 +91,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "free", funcs::free);
         env_builder.add_host_func("env", "gr_block_height", funcs::block_height);
         env_builder.add_host_func("env", "gr_block_timestamp", funcs::block_timestamp);
+        env_builder.add_host_func("env", "gr_exit", funcs::exit);
         env_builder.add_host_func("env", "gr_exit_code", funcs::exit_code);
         env_builder.add_host_func("env", "gr_send", funcs::send);
         env_builder.add_host_func("env", "gr_send_commit", funcs::send_commit);
@@ -98,44 +114,10 @@ impl<E: Ext + Into<ExtInfo> + 'static> SandboxEnvironment<E> {
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
         env_builder.add_host_func("env", "gas", funcs::gas);
 
-        Ok(env_builder)
-    }
-}
+        let mut runtime = Runtime::new(ext);
 
-impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> {
-    /// Setup external environment and run closure.
-    ///
-    /// Setup external environment by providing `ext`, run nenwly initialized instance created from
-    /// provided `module`, do anything inside a `func` delegate.
-    ///
-    /// This will also set the beginning of the memory region to the `static_area` content _after_
-    /// creatig instance.
-    fn setup_and_execute(
-        &mut self,
-        ext: E,
-        binary: &[u8],
-        memory_pages: &BTreeMap<PageNumber, Box<PageBuf>>,
-        memory: &dyn Memory,
-        entry_point: &str,
-    ) -> Result<BackendReport, BackendError> {
-        let env_builder = match self.setup(memory) {
-            Ok(builder) => builder,
-            Err(e) => {
-                let info: ExtInfo = ext.into();
-
-                return Err(BackendError {
-                    reason: e,
-                    description: None,
-                    gas_amount: info.gas_amount,
-                });
-            }
-        };
-
-        let mut runtime = Runtime::from_ext(ext);
-
-        let mut instance = Instance::new(binary, &env_builder, &mut runtime).map_err(|e| {
+        let instance = Instance::new(binary, &env_builder, &mut runtime).map_err(|e| {
             let info: ExtInfo = runtime.ext.unset().into();
-
             BackendError {
                 reason: "Unable to instanciate module",
                 description: Some(format!("{:?}", e).into()),
@@ -154,19 +136,33 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             }
         })?;
 
-        let res = instance.invoke(entry_point, &[], &mut runtime);
+        self.runtime.replace(runtime);
+        self.instance.replace(instance);
+
+        Ok(())
+    }
+
+    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
+        let instance = self.instance.as_mut().expect("Must have instance");
+        let runtime = self.runtime.as_mut().expect("Must have runtime");
+
+        let res = instance.invoke(entry_point, &[], runtime);
 
         let info: ExtInfo = runtime.ext.unset().into();
 
         let termination = if res.is_err() {
-            let mut reason = None;
-
-            if let Some(trap) = runtime.trap {
-                if common_funcs::is_wait_trap(trap) {
-                    reason = Some(TerminationReason::Manual { wait: true });
+            let reason = if let Some(trap) = runtime.trap {
+                if let Some(value_dest) = info.exit_argument {
+                    Some(TerminationReason::Exit(value_dest))
+                } else if common_funcs::is_wait_trap(trap) {
+                    Some(TerminationReason::Wait)
                 } else if common_funcs::is_leave_trap(trap) {
-                    reason = Some(TerminationReason::Manual { wait: false });
+                    Some(TerminationReason::Leave)
+                } else {
+                    None
                 }
+            } else {
+                None
             };
 
             reason.unwrap_or_else(|| TerminationReason::Trap {

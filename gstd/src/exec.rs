@@ -74,6 +74,26 @@
 use crate::{ActorId, MessageId};
 pub use gcore::exec::{block_height, block_timestamp, gas_available};
 
+/// Terminate the execution of a program. The program and all corresponding data
+/// are removed from the storage. This is similiar to
+/// `std::process::exit`. `value_destination` specifies the address where all
+/// available to the program value should be transferred to.
+/// Maybe called in `init` method as well.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     exec::exit(msg::source());
+/// }
+/// ```
+pub fn exit(value_destination: ActorId) -> ! {
+    gcore::exec::exit(value_destination.into())
+}
+
 /// Terminate the current message handling.
 ///
 /// For cases when the message handling needs to be terminated with state
