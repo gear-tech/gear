@@ -179,6 +179,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         config: settings.config,
         lazy_pages_enabled: lazy_pages_enabled.clone(),
         error_explanation: None,
+        exit_argument: None,
     };
 
     if let Err(err) = env.setup(ext, &instrumented_code, initial_pages, &*memory) {
@@ -216,10 +217,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
     // Parsing outcome.
     let kind = match termination {
-        TerminationReason::Success | TerminationReason::Manual { wait: false } => {
-            DispatchResultKind::Success
-        }
-        TerminationReason::Manual { wait: true } => DispatchResultKind::Wait,
+        TerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
+        TerminationReason::Leave | TerminationReason::Success => DispatchResultKind::Success,
         TerminationReason::Trap {
             explanation,
             description,
@@ -233,6 +232,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
             DispatchResultKind::Trap(explanation)
         }
+        TerminationReason::Wait => DispatchResultKind::Wait,
     };
 
     let mut page_update = BTreeMap::new();

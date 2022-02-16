@@ -22,7 +22,7 @@ use core::{
     convert::{TryFrom, TryInto},
     slice::Iter,
 };
-use gear_backend_common::{funcs, ExtInfo, LEAVE_TRAP_STR, WAIT_TRAP_STR};
+use gear_backend_common::{funcs, ExtInfo, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
     message::{MessageId, OutgoingPacket, ReplyPacket},
@@ -172,6 +172,25 @@ pub fn size<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) -> Sy
         .with(|ext| ext.msg().len())
         .map(return_i32)
         .unwrap_or_else(|_| return_i32(0))
+}
+
+pub fn exit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    let value_dest_ptr = pop_i32(&mut args.iter())?;
+
+    let _: Result<ReturnValue, HostError> = ctx
+        .ext
+        .with(|ext: &mut E| {
+            let value_dest: ProgramId = funcs::get_id(ext, value_dest_ptr).into();
+            ext.exit(value_dest)
+        })
+        .map(|_| Ok(ReturnValue::Unit))
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })?;
+
+    ctx.trap = Some(EXIT_TRAP_STR);
+    Err(HostError)
 }
 
 pub fn exit_code<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
