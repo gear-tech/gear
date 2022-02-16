@@ -16,7 +16,7 @@ fixtures:
         payload:
           kind: i32
           value: 10000
-        gas_limit: 100000000000
+        gas_limit: 10000000000
     expected:
       - step: 2
         messages:
@@ -25,10 +25,10 @@ fixtures:
               kind: i32
               value: 20000
         allocations:
-          - program_id: 1
+          - id: 1
             filter: dynamic
             exact_pages: []
-          - program_id: 2
+          - id: 2
             filter: dynamic
             exact_pages: [17,18]
 

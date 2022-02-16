@@ -44,7 +44,7 @@ use gear_core::{
 };
 
 pub use storage_queue::Iterator;
-use storage_queue::StorageQueue;
+pub use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -265,7 +265,7 @@ enum CodeKeyPrefixKind {
     CodeMetadata,
 }
 
-fn program_key(id: H256) -> Vec<u8> {
+pub fn program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PREFIX);
     id.encode_to(&mut key);

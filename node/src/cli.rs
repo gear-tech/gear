@@ -60,4 +60,10 @@ pub enum Subcommand {
 
     #[clap(name = "runtests", about = "Run gear tests with yaml.")]
     GearTest(gear_test_cli::GearTestCmd),
+
+    #[clap(
+        name = "runtime-spec-tests",
+        about = "Run gear runtime tests with yaml."
+    )]
+    GearRuntimeTest(gear_runtime_test_cli::GearRuntimeTestCmd),
 }

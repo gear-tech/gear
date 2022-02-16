@@ -11,22 +11,13 @@ use regex::Regex;
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::{
-    fmt::Write,
     io::Error as IoError,
     io::ErrorKind as IoErrorKind,
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-fn encode_hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        write!(s, "{:02x}", b).expect("Format failed")
-    }
-    s
-}
-
-fn parse_payload(payload: String) -> String {
+pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
     let ss58_regex = Regex::new(r"\{(?P<id>[A-Za-z0-9]+)\}").unwrap();
@@ -35,14 +26,14 @@ fn parse_payload(payload: String) -> String {
     let mut s = payload;
     while let Some(caps) = program_id_regex.captures(&s) {
         let id = caps["id"].parse::<u64>().unwrap();
-        s = s.replace(&caps[0], &encode_hex(ProgramId::from(id).as_slice()));
+        s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_slice()));
     }
 
     while let Some(caps) = account_regex.captures(&s) {
         let id = &caps["id"];
         s = s.replace(
             &caps[0],
-            &encode_hex(
+            &hex::encode(
                 ProgramId::from_slice(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
                     .as_slice(),
             ),
@@ -53,7 +44,7 @@ fn parse_payload(payload: String) -> String {
         let id = &caps["id"];
         s = s.replace(
             &caps[0],
-            &encode_hex(
+            &hex::encode(
                 ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
                     .as_slice(),
             ),

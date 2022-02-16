@@ -145,11 +145,6 @@ fixtures:
           - destination: 2
             payload: *ping
       - step: 2
-        log:
-          - destination: 1000001
-            payload:
-              kind: i32
-              value: 0
         messages:
           - destination: 1
             payload: *inc
