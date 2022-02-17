@@ -2,7 +2,7 @@
 
 set -e
 
-PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend node pallets runtime-interface"
+PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend node pallets runtime-interface lazy-pages"
 
 CURRENT_BRANCH="$(git branch --show-current)"
 
