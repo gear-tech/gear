@@ -13,7 +13,7 @@ hex = "0.4.3"
 colored = "2.0.0"
 regex = "1.4"
 rand = "0.8.5"
-clap = { version = "3.0", features = ["derive"] }
+clap = { version = "3.1", features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 serde = "1.0.133"
 serde_json = "*"
