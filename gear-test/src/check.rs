@@ -22,7 +22,7 @@ use crate::sample::{self, AllocationExpectationKind, AllocationFilter, PayloadVa
 use anyhow::anyhow;
 use colored::{ColoredString, Colorize};
 use core_processor::{
-    common::{CollectState, Dispatch, JournalHandler},
+    common::{CollectState, JournalHandler},
     Ext,
 };
 use derive_more::Display;
@@ -49,8 +49,6 @@ const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
     fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId);
-
-    fn message_to_dispatch(&self, message: Message) -> Dispatch;
 }
 
 pub struct FixtureLogger {
@@ -420,6 +418,36 @@ pub fn check_memory(
     }
 }
 
+fn check_active_programs(
+    expected_ids: Vec<ProgramId>,
+    actual_ids: Vec<ProgramId>,
+) -> Result<(), Vec<String>> {
+    let mut errors = Vec::with_capacity(expected_ids.len());
+    if expected_ids.len() != actual_ids.len() {
+        errors.push(format!(
+            "invalid amount of active programs: expected - {:?}, actual - {:?}",
+            expected_ids.len(),
+            actual_ids.len()
+        ));
+    } else {
+        let check_data = expected_ids.iter().zip(actual_ids.iter());
+        for (idx, (expected_id, actual_id)) in check_data.enumerate() {
+            if expected_id != actual_id {
+                errors.push(format!(
+                    "invalid program id at position {:?}. Expected - {:?}, actual - {:?}",
+                    idx, expected_id, actual_id
+                ));
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
 pub fn read_test_from_file<P: AsRef<std::path::Path>>(path: P) -> anyhow::Result<Test> {
     let file = fs::File::open(path.as_ref())
         .map_err(|e| anyhow::anyhow!("Error loading '{}': {}", path.as_ref().display(), e))?;
@@ -462,7 +490,11 @@ where
 
                 if !skip_messages {
                     if let Some(messages) = &exp.messages {
-                        let msgs: Vec<Message> = final_state.message_queue.into_iter().collect();
+                        let msgs: Vec<_> = final_state
+                            .dispatch_queue
+                            .into_iter()
+                            .map(|d| d.message)
+                            .collect();
                         if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(
@@ -486,6 +518,24 @@ where
                             log_errors
                                 .into_iter()
                                 .map(|err| format!("Log check [{}]", err)),
+                        );
+                    }
+                }
+                if let Some(programs) = &exp.active_programs {
+                    let expected_prog_ids = programs
+                        .iter()
+                        .map(|address| address.to_program_id())
+                        .collect();
+                    // Final state returns only active programs
+                    let actual_prog_ids = final_state.programs.iter().map(|(id, _)| *id).collect();
+                    if let Err(prog_id_errors) =
+                        check_active_programs(actual_prog_ids, expected_prog_ids)
+                    {
+                        errors.push(format!("step: {:?}", exp.step));
+                        errors.extend(
+                            prog_id_errors
+                                .into_iter()
+                                .map(|err| format!("Program ids check: [{}]", err)),
                         );
                     }
                 }

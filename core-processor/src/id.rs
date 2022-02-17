@@ -51,3 +51,17 @@ impl MessageIdGenerator for BlakeMessageIdGenerator {
 pub fn next_message_id(program_id: ProgramId, nonce: u64) -> MessageId {
     BlakeMessageIdGenerator { program_id, nonce }.next()
 }
+
+/// Generate id for system reply to message with `reply_to_id` id. The `program_id` is a receiver id.
+///
+/// This id is used when some message should be skipped from execution.
+/// In this case a reply message is generated for the original message sender, which is `program_id`.
+pub(crate) fn next_system_reply_message_id(
+    program_id: ProgramId,
+    reply_to_id: MessageId,
+) -> MessageId {
+    let mut data = program_id.as_slice().to_vec();
+    data.extend(reply_to_id.as_slice());
+
+    MessageId::from_slice(blake2b::blake2b(32, &[], &data).as_bytes())
+}

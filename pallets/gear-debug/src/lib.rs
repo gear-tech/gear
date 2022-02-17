@@ -37,7 +37,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Message};
+    use common::{self, Dispatch, Program};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
@@ -85,7 +85,7 @@ pub mod pallet {
 
     #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct DebugData {
-        pub message_queue: Vec<Message>,
+        pub dispatch_queue: Vec<Dispatch>,
         pub programs: Vec<ProgramDetails>,
     }
 
@@ -114,14 +114,14 @@ pub mod pallet {
 
     #[derive(Decode, Encode)]
     struct Node {
-        value: Message,
+        value: Dispatch,
         next: Option<H256>,
     }
 
     impl<T: Config> pallet_gear::DebugInfo for Pallet<T> {
         fn do_snapshot() {
             let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
-            let mut message_queue = vec![];
+            let mut dispatch_queue = vec![];
 
             if let Some(head) = sp_io::storage::get(&mq_head_key) {
                 let mut next_id = H256::from_slice(&head[..]);
@@ -130,7 +130,7 @@ pub mod pallet {
                         [common::STORAGE_MESSAGE_PREFIX, next_id.as_bytes()].concat();
                     if let Some(bytes) = sp_io::storage::get(&next_node_key) {
                         let current_node = Node::decode(&mut &bytes[..]).unwrap();
-                        message_queue.push(current_node.value);
+                        dispatch_queue.push(current_node.value);
                         match current_node.next {
                             Some(h) => next_id = h,
                             None => break,
@@ -139,29 +139,29 @@ pub mod pallet {
                 }
             }
 
-            let programs = PrefixIterator::<ProgramDetails>::new(
+            let programs = PrefixIterator::<(H256, Program)>::new(
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 common::STORAGE_PROGRAM_PREFIX.to_vec(),
                 |key, mut value| {
                     assert_eq!(key.len(), 32);
                     let program_id = H256::from_slice(key);
-                    let program = common::Program::decode(&mut value)?;
-                    Ok(ProgramDetails {
-                        id: program_id,
-                        static_pages: program.static_pages,
-                        persistent_pages: common::get_program_pages(
-                            program_id,
-                            program.persistent_pages,
-                        ),
-                        code_hash: program.code_hash,
-                        nonce: program.nonce,
-                    })
+                    let program = Program::decode(&mut value)?;
+                    Ok((program_id, program))
                 },
             )
+            .filter_map(|(id, prog)| prog.try_into().ok().map(|p| (id, p)))
+            .map(|(id, p): (H256, common::ActiveProgram)| ProgramDetails {
+                id,
+                static_pages: p.static_pages,
+                persistent_pages: common::get_program_pages(id, p.persistent_pages)
+                    .expect("active program exists, therefore pages do"),
+                code_hash: p.code_hash,
+                nonce: p.nonce,
+            })
             .collect();
 
             Self::deposit_event(Event::DebugDataSnapshot(DebugData {
-                message_queue,
+                dispatch_queue,
                 programs,
             }));
         }
@@ -186,13 +186,13 @@ pub mod pallet {
                     if let Some(bytes) = sp_io::storage::get(&next_node_key) {
                         let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
                         for (k, v) in programs_map.iter() {
-                            if *k == current_node.value.dest {
-                                current_node.value.dest = *v;
+                            if *k == current_node.value.message.dest {
+                                current_node.value.message.dest = *v;
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
 
-                            if *v == current_node.value.source {
-                                current_node.value.source = *k;
+                            if *v == current_node.value.message.source {
+                                current_node.value.message.source = *k;
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
                         }

@@ -172,3 +172,47 @@ impl<'a> Program<'a> {
         self.id
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use gear_core::message::Message;
+
+    use crate::{CoreLog, System};
+
+    use super::{Program, ProgramIdWrapper};
+
+    #[test]
+    fn test_handle_messages_to_failing_program() {
+        let sys = System::new();
+        sys.init_logger();
+
+        let user_id = 100;
+
+        let prog = Program::from_file(
+            &sys,
+            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+        );
+
+        let handle_msg_payload = String::from("payload");
+        let run_result = prog.send(user_id, handle_msg_payload);
+        assert!(run_result.main_failed);
+
+        let expected_log = {
+            // id, payload, gas limit, value and reply id aren't important
+            let msg = Message::new_reply(
+                Default::default(),
+                prog.id(),
+                ProgramIdWrapper::from(user_id).0,
+                Default::default(),
+                0,
+                0,
+                Default::default(),
+                2,
+            );
+            CoreLog::from_message(msg)
+        };
+        let run_result = prog.send(user_id, String::from("should_be_skipped"));
+        assert!(!run_result.main_failed());
+        assert!(run_result.log.contains(&expected_log));
+    }
+}

@@ -310,6 +310,16 @@ mod tests {
     }
 
     #[test]
+    fn test_message_send_to_failed_program() {
+        let mut runner = RunnerContext::default();
+        runner.init_program(InitProgram::from(wasm_code()).message(true));
+        runner.try_request::<_, ()>(Request::IsReady);
+
+        let err_log = runner.log().last().cloned().expect("no err replies");
+        assert!(matches!(err_log.reply, Some((_, 2))));
+    }
+
+    #[test]
     fn program_can_be_initialized() {
         let mut runner = RunnerContext::default();
 

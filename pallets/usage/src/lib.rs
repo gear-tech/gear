@@ -43,7 +43,8 @@ pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
     use common::{
-        value_tree::ValueView, GasToFeeConverter, Message, PaymentProvider, GAS_VALUE_PREFIX,
+        value_tree::ValueView, Dispatch, GasToFeeConverter, Message, Origin, PaymentProvider,
+        Program, GAS_VALUE_PREFIX,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -51,7 +52,6 @@ pub mod pallet {
         traits::{Currency, Get, ReservableCurrency},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
-    use primitive_types::H256;
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -270,10 +270,11 @@ pub mod pallet {
                         common::remove_waiting_message(program_id, message_id)
                     },
                 )
-                .for_each(|(msg, bn)| {
-                    let program_id = msg.dest;
+                .for_each(|(dispatch, bn)| {
+                    let Dispatch { message, kind } = dispatch;
+                    let program_id = message.dest;
 
-                    let mut gas_tree = ValueView::get(GAS_VALUE_PREFIX, msg.id)
+                    let mut gas_tree = ValueView::get(GAS_VALUE_PREFIX, message.id)
                         .expect("A message in wait list must have an associated value tree");
                     let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
                     let full_fee = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
@@ -330,7 +331,7 @@ pub mod pallet {
 
                     if new_free_gas_limit == 0 {
                         match common::get_program(program_id) {
-                            Some(mut program) => {
+                            Some(Program::Active(mut program)) => {
                                 // Generate trap reply
 
                                 // Account for the fact that original gas balance of the message could have
@@ -343,38 +344,42 @@ pub mod pallet {
                                 let trap_message_id = core_processor::next_message_id(
                                     program_id.as_ref().into(),
                                     program.nonce,
-                                );
+                                ).into_origin();
                                 let trap_message = Message {
-                                    id: H256::from_slice(trap_message_id.as_slice()),
+                                    id: trap_message_id,
                                     source: program_id,
-                                    dest: msg.source,
+                                    dest: message.source,
                                     payload: vec![],
                                     gas_limit: trap_gas,
                                     value: 0,
-                                    reply: Some((msg.id, core_processor::ERR_EXIT_CODE)),
+                                    reply: Some((message.id, core_processor::ERR_EXIT_CODE)),
                                 };
 
+                                let dispatch = Dispatch::new_reply(trap_message);
+
                                 // Enqueue the trap reply message
-                                let _ = gas_tree.split_off(trap_message.id, trap_gas);
-                                common::queue_message(trap_message);
+                                let _ = gas_tree.split_off(trap_message_id, trap_gas);
+                                common::queue_dispatch(dispatch);
 
                                 // Save back the program with incremented nonce
                                 common::set_program(program_id, program, Default::default());
                             }
                             _ => {
-                                // Must be unreachable: there shouldn't be dangling messages in the WL
-                                // if the associated program has been killed.
-                                // TODO: ensure the above statement always holds:
-                                // https://github.com/gear-tech/gear/issues/507
-                                log::warn!("Failed to find a program with ID: {:?}", program_id);
+                                unreachable!(
+                                    "program with {:?} id was terminated and messages to it were remove from WL",
+                                    program_id
+                                )
                             }
                         }
                         // "There is always an associated program for a message in wait list",
                     } else {
                         common::insert_waiting_message(
                             program_id,
-                            msg.id,
-                            msg,
+                            message.id,
+                            Dispatch {
+                                message,
+                                kind
+                            },
                             current_block.saturated_into(),
                         );
                     }

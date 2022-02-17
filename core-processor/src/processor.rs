@@ -17,9 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{
-        Dispatch, DispatchKind, DispatchOutcome, DispatchResult, DispatchResultKind, JournalNote,
-    },
+    common::{DispatchOutcome, DispatchResult, DispatchResultKind, JournalNote},
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
@@ -27,38 +25,42 @@ use crate::{
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::Message,
+    message::{Dispatch, DispatchKind, Message},
     program::{Program, ProgramId},
 };
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E: Environment<Ext>>(
-    program: Program,
+    program: Option<Program>,
     dispatch: Dispatch,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
-    let execution_settings = ExecutionSettings::new(block_info);
-    let initial_nonce = program.message_nonce();
+    if let Some(program) = program {
+        let execution_settings = ExecutionSettings::new(block_info);
+        let initial_nonce = program.message_nonce();
 
-    match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
-        Ok(res) => match res.kind {
-            DispatchResultKind::Trap(reason) => {
-                process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
-            }
-            _ => process_success(res),
-        },
-        Err(e) => process_error(
-            dispatch,
-            initial_nonce,
-            e.gas_amount.burned(),
-            Some(e.reason),
-        ),
+        match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
+            Ok(res) => match res.kind {
+                DispatchResultKind::Trap(reason) => {
+                    process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
+                }
+                _ => process_success(res),
+            },
+            Err(e) => process_error(
+                dispatch,
+                initial_nonce,
+                e.gas_amount.burned(),
+                Some(e.reason),
+            ),
+        }
+    } else {
+        process_non_executable(dispatch)
     }
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
 pub fn process_many<E: Environment<Ext>>(
-    mut programs: BTreeMap<ProgramId, Program>,
+    mut programs: BTreeMap<ProgramId, Option<Program>>,
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
 ) -> Vec<JournalNote> {
@@ -72,18 +74,20 @@ pub fn process_many<E: Environment<Ext>>(
         let current_journal = process::<E>(program.clone(), dispatch, block_info);
 
         for note in &current_journal {
-            match note {
-                JournalNote::UpdateNonce { nonce, .. } => program.set_message_nonce(*nonce),
-                JournalNote::UpdatePage {
-                    page_number, data, ..
-                } => {
-                    if let Some(data) = data {
-                        program.set_page(*page_number, data).expect("Can't fail");
-                    } else {
-                        program.remove_page(*page_number);
+            if let Some(program) = program {
+                match note {
+                    JournalNote::UpdateNonce { nonce, .. } => program.set_message_nonce(*nonce),
+                    JournalNote::UpdatePage {
+                        page_number, data, ..
+                    } => {
+                        if let Some(data) = data {
+                            program.set_page(*page_number, data).expect("Can't fail");
+                        } else {
+                            program.remove_page(*page_number);
+                        }
                     }
+                    _ => {}
                 }
-                _ => continue,
             }
         }
 
@@ -91,28 +95,6 @@ pub fn process_many<E: Environment<Ext>>(
     }
 
     journal
-}
-
-/// Helper function for reply generation
-fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<Message> {
-    if let Some((_, exit_code)) = message.reply() {
-        if exit_code != 0 {
-            return None;
-        }
-    };
-
-    let new_message_id = crate::id::next_message_id(message.dest(), nonce);
-
-    Some(Message::new_reply(
-        new_message_id,
-        message.dest(),
-        message.source(),
-        Default::default(),
-        gas_limit,
-        0,
-        message.id(),
-        crate::ERR_EXIT_CODE,
-    ))
 }
 
 /// Helper function for journal creation in trap/error case
@@ -129,6 +111,7 @@ fn process_error(
     let origin = message.source();
     let program_id = message.dest();
     let gas_left = message.gas_limit() - gas_burned;
+    let value = message.value();
 
     journal.push(JournalNote::GasBurned {
         message_id,
@@ -136,10 +119,19 @@ fn process_error(
         amount: gas_burned,
     });
 
+    if value != 0 {
+        // Send back value
+        journal.push(JournalNote::SendValue {
+            from: origin,
+            to: None,
+            value,
+        });
+    }
+
     if let Some(message) = generate_trap_reply(&message, gas_left, initial_nonce) {
-        journal.push(JournalNote::SendMessage {
+        journal.push(JournalNote::SendDispatch {
             message_id,
-            message,
+            dispatch: Dispatch::new_reply(message),
         });
         journal.push(JournalNote::UpdateNonce {
             program_id,
@@ -174,6 +166,7 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     let message_id = res.message_id();
     let origin = res.message_source();
     let program_id = res.program_id();
+    let value = res.message_value();
 
     journal.push(JournalNote::GasBurned {
         message_id,
@@ -181,10 +174,19 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
         amount: res.gas_amount.burned(),
     });
 
-    for msg in res.outgoing {
-        journal.push(JournalNote::SendMessage {
+    if value != 0 {
+        // Send value further
+        journal.push(JournalNote::SendValue {
+            from: origin,
+            to: Some(program_id),
+            value,
+        });
+    }
+
+    for dispatch in res.outgoing {
+        journal.push(JournalNote::SendDispatch {
             message_id,
-            message: msg,
+            dispatch,
         });
     }
 
@@ -242,4 +244,69 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     };
 
     journal
+}
+
+/// Helper function for journal creation in message no execution case
+fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
+    // Number of notes is predetermined
+    let mut journal = Vec::with_capacity(4);
+
+    let Dispatch { message, .. } = dispatch;
+
+    let message_id = message.id();
+    let value = message.value();
+
+    if value != 0 {
+        // Send back value
+        journal.push(JournalNote::SendValue {
+            from: message.source(),
+            to: None,
+            value,
+        });
+    }
+
+    // Reply back to the message `source`
+    let reply_message = Message::new_reply(
+        crate::id::next_system_reply_message_id(message.dest(), message_id),
+        message.dest(),
+        message.source(),
+        Default::default(),
+        message.gas_limit(),
+        // must be 0!
+        0,
+        message_id,
+        crate::TERMINATED_DEST_EXIT_CODE,
+    );
+    journal.push(JournalNote::SendDispatch {
+        message_id,
+        dispatch: Dispatch::new_reply(reply_message),
+    });
+    journal.push(JournalNote::MessageDispatched(
+        DispatchOutcome::NoExecution(message_id),
+    ));
+    journal.push(JournalNote::MessageConsumed(message_id));
+
+    journal
+}
+
+/// Helper function for reply generation
+fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<Message> {
+    if let Some((_, exit_code)) = message.reply() {
+        if exit_code != 0 {
+            return None;
+        }
+    };
+
+    let new_message_id = crate::id::next_message_id(message.dest(), nonce);
+
+    Some(Message::new_reply(
+        new_message_id,
+        message.dest(),
+        message.source(),
+        Default::default(),
+        gas_limit,
+        0,
+        message.id(),
+        crate::ERR_EXIT_CODE,
+    ))
 }

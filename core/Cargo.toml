@@ -10,6 +10,7 @@ anyhow = { version = "1.0.53", default-features = false }
 codec = { package = "parity-scale-codec", version = "2.2.0", features = [
     "derive",
 ], default-features = false }
+scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 derive_more = "0.99.17"
 hashbrown = "0.12"
 log = { version = "0.4.14", default-features = false }

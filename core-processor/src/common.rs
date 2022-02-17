@@ -26,42 +26,9 @@ use alloc::{
 use gear_core::{
     gas::GasAmount,
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Dispatch, Message, MessageId},
     program::{Program, ProgramId},
 };
-
-/// Type of wasm execution entry point.
-#[derive(Clone, Copy, Debug)]
-pub enum DispatchKind {
-    /// Initialization.
-    Init,
-    /// Handle.
-    Handle,
-    /// Handle reply.
-    HandleReply,
-}
-
-impl DispatchKind {
-    /// Convert into entry point (function name).
-    pub fn into_entry(self) -> &'static str {
-        match self {
-            Self::Init => "init",
-            Self::Handle => "handle",
-            Self::HandleReply => "handle_reply",
-        }
-    }
-}
-
-/// Dispatch.
-///
-/// Message plus information of entry point.
-#[derive(Clone, Debug)]
-pub struct Dispatch {
-    /// Kind of dispatch.
-    pub kind: DispatchKind,
-    /// Message to be dispatched.
-    pub message: Message,
-}
 
 /// Kind of the dispatch result.
 #[derive(Clone)]
@@ -85,7 +52,7 @@ pub struct DispatchResult {
     pub dispatch: Dispatch,
 
     /// List of generated outgoing messages.
-    pub outgoing: Vec<Message>,
+    pub outgoing: Vec<Dispatch>,
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
 
@@ -112,6 +79,11 @@ impl DispatchResult {
     /// Return dispatch source program id.
     pub fn message_source(&self) -> ProgramId {
         self.dispatch.message.source()
+    }
+
+    /// Return dispatch message value
+    pub fn message_value(&self) -> u128 {
+        self.dispatch.message.value()
     }
 }
 
@@ -149,6 +121,8 @@ pub enum DispatchOutcome {
     },
     /// Message was a success.
     Success(MessageId),
+    /// Message was processed, but not executed
+    NoExecution(MessageId),
 }
 
 /// Journal record for the state update.
@@ -178,11 +152,11 @@ pub enum JournalNote {
     /// This should be the last update involving this message id.
     MessageConsumed(MessageId),
     /// Message was generated.
-    SendMessage {
+    SendDispatch {
         /// Message id of the message that generated this message.
         message_id: MessageId,
-        /// New message that was generated.
-        message: Message,
+        /// New message with entry point that was generated.
+        dispatch: Dispatch,
     },
     /// Put this dispatch in the wait list.
     WaitDispatch(Dispatch),
@@ -213,6 +187,15 @@ pub enum JournalNote {
         /// Updates data in case of `Some(data)` or deletes the page
         data: Option<Vec<u8>>,
     },
+    /// Send value
+    SendValue {
+        /// Value sender
+        from: ProgramId,
+        /// Value beneficiary,
+        to: Option<ProgramId>,
+        /// Value amount
+        value: u128,
+    },
 }
 
 /// Journal handler.
@@ -227,8 +210,8 @@ pub trait JournalHandler {
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId);
     /// Process message consumed.
     fn message_consumed(&mut self, message_id: MessageId);
-    /// Process send message.
-    fn send_message(&mut self, message_id: MessageId, message: Message);
+    /// Process send dispatch.
+    fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch);
     /// Process send message.
     fn wait_dispatch(&mut self, dispatch: Dispatch);
     /// Process send message.
@@ -247,6 +230,8 @@ pub trait JournalHandler {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     );
+    /// Send value
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
 }
 
 /// Execution error.
@@ -263,7 +248,7 @@ pub struct ExecutionError {
 /// In-memory state.
 pub struct State {
     /// Message queue.
-    pub message_queue: VecDeque<Message>,
+    pub dispatch_queue: VecDeque<Dispatch>,
     /// Log records.
     pub log: Vec<Message>,
     /// State of each program.
@@ -275,7 +260,7 @@ pub struct State {
 impl Debug for State {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
-            .field("message_queue", &self.message_queue)
+            .field("dispatch_queue", &self.dispatch_queue)
             .field("log", &self.log)
             .field(
                 "programs",
