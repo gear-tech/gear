@@ -1970,6 +1970,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "log",
+ "parity-wasm 0.42.2",
  "sp-io",
  "sp-sandbox",
 ]

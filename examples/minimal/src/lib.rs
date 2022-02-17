@@ -6,6 +6,3 @@ use gstd::msg;
 pub unsafe extern "C" fn handle() {
     msg::reply(b"Hello world!", 0, 0);
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}

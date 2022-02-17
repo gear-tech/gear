@@ -30,6 +30,3 @@ pub unsafe extern "C" fn handle() {
         MY_COLLECTION.insert(COUNTER, new_msg);
     }
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}
