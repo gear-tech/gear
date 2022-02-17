@@ -1,4 +1,4 @@
-name: Upgrade-runtime
+name: Upgrade-runtime-reset
 
 on: [workflow_dispatch]
 
