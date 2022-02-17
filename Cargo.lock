@@ -2036,7 +2036,7 @@ dependencies = [
  "gear-core",
  "libc",
  "log",
- "nix 0.23.1",
+ "nix",
  "page_size",
  "sp-io",
  "sp-std",
@@ -2057,7 +2057,7 @@ dependencies = [
  "hex-literal",
  "jsonrpc-core",
  "libc",
- "nix 0.20.0",
+ "nix",
  "page_size",
  "pallet-gear-rpc",
  "pallet-transaction-payment-rpc",
@@ -4047,18 +4047,6 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "nix"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa9b4819da1bc61c0ea48b63b7bc8604064dd43013e7cc325df098d49cd7c18a"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 1.0.0",
- "libc",
 ]
 
 [[package]]
@@ -8021,7 +8009,7 @@ version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "rand 0.8.4",
  "static_assertions",
 ]
