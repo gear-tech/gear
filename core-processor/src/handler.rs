@@ -41,10 +41,10 @@ pub fn handle_journal(
                 value_destination,
             } => exit_list.push((id_exited, value_destination)),
             JournalNote::MessageConsumed(message_id) => handler.message_consumed(message_id),
-            JournalNote::SendMessage {
+            JournalNote::SendDispatch {
                 message_id,
-                message,
-            } => handler.send_message(message_id, message),
+                dispatch,
+            } => handler.send_dispatch(message_id, dispatch),
             JournalNote::WaitDispatch(dispatch) => handler.wait_dispatch(dispatch),
             JournalNote::WakeMessage {
                 message_id,
@@ -62,6 +62,7 @@ pub fn handle_journal(
                 let entry = page_updates.entry(program_id).or_insert_with(BTreeMap::new);
                 entry.insert(page_number, data);
             }
+            JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value),
         }
     }
 

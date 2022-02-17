@@ -18,14 +18,14 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use core_processor::{
-    common::{Dispatch, DispatchKind, DispatchOutcome, JournalHandler},
+    common::{DispatchOutcome, JournalHandler},
     configs::BlockInfo,
     Ext,
 };
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
-    message::{Message, MessageId},
+    message::{Dispatch, DispatchKind, Message, MessageId},
     program::{Program, ProgramId},
 };
 use std::collections::{BTreeMap, HashSet};
@@ -241,13 +241,14 @@ pub enum Error {
 }
 
 pub struct RunnerContext {
-    programs: BTreeMap<ProgramId, Program>,
+    // Existing key can have a None value, which declares that program is terminated (like being in limbo).
+    programs: BTreeMap<ProgramId, Option<Program>>,
     wait_list: BTreeMap<MessageId, Dispatch>,
     program_id: u64,
     used_program_ids: HashSet<ProgramId>,
     message_id: u64,
     used_message_ids: HashSet<MessageId>,
-    message_queue: Vec<Dispatch>,
+    dispatch_queue: Vec<Dispatch>,
     log: Vec<Message>,
     outcomes: BTreeMap<MessageId, RunResult>,
     gas_spent: BTreeMap<MessageId, u64>,
@@ -260,7 +261,7 @@ struct Journal<'a> {
 impl<'a> JournalHandler for Journal<'a> {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
-            DispatchOutcome::Success(_) => {}
+            DispatchOutcome::Success(_) | DispatchOutcome::NoExecution(_) => {}
             DispatchOutcome::MessageTrap {
                 message_id, trap, ..
             } => {
@@ -270,16 +271,10 @@ impl<'a> JournalHandler for Journal<'a> {
                 );
             }
             DispatchOutcome::InitSuccess { .. } => {}
-            DispatchOutcome::InitFailure {
-                program_id,
-                message_id,
-                reason,
-                ..
-            } => {
-                panic!(
-                    "Init failure (pid: {:?}, mid: {:?}): {:?}",
-                    program_id, message_id, reason
-                );
+            DispatchOutcome::InitFailure { program_id, .. } => {
+                if let Some(prog) = self.context.programs.get_mut(&program_id) {
+                    *prog = None;
+                }
             }
         };
     }
@@ -294,8 +289,8 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn message_consumed(&mut self, _message_id: MessageId) {}
 
-    fn send_message(&mut self, _origin: MessageId, message: Message) {
-        match message.reply {
+    fn send_dispatch(&mut self, _origin: MessageId, dispatch: Dispatch) {
+        match dispatch.message.reply {
             Some((message_id, 0)) => {
                 self.context.outcomes.insert(message_id, RunResult::Normal);
             }
@@ -307,14 +302,10 @@ impl<'a> JournalHandler for Journal<'a> {
             _ => {}
         }
 
-        if self.context.programs.contains_key(&message.dest) {
-            let kind = match message.reply {
-                Some(_) => DispatchKind::HandleReply,
-                None => DispatchKind::Handle,
-            };
-            self.context.message_queue.push(Dispatch { kind, message });
+        if self.context.programs.contains_key(&dispatch.message.dest) {
+            self.context.dispatch_queue.push(dispatch);
         } else {
-            self.context.log.push(message);
+            self.context.log.push(dispatch.message);
         }
     }
 
@@ -331,18 +322,22 @@ impl<'a> JournalHandler for Journal<'a> {
 
         // only wake messages from program that owns them
         if program_id == dispatch.message.dest {
-            self.context.message_queue.push(dispatch);
+            self.context.dispatch_queue.push(dispatch);
         } else {
             self.context.wait_list.insert(message_id, dispatch);
         }
     }
 
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        self.context
+        let maybe_program = self
+            .context
             .programs
             .get_mut(&program_id)
-            .expect("program not found")
-            .set_message_nonce(nonce);
+            .expect("program not found");
+
+        if let Some(prog) = maybe_program {
+            prog.set_message_nonce(nonce);
+        }
     }
 
     fn update_page(
@@ -357,11 +352,19 @@ impl<'a> JournalHandler for Journal<'a> {
             .get_mut(&program_id)
             .expect("program not found");
 
-        if let Some(data) = data {
-            let _ = program.set_page(page_number, &data);
+        if let Some(program) = program {
+            if let Some(data) = data {
+                let _ = program.set_page(page_number, &data);
+            } else {
+                program.remove_page(page_number);
+            }
         } else {
-            program.remove_page(page_number);
+            unreachable!("Update page can'be called for terminated program");
         }
+    }
+
+    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
+        todo!("TODO https://github.com/gear-tech/gear/issues/644")
     }
 }
 
@@ -392,7 +395,7 @@ impl RunnerContext {
 
         // store program
         let program = Program::new(new_program_id, code).expect("Failed to create program");
-        self.programs.insert(new_program_id, program);
+        self.programs.insert(new_program_id, Some(program.clone()));
 
         // generate disspatch
         let dispatch = Dispatch {
@@ -401,13 +404,8 @@ impl RunnerContext {
         };
         let message_id = dispatch.message.id;
 
-        let program = self
-            .programs
-            .get(&new_program_id)
-            .expect("Program not found");
-
         let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
-            program.clone(),
+            Some(program),
             dispatch,
             BlockInfo {
                 height: 1,
@@ -555,14 +553,14 @@ impl RunnerContext {
     }
 
     fn run(&mut self, message: Message) {
-        self.message_queue.push(Dispatch {
+        self.dispatch_queue.push(Dispatch {
             message,
             kind: DispatchKind::Handle,
         });
 
-        while !self.message_queue.is_empty() {
+        while !self.dispatch_queue.is_empty() {
             let journal = {
-                let messages = std::mem::take(&mut self.message_queue);
+                let messages = std::mem::take(&mut self.dispatch_queue);
                 let programs = self.programs.clone();
 
                 core_processor::process_many::<WasmtimeEnvironment<Ext>>(
@@ -597,7 +595,7 @@ impl Default for RunnerContext {
             used_program_ids: HashSet::new(),
             message_id: 1,
             used_message_ids: HashSet::new(),
-            message_queue: Vec::new(),
+            dispatch_queue: Vec::new(),
             log: Vec::new(),
             outcomes: BTreeMap::new(),
             gas_spent: BTreeMap::new(),

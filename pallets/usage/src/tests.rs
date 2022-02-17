@@ -19,9 +19,10 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, value_tree::ValueView, Message, Origin as _, GAS_VALUE_PREFIX};
+use common::{self, value_tree::ValueView, Dispatch, Message, Origin as _, GAS_VALUE_PREFIX};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
+use gear_core::message::DispatchKind;
 use hex_literal::hex;
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
@@ -42,17 +43,21 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
         let blk_num = i % (bn as u64) + 1;
         let user_id = i % num_users + 1;
         let gas_limit = gas_limits[i as usize];
+        let message = Message {
+            id: msg_id,
+            source: user_id.into_origin(),
+            dest: prog_id,
+            payload: vec![],
+            gas_limit: gas_limit,
+            value: 0_u128,
+            reply: None,
+        };
         common::insert_waiting_message(
             prog_id.clone(),
             msg_id.clone(),
-            Message {
-                id: msg_id,
-                source: user_id.into_origin(),
-                dest: prog_id,
-                payload: vec![],
-                gas_limit: gas_limit,
-                value: 0_u128,
-                reply: None,
+            Dispatch {
+                kind: DispatchKind::Handle,
+                message,
             },
             blk_num.try_into().unwrap(),
         );
@@ -60,12 +65,12 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
     }
 }
 
-fn wait_list_contents() -> Vec<(Message, u32)> {
-    frame_support::storage::PrefixIterator::<(Message, u32)>::new(
+fn wait_list_contents() -> Vec<(Dispatch, u32)> {
+    frame_support::storage::PrefixIterator::<(Dispatch, u32)>::new(
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         |_, mut value| {
-            let decoded = <(Message, u32)>::decode(&mut value)?;
+            let decoded = <(Dispatch, u32)>::decode(&mut value)?;
             Ok(decoded)
         },
     )
@@ -317,7 +322,10 @@ fn rent_charge_works() {
         // We have 10 messages in the wait list submitted one at a time by different users
         populate_wait_list(10, 10, 10, vec![10_000; 10]);
 
-        let wl = wait_list_contents();
+        let wl = wait_list_contents()
+            .into_iter()
+            .map(|(d, n)| (d.message, n))
+            .collect::<Vec<_>>();
         assert_eq!(wl.len(), 10);
         assert_eq!(wl[0].0.id, 1001.into_origin());
         assert_eq!(wl[9].0.id, 1010.into_origin());
@@ -362,7 +370,10 @@ fn rent_charge_works() {
         assert_eq!(Balances::reserved_balance(&5), 9_000);
 
         // The insertion block number has been reset for the first 5 messages
-        let wl = wait_list_contents();
+        let wl = wait_list_contents()
+            .into_iter()
+            .map(|(d, n)| (d.message, n))
+            .collect::<Vec<_>>();
         // current block number
         assert_eq!(wl[0].1, 15);
         assert_eq!(wl[4].1, 15);
@@ -389,7 +400,10 @@ fn trap_reply_message_is_sent() {
         // Populate wait list with 2 messages
         populate_wait_list(2, 10, 2, vec![1_100, 500]);
 
-        let wl = wait_list_contents();
+        let wl = wait_list_contents()
+            .into_iter()
+            .map(|(d, n)| (d.message, n))
+            .collect::<Vec<_>>();
         assert_eq!(wl.len(), 2);
         assert_eq!(wl[0].0.gas_limit, 1_100_u64);
         assert_eq!(wl[1].0.gas_limit, 500_u64);
@@ -432,32 +446,36 @@ fn trap_reply_message_is_sent() {
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let msg = common::dequeue_message().unwrap();
-        assert_eq!(msg.source, 1.into_origin());
-        assert_eq!(msg.dest, 1.into_origin());
-        assert_eq!(msg.gas_limit, 1000);
+        let Dispatch { message, .. } = common::dequeue_dispatch().unwrap();
+        assert_eq!(message.source, 1.into_origin());
+        assert_eq!(message.dest, 1.into_origin());
+        assert_eq!(message.gas_limit, 1000);
         assert_eq!(
-            msg.reply,
+            message.reply,
             Some((201.into_origin(), core_processor::ERR_EXIT_CODE))
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            ValueView::get(GAS_VALUE_PREFIX, msg.id).unwrap().value(),
+            ValueView::get(GAS_VALUE_PREFIX, message.id)
+                .unwrap()
+                .value(),
             1000
         );
 
         // Second trap reply message
-        let msg = common::dequeue_message().unwrap();
-        assert_eq!(msg.source, 2.into_origin());
-        assert_eq!(msg.dest, 2.into_origin());
-        assert_eq!(msg.gas_limit, 500);
+        let Dispatch { message, .. } = common::dequeue_dispatch().unwrap();
+        assert_eq!(message.source, 2.into_origin());
+        assert_eq!(message.dest, 2.into_origin());
+        assert_eq!(message.gas_limit, 500);
         assert_eq!(
-            msg.reply,
+            message.reply,
             Some((202.into_origin(), core_processor::ERR_EXIT_CODE))
         );
 
         assert_eq!(
-            ValueView::get(GAS_VALUE_PREFIX, msg.id).unwrap().value(),
+            ValueView::get(GAS_VALUE_PREFIX, message.id)
+                .unwrap()
+                .value(),
             500
         );
     });

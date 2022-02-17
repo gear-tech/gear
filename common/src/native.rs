@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    message::{Message as CoreMessage, MessageId},
-    program::{Program, ProgramId},
+    message::{Dispatch as CoreDispatch, Message as CoreMessage, MessageId},
+    program::{Program as CoreProgram, ProgramId},
 };
 
 use primitive_types::H256;
 
-use crate::{Message, Origin};
+use crate::{Dispatch, Message, Origin};
 
 impl Origin for MessageId {
     fn into_origin(self) -> H256 {
@@ -81,32 +81,27 @@ impl From<Message> for CoreMessage {
     }
 }
 
-pub fn queue_message(message: CoreMessage) {
-    crate::queue_message(message.into())
-}
-
-pub fn dequeue_message() -> Option<CoreMessage> {
-    crate::dequeue_message().map(Into::into)
-}
-
-pub fn get_program(id: ProgramId) -> Option<Program> {
-    if let Some(prog) = crate::get_program(id.into_origin()) {
-        if let Some(code) = crate::get_code(prog.code_hash) {
-            let program = Program::from_parts(
-                id,
-                code,
-                prog.static_pages,
-                prog.nonce,
-                prog.persistent_pages,
-            );
-            return Some(program);
+impl From<Dispatch> for CoreDispatch {
+    fn from(dispatch: Dispatch) -> Self {
+        let Dispatch { kind, message } = dispatch;
+        Self {
+            kind,
+            message: message.into(),
         }
     }
-
-    None
 }
 
-pub fn set_program(program: Program) {
+impl From<CoreDispatch> for Dispatch {
+    fn from(dispatch: CoreDispatch) -> Self {
+        let CoreDispatch { kind, message } = dispatch;
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+}
+
+pub fn set_program(program: CoreProgram) {
     let code_hash = sp_io::hashing::blake2_256(program.code()).into();
     // This code is only used in tests and is redundant for
     // production. TODO to be fixed in #512
@@ -115,7 +110,7 @@ pub fn set_program(program: Program) {
     }
     crate::set_program(
         H256::from_slice(program.id().as_slice()),
-        crate::Program {
+        crate::ActiveProgram {
             static_pages: program.static_pages(),
             persistent_pages: program
                 .get_pages()
@@ -137,34 +132,4 @@ pub fn set_program(program: Program) {
             })
             .collect(),
     );
-}
-
-pub fn remove_program(id: ProgramId) {
-    crate::remove_program(H256::from_slice(id.as_slice()));
-}
-
-pub fn program_exists(id: ProgramId) -> bool {
-    crate::program_exists(H256::from_slice(id.as_slice()))
-}
-
-pub fn insert_waiting_message(
-    prog_id: ProgramId,
-    msg_id: MessageId,
-    message: CoreMessage,
-    bn: u32,
-) {
-    crate::insert_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
-        message.into(),
-        bn,
-    );
-}
-
-pub fn remove_waiting_message(prog_id: ProgramId, msg_id: MessageId) -> Option<(CoreMessage, u32)> {
-    crate::remove_waiting_message(
-        H256::from_slice(prog_id.as_slice()),
-        H256::from_slice(msg_id.as_slice()),
-    )
-    .map(|(msg, bn)| (msg.into(), bn))
 }

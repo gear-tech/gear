@@ -4,7 +4,7 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::{IncomingMessage, Message, MessageId},
+    message::{Dispatch, DispatchKind, IncomingMessage, Message, MessageId},
     program::{Program, ProgramId},
 };
 use regex::Regex;
@@ -92,7 +92,7 @@ where
 
     journal_handler.store_program(program.clone(), message.message.id());
 
-    let journal = core_processor::process::<E>(program, message.into(), block_info);
+    let journal = core_processor::process::<E>(Some(program), message.into(), block_info);
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -204,18 +204,16 @@ where
             message_source = source.to_program_id();
         }
 
-        journal_handler.send_message(
-            Default::default(),
-            Message {
-                id: message_id,
-                source: message_source,
-                dest: message.destination.to_program_id(),
-                payload: payload.into(),
-                gas_limit,
-                value: message.value.unwrap_or_default() as _,
-                reply: None,
-            },
-        );
+        let message = Message {
+            id: message_id,
+            source: message_source,
+            dest: message.destination.to_program_id(),
+            payload: payload.into(),
+            gas_limit,
+            value: message.value.unwrap_or_default() as _,
+            reply: None,
+        };
+        journal_handler.send_dispatch(Default::default(), Dispatch::new_handle(message));
 
         nonce += 1;
     }
@@ -243,12 +241,12 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            if let Some(m) = state.message_queue.pop_front() {
-                let program = state.programs.get(&m.dest()).expect("Can't find program");
+            if let Some(dispatch) = state.dispatch_queue.pop_front() {
+                let program = state.programs.get(&dispatch.message.dest()).cloned();
 
                 let journal = core_processor::process::<E>(
-                    program.clone(),
-                    journal_handler.message_to_dispatch(m),
+                    program,
+                    dispatch,
                     BlockInfo { height, timestamp },
                 );
 
@@ -263,8 +261,8 @@ where
         }
     } else {
         let mut counter = 0;
-        while let Some(m) = state.message_queue.pop_front() {
-            let program = state.programs.get(&m.dest()).expect("Can't find program");
+        while let Some(dispatch) = state.dispatch_queue.pop_front() {
+            let program = state.programs.get(&dispatch.message.dest()).cloned();
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -272,8 +270,8 @@ where
                 .unwrap_or(0) as u64;
 
             let journal = core_processor::process::<E>(
-                program.clone(),
-                journal_handler.message_to_dispatch(m),
+                program,
+                dispatch,
                 BlockInfo {
                     height: counter,
                     timestamp,

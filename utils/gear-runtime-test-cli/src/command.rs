@@ -19,7 +19,7 @@
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::util::{get_message_queue, new_test_ext, process_queue};
+use crate::util::{get_dispatch_queue, new_test_ext, process_queue};
 use crate::GearRuntimeTestCmd;
 use codec::Encode;
 use colored::{ColoredString, Colorize};
@@ -30,7 +30,7 @@ use gear_core::message::Message as CoreMessage;
 use gear_core::program::Program as CoreProgram;
 use gear_core::program::ProgramId;
 
-use gear_common::{Message, Origin as _, GAS_VALUE_PREFIX};
+use gear_common::{Dispatch, Message, Origin as _, GAS_VALUE_PREFIX};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -251,7 +251,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         value,
                         reply: None,
                     };
-                    gear_common::queue_message(msg)
+                    gear_common::queue_dispatch(Dispatch::new_handle(msg))
                 } else {
                     log::info!(
                         "{:?}",
@@ -266,7 +266,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 }
 
                 // After initialization the last snapshot is empty, so we get MQ after sending messages
-                snapshots.last_mut().unwrap().message_queue = get_message_queue();
+                snapshots.last_mut().unwrap().dispatch_queue = get_dispatch_queue();
             }
 
             process_queue(&mut snapshots, &mut mailbox);
@@ -283,9 +283,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 };
 
                 let mut message_queue: Vec<CoreMessage> = snapshot
-                    .message_queue
+                    .dispatch_queue
                     .iter()
-                    .map(|msg| CoreMessage::from(msg.clone()))
+                    .map(|dispatch| CoreMessage::from(dispatch.message.clone()))
                     .collect();
                 let mut progs = snapshot
                     .programs

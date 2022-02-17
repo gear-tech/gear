@@ -205,6 +205,14 @@ impl Program {
         Ok(())
     }
 
+    /// Setting multiple pages
+    pub fn set_pages(&mut self, pages: BTreeMap<PageNumber, Vec<u8>>) -> Result<()> {
+        for (page_num, page_data) in pages {
+            self.set_page(page_num, &page_data)?;
+        }
+        Ok(())
+    }
+
     /// Set memory page from buffer.
     pub fn set_page(&mut self, page: PageNumber, buf: &[u8]) -> Result<()> {
         self.persistent_pages.insert(

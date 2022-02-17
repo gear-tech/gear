@@ -36,6 +36,8 @@ mod processor;
 
 /// Error exit code.
 pub const ERR_EXIT_CODE: i32 = 1;
+/// Destination doesn't exist anymore for the message
+pub const TERMINATED_DEST_EXIT_CODE: i32 = 2;
 
 pub use executor::execute_wasm;
 pub use ext::Ext;

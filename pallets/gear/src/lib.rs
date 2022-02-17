@@ -59,21 +59,22 @@ pub mod pallet {
     use super::*;
 
     use common::{
-        self, CodeMetadata, GasToFeeConverter, Message, Origin, ProgramState, GAS_VALUE_PREFIX,
+        self, CodeMetadata, Dispatch, GasToFeeConverter, Message, Origin, Program, ProgramState,
+        GAS_VALUE_PREFIX,
     };
     use core_processor::{
-        common::{Dispatch, DispatchKind, DispatchOutcome as CoreDispatchOutcome, JournalNote},
+        common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
         configs::BlockInfo,
         Ext,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, ExistenceRequirement, ReservableCurrency},
+        traits::{BalanceStatus, Currency, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::program::Program;
+    use gear_core::{message::DispatchKind, program::Program as NativeProgram};
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -139,6 +140,8 @@ pub mod pallet {
         CodeSaved(H256),
         /// Pallet associated storage has been wiped.
         DatabaseWiped,
+        /// Message was not executed
+        MessageNotExecuted(H256),
     }
 
     // Gear pallet error.
@@ -160,10 +163,10 @@ pub mod pallet {
         ///
         /// The user tried to reply on message that was not found in his personal mailbox.
         NoMessageInMailbox,
-        /// Program is not initialized.
+        /// Program is terminated
         ///
-        /// Occurs if a message is sent to a program that is in an uninitialized state.
-        ProgramIsNotInitialized,
+        /// Program init ended up with failure, so such message destination is unavailable anymore
+        ProgramIsTerminated,
         /// Message gas tree is not found.
         ///
         /// When message claimed from mailbox has a corrupted or non-extant gas tree associated.
@@ -215,9 +218,6 @@ pub mod pallet {
     #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
         StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
-
-    #[pallet::storage]
-    pub type ProgramsLimbo<T: Config> = StorageMap<_, Identity, H256, H256>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -305,11 +305,11 @@ pub mod pallet {
 
             if message.value > 0 {
                 // Assuming the programs has enough balance
-                T::Currency::transfer(
+                T::Currency::repatriate_reserved(
                     &<T::AccountId as Origin>::from_origin(message.source),
                     user_id,
                     message.value.unique_saturated_into(),
-                    ExistenceRequirement::AllowDeath,
+                    BalanceStatus::Free,
                 )?;
             }
 
@@ -361,21 +361,21 @@ pub mod pallet {
                 }
             };
 
-            let dispatch = Dispatch {
-                kind,
-                message: message.into(),
-            };
+            let dispatch = Dispatch { kind, message };
 
-            let journal =
-                core_processor::process::<SandboxEnvironment<Ext>>(program, dispatch, block_info);
+            let journal = core_processor::process::<SandboxEnvironment<Ext>>(
+                Some(program),
+                dispatch.into(),
+                block_info,
+            );
 
             for note in &journal {
                 match note {
                     JournalNote::GasBurned { amount, .. } => {
                         gas_burned = gas_burned.saturating_add(*amount);
                     }
-                    JournalNote::SendMessage { message, .. } => {
-                        gas_to_send = gas_to_send.saturating_add(message.gas_limit);
+                    JournalNote::SendDispatch { dispatch, .. } => {
+                        gas_to_send = gas_to_send.saturating_add(dispatch.message.gas_limit());
                     }
                     JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
                         return None;
@@ -393,15 +393,16 @@ pub mod pallet {
 
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: H256) -> bool {
-            common::get_program_state(program_id)
-                .map(|s| matches!(s, ProgramState::Initialized))
+            common::get_program(program_id)
+                .map(|p| p.is_initialized())
                 .unwrap_or(false)
         }
 
-        /// Returns true if a program resulted in an error during initialization
-        /// but hasn't been explicitly removed from storage by its creator
-        pub fn is_failed(program_id: H256) -> bool {
-            ProgramsLimbo::<T>::get(program_id).is_some()
+        /// Returns true if a program has terminated status
+        pub fn is_terminated(program_id: H256) -> bool {
+            common::get_program(program_id)
+                .map(|p| p.is_terminated())
+                .unwrap_or(false)
         }
 
         /// Message Queue processing.
@@ -424,65 +425,46 @@ pub mod pallet {
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
             }
-            while let Some(message) = common::dequeue_message() {
+            while let Some(dispatch) = common::dequeue_dispatch() {
                 // Check whether we have enough of gas allowed for message processing
-                if message.gas_limit > GasAllowance::<T>::get() {
-                    common::queue_message(message);
+                if dispatch.message.gas_limit > GasAllowance::<T>::get() {
+                    common::queue_dispatch(dispatch);
                     break;
                 }
 
-                let program_id = message.dest;
+                let maybe_active_program = {
+                    let program_id = dispatch.message.dest;
+                    let current_message_id = dispatch.message.id;
+                    let maybe_message_reply = dispatch.message.reply;
 
-                let (program, state) = if let Some(data) = ext_manager
-                    .get_program(program_id)
-                    .and_then(|p| common::get_program_state(program_id).map(|s| (p, s)))
-                {
-                    data
-                } else {
-                    log::warn!(
-                        "Couldn't find program: {:?}, message with id: {:?} will be skipped",
-                        message.dest,
-                        message.id,
-                    );
-                    // TODO: make error event log record
-                    continue;
-                };
+                    let maybe_active_program = common::get_program(program_id)
+                        .expect("program with id got from message is guaranteed to exist");
 
-                let kind = if let Some(kind) =
-                    message
-                        .reply
-                        .map(|_| DispatchKind::HandleReply)
-                        .or(match state {
-                            ProgramState::Initialized => Some(DispatchKind::Handle),
-                            ProgramState::Uninitialized { message_id } => {
-                                if message_id == message.id {
-                                    Some(DispatchKind::Init)
-                                } else {
-                                    None
-                                }
-                            }
-                        }) {
-                    kind
-                } else {
-                    Self::deposit_event(Event::AddedToWaitList(message.clone()));
-                    common::waiting_init_append_message_id(program_id, message.id);
-                    common::insert_waiting_message(
-                        program_id,
-                        message.id,
-                        message,
-                        block_info.height,
-                    );
+                    // Check whether message should be added to the wait list
+                    if let Program::Active(ref prog) = maybe_active_program {
+                        let is_for_wait_list = maybe_message_reply.is_none()
+                            && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id);
+                        if is_for_wait_list {
+                            Self::deposit_event(Event::AddedToWaitList(dispatch.message.clone()));
+                            common::waiting_init_append_message_id(program_id, current_message_id);
+                            common::insert_waiting_message(
+                                program_id,
+                                current_message_id,
+                                dispatch,
+                                block_info.height,
+                            );
 
-                    continue;
-                };
+                            continue;
+                        }
+                    }
 
-                let dispatch = Dispatch {
-                    kind,
-                    message: message.into(),
+                    maybe_active_program.try_into_native(program_id).ok()
                 };
 
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    program, dispatch, block_info,
+                    maybe_active_program,
+                    dispatch.into(),
+                    block_info,
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);
@@ -636,7 +618,7 @@ pub mod pallet {
             );
 
             let H256(id_bytes) = id;
-            let program = Program::new(id_bytes.into(), code.to_vec())
+            let program = NativeProgram::new(id_bytes.into(), code.to_vec())
                 .map_err(|_| Error::<T>::FailedToConstructProgram)?;
 
             let reserve_fee = T::GasConverter::gas_to_fee(gas_limit);
@@ -664,7 +646,7 @@ pub mod pallet {
                 gas_limit,
             );
 
-            common::queue_message(common::Message {
+            let message = common::Message {
                 id: init_message_id,
                 source: origin,
                 dest: id,
@@ -672,7 +654,8 @@ pub mod pallet {
                 gas_limit,
                 value: value.unique_saturated_into(),
                 reply: None,
-            });
+            };
+            common::queue_dispatch(Dispatch::new_init(message));
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id: init_message_id,
@@ -717,21 +700,18 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            // Check that the message is not intended for a failed program
             ensure!(
-                !Self::is_failed(destination),
-                Error::<T>::ProgramIsNotInitialized
+                !Self::is_terminated(destination),
+                Error::<T>::ProgramIsTerminated
             );
 
             let message_id = common::next_message_id(&payload);
 
-            // Since messages are guaranteed to be dispatched, we transfer value immediately
-            T::Currency::transfer(
-                &who,
-                &<T::AccountId as Origin>::from_origin(destination),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
+            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+            // That's because destination can fail to be initialized, while this dispatch message is next
+            // in the queue.
+            T::Currency::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             if common::program_exists(destination) {
                 let gas_limit_reserve = T::GasConverter::gas_to_fee(gas_limit);
@@ -758,8 +738,7 @@ pub mod pallet {
                     value: value.unique_saturated_into(),
                     reply: None,
                 };
-
-                common::queue_message(message);
+                common::queue_dispatch(Dispatch::new_handle(message));
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,
@@ -819,13 +798,11 @@ pub mod pallet {
             let original_message = Self::remove_and_claim_from_mailbox(&who, reply_to_id)?;
             let destination = original_message.source;
 
-            // Since messages are guaranteed to be dispatched, we transfer value immediately
-            T::Currency::transfer(
-                &who,
-                &<T::AccountId as Origin>::from_origin(destination),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )?;
+            // Message is not guaranteed to be executed, that's why value is not immediately transferred.
+            // That's because destination can fail to be initialized, while this dispatch message is next
+            // in the queue.
+            T::Currency::reserve(&who, value.unique_saturated_into())
+                .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let message_id = common::next_message_id(&payload);
 
@@ -854,8 +831,7 @@ pub mod pallet {
                     value: value.unique_saturated_into(),
                     reply: Some((reply_to_id, 0)),
                 };
-
-                common::queue_message(message);
+                common::queue_dispatch(Dispatch::new_reply(message));
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,
@@ -882,48 +858,6 @@ pub mod pallet {
             Ok(().into())
         }
 
-        /// Removes stale program.
-        ///
-        /// The origin must be Signed and be the original creator of the program that
-        /// got stuck in the "limbo" due to initialization failure.
-        ///
-        /// The gas and balance stored at the program's account will be transferred back
-        /// to the original origin.
-        ///
-        /// Parameters:
-        /// - `program_id`: the id of the program being removed.
-        ///
-        /// Emits the following events:
-        /// - `ProgramRemoved(id)` when successful.
-        #[pallet::weight(<T as Config>::WeightInfo::remove_stale_program())]
-        pub fn remove_stale_program(
-            origin: OriginFor<T>,
-            program_id: H256,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            if let Some(author) = ProgramsLimbo::<T>::get(program_id) {
-                if who.clone().into_origin() == author {
-                    ProgramsLimbo::<T>::remove(program_id);
-
-                    let account_id = &<T::AccountId as Origin>::from_origin(program_id);
-
-                    // Remove program from program storage
-                    common::remove_program(program_id);
-
-                    // Complete transfer of the leftover balance back to the original sender
-                    T::Currency::transfer(
-                        account_id,
-                        &who,
-                        T::Currency::free_balance(account_id),
-                        ExistenceRequirement::AllowDeath,
-                    )?;
-                }
-            }
-
-            Ok(().into())
-        }
-
         #[frame_support::transactional]
         #[pallet::weight(T::DbWeight::get().writes(1))]
         pub fn claim_value_from_mailbox(
@@ -944,7 +878,6 @@ pub mod pallet {
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
             <Mailbox<T>>::remove_all(None);
-            ProgramsLimbo::<T>::remove_all(None);
             common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);

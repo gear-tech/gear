@@ -153,7 +153,7 @@ fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
     // TODO set_program has redundant code set, that should be wiped off in #512
     common::set_program(
         program_id,
-        common::Program {
+        common::ActiveProgram {
             static_pages,
             persistent_pages: (0..static_pages).collect(),
             code_hash,
@@ -191,7 +191,7 @@ benchmarks! {
         let value = 10_000_u32;
     }: _(RawOrigin::Signed(caller), code, salt, payload, 100_000_000_u64, value.into())
     verify {
-        assert!(common::dequeue_message().is_some());
+        assert!(common::dequeue_dispatch().is_some());
     }
 
     send_message {
@@ -204,7 +204,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_message().is_some());
+        assert!(common::dequeue_dispatch().is_some());
     }
 
     send_reply {
@@ -230,19 +230,7 @@ benchmarks! {
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
-        assert!(common::dequeue_message().is_some());
-    }
-
-    remove_stale_program {
-        let caller: T::AccountId = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
-        let code = generate_wasm2(16_i32).unwrap();
-        let program_id = account::<T::AccountId>("program", 16, 0).into_origin();
-        set_program(program_id, code, 1_u32, 0_u64);
-        ProgramsLimbo::<T>::insert(program_id, caller.clone().into_origin());
-    }: _(RawOrigin::Signed(caller), program_id)
-    verify {
-        assert!(!ProgramsLimbo::<T>::contains_key(program_id));
+        assert!(common::dequeue_dispatch().is_some());
     }
 
     initial_allocation {
@@ -256,7 +244,7 @@ benchmarks! {
         crate::Pallet::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_message().is_none());
+        assert!(common::dequeue_dispatch().is_none());
     }
 
     alloc_in_handle {
@@ -270,7 +258,7 @@ benchmarks! {
         crate::Pallet::<T>::process_queue();
     }
     verify {
-        assert!(common::dequeue_message().is_none());
+        assert!(common::dequeue_dispatch().is_none());
     }
 }
 
