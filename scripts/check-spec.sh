@@ -4,8 +4,10 @@ set -e
 
 PACKAGES_REQUIRE_BUMP_SPEC="common core core-backend node pallets runtime-interface"
 
-SPEC_ON_MASTER="$(git diff origin/master | sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
-ACTUAL_SPEC="$(git diff origin/master | sed -n -r "s/^\+[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
+CURRENT_BRANCH="$(git branch --show-current)"
+
+SPEC_ON_MASTER="$(git diff $CURRENT_BRANCH origin/master | sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
+ACTUAL_SPEC="$(git diff $CURRENT_BRANCH origin/master | sed -n -r "s/^\+[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
 
 for package in $(git diff --name-only origin/master | grep -v "README.md$" | cut -d "/" -f1 | uniq); do
     if [[ " ${PACKAGES_REQUIRE_BUMP_SPEC[@]} " =~ " ${package} " ]]; then
