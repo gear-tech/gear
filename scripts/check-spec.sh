@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+set -e
+
 PACKAGES_REQUIRE_BUMP_SPEC=(
     "common"
     "core"
