@@ -200,7 +200,7 @@ purge-dev-chain-release:
 test: test-gear test-pallet test-js gtest
 
 .PHONY: test-release
-test-release: test-gear-release test-pallet-release test-js gtest ntest rtest
+test-release: test-gear-release test-pallet-release test-js gtest rtest
 
 .PHONY: test-gear
 test-gear: init-js examples
@@ -218,10 +218,6 @@ test-js: init-js
 .PHONY: gtest
 gtest: init-js examples
 	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
-
-.PHONY: ntest
-ntest: init-js examples
-	@ ./scripts/gear.sh test ntest
 
 .PHONY: rtest
 rtest: init-js examples

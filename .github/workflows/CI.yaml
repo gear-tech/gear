@@ -133,9 +133,6 @@ jobs:
       - name: "Test: JS metadata"
         run: ./scripts/gear.sh test js
 
-      - name: "Test: Process node testsuite"
-        run: ./scripts/gear.sh test ntest
-
       - name: "Test: Process node runtime testsuite"
         run: ./scripts/gear.sh test rtest
 

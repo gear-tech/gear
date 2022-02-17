@@ -58,9 +58,6 @@ pub enum Subcommand {
     #[clap(name = "benchmark", about = "Benchmark runtime pallets.")]
     Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
-    #[clap(name = "runtests", about = "Run gear tests with yaml.")]
-    GearTest(gear_test_cli::GearTestCmd),
-
     #[clap(
         name = "runtime-spec-tests",
         about = "Run gear runtime tests with yaml."
