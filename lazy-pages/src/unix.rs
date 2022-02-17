@@ -22,7 +22,7 @@ use gear_core::memory::{PageNumber, PAGE_SIZE};
 use libc::{c_void, siginfo_t};
 use nix::sys::signal;
 
-use crate::{LAZY_PAGES_ENABLED, WASM_MEM_BEGIN, LAZY_PAGES_INFO, RELEASED_LAZY_PAGES};
+use crate::{LAZY_PAGES_ENABLED, LAZY_PAGES_INFO, RELEASED_LAZY_PAGES, WASM_MEM_BEGIN};
 
 /// Sigsegv (or sigbus for macos) handler.
 /// Before contract execution some pages from wasm memory buffer are protected,

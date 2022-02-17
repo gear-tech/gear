@@ -80,4 +80,4 @@ pub fn get_released_page_old_data(page: u32) -> sp_std::vec::Vec<u8> {
     RELEASED_LAZY_PAGES.with(|x| x.borrow().get(&page).expect("Must have this page").to_vec())
 }
 
-pub use sys::init_lazy_pages as init_lazy_pages;
+pub use sys::init_lazy_pages;
