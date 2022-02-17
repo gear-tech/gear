@@ -261,7 +261,7 @@ struct Journal<'a> {
 impl<'a> JournalHandler for Journal<'a> {
     fn message_dispatched(&mut self, outcome: DispatchOutcome) {
         match outcome {
-            DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => {}
+            DispatchOutcome::Success(_) | DispatchOutcome::NoExecution(_) => {}
             DispatchOutcome::MessageTrap {
                 message_id, trap, ..
             } => {

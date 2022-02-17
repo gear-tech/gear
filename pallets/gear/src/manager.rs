@@ -299,8 +299,8 @@ where
                     Reason::Dispatch(reason.as_bytes().to_vec()),
                 )
             }
-            CoreDispatchOutcome::Skip(message_id) => {
-                Event::MessageSkipped(message_id.into_origin())
+            CoreDispatchOutcome::NoExecution(message_id) => {
+                Event::MessageNotExecuted(message_id.into_origin())
             }
         };
 

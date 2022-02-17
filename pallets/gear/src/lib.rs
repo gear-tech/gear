@@ -140,8 +140,8 @@ pub mod pallet {
         CodeSaved(H256),
         /// Pallet associated storage has been wiped.
         DatabaseWiped,
-        /// Message was skipped
-        MessageSkipped(H256),
+        /// Message was not executed
+        MessageNotExecuted(H256),
     }
 
     // Gear pallet error.

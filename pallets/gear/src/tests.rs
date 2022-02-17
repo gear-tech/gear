@@ -1478,7 +1478,9 @@ fn test_message_processing_for_non_existing_destination() {
         assert_eq!(user_balance_before, user_balance_after);
 
         let skipped_message_id = compute_user_message_id(EMPTY_PAYLOAD, 1);
-        SystemPallet::<Test>::assert_has_event(Event::MessageSkipped(skipped_message_id).into());
+        SystemPallet::<Test>::assert_has_event(
+            Event::MessageNotExecuted(skipped_message_id).into(),
+        );
     })
 }
 

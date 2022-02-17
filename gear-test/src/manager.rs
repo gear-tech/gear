@@ -94,7 +94,7 @@ impl JournalHandler for InMemoryExtManager {
                 }
                 true
             }
-            DispatchOutcome::Success(_) | DispatchOutcome::Skip(_) => false,
+            DispatchOutcome::Success(_) | DispatchOutcome::NoExecution(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
                 self.move_waiting_msgs_to_queue(program_id);
                 false

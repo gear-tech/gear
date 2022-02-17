@@ -121,8 +121,8 @@ pub enum DispatchOutcome {
     },
     /// Message was a success.
     Success(MessageId),
-    /// Message must be skipped
-    Skip(MessageId),
+    /// Message was processed, but not executed
+    NoExecution(MessageId),
 }
 
 /// Journal record for the state update.

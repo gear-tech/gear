@@ -82,7 +82,7 @@ where
                     }
                 }
             }
-            CoreDispatchOutcome::Success(_) | CoreDispatchOutcome::Skip(_) => {
+            CoreDispatchOutcome::Success(_) | CoreDispatchOutcome::NoExecution(_) => {
                 self.current_failed = false;
                 let _ = gear_common::dequeue_dispatch();
             }

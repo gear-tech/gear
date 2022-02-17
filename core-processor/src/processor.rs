@@ -54,7 +54,7 @@ pub fn process<E: Environment<Ext>>(
             ),
         }
     } else {
-        process_skip(dispatch)
+        process_non_executable(dispatch)
     }
 }
 
@@ -246,8 +246,8 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     journal
 }
 
-/// Helper function for journal creation in message skip case
-fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
+/// Helper function for journal creation in message no execution case
+fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
     // Number of notes is predetermined
     let mut journal = Vec::with_capacity(4);
 
@@ -270,20 +270,20 @@ fn process_skip(dispatch: Dispatch) -> Vec<JournalNote> {
         crate::id::next_system_reply_message_id(message.dest(), message_id),
         message.dest(),
         message.source(),
-        b"skip".to_vec().into(),
+        Default::default(),
         message.gas_limit(),
         // must be 0!
         0,
         message_id,
-        crate::ERR_EXIT_CODE,
+        crate::TERMINATED_DEST_EXIT_CODE,
     );
     journal.push(JournalNote::SendDispatch {
         message_id,
         dispatch: Dispatch::new_reply(reply_message),
     });
-    journal.push(JournalNote::MessageDispatched(DispatchOutcome::Skip(
-        message_id,
-    )));
+    journal.push(JournalNote::MessageDispatched(
+        DispatchOutcome::NoExecution(message_id),
+    ));
     journal.push(JournalNote::MessageConsumed(message_id));
 
     journal
