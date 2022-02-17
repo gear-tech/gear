@@ -1,8 +1,6 @@
 name: Win
 
-on:
-  pull_request:
-    branches: [master]
+on: workflow_dispatch
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,4 +35,5 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p gear-lazy-pages --release --target x86_64-pc-windows-msvc
+          args: -p gear-node --release --target x86_64-pc-windows-msvc
+
