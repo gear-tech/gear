@@ -27,6 +27,48 @@ use gear_core::memory::PAGE_SIZE;
 
 pub use sp_std::vec::Vec;
 
+#[cfg(unix)]
+unsafe fn sys_mprotect_wasm_pages(
+    from_ptr: u64,
+    pages_nums: &[u32],
+    prot_read: bool,
+    prot_write: bool,
+    prot_exec: bool,
+) {
+    let mut prot_mask = libc::PROT_NONE;
+    if prot_read {
+        prot_mask |= libc::PROT_READ;
+    }
+    if prot_write {
+        prot_mask |= libc::PROT_WRITE;
+    }
+    if prot_exec {
+        prot_mask |= libc::PROT_EXEC;
+    }
+    for page in pages_nums {
+        let addr = from_ptr as usize + *page as usize * PAGE_SIZE;
+        let res = libc::mprotect(addr as *mut libc::c_void, PAGE_SIZE, prot_mask);
+        assert!(
+            res == 0,
+            "Cannot set page protection for {:#x}: {}",
+            addr,
+            errno::errno()
+        );
+        log::trace!("mprotect wasm page: {:#x}, mask {:#x}", addr, prot_mask);
+    }
+}
+
+#[cfg(not(unix))]
+unsafe fn sys_mprotect_wasm_pages(
+    from_ptr: u64,
+    pages_nums: &[u32],
+    prot_read: bool,
+    prot_write: bool,
+    prot_exec: bool,
+) {
+    unreachable!("unsupported OS for pages protectections");
+}
+
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
@@ -38,26 +80,8 @@ pub trait GearRI {
         prot_write: bool,
         prot_exec: bool,
     ) {
-        let mut prot_mask = libc::PROT_NONE;
-        if prot_read {
-            prot_mask |= libc::PROT_READ;
-        }
-        if prot_write {
-            prot_mask |= libc::PROT_WRITE;
-        }
-        if prot_exec {
-            prot_mask |= libc::PROT_EXEC;
-        }
-        for page in pages_nums {
-            let addr = from_ptr as usize + *page as usize * PAGE_SIZE;
-            let res = unsafe { libc::mprotect(addr as *mut libc::c_void, PAGE_SIZE, prot_mask) };
-            assert!(
-                res == 0,
-                "Cannot set page protection for {:#x}: {}",
-                addr,
-                errno::errno()
-            );
-            log::trace!("mprotect wasm page: {:#x}, mask {:#x}", addr, prot_mask);
+        unsafe {
+            sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec);
         }
     }
 

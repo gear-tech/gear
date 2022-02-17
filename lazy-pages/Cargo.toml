@@ -11,10 +11,12 @@ rust-version = "1.56"
 
 [dependencies]
 log = "0.4.14"
+gear-core = { path = "../core" }
+sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
+[target.'cfg(unix)'.dependencies]
 page_size = "0.4.2"
 libc = { version = "0.2.101", default-features = false }
 nix = "0.23.1"
-gear-core = { path = "../core" }
-sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 errno = "0.2.8"
