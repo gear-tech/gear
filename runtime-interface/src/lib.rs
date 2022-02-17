@@ -66,7 +66,7 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_write: bool,
     prot_exec: bool,
 ) {
-    panic!("unsupported");
+    unreachable!("unsupported OS for pages protectections");
 }
 
 /// !!! Note: Will be expanded as gear_ri
