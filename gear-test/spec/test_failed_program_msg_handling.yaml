@@ -41,8 +41,5 @@ fixtures:
             source:
               kind: id
               value: 1
-            exitCode: 1
-            payload:
-              kind: utf-8
-              value: "skip"
+            exitCode: 2
             value: 0

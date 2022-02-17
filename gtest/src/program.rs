@@ -198,16 +198,16 @@ mod tests {
         assert!(run_result.main_failed);
 
         let expected_log = {
-            // id, gas limit, value and reply id aren't important
+            // id, payload, gas limit, value and reply id aren't important
             let msg = Message::new_reply(
                 Default::default(),
                 prog.id(),
                 ProgramIdWrapper::from(user_id).0,
-                b"skip".to_vec().into(),
+                Default::default(),
                 0,
                 0,
                 Default::default(),
-                1,
+                2,
             );
             CoreLog::from_message(msg)
         };

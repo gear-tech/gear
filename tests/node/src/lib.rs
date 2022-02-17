@@ -316,7 +316,7 @@ mod tests {
         runner.try_request::<_, ()>(Request::IsReady);
 
         let err_log = runner.log().last().cloned().expect("no err replies");
-        assert_eq!(err_log.payload.into_raw(), b"skip".to_vec());
+        assert!(matches!(err_log.reply, Some((_, 2))));
     }
 
     #[test]
