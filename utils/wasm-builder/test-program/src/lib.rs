@@ -16,21 +16,43 @@ pub unsafe extern "C" fn init() {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::path::Path;
+    use std::fs;
 
-    #[test]
-    #[cfg(not(debug_assertions))]
-    fn release_wasm_exists() {
-        assert!(Path::new("target/wasm32-unknown-unknown/release/test_program.wasm").exists());
-        assert!(Path::new("target/wasm32-unknown-unknown/release/test_program.opt.wasm").exists());
-        assert!(Path::new("target/wasm32-unknown-unknown/release/test_program.meta.wasm").exists());
+    mod native {
+        include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
     }
 
     #[test]
     #[cfg(debug_assertions)]
-    fn debug_wasm_exists() {
-        assert!(Path::new("target/wasm32-unknown-unknown/debug/test_program.wasm").exists());
-        assert!(Path::new("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").exists());
-        assert!(Path::new("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").exists());
+    fn debug_wasm() {
+        assert_eq!(
+            fs::read("target/wasm32-unknown-unknown/debug/test_program.wasm").unwrap(),
+            native::WASM_BINARY,
+        );
+        assert_eq!(
+            fs::read("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").unwrap(),
+            native::WASM_BINARY_OPT,
+        );
+        assert_eq!(
+            fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").unwrap(),
+            native::WASM_BINARY_META,
+        );
+    }
+
+    #[test]
+    #[cfg(not(debug_assertions))]
+    fn release_wasm_exists() {
+        assert_eq!(
+            fs::read("target/wasm32-unknown-unknown/release/test_program.wasm").unwrap(),
+            native::WASM_BINARY,
+        );
+        assert_eq!(
+            fs::read("target/wasm32-unknown-unknown/release/test_program.opt.wasm").unwrap(),
+            native::WASM_BINARY_OPT,
+        );
+        assert_eq!(
+            fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").unwrap(),
+            native::WASM_BINARY_META,
+        );
     }
 }
