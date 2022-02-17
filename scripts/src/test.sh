@@ -57,7 +57,7 @@ gtest() {
 
   if [ -z "$YAMLS" ]
   then
-    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_rpc/*.yaml"
+    YAMLS="$ROOT_DIR/gear-test/spec/*.yaml $ROOT_DIR/gear-test/spec_no_runtime/*.yaml"
   fi
 
   cargo run --package gear-test --release -- $YAMLS "$@"
