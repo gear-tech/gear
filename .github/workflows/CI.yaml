@@ -11,7 +11,22 @@ env:
   TERM: xterm-256color
 
 jobs:
+  spec_version:
+    runs-on: [self-hosted, cachepot]
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v1
+
+      - name: "Check spec version"
+        run: ./scripts/check-spec.sh
+
   check:
+    needs: spec_version
     runs-on: [self-hosted, cachepot]
     steps:
       - name: Cancel Previous Runs
@@ -72,6 +87,7 @@ jobs:
           mv /tmp/*.tar /root/cache/
 
   build:
+    needs: spec_version
     runs-on: [self-hosted, cachepot]
     steps:
       - name: Cancel Previous Runs
@@ -202,6 +218,7 @@ jobs:
           files: artifact/*
 
   gtest:
+    needs: spec_version
     runs-on: [self-hosted, cachepot]
     steps:
       - name: "ACTIONS: Checkout"

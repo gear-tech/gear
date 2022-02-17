@@ -4,7 +4,11 @@ show:
 	@ ./scripts/gear.sh show
 
 .PHONY: pre-commit
-pre-commit: fmt clippy test
+pre-commit: fmt clippy test check-spec
+
+.PHONY: check-spec
+check-spec:
+	@ ./scripts/check-spec.sh
 
 .PHONY: clean
 clean:
@@ -213,7 +217,7 @@ test-gear-release: init-js examples
 .PHONY: test-js
 test-js: init-js
 	@ ./scripts/gear.sh test js
-	
+
 # You can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: gtest
 gtest: init-js examples
