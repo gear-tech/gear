@@ -136,14 +136,8 @@ jobs:
       - name: "Test: Process node testsuite"
         run: ./scripts/gear.sh test ntest
 
-      - name: "Test: Run RPC tests"
-        run: |
-          cargo build -p gear-node --release --features debug-mode
-          cd rpc-tests
-          npm run build
-          cd ..
-          RUST_LOG=gwasm=debug,gear_core_processor=debug ./target/release/gear-node --dev --ws-max-out-buffer-capacity 500 --rpc-max-payload 500 -l 0 & sleep 10
-          node rpc-tests/dist/index.js ./gear-test/spec/*.yaml
+      - name: "Test: Process node runtime testsuite"
+        run: ./scripts/gear.sh test rtest
 
       - name: "Cache: Pack"
         continue-on-error: true

@@ -56,8 +56,11 @@ fixtures:
           - destination: 1
             payload: *second
 
-      - step: 4 # First and second message processed
-        log:
+      - log: # First and second message processed
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: WAITED
           - destination: 1000001
             payload:
               kind: utf-8

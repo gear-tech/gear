@@ -3,10 +3,10 @@
   "id": "staging_testnet",
   "chainType": "Live",
   "bootNodes": [
-    "/ip4/52.9.232.93/tcp/30333/p2p/12D3KooWHvSKfBzLJsAih3YfxrBVPxUTzJHuhVbHEVkapgY4JqXW",
-    "/ip4/50.18.102.12/tcp/30333/p2p/12D3KooWCfm5T1uRq3rCNzqjsq3eFwu8fjHkUo1XBZmZvo611BwA",
-    "/ip4/54.153.5.48/tcp/30333/p2p/12D3KooWNnZQG4kmSoiNNPoaxDzy8GQTgDsi67hG6FxpSgVeYBeG",
-    "/ip4/54.183.129.20/tcp/30333/p2p/12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ"
+    "/dns4/testnet-validator-node1.gear-tech.io/tcp/30333/p2p/12D3KooWHvSKfBzLJsAih3YfxrBVPxUTzJHuhVbHEVkapgY4JqXW",
+    "/dns4/testnet-validator-node2.gear-tech.io/tcp/30333/p2p/12D3KooWCfm5T1uRq3rCNzqjsq3eFwu8fjHkUo1XBZmZvo611BwA",
+    "/dns4/testnet-validator-node3.gear-tech.io/tcp/30333/p2p/12D3KooWG5G3jaQ8ZVMCSTbyTRjfzhSpn55f8DGKDpFKvU4A3SPQ",
+    "/dns4/testnet-validator-node4.gear-tech.io/tcp/30333/p2p/12D3KooWRGfgDJMYJm6zZeQyhum1gdCjQNpx2KXiK7MMF68Q4dZY"
   ],
   "telemetryEndpoints": null,
   "protocolId": null,

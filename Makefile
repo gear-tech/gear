@@ -200,7 +200,7 @@ purge-dev-chain-release:
 test: test-gear test-pallet test-js gtest
 
 .PHONY: test-release
-test-release: test-gear-release test-pallet-release test-js gtest ntest
+test-release: test-gear-release test-pallet-release test-js gtest ntest rtest
 
 .PHONY: test-gear
 test-gear: init-js examples
@@ -222,6 +222,10 @@ gtest: init-js examples
 .PHONY: ntest
 ntest: init-js examples
 	@ ./scripts/gear.sh test ntest
+
+.PHONY: rtest
+rtest: init-js examples
+	@ ./scripts/gear.sh test rtest
 
 .PHONY: test-pallet
 test-pallet:

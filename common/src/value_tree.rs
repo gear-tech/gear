@@ -220,7 +220,8 @@ impl ValueView {
 
     pub fn spend(&mut self, amount: u64) {
         if self.node.inner < amount {
-            panic!("The fact that amount in current node is enough to spend some amount should be checked by caller!")
+            log::warn!("The fact that amount in current node is enough to spend some amount should be checked by caller!");
+            return;
         }
 
         self.node.inner -= amount;

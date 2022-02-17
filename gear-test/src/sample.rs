@@ -158,7 +158,9 @@ impl PayloadVariant {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct BytesAt {
-    pub program_id: u64, // required for static memory
+    /// Program's id.
+    #[serde(deserialize_with = "address::deserialize")]
+    pub id: ChainAddress,
     #[serde(rename = "at")]
     #[serde(deserialize_with = "de_address")]
     pub address: usize,
@@ -168,7 +170,9 @@ pub struct BytesAt {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Allocations {
-    pub program_id: u64,
+    /// Program's id.
+    #[serde(deserialize_with = "address::deserialize")]
+    pub id: ChainAddress,
     pub filter: Option<AllocationFilter>,
     #[serde(flatten)]
     pub kind: AllocationExpectationKind,

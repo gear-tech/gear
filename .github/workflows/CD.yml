@@ -8,7 +8,7 @@ env:
   CARGO_TERM_COLOR: always
 jobs:
   Docker:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, CD]
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
@@ -30,7 +30,7 @@ jobs:
           push: true
           tags: schernovgear/gear:nightly
   Deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, CD]
     needs: Docker
     steps:
       - name: Checkout
