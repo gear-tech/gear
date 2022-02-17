@@ -2227,6 +2227,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-wasm-builder"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "cargo_metadata",
+ "pwasm-utils",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

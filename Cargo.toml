@@ -33,4 +33,5 @@ members = [
     "tests/*",
     "utils/gear-runtime-test-cli",
     "utils/wasm-proc",
+    "utils/wasm-builder",
 ]
