@@ -38,26 +38,31 @@ pub trait GearRI {
         prot_write: bool,
         prot_exec: bool,
     ) {
-        let mut prot_mask = libc::PROT_NONE;
-        if prot_read {
-            prot_mask |= libc::PROT_READ;
-        }
-        if prot_write {
-            prot_mask |= libc::PROT_WRITE;
-        }
-        if prot_exec {
-            prot_mask |= libc::PROT_EXEC;
-        }
-        for page in pages_nums {
-            let addr = from_ptr as usize + *page as usize * PAGE_SIZE;
-            let res = unsafe { libc::mprotect(addr as *mut libc::c_void, PAGE_SIZE, prot_mask) };
-            assert!(
-                res == 0,
-                "Cannot set page protection for {:#x}: {}",
-                addr,
-                errno::errno()
-            );
-            log::trace!("mprotect wasm page: {:#x}, mask {:#x}", addr, prot_mask);
+        if cfg!(unix) {
+            let mut prot_mask = libc::PROT_NONE;
+            if prot_read {
+                prot_mask |= libc::PROT_READ;
+            }
+            if prot_write {
+                prot_mask |= libc::PROT_WRITE;
+            }
+            if prot_exec {
+                prot_mask |= libc::PROT_EXEC;
+            }
+            for page in pages_nums {
+                let addr = from_ptr as usize + *page as usize * PAGE_SIZE;
+                let res =
+                    unsafe { libc::mprotect(addr as *mut libc::c_void, PAGE_SIZE, prot_mask) };
+                assert!(
+                    res == 0,
+                    "Cannot set page protection for {:#x}: {}",
+                    addr,
+                    errno::errno()
+                );
+                log::trace!("mprotect wasm page: {:#x}, mask {:#x}", addr, prot_mask);
+            }
+        } else {
+            panic!("unsupported");
         }
     }
 

@@ -56,6 +56,10 @@ thread_local! {
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
 extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
+    if !cfg!(unix) {
+        panic!("unsupported");
+    }
+
     let (wasm_page, wasm_page_native_addr) = unsafe {
         log::debug!(target: "gear_node::sig_handler", "Interrupted, sig-info = {:?}", *info);
         let mem = (*info).si_addr();
