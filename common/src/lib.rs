@@ -20,7 +20,6 @@
 
 pub mod native;
 pub mod storage_queue;
-pub mod value_tree;
 
 use codec::{Decode, Encode};
 use frame_support::{
@@ -42,8 +41,6 @@ use gear_core::{
     message::DispatchKind,
     program::{Program as NativeProgram, ProgramId},
 };
-
-pub use value_tree::*;
 
 pub use storage_queue::Iterator;
 pub use storage_queue::StorageQueue;
@@ -638,39 +635,6 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
-}
-
-// TODO: this will go as soon as the node testsuite is able to use proper gas handling
-impl DAGBasedLedger for () {
-    type ExternalOrigin = H256;
-    type Key = H256;
-    type Balance = u64;
-    type PositiveImbalance = DummyImbalance;
-    type NegativeImbalance = DummyImbalance;
-
-    fn total_supply() -> u64 {
-        Default::default()
-    }
-
-    fn create(_origin: H256, _key: H256, _amount: u64) -> Result<DummyImbalance, DispatchError> {
-        Ok(Default::default())
-    }
-
-    fn get(_message_id: H256) -> Option<(u64, H256)> {
-        None
-    }
-
-    fn consume(_message_id: H256) -> Option<(DummyImbalance, H256)> {
-        None
-    }
-
-    fn spend(_message_id: H256, _amount: u64) -> Result<DummyImbalance, DispatchError> {
-        Ok(Default::default())
-    }
-
-    fn split(_message_id: H256, _at: H256, _amount: u64) -> DispatchResult {
-        Ok(())
-    }
 }
 
 #[cfg(test)]

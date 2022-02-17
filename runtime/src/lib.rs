@@ -343,7 +343,7 @@ impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type GasHandler = Gas; // currently interchangeable with `gear_common::ValueTreeGasHandler`
+    type GasHandler = Gas;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = DebugInfo;

@@ -60,7 +60,7 @@ pub mod pallet {
 
     use common::{
         self, CodeMetadata, DAGBasedLedger, Dispatch, GasPrice, Message, Origin, Program,
-        ProgramState, GAS_VALUE_PREFIX,
+        ProgramState,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
@@ -297,7 +297,8 @@ pub mod pallet {
                 .ok_or(Error::<T>::NoMessageInMailbox)?;
 
             // There shouldn't be any associated gas tree for a message in a user's mailbox
-            let maybe_gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id);
+            // let maybe_gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id);
+            let maybe_gas_tree = T::GasHandler::get(message.id);
             if maybe_gas_tree.is_some() {
                 log::warn!(
                     target: "runtime::gear",
@@ -320,7 +321,7 @@ pub mod pallet {
         }
 
         pub fn get_gas_spent(source: H256, kind: HandleKind, payload: Vec<u8>) -> Option<u64> {
-            let ext_manager = ExtManager::<T, ()>::default();
+            let ext_manager = ExtManager::<T>::default();
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),

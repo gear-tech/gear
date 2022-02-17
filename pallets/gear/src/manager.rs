@@ -38,12 +38,8 @@ use primitive_types::H256;
 use sp_runtime::traits::{UniqueSaturatedInto, Zero};
 use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 
-// TODO: ideally altering the default gas handler by passing a custom type
-// in place of the `<T as Config>::GasHandler` is not supposed to ever be done.
-// Making `ExtManager` generic over gas handler type is a temporary measure to
-// suppress errors in the node testsuite and in the `get_gas_spent()` function.
-pub struct ExtManager<T: Config, GH: DAGBasedLedger = <T as Config>::GasHandler> {
-    _phantom: PhantomData<(T, GH)>,
+pub struct ExtManager<T: Config> {
+    _phantom: PhantomData<T>,
 }
 
 #[derive(Decode, Encode)]
@@ -53,10 +49,9 @@ pub enum HandleKind {
     Reply(H256, ExitCode),
 }
 
-impl<T: Config, GH> CollectState for ExtManager<T, GH>
+impl<T: Config> CollectState for ExtManager<T>
 where
     T::AccountId: Origin,
-    GH: DAGBasedLedger<ExternalOrigin = H256, Key = H256, Balance = u64>,
 {
     fn collect(&self) -> State {
         let programs: BTreeMap<ProgramId, NativeProgram> = PrefixIterator::<H256>::new(
@@ -87,10 +82,9 @@ where
     }
 }
 
-impl<T: Config, GH> Default for ExtManager<T, GH>
+impl<T: Config> Default for ExtManager<T>
 where
     T::AccountId: Origin,
-    GH: DAGBasedLedger<ExternalOrigin = H256, Key = H256, Balance = u64>,
 {
     fn default() -> Self {
         ExtManager {
@@ -99,10 +93,9 @@ where
     }
 }
 
-impl<T: Config, GH> ExtManager<T, GH>
+impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
-    GH: DAGBasedLedger<ExternalOrigin = H256, Key = H256, Balance = u64>,
 {
     pub fn program_from_code(&self, id: H256, code: Vec<u8>) -> Option<NativeProgram> {
         NativeProgram::new(ProgramId::from_origin(id), code).ok()
@@ -145,10 +138,9 @@ where
     }
 }
 
-impl<T: Config, GH> JournalHandler for ExtManager<T, GH>
+impl<T: Config> JournalHandler for ExtManager<T>
 where
     T::AccountId: Origin,
-    GH: DAGBasedLedger<ExternalOrigin = H256, Key = H256, Balance = u64>,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
@@ -253,7 +245,7 @@ where
 
         Pallet::<T>::decrease_gas_allowance(amount);
 
-        match <GH as DAGBasedLedger>::spend(message_id, amount) {
+        match T::GasHandler::spend(message_id, amount) {
             Ok(_spent) => {
                 let charge = T::GasPrice::gas_price(amount);
                 if let Some(author) = Authorship::<T>::author() {
@@ -299,7 +291,7 @@ where
     fn message_consumed(&mut self, message_id: MessageId) {
         let message_id = message_id.into_origin();
 
-        if let Some((neg_imbalance, external)) = <GH as DAGBasedLedger>::consume(message_id) {
+        if let Some((neg_imbalance, external)) = T::GasHandler::consume(message_id) {
             let gas_left = neg_imbalance.peek();
             log::debug!("unreserve: {}", gas_left);
 
@@ -337,11 +329,8 @@ where
         );
 
         if common::program_exists(dispatch.message.dest) {
-            let _ = <GH as DAGBasedLedger>::split(
-                message_id,
-                dispatch.message.id,
-                dispatch.message.gas_limit,
-            );
+            let _ =
+                T::GasHandler::split(message_id, dispatch.message.id, dispatch.message.gas_limit);
             common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
