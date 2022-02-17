@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use log::debug;
 use pwasm_utils::{
     self as utils,
@@ -122,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .takes_value(false)
         .help("Provides debug logging info");
 
-    let app = App::new("wasm-proc").args(&[path, skip_meta, skip_opt, verbose]);
+    let app = Command::new("wasm-proc").args(&[path, skip_meta, skip_opt, verbose]);
 
     let matches = app.get_matches();
 
