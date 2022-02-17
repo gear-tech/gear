@@ -178,7 +178,7 @@ impl WasmProject {
 
     fn generate_meta(from: &Path, to: &Path) -> Result<()> {
         let mut module =
-            parity_wasm::deserialize_file(from).context("unable to read the output WASM")?;
+            parity_wasm::deserialize_file(from).context("unable to read the original WASM")?;
         let exports = vec![
             "meta_async_handle_input",
             "meta_async_handle_output",

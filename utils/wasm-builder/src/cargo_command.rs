@@ -35,7 +35,7 @@ impl CargoCommand {
             path: "cargo".to_string(),
             manifest_path: "Cargo.toml".into(),
             args: vec!["+nightly", "rustc", "--target=wasm32-unknown-unknown"],
-            profile: "debug".to_string(),
+            profile: "dev".to_string(),
             rustc_flags: vec!["-C", "link-arg=--import-memory"],
         }
     }
@@ -58,8 +58,6 @@ impl CargoCommand {
             .arg(&self.profile)
             .arg("--")
             .args(&self.rustc_flags)
-            //.env_remove("CARGO_TARGET_DIR")
-            //.env_remove("CARGO_ENCODED_RUSTFLAGS")
             .env(self.skip_build_env(), ""); // Don't build the original crate recursively
 
         let status = cargo.status()?;
