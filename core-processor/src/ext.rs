@@ -71,11 +71,14 @@ impl From<Ext> for ExtInfo {
 
         let nonce = ext.message_context.nonce();
 
-        let MessageState {
-            outgoing,
-            reply,
-            awakening,
-        } = ext.message_context.into_state();
+        let (
+            MessageState {
+                outgoing,
+                reply,
+                awakening,
+            },
+            _store,
+        ) = ext.message_context.drain();
 
         let gas_amount: GasAmount = ext.gas_counter.into();
 
@@ -314,21 +317,11 @@ impl EnvExt for Ext {
     }
 
     fn leave(&mut self) -> Result<(), &'static str> {
-        let result = self
-            .message_context
-            .check_uncommitted()
-            .map_err(|_| "There are uncommited messages when leaving");
-
-        self.return_and_store_err(result)
+        Ok(())
     }
 
     fn wait(&mut self) -> Result<(), &'static str> {
-        let result = self
-            .message_context
-            .check_uncommitted()
-            .map_err(|_| "There are uncommited messages when passing to waiting state");
-
-        self.return_and_store_err(result)
+        Ok(())
     }
 
     fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str> {
