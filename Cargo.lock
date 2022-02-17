@@ -2053,7 +2053,6 @@ dependencies = [
  "gear-runtime",
  "gear-runtime-interface",
  "gear-runtime-test-cli",
- "gear-test-cli",
  "hex-literal",
  "jsonrpc-core",
  "libc",
@@ -2222,27 +2221,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-keyring",
-]
-
-[[package]]
-name = "gear-test-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "frame-system",
- "gear-backend-sandbox",
- "gear-common",
- "gear-core",
- "gear-core-processor",
- "gear-runtime",
- "gear-test",
- "log",
- "parity-scale-codec",
- "regex",
- "sc-cli",
- "sc-service",
- "sp-io",
 ]
 
 [[package]]

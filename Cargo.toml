@@ -32,6 +32,5 @@ members = [
     "runtime",
     "tests/*",
     "utils/gear-runtime-test-cli",
-    "utils/gear-test-cli",
     "utils/wasm-proc",
 ]

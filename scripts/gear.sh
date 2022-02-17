@@ -302,10 +302,6 @@ case "$COMMAND" in
         header "Running gtest"
         gtest "$ROOT_DIR" "$@"; ;;
 
-      ntest)
-        header "Running node testsuite"
-        ntest "$ROOT_DIR"; ;;
-
       rtest)
         header "Running node runtime testsuite"
         rtest "$ROOT_DIR"; ;;
