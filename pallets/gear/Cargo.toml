@@ -70,6 +70,7 @@ std = [
 	"pallet-authorship/std",
 	"primitive-types/std",
 	"serde/std",
+	"gear-runtime-interface/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
