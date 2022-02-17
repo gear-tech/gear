@@ -37,4 +37,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -p gear-lazy-paages --release --target x86_64-pc-windows-msvc
+          args: -p gear-lazy-pages --release --target x86_64-pc-windows-msvc
