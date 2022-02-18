@@ -192,32 +192,26 @@ pub struct Dispatch {
 
 impl Dispatch {
     pub fn new_init(message: Message) -> Self {
-        let kind = DispatchKind::Init;
-        let payload_store: Option<PayloadStore> = None;
-        Dispatch {
+        Self {
             message,
-            kind,
-            payload_store,
+            kind: DispatchKind::Init,
+            payload_store: None,
         }
     }
 
     pub fn new_handle(message: Message) -> Self {
-        let kind = DispatchKind::Handle;
-        let payload_store: Option<PayloadStore> = None;
-        Dispatch {
+        Self {
             message,
-            kind,
-            payload_store,
+            kind: DispatchKind::Handle,
+            payload_store: None,
         }
     }
 
     pub fn new_reply(message: Message) -> Self {
-        let kind = DispatchKind::HandleReply;
-        let payload_store: Option<PayloadStore> = None;
-        Dispatch {
+        Self {
             message,
-            kind,
-            payload_store,
+            kind: DispatchKind::HandleReply,
+            payload_store: None,
         }
     }
 }
