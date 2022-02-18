@@ -19,7 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{funcs, memory::MemoryWrap};
-use alloc::{boxed::Box, collections::BTreeMap, format};
+use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
 };
@@ -29,30 +29,44 @@ use gear_core::{
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
-    SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
+    ReturnValue, SandboxEnvironmentBuilder, SandboxInstance, SandboxMemory,
 };
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E: Ext + Into<ExtInfo>> {
+pub struct SandboxEnvironment<E>
+where
+    E: Ext + Into<ExtInfo>,
+{
     runtime: Option<Runtime<E>>,
     instance: Option<Instance<Runtime<E>>>,
+    entries: Option<Vec<String>>,
 }
 
-impl<E: Ext + Into<ExtInfo>> Default for SandboxEnvironment<E> {
+impl<E> Default for SandboxEnvironment<E>
+where
+    E: Ext + Into<ExtInfo>,
+{
     fn default() -> Self {
         Self {
             runtime: None,
             instance: None,
+            entries: None,
         }
     }
 }
 
-pub struct Runtime<E: Ext + Into<ExtInfo>> {
+pub struct Runtime<E>
+where
+    E: Ext + Into<ExtInfo>,
+{
     pub(crate) ext: LaterExt<E>,
     pub(crate) trap: Option<&'static str>,
 }
 
-impl<E: Ext + Into<ExtInfo> + 'static> Runtime<E> {
+impl<E> Runtime<E>
+where
+    E: Ext + Into<ExtInfo> + 'static,
+{
     fn new(ext: E) -> Self {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
@@ -64,7 +78,21 @@ impl<E: Ext + Into<ExtInfo> + 'static> Runtime<E> {
     }
 }
 
-impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> {
+fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
+    Ok(parity_wasm::elements::Module::from_bytes(binary)
+        .map_err(|e| format!("Unable to create wasm module: {}", e))?
+        .export_section()
+        .ok_or_else(|| String::from("Unable to get wasm module section"))?
+        .entries()
+        .iter()
+        .map(|v| String::from(v.field()))
+        .collect())
+}
+
+impl<E> Environment<E> for SandboxEnvironment<E>
+where
+    E: Ext + Into<ExtInfo> + 'static,
+{
     fn setup(
         &mut self,
         ext: E,
@@ -125,6 +153,15 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
             }
         })?;
 
+        let entries = get_module_exports(binary).map_err(|e| {
+            let info: ExtInfo = runtime.ext.unset().into();
+            BackendError {
+                reason: "Unable to get wasm module exports",
+                description: Some(format!("{:?}", e).into()),
+                gas_amount: info.gas_amount,
+            }
+        })?;
+
         // Set module memory.
         memory.set_pages(memory_pages).map_err(|e| {
             let info: ExtInfo = runtime.ext.unset().into();
@@ -138,6 +175,7 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
 
         self.runtime.replace(runtime);
         self.instance.replace(instance);
+        self.entries.replace(entries);
 
         Ok(())
     }
@@ -145,8 +183,13 @@ impl<E: Ext + Into<ExtInfo> + 'static> Environment<E> for SandboxEnvironment<E> 
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
         let instance = self.instance.as_mut().expect("Must have instance");
         let runtime = self.runtime.as_mut().expect("Must have runtime");
+        let entries = self.entries.as_mut().expect("Must have entries");
 
-        let res = instance.invoke(entry_point, &[], runtime);
+        let res = if entries.contains(&String::from(entry_point)) {
+            instance.invoke(entry_point, &[], runtime)
+        } else {
+            Ok(ReturnValue::Unit)
+        };
 
         let info: ExtInfo = runtime.ext.unset().into();
 

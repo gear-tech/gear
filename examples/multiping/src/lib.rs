@@ -26,6 +26,3 @@ pub unsafe extern "C" fn handle() {
 
     COUNTER += 1;
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}

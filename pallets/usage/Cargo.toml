@@ -22,13 +22,13 @@ primitive-types = { version = "0.10.1", default-features = false, features = ["s
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "../../core-processor", features = ["lazy-pages"] }
+pallet-gear = { path = "../gear", default-features = false }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 sp-core = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -41,7 +41,7 @@ serde = "1.0.136"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-pallet-gear = { path = "../gear" }
+pallet-gas = { path = "../gas" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 hex-literal = "0.3.3"
 
@@ -51,6 +51,7 @@ std = [
 	"codec/std",
 	"log/std",
 	"common/std",
+	"pallet-gear/std",
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
@@ -58,7 +59,6 @@ std = [
 	"sp-std/std",
 	"sp-core/std",
 	"sp-runtime/std",
-	"sp-inherents/std",
 	"pallet-balances/std",
 	"pallet-authorship/std",
 	"primitive-types/std",

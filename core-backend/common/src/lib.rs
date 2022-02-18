@@ -91,7 +91,7 @@ pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
     ) -> Result<(), BackendError<'static>>;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
-    /// NOTE: expternal environment must be setuped.
+    /// NOTE: external environment must be set up.
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
 
     /// Create internal representation of wasm memory with size `total_pages`

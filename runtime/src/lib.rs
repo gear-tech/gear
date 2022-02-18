@@ -65,7 +65,7 @@ pub use sp_runtime::BuildStorage;
 
 #[cfg(feature = "debug-mode")]
 pub use pallet_gear_debug;
-pub use {pallet_gear, pallet_usage};
+pub use {pallet_gas, pallet_gear, pallet_usage};
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -124,7 +124,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 180,
+    spec_version: 200,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -324,7 +324,7 @@ impl pallet_utility::Config for Runtime {
 }
 
 pub struct GasConverter;
-impl gear_common::GasToFeeConverter for GasConverter {
+impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
 }
 
@@ -342,13 +342,11 @@ parameter_types! {
 impl pallet_gear::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
-    type GasConverter = GasConverter;
+    type GasPrice = GasConverter;
+    type GasHandler = Gas;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type BlockGasLimit = BlockGasLimit;
-    #[cfg(feature = "debug-mode")]
-    type DebugInfo = pallet_gear_debug::Pallet<Runtime>;
-    #[cfg(not(feature = "debug-mode"))]
-    type DebugInfo = ();
+    type DebugInfo = DebugInfo;
 }
 
 #[cfg(feature = "debug-mode")]
@@ -359,8 +357,6 @@ impl pallet_gear_debug::Config for Runtime {
 
 impl pallet_usage::Config for Runtime {
     type Event = Event;
-    type Currency = Balances;
-    type GasConverter = GasConverter;
     type PaymentProvider = Gear;
     type WeightInfo = pallet_usage::weights::GearSupportWeight<Runtime>;
     type WaitListTraversalInterval = WaitListTraversalInterval;
@@ -370,6 +366,8 @@ impl pallet_usage::Config for Runtime {
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
     type WaitListFeePerBlock = WaitListFeePerBlock;
 }
+
+impl pallet_gas::Config for Runtime {}
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
@@ -399,6 +397,7 @@ construct_runtime!(
         Authorship: pallet_authorship,
         Gear: pallet_gear,
         Usage: pallet_usage,
+        Gas: pallet_gas,
 
         // Only available with "debug-mode" feature on
         GearDebug: pallet_gear_debug,
@@ -424,6 +423,7 @@ construct_runtime!(
         Authorship: pallet_authorship,
         Gear: pallet_gear,
         Usage: pallet_usage,
+        Gas: pallet_gas,
     }
 );
 
@@ -458,6 +458,11 @@ pub type Executive = frame_executive::Executive<
     Runtime,
     AllPalletsWithSystem,
 >;
+
+#[cfg(feature = "debug-mode")]
+type DebugInfo = GearDebug;
+#[cfg(not(feature = "debug-mode"))]
+type DebugInfo = ();
 
 impl_runtime_apis! {
     impl sp_api::Core<Block> for Runtime {

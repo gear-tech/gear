@@ -21,6 +21,7 @@
 #[macro_use]
 extern crate alloc;
 
+use common::DAGBasedLedger;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
@@ -42,14 +43,11 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{
-        value_tree::ValueView, Dispatch, GasToFeeConverter, Message, Origin, PaymentProvider,
-        Program, GAS_VALUE_PREFIX,
-    };
+    use common::{Dispatch, GasPrice, Message, Origin, PaymentProvider, Program};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{Currency, Get, ReservableCurrency},
+        traits::{Currency, Get},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
     use sp_core::offchain::Duration;
@@ -65,16 +63,13 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        frame_system::Config + pallet_authorship::Config + SendTransactionTypes<Call<Self>>
+        frame_system::Config
+        + pallet_authorship::Config
+        + pallet_gear::Config
+        + SendTransactionTypes<Call<Self>>
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-        /// Gas and value transfer currency
-        type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
-
-        /// Gas to Currency converter
-        type GasConverter: GasToFeeConverter<Balance = BalanceOf<Self>>;
 
         /// Type providing interface for making payment in currency units
         type PaymentProvider: PaymentProvider<Self::AccountId, Balance = BalanceOf<Self>>;
@@ -107,8 +102,9 @@ pub mod pallet {
         type WaitListFeePerBlock: Get<u64>;
     }
 
-    type BalanceOf<T> =
-        <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+    type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
+        <T as frame_system::Config>::AccountId,
+    >>::Balance;
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
@@ -120,7 +116,7 @@ pub mod pallet {
         WaitListRentCollected(u32),
     }
 
-    // Gear pallet error.
+    // Usage pallet error.
     #[pallet::error]
     pub enum Error<T> {
         /// Value not found for a key in storage.
@@ -267,40 +263,50 @@ pub mod pallet {
                          program_id,
                          message_id,
                      }| {
-                        common::remove_waiting_message(program_id, message_id)
+                        common::remove_waiting_message(program_id, message_id).and_then(|(dispatch, bn)| {
+                            let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
+                            let chargeable_amount =
+                                T::WaitListFeePerBlock::get().saturating_mul(duration.into());
+
+                            match <T as pallet_gear::Config>::GasHandler::get(dispatch.message.id) {
+                                Some((msg_gas_balance, origin)) => {
+                                    let usable_gas = msg_gas_balance
+                                        .saturating_sub(T::TrapReplyExistentialGasLimit::get());
+
+                                    let new_free_gas = usable_gas.saturating_sub(chargeable_amount);
+
+                                    let actual_fee = usable_gas.saturating_sub(new_free_gas);
+                                    Some((actual_fee, origin, dispatch, msg_gas_balance))
+                                },
+                                _ => {
+                                    log::warn!(
+                                        "Message in wait list doesn't have associated gas - can't charge rent"
+                                    );
+                                    None
+                                }
+                            }
+                        })
                     },
                 )
-                .for_each(|(dispatch, bn)| {
-                    let Dispatch { message, kind, .. } = dispatch;
-                    let program_id = message.dest;
+                .for_each(|(fee, origin, mut dispatch, msg_gas_balance)| {
+                    let msg_id = dispatch.message.id;
+                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id, fee) {
+                        log::error!(
+                            "Error spending {:?} gas from {:?}: {:?}",
+                            fee, msg_id, e
+                        );
+                        return;
+                    };
+                    let total_reward = T::GasPrice::gas_price(fee);
 
-                    let mut gas_tree = ValueView::get(GAS_VALUE_PREFIX, message.id)
-                        .expect("A message in wait list must have an associated value tree");
-                    let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
-                    let full_fee = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
-
-                    // Taking the amount locked in the respective value tree as the ground truth
-                    // of the amount of gas a message has at its disposal to account for and correct
-                    // potential discrepancy between this value and the message `gas_limit` field.
-                    let actual_gas_limit = gas_tree.value();
-                    let free_gas_limit =
-                        actual_gas_limit.saturating_sub(T::TrapReplyExistentialGasLimit::get());
-
-                    let new_free_gas_limit = free_gas_limit.saturating_sub(full_fee);
-
-                    let actual_fee = free_gas_limit.saturating_sub(new_free_gas_limit);
-
-                    gas_tree.spend(actual_fee);
-
-                    // Make actual payment
+                    // Counter-balance the created imbalance with a value transfer
                     match external_account {
                         Some(who) => {
-                            let total_reward = T::GasConverter::gas_to_fee(actual_fee);
                             let user_reward =
                                 T::ExternalSubmitterRewardFraction::get() * total_reward;
                             let validator_reward = total_reward.saturating_sub(user_reward);
                             if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                gas_tree.origin(),
+                                origin,
                                 who,
                                 user_reward,
                             ) {
@@ -308,7 +314,7 @@ pub mod pallet {
                             }
                             if let Some(author) = Authorship::<T>::author() {
                                 if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                    gas_tree.origin(),
+                                    origin,
                                     &author,
                                     validator_reward,
                                 ) {
@@ -319,9 +325,9 @@ pub mod pallet {
                         _ => {
                             if let Some(author) = Authorship::<T>::author() {
                                 if let Err(e) = T::PaymentProvider::withhold_reserved(
-                                    gas_tree.origin(),
+                                    origin,
                                     &author,
-                                    T::GasConverter::gas_to_fee(actual_fee),
+                                    total_reward,
                                 ) {
                                     log::warn!("Failed to repatriate reserved amount: {:?}", e);
                                 }
@@ -329,15 +335,12 @@ pub mod pallet {
                         }
                     };
 
-                    if new_free_gas_limit == 0 {
+                    let program_id = dispatch.message.dest;
+                    let new_msg_gas_balance = msg_gas_balance.saturating_sub(fee);
+                    if new_msg_gas_balance <= T::TrapReplyExistentialGasLimit::get() {
                         match common::get_program(program_id) {
                             Some(Program::Active(mut program)) => {
                                 // Generate trap reply
-
-                                // Account for the fact that original gas balance of the message could have
-                                // already been lower than the required "existential" gas limit
-                                let trap_gas =
-                                    actual_gas_limit.min(T::TrapReplyExistentialGasLimit::get());
 
                                 program.nonce += 1;
 
@@ -348,39 +351,44 @@ pub mod pallet {
                                 let trap_message = Message {
                                     id: trap_message_id,
                                     source: program_id,
-                                    dest: message.source,
+                                    dest: dispatch.message.source,
                                     payload: vec![],
-                                    gas_limit: trap_gas,
+                                    gas_limit: new_msg_gas_balance,
                                     value: 0,
-                                    reply: Some((message.id, core_processor::ERR_EXIT_CODE)),
+                                    reply: Some((msg_id, core_processor::ERR_EXIT_CODE)),
                                 };
 
-                                let dispatch = Dispatch::new_reply(trap_message);
+                                let reply_dispatch = Dispatch::new_reply(trap_message);
 
                                 // Enqueue the trap reply message
-                                let _ = gas_tree.split_off(trap_message_id, trap_gas);
-                                common::queue_dispatch(dispatch);
+                                let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                    msg_id,
+                                    trap_message_id,
+                                    new_msg_gas_balance
+                                );
+                                common::queue_dispatch(reply_dispatch);
 
                                 // Save back the program with incremented nonce
                                 common::set_program(program_id, program, Default::default());
                             }
                             _ => {
-                                unreachable!(
-                                    "program with {:?} id was terminated and messages to it were remove from WL",
+                                // Wait init messages can't reach that, because if program init failed,
+                                // then all waiting messages are moved to queue deleted.
+                                // TODO #507 on each program delete/terminate action remove messages from WL
+                                log::error!(
+                                    "Program {:?} was killed, but message it generated is in WL",
                                     program_id
                                 )
                             }
                         }
-                        // "There is always an associated program for a message in wait list",
                     } else {
+                        // Message still got enough gas limit and may keep waiting.
+                        // Updating gas limit value and re-inserting the message into wait list.
+                        dispatch.message.gas_limit = new_msg_gas_balance;
                         common::insert_waiting_message(
                             program_id,
-                            message.id,
-                            Dispatch {
-                                message,
-                                kind,
-                                payload_store: None,
-                            },
+                            msg_id,
+                            dispatch,
                             current_block.saturated_into(),
                         );
                     }

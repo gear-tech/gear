@@ -9,6 +9,3 @@ pub unsafe extern "C" fn handle() {
     debug!("My program id: {:?}", program_id);
     msg::reply(b"program_id", 0, 0);
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}

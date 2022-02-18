@@ -9,6 +9,3 @@ pub unsafe extern "C" fn handle() {
     msg::reply(&data, 0, 0);
     panic!()
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}

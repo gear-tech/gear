@@ -13,6 +13,3 @@ pub unsafe extern "C" fn handle() {
     let bh = exec::block_height();
     msg::reply_bytes(format!("{}_{}", payload, bh), 10_000_000, 0);
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}
