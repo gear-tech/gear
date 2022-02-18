@@ -268,7 +268,7 @@ pub mod pallet {
                             let chargeable_amount =
                                 T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-                            match <T as pallet_gear::Config>::GasHandler::get(dispatch.message.id) {
+                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
                                 Some((msg_gas_balance, origin)) => {
                                     let usable_gas = msg_gas_balance
                                         .saturating_sub(T::TrapReplyExistentialGasLimit::get());

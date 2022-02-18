@@ -298,7 +298,7 @@ pub mod pallet {
 
             // There shouldn't be any associated gas tree for a message in a user's mailbox
             // let maybe_gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id);
-            let maybe_gas_tree = T::GasHandler::get(message.id);
+            let maybe_gas_tree = T::GasHandler::get_limit(message.id);
             if maybe_gas_tree.is_some() {
                 log::warn!(
                     target: "runtime::gear",

@@ -158,7 +158,7 @@ pub trait DAGBasedLedger {
     ) -> Result<Self::PositiveImbalance, DispatchError>;
 
     /// Get value item by it's ID, if exists.
-    fn get(key: Self::Key) -> Option<(Self::Balance, Self::ExternalOrigin)>;
+    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::ExternalOrigin)>;
 
     /// Consume underlying value.
     /// If `key` does not identify any value or the value can't be fully consumed due to
