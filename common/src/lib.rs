@@ -399,43 +399,9 @@ pub fn set_program_initialized(id: H256) {
 }
 
 pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
-    clear_program_essential_data(id)?;
+    clear_program_storage(id)?;
     sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
     Ok(())
-}
-
-fn get_code_refs(code_hash: H256) -> u32 {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeRef))
-        .map(|val| {
-            let mut v = [0u8; 4];
-            if val.len() == 4 {
-                v.copy_from_slice(&val[0..4]);
-            }
-            u32::from_le_bytes(v)
-        })
-        .unwrap_or_default()
-}
-
-fn set_code_refs(code_hash: H256, value: u32) {
-    sp_io::storage::set(
-        &code_key(code_hash, CodeKeyPrefixKind::CodeRef),
-        &value.to_le_bytes(),
-    )
-}
-
-fn add_code_ref(code_hash: H256) {
-    set_code_refs(code_hash, get_code_refs(code_hash).saturating_add(1))
-}
-
-fn release_code(code_hash: H256) {
-    let new_refs = get_code_refs(code_hash).saturating_sub(1);
-    if new_refs == 0 {
-        // Clearing storage for both code itself and its reference counter
-        sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::CodeRef));
-        sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::RawCode));
-        return;
-    }
-    set_code_refs(code_hash, new_refs)
 }
 
 pub fn get_program(id: H256) -> Option<Program> {
@@ -466,9 +432,6 @@ pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32,
 }
 
 pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<u32, Vec<u8>>) {
-    if !program_exists(id) {
-        add_code_ref(program.code_hash);
-    }
     for (page_num, page_buf) in persistent_pages {
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
@@ -477,15 +440,14 @@ pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<
 }
 
 pub fn remove_program(id: H256) -> Result<(), ProgramError> {
-    clear_program_essential_data(id)?;
+    clear_program_storage(id)?;
     sp_io::storage::clear_prefix(&program_key(id), None);
     sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
     Ok(())
 }
 
-fn clear_program_essential_data(id: H256) -> Result<(), ProgramError> {
-    if let Some(Program::Active(program)) = get_program(id) {
-        release_code(program.code_hash);
+fn clear_program_storage(id: H256) -> Result<(), ProgramError> {
+    if let Some(Program::Active(_)) = get_program(id) {
         let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
         pages_prefix.extend(&program_key(id));
         sp_io::storage::clear_prefix(&pages_prefix, None);
@@ -635,6 +597,52 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
+}
+
+mod code_ref_counter {
+    //! Previously was used to create a reference counter for program code.
+    //!
+    //! When program was removed, counter decreased, until it reached 0. Then code was deleted.
+    //! When program with existing code was saved, counter increased.
+    //! Removed until demanding optimizations become more explicit after resolving #245 and #646
+
+    #![allow(unused)]
+
+    use super::{code_key, CodeKeyPrefixKind, H256};
+
+    fn get_code_refs(code_hash: H256) -> u32 {
+        sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeRef))
+            .map(|val| {
+                let mut v = [0u8; 4];
+                if val.len() == 4 {
+                    v.copy_from_slice(&val[0..4]);
+                }
+                u32::from_le_bytes(v)
+            })
+            .unwrap_or_default()
+    }
+
+    fn set_code_refs(code_hash: H256, value: u32) {
+        sp_io::storage::set(
+            &code_key(code_hash, CodeKeyPrefixKind::CodeRef),
+            &value.to_le_bytes(),
+        )
+    }
+
+    fn add_code_ref(code_hash: H256) {
+        set_code_refs(code_hash, get_code_refs(code_hash).saturating_add(1))
+    }
+
+    fn release_code(code_hash: H256) {
+        let new_refs = get_code_refs(code_hash).saturating_sub(1);
+        if new_refs == 0 {
+            // Clearing storage for both code itself and its reference counter
+            sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::CodeRef));
+            sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::RawCode));
+            return;
+        }
+        set_code_refs(code_hash, new_refs)
+    }
 }
 
 #[cfg(test)]

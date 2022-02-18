@@ -114,6 +114,9 @@ where
             "Must has empty persistent pages, has {:?}",
             program.get_pages()
         );
+        // assert!(
+        //     common::code_exists(program::)
+        // );
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
@@ -123,8 +126,6 @@ where
         let id = program.id().into_origin();
 
         let code_hash: H256 = sp_io::hashing::blake2_256(program.code()).into();
-
-        common::set_code(code_hash, program.code());
 
         let program = common::ActiveProgram {
             static_pages: program.static_pages(),
