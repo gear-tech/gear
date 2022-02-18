@@ -53,7 +53,6 @@ pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
-pub const STORAGE_CODE_REFS_PREFIX: &[u8] = b"g::code::refs::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
 pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
@@ -323,8 +322,6 @@ impl CodeMetadata {
 enum CodeKeyPrefixKind {
     // "g::code::"
     RawCode,
-    // "g::code::refs::"
-    CodeRef,
     // "g::code::metadata::"
     CodeMetadata,
 }
@@ -339,7 +336,6 @@ pub fn program_key(id: H256) -> Vec<u8> {
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
         CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
-        CodeKeyPrefixKind::CodeRef => STORAGE_CODE_REFS_PREFIX,
         CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
     };
     // key's length is N bytes of code hash + M bytes of prefix
@@ -586,8 +582,7 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
     messages.unwrap_or_default()
 }
 
-pub fn code_exists(code: &[u8]) -> bool {
-    let code_hash = sp_io::hashing::blake2_256(code).into();
+pub fn code_exists(code_hash: H256) -> bool {
     sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
 }
 
@@ -598,52 +593,6 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
-}
-
-mod code_ref_counter {
-    //! Previously was used to create a reference counter for program code.
-    //!
-    //! When program was removed, counter decreased, until it reached 0. Then code was deleted.
-    //! When program with existing code was saved, counter increased.
-    //! Removed until demanding optimizations become more explicit after resolving #245 and #646
-
-    #![allow(unused)]
-
-    use super::{code_key, CodeKeyPrefixKind, H256};
-
-    fn get_code_refs(code_hash: H256) -> u32 {
-        sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeRef))
-            .map(|val| {
-                let mut v = [0u8; 4];
-                if val.len() == 4 {
-                    v.copy_from_slice(&val[0..4]);
-                }
-                u32::from_le_bytes(v)
-            })
-            .unwrap_or_default()
-    }
-
-    fn set_code_refs(code_hash: H256, value: u32) {
-        sp_io::storage::set(
-            &code_key(code_hash, CodeKeyPrefixKind::CodeRef),
-            &value.to_le_bytes(),
-        )
-    }
-
-    fn add_code_ref(code_hash: H256) {
-        set_code_refs(code_hash, get_code_refs(code_hash).saturating_add(1))
-    }
-
-    fn release_code(code_hash: H256) {
-        let new_refs = get_code_refs(code_hash).saturating_sub(1);
-        if new_refs == 0 {
-            // Clearing storage for both code itself and its reference counter
-            sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::CodeRef));
-            sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::RawCode));
-            return;
-        }
-        set_code_refs(code_hash, new_refs)
-    }
 }
 
 #[cfg(test)]
@@ -681,54 +630,6 @@ mod tests {
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_active_program(program_id).unwrap(), program);
             assert_eq!(get_code(program.code_hash).unwrap(), code);
-        });
-    }
-
-    #[test]
-    fn unused_code_removal_works() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
-            set_code(code_hash, &code);
-
-            // At first no program references the code
-            assert_eq!(get_code_refs(code_hash), 0u32);
-
-            set_program(
-                H256::from_low_u64_be(1),
-                ActiveProgram {
-                    static_pages: 256,
-                    persistent_pages: Default::default(),
-                    code_hash,
-                    nonce: 0,
-                    state: ProgramState::Initialized,
-                },
-                Default::default(),
-            );
-            assert_eq!(get_code_refs(code_hash), 1u32);
-
-            set_program(
-                H256::from_low_u64_be(2),
-                ActiveProgram {
-                    static_pages: 128,
-                    persistent_pages: Default::default(),
-                    code_hash,
-                    nonce: 1,
-                    state: ProgramState::Initialized,
-                },
-                Default::default(),
-            );
-            assert_eq!(get_code_refs(code_hash), 2u32);
-
-            remove_program(H256::from_low_u64_be(1)).unwrap();
-            assert_eq!(get_code_refs(code_hash), 1u32);
-
-            assert!(get_code(code_hash).is_some());
-
-            remove_program(H256::from_low_u64_be(2)).unwrap();
-            assert_eq!(get_code_refs(code_hash), 0u32);
-
-            assert!(get_code(code_hash).is_none());
         });
     }
 }
