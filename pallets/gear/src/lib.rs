@@ -492,12 +492,6 @@ pub mod pallet {
             weight
         }
 
-        fn try_found_new_program(program_id: ProgramId, code: Vec<u8>, who: H256) -> Result<(), Error> {
-            let candidate_prog = NativeProgram::new(program_id, code)
-                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
-                Ok(())
-        }
-
         /// Sets `code` and metadata, if code doesn't exist in storage.
         ///
         /// On success returns Blake256 hash of the `code`. If code already
@@ -505,23 +499,21 @@ pub mod pallet {
         ///
         /// # Note
         /// Code existence in storage means that metadata is there too.
-        fn set_code_with_metadata(program_id: ProgramId, code: Vec<u8>, who: H256) -> Result<(), Error> {
-            let code_hash = sp_io::hashing::blake2_256(&code).into();
-
-            
-
+        fn set_code_with_metadata(code: &[u8], who: H256) -> Result<H256, ()> {
+            let code_hash = sp_io::hashing::blake2_256(code).into();
+            // *Important*: checks before storage mutations!
+            if common::code_exists(code_hash) {
+                return Err(());
+            }
             let metadata = {
                 let block_number =
                     <frame_system::Pallet<T>>::block_number().unique_saturated_into();
                 CodeMetadata::new(who, block_number)
             };
-
             common::set_code_metadata(code_hash, metadata);
-            common::set_code(code_hash, candidate_prog.code());
+            common::set_code(code_hash, code);
 
-            Self::deposit_event(Event::CodeSaved(code_hash));
-
-            Ok(())
+            Ok(code_hash)
         }
     }
 
@@ -552,14 +544,10 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            let code_hash = sp_io::hashing::blake2_256(&code).into();
+            let code_hash = Self::set_code_with_metadata(&code, who.into_origin())
+                .map_err(|_| Error::<T>::CodeAlreadyExists)?;
 
-            ensure!(
-                !common::code_exists(code_hash),
-                Error::<T>::CodeAlreadyExists
-            );
-
-            Self::set_code_with_metadata(Default::default(), code, who.into_origin())?;
+            Self::deposit_event(Event::CodeSaved(code_hash));
 
             Ok(().into())
         }
@@ -602,7 +590,6 @@ pub mod pallet {
         /// Ghost program can be removed by their original author via an explicit call.
         /// The funds stored by a ghost program will be release to the author once the program
         /// has been removed.
-        #[frame_support::transactional]
         #[pallet::weight(
             <T as Config>::WeightInfo::submit_program(code.len() as u32, init_payload.len() as u32)
         )]
@@ -635,9 +622,8 @@ pub mod pallet {
             );
 
             let H256(id_bytes) = id;
-            // By that call we follow the guarantee that we have in `Self::submit_code` -
-            // if there's code in storage, there's also metadata for it.
-            let program = Self::set_code_with_metadata(id_bytes.into(), code, origin)?;
+            let program = NativeProgram::new(id_bytes.into(), code.to_vec())
+                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
@@ -647,6 +633,12 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.into_origin();
+
+            // By that call we follow the guarantee that we have in `Self::submit_code` -
+            // if there's code in storage, there's also metadata for it.
+            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
+                Self::deposit_event(Event::CodeSaved(code_hash));
+            }
 
             let init_message_id = common::next_message_id(&init_payload);
             ExtManager::<T>::default().set_program(program, init_message_id);

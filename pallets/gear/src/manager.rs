@@ -114,9 +114,6 @@ where
             "Must has empty persistent pages, has {:?}",
             program.get_pages()
         );
-        // assert!(
-        //     common::code_exists(program::)
-        // );
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
