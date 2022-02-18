@@ -18,7 +18,7 @@ mod tests {
     extern crate std;
     use std::fs;
 
-    mod native {
+    mod code {
         include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
     }
 
@@ -27,15 +27,15 @@ mod tests {
     fn debug_wasm() {
         assert_eq!(
             fs::read("target/wasm32-unknown-unknown/debug/test_program.wasm").unwrap(),
-            native::WASM_BINARY,
+            code::WASM_BINARY,
         );
         assert_eq!(
             fs::read("target/wasm32-unknown-unknown/debug/test_program.opt.wasm").unwrap(),
-            native::WASM_BINARY_OPT,
+            code::WASM_BINARY_OPT,
         );
         assert_eq!(
             fs::read("target/wasm32-unknown-unknown/debug/test_program.meta.wasm").unwrap(),
-            native::WASM_BINARY_META,
+            code::WASM_BINARY_META,
         );
     }
 
@@ -44,15 +44,15 @@ mod tests {
     fn release_wasm_exists() {
         assert_eq!(
             fs::read("target/wasm32-unknown-unknown/release/test_program.wasm").unwrap(),
-            native::WASM_BINARY,
+            code::WASM_BINARY,
         );
         assert_eq!(
             fs::read("target/wasm32-unknown-unknown/release/test_program.opt.wasm").unwrap(),
-            native::WASM_BINARY_OPT,
+            code::WASM_BINARY_OPT,
         );
         assert_eq!(
             fs::read("target/wasm32-unknown-unknown/release/test_program.meta.wasm").unwrap(),
-            native::WASM_BINARY_META,
+            code::WASM_BINARY_META,
         );
     }
 }

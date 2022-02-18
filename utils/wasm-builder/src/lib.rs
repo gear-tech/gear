@@ -27,12 +27,14 @@ mod cargo_command;
 mod crate_info;
 mod wasm_project;
 
+/// WASM building tool.
 pub struct WasmBuilder {
     wasm_project: WasmProject,
     cargo: CargoCommand,
 }
 
 impl WasmBuilder {
+    /// Create a new `WasmBuilder`.
     pub fn new() -> Self {
         WasmBuilder {
             wasm_project: WasmProject::new(),
@@ -40,6 +42,7 @@ impl WasmBuilder {
         }
     }
 
+    /// Build the program and produce an output WASM binary.
     pub fn build(self) {
         if env::var(self.cargo.skip_build_env()).is_ok() {
             return;
@@ -71,6 +74,7 @@ impl Default for WasmBuilder {
     }
 }
 
+/// Shorthand function to be used in `build.rs`.
 pub fn build() {
     WasmBuilder::new().build();
 }

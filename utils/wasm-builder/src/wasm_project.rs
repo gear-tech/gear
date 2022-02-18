@@ -39,6 +39,7 @@ pub struct WasmProject {
 }
 
 impl WasmProject {
+    /// Create a new `WasmProject`.
     pub fn new() -> Self {
         let original_dir: PathBuf = env::var("CARGO_MANIFEST_DIR")
             .expect("`CARGO_MANIFEST_DIR` is always set in build scripts")
@@ -73,21 +74,18 @@ impl WasmProject {
         }
     }
 
-    pub fn generate(&mut self) -> Result<()> {
-        self.create_project()?;
-
-        Ok(())
-    }
-
+    /// Return the path to the temporary generated `Cargo.toml`.
     pub fn manifest_path(&self) -> PathBuf {
         self.out_dir.join("Cargo.toml")
     }
 
+    /// Return the profile name based on the `OUT_DIR` path.
     pub fn profile(&self) -> &str {
         &self.profile
     }
 
-    fn create_project(&mut self) -> Result<()> {
+    /// Generate a temporary cargo project that includes the original package as a dependency.
+    pub fn generate(&mut self) -> Result<()> {
         let original_manifest = self.original_dir.join("Cargo.toml");
         let crate_info = CrateInfo::from_manifest(&original_manifest)?;
         self.file_base_name = Some(crate_info.snake_case_name.clone());
@@ -143,6 +141,11 @@ impl WasmProject {
         Ok(())
     }
 
+    /// Post-processing after the WASM binary has been built.
+    ///
+    /// - Copy WASM binary from `OUT_DIR` to `target/wasm32-unknown-unknown/<profile>`
+    /// - Generate optimized and metadata WASM binaries from the built program
+    /// - Generate `wasm_binary.rs` source file in `OUT_DIR`
     pub fn postprocess(&self) -> Result<()> {
         let file_base_name = self
             .file_base_name

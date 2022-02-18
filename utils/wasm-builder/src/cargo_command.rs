@@ -21,6 +21,7 @@ use std::{env, path::PathBuf, process::Command};
 
 use crate::builder_error::BuilderError;
 
+/// Helper to deal with the `cargo` command.
 pub struct CargoCommand {
     path: String,
     manifest_path: PathBuf,
@@ -30,6 +31,7 @@ pub struct CargoCommand {
 }
 
 impl CargoCommand {
+    /// Create a new `CargoCommand`.
     pub fn new() -> Self {
         CargoCommand {
             path: "cargo".to_string(),
@@ -40,14 +42,19 @@ impl CargoCommand {
         }
     }
 
+    /// Set path to the `Cargo.toml` file.
     pub fn set_manifest_path(&mut self, path: PathBuf) {
         self.manifest_path = path;
     }
 
+    /// Set profile.
+    ///
+    /// Possible values: `dev`, `release`.
     pub fn set_profile(&mut self, profile: String) {
         self.profile = profile;
     }
 
+    /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         let mut cargo = Command::new(&self.path);
         cargo
@@ -69,6 +76,7 @@ impl CargoCommand {
         Ok(())
     }
 
+    /// Generate a project specific environment variable that used to skip the build.
     pub fn skip_build_env(&self) -> String {
         format!(
             "SKIP_{}_WASM_BUILD",

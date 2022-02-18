@@ -22,14 +22,19 @@ use std::path::Path;
 
 use crate::builder_error::BuilderError;
 
+/// Helper to get a crate info exctracted from the `Cargo.toml`.
 #[derive(Debug, Default)]
 pub struct CrateInfo {
+    /// Original name of the crate.
     pub name: String,
+    /// Crate name converted to the snake case.
     pub snake_case_name: String,
+    /// Crate version.
     pub version: String,
 }
 
 impl CrateInfo {
+    /// Create a new `CrateInfo` from a path to the `Cargo.toml`.
     pub fn from_manifest(manifest_path: &Path) -> Result<Self> {
         anyhow::ensure!(
             manifest_path.exists(),

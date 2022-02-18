@@ -19,6 +19,7 @@
 use std::path::PathBuf;
 use thiserror::Error;
 
+/// Errors than can occur when building.
 #[derive(Error, Debug)]
 pub enum BuilderError {
     #[error("invalid manifest path `{0}`")]
