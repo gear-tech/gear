@@ -226,7 +226,7 @@ pub enum Program {
 pub enum ProgramError {
     CodeHashNotFound,
     IsTerminated,
-    DoesNotExist
+    DoesNotExist,
 }
 
 impl Program {
@@ -398,7 +398,7 @@ pub fn set_program_initialized(id: H256) {
 pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
     if let Some(program) = get_program(id) {
         if program.is_terminated() {
-            return Err(ProgramError::IsTerminated)
+            return Err(ProgramError::IsTerminated);
         }
         let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
         pages_prefix.extend(&program_key(id));
