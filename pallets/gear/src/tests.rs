@@ -1165,7 +1165,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             0
         ));
         SystemPallet::<Test>::assert_has_event(Event::CodeSaved(code_hash).into());
-        assert!(common::code_exists(code_hash));
+        assert!(common::code_exists(&code));
 
         // Trying to set the same code twice.
         assert_noop!(

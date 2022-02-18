@@ -114,6 +114,11 @@ where
             "Must has empty persistent pages, has {:?}",
             program.get_pages()
         );
+        assert!(
+            common::code_exists(program.code()),
+            "Program set must be called only when code exists",
+        );
+
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
@@ -214,8 +219,9 @@ where
                         }
                     });
 
+                let res = common::set_program_terminated_status(program_id); 
                 assert!(
-                    common::set_program_terminated_status(program_id).is_ok(),
+                    res.is_ok(),
                     "only active program can cause init failure"
                 );
 
@@ -268,8 +274,9 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
+        let res = common::remove_program(program_id);
         assert!(
-            common::remove_program(program_id).is_ok(),
+            res.is_ok(),
             "`exit` can be called only from active program"
         );
 

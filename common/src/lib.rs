@@ -586,7 +586,8 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
     messages.unwrap_or_default()
 }
 
-pub fn code_exists(code_hash: H256) -> bool {
+pub fn code_exists(code: &[u8]) -> bool {
+    let code_hash = sp_io::hashing::blake2_256(code).into();
     sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
 }
 
