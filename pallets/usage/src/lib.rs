@@ -372,9 +372,9 @@ pub mod pallet {
                                 common::set_program(program_id, program, Default::default());
                             }
                             _ => {
-                                /// Wait init messages can't reach that, because if program init failed,
-                                /// then all waiting messages are moved to queue deleted.
-                                /// TODO #507 on each program delete/terminate action remove messages from WL
+                                // Wait init messages can't reach that, because if program init failed,
+                                // then all waiting messages are moved to queue deleted.
+                                // TODO #507 on each program delete/terminate action remove messages from WL
                                 log::error!(
                                     "Program {:?} was killed, but message it generated is in WL",
                                     program_id
