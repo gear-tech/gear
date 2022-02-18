@@ -46,7 +46,11 @@ pub fn execute_wasm<E: Environment<Ext>>(
 ) -> Result<DispatchResult, ExecutionError> {
     let mut env: E = Default::default();
 
-    let Dispatch { kind, message } = dispatch.clone();
+    let Dispatch {
+        kind,
+        message,
+        payload_store,
+    } = dispatch.clone();
 
     let program_id = program.id();
     log::debug!("process program {:?}", program_id);
@@ -148,6 +152,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
             program_id,
             nonce: program.message_nonce(),
         },
+        payload_store,
     );
 
     let initial_pages = program.get_pages_mut();
@@ -282,6 +287,9 @@ pub fn execute_wasm<E: Environment<Ext>>(
             message.source(),
         )));
     }
+
+    let mut dispatch = dispatch;
+    dispatch.payload_store = info.payload_store;
 
     // Output.
     Ok(DispatchResult {

@@ -18,17 +18,14 @@
 
 //! Message processing module and context.
 
-use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
-
-use core::cell::RefCell;
-use core::fmt;
-
 use crate::program::ProgramId;
+use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 use codec::{Decode, Encode};
+use core::{cell::RefCell, fmt};
 use scale_info::TypeInfo;
 
 /// Message payload.
-#[derive(Clone, Debug, Decode, Default, Encode, derive_more::From, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Default, Encode, TypeInfo, derive_more::From, PartialEq, Eq)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
@@ -51,6 +48,7 @@ impl core::convert::AsRef<[u8]> for Payload {
     Copy,
     Debug,
     Decode,
+    TypeInfo,
     Default,
     Encode,
     derive_more::From,
@@ -599,10 +597,10 @@ pub struct MessageState {
 }
 
 /// Pushed payloads of current message processing.
-#[derive(Debug, Default, Clone)]
+#[derive(Encode, Decode, TypeInfo, Debug, Default, Clone, PartialEq)]
 pub struct PayloadStore {
     /// Outgoing payloads ever formed for current message processing.
-    pub outgoing: BTreeMap<usize, Option<Payload>>,
+    pub outgoing: BTreeMap<u64, Option<Payload>>,
     /// Reply payload ever formed for current message processing.
     pub reply: Option<Payload>,
     /// Messages were ever waken for current message processing.
@@ -616,7 +614,7 @@ pub struct PayloadStore {
 pub struct MessageContext<IG: MessageIdGenerator + 'static> {
     state: Rc<RefCell<MessageState>>,
     store: Rc<RefCell<PayloadStore>>,
-    outgoing_limit: usize,
+    outgoing_limit: u64,
     current: Rc<IncomingMessage>,
     id_generator: Rc<RefCell<IG>>,
 }
@@ -625,10 +623,14 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// New context.
     ///
     /// Create context by providing incoming message for the program.
-    pub fn new(incoming_message: IncomingMessage, id_generator: IG) -> MessageContext<IG> {
+    pub fn new(
+        incoming_message: IncomingMessage,
+        id_generator: IG,
+        store: Option<PayloadStore>,
+    ) -> MessageContext<IG> {
         MessageContext {
             state: Default::default(),
-            store: Default::default(),
+            store: store.map(|v| Rc::new(RefCell::from(v))).unwrap_or_default(),
             outgoing_limit: 128,
             current: Rc::new(incoming_message),
             id_generator: Rc::new(id_generator.into()),
@@ -641,7 +643,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         handle: usize,
         packet: OutgoingPacket,
     ) -> Result<MessageId, Error> {
-        if let Some(payload) = self.store.borrow_mut().outgoing.get_mut(&handle) {
+        if let Some(payload) = self.store.borrow_mut().outgoing.get_mut(&(handle as u64)) {
             if let Some(data) = payload.take() {
                 let mut outgoing = self.id_generator.borrow_mut().produce_outgoing(packet);
                 outgoing.payload.0.splice(0..0, data.0);
@@ -663,19 +665,19 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     pub fn send_init(&mut self) -> Result<usize, Error> {
         let mut store = self.store.borrow_mut();
 
-        let len = store.outgoing.len();
+        let len = store.outgoing.len() as u64;
 
         if len >= self.outgoing_limit {
             Err(Error::LimitExceeded)
         } else {
             store.outgoing.insert(len, Some(Default::default()));
-            Ok(len)
+            Ok(len as usize)
         }
     }
 
     /// Push an extra buffer into message payload by handle.
     pub fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
-        match self.store.borrow_mut().outgoing.get_mut(&handle) {
+        match self.store.borrow_mut().outgoing.get_mut(&(handle as u64)) {
             Some(Some(payload)) => {
                 payload.0.extend_from_slice(buffer);
                 Ok(())
@@ -766,30 +768,44 @@ pub struct Dispatch {
     pub kind: DispatchKind,
     /// Message to be dispatched.
     pub message: Message,
+    /// Payload store related to this dispatch.
+    pub payload_store: Option<PayloadStore>,
 }
 
 impl Dispatch {
     /// Create init dispatch
     pub fn new_init(message: Message) -> Self {
+        let kind = DispatchKind::Init;
+        let payload_store: Option<PayloadStore> = None;
+
         Dispatch {
             message,
-            kind: DispatchKind::Init,
+            kind,
+            payload_store,
         }
     }
 
     /// Create handle dispatch
     pub fn new_handle(message: Message) -> Self {
+        let kind = DispatchKind::Handle;
+        let payload_store: Option<PayloadStore> = None;
+
         Dispatch {
             message,
-            kind: DispatchKind::Handle,
+            kind,
+            payload_store,
         }
     }
 
     /// Create handle reply dispatch
     pub fn new_reply(message: Message) -> Self {
+        let kind = DispatchKind::HandleReply;
+        let payload_store: Option<PayloadStore> = None;
+
         Dispatch {
             message,
-            kind: DispatchKind::HandleReply,
+            kind,
+            payload_store,
         }
     }
 }
@@ -871,7 +887,7 @@ mod tests {
         };
 
         // Creating a message context
-        let mut context = MessageContext::new(incoming_message, id_generator);
+        let mut context = MessageContext::new(incoming_message, id_generator, None);
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
@@ -926,7 +942,7 @@ mod tests {
             .store
             .borrow()
             .outgoing
-            .get(&expected_handle)
+            .get(&(expected_handle as u64))
             .expect("This key should be")
             .is_some());
 

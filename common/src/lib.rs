@@ -39,7 +39,7 @@ use sp_std::{
 };
 
 use gear_core::{
-    message::DispatchKind,
+    message::{DispatchKind, PayloadStore},
     program::{Program as NativeProgram, ProgramId},
 };
 
@@ -65,22 +65,38 @@ pub type ExitCode = i32;
 pub struct Dispatch {
     pub kind: DispatchKind,
     pub message: Message,
+    pub payload_store: Option<PayloadStore>,
 }
 
 impl Dispatch {
     pub fn new_init(message: Message) -> Self {
         let kind = DispatchKind::Init;
-        Dispatch { message, kind }
+        let payload_store: Option<PayloadStore> = None;
+        Dispatch {
+            message,
+            kind,
+            payload_store,
+        }
     }
 
     pub fn new_handle(message: Message) -> Self {
         let kind = DispatchKind::Handle;
-        Dispatch { message, kind }
+        let payload_store: Option<PayloadStore> = None;
+        Dispatch {
+            message,
+            kind,
+            payload_store,
+        }
     }
 
     pub fn new_reply(message: Message) -> Self {
         let kind = DispatchKind::HandleReply;
-        Dispatch { message, kind }
+        let payload_store: Option<PayloadStore> = None;
+        Dispatch {
+            message,
+            kind,
+            payload_store,
+        }
     }
 }
 

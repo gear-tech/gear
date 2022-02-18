@@ -58,6 +58,7 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
             Dispatch {
                 kind: DispatchKind::Handle,
                 message,
+                payload_store: None,
             },
             blk_num.try_into().unwrap(),
         );

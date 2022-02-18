@@ -77,7 +77,7 @@ impl From<Ext> for ExtInfo {
                 reply,
                 awakening,
             },
-            _store,
+            store,
         ) = ext.message_context.drain();
 
         let gas_amount: GasAmount = ext.gas_counter.into();
@@ -92,6 +92,7 @@ impl From<Ext> for ExtInfo {
             reply,
             awakening,
             nonce,
+            payload_store: Some(store),
             trap_explanation,
             exit_argument: ext.exit_argument,
         }

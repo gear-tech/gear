@@ -271,7 +271,7 @@ pub mod pallet {
                     },
                 )
                 .for_each(|(dispatch, bn)| {
-                    let Dispatch { message, kind } = dispatch;
+                    let Dispatch { message, kind, .. } = dispatch;
                     let program_id = message.dest;
 
                     let mut gas_tree = ValueView::get(GAS_VALUE_PREFIX, message.id)
@@ -378,7 +378,8 @@ pub mod pallet {
                             message.id,
                             Dispatch {
                                 message,
-                                kind
+                                kind,
+                                payload_store: None,
                             },
                             current_block.saturated_into(),
                         );
