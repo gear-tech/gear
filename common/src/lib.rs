@@ -226,6 +226,7 @@ pub enum Program {
 pub enum ProgramError {
     CodeHashNotFound,
     IsTerminated,
+    DoesNotExist
 }
 
 impl Program {
@@ -395,9 +396,19 @@ pub fn set_program_initialized(id: H256) {
 }
 
 pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
-    clear_program_storage(id)?;
-    sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
-    Ok(())
+    if let Some(program) = get_program(id) {
+        if program.is_terminated() {
+            return Err(ProgramError::IsTerminated)
+        }
+        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
+        pages_prefix.extend(&program_key(id));
+        sp_io::storage::clear_prefix(&pages_prefix, None);
+        sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
+
+        Ok(())
+    } else {
+        Err(ProgramError::DoesNotExist)
+    }
 }
 
 pub fn get_program(id: H256) -> Option<Program> {
@@ -433,24 +444,6 @@ pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<
         sp_io::storage::set(&key, &page_buf);
     }
     sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
-}
-
-pub fn remove_program(id: H256) -> Result<(), ProgramError> {
-    clear_program_storage(id)?;
-    sp_io::storage::clear_prefix(&program_key(id), None);
-    sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
-    Ok(())
-}
-
-fn clear_program_storage(id: H256) -> Result<(), ProgramError> {
-    if let Some(Program::Active(_)) = get_program(id) {
-        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-        pages_prefix.extend(&program_key(id));
-        sp_io::storage::clear_prefix(&pages_prefix, None);
-        Ok(())
-    } else {
-        Err(ProgramError::IsTerminated)
-    }
 }
 
 pub fn program_exists(id: H256) -> bool {

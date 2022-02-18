@@ -270,7 +270,7 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
-        let res = common::remove_program(program_id);
+        let res = common::set_program_terminated_status(program_id);
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id);
