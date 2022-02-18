@@ -176,10 +176,22 @@ pub trait DAGBasedLedger {
     ) -> Result<Self::NegativeImbalance, DispatchError>;
 
     /// Split underlying value.
+    ///
     /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
     /// an error is returned.
     /// This can't create imbalance as no value is burned or created.
-    fn split(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> DispatchResult;
+    fn split_with_value(
+        key: Self::Key,
+        new_key: Self::Key,
+        amount: Self::Balance,
+    ) -> DispatchResult;
+
+    /// Split underlying value.
+    ///
+    /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
+    /// an error is returned.
+    /// This can't create imbalance as no value is burned or created.
+    fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
