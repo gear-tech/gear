@@ -1401,8 +1401,6 @@ fn defer_program_initialization() {
 fn wake_messages_after_program_inited() {
     use tests_init_wait::WASM_BINARY;
 
-    println!("size {}", WASM_BINARY.to_vec().len());
-
     init_logger();
     new_test_ext().execute_with(|| {
         System::reset_events();
