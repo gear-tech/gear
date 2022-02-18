@@ -19,7 +19,7 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, value_tree::ValueView, Dispatch, Message, Origin as _, GAS_VALUE_PREFIX};
+use common::{self, DAGBasedLedger, Dispatch, Message, Origin as _};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use gear_core::message::DispatchKind;
@@ -61,7 +61,11 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
             },
             blk_num.try_into().unwrap(),
         );
-        ValueView::get_or_create(GAS_VALUE_PREFIX, user_id.into_origin(), msg_id, gas_limit);
+        let _ = <Test as pallet_gear::Config>::GasHandler::create(
+            user_id.into_origin(),
+            msg_id,
+            gas_limit,
+        );
     }
 }
 
@@ -456,9 +460,9 @@ fn trap_reply_message_is_sent() {
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            ValueView::get(GAS_VALUE_PREFIX, message.id)
+            <Test as pallet_gear::Config>::GasHandler::get(message.id)
                 .unwrap()
-                .value(),
+                .0,
             1000
         );
 
@@ -473,9 +477,9 @@ fn trap_reply_message_is_sent() {
         );
 
         assert_eq!(
-            ValueView::get(GAS_VALUE_PREFIX, message.id)
+            <Test as pallet_gear::Config>::GasHandler::get(message.id)
                 .unwrap()
-                .value(),
+                .0,
             500
         );
     });
