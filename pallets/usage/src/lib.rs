@@ -361,7 +361,7 @@ pub mod pallet {
                                 let reply_dispatch = Dispatch::new_reply(trap_message);
 
                                 // Enqueue the trap reply message
-                                let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                let _ = <T as pallet_gear::Config>::GasHandler::split_with_value(
                                     msg_id,
                                     trap_message_id,
                                     new_msg_gas_balance
