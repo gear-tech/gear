@@ -114,6 +114,12 @@ where
             "Must has empty persistent pages, has {:?}",
             program.get_pages()
         );
+        let code_hash: H256 = sp_io::hashing::blake2_256(program.code()).into();
+        assert!(
+            common::code_exists(code_hash),
+            "Program set must be called only when code exists",
+        );
+
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
@@ -121,10 +127,6 @@ where
             .collect();
 
         let id = program.id().into_origin();
-
-        let code_hash: H256 = sp_io::hashing::blake2_256(program.code()).into();
-
-        common::set_code(code_hash, program.code());
 
         let program = common::ActiveProgram {
             static_pages: program.static_pages(),
@@ -216,10 +218,8 @@ where
                         }
                     });
 
-                assert!(
-                    common::set_program_terminated_status(program_id).is_ok(),
-                    "only active program can cause init failure"
-                );
+                let res = common::set_program_terminated_status(program_id);
+                assert!(res.is_ok(), "only active program can cause init failure");
 
                 Event::InitFailure(
                     MessageInfo {
@@ -270,10 +270,8 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
-        assert!(
-            common::remove_program(program_id).is_ok(),
-            "`exit` can be called only from active program"
-        );
+        let res = common::set_program_terminated_status(program_id);
+        assert!(res.is_ok(), "`exit` can be called only from active program");
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id);
         let balance = T::Currency::total_balance(program_account);
