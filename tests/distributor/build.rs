@@ -16,12 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use substrate_wasm_builder::WasmBuilder;
-
 fn main() {
-    // regular build
-    WasmBuilder::new()
-        .with_current_project()
-        .import_memory()
-        .build();
+    gear_wasm_builder::build();
 }

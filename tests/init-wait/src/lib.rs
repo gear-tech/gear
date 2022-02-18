@@ -3,12 +3,12 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
-mod native {
+mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
 #[cfg(feature = "std")]
-pub use native::{WASM_BINARY, WASM_BINARY_BLOATY};
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[cfg(not(feature = "std"))]
 mod wasm {

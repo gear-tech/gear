@@ -171,11 +171,14 @@ impl WasmProject {
         fs::write(
             &wasm_binary_rs,
             format!(
-                r#"
-                    pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-                    pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-                    pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
-                "#,
+                r#"#[allow(unused)]
+pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+#[allow(unused)]
+pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
+#[allow(unused)]
+pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
+
+"#,
                 to_path.display(),
                 to_opt_path.display(),
                 to_meta_path.display(),
