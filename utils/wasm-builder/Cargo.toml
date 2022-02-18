@@ -2,7 +2,7 @@
 name = "gear-wasm-builder"
 version = "0.1.0"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 description = "Utility for building Gear programs"
 include = ["src/**/*", "Cargo.toml", "README.md"]
 repository = "https://github.com/gear-tech/gear"

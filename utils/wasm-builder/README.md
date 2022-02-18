@@ -63,4 +63,4 @@ fn debug_wasm() {
 
 ## License
 
-Source code is licensed under GPL v3.0 with a classpath linking exception.
+Source code is licensed under `GPL-3.0-or-later WITH Classpath-exception-2.0`.
