@@ -30,7 +30,7 @@ use gear_core::message::Message as CoreMessage;
 use gear_core::program::Program as CoreProgram;
 use gear_core::program::ProgramId;
 
-use gear_common::{Dispatch, Message, Origin as _, GAS_VALUE_PREFIX};
+use gear_common::{DAGBasedLedger, Dispatch, Message, Origin as _};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -235,12 +235,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     let source = H256::from_slice(source.to_program_id().as_slice());
                     let id = gear_common::next_message_id(&payload);
 
-                    let _ = gear_common::value_tree::ValueView::get_or_create(
-                        GAS_VALUE_PREFIX,
-                        source,
-                        id,
-                        gas_limit,
-                    );
+                    let _ =
+                        <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
 
                     let msg = Message {
                         id,

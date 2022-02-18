@@ -17,9 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear_debug;
-use frame_support::traits::FindAuthor;
-use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
-use frame_support::{construct_runtime, parameter_types};
+use frame_support::{
+    construct_runtime,
+    dispatch::{DispatchError, DispatchResult},
+    parameter_types,
+    traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize},
+};
 use frame_system as system;
 use primitive_types::H256;
 use sp_runtime::{
@@ -113,14 +116,48 @@ impl pallet_timestamp::Config for Test {
 }
 
 pub struct GasConverter;
-impl common::GasToFeeConverter for GasConverter {
+impl common::GasPrice for GasConverter {
     type Balance = u128;
+}
+
+pub struct DummyGasHandler;
+impl common::DAGBasedLedger for DummyGasHandler {
+    type ExternalOrigin = H256;
+    type Key = H256;
+    type Balance = u64;
+    type PositiveImbalance = ();
+    type NegativeImbalance = ();
+
+    fn total_supply() -> u64 {
+        Default::default()
+    }
+
+    fn create(_origin: H256, _key: H256, _amount: u64) -> Result<(), DispatchError> {
+        Ok(Default::default())
+    }
+
+    fn get(_message_id: H256) -> Option<(u64, H256)> {
+        None
+    }
+
+    fn consume(_message_id: H256) -> Option<((), H256)> {
+        None
+    }
+
+    fn spend(_message_id: H256, _amount: u64) -> Result<(), DispatchError> {
+        Ok(Default::default())
+    }
+
+    fn split(_message_id: H256, _at: H256, _amount: u64) -> DispatchResult {
+        Ok(())
+    }
 }
 
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
-    type GasConverter = GasConverter;
+    type GasPrice = GasConverter;
+    type GasHandler = DummyGasHandler;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = super::Pallet<Test>;

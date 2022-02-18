@@ -2111,6 +2111,7 @@ dependencies = [
  "pallet-aura",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
  "pallet-gear-rpc-runtime-api",
@@ -4290,6 +4291,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-gas"
+version = "2.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "hex-literal",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "wabt",
+]
+
+[[package]]
 name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
@@ -4306,6 +4333,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gas",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -4314,7 +4342,6 @@ dependencies = [
  "serde",
  "sp-arithmetic",
  "sp-core",
- "sp-inherents",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4348,7 +4375,6 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core",
- "sp-inherents",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4532,6 +4558,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gas",
  "pallet-gear",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -4541,7 +4568,6 @@ dependencies = [
  "scale-info",
  "serde",
  "sp-core",
- "sp-inherents",
  "sp-io",
  "sp-runtime",
  "sp-std",

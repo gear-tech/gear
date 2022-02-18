@@ -50,6 +50,7 @@ construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Gas: pallet_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
@@ -103,18 +104,21 @@ impl system::Config for Test {
 }
 
 pub struct GasConverter;
-impl common::GasToFeeConverter for GasConverter {
+impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
-    type GasConverter = GasConverter;
+    type GasPrice = GasConverter;
+    type GasHandler = Gas;
     type WeightInfo = ();
     type BlockGasLimit = ();
     type DebugInfo = ();
 }
+
+impl pallet_gas::Config for Test {}
 
 parameter_types! {
     pub const WaitListTraversalInterval: u32 = 5;
@@ -127,8 +131,6 @@ parameter_types! {
 
 impl pallet_usage::Config for Test {
     type Event = Event;
-    type Currency = Balances;
-    type GasConverter = GasConverter;
     type PaymentProvider = Gear;
     type WeightInfo = ();
     type WaitListTraversalInterval = WaitListTraversalInterval;

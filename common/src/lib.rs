@@ -20,11 +20,11 @@
 
 pub mod native;
 pub mod storage_queue;
-pub mod value_tree;
 
 use codec::{Decode, Encode};
 use frame_support::{
-    dispatch::DispatchError,
+    dispatch::{DispatchError, DispatchResult},
+    traits::Imbalance,
     weights::{IdentityFee, WeightToFeePolynomial},
 };
 use gear_runtime_interface as gear_ri;
@@ -34,7 +34,6 @@ use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    convert::TryFrom,
     prelude::*,
 };
 
@@ -60,6 +59,129 @@ pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
 pub type ExitCode = i32;
+
+pub trait Origin: Sized {
+    fn into_origin(self) -> H256;
+    fn from_origin(val: H256) -> Self;
+}
+
+impl Origin for u64 {
+    fn into_origin(self) -> H256 {
+        let mut result = H256::zero();
+        result[0..8].copy_from_slice(&self.to_le_bytes());
+        result
+    }
+
+    fn from_origin(v: H256) -> Self {
+        // h256 -> u64 should not be used anywhere other than in tests!
+        let mut val = [0u8; 8];
+        val.copy_from_slice(&v[0..8]);
+        Self::from_le_bytes(val)
+    }
+}
+
+impl Origin for sp_runtime::AccountId32 {
+    fn into_origin(self) -> H256 {
+        H256::from(self.as_ref())
+    }
+
+    fn from_origin(v: H256) -> Self {
+        sp_runtime::AccountId32::unchecked_from(v)
+    }
+}
+
+impl Origin for H256 {
+    fn into_origin(self) -> H256 {
+        self
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val
+    }
+}
+
+pub trait GasPrice {
+    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
+
+    /// A price for the `gas` amount of gas.
+    /// In general case, this doesn't necessarily has to be constant.
+    fn gas_price(gas: u64) -> Self::Balance {
+        IdentityFee::<Self::Balance>::calc(&gas)
+    }
+}
+
+pub trait PaymentProvider<AccountId> {
+    type Balance;
+
+    fn withhold_reserved(
+        source: H256,
+        dest: &AccountId,
+        amount: Self::Balance,
+    ) -> Result<(), DispatchError>;
+}
+
+/// Abstraction for a chain of value items each piece of which has an attributed owner and
+/// can be traced up to some root origin.
+/// The definition is largely inspired by the `frame_support::traits::Currency` -
+/// https://github.com/paritytech/substrate/blob/master/frame/support/src/traits/tokens/currency.rs,
+/// however, the intended use is very close to the UTxO based ledger model.
+pub trait DAGBasedLedger {
+    /// Type representing the external owner of a value (gas) item.
+    type ExternalOrigin;
+
+    /// Type that identifies a particular value item.
+    type Key;
+
+    /// Type representing a quantity of value.
+    type Balance;
+
+    /// Types to denote a result of some unbalancing operation - that is operations that create
+    /// inequality between the underlying value supply and some hypothetical "collateral" asset.
+
+    /// `PositiveImbalance` indicates that some value has been created, which will eventually
+    /// lead to an increase in total supply.
+    type PositiveImbalance: Imbalance<Self::Balance, Opposite = Self::NegativeImbalance>;
+
+    /// `NegativeImbalance` indicates that some value has been removed from circulation
+    /// leading to a decrease in the total supply of the underlying value.
+    type NegativeImbalance: Imbalance<Self::Balance, Opposite = Self::PositiveImbalance>;
+
+    /// The total amount of value currently in circulation.
+    fn total_supply() -> Self::Balance;
+
+    /// Increase the total issuance of the underlying value by creating some `amount` of it
+    /// and attributing it to the `origin`. The `key` identifies the created "bag" of value.
+    /// In case the `key` already indentifies some other piece of value an error is returned.
+    fn create(
+        origin: Self::ExternalOrigin,
+        key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<Self::PositiveImbalance, DispatchError>;
+
+    /// Get value item by it's ID, if exists.
+    fn get(key: Self::Key) -> Option<(Self::Balance, Self::ExternalOrigin)>;
+
+    /// Consume underlying value.
+    /// If `key` does not identify any value or the value can't be fully consumed due to
+    /// being a part of other value or itself having unconsumed parts, return None,
+    /// else the corresponding piece of value is destroyed and imbalance is created.
+    fn consume(key: Self::Key) -> Option<(Self::NegativeImbalance, Self::ExternalOrigin)>;
+
+    /// Burns underlying value.
+    /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
+    /// In case of a success, this indicates the entire value supply becomes over-collateralized,
+    /// hence negative imbalance.
+    fn spend(
+        key: Self::Key,
+        amount: Self::Balance,
+    ) -> Result<Self::NegativeImbalance, DispatchError>;
+
+    /// Split underlying value.
+    /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
+    /// an error is returned.
+    /// This can't create imbalance as no value is burned or created.
+    fn split(key: Self::Key, new_key: Self::Key, amount: Self::Balance) -> DispatchResult;
+}
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct Dispatch {
@@ -195,64 +317,6 @@ impl CodeMetadata {
             block_number,
         }
     }
-}
-
-pub trait Origin: Sized {
-    fn into_origin(self) -> H256;
-    fn from_origin(val: H256) -> Self;
-}
-
-impl Origin for u64 {
-    fn into_origin(self) -> H256 {
-        let mut result = H256::zero();
-        result[0..8].copy_from_slice(&self.to_le_bytes());
-        result
-    }
-
-    fn from_origin(v: H256) -> Self {
-        // h256 -> u64 should not be used anywhere other than in tests!
-        let mut val = [0u8; 8];
-        val.copy_from_slice(&v[0..8]);
-        Self::from_le_bytes(val)
-    }
-}
-
-impl Origin for sp_runtime::AccountId32 {
-    fn into_origin(self) -> H256 {
-        H256::from(self.as_ref())
-    }
-
-    fn from_origin(v: H256) -> Self {
-        sp_runtime::AccountId32::unchecked_from(v)
-    }
-}
-
-impl Origin for H256 {
-    fn into_origin(self) -> H256 {
-        self
-    }
-
-    fn from_origin(val: H256) -> Self {
-        val
-    }
-}
-
-pub trait GasToFeeConverter {
-    type Balance: BaseArithmetic + From<u32> + Copy + Unsigned;
-
-    fn gas_to_fee(gas: u64) -> Self::Balance {
-        IdentityFee::<Self::Balance>::calc(&gas)
-    }
-}
-
-pub trait PaymentProvider<AccountId> {
-    type Balance;
-
-    fn withhold_reserved(
-        source: H256,
-        dest: &AccountId,
-        amount: Self::Balance,
-    ) -> Result<(), DispatchError>;
 }
 
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
