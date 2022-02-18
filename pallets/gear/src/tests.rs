@@ -1165,7 +1165,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
             0
         ));
         SystemPallet::<Test>::assert_has_event(Event::CodeSaved(code_hash).into());
-        assert!(common::code_exists(&code));
+        assert!(common::code_exists(code_hash));
 
         // Trying to set the same code twice.
         assert_noop!(
@@ -1481,6 +1481,8 @@ fn test_message_processing_for_non_existing_destination() {
     init_logger();
     new_test_ext().execute_with(|| {
         let program_id = submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("todo");
+        let code_hash =
+            sp_io::hashing::blake2_256(ProgramCodeKind::GreedyInit.to_bytes().as_slice()).into();
         let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
 
         // After running, first message will end up with init failure, so destination address won't exist.
@@ -1505,6 +1507,9 @@ fn test_message_processing_for_non_existing_destination() {
         SystemPallet::<Test>::assert_has_event(
             Event::MessageNotExecuted(skipped_message_id).into(),
         );
+
+        assert!(Gear::is_terminated(program_id));
+        assert!(common::code_exists(code_hash))
     })
 }
 
@@ -1560,6 +1565,7 @@ fn exit_handle() {
         System::reset_events();
 
         let code = WASM_BINARY_BLOATY.expect("Wasm binary missing!").to_vec();
+        let code_hash = sp_io::hashing::blake2_256(&code).into();
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1).into(),
             code.clone(),
@@ -1595,6 +1601,8 @@ fn exit_handle() {
 
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_terminated(program_id));
+
+        assert!(common::code_exists(code_hash));
 
         // Program is removed and can be submitted again
         assert_ok!(GearPallet::<Test>::submit_program(
