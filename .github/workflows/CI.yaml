@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
     branches: [master]
 
 env:
@@ -23,6 +24,7 @@ jobs:
         uses: actions/checkout@v1
 
       - name: "Check spec version"
+        if: ${{ ! contains(github.event.pull_request.labels.*.name, 'A4-insubstantial') }}
         run: ./scripts/check-spec.sh
 
   check:
