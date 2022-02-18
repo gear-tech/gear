@@ -12,6 +12,7 @@ env:
 
 jobs:
   spec_version:
+    if: contains(github.event.pull_request.labels.*.name, 'A4-insubstantial')
     runs-on: [self-hosted, cachepot]
     steps:
       - name: Cancel Previous Runs
