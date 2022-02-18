@@ -21,6 +21,8 @@
 pub mod native;
 pub mod storage_queue;
 
+mod pause;
+
 use codec::{Decode, Encode};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
@@ -54,6 +56,7 @@ pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
+pub const STORAGE_PAUSED_PROGRAM_PREFIX: &[u8] = b"g::paused_prog::";
 
 pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
@@ -366,13 +369,17 @@ fn page_key(id: H256, page: u32) -> Vec<u8> {
     key
 }
 
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
     key.extend(b"::");
-    msg_id.encode_to(&mut key);
+    key
+}
 
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+    let mut key = wait_prefix(prog_id);
+    msg_id.encode_to(&mut key);
     key
 }
 
@@ -591,6 +598,7 @@ pub fn code_exists(code_hash: H256) -> bool {
 
 pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_PAUSED_PROGRAM_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
