@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     #[cfg(not(debug_assertions))]
-    fn release_wasm_exists() {
+    fn release_wasm() {
         assert_eq!(
             fs::read("target/wasm32-unknown-unknown/release/test_program.wasm").unwrap(),
             code::WASM_BINARY,

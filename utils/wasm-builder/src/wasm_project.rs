@@ -99,11 +99,16 @@ impl WasmProject {
         lib.insert("name".into(), crate_info.snake_case_name.into());
         lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
 
+        let mut dev_profile = Table::new();
+        dev_profile.insert("panic".into(), "abort".into());
+
         let mut release_profile = Table::new();
         release_profile.insert("lto".into(), true.into());
         release_profile.insert("opt-level".into(), "s".into());
+        release_profile.insert("panic".into(), "abort".into());
 
         let mut profile = Table::new();
+        profile.insert("dev".into(), dev_profile.into());
         profile.insert("release".into(), release_profile.into());
 
         let mut crate_package = Table::new();
@@ -153,7 +158,7 @@ impl WasmProject {
             .expect("Run `WasmProject::create_project()` first");
         let from_path = self
             .out_dir
-            .join(&self.wasm_subdir)
+            .join("target/wasm32-unknown-unknown/release")
             .join(format!("{}.wasm", &file_base_name));
         let to_dir = self.original_dir.join(&self.wasm_subdir);
         fs::create_dir_all(&to_dir)?;
@@ -171,11 +176,13 @@ impl WasmProject {
         fs::write(
             &wasm_binary_rs,
             format!(
-                r#"
-                    pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-                    pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-                    pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
-                "#,
+                r#"#[allow(dead_code)]
+pub const WASM_BINARY: &[u8] = include_bytes!("{}");
+#[allow(dead_code)]
+pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
+#[allow(dead_code)]
+pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
+"#,
                 to_path.display(),
                 to_opt_path.display(),
                 to_meta_path.display(),

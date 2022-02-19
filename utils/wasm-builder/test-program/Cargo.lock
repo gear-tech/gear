@@ -182,7 +182,7 @@ source = "git+https://github.com/gear-tech/gear.git#9cc70eb1b6f24a3480dde48ddedd
 
 [[package]]
 name = "gear-wasm-builder"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
