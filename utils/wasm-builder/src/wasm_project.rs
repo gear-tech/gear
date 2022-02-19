@@ -99,16 +99,12 @@ impl WasmProject {
         lib.insert("name".into(), crate_info.snake_case_name.into());
         lib.insert("crate-type".into(), vec!["cdylib".to_string()].into());
 
-        let mut dev_profile = Table::new();
-        dev_profile.insert("panic".into(), "abort".into());
-
         let mut release_profile = Table::new();
         release_profile.insert("lto".into(), true.into());
         release_profile.insert("opt-level".into(), "s".into());
-        release_profile.insert("panic".into(), "abort".into());
 
         let mut profile = Table::new();
-        profile.insert("dev".into(), dev_profile.into());
+        profile.insert("dev".into(), release_profile.clone().into());
         profile.insert("release".into(), release_profile.into());
 
         let mut crate_package = Table::new();
@@ -176,11 +172,11 @@ impl WasmProject {
         fs::write(
             &wasm_binary_rs,
             format!(
-                r#"#[allow(dead_code)]
+                r#"#[allow(unused)]
 pub const WASM_BINARY: &[u8] = include_bytes!("{}");
-#[allow(dead_code)]
+#[allow(unused)]
 pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
-#[allow(dead_code)]
+#[allow(unused)]
 pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
 "#,
                 to_path.display(),
