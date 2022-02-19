@@ -7,7 +7,4 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-core = { path = "../../core" }
-gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
-common = { package = "gear-common", path = "../../common", default-features = false }
-
 log = { version = "0.4.14", default-features = false }
