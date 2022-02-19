@@ -61,16 +61,13 @@ impl WakeSignals {
     }
 
     pub fn record_reply(&mut self) {
-        let mut signal = self
-            .signals
-            .get_mut(&crate::msg::reply_to())
-            .expect("Somehow received reply for the message we never sent");
-
-        signal.payload = Some((crate::msg::load_bytes(), crate::msg::exit_code()));
-        if let Some(waker) = &signal.waker {
-            waker.wake_by_ref();
+        if let Some(signal) = self.signals.get_mut(&crate::msg::reply_to()) {
+            signal.payload = Some((crate::msg::load_bytes(), crate::msg::exit_code()));
+            if let Some(waker) = &signal.waker {
+                waker.wake_by_ref();
+            }
+            crate::exec::wake(signal.message_id);
         }
-        crate::exec::wake(signal.message_id);
     }
 
     pub fn waits_for(&self, reply_to: MessageId) -> bool {
