@@ -83,20 +83,30 @@ impl From<Message> for CoreMessage {
 
 impl From<Dispatch> for CoreDispatch {
     fn from(dispatch: Dispatch) -> Self {
-        let Dispatch { kind, message } = dispatch;
+        let Dispatch {
+            kind,
+            message,
+            payload_store,
+        } = dispatch;
         Self {
             kind,
             message: message.into(),
+            payload_store,
         }
     }
 }
 
 impl From<CoreDispatch> for Dispatch {
     fn from(dispatch: CoreDispatch) -> Self {
-        let CoreDispatch { kind, message } = dispatch;
+        let CoreDispatch {
+            kind,
+            message,
+            payload_store,
+        } = dispatch;
         Self {
             kind,
             message: message.into(),
+            payload_store,
         }
     }
 }

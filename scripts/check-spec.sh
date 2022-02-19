@@ -13,9 +13,9 @@ for package in $(git diff --name-only $CURRENT_BRANCH origin/master | grep -v "R
     if [[ " ${PACKAGES_REQUIRE_BUMP_SPEC[@]} " =~ " ${package} " ]]; then
         UPDATED_SPEC="true"
         if [ "$SPEC_ON_MASTER" = "$ACTUAL_SPEC" ]; then
-            echo "    These files were changed:\n"
-            echo git diff --name-only origin/master | grep "^$package"
-            echo "\n    Spec version should be bumped!"
+            printf "\n   These files were changed:\n\n"
+            echo "$(git diff --name-only origin/master | grep "^$package")"
+            printf "\n   Spec version should be bumped!\n\n"
             exit 1
         fi
     fi
@@ -23,10 +23,10 @@ done
 
 if [ "$UPDATED_SPEC" != "true" ]; then
     if [ "$SPEC_ON_MASTER" != "$ACTUAL_SPEC" ]; then
-        echo "Spec versions are different, but they shouldn't!"
+        printf "\n   Spec versions are different, but they shouldn't!\n\n"
         exit 1
     fi
 fi
 
-echo "Spec version is correct"
+printf "\n   Spec version is correct:\n\n"
 exit 0

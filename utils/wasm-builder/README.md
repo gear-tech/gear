@@ -7,10 +7,12 @@ This is a helper crate that can be used in build scripts for building Gear progr
 1. Add the `gear-wasm-buider` crate as a build dependency to the `Cargo.toml`:
 
 ```toml
-...
+# ...
+
 [build-dependencies]
-gear-wasm-builder = "0.1.0"
-...
+gear-wasm-builder = "0.1.1"
+
+# ...
 ```
 
 2. Create a `build.rs` file and place it at the directory with `Cargo.toml`:

@@ -195,6 +195,7 @@ fn debug_mode_works() {
                             value: 0,
                             reply: None,
                         },
+                        payload_store: None,
                     },
                     Dispatch {
                         kind: DispatchKind::Handle,
@@ -207,6 +208,7 @@ fn debug_mode_works() {
                             value: 0,
                             reply: None,
                         },
+                        payload_store: None,
                     },
                 ],
                 programs: vec![

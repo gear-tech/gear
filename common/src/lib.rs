@@ -38,7 +38,7 @@ use sp_std::{
 };
 
 use gear_core::{
-    message::DispatchKind,
+    message::{DispatchKind, PayloadStore},
     program::{Program as NativeProgram, ProgramId},
 };
 
@@ -53,7 +53,6 @@ pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
-pub const STORAGE_CODE_REFS_PREFIX: &[u8] = b"g::code::refs::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
 pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
@@ -187,22 +186,32 @@ pub trait DAGBasedLedger {
 pub struct Dispatch {
     pub kind: DispatchKind,
     pub message: Message,
+    pub payload_store: Option<PayloadStore>,
 }
 
 impl Dispatch {
     pub fn new_init(message: Message) -> Self {
-        let kind = DispatchKind::Init;
-        Dispatch { message, kind }
+        Self {
+            message,
+            kind: DispatchKind::Init,
+            payload_store: None,
+        }
     }
 
     pub fn new_handle(message: Message) -> Self {
-        let kind = DispatchKind::Handle;
-        Dispatch { message, kind }
+        Self {
+            message,
+            kind: DispatchKind::Handle,
+            payload_store: None,
+        }
     }
 
     pub fn new_reply(message: Message) -> Self {
-        let kind = DispatchKind::HandleReply;
-        Dispatch { message, kind }
+        Self {
+            message,
+            kind: DispatchKind::HandleReply,
+            payload_store: None,
+        }
     }
 }
 
@@ -227,6 +236,7 @@ pub enum Program {
 pub enum ProgramError {
     CodeHashNotFound,
     IsTerminated,
+    DoesNotExist,
 }
 
 impl Program {
@@ -323,8 +333,6 @@ impl CodeMetadata {
 enum CodeKeyPrefixKind {
     // "g::code::"
     RawCode,
-    // "g::code::refs::"
-    CodeRef,
     // "g::code::metadata::"
     CodeMetadata,
 }
@@ -339,7 +347,6 @@ pub fn program_key(id: H256) -> Vec<u8> {
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
         CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
-        CodeKeyPrefixKind::CodeRef => STORAGE_CODE_REFS_PREFIX,
         CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
     };
     // key's length is N bytes of code hash + M bytes of prefix
@@ -399,43 +406,19 @@ pub fn set_program_initialized(id: H256) {
 }
 
 pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
-    clear_program_essential_data(id)?;
-    sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
-    Ok(())
-}
+    if let Some(program) = get_program(id) {
+        if program.is_terminated() {
+            return Err(ProgramError::IsTerminated);
+        }
+        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
+        pages_prefix.extend(&program_key(id));
+        sp_io::storage::clear_prefix(&pages_prefix, None);
+        sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
 
-fn get_code_refs(code_hash: H256) -> u32 {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeRef))
-        .map(|val| {
-            let mut v = [0u8; 4];
-            if val.len() == 4 {
-                v.copy_from_slice(&val[0..4]);
-            }
-            u32::from_le_bytes(v)
-        })
-        .unwrap_or_default()
-}
-
-fn set_code_refs(code_hash: H256, value: u32) {
-    sp_io::storage::set(
-        &code_key(code_hash, CodeKeyPrefixKind::CodeRef),
-        &value.to_le_bytes(),
-    )
-}
-
-fn add_code_ref(code_hash: H256) {
-    set_code_refs(code_hash, get_code_refs(code_hash).saturating_add(1))
-}
-
-fn release_code(code_hash: H256) {
-    let new_refs = get_code_refs(code_hash).saturating_sub(1);
-    if new_refs == 0 {
-        // Clearing storage for both code itself and its reference counter
-        sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::CodeRef));
-        sp_io::storage::clear(&code_key(code_hash, CodeKeyPrefixKind::RawCode));
-        return;
+        Ok(())
+    } else {
+        Err(ProgramError::DoesNotExist)
     }
-    set_code_refs(code_hash, new_refs)
 }
 
 pub fn get_program(id: H256) -> Option<Program> {
@@ -466,33 +449,11 @@ pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32,
 }
 
 pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<u32, Vec<u8>>) {
-    if !program_exists(id) {
-        add_code_ref(program.code_hash);
-    }
     for (page_num, page_buf) in persistent_pages {
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
     }
     sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
-}
-
-pub fn remove_program(id: H256) -> Result<(), ProgramError> {
-    clear_program_essential_data(id)?;
-    sp_io::storage::clear_prefix(&program_key(id), None);
-    sp_io::storage::clear_prefix(&waiting_init_prefix(id), None);
-    Ok(())
-}
-
-fn clear_program_essential_data(id: H256) -> Result<(), ProgramError> {
-    if let Some(Program::Active(program)) = get_program(id) {
-        release_code(program.code_hash);
-        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-        pages_prefix.extend(&program_key(id));
-        sp_io::storage::clear_prefix(&pages_prefix, None);
-        Ok(())
-    } else {
-        Err(ProgramError::IsTerminated)
-    }
 }
 
 pub fn program_exists(id: H256) -> bool {
@@ -672,54 +633,6 @@ mod tests {
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_active_program(program_id).unwrap(), program);
             assert_eq!(get_code(program.code_hash).unwrap(), code);
-        });
-    }
-
-    #[test]
-    fn unused_code_removal_works() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
-            set_code(code_hash, &code);
-
-            // At first no program references the code
-            assert_eq!(get_code_refs(code_hash), 0u32);
-
-            set_program(
-                H256::from_low_u64_be(1),
-                ActiveProgram {
-                    static_pages: 256,
-                    persistent_pages: Default::default(),
-                    code_hash,
-                    nonce: 0,
-                    state: ProgramState::Initialized,
-                },
-                Default::default(),
-            );
-            assert_eq!(get_code_refs(code_hash), 1u32);
-
-            set_program(
-                H256::from_low_u64_be(2),
-                ActiveProgram {
-                    static_pages: 128,
-                    persistent_pages: Default::default(),
-                    code_hash,
-                    nonce: 1,
-                    state: ProgramState::Initialized,
-                },
-                Default::default(),
-            );
-            assert_eq!(get_code_refs(code_hash), 2u32);
-
-            remove_program(H256::from_low_u64_be(1)).unwrap();
-            assert_eq!(get_code_refs(code_hash), 1u32);
-
-            assert!(get_code(code_hash).is_some());
-
-            remove_program(H256::from_low_u64_be(2)).unwrap();
-            assert_eq!(get_code_refs(code_hash), 0u32);
-
-            assert!(get_code(code_hash).is_none());
         });
     }
 }
