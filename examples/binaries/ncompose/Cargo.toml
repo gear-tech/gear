@@ -1,5 +1,5 @@
 [package]
-name = "demo-mul-by-const"
+name = "demo-ncompose"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
