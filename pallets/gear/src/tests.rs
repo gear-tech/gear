@@ -2109,7 +2109,7 @@ fn exit_handle() {
     })
 }
 
-mod utils {
+pub(crate) mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
     use sp_core::H256;
@@ -2124,15 +2124,15 @@ mod utils {
     use common::Origin as _;
 
     pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
-    pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
-    pub(super) const EMPTY_PAYLOAD: &'static [u8; 0] = b"";
+    pub(crate) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
+    pub(crate) const EMPTY_PAYLOAD: &'static [u8; 0] = b"";
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
     pub(super) type GasPrice = <Test as pallet::Config>::GasPrice;
     type BlockNumber = <Test as frame_system::Config>::BlockNumber;
 
-    pub(super) fn init_logger() {
+    pub(crate) fn init_logger() {
         let _ = env_logger::Builder::from_default_env()
             .format_module_path(false)
             .format_level(true)

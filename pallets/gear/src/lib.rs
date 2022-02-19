@@ -251,7 +251,6 @@ pub mod pallet {
         /// There should always remain enough weight for this hook to be invoked
         fn on_idle(bn: BlockNumberFor<T>, remaining_weight: Weight) -> Weight {
             log::debug!(
-                target: "runtime::gear",
                 "{} of weight remains in block {:?} after normal extrinsics have been processed",
                 remaining_weight,
                 bn,

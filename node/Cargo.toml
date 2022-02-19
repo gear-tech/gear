@@ -73,6 +73,7 @@ gear-runtime = { path = "../runtime" }
 gear-lazy-pages = { path = "../lazy-pages" }
 gear-runtime-interface = { path = "../runtime-interface" }
 gear-runtime-test-cli = { path = "../utils/gear-runtime-test-cli" }
+economic-checks = { path = "../utils/economic-checks" }
 
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
