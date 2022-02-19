@@ -401,6 +401,7 @@ impl RunnerContext {
         let dispatch = Dispatch {
             kind: DispatchKind::Init,
             message,
+            payload_store: None,
         };
         let message_id = dispatch.message.id;
 
@@ -556,6 +557,7 @@ impl RunnerContext {
         self.dispatch_queue.push(Dispatch {
             message,
             kind: DispatchKind::Handle,
+            payload_store: None,
         });
 
         while !self.dispatch_queue.is_empty() {

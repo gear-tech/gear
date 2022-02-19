@@ -129,6 +129,7 @@ impl ExtManager {
                 self.wait_dispatch(Dispatch {
                     kind: DispatchKind::Handle,
                     message,
+                    payload_store: None,
                 });
 
                 continue;
@@ -144,7 +145,11 @@ impl ExtManager {
 
                     let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
                         program,
-                        Dispatch { kind, message },
+                        Dispatch {
+                            kind,
+                            message,
+                            payload_store: None,
+                        },
                         self.block_info,
                     );
 

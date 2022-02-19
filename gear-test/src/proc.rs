@@ -69,6 +69,7 @@ impl From<InitMessage> for Dispatch {
         Self {
             kind: DispatchKind::Init,
             message: other.message.into_message(other.id),
+            payload_store: None,
         }
     }
 }

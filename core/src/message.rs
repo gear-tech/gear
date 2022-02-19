@@ -18,17 +18,14 @@
 
 //! Message processing module and context.
 
-use alloc::{rc::Rc, vec::Vec};
-
-use core::cell::RefCell;
-use core::fmt;
-
 use crate::program::ProgramId;
+use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 use codec::{Decode, Encode};
+use core::{cell::RefCell, fmt};
 use scale_info::TypeInfo;
 
 /// Message payload.
-#[derive(Clone, Debug, Decode, Default, Encode, derive_more::From, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Default, Encode, TypeInfo, derive_more::From, PartialEq, Eq)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
@@ -51,6 +48,7 @@ impl core::convert::AsRef<[u8]> for Payload {
     Copy,
     Debug,
     Decode,
+    TypeInfo,
     Default,
     Encode,
     derive_more::From,
@@ -116,6 +114,8 @@ pub enum Error {
     DuplicateReply,
     /// Duplicate waiting message.
     DuplicateWaiting,
+    /// Duplicate waking message.
+    DuplicateWaking,
     /// An attempt to commit or to push a payload into an already formed message.
     LateAccess,
     /// No message found with given handle, or handle exceeds the maximum messages amount.
@@ -596,13 +596,25 @@ pub struct MessageState {
     pub awakening: Vec<MessageId>,
 }
 
+/// Pushed payloads of current message processing.
+#[derive(Encode, Decode, TypeInfo, Debug, Default, Clone, PartialEq)]
+pub struct PayloadStore {
+    /// Outgoing payloads ever formed for current message processing.
+    pub outgoing: BTreeMap<u64, Option<Payload>>,
+    /// Reply payload ever formed for current message processing.
+    pub reply: Option<Payload>,
+    /// Messages were ever waken for current message processing.
+    pub awaken: Vec<MessageId>,
+    /// Flag were reply ever sent for current message processing.
+    pub reply_was_sent: bool,
+}
+
 /// Message context for the currently running program.
 #[derive(Clone)]
 pub struct MessageContext<IG: MessageIdGenerator + 'static> {
     state: Rc<RefCell<MessageState>>,
-    outgoing_payloads: Vec<Option<Payload>>,
-    outgoing_limit: usize,
-    reply_payload: Option<Payload>,
+    store: Rc<RefCell<PayloadStore>>,
+    outgoing_limit: u64,
     current: Rc<IncomingMessage>,
     id_generator: Rc<RefCell<IG>>,
 }
@@ -611,12 +623,15 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// New context.
     ///
     /// Create context by providing incoming message for the program.
-    pub fn new(incoming_message: IncomingMessage, id_generator: IG) -> MessageContext<IG> {
+    pub fn new(
+        incoming_message: IncomingMessage,
+        id_generator: IG,
+        store: Option<PayloadStore>,
+    ) -> MessageContext<IG> {
         MessageContext {
             state: Default::default(),
-            outgoing_payloads: Vec::new(),
+            store: store.map(|v| Rc::new(RefCell::from(v))).unwrap_or_default(),
             outgoing_limit: 128,
-            reply_payload: None,
             current: Rc::new(incoming_message),
             id_generator: Rc::new(id_generator.into()),
         }
@@ -628,21 +643,19 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         handle: usize,
         packet: OutgoingPacket,
     ) -> Result<MessageId, Error> {
-        if handle >= self.outgoing_payloads.len() {
-            return Err(Error::OutOfBounds);
-        }
-
-        match self.outgoing_payloads[handle].take() {
-            Some(payload) => {
+        if let Some(payload) = self.store.borrow_mut().outgoing.get_mut(&(handle as u64)) {
+            if let Some(data) = payload.take() {
                 let mut outgoing = self.id_generator.borrow_mut().produce_outgoing(packet);
-                outgoing.payload.0.splice(0..0, payload.0);
-
+                outgoing.payload.0.splice(0..0, data.0);
                 let id = outgoing.id();
                 let mut state = self.state.borrow_mut();
                 state.outgoing.push(outgoing);
                 Ok(id)
+            } else {
+                Err(Error::LateAccess)
             }
-            None => Err(Error::LateAccess),
+        } else {
+            Err(Error::OutOfBounds)
         }
     }
 
@@ -650,86 +663,72 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     ///
     /// Messages created this way should be committed with `commit(handle)` to be sent.
     pub fn send_init(&mut self) -> Result<usize, Error> {
-        let state = self.state.borrow();
+        let mut store = self.store.borrow_mut();
 
-        // TODO: Decide whether we should limit formed messages vs. uncompleted
-        if state.outgoing.len() >= self.outgoing_limit {
-            return Err(Error::LimitExceeded);
+        let len = store.outgoing.len() as u64;
+
+        if len >= self.outgoing_limit {
+            Err(Error::LimitExceeded)
+        } else {
+            store.outgoing.insert(len, Some(Default::default()));
+            Ok(len as usize)
         }
-
-        let handle = self.outgoing_payloads.len();
-        self.outgoing_payloads.push(Some(Payload::default()));
-
-        Ok(handle)
     }
 
     /// Push an extra buffer into message payload by handle.
     pub fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), Error> {
-        if handle >= self.outgoing_payloads.len() {
-            return Err(Error::OutOfBounds);
-        }
-
-        if let Some(Some(payload)) = self.outgoing_payloads.get_mut(handle) {
-            payload.0.extend_from_slice(buffer);
-            Ok(())
-        } else {
-            Err(Error::LateAccess)
+        match self.store.borrow_mut().outgoing.get_mut(&(handle as u64)) {
+            Some(Some(payload)) => {
+                payload.0.extend_from_slice(buffer);
+                Ok(())
+            }
+            Some(None) => Err(Error::LateAccess),
+            None => Err(Error::OutOfBounds),
         }
     }
 
     /// Record reply to the current message.
     pub fn reply_commit(&mut self, packet: ReplyPacket) -> Result<MessageId, Error> {
-        let mut state = self.state.borrow_mut();
-        match &mut state.reply {
-            Some(_) => Err(Error::LateAccess),
-            None => {
-                let mut reply = self.id_generator.borrow_mut().produce_reply(packet);
+        let mut store = self.store.borrow_mut();
 
-                reply
-                    .payload
-                    .0
-                    .splice(0..0, self.reply_payload.take().unwrap_or_default().0);
+        if store.reply_was_sent {
+            Err(Error::DuplicateReply)
+        } else {
+            let mut reply = self.id_generator.borrow_mut().produce_reply(packet);
+            let stored_payload = store.reply.take().unwrap_or_default();
+            reply.payload.0.splice(0..0, stored_payload.0);
 
-                let id = reply.id();
-                state.reply = Some(reply);
-                Ok(id)
-            }
+            let id = reply.id();
+            self.state.borrow_mut().reply = Some(reply);
+            store.reply_was_sent = true;
+            Ok(id)
         }
     }
 
     /// Push an extra buffer into reply message.
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
-        let state = self.state.borrow();
-        if state.reply.is_some() {
-            return Err(Error::LateAccess);
-        }
+        let mut store = self.store.borrow_mut();
 
-        match &mut self.reply_payload {
-            Some(payload) => payload.0.extend_from_slice(buffer),
-            None => self.reply_payload = Some(buffer.to_vec().into()),
+        if store.reply_was_sent {
+            Err(Error::LateAccess)
+        } else {
+            let reply_payload = store.reply.get_or_insert_with(Default::default);
+            reply_payload.0.extend_from_slice(buffer);
+            Ok(())
         }
-
-        Ok(())
-    }
-
-    /// Check whether there are uncommitted messages.
-    pub fn check_uncommitted(&self) -> Result<(), Error> {
-        if self.reply_payload.is_some() {
-            return Err(Error::UncommittedPayloads);
-        }
-
-        for outgoing_payload in self.outgoing_payloads.iter() {
-            if outgoing_payload.is_some() {
-                return Err(Error::UncommittedPayloads);
-            }
-        }
-        Ok(())
     }
 
     /// Mark a message to be woken using `waker_id`.
     pub fn wake(&self, waker_id: MessageId) -> Result<(), Error> {
-        self.state.borrow_mut().awakening.push(waker_id);
-        Ok(())
+        let mut store = self.store.borrow_mut();
+
+        if store.awaken.contains(&waker_id) {
+            Err(Error::DuplicateWaking)
+        } else {
+            store.awaken.push(waker_id);
+            self.state.borrow_mut().awakening.push(waker_id);
+            Ok(())
+        }
     }
 
     /// Return reference to the current incoming message.
@@ -745,11 +744,18 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// Convert this context into the message state.
     ///
     /// Do it to return all outgoing, reply, waiting, ane awakening messages generated using this context.
-    pub fn into_state(self) -> MessageState {
-        let Self { state, .. } = self;
-        Rc::try_unwrap(state)
+    pub fn drain(self) -> (MessageState, PayloadStore) {
+        let Self { state, store, .. } = self;
+
+        let state = Rc::try_unwrap(state)
             .expect("Calling drain with references to the memory context left")
-            .into_inner()
+            .into_inner();
+
+        let store = Rc::try_unwrap(store)
+            .expect("Calling drain with references to the memory context left")
+            .into_inner();
+
+        (state, store)
     }
 }
 
@@ -762,30 +768,44 @@ pub struct Dispatch {
     pub kind: DispatchKind,
     /// Message to be dispatched.
     pub message: Message,
+    /// Payload store related to this dispatch.
+    pub payload_store: Option<PayloadStore>,
 }
 
 impl Dispatch {
     /// Create init dispatch
     pub fn new_init(message: Message) -> Self {
+        let kind = DispatchKind::Init;
+        let payload_store: Option<PayloadStore> = None;
+
         Dispatch {
             message,
-            kind: DispatchKind::Init,
+            kind,
+            payload_store,
         }
     }
 
     /// Create handle dispatch
     pub fn new_handle(message: Message) -> Self {
+        let kind = DispatchKind::Handle;
+        let payload_store: Option<PayloadStore> = None;
+
         Dispatch {
             message,
-            kind: DispatchKind::Handle,
+            kind,
+            payload_store,
         }
     }
 
     /// Create handle reply dispatch
     pub fn new_reply(message: Message) -> Self {
+        let kind = DispatchKind::HandleReply;
+        let payload_store: Option<PayloadStore> = None;
+
         Dispatch {
             message,
-            kind: DispatchKind::HandleReply,
+            kind,
+            payload_store,
         }
     }
 }
@@ -867,12 +887,12 @@ mod tests {
         };
 
         // Creating a message context
-        let mut context = MessageContext::new(incoming_message, id_generator);
+        let mut context = MessageContext::new(incoming_message, id_generator, None);
 
         // Checking that the initial parameters of the context match the passed constants
         assert_eq!(context.current().id, MessageId::from(INCOMING_MESSAGE_ID));
         assert_eq!(context.nonce(), DEFAULT_NONCE);
-        assert!(context.reply_payload.is_none());
+        assert!(context.store.borrow().reply.is_none());
         assert!(context.state.borrow().reply.is_none());
 
         // Creating a reply packet
@@ -918,7 +938,13 @@ mod tests {
         );
 
         // And checking that it is not formed
-        assert!(context.outgoing_payloads[expected_handle].is_some());
+        assert!(context
+            .store
+            .borrow()
+            .outgoing
+            .get(&(expected_handle as u64))
+            .expect("This key should be")
+            .is_some());
 
         // Checking that we are able to push payload for the
         // message that we have not committed yet
@@ -968,7 +994,7 @@ mod tests {
         );
 
         // Checking that on drain we get only messages that were fully formed (directly sent or committed)
-        let expected_result = context.into_state();
+        let (expected_result, _) = context.drain();
         assert_eq!(expected_result.outgoing.len(), 1);
         assert_eq!(expected_result.outgoing[0].payload.0, vec![5, 7, 9]);
     }

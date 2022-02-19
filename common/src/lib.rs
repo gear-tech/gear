@@ -38,7 +38,7 @@ use sp_std::{
 };
 
 use gear_core::{
-    message::DispatchKind,
+    message::{DispatchKind, PayloadStore},
     program::{Program as NativeProgram, ProgramId},
 };
 
@@ -186,22 +186,32 @@ pub trait DAGBasedLedger {
 pub struct Dispatch {
     pub kind: DispatchKind,
     pub message: Message,
+    pub payload_store: Option<PayloadStore>,
 }
 
 impl Dispatch {
     pub fn new_init(message: Message) -> Self {
-        let kind = DispatchKind::Init;
-        Dispatch { message, kind }
+        Self {
+            message,
+            kind: DispatchKind::Init,
+            payload_store: None,
+        }
     }
 
     pub fn new_handle(message: Message) -> Self {
-        let kind = DispatchKind::Handle;
-        Dispatch { message, kind }
+        Self {
+            message,
+            kind: DispatchKind::Handle,
+            payload_store: None,
+        }
     }
 
     pub fn new_reply(message: Message) -> Self {
-        let kind = DispatchKind::HandleReply;
-        Dispatch { message, kind }
+        Self {
+            message,
+            kind: DispatchKind::HandleReply,
+            payload_store: None,
+        }
     }
 }
 

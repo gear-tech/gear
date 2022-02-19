@@ -34,7 +34,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber},
-    message::{MessageId, OutgoingMessage, ReplyMessage},
+    message::{MessageId, OutgoingMessage, PayloadStore, ReplyMessage},
     program::ProgramId,
 };
 
@@ -61,6 +61,7 @@ pub struct ExtInfo {
     pub reply: Option<ReplyMessage>,
     pub awakening: Vec<MessageId>,
     pub nonce: u64,
+    pub payload_store: Option<PayloadStore>,
 
     pub trap_explanation: Option<&'static str>,
 

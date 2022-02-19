@@ -365,7 +365,11 @@ pub mod pallet {
                 }
             };
 
-            let dispatch = Dispatch { kind, message };
+            let dispatch = Dispatch {
+                kind,
+                message,
+                payload_store: None,
+            };
 
             let journal = core_processor::process::<SandboxEnvironment<Ext>>(
                 Some(program),

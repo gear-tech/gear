@@ -106,7 +106,7 @@ fn process_error(
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
-    let Dispatch { kind, message } = dispatch;
+    let Dispatch { kind, message, .. } = dispatch;
     let message_id = message.id();
     let origin = message.source();
     let program_id = message.dest();

@@ -17,42 +17,52 @@ fixtures:
       - destination: 1
         payload:
           kind: utf-8
-          value: ok common
+          value: handle
       - destination: 1
         payload:
           kind: utf-8
-          value: ok reply
+          value: reply
       - destination: 1
         payload:
           kind: utf-8
-          value: err common
+          value: handle store
       - destination: 1
         payload:
           kind: utf-8
-          value: err reply
+          value: reply store
+      - destination: 1
+        payload:
+          kind: utf-8
+          value: reply twice
 
     expected:
       - allowError: true
         log:
-          # from "ok common"
+          # from "handle"
           - destination: 1000001
             payload:
               kind: utf-8
               value: OK PING
-          # from "ok reply"
+          # from "reply"
           - destination: 1000001
             payload:
               kind: utf-8
               value: OK REPLY
-          # from "err common"
-          - destination: 1000001
-            exitCode: 1 # In future should be "STORED COMMON"
-          # from "err reply"
+          # from "reply twice"
           - destination: 1000001
             payload:
               kind: utf-8
-              value: I'll be sent
+              value: FIRST
+          # from "handle store"
           - destination: 1000001
             payload:
               kind: utf-8
-              value: REPLY # stripped payload. should be "STORED REPLY"
+              value: STORED COMMON
+          # from "reply store"
+          - destination: 1000001
+            payload:
+              kind: utf-8
+              value: STORED REPLY
+          # from "reply twice" awaken
+          - destination: 1000001
+            exitCode: 1
