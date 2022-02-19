@@ -9,7 +9,13 @@ use gear_core::{
     program::{Program as CoreProgram, ProgramId},
 };
 use path_clean::PathClean;
-use std::{cell::RefCell, env, fmt::Debug, fs, path::Path};
+use std::{
+    cell::RefCell,
+    env,
+    fmt::Debug,
+    fs,
+    path::{Path, PathBuf},
+};
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
@@ -97,6 +103,26 @@ impl<'a> Program<'a> {
             manager: &system.0,
             id: program_id,
         }
+    }
+
+    pub fn current(system: &'a System) -> Self {
+        let nonce = system.0.borrow_mut().free_id_nonce();
+
+        Self::current_with_id(system, nonce)
+    }
+
+    pub fn current_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
+        system: &'a System,
+        id: I,
+    ) -> Self {
+        let path_file = env::var("OUT_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| env::current_dir().expect("Unable to get current dir"));
+        let path_file = path_file.join("wasm_binary_path.txt");
+        let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
+        let path = String::from_utf8(path_bytes).expect("Invalid path");
+
+        Self::from_file_with_id(system, id, path)
     }
 
     pub fn mock<T: WasmProgram + 'static>(system: &'a System, mock: T) -> Self {
