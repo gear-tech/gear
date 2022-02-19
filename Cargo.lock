@@ -1956,9 +1956,7 @@ version = "0.1.0"
 name = "gear-backend-common"
 version = "0.1.0"
 dependencies = [
- "gear-common",
  "gear-core",
- "gear-runtime-interface",
  "log",
 ]
 
@@ -1971,7 +1969,6 @@ dependencies = [
  "gear-core",
  "log",
  "parity-wasm 0.42.2",
- "sp-io",
  "sp-sandbox",
 ]
 
