@@ -435,7 +435,8 @@ pub mod pallet {
             }
             while let Some(mut dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
-                if let Some((actual_gas_locked, _)) = T::GasHandler::get(dispatch.message.id) {
+                if let Some((actual_gas_locked, _)) = T::GasHandler::get_limit(dispatch.message.id)
+                {
                     log::debug!(
                         "Updating message {} gas limit: {} -> {}",
                         dispatch.message.id,
