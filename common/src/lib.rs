@@ -161,12 +161,14 @@ pub trait DAGBasedLedger {
     fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::ExternalOrigin)>;
 
     /// Consume underlying value.
+    ///
     /// If `key` does not identify any value or the value can't be fully consumed due to
     /// being a part of other value or itself having unconsumed parts, return None,
     /// else the corresponding piece of value is destroyed and imbalance is created.
     fn consume(key: Self::Key) -> Option<(Self::NegativeImbalance, Self::ExternalOrigin)>;
 
     /// Burns underlying value.
+    ///
     /// This "spends" the specified amount of value thereby decreasing the overall supply of it.
     /// In case of a success, this indicates the entire value supply becomes over-collateralized,
     /// hence negative imbalance.
@@ -188,8 +190,7 @@ pub trait DAGBasedLedger {
 
     /// Split underlying value.
     ///
-    /// If `key` does not identify any value or the `amount` exceeds what's locked under that key,
-    /// an error is returned.
+    /// If `key` does not identify any value an error is returned.
     /// This can't create imbalance as no value is burned or created.
     fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
 }
