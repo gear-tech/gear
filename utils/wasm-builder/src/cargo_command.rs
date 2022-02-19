@@ -61,8 +61,7 @@ impl CargoCommand {
             .args(&self.args)
             .arg("--color=always")
             .arg(format!("--manifest-path={}", self.manifest_path.display()))
-            .arg("--profile")
-            .arg(&self.profile)
+            .arg("--release")
             .arg("--")
             .args(&self.rustc_flags)
             .env(self.skip_build_env(), ""); // Don't build the original crate recursively
