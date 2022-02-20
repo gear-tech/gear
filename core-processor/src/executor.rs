@@ -28,15 +28,40 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use common::Origin;
-use core::convert::TryFrom;
 use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
     gas::{self, ChargeResult, GasCounter},
     memory::{MemoryContext, PageBuf, PageNumber},
     message::{Dispatch, MessageContext},
-    program::Program,
+    program::{Program, ProgramId},
 };
+
+#[cfg(feature = "lazy-pages")]
+fn load_pages(
+    program_id: ProgramId,
+    initial_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+) {
+    use common::Origin;
+    // In case we don't enable lazy-pages, then we loads data for all pages, which has no data, now.
+    let prog_id_hash = program_id.into_origin();
+    initial_pages
+        .iter_mut()
+        .filter(|(_x, y)| y.is_none())
+        .for_each(|(x, y)| {
+            let data = common::get_program_page_data(prog_id_hash, x.raw())
+                .expect("Page data must be in storage");
+            y.replace(Box::from(PageBuf::try_from(data).expect(
+                "Must be able to convert vec to PageBuf, may be vec has wrong size",
+            )));
+        });
+}
+
+#[cfg(not(feature = "lazy-pages"))]
+fn load_pages(
+    _program_id: ProgramId,
+    _initial_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+) {
+}
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<E: Environment<Ext>>(
@@ -161,18 +186,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         lazy_pages::try_to_enable_lazy_pages(initial_pages);
 
     if lazy_pages_enabled.is_none() && has_no_data_pages.is_some() {
-        // In case we don't enable lazy-pages, then we loads data for all pages, which has no data, now.
-        let prog_id_hash = program_id.into_origin();
-        initial_pages
-            .iter_mut()
-            .filter(|(_x, y)| y.is_none())
-            .for_each(|(x, y)| {
-                let data = common::get_program_page_data(prog_id_hash, x.raw())
-                    .expect("Page data must be in storage");
-                y.replace(Box::from(PageBuf::try_from(data).expect(
-                    "Must be able to convert vec to PageBuf, may be vec has wrong size",
-                )));
-            });
+        load_pages(program_id, initial_pages);
     }
 
     // Creating externalities.

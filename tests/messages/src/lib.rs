@@ -4,8 +4,7 @@
 use codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
-#[cfg(test)]
-mod native {
+mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
@@ -103,18 +102,11 @@ mod wasm {
 #[cfg(test)]
 #[cfg(feature = "std")]
 mod tests {
-    use super::{native, Request};
-
+    use super::Request;
     use common::{RunResult, RunnerContext};
 
-    #[test]
-    fn binary_available() {
-        assert!(native::WASM_BINARY.is_some());
-        assert!(native::WASM_BINARY_BLOATY.is_some());
-    }
-
     fn wasm_code() -> &'static [u8] {
-        native::WASM_BINARY_BLOATY.expect("wasm binary exists")
+        super::code::WASM_BINARY_OPT
     }
 
     #[test]
