@@ -67,6 +67,8 @@ impl WakeSignals {
                 waker.wake_by_ref();
             }
             crate::exec::wake(signal.message_id);
+        } else {
+            crate::debug!("Somehow received reply for the message we never sent");
         }
     }
 
