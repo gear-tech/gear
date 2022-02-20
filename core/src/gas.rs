@@ -163,6 +163,11 @@ impl ValueCounter {
 
         ChargeResult::Enough
     }
+
+    /// Report how much gas is left.
+    pub fn left(&self) -> u128 {
+        self.0
+    }
 }
 
 /// Instrument code with gas-counting instructions.
