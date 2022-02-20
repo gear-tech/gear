@@ -216,6 +216,10 @@ impl EnvExt for Ext {
                 .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
         };
 
+        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
+            return self.return_and_store_err(Err("No value left to reply"));
+        };
+
         let result = self
             .message_context
             .send_commit(handle, msg)
@@ -227,6 +231,10 @@ impl EnvExt for Ext {
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self.return_and_store_err(Err("Gas limit exceeded while trying to reply"));
+        };
+
+        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
+            return self.return_and_store_err(Err("No value left to reply"));
         };
 
         let result = self
@@ -317,6 +325,10 @@ impl EnvExt for Ext {
 
     fn value(&self) -> u128 {
         self.message_context.current().value()
+    }
+
+    fn value_available(&mut self) -> u128 {
+        self.value_counter.left()
     }
 
     fn leave(&mut self) -> Result<(), &'static str> {

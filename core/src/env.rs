@@ -135,6 +135,9 @@ pub trait Ext {
     /// Value associated with message.
     fn value(&self) -> u128;
 
+    /// Tell how much value is left in running context.
+    fn value_available(&mut self) -> u128;
+
     /// Interrupt the program and reschedule execution.
     fn wait(&mut self) -> Result<(), &'static str>;
 
@@ -278,6 +281,9 @@ mod tests {
         }
         fn value(&self) -> u128 {
             0
+        }
+        fn value_available(&mut self) -> u128 {
+            1_000_000
         }
         fn leave(&mut self) -> Result<(), &'static str> {
             Ok(())

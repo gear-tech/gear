@@ -63,7 +63,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
     let mut gas_counter = GasCounter::new(message.gas_limit());
 
     // Creating value counter.
-    let value_counter = ValueCounter::new(balance);
+    let value_counter = ValueCounter::new(balance + dispatch.message.value());
 
     let instrumented_code = match gas::instrument(program.code()) {
         Ok(code) => code,
