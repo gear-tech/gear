@@ -319,7 +319,7 @@ impl EnvExt for Ext {
         }
     }
 
-    fn gas_available(&mut self) -> u64 {
+    fn gas_available(&self) -> u64 {
         self.gas_counter.left()
     }
 
@@ -327,7 +327,7 @@ impl EnvExt for Ext {
         self.message_context.current().value()
     }
 
-    fn value_available(&mut self) -> u128 {
+    fn value_available(&self) -> u128 {
         self.value_counter.left()
     }
 
