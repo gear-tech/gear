@@ -26,7 +26,7 @@ use alloc::vec;
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAmount, GasCounter},
+    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
     memory::{MemoryContext, PageNumber},
     message::{ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
     program::ProgramId,
@@ -36,6 +36,8 @@ use gear_core::{
 pub struct Ext {
     /// Gas counter.
     pub gas_counter: GasCounter,
+    /// Value counter.
+    pub value_counter: ValueCounter,
     /// Memory context.
     pub memory_context: MemoryContext,
     /// Message context.

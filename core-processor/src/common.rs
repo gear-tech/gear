@@ -23,6 +23,7 @@ use alloc::{
     fmt::{self, Debug, Formatter},
     vec::Vec,
 };
+use codec::{Decode, Encode};
 use gear_core::{
     gas::GasAmount,
     memory::PageNumber,
@@ -242,6 +243,15 @@ pub struct ExecutionError {
     pub gas_amount: GasAmount,
     /// Error text.
     pub reason: &'static str,
+}
+
+/// Executable actor.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ExecutableActor {
+    /// Program.
+    pub program: Program,
+    /// Program value balance.
+    pub balance: u128,
 }
 
 #[derive(Clone, Default)]
