@@ -433,7 +433,17 @@ pub mod pallet {
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
             }
-            while let Some(dispatch) = common::dequeue_dispatch() {
+            while let Some(mut dispatch) = common::dequeue_dispatch() {
+                // Update message gas limit for it may have changed in the meantime
+                if let Some((actual_gas_locked, _)) = T::GasHandler::get(dispatch.message.id) {
+                    log::debug!(
+                        "Updating message {} gas limit: {} -> {}",
+                        dispatch.message.id,
+                        dispatch.message.gas_limit,
+                        actual_gas_locked
+                    );
+                    dispatch.message.gas_limit = actual_gas_locked;
+                }
                 // Check whether we have enough of gas allowed for message processing
                 if dispatch.message.gas_limit > GasAllowance::<T>::get() {
                     common::queue_dispatch(dispatch);
