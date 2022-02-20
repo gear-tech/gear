@@ -36,7 +36,6 @@ pub fn oom(_: core::alloc::Layout) -> ! {
 #[cfg(target_arch = "wasm32")]
 #[alloc_error_handler]
 pub fn oom(_: core::alloc::Layout) -> ! {
-
     crate::debug!("Runtime memory exhausted. Aborting");
     core::arch::wasm32::unreachable()
 }
