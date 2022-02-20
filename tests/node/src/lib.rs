@@ -22,8 +22,7 @@
 use codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
-#[cfg(test)]
-mod native {
+mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
@@ -58,10 +57,9 @@ pub enum Reply {
 mod wasm {
     extern crate alloc;
 
+    use super::{Initialization, Operation, Reply, Request};
     use alloc::collections::BTreeSet;
     use gstd::{debug, exec, msg, prelude::*, ActorId, MessageId};
-
-    use super::{Initialization, Operation, Reply, Request};
 
     #[derive(Clone)]
     enum TransitionState {
@@ -296,17 +294,11 @@ mod wasm {
 #[cfg(test)]
 #[cfg(feature = "std")]
 mod tests {
-    use super::{native, Initialization, Operation, Reply, Request};
+    use super::{Initialization, Operation, Reply, Request};
     use common::*;
 
-    #[test]
-    fn binary_available() {
-        assert!(native::WASM_BINARY.is_some());
-        assert!(native::WASM_BINARY_BLOATY.is_some());
-    }
-
     fn wasm_code() -> &'static [u8] {
-        native::WASM_BINARY_BLOATY.expect("wasm binary exists")
+        super::code::WASM_BINARY_OPT
     }
 
     #[test]

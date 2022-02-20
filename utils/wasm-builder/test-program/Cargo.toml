@@ -4,10 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-gstd = { git = "https://github.com/gear-tech/gear.git", features = ["debug"] }
+gstd = { path = "../../../gstd", features = ["debug"] }
+
+[dev-dependencies]
+gtest = { path = "../../../gtest" }
 
 [build-dependencies]
-gear-wasm-builder = { path = "../" }
+gear-wasm-builder = { path = ".." }
 
 # To exclude this project from the outer workspace
 [workspace]

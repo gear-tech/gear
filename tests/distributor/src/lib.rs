@@ -21,12 +21,12 @@
 use codec::{Decode, Encode};
 
 #[cfg(feature = "std")]
-mod native {
+mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
 #[cfg(feature = "std")]
-pub use native::{WASM_BINARY, WASM_BINARY_BLOATY};
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
 
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Request {
@@ -228,18 +228,11 @@ mod wasm {
 #[cfg(test)]
 #[cfg(feature = "std")]
 mod tests {
-    use super::{native, Reply, Request};
-
+    use super::{Reply, Request};
     use common::*;
 
-    #[test]
-    fn binary_available() {
-        assert!(native::WASM_BINARY.is_some());
-        assert!(native::WASM_BINARY_BLOATY.is_some());
-    }
-
     fn wasm_code() -> &'static [u8] {
-        native::WASM_BINARY_BLOATY.expect("wasm binary exists")
+        super::code::WASM_BINARY_OPT
     }
 
     #[test]

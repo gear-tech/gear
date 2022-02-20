@@ -168,6 +168,10 @@ impl WasmProject {
         let to_meta_path = to_dir.join(format!("{}.meta.wasm", &file_base_name));
         Self::generate_meta(&from_path, &to_meta_path)?;
 
+        let wasm_binary_path = self.out_dir.join("wasm_binary_path.txt");
+        fs::write(&wasm_binary_path, format!("{}", to_opt_path.display()))
+            .context("unable to write `wasm_binary_path.txt`")?;
+
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         fs::write(
             &wasm_binary_rs,
@@ -184,7 +188,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
                 to_meta_path.display(),
             ),
         )
-        .context("unable to write `wasm_bimary.rs`")?;
+        .context("unable to write `wasm_binary.rs`")?;
 
         Ok(())
     }
