@@ -653,10 +653,11 @@ mod tests {
             set_code(code_hash, &code);
 
             let program_id = H256::from_low_u64_be(1);
+            let static_pages = 256;
             set_program(
                 program_id,
                 ActiveProgram {
-                    static_pages: 256,
+                    static_pages,
                     persistent_pages: Default::default(),
                     code_hash,
                     nonce: 0,
@@ -665,12 +666,37 @@ mod tests {
                 Default::default(),
             );
 
+            let msg_id_1 = H256::from_low_u64_be(1);
+            insert_waiting_message(program_id, msg_id_1, Dispatch::new_handle(Message {
+                id: msg_id_1,
+                source: H256::from_low_u64_be(3),
+                dest: program_id,
+                payload: Default::default(),
+                gas_limit: u64::MAX,
+                value: 0,
+                reply: None,
+            }), 0);
+
+            let msg_id_2 = H256::from_low_u64_be(2);
+            insert_waiting_message(program_id, msg_id_2, Dispatch::new_handle(Message {
+                id: msg_id_2,
+                source: H256::from_low_u64_be(4),
+                dest: program_id,
+                payload: Default::default(),
+                gas_limit: u64::MAX,
+                value: 0,
+                reply: None,
+            }), 0);
+
             pause_program(program_id).unwrap();
 
             assert!(get_code(code_hash).is_some());
 
             // although the memory pages should be removed
-            assert_eq!(get_program_pages(program_id, (0..256).collect::<BTreeSet<_>>()), None);
+            assert_eq!(get_program_pages(program_id, (0..static_pages).collect::<BTreeSet<_>>()), None);
+
+            assert!(remove_waiting_message(program_id, msg_id_1).is_none());
+            assert!(remove_waiting_message(program_id, msg_id_2).is_none());
         });
     }
 }
