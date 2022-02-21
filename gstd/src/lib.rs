@@ -40,6 +40,7 @@ pub use common::errors;
 pub use common::handlers::*;
 pub use common::primitives::*;
 pub use gstd_codegen::{async_init, async_main};
+pub use macros::util;
 
 pub use prelude::*;
 

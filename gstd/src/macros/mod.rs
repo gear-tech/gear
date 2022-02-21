@@ -22,12 +22,12 @@ mod bail;
 mod debug;
 mod export;
 mod metadata;
+mod require;
 
 pub mod util {
     use crate::prelude::{Box, String, Vec};
     use codec::Encode;
     use scale_info::{PortableRegistry, Registry};
-
     pub use scale_info::MetaType;
 
     pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {

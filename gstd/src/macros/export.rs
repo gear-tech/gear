@@ -26,7 +26,7 @@ macro_rules! export {
         #[no_mangle]
         pub unsafe extern "C" fn $f() -> *mut [i32; 2] {
             let buffer = $val.to_string();
-            let result = gstd::macros::util::to_wasm_ptr(buffer.as_bytes());
+            let result = $crate::util::to_wasm_ptr(buffer.as_bytes());
             core::mem::forget(buffer);
             result
         }

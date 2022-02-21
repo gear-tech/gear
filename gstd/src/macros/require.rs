@@ -16,26 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Gear `debug!` macro.
-//! Enables output of the logs from Wasm if the `debug` feature is enabled.
+//! Gear `require!` macro.
+//! Check the available balances and panics if they less then passed argument
 
-#[cfg(feature = "debug")]
 #[macro_export]
-macro_rules! debug {
-    ($arg:literal) => {
-        $crate::ext::debug(&$crate::prelude::format!("{}", $arg));
+macro_rules! require {
+    (GAS $arg:expr) => {
+        if $crate::exec::gas_available() < $arg as u64 {
+            panic!("Required gas amount is less than available");
+        }
     };
-    ($arg:expr) => {
-        $crate::ext::debug(&$crate::prelude::format!("{:?}", $arg));
+    (VALUE $arg:expr) => {
+        if $crate::exec::value_available() < $arg as u128 {
+            panic!("Required value amount is less than available");
+        }
     };
-    ($fmt:literal, $($args:tt)+) => {
-        $crate::ext::debug(&$crate::prelude::format!($fmt, $($args)+));
-    };
-}
-
-#[cfg(not(feature = "debug"))]
-#[macro_export]
-macro_rules! debug {
-    ($arg:expr) => {};
-    ($fmt:literal, $($args:tt)+) => {};
 }
