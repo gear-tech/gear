@@ -83,3 +83,27 @@ pub fn paused_program_key(id: H256) -> Vec<u8> {
 pub fn paused_program_exists(id: H256) -> bool {
     sp_io::storage::exists(&paused_program_key(id))
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ResumeError
+{
+    ProgramNotFound,
+    WrongMemoryPages,
+}
+
+pub fn resume_program(program_id: H256, memory_pages: BTreeMap<u32, Vec<u8>>, block_number: u32) -> Result<(), ResumeError> {
+    let paused_program = sp_io::storage::get(&paused_program_key(program_id))
+        .map(|bytes| PausedProgram::decode(&mut &bytes[..]).expect("resume_program: encoded correctly"))
+        .ok_or(ResumeError::ProgramNotFound)?;
+
+    if paused_program.pages_hash != memory_pages.using_encoded(sp_io::hashing::blake2_256).into() {
+        return Err(ResumeError::WrongMemoryPages);
+    }
+
+    set_program(program_id, paused_program.program, memory_pages);
+
+    paused_program.wait_list.into_iter().for_each(|m| insert_waiting_message(program_id, m.message.id, m, block_number));
+    sp_io::storage::set(&waiting_init_prefix(program_id), &paused_program.waiting_init.encode()[..]);
+
+    Ok(())
+}
