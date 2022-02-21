@@ -727,4 +727,31 @@ mod tests {
             assert_err!(pause_program(program_id), pause::Error::ProgramNotFound);
         });
     }
+
+    #[test]
+    fn pause_terminated_program_fails() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            set_code(code_hash, &code);
+
+            let program_id = H256::from_low_u64_be(1);
+            let static_pages = 256;
+            set_program(
+                program_id,
+                ActiveProgram {
+                    static_pages,
+                    persistent_pages: Default::default(),
+                    code_hash,
+                    nonce: 0,
+                    state: ProgramState::Initialized,
+                },
+                Default::default(),
+            );
+
+            assert_ok!(set_program_terminated_status(program_id));
+
+            assert_err!(pause_program(program_id), pause::Error::ProgramTerminated);
+        });
+    }
 }
