@@ -93,7 +93,14 @@ where
 
     journal_handler.store_program(program.clone(), message.message.id());
 
-    let journal = core_processor::process::<E>(Some(ExecutableActor { program, balance: 0 }), message.into(), block_info);
+    let journal = core_processor::process::<E>(
+        Some(ExecutableActor {
+            program,
+            balance: 0,
+        }),
+        message.into(),
+        block_info,
+    );
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -245,11 +252,8 @@ where
             if let Some(dispatch) = state.dispatch_queue.pop_front() {
                 let actor = state.actors.get(&dispatch.message.dest()).cloned();
 
-                let journal = core_processor::process::<E>(
-                    actor,
-                    dispatch,
-                    BlockInfo { height, timestamp },
-                );
+                let journal =
+                    core_processor::process::<E>(actor, dispatch, BlockInfo { height, timestamp });
 
                 core_processor::handle_journal(journal, journal_handler);
 

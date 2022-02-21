@@ -51,9 +51,13 @@ impl InMemoryExtManager {
 impl ExecutionContext for InMemoryExtManager {
     fn store_program(&self, program: Program, _init_message_id: MessageId) {
         self.waiting_init.borrow_mut().insert(program.id(), vec![]);
-        self.actors
-            .borrow_mut()
-            .insert(program.id(), Some(ExecutableActor{ program, balance: 0 }));
+        self.actors.borrow_mut().insert(
+            program.id(),
+            Some(ExecutableActor {
+                program,
+                balance: 0,
+            }),
+        );
     }
 }
 
@@ -176,7 +180,21 @@ impl JournalHandler for InMemoryExtManager {
             unreachable!("Can't update page for terminated program");
         }
     }
-    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
-        // TODO https://github.com/gear-tech/gear/issues/644
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+        if let Some(to) = to {
+            let mut actors = self.actors.borrow_mut();
+
+            if let Some(Some(actor)) = actors.get_mut(&from) {
+                if actor.balance < value {
+                    panic!("Actor {:?} balance is less then sent value", from);
+                }
+
+                actor.balance -= value;
+            };
+
+            if let Some(Some(actor)) = actors.get_mut(&to) {
+                actor.balance += value;
+            };
+        };
     }
 }

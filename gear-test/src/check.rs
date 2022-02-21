@@ -555,8 +555,11 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        let mut progs: Vec<Program> =
-                            final_state.actors.into_iter().map(|(_, v)| v.program).collect();
+                        let mut progs: Vec<Program> = final_state
+                            .actors
+                            .into_iter()
+                            .map(|(_, v)| v.program)
+                            .collect();
                         if let Err(mem_errors) = check_memory(&mut progs, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);
