@@ -67,6 +67,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
+name = "blake2"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9cf849ee05b2ee5fba5e36f97ff8ec2533916700fc0758d40d92136a42f3388"
+dependencies = [
+ "digest 0.10.3",
+]
+
+[[package]]
 name = "blake2-rfc"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -176,11 +185,12 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "crypto-common"
-version = "0.1.1"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "683d6b536309245c849479fba3da410962a43ed8e51c26b729208ec0ac2798d0"
+checksum = "57952ca27b5e3606ff4dd79b0020231aaf9d6aa76dc05fd30137538c50bd3ce8"
 dependencies = [
  "generic-array 0.14.4",
+ "typenum",
 ]
 
 [[package]]
@@ -489,13 +499,13 @@ dependencies = [
 
 [[package]]
 name = "digest"
-version = "0.10.1"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b697d66081d42af4fba142d56918a3cb21dc8eb63372c6b85d14f44fb9c5979b"
+checksum = "f2fb860ca6fafa5552fb6d0e816a69c8e49f0908bf524e30a90d97c85892d506"
 dependencies = [
  "block-buffer 0.10.0",
  "crypto-common",
- "generic-array 0.14.4",
+ "subtle",
 ]
 
 [[package]]
@@ -1226,7 +1236,17 @@ checksum = "99c3bd8169c58782adad9290a9af5939994036b76187f7b4f0e6de91dbbfc0ec"
 dependencies = [
  "cfg-if",
  "cpufeatures",
- "digest 0.10.1",
+ "digest 0.10.3",
+]
+
+[[package]]
+name = "sha3"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "881bf8156c87b6301fc5ca6b27f11eeb2761224c7081e69b409d5a1951a70c86"
+dependencies = [
+ "digest 0.10.3",
+ "keccak",
 ]
 
 [[package]]
@@ -1237,8 +1257,8 @@ checksum = "c19772be3c4dd2ceaacf03cb41d5885f2a02c4d8804884918e3a258480803335"
 
 [[package]]
 name = "sp-core"
-version = "4.1.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+version = "5.0.0"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
  "bitflags",
  "blake2-rfc",
@@ -1257,35 +1277,33 @@ dependencies = [
  "scale-info",
  "schnorrkel",
  "secrecy",
- "sha2 0.10.1",
  "sp-core-hashing",
  "sp-debug-derive",
  "sp-runtime-interface",
  "sp-std",
  "sp-storage",
  "ss58-registry",
- "tiny-keccak",
- "twox-hash",
  "zeroize",
 ]
 
 [[package]]
 name = "sp-core-hashing"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
- "blake2-rfc",
+ "blake2",
  "byteorder",
+ "digest 0.10.3",
  "sha2 0.10.1",
+ "sha3",
  "sp-std",
- "tiny-keccak",
  "twox-hash",
 ]
 
 [[package]]
 name = "sp-debug-derive"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1294,8 +1312,8 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime-interface"
-version = "4.1.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+version = "5.0.0"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -1311,7 +1329,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -1323,12 +1341,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 
 [[package]]
 name = "sp-storage"
-version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+version = "5.0.0"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
  "parity-scale-codec",
  "ref-cast",
@@ -1339,7 +1357,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
  "parity-scale-codec",
  "sp-std",
@@ -1349,8 +1367,8 @@ dependencies = [
 
 [[package]]
 name = "sp-wasm-interface"
-version = "4.1.0-dev"
-source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#d9d29bc12bc6548ca87e5bb6adac71a55c1b5e3e"
+version = "5.0.0"
+source = "git+https://github.com/gear-tech/substrate.git?branch=gear-latest#c9f5b78c0e28d57948a40054720c5b8a0d9b9df3"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -1433,15 +1451,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tiny-keccak"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
-dependencies = [
- "crunchy",
-]
-
-[[package]]
 name = "token-vendor"
 version = "0.1.0"
 dependencies = [
@@ -1486,6 +1495,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
  "cfg-if",
+ "digest 0.10.3",
  "static_assertions",
 ]
 
