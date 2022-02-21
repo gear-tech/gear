@@ -609,6 +609,8 @@ pub fn reset_storage() {
 
 #[cfg(test)]
 mod tests {
+    use frame_support::{assert_err, assert_ok};
+
     use super::*;
 
     #[test]
@@ -688,7 +690,7 @@ mod tests {
                 reply: None,
             }), 0);
 
-            pause_program(program_id).unwrap();
+            assert_ok!(pause_program(program_id));
 
             assert!(get_code(code_hash).is_some());
 
@@ -697,6 +699,32 @@ mod tests {
 
             assert!(remove_waiting_message(program_id, msg_id_1).is_none());
             assert!(remove_waiting_message(program_id, msg_id_2).is_none());
+        });
+    }
+
+    #[test]
+    fn pause_program_twice_fails() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            set_code(code_hash, &code);
+
+            let program_id = H256::from_low_u64_be(1);
+            let static_pages = 256;
+            set_program(
+                program_id,
+                ActiveProgram {
+                    static_pages,
+                    persistent_pages: Default::default(),
+                    code_hash,
+                    nonce: 0,
+                    state: ProgramState::Initialized,
+                },
+                Default::default(),
+            );
+
+            assert_ok!(pause_program(program_id));
+            assert_err!(pause_program(program_id), pause::Error::ProgramNotFound);
         });
     }
 }

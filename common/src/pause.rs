@@ -32,7 +32,7 @@ fn decode_dispatch_tuple(_: &[u8], value: &[u8]) -> Result<(Dispatch, u32), code
     <(Dispatch, u32)>::decode(&mut &*value)
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error
 {
     ProgramNotFound,
