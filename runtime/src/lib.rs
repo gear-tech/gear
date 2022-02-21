@@ -47,7 +47,7 @@ pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU32, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+        ConstU128, ConstU64, ConstU32, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
     },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -332,10 +332,7 @@ parameter_types! {
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
     pub const WaitListTraversalInterval: u32 = 10;
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
-    pub const MaxBatchSize: u32 = 100;
-    pub const TrapReplyExistentialGasLimit: u64 = 6000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
-    pub const WaitListFeePerBlock: u64 = 1000;
 }
 
 impl pallet_gear::Config for Runtime {
@@ -360,10 +357,10 @@ impl pallet_usage::Config for Runtime {
     type WeightInfo = pallet_usage::weights::GearSupportWeight<Runtime>;
     type WaitListTraversalInterval = WaitListTraversalInterval;
     type ExpirationDuration = ExpirationDuration;
-    type MaxBatchSize = MaxBatchSize;
-    type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
+    type MaxBatchSize = ConstU32<100>;
+    type TrapReplyExistentialGasLimit = ConstU64<6000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
-    type WaitListFeePerBlock = WaitListFeePerBlock;
+    type WaitListFeePerBlock = ConstU64<1000>;
 }
 
 impl pallet_gas::Config for Runtime {}
