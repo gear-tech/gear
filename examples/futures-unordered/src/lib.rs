@@ -38,8 +38,13 @@ async fn main() {
             debug!("UNORDERED: Before any sending");
 
             let requests = vec![
-                msg::send_bytes_and_wait_for_reply(DEMO_ASYNC, "START", GAS_LIMIT * 10, 0),
-                msg::send_bytes_and_wait_for_reply(DEMO_PING, "PING", GAS_LIMIT, 0),
+                msg::send_bytes_and_wait_for_reply(
+                    unsafe { DEMO_ASYNC },
+                    "START",
+                    GAS_LIMIT * 10,
+                    0,
+                ),
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", GAS_LIMIT, 0),
             ];
 
             let mut unordered: FuturesUnordered<_> = requests.into_iter().collect();
@@ -71,11 +76,11 @@ async fn main() {
             debug!("SELECT: Before any sending");
 
             select_biased! {
-                res = msg::send_bytes_and_wait_for_reply(DEMO_ASYNC, "START", GAS_LIMIT * 10, 0) => {
+                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", GAS_LIMIT * 10, 0) => {
                     debug!("Recieved msg from demo_async");
                     msg::send_bytes(source, res.expect("Exit code is 0"), 0, 0);
                 },
-                res = msg::send_bytes_and_wait_for_reply(DEMO_PING, "PING", GAS_LIMIT, 0) => {
+                res = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", GAS_LIMIT, 0) => {
                     debug!("Recieved msg from demo_ping");
                     msg::send_bytes(source, res.expect("Exit code is 0"), 0, 0);
                 },
@@ -90,8 +95,13 @@ async fn main() {
             debug!("JOIN: Before any sending");
 
             let res = join!(
-                msg::send_bytes_and_wait_for_reply(DEMO_ASYNC, "START", GAS_LIMIT * 10, 0),
-                msg::send_bytes_and_wait_for_reply(DEMO_PING, "PING", GAS_LIMIT, 0)
+                msg::send_bytes_and_wait_for_reply(
+                    unsafe { DEMO_ASYNC },
+                    "START",
+                    GAS_LIMIT * 10,
+                    0
+                ),
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", GAS_LIMIT, 0)
             );
 
             debug!("Finish after join");
