@@ -93,7 +93,7 @@ where
 
     journal_handler.store_program(program.clone(), message.message.id());
 
-    let journal = core_processor::process::<E>(Some(program), message.into(), block_info);
+    let journal = core_processor::process::<E>(Some(ExecutableActor { program, balance: 0 }), message.into(), block_info);
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -243,10 +243,10 @@ where
                 .unwrap_or(0) as u64;
 
             if let Some(dispatch) = state.dispatch_queue.pop_front() {
-                let program = state.programs.get(&dispatch.message.dest()).cloned();
+                let actor = state.actors.get(&dispatch.message.dest()).cloned();
 
                 let journal = core_processor::process::<E>(
-                    program,
+                    actor,
                     dispatch,
                     BlockInfo { height, timestamp },
                 );
@@ -263,7 +263,7 @@ where
     } else {
         let mut counter = 0;
         while let Some(dispatch) = state.dispatch_queue.pop_front() {
-            let program = state.programs.get(&dispatch.message.dest()).cloned();
+            let actor = state.actors.get(&dispatch.message.dest()).cloned();
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -271,7 +271,7 @@ where
                 .unwrap_or(0) as u64;
 
             let journal = core_processor::process::<E>(
-                program,
+                actor,
                 dispatch,
                 BlockInfo {
                     height: counter,
