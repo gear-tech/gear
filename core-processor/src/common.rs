@@ -261,8 +261,8 @@ pub struct State {
     pub dispatch_queue: VecDeque<Dispatch>,
     /// Log records.
     pub log: Vec<Message>,
-    /// State of each program.
-    pub programs: BTreeMap<ProgramId, Program>,
+    /// State of each executable actor.
+    pub actors: BTreeMap<ProgramId, ExecutableActor>,
     /// Is current state failed.
     pub current_failed: bool,
 }
@@ -273,20 +273,24 @@ impl Debug for State {
             .field("dispatch_queue", &self.dispatch_queue)
             .field("log", &self.log)
             .field(
-                "programs",
+                "actors",
                 &self
-                    .programs
+                    .actors
                     .iter()
-                    .map(|(id, prog)| {
+                    .map(|(id, ExecutableActor { program, balance })| {
                         (
                             *id,
-                            prog.get_pages()
-                                .keys()
-                                .cloned()
-                                .collect::<BTreeSet<PageNumber>>(),
+                            (
+                                *balance,
+                                program
+                                    .get_pages()
+                                    .keys()
+                                    .cloned()
+                                    .collect::<BTreeSet<PageNumber>>(),
+                            ),
                         )
                     })
-                    .collect::<BTreeMap<ProgramId, BTreeSet<PageNumber>>>(),
+                    .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
             )
             .field("current_failed", &self.current_failed)
             .finish()
