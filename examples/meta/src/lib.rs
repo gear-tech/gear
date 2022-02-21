@@ -164,5 +164,5 @@ pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
             .collect::<Vec<Wallet>>()
             .encode(),
     };
-    gstd::macros::util::to_leak_ptr(encoded)
+    gstd::util::to_leak_ptr(encoded)
 }
