@@ -140,6 +140,36 @@ impl From<GasCounter> for GasAmount {
     }
 }
 
+/// Value counter with some predefined maximum value.
+#[derive(Debug)]
+pub struct ValueCounter(u128);
+
+impl ValueCounter {
+    /// New limited value counter with initial value to spend.
+    pub fn new(initial_amount: u128) -> Self {
+        Self(initial_amount)
+    }
+
+    /// Reduce value by `amount`.
+    ///
+    /// Called when message is sent to another program, so the value `amount` is sent to
+    /// receiving program.
+    pub fn reduce(&mut self, amount: u128) -> ChargeResult {
+        if self.0 < amount {
+            return ChargeResult::NotEnough;
+        }
+
+        self.0 -= amount;
+
+        ChargeResult::Enough
+    }
+
+    /// Report how much value is left.
+    pub fn left(&self) -> u128 {
+        self.0
+    }
+}
+
 /// Instrument code with gas-counting instructions.
 pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     use pwasm_utils::rules::{InstructionType, Metering};

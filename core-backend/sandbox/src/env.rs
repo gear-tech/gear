@@ -130,6 +130,7 @@ where
         env_builder.add_host_func("env", "gr_source", funcs::source);
         env_builder.add_host_func("env", "gr_program_id", funcs::program_id);
         env_builder.add_host_func("env", "gr_value", funcs::value);
+        env_builder.add_host_func("env", "gr_value_available", funcs::value_available);
         env_builder.add_host_func("env", "gr_reply", funcs::reply);
         env_builder.add_host_func("env", "gr_reply_commit", funcs::reply_commit);
         env_builder.add_host_func("env", "gr_reply_to", funcs::reply_to);

@@ -63,7 +63,7 @@ pub mod pallet {
         ProgramState,
     };
     use core_processor::{
-        common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
+        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
         configs::BlockInfo,
         Ext,
     };
@@ -180,6 +180,8 @@ pub mod pallet {
         CodeAlreadyExists,
         /// Failed to create a program.
         FailedToConstructProgram,
+        /// Value doesnt cover ExistenceDeposit
+        ValueLessThanMinimal,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -328,6 +330,8 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
+            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
+
             let (dest, reply) = match kind {
                 HandleKind::Init(ref code) => (sp_io::hashing::blake2_256(code).into(), None),
                 HandleKind::Handle(dest) => (dest, None),
@@ -350,19 +354,23 @@ pub mod pallet {
             let mut gas_burned = 0;
             let mut gas_to_send = 0;
 
-            let (kind, program) = match kind {
+            let (kind, actor) = match kind {
                 HandleKind::Init(code) => {
                     gas_burned = gas_burned
                         .saturating_add(<T as Config>::WeightInfo::submit_code(code.len() as u32));
                     (
                         DispatchKind::Init,
-                        ext_manager.program_from_code(dest, code)?,
+                        ext_manager.executable_actor_from_code(dest, code)?,
                     )
                 }
-                HandleKind::Handle(dest) => (DispatchKind::Handle, ext_manager.get_program(dest)?),
-                HandleKind::Reply(..) => {
-                    (DispatchKind::HandleReply, ext_manager.get_program(dest)?)
-                }
+                HandleKind::Handle(dest) => (
+                    DispatchKind::Handle,
+                    ext_manager.get_executable_actor(dest)?,
+                ),
+                HandleKind::Reply(..) => (
+                    DispatchKind::HandleReply,
+                    ext_manager.get_executable_actor(dest)?,
+                ),
             };
 
             let dispatch = Dispatch {
@@ -372,9 +380,10 @@ pub mod pallet {
             };
 
             let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                Some(program),
+                Some(actor),
                 dispatch.into(),
                 block_info,
+                existential_deposit,
             );
 
             for note in &journal {
@@ -425,10 +434,13 @@ pub mod pallet {
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
+
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
+
+            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
 
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
@@ -451,7 +463,7 @@ pub mod pallet {
                     break;
                 }
 
-                let maybe_active_program = {
+                let maybe_active_actor = {
                     let program_id = dispatch.message.dest;
                     let current_message_id = dispatch.message.id;
                     let maybe_message_reply = dispatch.message.reply;
@@ -477,13 +489,24 @@ pub mod pallet {
                         }
                     }
 
-                    maybe_active_program.try_into_native(program_id).ok()
+                    maybe_active_program
+                        .try_into_native(program_id)
+                        .ok()
+                        .map(|program| {
+                            let balance = T::Currency::free_balance(
+                                &<T::AccountId as Origin>::from_origin(program_id),
+                            )
+                            .unique_saturated_into();
+
+                            ExecutableActor { program, balance }
+                        })
                 };
 
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    maybe_active_program,
+                    maybe_active_actor,
                     dispatch.into(),
                     block_info,
+                    existential_deposit,
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);
@@ -712,10 +735,19 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Check that provided `value` equals 0 or greater than existential deposit
+            ensure!(
+                0 == numeric_value || numeric_value >= minimum,
+                Error::<T>::ValueLessThanMinimal
             );
 
             ensure!(
@@ -801,10 +833,19 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Check that provided `value` equals 0 or greater than existential deposit
+            ensure!(
+                0 == numeric_value || numeric_value >= minimum,
+                Error::<T>::ValueLessThanMinimal
             );
 
             // Claim outstanding value from the original message first

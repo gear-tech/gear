@@ -31,7 +31,7 @@ use crate::check::ExecutionContext;
 pub struct InMemoryExtManager {
     dispatch_queue: VecDeque<Dispatch>,
     log: Vec<Message>,
-    programs: RefCell<BTreeMap<ProgramId, Option<Program>>>,
+    actors: RefCell<BTreeMap<ProgramId, Option<ExecutableActor>>>,
     waiting_init: RefCell<BTreeMap<ProgramId, Vec<MessageId>>>,
     wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     current_failed: bool,
@@ -49,11 +49,15 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
-    fn store_program(&self, program: gear_core::program::Program, _init_message_id: MessageId) {
+    fn store_program(&self, program: Program, _init_message_id: MessageId) {
         self.waiting_init.borrow_mut().insert(program.id(), vec![]);
-        self.programs
-            .borrow_mut()
-            .insert(program.id(), Some(program));
+        self.actors.borrow_mut().insert(
+            program.id(),
+            Some(ExecutableActor {
+                program,
+                balance: 0,
+            }),
+        );
     }
 }
 
@@ -62,12 +66,12 @@ impl CollectState for InMemoryExtManager {
         let InMemoryExtManager {
             dispatch_queue,
             log,
-            programs,
+            actors,
             current_failed,
             ..
         } = self.clone();
 
-        let programs = programs
+        let actors = actors
             .into_inner()
             .into_iter()
             .filter_map(|(id, p_opt)| p_opt.map(|p| (id, p)))
@@ -76,7 +80,7 @@ impl CollectState for InMemoryExtManager {
         State {
             dispatch_queue,
             log,
-            programs,
+            actors,
             current_failed,
         }
     }
@@ -88,9 +92,9 @@ impl JournalHandler for InMemoryExtManager {
             DispatchOutcome::MessageTrap { .. } => true,
             DispatchOutcome::InitFailure { program_id, .. } => {
                 self.move_waiting_msgs_to_queue(program_id);
-                if let Some(prog) = self.programs.borrow_mut().get_mut(&program_id) {
+                if let Some(actor) = self.actors.borrow_mut().get_mut(&program_id) {
                     // Program is now considered terminated (in opposite to active). But not deleted from the state.
-                    *prog = None;
+                    *actor = None;
                 }
                 true
             }
@@ -104,7 +108,7 @@ impl JournalHandler for InMemoryExtManager {
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
-        self.programs.borrow_mut().remove(&id_exited);
+        self.actors.borrow_mut().remove(&id_exited);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -118,7 +122,7 @@ impl JournalHandler for InMemoryExtManager {
     }
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         let dest = dispatch.message.dest();
-        if self.programs.borrow().contains_key(&dest) {
+        if self.actors.borrow().contains_key(&dest) {
             if let (DispatchKind::Handle, Some(list)) =
                 (dispatch.kind, self.waiting_init.borrow_mut().get_mut(&dest))
             {
@@ -148,12 +152,12 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        let mut programs = self.programs.borrow_mut();
-        if let Some(prog) = programs
+        let mut programs = self.actors.borrow_mut();
+        if let Some(actor) = programs
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
-            prog.set_message_nonce(nonce);
+            actor.program.set_message_nonce(nonce);
         }
     }
     fn update_page(
@@ -162,21 +166,35 @@ impl JournalHandler for InMemoryExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        let mut programs = self.programs.borrow_mut();
-        if let Some(prog) = programs
+        let mut actors = self.actors.borrow_mut();
+        if let Some(actor) = actors
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
             if let Some(data) = data {
-                let _ = prog.set_page(page_number, &data);
+                let _ = actor.program.set_page(page_number, &data);
             } else {
-                prog.remove_page(page_number);
+                actor.program.remove_page(page_number);
             }
         } else {
             unreachable!("Can't update page for terminated program");
         }
     }
-    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
-        // TODO https://github.com/gear-tech/gear/issues/644
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+        if let Some(to) = to {
+            let mut actors = self.actors.borrow_mut();
+
+            if let Some(Some(actor)) = actors.get_mut(&from) {
+                if actor.balance < value {
+                    panic!("Actor {:?} balance is less then sent value", from);
+                }
+
+                actor.balance -= value;
+            };
+
+            if let Some(Some(actor)) = actors.get_mut(&to) {
+                actor.balance += value;
+            };
+        };
     }
 }

@@ -26,7 +26,7 @@ use alloc::vec;
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAmount, GasCounter},
+    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
     memory::{MemoryContext, PageNumber},
     message::{ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
     program::ProgramId,
@@ -36,6 +36,8 @@ use gear_core::{
 pub struct Ext {
     /// Gas counter.
     pub gas_counter: GasCounter,
+    /// Value counter.
+    pub value_counter: ValueCounter,
     /// Memory context.
     pub memory_context: MemoryContext,
     /// Message context.
@@ -44,7 +46,9 @@ pub struct Ext {
     pub block_info: BlockInfo,
     /// Allocations config.
     pub config: AllocationsConfig,
-    /// Is lazy-pages mode enabled ?
+    /// Account existential deposit
+    pub existential_deposit: u128,
+    /// Flag if lazy-pages mode enabled
     pub lazy_pages_enabled: Option<lazy_pages::LazyPagesEnabled>,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
@@ -209,9 +213,19 @@ impl EnvExt for Ext {
         handle: usize,
         msg: OutgoingPacket,
     ) -> Result<MessageId, &'static str> {
+        if 0 < msg.value() && msg.value() < self.existential_deposit {
+            return self.return_and_store_err(Err(
+                "Value of the message is less than existance deposit, but greater than 0",
+            ));
+        };
+
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self
                 .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
+        };
+
+        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
+            return self.return_and_store_err(Err("No value left to reply"));
         };
 
         let result = self
@@ -223,8 +237,18 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+        if 0 < msg.value() && msg.value() < self.existential_deposit {
+            return self.return_and_store_err(Err(
+                "Value of the message is less than existance deposit, but greater than 0",
+            ));
+        };
+
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self.return_and_store_err(Err("Gas limit exceeded while trying to reply"));
+        };
+
+        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
+            return self.return_and_store_err(Err("No value left to reply"));
         };
 
         let result = self
@@ -309,12 +333,16 @@ impl EnvExt for Ext {
         }
     }
 
-    fn gas_available(&mut self) -> u64 {
+    fn gas_available(&self) -> u64 {
         self.gas_counter.left()
     }
 
     fn value(&self) -> u128 {
         self.message_context.current().value()
+    }
+
+    fn value_available(&self) -> u128 {
+        self.value_counter.left()
     }
 
     fn leave(&mut self) -> Result<(), &'static str> {

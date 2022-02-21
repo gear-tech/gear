@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{DispatchOutcome, DispatchResult, DispatchResultKind, JournalNote},
+    common::{DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, JournalNote},
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::Ext,
@@ -26,20 +26,21 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
 use gear_core::{
     message::{Dispatch, DispatchKind, Message},
-    program::{Program, ProgramId},
+    program::ProgramId,
 };
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<E: Environment<Ext>>(
-    program: Option<Program>,
+    actor: Option<ExecutableActor>,
     dispatch: Dispatch,
     block_info: BlockInfo,
+    existential_deposit: u128,
 ) -> Vec<JournalNote> {
-    if let Some(program) = program {
-        let execution_settings = ExecutionSettings::new(block_info);
-        let initial_nonce = program.message_nonce();
+    if let Some(actor) = actor {
+        let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
+        let initial_nonce = actor.program.message_nonce();
 
-        match executor::execute_wasm::<E>(program, dispatch.clone(), execution_settings) {
+        match executor::execute_wasm::<E>(actor, dispatch.clone(), execution_settings) {
             Ok(res) => match res.kind {
                 DispatchResultKind::Trap(reason) => {
                     process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
@@ -60,30 +61,37 @@ pub fn process<E: Environment<Ext>>(
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
 pub fn process_many<E: Environment<Ext>>(
-    mut programs: BTreeMap<ProgramId, Option<Program>>,
+    mut actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
+    existential_deposit: u128,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
     for dispatch in dispatches {
-        let program = programs
+        let actor = actors
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal = process::<E>(program.clone(), dispatch, block_info);
+        let current_journal =
+            process::<E>(actor.clone(), dispatch, block_info, existential_deposit);
 
         for note in &current_journal {
-            if let Some(program) = program {
+            if let Some(actor) = actor {
                 match note {
-                    JournalNote::UpdateNonce { nonce, .. } => program.set_message_nonce(*nonce),
+                    JournalNote::UpdateNonce { nonce, .. } => {
+                        actor.program.set_message_nonce(*nonce)
+                    }
                     JournalNote::UpdatePage {
                         page_number, data, ..
                     } => {
                         if let Some(data) = data {
-                            program.set_page(*page_number, data).expect("Can't fail");
+                            actor
+                                .program
+                                .set_page(*page_number, data)
+                                .expect("Can't fail");
                         } else {
-                            program.remove_page(*page_number);
+                            actor.program.remove_page(*page_number);
                         }
                     }
                     _ => {}
@@ -257,7 +265,7 @@ fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
     let value = message.value();
 
     if value != 0 {
-        // Send back value
+        // Send value back
         journal.push(JournalNote::SendValue {
             from: message.source(),
             to: None,
@@ -272,7 +280,7 @@ fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
         message.source(),
         Default::default(),
         message.gas_limit(),
-        // must be 0!
+        // Error reply value must be 0!
         0,
         message_id,
         crate::TERMINATED_DEST_EXIT_CODE,

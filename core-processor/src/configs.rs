@@ -69,13 +69,16 @@ pub struct ExecutionSettings {
     pub block_info: BlockInfo,
     /// Allocation config.
     pub config: AllocationsConfig,
+    /// Minimal amount of existance for account.
+    pub existential_deposit: u128,
 }
 
 impl ExecutionSettings {
     /// New execution settings with default allocation config.
-    pub fn new(block_info: BlockInfo) -> Self {
+    pub fn new(block_info: BlockInfo, existential_deposit: u128) -> Self {
         Self {
             block_info,
+            existential_deposit,
             config: Default::default(),
         }
     }
