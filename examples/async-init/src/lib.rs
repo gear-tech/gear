@@ -50,7 +50,7 @@ async fn init() {
 
     let mut threshold = 0usize;
     while !requests.is_empty() {
-        let (_, _, remaining) = future::select_all(requests).await;
+        let (.., remaining) = future::select_all(requests).await;
         threshold += 1;
 
         if threshold >= 2 {

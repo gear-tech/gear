@@ -352,7 +352,7 @@ impl JournalHandler for ExtManager {
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        if let Some((Program::Core(prog), _, _)) = self.actors.get_mut(&program_id) {
+        if let Some((Program::Core(prog), ..)) = self.actors.get_mut(&program_id) {
             prog.set_message_nonce(nonce);
         } else {
             panic!("Program not found in storage");
@@ -364,7 +364,7 @@ impl JournalHandler for ExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        if let Some((Program::Core(prog), _, _)) = self.actors.get_mut(&program_id) {
+        if let Some((Program::Core(prog), ..)) = self.actors.get_mut(&program_id) {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {
@@ -376,7 +376,7 @@ impl JournalHandler for ExtManager {
     }
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
-            if let Some((_, _, balance)) = self.actors.get_mut(&from) {
+            if let Some((.., balance)) = self.actors.get_mut(&from) {
                 if *balance < value {
                     panic!("Actor {:?} balance is less then sent value", from);
                 }
@@ -384,7 +384,7 @@ impl JournalHandler for ExtManager {
                 *balance -= value;
             };
 
-            if let Some((_, _, balance)) = self.actors.get_mut(&to) {
+            if let Some((.., balance)) = self.actors.get_mut(&to) {
                 *balance += value;
             };
         }
