@@ -46,7 +46,9 @@ pub struct Ext {
     pub block_info: BlockInfo,
     /// Allocations config.
     pub config: AllocationsConfig,
-    /// Is lazy-pages mode enabled ?
+    /// Account existence deposit
+    pub existence_deposit: u128,
+    /// Flag if lazy-pages mode enabled
     pub lazy_pages_enabled: Option<lazy_pages::LazyPagesEnabled>,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
@@ -211,6 +213,12 @@ impl EnvExt for Ext {
         handle: usize,
         msg: OutgoingPacket,
     ) -> Result<MessageId, &'static str> {
+        if 0 < msg.value() && msg.value() < self.existence_deposit {
+            return self.return_and_store_err(Err(
+                "Value of the message is less than existance deposit, but greater than 0",
+            ));
+        };
+
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self
                 .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
@@ -229,6 +237,12 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+        if 0 < msg.value() && msg.value() < self.existence_deposit {
+            return self.return_and_store_err(Err(
+                "Value of the message is less than existance deposit, but greater than 0",
+            ));
+        };
+
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self.return_and_store_err(Err("Gas limit exceeded while trying to reply"));
         };

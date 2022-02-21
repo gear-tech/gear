@@ -180,6 +180,8 @@ pub mod pallet {
         CodeAlreadyExists,
         /// Failed to create a program.
         FailedToConstructProgram,
+        /// Value doesnt cover ExistenceDeposit
+        ValueLessThanMinimal,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -328,6 +330,8 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
+            let existence_deposit = T::Currency::minimum_balance().unique_saturated_into();
+
             let (dest, reply) = match kind {
                 HandleKind::Init(ref code) => (sp_io::hashing::blake2_256(code).into(), None),
                 HandleKind::Handle(dest) => (dest, None),
@@ -379,6 +383,7 @@ pub mod pallet {
                 Some(actor),
                 dispatch.into(),
                 block_info,
+                existence_deposit,
             );
 
             for note in &journal {
@@ -429,10 +434,13 @@ pub mod pallet {
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
+
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
+
+            let existence_deposit = T::Currency::minimum_balance().unique_saturated_into();
 
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
@@ -498,6 +506,7 @@ pub mod pallet {
                     maybe_active_actor,
                     dispatch.into(),
                     block_info,
+                    existence_deposit,
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);
@@ -726,10 +735,19 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Check that provided `value` equals 0 or greater than existence deposit
+            ensure!(
+                0 < numeric_value && numeric_value < minimum,
+                Error::<T>::ValueLessThanMinimal
             );
 
             ensure!(
@@ -815,10 +833,19 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Check that provided `value` equals 0 or greater than existence deposit
+            ensure!(
+                0 < numeric_value && numeric_value < minimum,
+                Error::<T>::ValueLessThanMinimal
             );
 
             // Claim outstanding value from the original message first

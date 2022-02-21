@@ -17,6 +17,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+pub const EXISTENCE_DEPOSIT: u128 = 500;
+
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
@@ -100,6 +102,7 @@ where
         }),
         message.into(),
         block_info,
+        EXISTENCE_DEPOSIT,
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -252,8 +255,12 @@ where
             if let Some(dispatch) = state.dispatch_queue.pop_front() {
                 let actor = state.actors.get(&dispatch.message.dest()).cloned();
 
-                let journal =
-                    core_processor::process::<E>(actor, dispatch, BlockInfo { height, timestamp });
+                let journal = core_processor::process::<E>(
+                    actor,
+                    dispatch,
+                    BlockInfo { height, timestamp },
+                    EXISTENCE_DEPOSIT,
+                );
 
                 core_processor::handle_journal(journal, journal_handler);
 
@@ -281,6 +288,7 @@ where
                     height: counter,
                     timestamp,
                 },
+                EXISTENCE_DEPOSIT,
             );
             counter += 1;
 

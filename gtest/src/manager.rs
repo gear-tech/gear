@@ -154,6 +154,7 @@ impl ExtManager {
                             payload_store: None,
                         },
                         self.block_info,
+                        crate::EXISTENCE_DEPOSIT,
                     );
 
                     core_processor::handle_journal(journal, self);
