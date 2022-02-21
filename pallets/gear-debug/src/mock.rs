@@ -136,7 +136,7 @@ impl common::DAGBasedLedger for DummyGasHandler {
         Ok(Default::default())
     }
 
-    fn get(_message_id: H256) -> Option<(u64, H256)> {
+    fn get_limit(_message_id: H256) -> Option<(u64, H256)> {
         None
     }
 
@@ -148,7 +148,11 @@ impl common::DAGBasedLedger for DummyGasHandler {
         Ok(Default::default())
     }
 
-    fn split(_message_id: H256, _at: H256, _amount: u64) -> DispatchResult {
+    fn split_with_value(_message_id: H256, _at: H256, _amount: u64) -> DispatchResult {
+        Ok(())
+    }
+
+    fn split(_message_id: H256, _at: H256) -> DispatchResult {
         Ok(())
     }
 }
