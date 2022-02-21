@@ -298,7 +298,7 @@ pub mod pallet {
 
             // There shouldn't be any associated gas tree for a message in a user's mailbox
             // let maybe_gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id);
-            let maybe_gas_tree = T::GasHandler::get(message.id);
+            let maybe_gas_tree = T::GasHandler::get_limit(message.id);
             if maybe_gas_tree.is_some() {
                 log::warn!(
                     target: "runtime::gear",
@@ -437,7 +437,18 @@ pub mod pallet {
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
             }
-            while let Some(dispatch) = common::dequeue_dispatch() {
+            while let Some(mut dispatch) = common::dequeue_dispatch() {
+                // Update message gas limit for it may have changed in the meantime
+                if let Some((actual_gas_locked, _)) = T::GasHandler::get_limit(dispatch.message.id)
+                {
+                    log::debug!(
+                        "Updating message {} gas limit: {} -> {}",
+                        dispatch.message.id,
+                        dispatch.message.gas_limit,
+                        actual_gas_locked
+                    );
+                    dispatch.message.gas_limit = actual_gas_locked;
+                }
                 // Check whether we have enough of gas allowed for message processing
                 if dispatch.message.gas_limit > GasAllowance::<T>::get() {
                     common::queue_dispatch(dispatch);

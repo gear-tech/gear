@@ -32,34 +32,60 @@ mod mock;
 mod tests;
 
 #[derive(Clone, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
-pub enum ValueOrigin {
-    External(H256),
-    Local(H256),
+pub enum ValueType {
+    External { id: H256, value: u64 },
+    SpecifiedLocal { parent: H256, value: u64 },
+    UnspecifiedLocal { parent: H256 },
 }
 
 #[allow(clippy::derivable_impls)]
-// this cannot be derived, despite clippy is saying this!!
-impl Default for ValueOrigin {
+// this cannot be derived, despite clippy is saying that!!
+impl Default for ValueType {
     fn default() -> Self {
-        ValueOrigin::External(H256::default())
+        ValueType::External {
+            id: H256::default(),
+            value: 0,
+        }
     }
 }
 
 #[derive(Clone, Default, Decode, Debug, Encode, MaxEncodedLen, TypeInfo)]
 pub struct ValueNode {
-    pub origin: ValueOrigin,
     pub refs: u32,
-    pub inner: u64,
+    pub inner: ValueType,
     pub consumed: bool,
 }
 
 impl ValueNode {
     pub fn new(origin: H256, value: u64) -> Self {
         Self {
-            origin: ValueOrigin::External(origin),
+            inner: ValueType::External { id: origin, value },
             refs: 0,
-            inner: value,
             consumed: false,
+        }
+    }
+
+    pub fn inner_value(&self) -> Option<u64> {
+        match self.inner {
+            ValueType::External { value, .. } => Some(value),
+            ValueType::SpecifiedLocal { value, .. } => Some(value),
+            ValueType::UnspecifiedLocal { .. } => None,
+        }
+    }
+
+    pub fn inner_value_mut(&mut self) -> Option<&mut u64> {
+        match self.inner {
+            ValueType::External { ref mut value, .. } => Some(value),
+            ValueType::SpecifiedLocal { ref mut value, .. } => Some(value),
+            ValueType::UnspecifiedLocal { .. } => None,
+        }
+    }
+
+    pub fn parent(&self) -> Option<H256> {
+        match self.inner {
+            ValueType::External { .. } => None,
+            ValueType::SpecifiedLocal { parent, .. } => Some(parent),
+            ValueType::UnspecifiedLocal { parent } => Some(parent),
         }
     }
 }
@@ -116,8 +142,9 @@ pub mod pallet {
     {
         pub fn check_consumed(key: H256) -> ConsumeResult<T> {
             let mut delete_current_node = false;
-            let res = Self::value_view(key).and_then(|current_node| match current_node.origin {
-                ValueOrigin::Local(parent) => {
+            let res = Self::value_view(key).and_then(|current_node| match current_node.inner {
+                ValueType::SpecifiedLocal { parent, .. }
+                | ValueType::UnspecifiedLocal { parent } => {
                     if current_node.consumed && current_node.refs == 0 {
                         let mut parent_node =
                             Self::value_view(parent).expect("Parent node must exist for any node");
@@ -126,11 +153,28 @@ pub mod pallet {
                             "parent node must contain ref to its child node"
                         );
                         parent_node.refs -= 1;
-                        parent_node.inner = parent_node.inner.saturating_add(current_node.inner);
 
                         ValueView::<T>::mutate(parent, |node| {
                             *node = Some(parent_node);
                         });
+
+                        if let ValueType::SpecifiedLocal {
+                            value: self_value, ..
+                        } = current_node.inner
+                        {
+                            // this is specified, so it need to get to the first specified parent also
+                            // going up until external or specified parent is found
+
+                            let (parent_key, mut parent_node) = Self::node_with_value(parent);
+                            let parent_val = parent_node
+                                .inner_value_mut()
+                                .expect("Querying parent with value");
+                            *parent_val = parent_val.saturating_add(self_value);
+
+                            ValueView::<T>::mutate(parent_key, |value| {
+                                *value = Some(parent_node);
+                            });
+                        }
 
                         delete_current_node = true;
                         Self::check_consumed(parent)
@@ -138,11 +182,10 @@ pub mod pallet {
                         None
                     }
                 }
-                ValueOrigin::External(external) => {
+                ValueType::External { id, value } => {
                     if current_node.refs == 0 && current_node.consumed {
-                        let inner = current_node.inner;
                         delete_current_node = true;
-                        Some((NegativeImbalance::new(inner), external))
+                        Some((NegativeImbalance::new(value), id))
                     } else {
                         None
                     }
@@ -157,11 +200,22 @@ pub mod pallet {
         }
 
         pub fn node_root_origin(node: &ValueNode) -> H256 {
-            match node.origin {
-                ValueOrigin::External(external_origin) => external_origin,
-                ValueOrigin::Local(parent) => {
+            match node.inner {
+                ValueType::External { id, .. } => id,
+                ValueType::SpecifiedLocal { parent, .. }
+                | ValueType::UnspecifiedLocal { parent } => {
                     Self::node_root_origin(&Self::value_view(parent).expect("Parent should exist"))
                 }
+            }
+        }
+
+        pub fn node_with_value(key: H256) -> (H256, ValueNode) {
+            let node =
+                Self::value_view(key).expect("Only existing key should be provided by the caller");
+            if let ValueType::UnspecifiedLocal { parent } = node.inner {
+                Self::node_with_value(parent)
+            } else {
+                (key, node)
             }
         }
     }
@@ -196,16 +250,25 @@ where
         Ok(PositiveImbalance::new(amount))
     }
 
-    fn get(key: H256) -> Option<(u64, H256)> {
-        Self::value_view(key).map(|node| (node.inner, Self::node_root_origin(&node)))
+    fn get_limit(key: H256) -> Option<(u64, H256)> {
+        Self::value_view(key).map(|node| {
+            let value = node.inner_value().unwrap_or_else(|| {
+                Self::get_limit(node.parent().expect("Either value or parent present"))
+                    .expect("Value should exist if tree exists")
+                    .0
+            });
+
+            (value, Self::node_root_origin(&node))
+        })
     }
 
     fn consume(key: H256) -> ConsumeResult<T> {
         let mut delete_current_node = false;
         let mut consume_parent_node = false;
         Self::value_view(key).and_then(|mut node| {
-            match node.origin {
-                ValueOrigin::Local(parent) => {
+            match node.inner {
+                ValueType::UnspecifiedLocal { parent }
+                | ValueType::SpecifiedLocal { parent, .. } => {
                     let mut parent_node =
                         Self::value_view(parent).expect("Parent node must exist for any node");
                     assert!(
@@ -216,7 +279,6 @@ where
                         delete_current_node = true;
                         parent_node.refs -= 1;
                     }
-                    parent_node.inner = parent_node.inner.saturating_add(node.inner);
                     if parent_node.refs == 0 {
                         consume_parent_node = true;
                     }
@@ -225,11 +287,29 @@ where
                         *value = Some(parent_node);
                     });
 
+                    // Upstream value to the first node that limits value
+                    if let ValueType::SpecifiedLocal {
+                        value: self_value, ..
+                    } = node.inner
+                    {
+                        let (parent_key, mut parent_node) = Self::node_with_value(parent);
+                        let parent_val = parent_node
+                            .inner_value_mut()
+                            .expect("Querying parent with value");
+                        *parent_val = parent_val.saturating_add(self_value);
+
+                        ValueView::<T>::mutate(parent_key, |value| {
+                            *value = Some(parent_node);
+                        });
+                    }
+
                     if delete_current_node {
                         ValueView::<T>::remove(key);
                     } else {
                         node.consumed = true;
-                        node.inner = 0;
+                        if let Some(inner_value) = node.inner_value_mut() {
+                            *inner_value = 0
+                        };
 
                         // Save current node
                         ValueView::<T>::mutate(key, |value| {
@@ -244,19 +324,18 @@ where
                         None
                     }
                 }
-                ValueOrigin::External(external) => {
+                ValueType::External { id, value } => {
                     node.consumed = true;
 
                     if node.refs == 0 {
-                        let inner = node.inner;
                         // Delete current node
-                        ValueView::<T>::remove(key);
+                        ValueView::<T>::remove(id);
 
-                        Some((NegativeImbalance::new(inner), external))
+                        Some((NegativeImbalance::new(value), id))
                     } else {
                         // Save current node
-                        ValueView::<T>::mutate(key, |value| {
-                            *value = Some(node);
+                        ValueView::<T>::mutate(key, |n| {
+                            *n = Some(node);
                         });
 
                         None
@@ -267,11 +346,14 @@ where
     }
 
     fn spend(key: H256, amount: u64) -> Result<NegativeImbalance<T>, DispatchError> {
-        let mut node = Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
+        Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
+        let (key, mut node) = Self::node_with_value(key);
 
-        ensure!(node.inner >= amount, Error::<T>::InsufficientBalance);
-
-        node.inner -= amount;
+        ensure!(
+            node.inner_value().expect("Querying node with value") >= amount,
+            Error::<T>::InsufficientBalance
+        );
+        *node.inner_value_mut().expect("Querying node with value") -= amount;
 
         // Save current node
         ValueView::<T>::mutate(key, |value| {
@@ -281,17 +363,13 @@ where
         Ok(NegativeImbalance::new(amount))
     }
 
-    fn split(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
+    fn split(key: H256, new_node_key: H256) -> DispatchResult {
         let mut node = Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
 
-        ensure!(node.inner >= amount, Error::<T>::InsufficientBalance);
-
-        node.inner -= amount;
         node.refs += 1;
 
         let new_node = ValueNode {
-            origin: ValueOrigin::Local(key),
-            inner: amount,
+            inner: ValueType::UnspecifiedLocal { parent: key },
             refs: 0,
             consumed: false,
         };
@@ -301,6 +379,47 @@ where
         // Update current node
         ValueView::<T>::mutate(key, |value| {
             *value = Some(node);
+        });
+
+        Ok(())
+    }
+
+    fn split_with_value(key: H256, new_node_key: H256, amount: u64) -> DispatchResult {
+        let mut node = Self::value_view(key).ok_or(Error::<T>::NodeNotFound)?;
+        let (_, node_with_value) = Self::node_with_value(key);
+        ensure!(
+            node_with_value
+                .inner_value()
+                .expect("Querying node with value")
+                >= amount,
+            Error::<T>::InsufficientBalance
+        );
+
+        node.refs += 1;
+
+        let new_node = ValueNode {
+            inner: ValueType::SpecifiedLocal {
+                value: amount,
+                parent: key,
+            },
+            refs: 0,
+            consumed: false,
+        };
+
+        // Save new node
+        ValueView::<T>::insert(new_node_key, new_node);
+        // Update current node
+        ValueView::<T>::mutate(key, |value| {
+            *value = Some(node);
+        });
+
+        // re-querying it since it might be the same node we already updated above.. :(
+        let (node_key_with_value, mut node_with_value) = Self::node_with_value(key);
+        *node_with_value
+            .inner_value_mut()
+            .expect("Querying node with value") -= amount;
+        ValueView::<T>::mutate(node_key_with_value, |value| {
+            *value = Some(node_with_value);
         });
 
         Ok(())

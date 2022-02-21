@@ -461,7 +461,7 @@ fn trap_reply_message_is_sent() {
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get(message.id)
+            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id)
                 .unwrap()
                 .0,
             1000
@@ -478,7 +478,7 @@ fn trap_reply_message_is_sent() {
         );
 
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get(message.id)
+            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id)
                 .unwrap()
                 .0,
             500

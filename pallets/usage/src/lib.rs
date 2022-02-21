@@ -268,7 +268,7 @@ pub mod pallet {
                             let chargeable_amount =
                                 T::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-                            match <T as pallet_gear::Config>::GasHandler::get(dispatch.message.id) {
+                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
                                 Some((msg_gas_balance, origin)) => {
                                     let usable_gas = msg_gas_balance
                                         .saturating_sub(T::TrapReplyExistentialGasLimit::get());
@@ -361,7 +361,7 @@ pub mod pallet {
                                 let reply_dispatch = Dispatch::new_reply(trap_message);
 
                                 // Enqueue the trap reply message
-                                let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                let _ = <T as pallet_gear::Config>::GasHandler::split_with_value(
                                     msg_id,
                                     trap_message_id,
                                     new_msg_gas_balance

@@ -106,9 +106,14 @@ pub fn async_main(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let body = &function.block;
     let code: TokenStream = quote!(
+
+        fn __main_safe() {
+            gstd::message_loop(async #body);
+        }
+
         #[no_mangle]
         pub unsafe extern "C" fn handle() {
-            gstd::message_loop(async #body);
+            __main_safe();
         }
     )
     .into();
