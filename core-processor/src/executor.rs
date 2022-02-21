@@ -205,7 +205,7 @@ pub fn execute_wasm<E: Environment<Ext>>(
         message_context,
         block_info: settings.block_info,
         config: settings.config,
-        existence_deposit: settings.existence_deposit,
+        existential_deposit: settings.existential_deposit,
         lazy_pages_enabled: lazy_pages_enabled.clone(),
         error_explanation: None,
         exit_argument: None,

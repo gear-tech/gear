@@ -17,7 +17,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub const EXISTENCE_DEPOSIT: u128 = 500;
+pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -102,7 +102,7 @@ where
         }),
         message.into(),
         block_info,
-        EXISTENCE_DEPOSIT,
+        EXISTENTIAL_DEPOSIT,
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -259,7 +259,7 @@ where
                     actor,
                     dispatch,
                     BlockInfo { height, timestamp },
-                    EXISTENCE_DEPOSIT,
+                    EXISTENTIAL_DEPOSIT,
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -288,7 +288,7 @@ where
                     height: counter,
                     timestamp,
                 },
-                EXISTENCE_DEPOSIT,
+                EXISTENTIAL_DEPOSIT,
             );
             counter += 1;
 

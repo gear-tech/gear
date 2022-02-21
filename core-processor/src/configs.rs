@@ -70,15 +70,15 @@ pub struct ExecutionSettings {
     /// Allocation config.
     pub config: AllocationsConfig,
     /// Minimal amount of existance for account.
-    pub existence_deposit: u128,
+    pub existential_deposit: u128,
 }
 
 impl ExecutionSettings {
     /// New execution settings with default allocation config.
-    pub fn new(block_info: BlockInfo, existence_deposit: u128) -> Self {
+    pub fn new(block_info: BlockInfo, existential_deposit: u128) -> Self {
         Self {
             block_info,
-            existence_deposit,
+            existential_deposit,
             config: Default::default(),
         }
     }

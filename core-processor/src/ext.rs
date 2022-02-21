@@ -46,8 +46,8 @@ pub struct Ext {
     pub block_info: BlockInfo,
     /// Allocations config.
     pub config: AllocationsConfig,
-    /// Account existence deposit
-    pub existence_deposit: u128,
+    /// Account existential deposit
+    pub existential_deposit: u128,
     /// Flag if lazy-pages mode enabled
     pub lazy_pages_enabled: Option<lazy_pages::LazyPagesEnabled>,
     /// Any guest code panic explanation, if available.
@@ -213,7 +213,7 @@ impl EnvExt for Ext {
         handle: usize,
         msg: OutgoingPacket,
     ) -> Result<MessageId, &'static str> {
-        if 0 < msg.value() && msg.value() < self.existence_deposit {
+        if 0 < msg.value() && msg.value() < self.existential_deposit {
             return self.return_and_store_err(Err(
                 "Value of the message is less than existance deposit, but greater than 0",
             ));
@@ -237,7 +237,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
-        if 0 < msg.value() && msg.value() < self.existence_deposit {
+        if 0 < msg.value() && msg.value() < self.existential_deposit {
             return self.return_and_store_err(Err(
                 "Value of the message is less than existance deposit, but greater than 0",
             ));

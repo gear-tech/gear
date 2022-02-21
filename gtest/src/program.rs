@@ -200,10 +200,10 @@ impl<'a> Program<'a> {
             panic!("Sending messages allowed only from users id");
         }
 
-        if 0 < value && value < crate::EXISTENCE_DEPOSIT {
+        if 0 < value && value < crate::EXISTENTIAL_DEPOSIT {
             panic!(
-                "Value greater than 0, but less than required existence deposit ({})",
-                crate::EXISTENCE_DEPOSIT
+                "Value greater than 0, but less than required existential deposit ({})",
+                crate::EXISTENTIAL_DEPOSIT
             );
         }
 

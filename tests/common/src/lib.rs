@@ -30,7 +30,7 @@ use gear_core::{
 };
 use std::collections::{BTreeMap, HashSet};
 
-pub const EXISTENCE_DEPOSIT: u128 = 500;
+pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
 pub struct InitProgram {
     pub program_id: Option<ProgramId>,
@@ -430,7 +430,7 @@ impl RunnerContext {
                 height: 1,
                 timestamp: 1,
             },
-            EXISTENCE_DEPOSIT,
+            EXISTENTIAL_DEPOSIT,
         );
 
         core_processor::handle_journal(journal, &mut Journal { context: self });
@@ -591,7 +591,7 @@ impl RunnerContext {
                         height: 1,
                         timestamp: 1,
                     },
-                    EXISTENCE_DEPOSIT,
+                    EXISTENTIAL_DEPOSIT,
                 )
             };
 

@@ -34,10 +34,10 @@ pub fn process<E: Environment<Ext>>(
     actor: Option<ExecutableActor>,
     dispatch: Dispatch,
     block_info: BlockInfo,
-    existence_deposit: u128,
+    existential_deposit: u128,
 ) -> Vec<JournalNote> {
     if let Some(actor) = actor {
-        let execution_settings = ExecutionSettings::new(block_info, existence_deposit);
+        let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
         let initial_nonce = actor.program.message_nonce();
 
         match executor::execute_wasm::<E>(actor, dispatch.clone(), execution_settings) {
@@ -64,7 +64,7 @@ pub fn process_many<E: Environment<Ext>>(
     mut actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
-    existence_deposit: u128,
+    existential_deposit: u128,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
@@ -73,7 +73,8 @@ pub fn process_many<E: Environment<Ext>>(
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal = process::<E>(actor.clone(), dispatch, block_info, existence_deposit);
+        let current_journal =
+            process::<E>(actor.clone(), dispatch, block_info, existential_deposit);
 
         for note in &current_journal {
             if let Some(actor) = actor {

@@ -330,7 +330,7 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existence_deposit = T::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
 
             let (dest, reply) = match kind {
                 HandleKind::Init(ref code) => (sp_io::hashing::blake2_256(code).into(), None),
@@ -383,7 +383,7 @@ pub mod pallet {
                 Some(actor),
                 dispatch.into(),
                 block_info,
-                existence_deposit,
+                existential_deposit,
             );
 
             for note in &journal {
@@ -440,7 +440,7 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existence_deposit = T::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
 
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
@@ -506,7 +506,7 @@ pub mod pallet {
                     maybe_active_actor,
                     dispatch.into(),
                     block_info,
-                    existence_deposit,
+                    existential_deposit,
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);
@@ -744,7 +744,7 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            // Check that provided `value` equals 0 or greater than existence deposit
+            // Check that provided `value` equals 0 or greater than existential deposit
             ensure!(
                 0 == numeric_value || numeric_value >= minimum,
                 Error::<T>::ValueLessThanMinimal
@@ -842,7 +842,7 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            // Check that provided `value` equals 0 or greater than existence deposit
+            // Check that provided `value` equals 0 or greater than existential deposit
             ensure!(
                 0 == numeric_value || numeric_value >= minimum,
                 Error::<T>::ValueLessThanMinimal
