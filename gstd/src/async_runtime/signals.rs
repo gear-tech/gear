@@ -68,7 +68,7 @@ impl WakeSignals {
             }
             crate::exec::wake(signal.message_id);
         } else {
-            crate::debug!("Somehow received reply for the message we never sent");
+            crate::debug!("Received reply for the message we don't expect reply to or already processed before");
         }
     }
 
