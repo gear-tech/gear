@@ -22,6 +22,7 @@ pub mod native;
 pub mod storage_queue;
 
 mod pause;
+pub use pause::pause_program;
 
 use codec::{Decode, Encode};
 use frame_support::{
@@ -641,6 +642,35 @@ mod tests {
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_active_program(program_id).unwrap(), program);
             assert_eq!(get_code(program.code_hash).unwrap(), code);
+        });
+    }
+
+    #[test]
+    fn pause_program_works() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let code = b"pretended wasm code".to_vec();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            set_code(code_hash, &code);
+
+            let program_id = H256::from_low_u64_be(1);
+            set_program(
+                program_id,
+                ActiveProgram {
+                    static_pages: 256,
+                    persistent_pages: Default::default(),
+                    code_hash,
+                    nonce: 0,
+                    state: ProgramState::Initialized,
+                },
+                Default::default(),
+            );
+
+            pause_program(program_id).unwrap();
+
+            assert!(get_code(code_hash).is_some());
+
+            // although the memory pages should be removed
+            assert_eq!(get_program_pages(program_id, (0..256).collect::<BTreeSet<_>>()), None);
         });
     }
 }
