@@ -63,7 +63,7 @@ pub mod pallet {
         ProgramState,
     };
     use core_processor::{
-        common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
+        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
         configs::BlockInfo,
         Ext,
     };
@@ -350,19 +350,23 @@ pub mod pallet {
             let mut gas_burned = 0;
             let mut gas_to_send = 0;
 
-            let (kind, program) = match kind {
+            let (kind, actor) = match kind {
                 HandleKind::Init(code) => {
                     gas_burned = gas_burned
                         .saturating_add(<T as Config>::WeightInfo::submit_code(code.len() as u32));
                     (
                         DispatchKind::Init,
-                        ext_manager.program_from_code(dest, code)?,
+                        ext_manager.executable_actor_from_code(dest, code)?,
                     )
                 }
-                HandleKind::Handle(dest) => (DispatchKind::Handle, ext_manager.get_program(dest)?),
-                HandleKind::Reply(..) => {
-                    (DispatchKind::HandleReply, ext_manager.get_program(dest)?)
-                }
+                HandleKind::Handle(dest) => (
+                    DispatchKind::Handle,
+                    ext_manager.get_executable_actor(dest)?,
+                ),
+                HandleKind::Reply(..) => (
+                    DispatchKind::HandleReply,
+                    ext_manager.get_executable_actor(dest)?,
+                ),
             };
 
             let dispatch = Dispatch {
@@ -372,7 +376,7 @@ pub mod pallet {
             };
 
             let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                Some(program),
+                Some(actor),
                 dispatch.into(),
                 block_info,
             );
@@ -440,7 +444,7 @@ pub mod pallet {
                     break;
                 }
 
-                let maybe_active_program = {
+                let maybe_active_actor = {
                     let program_id = dispatch.message.dest;
                     let current_message_id = dispatch.message.id;
                     let maybe_message_reply = dispatch.message.reply;
@@ -466,11 +470,21 @@ pub mod pallet {
                         }
                     }
 
-                    maybe_active_program.try_into_native(program_id).ok()
+                    maybe_active_program
+                        .try_into_native(program_id)
+                        .ok()
+                        .map(|program| {
+                            let balance = T::Currency::free_balance(
+                                &<T::AccountId as Origin>::from_origin(program_id),
+                            )
+                            .unique_saturated_into();
+
+                            ExecutableActor { program, balance }
+                        })
                 };
 
                 let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    maybe_active_program,
+                    maybe_active_actor,
                     dispatch.into(),
                     block_info,
                 );

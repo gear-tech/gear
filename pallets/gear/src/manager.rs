@@ -23,7 +23,7 @@ use crate::{
 use codec::{Decode, Encode};
 use common::{DAGBasedLedger, GasPrice, Origin, Program, STORAGE_PROGRAM_PREFIX};
 use core_processor::common::{
-    CollectState, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
+    CollectState, DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, State,
 };
 use frame_support::{
     storage::PrefixIterator,
@@ -59,7 +59,10 @@ where
             STORAGE_PROGRAM_PREFIX.to_vec(),
             |key, _| Ok(H256::from_slice(key)),
         )
-        .filter_map(|k| self.get_program(k).map(|p| (p.id(), p)))
+        .filter_map(|k| {
+            self.get_executable_actor(k)
+                .map(|actor| (actor.program.id(), actor.program))
+        })
         .map(|(id, mut prog)| {
             let pages_data = {
                 let page_numbers = prog.get_pages().keys().map(|k| k.raw()).collect();
@@ -97,15 +100,25 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn program_from_code(&self, id: H256, code: Vec<u8>) -> Option<NativeProgram> {
-        NativeProgram::new(ProgramId::from_origin(id), code).ok()
+    pub fn executable_actor_from_code(&self, id: H256, code: Vec<u8>) -> Option<ExecutableActor> {
+        NativeProgram::new(ProgramId::from_origin(id), code)
+            .ok()
+            .map(|program| ExecutableActor {
+                program,
+                balance: 0,
+            })
     }
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_program(&self, id: H256) -> Option<NativeProgram> {
-        common::get_program(id)
-            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())
+    pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
+        let program = common::get_program(id)
+            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
+
+        let balance = T::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+            .unique_saturated_into();
+
+        Some(ExecutableActor { program, balance })
     }
 
     pub fn set_program(&self, program: NativeProgram, message_id: H256) {
