@@ -270,6 +270,11 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
+
+        for message in common::remove_program_waitlist(program_id) {
+            common::queue_dispatch(message);
+        }
+
         let res = common::set_program_terminated_status(program_id);
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
@@ -304,7 +309,6 @@ where
         let message_id = message_id.into_origin();
         let mut dispatch: common::Dispatch = dispatch.into();
 
-        // TODO reserve call must be infallible in https://github.com/gear-tech/gear/issues/644
         if dispatch.message.value != 0
             && T::Currency::reserve(
                 &<T::AccountId as Origin>::from_origin(dispatch.message.source),
@@ -415,7 +419,6 @@ where
         };
     }
 
-    // TODO reserve call must be infallible in https://github.com/gear-tech/gear/issues/644 sending less then 500 should revert execution (rollback state)
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         let from = from.into_origin();
         if let Some(to) = to {

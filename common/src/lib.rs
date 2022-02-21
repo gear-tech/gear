@@ -585,6 +585,23 @@ fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     key
 }
 
+fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(STORAGE_WAITLIST_PREFIX);
+    prog_id.encode_to(&mut key);
+
+    key
+}
+
+pub fn remove_program_waitlist(prog_id: H256) -> Vec<Dispatch> {
+    let key = program_waitlist_prefix(prog_id);
+    let messages =
+        sp_io::storage::get(&key).and_then(|v| Vec::<Dispatch>::decode(&mut &v[..]).ok());
+    sp_io::storage::clear(&key);
+
+    messages.unwrap_or_default()
+}
+
 pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {
     let key = waiting_init_prefix(dest_prog_id);
     sp_io::storage::append(&key, message_id.encode());

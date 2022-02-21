@@ -25,8 +25,6 @@ use common::DAGBasedLedger;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
 pub mod weights;
 
 #[cfg(test)]
