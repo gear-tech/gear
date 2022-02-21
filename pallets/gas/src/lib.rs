@@ -155,7 +155,7 @@ pub mod pallet {
                         parent_node.refs -= 1;
 
                         ValueView::<T>::mutate(parent, |node| {
-                            *node = Some(parent_node.clone());
+                            *node = Some(parent_node);
                         });
 
                         if let ValueType::SpecifiedLocal {
