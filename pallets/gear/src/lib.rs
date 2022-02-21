@@ -746,7 +746,7 @@ pub mod pallet {
 
             // Check that provided `value` equals 0 or greater than existence deposit
             ensure!(
-                0 < numeric_value && numeric_value < minimum,
+                0 == numeric_value || numeric_value >= minimum,
                 Error::<T>::ValueLessThanMinimal
             );
 
@@ -844,7 +844,7 @@ pub mod pallet {
 
             // Check that provided `value` equals 0 or greater than existence deposit
             ensure!(
-                0 < numeric_value && numeric_value < minimum,
+                0 == numeric_value || numeric_value >= minimum,
                 Error::<T>::ValueLessThanMinimal
             );
 
