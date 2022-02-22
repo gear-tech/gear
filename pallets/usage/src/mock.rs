@@ -108,6 +108,10 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
+parameter_types! {
+    pub const WaitListFeePerBlock: u64 = 100;
+}
+
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
@@ -116,7 +120,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type BlockGasLimit = ();
     type DebugInfo = ();
-    type WaitListFeePerBlock = ();
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl pallet_gas::Config for Test {}
