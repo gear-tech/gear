@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -423,7 +423,7 @@ impl RunnerContext {
         };
         let message_id = dispatch.message.id;
 
-        let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
+        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             Some(actor),
             dispatch,
             BlockInfo {
@@ -584,7 +584,7 @@ impl RunnerContext {
                 let messages = std::mem::take(&mut self.dispatch_queue);
                 let actors = self.actors.clone();
 
-                core_processor::process_many::<WasmtimeEnvironment<Ext>>(
+                core_processor::process_many::<Ext, WasmtimeEnvironment<Ext>>(
                     actors,
                     messages,
                     BlockInfo {

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,52 +19,23 @@
 use crate::{
     common::{DispatchResult, DispatchResultKind, ExecutableActor, ExecutionError},
     configs::ExecutionSettings,
-    ext::Ext,
+    ext::ProcessorExt,
     id::BlakeMessageIdGenerator,
-    lazy_pages,
 };
 use alloc::{
-    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{BackendReport, Environment, TerminationReason};
+use gear_backend_common::{BackendReport, Environment, ExtInfo, TerminationReason};
 use gear_core::{
+    env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
-    memory::{MemoryContext, PageBuf, PageNumber},
+    memory::{MemoryContext, PageNumber},
     message::{Dispatch, MessageContext},
-    program::ProgramId,
 };
 
-#[cfg(feature = "lazy-pages")]
-fn load_pages(
-    program_id: ProgramId,
-    initial_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-) {
-    use common::Origin;
-    // In case we don't enable lazy-pages, then we loads data for all pages, which has no data, now.
-    let prog_id_hash = program_id.into_origin();
-    initial_pages
-        .iter_mut()
-        .filter(|(_x, y)| y.is_none())
-        .for_each(|(x, y)| {
-            let data = common::get_program_page_data(prog_id_hash, x.raw())
-                .expect("Page data must be in storage");
-            y.replace(Box::from(PageBuf::try_from(data).expect(
-                "Must be able to convert vec to PageBuf, may be vec has wrong size",
-            )));
-        });
-}
-
-#[cfg(not(feature = "lazy-pages"))]
-fn load_pages(
-    _program_id: ProgramId,
-    _initial_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-) {
-}
-
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<E: Environment<Ext>>(
+pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: Dispatch,
     settings: ExecutionSettings,
@@ -190,26 +161,20 @@ pub fn execute_wasm<E: Environment<Ext>>(
 
     let initial_pages = program.get_pages_mut();
 
-    let (lazy_pages_enabled, has_no_data_pages) =
-        lazy_pages::try_to_enable_lazy_pages(initial_pages);
-
-    if lazy_pages_enabled.is_none() && has_no_data_pages.is_some() {
-        load_pages(program_id, initial_pages);
-    }
-
     // Creating externalities.
-    let ext = Ext {
+    let mut ext = A::new(
         gas_counter,
         value_counter,
         memory_context,
         message_context,
-        block_info: settings.block_info,
-        config: settings.config,
-        existential_deposit: settings.existential_deposit,
-        lazy_pages_enabled: lazy_pages_enabled.clone(),
-        error_explanation: None,
-        exit_argument: None,
-    };
+        settings.block_info,
+        settings.config,
+        settings.existential_deposit,
+        None,
+        None,
+    );
+
+    let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
 
     if let Err(err) = env.setup(ext, &instrumented_code, initial_pages, &*memory) {
         return Err(ExecutionError {
@@ -219,8 +184,8 @@ pub fn execute_wasm<E: Environment<Ext>>(
         });
     }
 
-    if lazy_pages_enabled.is_some() {
-        lazy_pages::protect_pages_and_init_info(
+    if lazy_pages_enabled {
+        A::protect_pages_and_init_info(
             initial_pages,
             program_id,
             memory.get_wasm_memory_begin_addr(),
@@ -239,9 +204,9 @@ pub fn execute_wasm<E: Environment<Ext>>(
         }
     };
 
-    if lazy_pages_enabled.is_some() {
+    if lazy_pages_enabled {
         // accessed lazy pages old data will be added to `initial_pages`
-        lazy_pages::post_execution_actions(initial_pages, memory.get_wasm_memory_begin_addr());
+        A::post_execution_actions(initial_pages, memory.get_wasm_memory_begin_addr());
     }
 
     // Parsing outcome.

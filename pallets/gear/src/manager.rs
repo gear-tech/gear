@@ -21,7 +21,7 @@ use crate::{
     Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program, STORAGE_PROGRAM_PREFIX};
+use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch, STORAGE_PROGRAM_PREFIX};
 use core_processor::common::{
     CollectState, DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, State,
 };
@@ -78,7 +78,14 @@ where
         })
         .collect();
 
-        let dispatch_queue = common::dispatch_iter().map(Into::into).collect();
+        let dispatch_queue = common::dispatch_iter()
+            .map(|dispatch| {
+                let gas = T::GasHandler::get_limit(dispatch.message.id)
+                    .map(|(gas, _id)| gas)
+                    .unwrap_or(0);
+                dispatch.into_dispatch(gas)
+            })
+            .collect();
 
         State {
             dispatch_queue,
@@ -162,10 +169,14 @@ where
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
-            CoreDispatchOutcome::Success(message_id) => Event::MessageDispatched(DispatchOutcome {
-                message_id: message_id.into_origin(),
-                outcome: ExecutionResult::Success,
-            }),
+            CoreDispatchOutcome::Success(message_id) => {
+                log::trace!("Dispatch outcome success: {:?}", message_id);
+
+                Event::MessageDispatched(DispatchOutcome {
+                    message_id: message_id.into_origin(),
+                    outcome: ExecutionResult::Success,
+                })
+            }
             CoreDispatchOutcome::MessageTrap {
                 message_id,
                 program_id,
@@ -182,6 +193,8 @@ where
                         v.as_bytes().to_vec()
                     })
                     .unwrap_or_default();
+
+                log::trace!("Dispatch outcome trap: {:?}", message_id);
 
                 Event::MessageDispatched(DispatchOutcome {
                     message_id: message_id.into_origin(),
@@ -210,6 +223,12 @@ where
 
                 common::set_program_initialized(program_id);
 
+                log::trace!(
+                    "Dispatch ({:?}) init success for program {:?}",
+                    message_id,
+                    program_id
+                );
+
                 event
             }
             CoreDispatchOutcome::InitFailure {
@@ -236,6 +255,12 @@ where
 
                 let res = common::set_program_terminated_status(program_id);
                 assert!(res.is_ok(), "only active program can cause init failure");
+
+                log::trace!(
+                    "Dispatch ({:?}) init failure for program {:?}",
+                    message_id,
+                    program_id
+                );
 
                 Event::InitFailure(
                     MessageInfo {
@@ -278,7 +303,7 @@ where
                 }
             }
             Err(err) => {
-                log::error!(
+                log::debug!(
                     "Error spending {:?} gas for message_id {:?}: {:?}",
                     amount,
                     message_id,
@@ -316,7 +341,7 @@ where
 
         if let Some((neg_imbalance, external)) = T::GasHandler::consume(message_id) {
             let gas_left = neg_imbalance.peek();
-            log::debug!("unreserve: {}", gas_left);
+            log::debug!("Unreserve balance on message processed: {}", gas_left);
 
             let refund = T::GasPrice::gas_price(gas_left);
 
@@ -327,7 +352,7 @@ where
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
         let message_id = message_id.into_origin();
-        let mut dispatch: common::Dispatch = dispatch.into();
+        let (gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
 
         if dispatch.message.value != 0
             && T::Currency::reserve(
@@ -351,26 +376,19 @@ where
         );
 
         if common::program_exists(dispatch.message.dest) {
-            let _ = T::GasHandler::split_with_value(
-                message_id,
-                dispatch.message.id,
-                dispatch.message.gas_limit,
-            );
+            let _ = T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
             common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            if dispatch.message.gas_limit > 0 {
-                dispatch.message.gas_limit = 0;
-            }
             Pallet::<T>::insert_to_mailbox(dispatch.message.dest, dispatch.message.clone());
             Pallet::<T>::deposit_event(Event::Log(dispatch.message));
         }
     }
 
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        let dispatch: common::Dispatch = dispatch.into();
+        let (_gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
 
         let dest = dispatch.message.dest;
         let message_id = dispatch.message.id;
@@ -431,7 +449,7 @@ where
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
-            log::error!(
+            log::debug!(
                 "Attempt to awaken unknown message {:?} from {:?}",
                 awakening_id,
                 message_id.into_origin()
