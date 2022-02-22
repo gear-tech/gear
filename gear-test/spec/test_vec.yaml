@@ -10,12 +10,12 @@ programs:
     path: target/wasm32-unknown-unknown/release/demo_vec.wasm
 
 fixtures:
-  - title: test-vec (20000 * size_of(i32) = 80 KiB = 2 pages)
+  - title: test-vec (2 * 65536 * size_of(u8) = 128 KiB = 2 pages)
     messages:
       - destination: 1
         payload:
           kind: i32
-          value: 10000
+          value: 65536
         gas_limit: 10000000000
     expected:
       - step: 2
@@ -23,7 +23,7 @@ fixtures:
           - destination: 1
             payload:
               kind: i32
-              value: 20000
+              value: 131072
         allocations:
           - id: 1
             filter: dynamic
