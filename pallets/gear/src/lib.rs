@@ -625,7 +625,7 @@ pub mod pallet {
             // Make sure there is no program with such id in program storage
             let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
             ensure!(
-                !common::program_exists(id),
+                !common::program_exists(id) & !common::paused_program_exists(id),
                 Error::<T>::ProgramAlreadyExists
             );
 
