@@ -21,7 +21,7 @@ use codec::{Decode, Encode};
 use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
 use frame_system as system;
 
-use gear_common::{Dispatch, Message, Origin, STORAGE_MESSAGE_PREFIX};
+use gear_common::{Origin, QueuedDispatch, QueuedMessage, STORAGE_MESSAGE_PREFIX};
 use gear_runtime::{Gear, Runtime, System};
 
 use pallet_gear_debug::DebugData;
@@ -29,10 +29,10 @@ use pallet_gear_debug::DebugData;
 use sp_core::H256;
 use sp_runtime::{app_crypto::UncheckedFrom, AccountId32};
 
-pub fn get_dispatch_queue() -> Vec<Dispatch> {
+pub fn get_dispatch_queue() -> Vec<QueuedDispatch> {
     #[derive(Decode, Encode)]
     struct Node {
-        value: Dispatch,
+        value: QueuedDispatch,
         next: Option<H256>,
     }
 
@@ -57,8 +57,8 @@ pub fn get_dispatch_queue() -> Vec<Dispatch> {
     dispatch_queue
 }
 
-pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<Message>) {
-    while !gear_common::StorageQueue::<Dispatch>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
+pub fn process_queue(snapshots: &mut Vec<DebugData>, mailbox: &mut Vec<QueuedMessage>) {
+    while !gear_common::StorageQueue::<QueuedDispatch>::get(STORAGE_MESSAGE_PREFIX).is_empty() {
         run_to_block(System::block_number() + 1, None);
         // Parse data from events
         for event in System::events() {

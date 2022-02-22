@@ -4385,6 +4385,7 @@ dependencies = [
  "log",
  "pallet-authorship",
  "pallet-balances",
+ "pallet-gas",
  "pallet-gear",
  "pallet-timestamp",
  "parity-scale-codec",

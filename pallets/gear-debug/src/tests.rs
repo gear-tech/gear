@@ -21,7 +21,7 @@
 use super::*;
 use crate::mock::*;
 use codec::Encode;
-use common::{self, Dispatch, Message, Origin as _};
+use common::{self, Origin as _, QueuedDispatch, QueuedMessage};
 use gear_core::message::DispatchKind;
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
@@ -184,27 +184,25 @@ fn debug_mode_works() {
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![
                     // message will have reverse order since the first one requeued to the end
-                    Dispatch {
+                    QueuedDispatch {
                         kind: DispatchKind::Handle,
-                        message: Message {
+                        message: QueuedMessage {
                             id: message_id_2,
                             source: 1.into_origin(),
                             dest: program_id_2,
                             payload: vec![],
-                            gas_limit: 1_000_000,
                             value: 0,
                             reply: None,
                         },
                         payload_store: None,
                     },
-                    Dispatch {
+                    QueuedDispatch {
                         kind: DispatchKind::Handle,
-                        message: Message {
+                        message: QueuedMessage {
                             id: message_id_1,
                             source: 1.into_origin(),
                             dest: program_id_1,
                             payload: vec![],
-                            gas_limit: 1_000_000,
                             value: 0,
                             reply: None,
                         },

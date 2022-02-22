@@ -30,7 +30,7 @@ use gear_core::message::Message as CoreMessage;
 use gear_core::program::Program as CoreProgram;
 use gear_core::program::ProgramId;
 
-use gear_common::{DAGBasedLedger, Dispatch, Message, Origin as _};
+use gear_common::{DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -96,7 +96,7 @@ impl CliConfiguration for GearRuntimeTestCmd {
 fn init_fixture(
     test: &'_ sample::Test,
     snapshots: &mut Vec<DebugData>,
-    mailbox: &mut Vec<Message>,
+    mailbox: &mut Vec<QueuedMessage>,
 ) -> anyhow::Result<()> {
     for program in &test.programs {
         let program_path = program.path.clone();
@@ -181,7 +181,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     // Enable remapping of the source and destination of messages
     pallet_gear_debug::ProgramsMap::<Runtime>::put(programs_map);
     pallet_gear_debug::RemapId::<Runtime>::put(true);
-    let mut mailbox: Vec<Message> = vec![];
+    let mut mailbox: Vec<QueuedMessage> = vec![];
 
     match init_fixture(test, &mut snapshots, &mut mailbox) {
         Ok(()) => {
@@ -238,16 +238,15 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     let _ =
                         <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
 
-                    let msg = Message {
+                    let msg = QueuedMessage {
                         id,
                         source,
                         dest,
                         payload,
-                        gas_limit,
                         value,
                         reply: None,
                     };
-                    gear_common::queue_dispatch(Dispatch::new_handle(msg))
+                    gear_common::queue_dispatch(QueuedDispatch::new_handle(msg))
                 } else {
                     log::info!(
                         "{:?}",
@@ -281,7 +280,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 let mut message_queue: Vec<CoreMessage> = snapshot
                     .dispatch_queue
                     .iter()
-                    .map(|dispatch| CoreMessage::from(dispatch.message.clone()))
+                    .map(|dispatch| dispatch.message.clone().into_message(0))
                     .collect();
                 let mut progs = snapshot
                     .programs
@@ -356,7 +355,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 let messages: Vec<CoreMessage> = mailbox
                     .iter_mut()
-                    .map(|msg| CoreMessage::from(msg.clone()))
+                    .map(|msg| msg.clone().into_message(0))
                     .collect();
 
                 for message in &messages {

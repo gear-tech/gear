@@ -18,9 +18,7 @@
 
 use crate as pallet_gear_debug;
 use frame_support::{
-    construct_runtime,
-    dispatch::{DispatchError, DispatchResult},
-    parameter_types,
+    construct_runtime, parameter_types,
     traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize},
 };
 use frame_system as system;
@@ -120,52 +118,17 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
-pub struct DummyGasHandler;
-impl common::DAGBasedLedger for DummyGasHandler {
-    type ExternalOrigin = H256;
-    type Key = H256;
-    type Balance = u64;
-    type PositiveImbalance = ();
-    type NegativeImbalance = ();
-
-    fn total_supply() -> u64 {
-        Default::default()
-    }
-
-    fn create(_origin: H256, _key: H256, _amount: u64) -> Result<(), DispatchError> {
-        Ok(Default::default())
-    }
-
-    fn get_limit(_message_id: H256) -> Option<(u64, H256)> {
-        None
-    }
-
-    fn consume(_message_id: H256) -> Option<((), H256)> {
-        None
-    }
-
-    fn spend(_message_id: H256, _amount: u64) -> Result<(), DispatchError> {
-        Ok(Default::default())
-    }
-
-    fn split_with_value(_message_id: H256, _at: H256, _amount: u64) -> DispatchResult {
-        Ok(())
-    }
-
-    fn split(_message_id: H256, _at: H256) -> DispatchResult {
-        Ok(())
-    }
-}
-
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
     type GasPrice = GasConverter;
-    type GasHandler = DummyGasHandler;
+    type GasHandler = Gas;
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = super::Pallet<Test>;
 }
+
+impl pallet_gas::Config for Test {}
 
 // Configure a mock runtime to test the pallet.
 construct_runtime!(
@@ -180,6 +143,7 @@ construct_runtime!(
         Authorship: pallet_authorship::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Storage},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
+        Gas: pallet_gas,
     }
 );
 

@@ -43,7 +43,7 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{Dispatch, GasPrice, Message, Origin, PaymentProvider, Program};
+    use common::{GasPrice, Origin, PaymentProvider, Program, QueuedDispatch, QueuedMessage};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
@@ -288,7 +288,7 @@ pub mod pallet {
                         })
                     },
                 )
-                .for_each(|(fee, origin, mut dispatch, msg_gas_balance)| {
+                .for_each(|(fee, origin, dispatch, msg_gas_balance)| {
                     let msg_id = dispatch.message.id;
                     if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id, fee) {
                         log::error!(
@@ -348,17 +348,16 @@ pub mod pallet {
                                     program_id.as_ref().into(),
                                     program.nonce,
                                 ).into_origin();
-                                let trap_message = Message {
+                                let trap_message = QueuedMessage {
                                     id: trap_message_id,
                                     source: program_id,
                                     dest: dispatch.message.source,
                                     payload: vec![],
-                                    gas_limit: new_msg_gas_balance,
                                     value: 0,
                                     reply: Some((msg_id, core_processor::ERR_EXIT_CODE)),
                                 };
 
-                                let reply_dispatch = Dispatch::new_reply(trap_message);
+                                let reply_dispatch = QueuedDispatch::new_reply(trap_message);
 
                                 // Enqueue the trap reply message
                                 let _ = <T as pallet_gear::Config>::GasHandler::split_with_value(
@@ -384,7 +383,6 @@ pub mod pallet {
                     } else {
                         // Message still got enough gas limit and may keep waiting.
                         // Updating gas limit value and re-inserting the message into wait list.
-                        dispatch.message.gas_limit = new_msg_gas_balance;
                         common::insert_waiting_message(
                             program_id,
                             msg_id,
