@@ -260,6 +260,14 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        // Messages have only two options to be inserted in mailbox:
+        // 1. While message processing called `gr_wait`.
+        // 2. While message addressed to program, that hadn't finished it's initialization.
+        //
+        // This means that program always exists in storage in active or terminated status.
+        //
+        // We also remove messages from mailbox for cases of out of rent (in `pallet-usage`)
+        // and once program initialized or failed it's inititalization.
         pub fn insert_to_mailbox(user: H256, message: common::Message) {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
