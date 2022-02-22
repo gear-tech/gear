@@ -104,6 +104,7 @@ impl common::GasPrice for GasConverter {
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000;
+    pub const WaitListFeePerBlock: u64 = 1_000;
 }
 
 impl pallet_gear::Config for Test {
@@ -114,6 +115,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = ();
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl pallet_gas::Config for Test {}

@@ -265,7 +265,7 @@ pub mod pallet {
                         common::remove_waiting_message(program_id, message_id).and_then(|(dispatch, bn)| {
                             let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
                             let chargeable_amount =
-                                T::WaitListFeePerBlock::get().saturating_mul(duration.into());
+                            <T as pallet::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
                             match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
                                 Some((msg_gas_balance, origin)) => {

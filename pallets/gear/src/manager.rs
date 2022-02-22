@@ -27,7 +27,7 @@ use core_processor::common::{
 };
 use frame_support::{
     storage::PrefixIterator,
-    traits::{BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency},
+    traits::{BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency},
 };
 use gear_core::{
     memory::PageNumber,
@@ -35,7 +35,10 @@ use gear_core::{
     program::{Program as NativeProgram, ProgramId},
 };
 use primitive_types::H256;
-use sp_runtime::traits::{UniqueSaturatedInto, Zero};
+use sp_runtime::{
+    traits::{UniqueSaturatedInto, Zero},
+    SaturatedConversion,
+};
 use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
 
 pub struct ExtManager<T: Config> {
@@ -238,7 +241,7 @@ where
         Pallet::<T>::deposit_event(event);
     }
 
-    fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64) {
+    fn gas_burned(&mut self, message_id: MessageId, _origin: ProgramId, amount: u64) {
         let message_id = message_id.into_origin();
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
@@ -246,15 +249,19 @@ where
         Pallet::<T>::decrease_gas_allowance(amount);
 
         match T::GasHandler::spend(message_id, amount) {
-            Ok(_spent) => {
-                let charge = T::GasPrice::gas_price(amount);
-                if let Some(author) = Authorship::<T>::author() {
-                    let _ = T::Currency::repatriate_reserved(
-                        &<T::AccountId as Origin>::from_origin(origin.into_origin()),
-                        &author,
-                        charge,
-                        BalanceStatus::Free,
-                    );
+            Ok(_) => {
+                if let Some((_, origin)) = T::GasHandler::get_limit(message_id) {
+                    let charge = T::GasPrice::gas_price(amount);
+                    if let Some(author) = Authorship::<T>::author() {
+                        let _ = T::Currency::repatriate_reserved(
+                            &<T::AccountId as Origin>::from_origin(origin),
+                            &author,
+                            charge,
+                            BalanceStatus::Free,
+                        );
+                    }
+                } else {
+                    log::error!("Failed to get limit of {:?}", message_id);
                 }
             }
             Err(err) => {
@@ -373,9 +380,40 @@ where
     ) {
         let awakening_id = awakening_id.into_origin();
 
-        if let Some((dispatch, _)) =
+        if let Some((dispatch, bn)) =
             common::remove_waiting_message(program_id.into_origin(), awakening_id)
         {
+            let duration = <frame_system::Pallet<T>>::block_number()
+                .saturated_into::<u32>()
+                .saturating_sub(bn);
+            let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
+
+            match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
+                Ok(_) => {
+                    if let Some((_, origin)) = T::GasHandler::get_limit(message_id.into_origin()) {
+                        let charge = T::GasPrice::gas_price(chargeable_amount);
+                        if let Some(author) = Authorship::<T>::author() {
+                            let _ = T::Currency::repatriate_reserved(
+                                &<T::AccountId as Origin>::from_origin(origin),
+                                &author,
+                                charge,
+                                BalanceStatus::Free,
+                            );
+                        }
+                    } else {
+                        log::error!("Failed to get limit of {:?}", message_id);
+                    }
+                }
+                Err(err) => {
+                    log::error!(
+                        "Error charging {:?} gas rent of getting out of waitlist for message_id {:?}: {:?}",
+                        chargeable_amount,
+                        message_id,
+                        err
+                    )
+                }
+            };
+
             common::queue_dispatch(dispatch);
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));

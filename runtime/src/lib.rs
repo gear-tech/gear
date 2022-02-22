@@ -346,6 +346,7 @@ impl pallet_gear::Config for Runtime {
     type GasHandler = Gas;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type BlockGasLimit = BlockGasLimit;
+    type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
 }
 
@@ -353,6 +354,7 @@ impl pallet_gear::Config for Runtime {
 impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl pallet_usage::Config for Runtime {

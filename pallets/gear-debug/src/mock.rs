@@ -83,6 +83,7 @@ impl system::Config for Test {
 impl pallet_gear_debug::Config for Test {
     type Event = Event;
     type WeightInfo = ();
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 pub struct FixedBlockAuthor;
@@ -106,6 +107,7 @@ impl pallet_authorship::Config for Test {
 parameter_types! {
     pub const MinimumPeriod: u64 = 500;
     pub const BlockGasLimit: u64 = 100_000_000;
+    pub const WaitListFeePerBlock: u64 = 1_000;
 }
 
 impl pallet_timestamp::Config for Test {
@@ -165,6 +167,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = super::Pallet<Test>;
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 // Configure a mock runtime to test the pallet.

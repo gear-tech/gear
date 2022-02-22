@@ -70,7 +70,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, ReservableCurrency},
+        traits::{BalanceStatus, Currency, Get, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -103,6 +103,10 @@ pub mod pallet {
         /// The maximum amount of gas that can be used within a single block.
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
+
+        /// The cost for a message to spend one block in the wait list
+        #[pallet::constant]
+        type WaitListFeePerBlock: Get<u64>;
 
         type DebugInfo: DebugInfo;
     }

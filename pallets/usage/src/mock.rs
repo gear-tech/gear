@@ -116,6 +116,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type BlockGasLimit = ();
     type DebugInfo = ();
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl pallet_gas::Config for Test {}
