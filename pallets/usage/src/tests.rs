@@ -19,7 +19,7 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, DAGBasedLedger, Dispatch, Message, Origin as _};
+use common::{self, DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use gear_core::message::DispatchKind;
@@ -43,19 +43,18 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
         let blk_num = i % (bn as u64) + 1;
         let user_id = i % num_users + 1;
         let gas_limit = gas_limits[i as usize];
-        let message = Message {
+        let message = QueuedMessage {
             id: msg_id,
             source: user_id.into_origin(),
             dest: prog_id,
             payload: vec![],
-            gas_limit: gas_limit,
             value: 0_u128,
             reply: None,
         };
         common::insert_waiting_message(
             prog_id.clone(),
             msg_id.clone(),
-            Dispatch {
+            QueuedDispatch {
                 kind: DispatchKind::Handle,
                 message,
                 payload_store: None,
@@ -70,12 +69,12 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
     }
 }
 
-fn wait_list_contents() -> Vec<(Dispatch, u32)> {
-    frame_support::storage::PrefixIterator::<(Dispatch, u32)>::new(
+fn wait_list_contents() -> Vec<(QueuedDispatch, u32)> {
+    frame_support::storage::PrefixIterator::<(QueuedDispatch, u32)>::new(
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         |_, mut value| {
-            let decoded = <(Dispatch, u32)>::decode(&mut value)?;
+            let decoded = <(QueuedDispatch, u32)>::decode(&mut value)?;
             Ok(decoded)
         },
     )
@@ -410,8 +409,6 @@ fn trap_reply_message_is_sent() {
             .map(|(d, n)| (d.message, n))
             .collect::<Vec<_>>();
         assert_eq!(wl.len(), 2);
-        assert_eq!(wl[0].0.gas_limit, 1_100_u64);
-        assert_eq!(wl[1].0.gas_limit, 500_u64);
 
         // Insert respective programs to the program storage
         let program_1 = gear_core::program::Program::new(
@@ -451,10 +448,9 @@ fn trap_reply_message_is_sent() {
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let Dispatch { message, .. } = common::dequeue_dispatch().unwrap();
+        let QueuedDispatch { message, .. } = common::dequeue_dispatch().unwrap();
         assert_eq!(message.source, 1.into_origin());
         assert_eq!(message.dest, 1.into_origin());
-        assert_eq!(message.gas_limit, 1000);
         assert_eq!(
             message.reply,
             Some((201.into_origin(), core_processor::ERR_EXIT_CODE))
@@ -468,10 +464,9 @@ fn trap_reply_message_is_sent() {
         );
 
         // Second trap reply message
-        let Dispatch { message, .. } = common::dequeue_dispatch().unwrap();
+        let QueuedDispatch { message, .. } = common::dequeue_dispatch().unwrap();
         assert_eq!(message.source, 2.into_origin());
         assert_eq!(message.dest, 2.into_origin());
-        assert_eq!(message.gas_limit, 500);
         assert_eq!(
             message.reply,
             Some((202.into_origin(), core_processor::ERR_EXIT_CODE))
