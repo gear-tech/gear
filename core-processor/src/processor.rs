@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,17 +20,19 @@ use crate::{
     common::{DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, JournalNote},
     configs::{BlockInfo, ExecutionSettings},
     executor,
-    ext::Ext,
+    ext::ProcessorExt,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
 use gear_core::{
     message::{Dispatch, DispatchKind, Message},
     program::ProgramId,
+    env::Ext as EnvExt,
 };
+use gear_backend_common::ExtInfo;
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<E: Environment<Ext>>(
+pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
     actor: Option<ExecutableActor>,
     dispatch: Dispatch,
     block_info: BlockInfo,
@@ -40,7 +42,7 @@ pub fn process<E: Environment<Ext>>(
         let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
         let initial_nonce = actor.program.message_nonce();
 
-        match executor::execute_wasm::<E>(actor, dispatch.clone(), execution_settings) {
+        match executor::execute_wasm::<A, E>(actor, dispatch.clone(), execution_settings) {
             Ok(res) => match res.kind {
                 DispatchResultKind::Trap(reason) => {
                     process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
@@ -60,7 +62,7 @@ pub fn process<E: Environment<Ext>>(
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
-pub fn process_many<E: Environment<Ext>>(
+pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
     mut actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
@@ -73,8 +75,7 @@ pub fn process_many<E: Environment<Ext>>(
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal =
-            process::<E>(actor.clone(), dispatch, block_info, existential_deposit);
+        let current_journal = process::<A, E>(actor.clone(), dispatch, block_info, existential_deposit);
 
         for note in &current_journal {
             if let Some(actor) = actor {

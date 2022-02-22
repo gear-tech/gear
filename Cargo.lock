@@ -2032,9 +2032,7 @@ version = "0.1.0"
 dependencies = [
  "blake2-rfc",
  "gear-backend-common",
- "gear-common",
  "gear-core",
- "gear-runtime-interface",
  "log",
  "parity-scale-codec",
 ]
@@ -4343,6 +4341,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "gear-backend-common",
  "gear-backend-sandbox",
  "gear-common",
  "gear-core",

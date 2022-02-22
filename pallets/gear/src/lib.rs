@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -27,6 +27,7 @@ pub use weights::WeightInfo;
 mod benchmarking;
 pub mod manager;
 pub mod weights;
+mod ext;
 
 #[cfg(test)]
 mod mock;
@@ -65,7 +66,6 @@ pub mod pallet {
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
         configs::BlockInfo,
-        Ext,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -379,7 +379,7 @@ pub mod pallet {
                 payload_store: None,
             };
 
-            let journal = core_processor::process::<SandboxEnvironment<Ext>>(
+            let journal = core_processor::process::<ext::LazyPagesExt, SandboxEnvironment<ext::LazyPagesExt>>(
                 Some(actor),
                 dispatch.into(),
                 block_info,
@@ -502,7 +502,7 @@ pub mod pallet {
                         })
                 };
 
-                let journal = core_processor::process::<SandboxEnvironment<Ext>>(
+                let journal = core_processor::process::<ext::LazyPagesExt, SandboxEnvironment<ext::LazyPagesExt>>(
                     maybe_active_actor,
                     dispatch.into(),
                     block_info,
