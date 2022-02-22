@@ -24,12 +24,12 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use gear_backend_common::Environment;
+use gear_backend_common::ExtInfo;
 use gear_core::{
+    env::Ext as EnvExt,
     message::{Dispatch, DispatchKind, Message},
     program::ProgramId,
-    env::Ext as EnvExt,
 };
-use gear_backend_common::ExtInfo;
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
@@ -75,7 +75,8 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal = process::<A, E>(actor.clone(), dispatch, block_info, existential_deposit);
+        let current_journal =
+            process::<A, E>(actor.clone(), dispatch, block_info, existential_deposit);
 
         for note in &current_journal {
             if let Some(actor) = actor {

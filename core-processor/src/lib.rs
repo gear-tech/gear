@@ -40,8 +40,8 @@ pub const TERMINATED_DEST_EXIT_CODE: i32 = 2;
 
 pub use executor::execute_wasm;
 pub use ext::Ext;
+pub use ext::ProcessorExt;
 pub use handler::handle_journal;
 pub use id::next_message_id;
-pub use processor::{process, process_many};
-pub use ext::ProcessorExt;
 pub use id::BlakeMessageIdGenerator;
+pub use processor::{process, process_many};

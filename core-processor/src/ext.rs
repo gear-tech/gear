@@ -36,6 +36,7 @@ use gear_core::{
 /// Currently used only for lazy-pages support.
 pub trait ProcessorExt {
     /// Create new
+    #[allow(clippy::too_many_arguments)]
     fn new(
         gas_counter: GasCounter,
         value_counter: ValueCounter,
@@ -149,11 +150,7 @@ impl ProcessorExt for Ext {
 
     fn remove_lazy_pages_prot(_mem_addr: usize) {}
 
-    fn protect_lazy_pages_and_update_wasm_mem_addr(
-        _old_mem_addr: usize,
-        _new_mem_addr: usize,
-    ) {
-    }
+    fn protect_lazy_pages_and_update_wasm_mem_addr(_old_mem_addr: usize, _new_mem_addr: usize) {}
 
     fn get_lazy_pages_numbers() -> Vec<u32> {
         Vec::default()

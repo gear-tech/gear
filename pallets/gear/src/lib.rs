@@ -25,9 +25,9 @@ pub use weights::WeightInfo;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+mod ext;
 pub mod manager;
 pub mod weights;
-mod ext;
 
 #[cfg(test)]
 mod mock;
@@ -379,7 +379,10 @@ pub mod pallet {
                 payload_store: None,
             };
 
-            let journal = core_processor::process::<ext::LazyPagesExt, SandboxEnvironment<ext::LazyPagesExt>>(
+            let journal = core_processor::process::<
+                ext::LazyPagesExt,
+                SandboxEnvironment<ext::LazyPagesExt>,
+            >(
                 Some(actor),
                 dispatch.into(),
                 block_info,
@@ -502,7 +505,10 @@ pub mod pallet {
                         })
                 };
 
-                let journal = core_processor::process::<ext::LazyPagesExt, SandboxEnvironment<ext::LazyPagesExt>>(
+                let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
                     maybe_active_actor,
                     dispatch.into(),
                     block_info,

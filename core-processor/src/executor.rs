@@ -28,9 +28,9 @@ use alloc::{
 };
 use gear_backend_common::{BackendReport, Environment, ExtInfo, TerminationReason};
 use gear_core::{
+    env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
     memory::{MemoryContext, PageNumber},
-    env::Ext as EnvExt,
     message::{Dispatch, MessageContext},
 };
 
