@@ -628,7 +628,6 @@ fn mailbox_works() {
         assert_eq!(mailbox_message.id, reply_to_id,);
 
         // Gas limit should have been ignored by the code that puts a message into a mailbox
-        assert_eq!(mailbox_message.gas_limit, 0);
         assert_eq!(mailbox_message.value, 1000);
 
         // Gas is not passed to mailboxed messages and should have been all spent by now
