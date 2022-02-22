@@ -1575,6 +1575,47 @@ fn exit_handle() {
     })
 }
 
+#[test]
+fn paused_program_keeps_id() {
+    use tests_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(common::pause_program(program_id));
+
+        assert_noop!(
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_3).into(),
+                code.clone(),
+                vec![],
+                Vec::new(),
+                100_000_000u64,
+                0u128
+            ),
+            Error::<Test>::ProgramAlreadyExists
+        );
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
