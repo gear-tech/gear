@@ -877,4 +877,18 @@ mod tests {
             assert_eq!(block_number, remove_waiting_message(program_id, msg_id_2).map(|(_, bn)| bn).unwrap());
         });
     }
+
+    #[test]
+    fn resume_program_twice_fails() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let static_pages = 16;
+            let (program_id, .., memory_pages) = create_uninitialized_program_messages(static_pages);
+
+            assert_ok!(pause_program(program_id));
+
+            let block_number = 100;
+            assert_ok!(resume_program(program_id, memory_pages.clone(), block_number));
+            assert_err!(resume_program(program_id, memory_pages, block_number), pause::ResumeError::ProgramNotFound);
+        });
+    }
 }
