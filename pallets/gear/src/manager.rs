@@ -241,7 +241,7 @@ where
         Pallet::<T>::deposit_event(event);
     }
 
-    fn gas_burned(&mut self, message_id: MessageId, _origin: ProgramId, amount: u64) {
+    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
         let message_id = message_id.into_origin();
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);

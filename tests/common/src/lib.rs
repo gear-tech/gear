@@ -279,7 +279,7 @@ impl<'a> JournalHandler for Journal<'a> {
         };
     }
 
-    fn gas_burned(&mut self, message_id: MessageId, _origin: ProgramId, amount: u64) {
+    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
         self.context.gas_spent.insert(message_id, amount);
     }
 
