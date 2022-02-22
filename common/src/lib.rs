@@ -755,78 +755,6 @@ mod tests {
         });
     }
 
-    #[test]
-    fn pause_uninitialized_program_works() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
-            set_code(code_hash, &code);
-
-            let init_msg_id = H256::from_low_u64_be(3);
-            let program_id = H256::from_low_u64_be(1);
-            let static_pages = 256;
-            set_program(
-                program_id,
-                ActiveProgram {
-                    static_pages,
-                    persistent_pages: Default::default(),
-                    code_hash,
-                    nonce: 0,
-                    state: ProgramState::Uninitialized{ message_id: init_msg_id },
-                },
-                Default::default(),
-            );
-
-            // init message
-            insert_waiting_message(program_id, init_msg_id, Dispatch::new_handle(Message {
-                id: init_msg_id,
-                source: H256::from_low_u64_be(3),
-                dest: program_id,
-                payload: Default::default(),
-                gas_limit: u64::MAX,
-                value: 0,
-                reply: None,
-            }), 0);
-
-            let msg_id_1 = H256::from_low_u64_be(1);
-            insert_waiting_message(program_id, msg_id_1, Dispatch::new_handle(Message {
-                id: msg_id_1,
-                source: H256::from_low_u64_be(3),
-                dest: program_id,
-                payload: Default::default(),
-                gas_limit: u64::MAX,
-                value: 0,
-                reply: None,
-            }), 0);
-            waiting_init_append_message_id(program_id, msg_id_1);
-
-            let msg_id_2 = H256::from_low_u64_be(2);
-            insert_waiting_message(program_id, msg_id_2, Dispatch::new_handle(Message {
-                id: msg_id_2,
-                source: H256::from_low_u64_be(4),
-                dest: program_id,
-                payload: Default::default(),
-                gas_limit: u64::MAX,
-                value: 0,
-                reply: None,
-            }), 0);
-            waiting_init_append_message_id(program_id, msg_id_2);
-
-            assert_ok!(pause_program(program_id));
-
-            assert!(get_code(code_hash).is_some());
-
-            // although the memory pages should be removed
-            assert_eq!(get_program_pages(program_id, (0..static_pages).collect::<BTreeSet<_>>()), None);
-
-            assert!(remove_waiting_message(program_id, msg_id_1).is_none());
-            assert!(remove_waiting_message(program_id, msg_id_2).is_none());
-            assert!(remove_waiting_message(program_id, init_msg_id).is_none());
-
-            assert!(waiting_init_take_messages(program_id).is_empty());
-        });
-    }
-
     fn create_uninitialized_program_messages(static_pages: u32) -> (H256, H256, H256, H256, H256, BTreeMap<u32, Vec<u8>>) {
         let code = b"pretended wasm code".to_vec();
         let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
@@ -893,6 +821,30 @@ mod tests {
         waiting_init_append_message_id(program_id, msg_id_2);
 
         (program_id, code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages)
+    }
+
+    #[test]
+    fn pause_uninitialized_program_works() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let static_pages = 16;
+            let (program_id, code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages) = create_uninitialized_program_messages(static_pages);
+
+            assert_ok!(pause_program(program_id));
+
+            assert!(paused_program_exists(program_id));
+            assert!(get_program(program_id).is_none());
+
+            assert!(get_code(code_hash).is_some());
+
+            // although the memory pages should be removed
+            assert_eq!(get_program_pages(program_id, memory_pages.into_keys().collect()), None);
+
+            assert!(remove_waiting_message(program_id, msg_id_1).is_none());
+            assert!(remove_waiting_message(program_id, msg_id_2).is_none());
+            assert!(remove_waiting_message(program_id, init_msg_id).is_none());
+
+            assert!(waiting_init_take_messages(program_id).is_empty());
+        });
     }
 
     #[test]
