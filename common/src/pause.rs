@@ -72,7 +72,7 @@ pub fn pause_program(program_id: H256) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn paused_program_key(id: H256) -> Vec<u8> {
+fn paused_program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PAUSED_PROGRAM_PREFIX);
     id.encode_to(&mut key);
