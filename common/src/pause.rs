@@ -32,6 +32,10 @@ fn decode_dispatch_tuple(_: &[u8], value: &[u8]) -> Result<(Dispatch, u32), code
     <(Dispatch, u32)>::decode(&mut &*value)
 }
 
+fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
+    pages.using_encoded(sp_io::hashing::blake2_256).into()
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error
 {
@@ -48,10 +52,8 @@ pub fn pause_program(program_id: H256) -> Result<(), Error> {
 
     let paused_program = PausedProgram {
         program_id,
-        pages_hash: get_program_pages(program_id, program.persistent_pages.clone())
-            .expect("pause_program: active program exists, therefore pages do")
-            .using_encoded(sp_io::hashing::blake2_256)
-            .into(),
+        pages_hash: memory_pages_hash(&get_program_pages(program_id, program.persistent_pages.clone())
+            .expect("pause_program: active program exists, therefore pages do")),
         program,
         wait_list: PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
             .drain()
@@ -94,7 +96,7 @@ pub fn resume_program(program_id: H256, memory_pages: BTreeMap<u32, Vec<u8>>, bl
         .map(|bytes| PausedProgram::decode(&mut &bytes[..]).expect("resume_program: encoded correctly"))
         .ok_or(ResumeError::ProgramNotFound)?;
 
-    if paused_program.pages_hash != memory_pages.using_encoded(sp_io::hashing::blake2_256).into() {
+    if paused_program.pages_hash != memory_pages_hash(&memory_pages) {
         return Err(ResumeError::WrongMemoryPages);
     }
 
