@@ -24,16 +24,15 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use pallet_grandpa::fg_primitives;
-use pallet_grandpa::{AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList};
+use pallet_grandpa::{
+    fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
+};
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
-use sp_runtime::traits::{
-    AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify,
-};
 use sp_runtime::{
     create_runtime_str, generic, impl_opaque_keys,
+    traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify},
     transaction_validity::{TransactionSource, TransactionValidity},
     ApplyExtrinsicResult, MultiSignature, Perbill, Percent,
 };
@@ -48,7 +47,8 @@ pub use pallet_gear::manager::{ExtManager, HandleKind};
 pub use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU128, ConstU32, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness, StorageInfo,
+        ConstU128, ConstU32, ConstU64, ConstU8, FindAuthor, KeyOwnerProofSystem, Randomness,
+        StorageInfo,
     },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -333,10 +333,8 @@ parameter_types! {
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
     pub const WaitListTraversalInterval: u32 = 10;
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
-    pub const MaxBatchSize: u32 = 100;
-    pub const TrapReplyExistentialGasLimit: u64 = 6000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
-    pub const WaitListFeePerBlock: u64 = 1000;
+    pub const WaitListFeePerBlock: u64 = 1_000;
 }
 
 impl pallet_gear::Config for Runtime {
@@ -354,7 +352,6 @@ impl pallet_gear::Config for Runtime {
 impl pallet_gear_debug::Config for Runtime {
     type Event = Event;
     type WeightInfo = pallet_gear_debug::weights::GearSupportWeight<Runtime>;
-    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl pallet_usage::Config for Runtime {
@@ -363,10 +360,9 @@ impl pallet_usage::Config for Runtime {
     type WeightInfo = pallet_usage::weights::GearSupportWeight<Runtime>;
     type WaitListTraversalInterval = WaitListTraversalInterval;
     type ExpirationDuration = ExpirationDuration;
-    type MaxBatchSize = MaxBatchSize;
-    type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
+    type MaxBatchSize = ConstU32<100>;
+    type TrapReplyExistentialGasLimit = ConstU64<6000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
-    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl pallet_gas::Config for Runtime {}
@@ -435,10 +431,6 @@ pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-/// A Block signed with a Justification
-pub type SignedBlock = generic::SignedBlock<Block>;
-/// BlockId type as expected by this runtime.
-pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
     frame_system::CheckNonZeroSender<Runtime>,

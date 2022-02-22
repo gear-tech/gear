@@ -27,7 +27,7 @@ frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/sub
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-runtime = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-runtime = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
@@ -36,7 +36,7 @@ serde = "1.0.132"
 env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
-sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 hex-literal = "0.3.3"
 

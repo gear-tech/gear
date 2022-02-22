@@ -35,6 +35,8 @@
 //! behaviors during the smart-contract execution in case of not enough gas
 //! available.
 //!
+//! Value available is the total available value of program.
+//!
 //! # Examples
 //!
 //! ```
@@ -71,8 +73,16 @@
 //!     }
 //! }
 //! ```
+//! ```
+//! use gstd::exec;
+//!
+//! // Get self value balance in program
+//! pub unsafe extern "C" fn handle() {
+//!     let _my_balance = exec::value_available();
+//! }
+//! ```
 use crate::{ActorId, MessageId};
-pub use gcore::exec::{block_height, block_timestamp, gas_available};
+pub use gcore::exec::{block_height, block_timestamp, gas_available, value_available};
 
 /// Terminate the execution of a program. The program and all corresponding data
 /// are removed from the storage. This is similiar to

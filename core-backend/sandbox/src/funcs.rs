@@ -479,6 +479,26 @@ pub fn value<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
         })
 }
 
+pub fn value_available<E: Ext + Into<ExtInfo>>(
+    ctx: &mut Runtime<E>,
+    args: &[Value],
+) -> SyscallOutput {
+    let mut args = args.iter();
+
+    let value_ptr = pop_i32(&mut args)?;
+
+    ctx.ext
+        .with(|ext| {
+            funcs::set_u128(ext, value_ptr, ext.value_available());
+            Ok(())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|err| {
+            ctx.trap = Some(err);
+            HostError
+        })
+}
+
 pub fn leave<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
     let _: Result<ReturnValue, HostError> = ctx
         .ext

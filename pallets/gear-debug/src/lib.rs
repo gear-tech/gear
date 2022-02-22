@@ -40,7 +40,6 @@ pub mod pallet {
     use common::{self, Dispatch, Program};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
-        traits::Get,
     };
     use frame_system::pallet_prelude::*;
     use primitive_types::H256;
@@ -56,10 +55,6 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
-
-        /// The cost for a message to spend one block in the wait list
-        #[pallet::constant]
-        type WaitListFeePerBlock: Get<u64>;
     }
 
     #[pallet::pallet]

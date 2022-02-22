@@ -527,7 +527,7 @@ where
                         .map(|address| address.to_program_id())
                         .collect();
                     // Final state returns only active programs
-                    let actual_prog_ids = final_state.programs.iter().map(|(id, _)| *id).collect();
+                    let actual_prog_ids = final_state.actors.iter().map(|(id, _)| *id).collect();
                     if let Err(prog_id_errors) =
                         check_active_programs(actual_prog_ids, expected_prog_ids)
                     {
@@ -542,10 +542,10 @@ where
                 if !skip_allocations {
                     if let Some(alloc) = &exp.allocations {
                         let progs: Vec<Program> = final_state
-                            .programs
+                            .actors
                             .clone()
                             .into_iter()
-                            .map(|(_, v)| v)
+                            .map(|(_, v)| v.program)
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
@@ -555,8 +555,11 @@ where
                 }
                 if !skip_memory {
                     if let Some(mem) = &exp.memory {
-                        let mut progs: Vec<Program> =
-                            final_state.programs.into_iter().map(|(_, v)| v).collect();
+                        let mut progs: Vec<Program> = final_state
+                            .actors
+                            .into_iter()
+                            .map(|(_, v)| v.program)
+                            .collect();
                         if let Err(mem_errors) = check_memory(&mut progs, mem) {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(mem_errors);

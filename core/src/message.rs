@@ -543,6 +543,11 @@ impl ReplyPacket {
     pub fn gas_limit(&self) -> u64 {
         self.gas_limit
     }
+
+    /// Value of the reply message.
+    pub fn value(&self) -> u128 {
+        self.value
+    }
 }
 
 /// Generator of message id.

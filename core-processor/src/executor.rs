@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{DispatchResult, DispatchResultKind, ExecutionError},
+    common::{DispatchResult, DispatchResultKind, ExecutableActor, ExecutionError},
     configs::ExecutionSettings,
     ext::Ext,
     id::BlakeMessageIdGenerator,
@@ -30,10 +30,10 @@ use alloc::{
 };
 use gear_backend_common::{BackendReport, Environment, TerminationReason};
 use gear_core::{
-    gas::{self, ChargeResult, GasCounter},
+    gas::{self, ChargeResult, GasCounter, ValueCounter},
     memory::{MemoryContext, PageBuf, PageNumber},
     message::{Dispatch, MessageContext},
-    program::{Program, ProgramId},
+    program::ProgramId,
 };
 
 #[cfg(feature = "lazy-pages")]
@@ -65,11 +65,16 @@ fn load_pages(
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<E: Environment<Ext>>(
-    mut program: Program,
+    actor: ExecutableActor,
     dispatch: Dispatch,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
     let mut env: E = Default::default();
+
+    let ExecutableActor {
+        mut program,
+        balance,
+    } = actor;
 
     let Dispatch {
         kind,
@@ -78,10 +83,13 @@ pub fn execute_wasm<E: Environment<Ext>>(
     } = dispatch.clone();
 
     let program_id = program.id();
-    log::debug!("process program {:?}", program_id);
+    log::debug!("Executing program {:?}", program_id);
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(message.gas_limit());
+
+    // Creating value counter.
+    let value_counter = ValueCounter::new(balance + dispatch.message.value());
 
     let instrumented_code = match gas::instrument(program.code()) {
         Ok(code) => code,
@@ -192,10 +200,12 @@ pub fn execute_wasm<E: Environment<Ext>>(
     // Creating externalities.
     let ext = Ext {
         gas_counter,
+        value_counter,
         memory_context,
         message_context,
         block_info: settings.block_info,
         config: settings.config,
+        existential_deposit: settings.existential_deposit,
         lazy_pages_enabled: lazy_pages_enabled.clone(),
         error_explanation: None,
         exit_argument: None,

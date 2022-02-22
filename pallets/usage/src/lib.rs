@@ -95,10 +95,6 @@ pub mod pallet {
         /// The fraction of the collected wait list rent an external submitter will get as a reward
         #[pallet::constant]
         type ExternalSubmitterRewardFraction: Get<Perbill>;
-
-        /// The cost for a message to spend one block in the wait list
-        #[pallet::constant]
-        type WaitListFeePerBlock: Get<u64>;
     }
 
     type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
@@ -265,7 +261,7 @@ pub mod pallet {
                         common::remove_waiting_message(program_id, message_id).and_then(|(dispatch, bn)| {
                             let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
                             let chargeable_amount =
-                            <T as pallet::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
+                            <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
                             match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
                                 Some((msg_gas_balance, origin)) => {
