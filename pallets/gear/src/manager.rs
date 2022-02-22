@@ -166,10 +166,14 @@ where
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
-            CoreDispatchOutcome::Success(message_id) => Event::MessageDispatched(DispatchOutcome {
-                message_id: message_id.into_origin(),
-                outcome: ExecutionResult::Success,
-            }),
+            CoreDispatchOutcome::Success(message_id) => {
+                log::trace!("Dispatch outcome success: {:?}", message_id);
+
+                Event::MessageDispatched(DispatchOutcome {
+                    message_id: message_id.into_origin(),
+                    outcome: ExecutionResult::Success,
+                })
+            }
             CoreDispatchOutcome::MessageTrap {
                 message_id,
                 program_id,
@@ -186,6 +190,8 @@ where
                         v.as_bytes().to_vec()
                     })
                     .unwrap_or_default();
+
+                log::trace!("Dispatch outcome trap: {:?}", message_id);
 
                 Event::MessageDispatched(DispatchOutcome {
                     message_id: message_id.into_origin(),
@@ -214,6 +220,12 @@ where
 
                 common::set_program_initialized(program_id);
 
+                log::trace!(
+                    "Dispatch ({:?}) init success for program {:?}",
+                    message_id,
+                    program_id
+                );
+
                 event
             }
             CoreDispatchOutcome::InitFailure {
@@ -240,6 +252,12 @@ where
 
                 let res = common::set_program_terminated_status(program_id);
                 assert!(res.is_ok(), "only active program can cause init failure");
+
+                log::trace!(
+                    "Dispatch ({:?}) init failure for program {:?}",
+                    message_id,
+                    program_id
+                );
 
                 Event::InitFailure(
                     MessageInfo {
@@ -278,7 +296,7 @@ where
                 }
             }
             Err(err) => {
-                log::error!(
+                log::debug!(
                     "Error spending {:?} gas for message_id {:?}: {:?}",
                     amount,
                     message_id,
@@ -311,7 +329,7 @@ where
 
         if let Some((neg_imbalance, external)) = T::GasHandler::consume(message_id) {
             let gas_left = neg_imbalance.peek();
-            log::debug!("unreserve: {}", gas_left);
+            log::debug!("Unreserve balance on message processed: {}", gas_left);
 
             let refund = T::GasPrice::gas_price(gas_left);
 
@@ -389,7 +407,7 @@ where
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
-            log::error!(
+            log::debug!(
                 "Attempt to awaken unknown message {:?} from {:?}",
                 awakening_id,
                 message_id.into_origin()

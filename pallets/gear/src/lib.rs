@@ -437,9 +437,16 @@ pub mod pallet {
             while let Some(dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
 
-                let gas_limit = T::GasHandler::get_limit(dispatch.message.id)
+                let gas_limit = T::GasHandler::get_limit(*dispatch.message_id())
                     .map(|(gas, _id)| gas)
                     .unwrap_or(0);
+
+                log::debug!(
+                    "Processing message: {:?} to {:?} / gas_limit: {}",
+                    dispatch.message_id(),
+                    dispatch.message.dest,
+                    gas_limit
+                );
 
                 // Check whether we have enough of gas allowed for message processing
                 if gas_limit > GasAllowance::<T>::get() {
