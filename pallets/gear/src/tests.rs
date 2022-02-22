@@ -1225,18 +1225,7 @@ fn messages_to_uninitialized_program_wait() {
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_terminated(program_id));
@@ -1277,18 +1266,7 @@ fn uninitialized_program_should_accept_replies() {
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_terminated(program_id));
@@ -1339,18 +1317,7 @@ fn defer_program_initialization() {
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         run_to_block(2, None);
 
@@ -1414,18 +1381,7 @@ fn wake_messages_after_program_inited() {
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         run_to_block(2, None);
 
