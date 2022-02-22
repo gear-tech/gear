@@ -217,12 +217,11 @@ benchmarks! {
         let original_message_id = account::<T::AccountId>("message", 0, 100).into_origin();
         Gear::<T>::insert_to_mailbox(
             caller.clone().into_origin(),
-            common::Message {
+            common::QueuedMessage {
                 id: original_message_id,
                 source: program_id,
                 dest: caller.clone().into_origin(),
                 payload: vec![],
-                gas_limit: 10_000_000_u64,
                 value: 0_u128,
                 reply: None,
             },
