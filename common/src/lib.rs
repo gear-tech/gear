@@ -21,7 +21,6 @@
 pub mod lazy_pages;
 pub mod native;
 pub mod storage_queue;
-pub mod lazy_pages;
 
 use codec::{Decode, Encode};
 use frame_support::{

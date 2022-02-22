@@ -45,5 +45,3 @@ pub use handler::handle_journal;
 pub use id::next_message_id;
 pub use id::BlakeMessageIdGenerator;
 pub use processor::{process, process_many};
-pub use ext::ProcessorExt;
-pub use id::BlakeMessageIdGenerator;
