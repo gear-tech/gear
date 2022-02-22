@@ -891,4 +891,18 @@ mod tests {
             assert_err!(resume_program(program_id, memory_pages, block_number), pause::ResumeError::ProgramNotFound);
         });
     }
+
+    #[test]
+    fn resume_program_wrong_memory_fails() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let static_pages = 16;
+            let (program_id, .., mut memory_pages) = create_uninitialized_program_messages(static_pages);
+
+            assert_ok!(pause_program(program_id));
+
+            let block_number = 100;
+            memory_pages.remove(&0);
+            assert_err!(resume_program(program_id, memory_pages, block_number), pause::ResumeError::WrongMemoryPages);
+        });
+    }
 }
