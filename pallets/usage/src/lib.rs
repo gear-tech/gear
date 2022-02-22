@@ -330,14 +330,11 @@ pub mod pallet {
                         }
                     };
 
-                    log::debug!("hi fee {:?}", fee);
-
                     let program_id = dispatch.message.dest;
                     let message_id = dispatch.message.id;
                     let new_msg_gas_balance = msg_gas_balance.saturating_sub(fee);
                     if new_msg_gas_balance <= T::TrapReplyExistentialGasLimit::get() {
                         if common::get_program(program_id).is_some() {
-                                log::debug!("program is some");
                                 // TODO: generate system signal for program (#647)
 
                                 // Generate trap reply
