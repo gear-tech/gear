@@ -361,10 +361,16 @@ fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     key
 }
 
-fn page_key(id: H256, page: u32) -> Vec<u8> {
+fn pages_prefix(program_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    id.encode_to(&mut key);
+    program_id.encode_to(&mut key);
+
+    key
+}
+
+fn page_key(id: H256, page: u32) -> Vec<u8> {
+    let mut key = pages_prefix(id);
     key.extend(b"::");
     page.encode_to(&mut key);
     key
@@ -418,9 +424,8 @@ pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
         if program.is_terminated() {
             return Err(ProgramError::IsTerminated);
         }
-        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-        pages_prefix.extend(&program_key(id));
-        sp_io::storage::clear_prefix(&pages_prefix, None);
+
+        sp_io::storage::clear_prefix(&pages_prefix(id), None);
         sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
 
         Ok(())

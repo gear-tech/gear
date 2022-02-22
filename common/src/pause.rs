@@ -62,11 +62,8 @@ pub fn pause_program(program_id: H256) -> Result<(), Error> {
 
     // code shouldn't be removed
     // remove_program(program_id);
-    let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-    let program_key = &program_key(program_id);
-    pages_prefix.extend(program_key);
-    sp_io::storage::clear_prefix(&pages_prefix, None);
-    sp_io::storage::clear_prefix(program_key, None);
+    sp_io::storage::clear_prefix(&pages_prefix(program_id), None);
+    sp_io::storage::clear_prefix(&program_key(program_id), None);
 
     sp_io::storage::set(&paused_program_key(program_id), &paused_program.encode());
 
