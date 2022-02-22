@@ -16,20 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::{lazy_pages, ExitCode};
+use sp_std::{collections::btree_map::BTreeMap, boxed::Box, vec::Vec, vec};
 use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
-    BlakeMessageIdGenerator, Ext, ProcessorExt,
+    Ext, ProcessorExt,
+    BlakeMessageIdGenerator
 };
 use gear_backend_common::ExtInfo;
 use gear_core::{
-    env::Ext as EnvExt,
-    gas::{GasAmount, GasCounter, ValueCounter},
-    memory::{MemoryContext, PageBuf, PageNumber},
-    message::{MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
-    program::ProgramId,
+    env::Ext as EnvExt, gas::{GasCounter, GasAmount, ValueCounter}, memory::{MemoryContext, PageNumber, PageBuf}, message::{MessageContext, MessageState, MessageId, OutgoingPacket, ReplyPacket}, program::ProgramId,
 };
-use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
+use common::{lazy_pages, ExitCode};
 
 /// Ext with lazy pages support
 pub struct LazyPagesExt {

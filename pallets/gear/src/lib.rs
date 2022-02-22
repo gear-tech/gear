@@ -28,6 +28,7 @@ mod benchmarking;
 mod ext;
 pub mod manager;
 pub mod weights;
+mod ext;
 
 #[cfg(test)]
 mod mock;

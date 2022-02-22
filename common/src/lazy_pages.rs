@@ -34,7 +34,9 @@ pub fn try_to_enable_lazy_pages(
     if !memory_pages.iter().any(|(_, buf)| buf.is_none()) {
         log::debug!("lazy-pages: there is no pages to be lazy");
         false
-    } else if cfg!(target_family = "wasm") || !gear_ri::gear_ri::init_lazy_pages() {
+    } else if cfg!(target_family = "wasm")
+        || !gear_ri::gear_ri::init_lazy_pages()
+    {
         // TODO: to support in Wasm runtime we must change embedded executor to host executor.
         // TODO: also we cannot support for validators in relay-chain,
         // but it can be fixed in future only.
