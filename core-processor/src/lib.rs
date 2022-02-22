@@ -42,5 +42,5 @@ pub const TERMINATED_DEST_EXIT_CODE: i32 = 2;
 pub use executor::execute_wasm;
 pub use ext::Ext;
 pub use handler::handle_journal;
-pub use id::next_message_id;
+pub use id::{next_message_id, next_system_reply_message_id};
 pub use processor::{process, process_many};
