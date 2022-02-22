@@ -130,17 +130,16 @@ pub fn read<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), &'
 
 pub fn reply<E: Ext>(
     ext: LaterExt<E>,
-) -> impl Fn(i32, i32, i64, i32, i32) -> Result<(), &'static str> {
+) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
     move |payload_ptr: i32,
           payload_len: i32,
-          gas_limit: i64,
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
             let message_id =
-                ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))?;
+                ext.reply(ReplyPacket::new(0, payload.into(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -150,12 +149,12 @@ pub fn reply<E: Ext>(
 
 pub fn reply_commit<E: Ext>(
     ext: LaterExt<E>,
-) -> impl Fn(i32, i64, i32) -> Result<(), &'static str> {
-    move |message_id_ptr: i32, gas_limit: i64, value_ptr: i32| {
+) -> impl Fn(i32, i32) -> Result<(), &'static str> {
+    move |message_id_ptr: i32, value_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let value = get_u128(ext, value_ptr as usize);
             let message_id =
-                ext.reply_commit(ReplyPacket::new(0, vec![].into(), gas_limit as _, value))?;
+                ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -190,6 +189,31 @@ pub fn reply_to<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static
 
 pub fn send<E: Ext>(
     ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |program_id_ptr: i32,
+          payload_ptr: i32,
+          payload_len: i32,
+          value_ptr: i32,
+          message_id_ptr: i32| {
+        let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
+            let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
+            let value = get_u128(ext, value_ptr as usize);
+            let message_id = ext.send(OutgoingPacket::new(
+                dest,
+                payload.into(),
+                None,
+                value,
+            ))?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            Ok(())
+        })?;
+        result.map_err(|_| "Trapping: unable to send message")
+    }
+}
+
+pub fn send_wgas<E: Ext>(
+    ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
     move |program_id_ptr: i32,
           payload_ptr: i32,
@@ -204,7 +228,7 @@ pub fn send<E: Ext>(
             let message_id = ext.send(OutgoingPacket::new(
                 dest,
                 payload.into(),
-                gas_limit as _,
+                Some(gas_limit as _),
                 value,
             ))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
@@ -215,6 +239,27 @@ pub fn send<E: Ext>(
 }
 
 pub fn send_commit<E: Ext>(
+    ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |handle_ptr: i32,
+          message_id_ptr: i32,
+          program_id_ptr: i32,
+          value_ptr: i32| {
+        ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
+            let value = get_u128(ext, value_ptr as usize);
+            let message_id = ext.send_commit(
+                handle_ptr as _,
+                OutgoingPacket::new(dest, vec![].into(), None, value),
+            )?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            Ok(())
+        })?
+        .map_err(|_| "Trapping: unable to commit and send message")
+    }
+}
+
+pub fn send_commit_wgas<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str> {
     move |handle_ptr: i32,
@@ -227,7 +272,7 @@ pub fn send_commit<E: Ext>(
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send_commit(
                 handle_ptr as _,
-                OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
+                OutgoingPacket::new(dest, vec![].into(), Some(gas_limit as _), value),
             )?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())

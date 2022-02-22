@@ -314,7 +314,7 @@ impl QueuedMessage {
             source: gear_core::program::ProgramId::from_origin(self.source),
             dest: gear_core::program::ProgramId::from_origin(self.dest),
             payload: self.payload.into(),
-            gas_limit,
+            gas_limit: Some(gas_limit),
             value: self.value,
             reply: self.reply.map(|(message_id, exit_code)| {
                 (
@@ -345,7 +345,7 @@ impl QueuedMessage {
             reply: reply.map(|(message_id, exit_code)| (message_id.into_origin(), exit_code)),
         };
 
-        (gas_limit, new_message)
+        (gas_limit.unwrap_or_default(), new_message)
     }
 }
 

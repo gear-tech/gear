@@ -56,7 +56,7 @@ impl From<CoreMessage> for Message {
             source: message.source.into_origin(),
             dest: message.dest.into_origin(),
             payload: message.payload.into_raw(),
-            gas_limit: message.gas_limit,
+            gas_limit: message.gas_limit.unwrap_or_default(),
             value: message.value,
             reply: message
                 .reply
@@ -72,7 +72,7 @@ impl From<Message> for CoreMessage {
             source: ProgramId::from_origin(message.source),
             dest: ProgramId::from_origin(message.dest),
             payload: message.payload.into(),
-            gas_limit: message.gas_limit,
+            gas_limit: Some(message.gas_limit),
             value: message.value,
             reply: message
                 .reply
