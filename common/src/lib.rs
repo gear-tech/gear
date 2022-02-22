@@ -659,18 +659,30 @@ mod tests {
             let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
             set_code(code_hash, &code);
 
+            let static_pages = 16;
+            let memory_pages = {
+                let mut pages = BTreeMap::<u32, Vec<u8>>::new();
+                pages.insert(static_pages, vec![static_pages as u8]);
+                pages.insert(static_pages + 2, vec![static_pages as u8 + 2]);
+                for i in 0..static_pages {
+                    pages.insert(i, vec![i as u8]);
+                }
+
+                pages
+            };
+
             let program_id = H256::from_low_u64_be(1);
-            let static_pages = 256;
+
             set_program(
                 program_id,
                 ActiveProgram {
                     static_pages,
-                    persistent_pages: Default::default(),
+                    persistent_pages: memory_pages.clone().into_keys().collect(),
                     code_hash,
                     nonce: 0,
                     state: ProgramState::Initialized,
                 },
-                Default::default(),
+                memory_pages.clone(),
             );
 
             let msg_id_1 = H256::from_low_u64_be(1);
@@ -697,10 +709,12 @@ mod tests {
 
             assert_ok!(pause_program(program_id));
 
+            assert!(paused_program_exists(program_id));
+
             assert!(get_code(code_hash).is_some());
 
             // although the memory pages should be removed
-            assert_eq!(get_program_pages(program_id, (0..static_pages).collect::<BTreeSet<_>>()), None);
+            assert_eq!(get_program_pages(program_id, memory_pages.into_keys().collect()), None);
 
             assert!(remove_waiting_message(program_id, msg_id_1).is_none());
             assert!(remove_waiting_message(program_id, msg_id_2).is_none());
