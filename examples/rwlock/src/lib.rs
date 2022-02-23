@@ -27,7 +27,7 @@ async fn main() {
 
     match message.as_ref() {
         "get" => {
-            msg::reply(*RWLOCK.read().await, exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(*RWLOCK.read().await, 0);
         }
         "inc" => {
             let mut val = RWLOCK.write().await;
@@ -35,10 +35,10 @@ async fn main() {
         }
         "ping&get" => {
             let _ =
-                msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT * 2, 0)
+                msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
                     .await
                     .expect("Error in async message processing");
-            msg::reply(*RWLOCK.read().await, exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(*RWLOCK.read().await, 0);
         }
         "inc&ping" => {
             let mut val = RWLOCK.write().await;
@@ -46,7 +46,6 @@ async fn main() {
             let _ = msg::send_bytes_and_wait_for_reply(
                 unsafe { PING_DEST },
                 b"PING",
-                exec::gas_available() - GAS_LIMIT,
                 0,
             )
             .await
@@ -54,10 +53,10 @@ async fn main() {
         }
         "get&ping" => {
             let val = RWLOCK.read().await;
-            let _ = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
                 .await
                 .expect("Error in async message processing");
-            msg::reply(*val, exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(*val, 0);
         }
         "check readers" => {
             let mut storage = Vec::new();
@@ -101,7 +100,7 @@ async fn main() {
 
             let val = another_future.await;
 
-            msg::reply(*val, exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(*val, 0);
         }
         _ => {
             let _write = RWLOCK.write().await;

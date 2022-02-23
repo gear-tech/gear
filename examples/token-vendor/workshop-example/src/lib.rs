@@ -44,9 +44,9 @@ pub unsafe extern "C" fn handle() {
     debug!("CONTRACT: Got payload: '{}'", payload);
 
     if payload == "success" {
-        msg::reply(STATE.get_hex_id(), exec::gas_available() - GAS_RESERVE, 0);
+        msg::reply(STATE.get_hex_id(), 0);
     } else if payload == "ping" {
-        msg::reply("pong", exec::gas_available() - GAS_RESERVE, 0);
+        msg::reply("pong", 0);
     } else {
         // Do nothing
     }

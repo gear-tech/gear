@@ -166,7 +166,7 @@ pub unsafe extern "C" fn handle() {
         .get_mut(&msg::load_bytes())
         .and_then(|i| i.next());
     if let Some(r) = reply {
-        msg::reply_bytes(r, exec::gas_available() - GAS_SPENT, 0);
+        msg::reply_bytes(r, 0);
     }
 }
 
@@ -178,7 +178,6 @@ pub unsafe extern "C" fn init() {
         .map_err(|_| {
             msg::reply(
                 b"bot; failed to decode `Vec<Handler>`",
-                exec::gas_available() - GAS_SPENT,
                 0,
             )
         })

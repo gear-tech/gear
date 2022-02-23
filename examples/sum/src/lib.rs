@@ -38,7 +38,6 @@ pub unsafe extern "C" fn handle() {
     msg::send(
         STATE.send_to(),
         new_msg + new_msg,
-        exec::gas_available() - 1_000_000_000,
         0,
     );
 

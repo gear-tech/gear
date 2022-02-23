@@ -70,7 +70,7 @@ async fn main() {
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            msg::send_bytes_and_wait_for_reply(*s, &encoded, GAS_LIMIT, 0).map(move |r| (i, r))
+            msg::send_bytes_and_wait_for_reply(*s, &encoded, 0).map(move |r| (i, r))
         })
         .collect();
 
@@ -102,7 +102,7 @@ async fn main() {
             .unwrap_or(0);
 
         if unsafe { THRESHOLD } <= threshold {
-            msg::send_bytes(unsafe { DESTINATION }, message, GAS_LIMIT, 0);
+            msg::send_bytes(unsafe { DESTINATION }, message, 0);
             break;
         } else if threshold + remaining.len() < unsafe { THRESHOLD } {
             // threshold can't be reached even if all remaining

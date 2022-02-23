@@ -376,7 +376,11 @@ where
         );
 
         if common::program_exists(dispatch.message.dest) {
-            let _ = T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+            if let Some(gas_limit) = gas_limit {
+                let _ = T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+            } else {
+                let _ = T::GasHandler::split(message_id, *dispatch.message_id());
+            }
             common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.

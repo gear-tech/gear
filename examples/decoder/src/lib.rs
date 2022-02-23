@@ -49,5 +49,5 @@ pub unsafe extern "C" fn handle() {
 
     handle.push(format!("[{}, {}]", leaves[0] + 1, leaves[1] + 1));
 
-    handle.commit(msg::source(), 10_000_000, 0);
+    handle.commit(msg::source(), 0);
 }

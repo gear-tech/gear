@@ -152,7 +152,7 @@ async fn main() {
                 panic!("Failed to update State: {}", e);
             }
 
-            msg::reply("Config updated", exec::gas_available() - GAS_RESERVE, 0);
+            msg::reply("Config updated", 0);
         }
         Action::ActorId(hex) => {
             if unsafe { !STATE.members.contains(&source) } {
@@ -165,7 +165,6 @@ async fn main() {
             let response = msg::send_bytes_and_wait_for_reply(
                 id,
                 &String::from("ping").encode(),
-                GAS_RESERVE,
                 0,
             )
             .await
@@ -180,7 +179,6 @@ async fn main() {
                 let response = msg::send_bytes_and_wait_for_reply(
                     id,
                     &String::from("success").encode(),
-                    GAS_RESERVE,
                     0,
                 )
                 .await
@@ -200,7 +198,7 @@ async fn main() {
                         member_id, source
                     );
 
-                    msg::reply("Success", exec::gas_available() - GAS_RESERVE, unsafe {
+                    msg::reply("Success", unsafe {
                         STATE.reward
                     });
 
@@ -222,5 +220,5 @@ pub unsafe extern "C" fn init() {
     }
 
     debug!("Initialized");
-    msg::reply("Initialized", exec::gas_available() - GAS_RESERVE, 0);
+    msg::reply("Initialized", 0);
 }

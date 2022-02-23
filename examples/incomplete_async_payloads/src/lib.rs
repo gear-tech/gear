@@ -18,7 +18,7 @@ async fn main() {
             let handle = msg::send_init();
             handle.push(b"STORED ");
 
-            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .await
                 .expect("Error in async message processing");
 
@@ -26,14 +26,14 @@ async fn main() {
 
             handle.push("COMMON");
 
-            handle.commit(msg::source(), GAS_LIMIT, 0);
+            handle.commit(msg::source(), 0);
         }
         "reply store" => {
             debug!("stored reply processing");
 
             msg::reply_push(b"STORED ");
 
-            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .await
                 .expect("Error in async message processing");
 
@@ -41,25 +41,25 @@ async fn main() {
 
             msg::reply_push(b"REPLY");
 
-            msg::reply_commit(GAS_LIMIT, 0);
+            msg::reply_commit(0);
         }
         "handle" => {
             debug!("ok common processing");
             let handle = msg::send_init();
             handle.push(b"OK PING");
-            handle.commit(msg::source(), GAS_LIMIT, 0);
+            handle.commit(msg::source(), 0);
         }
         "reply" => {
             debug!("ok reply processing");
             msg::reply_push(b"OK REPLY");
-            msg::reply_commit(GAS_LIMIT, 0);
+            msg::reply_commit(0);
         }
         "reply twice" => {
             debug!("reply twice processing");
 
-            msg::reply_bytes("FIRST", GAS_LIMIT, 0);
+            msg::reply_bytes("FIRST", 0);
 
-            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .await
                 .expect("Error in async message processing");
 
@@ -67,7 +67,7 @@ async fn main() {
 
             // Won't be sent, because one
             // execution allows only one reply
-            msg::reply_bytes("SECOND", GAS_LIMIT, 0);
+            msg::reply_bytes("SECOND", 0);
         }
         _ => {}
     }

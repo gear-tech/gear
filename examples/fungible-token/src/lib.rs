@@ -78,7 +78,6 @@ impl FungibleToken {
         };
         msg::reply(
             Event::Transfer(transfer_data),
-            exec::gas_available() - GAS_RESERVE,
             0,
         );
     }
@@ -99,7 +98,6 @@ impl FungibleToken {
         };
         msg::reply(
             Event::Transfer(transfer_data),
-            exec::gas_available() - GAS_RESERVE,
             0,
         );
     }
@@ -125,7 +123,6 @@ impl FungibleToken {
         };
         msg::reply(
             Event::Transfer(transfer_data),
-            exec::gas_available() - GAS_RESERVE,
             0,
         );
     }
@@ -149,7 +146,6 @@ impl FungibleToken {
         };
         msg::reply(
             Event::Approval(approve_data),
-            exec::gas_available() - GAS_RESERVE,
             0,
         );
     }

@@ -51,7 +51,7 @@ async fn main() {
     let request = SignRequest { message };
 
     let sign_response: Result<SignResponse, _> =
-        msg::send_and_wait_for_reply(unsafe { SIGNATORY }, &request, GAS_LIMIT, 0).await;
+        msg::send_and_wait_for_reply(unsafe { SIGNATORY }, &request, 0).await;
 
     let verified = sign_response
         .ok()
@@ -73,6 +73,6 @@ async fn main() {
         .unwrap_or(false);
 
     if verified {
-        msg::send_bytes(unsafe { DESTINATION }, request.message, GAS_LIMIT, 0);
+        msg::send_bytes(unsafe { DESTINATION }, request.message, 0);
     }
 }

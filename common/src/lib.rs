@@ -269,7 +269,7 @@ impl QueuedDispatch {
         }
     }
 
-    pub fn without_gas_limit(dispatch: gear_core::message::Dispatch) -> (u64, Self) {
+    pub fn without_gas_limit(dispatch: gear_core::message::Dispatch) -> (Option<u64>, Self) {
         let (gas_limit, message) = QueuedMessage::without_gas_limit(dispatch.message);
 
         let dispatch = Self {
@@ -325,7 +325,7 @@ impl QueuedMessage {
         }
     }
 
-    pub fn without_gas_limit(message: gear_core::message::Message) -> (u64, Self) {
+    pub fn without_gas_limit(message: gear_core::message::Message) -> (Option<u64>, Self) {
         let gear_core::message::Message {
             id,
             source,
@@ -345,7 +345,7 @@ impl QueuedMessage {
             reply: reply.map(|(message_id, exit_code)| (message_id.into_origin(), exit_code)),
         };
 
-        (gas_limit.unwrap_or_default(), new_message)
+        (gas_limit, new_message)
     }
 }
 

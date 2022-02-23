@@ -31,14 +31,14 @@ async fn main() {
     if message == "START" {
         let _val = RWLOCK.write().await;
 
-        let reply = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
+        let reply = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
             .await
             .expect("Error in async message processing");
 
         if reply == b"PONG" {
-            msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(b"SUCCESS", 0);
         } else {
-            msg::reply(b"FAIL", exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(b"FAIL", 0);
         }
     }
 }
