@@ -306,7 +306,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
         if self.context.actors.contains_key(&dispatch.message.dest) {
             // imbuing gas-less messages
-            if let None = dispatch.message.gas_limit() {
+            if dispatch.message.gas_limit().is_none() {
                 dispatch.message.gas_limit = Some(u64::max_value());
             }
 
