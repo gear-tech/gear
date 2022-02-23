@@ -74,7 +74,7 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
     let result = ctx
         .ext
         .with(|ext| {
-            let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
             let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
@@ -132,7 +132,7 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
 
     ctx.ext
         .with(|ext| {
-            let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let value = funcs::get_u128(ext, value_ptr);
             let message_id = ext.send_commit(
                 handle_ptr,

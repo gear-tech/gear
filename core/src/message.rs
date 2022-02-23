@@ -486,6 +486,7 @@ impl ProgramInitMessage {
             gas_limit,
             value,
         } = self;
+        let gas_limit = Some(gas_limit);
         Message {
             id,
             source,

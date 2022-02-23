@@ -187,7 +187,7 @@ pub fn send<E: Ext>(
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
@@ -229,7 +229,7 @@ pub fn send_commit<E: Ext>(
 ) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
     move |handle_ptr: i32, message_id_ptr: i32, program_id_ptr: i32, value_ptr: i32| {
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send_commit(
                 handle_ptr as _,

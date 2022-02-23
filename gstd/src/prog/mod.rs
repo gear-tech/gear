@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 use crate::{ActorId, CodeHash};
 use codec::Encode;
 
-pub fn create_program_wgas<T1: Encode, T2: Encode>(
+pub fn create_program_with_gas<T1: Encode, T2: Encode>(
     code_hash: CodeHash,
     salt: T1,
     payload: T2,
@@ -30,5 +30,5 @@ pub fn create_program_wgas<T1: Encode, T2: Encode>(
 ) -> ActorId {
     let salt = salt.encode();
     let payload = payload.encode();
-    gcore::prog::create_program_wgas(code_hash.into(), &salt, &payload, gas_limit, value).into()
+    gcore::prog::create_program_with_gas(code_hash.into(), &salt, &payload, gas_limit, value).into()
 }

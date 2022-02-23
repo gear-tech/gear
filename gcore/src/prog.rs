@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -73,7 +73,7 @@ mod sys {
 ///         hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a")
 ///             .into();
 ///     let new_program_id =
-///         prog::create_program_wgas(submitted_code, &get().to_le_bytes(), b"", 10_000, 0);
+///         prog::create_program_with_gas(submitted_code, &get().to_le_bytes(), b"", 10_000, 0);
 /// }
 /// ```
 /// Another case for salt is to receive it as an input:
@@ -85,7 +85,7 @@ mod sys {
 ///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
 ///     let mut salt = vec![0u8; msg::size()];
 ///     msg::load(&mut salt[..]);
-///     let new_program_id = prog::create_program_wgas(submitted_code, &salt, b"", 10_000, 0);
+///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0);
 /// }
 /// ```
 ///
@@ -98,11 +98,11 @@ mod sys {
 ///     # let submitted_code: CodeHash = hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a").into();
 ///     # let mut salt = vec![0u8; msg::size()];
 ///     # msg::load(&mut salt[..]);
-///     let new_program_id = prog::create_program_wgas(submitted_code, &salt, b"", 10_000, 0);
-///     msg::send(new_program_id, b"payload for a new program", 10_000, 0);
+///     let new_program_id = prog::create_program_with_gas(submitted_code, &salt, b"", 10_000, 0);
+///     msg::send_with_gas(new_program_id, b"payload for a new program", 10_000, 0);
 /// }
 /// ```
-pub fn create_program_wgas(
+pub fn create_program_with_gas(
     code_hash: CodeHash,
     salt: &[u8],
     payload: &[u8],
