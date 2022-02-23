@@ -120,9 +120,14 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
         let dest = dispatch.message.dest();
         if self.actors.borrow().contains_key(&dest) {
+            // imbuing gas-less messages with maximum gas!
+            if dispatch.message.gas_limit.is_none() {
+                dispatch.message.gas_limit = Some(u64::max_value());
+            }
+
             if let (DispatchKind::Handle, Some(list)) =
                 (dispatch.kind, self.waiting_init.borrow_mut().get_mut(&dest))
             {

@@ -182,7 +182,7 @@ impl From<Message> for IncomingMessage {
             id: s.id(),
             source: s.source(),
             payload: s.payload,
-            gas_limit: s.gas_limit,
+            gas_limit: s.gas_limit.unwrap_or_default(),
             value: s.value,
             reply: s.reply,
         }
@@ -247,7 +247,7 @@ impl IncomingMessage {
             source: self.source,
             dest,
             payload: self.payload,
-            gas_limit: self.gas_limit,
+            gas_limit: Some(self.gas_limit),
             value: self.value,
             reply: self.reply,
         }
@@ -260,7 +260,7 @@ pub struct OutgoingMessage {
     id: MessageId,
     dest: ProgramId,
     payload: Payload,
-    gas_limit: u64,
+    gas_limit: Option<u64>,
     value: u128,
 }
 
@@ -270,7 +270,7 @@ impl OutgoingMessage {
         id: MessageId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
+        gas_limit: Option<u64>,
         value: u128,
     ) -> Self {
         Self {
@@ -296,7 +296,7 @@ impl OutgoingMessage {
     }
 
     /// Return declared gas_limit of the message.
-    pub fn gas_limit(&self) -> u64 {
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 
@@ -315,8 +315,6 @@ pub struct ReplyMessage {
     exit_code: ExitCode,
     /// Payload of the reply message.
     payload: Payload,
-    /// Gas limit.
-    gas_limit: u64,
     /// Message value.
     value: u128,
 }
@@ -334,7 +332,7 @@ impl ReplyMessage {
             source: source_program,
             dest,
             payload: self.payload,
-            gas_limit: self.gas_limit,
+            gas_limit: None,
             value: self.value,
             reply: Some((source_message, self.exit_code)),
         }
@@ -358,7 +356,7 @@ pub struct Message {
     /// Payload of the message.
     pub payload: Payload,
     /// Gas limit.
-    pub gas_limit: u64,
+    pub gas_limit: Option<u64>,
     /// Message value.
     pub value: u128,
     /// In reply of.
@@ -371,7 +369,7 @@ impl Message {
         id: MessageId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
+        gas_limit: Option<u64>,
         value: u128,
     ) -> Message {
         Message {
@@ -391,7 +389,7 @@ impl Message {
         source: ProgramId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
+        gas_limit: Option<u64>,
         value: u128,
     ) -> Message {
         Message {
@@ -412,7 +410,6 @@ impl Message {
         source: ProgramId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
         value: u128,
         reply: MessageId,
         exit_code: ExitCode,
@@ -422,7 +419,7 @@ impl Message {
             source,
             dest,
             payload,
-            gas_limit,
+            gas_limit: None,
             value,
             reply: Some((reply, exit_code)),
         }
@@ -444,7 +441,7 @@ impl Message {
     }
 
     /// Message gas limit.
-    pub fn gas_limit(&self) -> u64 {
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 
@@ -540,13 +537,13 @@ impl ProgramInitPacket {
 pub struct OutgoingPacket {
     dest: ProgramId,
     payload: Payload,
-    gas_limit: u64,
+    gas_limit: Option<u64>,
     value: u128,
 }
 
 impl OutgoingPacket {
     /// New outgoing message packet.
-    pub fn new(dest: ProgramId, payload: Payload, gas_limit: u64, value: u128) -> Self {
+    pub fn new(dest: ProgramId, payload: Payload, gas_limit: Option<u64>, value: u128) -> Self {
         Self {
             dest,
             payload,
@@ -556,7 +553,7 @@ impl OutgoingPacket {
     }
 
     /// Gas limit.
-    pub fn gas_limit(&self) -> u64 {
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 
@@ -582,7 +579,7 @@ impl Default for OutgoingPacket {
         Self {
             dest: ProgramId::system(),
             payload: Payload::default(),
-            gas_limit: 0,
+            gas_limit: None,
             value: 0,
         }
     }
@@ -593,8 +590,6 @@ impl Default for OutgoingPacket {
 pub struct ReplyPacket {
     /// Payload of the reply message.
     pub payload: Payload,
-    /// Gas limit.
-    pub gas_limit: u64,
     /// Message value.
     pub value: u128,
     /// Exit code
@@ -603,18 +598,12 @@ pub struct ReplyPacket {
 
 impl ReplyPacket {
     /// New reply message in some message context.
-    pub fn new(exit_code: ExitCode, payload: Payload, gas_limit: u64, value: u128) -> Self {
+    pub fn new(exit_code: ExitCode, payload: Payload, value: u128) -> Self {
         Self {
             payload,
-            gas_limit,
             value,
             exit_code,
         }
-    }
-
-    /// Gas limit of the reply message.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
     }
 
     /// Value of the reply message.
@@ -654,7 +643,6 @@ pub trait MessageIdGenerator {
         ReplyMessage {
             id,
             payload: packet.payload,
-            gas_limit: packet.gas_limit,
             value: packet.value,
             exit_code: packet.exit_code,
         }
@@ -1041,7 +1029,7 @@ mod tests {
         assert!(context.state.borrow().reply.is_none());
 
         // Creating a reply packet
-        let reply_packet = ReplyPacket::new(0, vec![0, 0].into(), 0, 0);
+        let reply_packet = ReplyPacket::new(0, vec![0, 0].into(), 0);
 
         // Checking that we are able to initialize reply
         assert!(context.reply_push(&[1, 2, 3]).is_ok());
@@ -1100,7 +1088,7 @@ mod tests {
         let commit_packet = OutgoingPacket::new(
             ProgramId::from(OUTGOING_MESSAGE_DEST + 1),
             Payload::default(),
-            0,
+            Some(0),
             0,
         );
 
