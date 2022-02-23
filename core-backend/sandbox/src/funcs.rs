@@ -77,8 +77,7 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
             let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id =
-                ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
+            let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
             ext.set_mem(message_id_ptr, message_id.as_slice());
             Ok(())
         })
@@ -106,8 +105,12 @@ pub fn send_wgas<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -
             let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id =
-                ext.send(OutgoingPacket::new(dest, payload.into(), Some(gas_limit), value))?;
+            let message_id = ext.send(OutgoingPacket::new(
+                dest,
+                payload.into(),
+                Some(gas_limit),
+                value,
+            ))?;
             ext.set_mem(message_id_ptr, message_id.as_slice());
             Ok(())
         })
@@ -145,7 +148,10 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
         })
 }
 
-pub fn send_commit_wgas<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+pub fn send_commit_wgas<E: Ext + Into<ExtInfo>>(
+    ctx: &mut Runtime<E>,
+    args: &[Value],
+) -> SyscallOutput {
     let mut args = args.iter();
 
     let handle_ptr = pop_i32(&mut args)?;
@@ -367,8 +373,7 @@ pub fn reply_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]
     ctx.ext
         .with(|ext| {
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id =
-                ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
+            let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
             ext.set_mem(message_id_ptr, message_id.as_slice());
             Ok(())
         })

@@ -71,8 +71,12 @@ impl MessageHandle {
         send_push(self, payload);
     }
 
-    pub fn commit(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
-        send_commit(self, program, gas_limit, value)
+    pub fn commit(self, program: ActorId, value: u128) -> MessageId {
+        send_commit(self, program, value)
+    }
+
+    pub fn commit_with_gas(self, program: ActorId, gas_limit: u64, value: u128) -> MessageId {
+        send_commit_with_gas(self, program, gas_limit, value)
     }
 }
 
@@ -168,9 +172,7 @@ pub fn load_bytes() -> Vec<u8> {
 /// `handle_reply`.
 ///
 /// First argument is the reply message payload in bytes.
-/// Second argument is `gas_limit` - maximum gas allowed to be utilized
-/// during the reply message processing.
-/// Last argument `value` is the value to be transferred from the current
+/// Second argument `value` is the value to be transferred from the current
 /// program account to the reply message target account.
 ///
 /// Reply message transactions will be posted only after processing is finished,
@@ -183,15 +185,15 @@ pub fn load_bytes() -> Vec<u8> {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_bytes(b"PING", exec::gas_available(), 0);
+///     msg::reply_bytes(b"PONG", 0);
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> MessageId {
-    gcore::msg::reply(payload.as_ref(), gas_limit, value).into()
+pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> MessageId {
+    gcore::msg::reply(payload.as_ref(), value).into()
 }
 
 /// Finalize and send a current reply message.
@@ -216,15 +218,15 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, gas_limit: u64, value: u128) -> M
 ///     // ...
 ///     msg::reply_push(b"Part 2");
 ///     // ...
-///     msg::reply_commit(exec::gas_available(), 42);
+///     msg::reply_commit(42);
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
-    gcore::msg::reply_commit(gas_limit, value).into()
+pub fn reply_commit(value: u128) -> MessageId {
+    gcore::msg::reply_commit(value).into()
 }
 
 /// Push a payload part to the current reply message.
@@ -273,8 +275,43 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
 /// # Panics
 ///
 /// Panics if called in a context other than `handle_reply()`.
+///
 pub fn reply_to() -> MessageId {
     gcore::msg::reply_to().into()
+}
+
+/// Send a new message to the program or user.
+///
+/// Gear allows programs to communicate to each other and users via messages.
+/// [`send`] function allows sending such messages.
+///
+/// First argument is the address of the target account.
+/// Second argument is message payload in bytes.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+///
+/// Send transaction will be posted only after the execution of processing is
+/// finished, similar to the reply message [`reply`].
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{msg, ActorId};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let id = msg::source();
+///
+///     msg::send_bytes(id, b"HELLO", 12345678);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
+/// message to send in parts.
+pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> MessageId {
+    gcore::msg::send(program.into(), payload.as_ref(), value).into()
 }
 
 /// Send a new message to the program or user.
@@ -301,7 +338,7 @@ pub fn reply_to() -> MessageId {
 ///     // ...
 ///     let id = msg::source();
 ///
-///     msg::send_bytes(id, b"HELLO", 1000, 12345678);
+///     msg::send_bytes_with_gas(id, b"HELLO", 1000, 12345678);
 /// }
 /// ```
 ///
@@ -309,16 +346,52 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send_bytes<T: AsRef<[u8]>>(
+pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
     gas_limit: u64,
     value: u128,
 ) -> MessageId {
-    gcore::msg::send(program.into(), payload.as_ref(), gas_limit, value).into()
+    gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value).into()
 }
 
 /// Finalize and send message formed in parts.
+///
+/// Gear allows programs to work with messages that consist of several parts.
+/// This function finalizes the message built in parts and sends it.
+///
+/// First argument is the message handle [MessageHandle] which specifies a
+/// particular message built in parts.
+/// Second argument is the address of the target account.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+/// Send transaction will be posted only after the execution of processing is
+/// finished.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit(msg_handle, msg::source(), 42);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send`] allows to send message in one step.
+///
+/// [`send_push`], [`send_init`] functions allows to form a message to send in
+/// parts.
+pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> MessageId {
+    gcore::msg::send_commit(handle.into(), program.into(), value).into()
+}
+
+/// Finalize and send message formed in parts, with gas_limit.
 ///
 /// Gear allows programs to work with messages that consist of several parts.
 /// This function finalizes the message built in parts and sends it.
@@ -342,7 +415,7 @@ pub fn send_bytes<T: AsRef<[u8]>>(
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
 /// }
 /// ```
 ///
@@ -352,13 +425,13 @@ pub fn send_bytes<T: AsRef<[u8]>>(
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
-pub fn send_commit(
+pub fn send_commit_with_gas(
     handle: MessageHandle,
     program: ActorId,
     gas_limit: u64,
     value: u128,
 ) -> MessageId {
-    gcore::msg::send_commit(handle.into(), program.into(), gas_limit, value).into()
+    gcore::msg::send_commit_with_gas(handle.into(), program.into(), gas_limit, value).into()
 }
 
 /// Initialize a message to send, formed in parts.
@@ -376,7 +449,7 @@ pub fn send_commit(
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
 ///
@@ -404,7 +477,7 @@ pub fn send_init() -> MessageHandle {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
 ///

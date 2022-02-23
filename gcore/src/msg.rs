@@ -405,11 +405,7 @@ pub fn send_with_gas(program: ActorId, payload: &[u8], gas_limit: u64, value: u1
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
-pub fn send_commit(
-    handle: MessageHandle,
-    program: ActorId,
-    value: u128,
-) -> MessageId {
+pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit(

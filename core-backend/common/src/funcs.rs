@@ -128,18 +128,12 @@ pub fn read<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), &'
     }
 }
 
-pub fn reply<E: Ext>(
-    ext: LaterExt<E>,
-) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
-    move |payload_ptr: i32,
-          payload_len: i32,
-          value_ptr: i32,
-          message_id_ptr: i32| {
+pub fn reply<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |payload_ptr: i32, payload_len: i32, value_ptr: i32, message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
-            let message_id =
-                ext.reply(ReplyPacket::new(0, payload.into(), value))?;
+            let message_id = ext.reply(ReplyPacket::new(0, payload.into(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -147,14 +141,11 @@ pub fn reply<E: Ext>(
     }
 }
 
-pub fn reply_commit<E: Ext>(
-    ext: LaterExt<E>,
-) -> impl Fn(i32, i32) -> Result<(), &'static str> {
+pub fn reply_commit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), &'static str> {
     move |message_id_ptr: i32, value_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let value = get_u128(ext, value_ptr as usize);
-            let message_id =
-                ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
+            let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -199,12 +190,7 @@ pub fn send<E: Ext>(
             let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
-            let message_id = ext.send(OutgoingPacket::new(
-                dest,
-                payload.into(),
-                None,
-                value,
-            ))?;
+            let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -241,10 +227,7 @@ pub fn send_wgas<E: Ext>(
 pub fn send_commit<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
-    move |handle_ptr: i32,
-          message_id_ptr: i32,
-          program_id_ptr: i32,
-          value_ptr: i32| {
+    move |handle_ptr: i32, message_id_ptr: i32, program_id_ptr: i32, value_ptr: i32| {
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
             let value = get_u128(ext, value_ptr as usize);
