@@ -192,7 +192,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     match init_fixture(test, &mut snapshots, &mut mailbox) {
         Ok(()) => {
-            log::info!("programs: {:?}", &programs);
+            log::trace!("programs: {:?}", &programs);
             let mut errors = vec![];
             let mut expected_log = vec![];
 
@@ -255,15 +255,12 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     };
                     gear_common::queue_dispatch(QueuedDispatch::new_handle(msg))
                 } else {
-                    log::info!(
-                        "{:?}",
-                        GearPallet::<Runtime>::send_message(
-                            Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
-                            dest,
-                            payload,
-                            gas_limit,
-                            value,
-                        )
+                    GearPallet::<Runtime>::send_message(
+                        Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+                        dest,
+                        payload,
+                        gas_limit,
+                        value,
                     );
                 }
 
@@ -359,7 +356,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
 
             if !expected_log.is_empty() {
-                log::info!("mailbox: {:?}", &mailbox);
+                log::trace!("mailbox: {:?}", &mailbox);
 
                 let messages: Vec<CoreMessage> = mailbox
                     .iter_mut()
@@ -368,7 +365,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 for message in &messages {
                     if let Ok(utf8) = core::str::from_utf8(message.payload()) {
-                        log::info!("log({})", utf8)
+                        log::trace!("log({})", utf8)
                     }
                 }
 
