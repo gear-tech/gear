@@ -457,13 +457,10 @@ pub mod pallet {
                     break;
                 }
 
-                let maybe_active_actor = {
-                    let program_id = dispatch.message.dest;
+                let program_id = dispatch.message.dest;
+                let maybe_active_actor = if let Some(maybe_active_program) = common::get_program(program_id) {
                     let current_message_id = dispatch.message.id;
                     let maybe_message_reply = dispatch.message.reply;
-
-                    let maybe_active_program = common::get_program(program_id)
-                        .expect("program with id got from message is guaranteed to exist");
 
                     // Check whether message should be added to the wait list
                     if let Program::Active(ref prog) = maybe_active_program {
@@ -494,6 +491,8 @@ pub mod pallet {
 
                             ExecutableActor { program, balance }
                         })
+                } else {
+                    None
                 };
 
                 let journal = core_processor::process::<
@@ -759,7 +758,7 @@ pub mod pallet {
             T::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            if common::program_exists(destination) {
+            if common::program_exists(destination) | common::paused_program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
