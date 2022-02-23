@@ -14,8 +14,8 @@ gear-core = { path = "../core" }
 log = { version = "0.4.8", optional = true }
 page_size = { version = "0.4.2", optional = true }
 libc = { version = "0.2.101", default-features = false }
-sp-runtime-interface = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-runtime-interface = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-std = { version = "4.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 gear-lazy-pages = { path = "../lazy-pages", optional = true }
 errno = { version = "0.2.8", optional = true }
 

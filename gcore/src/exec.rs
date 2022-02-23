@@ -31,6 +31,7 @@ mod sys {
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
         pub fn gr_leave() -> !;
+        pub fn gr_value_available(val: *mut u8);
         pub fn gr_wait() -> !;
         pub fn gr_wake(waker_id_ptr: *const u8);
     }
@@ -143,6 +144,29 @@ pub fn gas_available() -> u64 {
 /// ```
 pub fn leave() -> ! {
     unsafe { sys::gr_leave() }
+}
+
+/// Get the total available value amount.
+///
+/// Note that value received with currently processing message
+/// is already included in this balance.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::exec;
+///
+/// // Get self value balance in program
+/// pub unsafe extern "C" fn handle() {
+///     let _my_balance = exec::value_available();
+/// }
+/// ```
+pub fn value_available() -> u128 {
+    let mut value_data = [0u8; 16];
+    unsafe {
+        sys::gr_value_available(value_data.as_mut_ptr());
+    }
+    u128::from_le_bytes(value_data)
 }
 
 /// Pause the current message handling.

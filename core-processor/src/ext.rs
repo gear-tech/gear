@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,23 +19,72 @@
 use crate::{
     configs::{AllocationsConfig, BlockInfo},
     id::BlakeMessageIdGenerator,
-    lazy_pages,
 };
-use alloc::collections::BTreeMap;
 use alloc::vec;
+use alloc::vec::Vec;
+use alloc::{boxed::Box, collections::BTreeMap};
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAmount, GasCounter},
-    memory::{MemoryContext, PageNumber},
+    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
+    memory::{MemoryContext, PageBuf, PageNumber},
     message::{ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
     program::ProgramId,
 };
+
+/// Trait to which ext must have to work in processor wasm executor.
+/// Currently used only for lazy-pages support.
+pub trait ProcessorExt {
+    /// Create new
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        gas_counter: GasCounter,
+        value_counter: ValueCounter,
+        memory_context: MemoryContext,
+        message_context: MessageContext<BlakeMessageIdGenerator>,
+        block_info: BlockInfo,
+        config: AllocationsConfig,
+        existential_deposit: u128,
+        error_explanation: Option<&'static str>,
+        exit_argument: Option<ProgramId>,
+    ) -> Self;
+
+    /// Try to enable and initialize lazy pages env
+    fn try_to_enable_lazy_pages(
+        &mut self,
+        program_id: ProgramId,
+        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    ) -> bool;
+
+    /// Protect and save storage keys for pages which has no data
+    fn protect_pages_and_init_info(
+        memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        prog_id: ProgramId,
+        wasm_mem_begin_addr: usize,
+    );
+
+    /// Lazy pages contract post execution actions
+    fn post_execution_actions(
+        memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        wasm_mem_begin_addr: usize,
+    );
+
+    /// Remove lazy-pages protection, returns wasm memory begin addr
+    fn remove_lazy_pages_prot(mem_addr: usize);
+
+    /// Protect lazy-pages and set new wasm mem addr if it has been changed
+    fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_addr: usize);
+
+    /// Returns list of current lazy pages numbers
+    fn get_lazy_pages_numbers() -> Vec<u32>;
+}
 
 /// Structure providing externalities for running host functions.
 pub struct Ext {
     /// Gas counter.
     pub gas_counter: GasCounter,
+    /// Value counter.
+    pub value_counter: ValueCounter,
     /// Memory context.
     pub memory_context: MemoryContext,
     /// Message context.
@@ -44,24 +93,73 @@ pub struct Ext {
     pub block_info: BlockInfo,
     /// Allocations config.
     pub config: AllocationsConfig,
-    /// Is lazy-pages mode enabled ?
-    pub lazy_pages_enabled: Option<lazy_pages::LazyPagesEnabled>,
+    /// Account existential deposit
+    pub existential_deposit: u128,
     /// Any guest code panic explanation, if available.
     pub error_explanation: Option<&'static str>,
     /// Contains argument to the `exit` if it was called.
     pub exit_argument: Option<ProgramId>,
 }
 
+/// Empty implementation for non-substrate (and non-lazy-pages) using
+impl ProcessorExt for Ext {
+    fn new(
+        gas_counter: GasCounter,
+        value_counter: ValueCounter,
+        memory_context: MemoryContext,
+        message_context: MessageContext<BlakeMessageIdGenerator>,
+        block_info: BlockInfo,
+        config: AllocationsConfig,
+        existential_deposit: u128,
+        error_explanation: Option<&'static str>,
+        exit_argument: Option<ProgramId>,
+    ) -> Self {
+        Self {
+            gas_counter,
+            value_counter,
+            memory_context,
+            message_context,
+            block_info,
+            config,
+            existential_deposit,
+            error_explanation,
+            exit_argument,
+        }
+    }
+
+    fn try_to_enable_lazy_pages(
+        &mut self,
+        _program_id: ProgramId,
+        _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    ) -> bool {
+        false
+    }
+
+    fn protect_pages_and_init_info(
+        _memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        _prog_id: ProgramId,
+        _wasm_mem_begin_addr: usize,
+    ) {
+    }
+
+    fn post_execution_actions(
+        _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+        _wasm_mem_begin_addr: usize,
+    ) {
+    }
+
+    fn remove_lazy_pages_prot(_mem_addr: usize) {}
+
+    fn protect_lazy_pages_and_update_wasm_mem_addr(_old_mem_addr: usize, _new_mem_addr: usize) {}
+
+    fn get_lazy_pages_numbers() -> Vec<u32> {
+        Vec::default()
+    }
+}
+
 impl From<Ext> for ExtInfo {
     fn from(ext: Ext) -> ExtInfo {
-        let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
-        let mut accessed_pages_numbers = ext.memory_context.allocations().clone();
-
-        // accessed pages are all pages except current lazy pages
-        lazy_pages_numbers.into_iter().for_each(|p| {
-            accessed_pages_numbers.remove(&p.into());
-        });
-
+        let accessed_pages_numbers = ext.memory_context.allocations().clone();
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
             let mut buf = vec![0u8; PageNumber::size()];
@@ -100,7 +198,8 @@ impl From<Ext> for ExtInfo {
 }
 
 impl Ext {
-    fn return_and_store_err<T>(
+    /// Return result and store error info in field
+    pub fn return_and_store_err<T>(
         &mut self,
         result: Result<T, &'static str>,
     ) -> Result<T, &'static str> {
@@ -120,18 +219,6 @@ impl EnvExt for Ext {
 
         let old_mem_size = self.memory_context.memory().size().raw();
 
-        // New pages allocation may change wasm memory buffer location.
-        // So, if lazy-pages are enabled we remove protections from lazy-pages
-        // and returns it back for new wasm memory buffer pages.
-        // Also we correct lazy-pages info if need.
-        let old_mem_addr = if self.lazy_pages_enabled.is_some() {
-            let mem_addr = self.get_wasm_memory_begin_addr();
-            lazy_pages::remove_lazy_pages_prot(mem_addr);
-            mem_addr
-        } else {
-            0
-        };
-
         let result = self
             .memory_context
             .alloc(pages_num)
@@ -139,11 +226,6 @@ impl EnvExt for Ext {
 
         if result.is_err() {
             return self.return_and_store_err(result);
-        }
-
-        if self.lazy_pages_enabled.is_some() {
-            let new_mem_addr = self.get_wasm_memory_begin_addr();
-            lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr);
         }
 
         // Returns back greedily used gas for grow
@@ -209,9 +291,19 @@ impl EnvExt for Ext {
         handle: usize,
         msg: OutgoingPacket,
     ) -> Result<MessageId, &'static str> {
+        if 0 < msg.value() && msg.value() < self.existential_deposit {
+            return self.return_and_store_err(Err(
+                "Value of the message is less than existance deposit, but greater than 0",
+            ));
+        };
+
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self
                 .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
+        };
+
+        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
+            return self.return_and_store_err(Err("No value left to reply"));
         };
 
         let result = self
@@ -223,8 +315,18 @@ impl EnvExt for Ext {
     }
 
     fn reply_commit(&mut self, msg: ReplyPacket) -> Result<MessageId, &'static str> {
+        if 0 < msg.value() && msg.value() < self.existential_deposit {
+            return self.return_and_store_err(Err(
+                "Value of the message is less than existance deposit, but greater than 0",
+            ));
+        };
+
         if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
             return self.return_and_store_err(Err("Gas limit exceeded while trying to reply"));
+        };
+
+        if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
+            return self.return_and_store_err(Err("No value left to reply"));
         };
 
         let result = self
@@ -309,12 +411,16 @@ impl EnvExt for Ext {
         }
     }
 
-    fn gas_available(&mut self) -> u64 {
+    fn gas_available(&self) -> u64 {
         self.gas_counter.left()
     }
 
     fn value(&self) -> u128 {
         self.message_context.current().value()
+    }
+
+    fn value_available(&self) -> u128 {
+        self.value_counter.left()
     }
 
     fn leave(&mut self) -> Result<(), &'static str> {

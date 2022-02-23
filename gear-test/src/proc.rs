@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::check::ExecutionContext;
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
@@ -16,6 +34,8 @@ use std::{
     str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
+
+pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -93,7 +113,15 @@ where
 
     journal_handler.store_program(program.clone(), message.message.id());
 
-    let journal = core_processor::process::<E>(Some(program), message.into(), block_info);
+    let journal = core_processor::process::<Ext, E>(
+        Some(ExecutableActor {
+            program,
+            balance: 0,
+        }),
+        message.into(),
+        block_info,
+        EXISTENTIAL_DEPOSIT,
+    );
 
     core_processor::handle_journal(journal, journal_handler);
 
@@ -243,12 +271,13 @@ where
                 .unwrap_or(0) as u64;
 
             if let Some(dispatch) = state.dispatch_queue.pop_front() {
-                let program = state.programs.get(&dispatch.message.dest()).cloned();
+                let actor = state.actors.get(&dispatch.message.dest()).cloned();
 
-                let journal = core_processor::process::<E>(
-                    program,
+                let journal = core_processor::process::<Ext, E>(
+                    actor,
                     dispatch,
                     BlockInfo { height, timestamp },
+                    EXISTENTIAL_DEPOSIT,
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -263,20 +292,21 @@ where
     } else {
         let mut counter = 0;
         while let Some(dispatch) = state.dispatch_queue.pop_front() {
-            let program = state.programs.get(&dispatch.message.dest()).cloned();
+            let actor = state.actors.get(&dispatch.message.dest()).cloned();
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let journal = core_processor::process::<E>(
-                program,
+            let journal = core_processor::process::<Ext, E>(
+                actor,
                 dispatch,
                 BlockInfo {
                     height: counter,
                     timestamp,
                 },
+                EXISTENTIAL_DEPOSIT,
             );
             counter += 1;
 

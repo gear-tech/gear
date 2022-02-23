@@ -417,8 +417,34 @@ fn lazy_pages() {
 
 #[test]
 fn block_gas_limit_works() {
+    // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
+    let wat1 = r#"
+    (module
+        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_source" (func $gr_source (param i32)))
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (export "handle_reply" (func $handle_reply))
+        (func $handle
+            (local $msg_source i32)
+            (local $msg_val i32)
+            (i32.store offset=2
+                (get_local $msg_source)
+                (i32.const 1)
+            )
+            (i32.store offset=10
+                (get_local $msg_val)
+                (i32.const 0)
+            )
+            (call $send (i32.const 2) (i32.const 0) (i32.const 32) (i64.const 10000000) (i32.const 10) (i32.const 40000))
+        )
+        (func $handle_reply)
+        (func $init)
+    )"#;
+
     // Same as `ProgramCodeKind::GreedyInit`, but greedy handle
-    let wat = r#"
+    let wat2 = r#"
 	(module
 		(import "env" "memory" (memory 1))
 		(export "handle" (func $handle))
@@ -453,12 +479,12 @@ fn block_gas_limit_works() {
 
         // Submit programs and get their ids
         let pid1 = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::OutgoingWithValueInHandle);
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat1));
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
         let pid2 = {
-            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat));
+            let res = submit_program_default(USER_1, ProgramCodeKind::Custom(wat2));
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
@@ -602,7 +628,6 @@ fn mailbox_works() {
         assert_eq!(mailbox_message.id, reply_to_id,);
 
         // Gas limit should have been ignored by the code that puts a message into a mailbox
-        assert_eq!(mailbox_message.gas_limit, 0);
         assert_eq!(mailbox_message.value, 1000);
 
         // Gas is not passed to mailboxed messages and should have been all spent by now
@@ -880,10 +905,28 @@ fn send_reply_failure_to_claim_from_mailbox() {
             assert_ok!(res);
             res.expect("submit result was asserted")
         };
+
+        let error_reply_id = if let common::Program::Active(prog) =
+            common::get_program(prog_id).expect("Failed to get program from storage")
+        {
+            compute_program_message_id(prog_id.as_bytes(), prog.nonce)
+        } else {
+            panic!("Program is terminated!");
+        };
+
         populate_mailbox_from_program(prog_id, USER_1, 2, 0, 20_000_000, 0);
 
-        // Program didn't have enough balance, so it's message with value was skipped
-        assert!(!Mailbox::<Test>::contains_key(USER_1));
+        // Program didn't have enough balance, so it's message produces trap
+        // (and following system reply with error to USER_1 mailbox)
+        assert!(Mailbox::<Test>::contains_key(USER_1));
+
+        let mailbox = Mailbox::<Test>::get(USER_1).expect("Checked above").clone();
+
+        assert_eq!(mailbox.len(), 1);
+        assert!(mailbox.contains_key(&error_reply_id));
+
+        let message = mailbox.get(&error_reply_id).expect("Checked above");
+        assert!(matches!(message.reply, Some((_, 1))));
     })
 }
 

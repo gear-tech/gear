@@ -61,8 +61,8 @@ mod tests {
             let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
             assert_eq!(pos_imb.peek(), 1000);
 
-            assert_ok!(Gas::split(new_root, split_1, 500));
-            assert_ok!(Gas::split(new_root, split_2, 500));
+            assert_ok!(Gas::split_with_value(new_root, split_1, 500));
+            assert_ok!(Gas::split_with_value(new_root, split_2, 500));
             // No new value created - total supply not affected
             assert_eq!(pos_imb.peek(), 1000);
 
@@ -101,13 +101,13 @@ mod tests {
 
                 // Try to split on non-existent node
                 assert_noop!(
-                    Gas::split(split_2, split_1, 500),
+                    Gas::split_with_value(split_2, split_1, 500),
                     Error::<Test>::NodeNotFound
                 );
 
                 // Try to split with excessive balance
                 assert_noop!(
-                    Gas::split(new_root, split_1, 5000),
+                    Gas::split_with_value(new_root, split_1, 5000),
                     Error::<Test>::InsufficientBalance
                 );
 
@@ -139,8 +139,8 @@ mod tests {
 
             let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
 
-            assert_ok!(Gas::split(new_root, split_1, 500));
-            assert_ok!(Gas::split(new_root, split_2, 500));
+            assert_ok!(Gas::split_with_value(new_root, split_1, 500));
+            assert_ok!(Gas::split_with_value(new_root, split_2, 500));
 
             let offset1 = pos_imb
                 .offset(Gas::spend(split_1, 100).unwrap())
@@ -171,7 +171,7 @@ mod tests {
 
             Gas::create(origin, root, 2000).unwrap();
             for key in sub_keys.iter() {
-                Gas::split(root, *key, 100).unwrap();
+                Gas::split_with_value(root, *key, 100).unwrap();
             }
 
             Gas::consume(root);
@@ -189,6 +189,39 @@ mod tests {
     }
 
     #[test]
+    fn split_with_no_value() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let new_root = H256::random();
+            let origin = H256::random();
+            let split_1 = H256::random();
+            let split_2 = H256::random();
+            let split_1_2 = H256::random();
+
+            let pos_imb = Gas::create(origin, new_root, 1000).unwrap();
+
+            assert_ok!(Gas::split(new_root, split_1));
+            assert_ok!(Gas::split(new_root, split_2));
+            assert_ok!(Gas::split_with_value(split_1, split_1_2, 500));
+
+            let offset1 = pos_imb
+                .offset(Gas::spend(split_1_2, 100).unwrap())
+                .same()
+                .unwrap();
+            assert_eq!(offset1.peek(), 900);
+            assert_eq!(Gas::spend(split_1, 200).unwrap().peek(), 200);
+
+            assert!(matches!(Gas::consume(split_1), None));
+            assert!(matches!(Gas::consume(split_2), None));
+            assert!(matches!(Gas::consume(split_1_2), None));
+
+            let final_imb = Gas::consume(new_root).unwrap().0;
+            assert_eq!(final_imb.peek(), 700);
+
+            assert_eq!(Gas::total_supply(), 0);
+        });
+    }
+
+    #[test]
     fn long_chain() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let root = H256::random();
@@ -200,10 +233,10 @@ mod tests {
 
             assert_ok!(Gas::create(origin, root, 2000));
 
-            assert_ok!(Gas::split(root, m1, 1500));
-            assert_ok!(Gas::split(m1, m2, 1000));
-            assert_ok!(Gas::split(m2, m3, 500));
-            assert_ok!(Gas::split(m3, m4, 250));
+            assert_ok!(Gas::split_with_value(root, m1, 1500));
+            assert_ok!(Gas::split_with_value(m1, m2, 1000));
+            assert_ok!(Gas::split_with_value(m2, m3, 500));
+            assert_ok!(Gas::split_with_value(m3, m4, 250));
 
             assert_ok!(Gas::spend(root, 50));
             assert_ok!(Gas::spend(m1, 50));

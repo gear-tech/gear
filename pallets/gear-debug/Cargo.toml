@@ -26,10 +26,10 @@ common = { package = "gear-common", path = "../../common", default-features = fa
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
-sp-core = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-io = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-runtime = { version = "4.1.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+sp-runtime = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-gear = { path = "../gear", default-features = false }
@@ -42,6 +42,7 @@ gear-core = { path = "../../core" }
 gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
 hex-literal = "0.3.3"
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-gas = { path = "../gas" }
 
 [features]
 default = ['std']

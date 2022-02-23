@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use crate::{
     log::{CoreLog, RunResult},
     program::WasmProgram,
@@ -35,7 +53,7 @@ pub(crate) struct ExtManager {
     pub(crate) id_nonce: u64,
 
     // State
-    pub(crate) programs: BTreeMap<ProgramId, (Program, ProgramState)>,
+    pub(crate) actors: BTreeMap<ProgramId, (Program, ProgramState, u128)>,
     pub(crate) message_queue: VecDeque<Message>,
     pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Message>,
@@ -71,7 +89,7 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while self.programs.contains_key(&self.id_nonce.into()) {
+        while self.actors.contains_key(&self.id_nonce.into()) {
             self.id_nonce += 1;
         }
         self.id_nonce
@@ -103,7 +121,7 @@ impl ExtManager {
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
         self.prepare_for(message.id());
 
-        if self.programs.contains_key(&message.dest()) {
+        if self.actors.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
         } else {
             self.mailbox
@@ -113,8 +131,8 @@ impl ExtManager {
         }
 
         while let Some(message) = self.message_queue.pop_front() {
-            let (prog, state) = self
-                .programs
+            let (prog, state, balance) = self
+                .actors
                 .get_mut(&message.dest())
                 .expect("Somehow message queue contains message for user");
 
@@ -137,20 +155,24 @@ impl ExtManager {
 
             match prog {
                 Program::Core(program) => {
-                    let program = if let ProgramState::FailedInitialization = state {
+                    let actor = if let ProgramState::FailedInitialization = state {
                         None
                     } else {
-                        Some(program.clone())
+                        Some(ExecutableActor {
+                            program: program.clone(),
+                            balance: *balance,
+                        })
                     };
 
-                    let journal = core_processor::process::<WasmtimeEnvironment<Ext>>(
-                        program,
+                    let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+                        actor,
                         Dispatch {
                             kind,
                             message,
                             payload_store: None,
                         },
                         self.block_info,
+                        crate::EXISTENTIAL_DEPOSIT,
                     );
 
                     core_processor::handle_journal(journal, self);
@@ -255,8 +277,8 @@ impl ExtManager {
     }
 
     fn init_success(&mut self, message_id: MessageId, program_id: ProgramId) {
-        let (_, state) = self
-            .programs
+        let (_, state, _) = self
+            .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
@@ -266,8 +288,8 @@ impl ExtManager {
     }
 
     fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
-        let (_, state) = self
-            .programs
+        let (_, state, _) = self
+            .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
@@ -306,7 +328,7 @@ impl JournalHandler for ExtManager {
     fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
-        self.programs.remove(&id_exited);
+        self.actors.remove(&id_exited);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -320,7 +342,7 @@ impl JournalHandler for ExtManager {
     }
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         let Dispatch { message, .. } = dispatch;
-        if self.programs.contains_key(&message.dest()) {
+        if self.actors.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
         } else {
             self.mailbox
@@ -348,7 +370,7 @@ impl JournalHandler for ExtManager {
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        if let Some((Program::Core(prog), _)) = self.programs.get_mut(&program_id) {
+        if let Some((Program::Core(prog), ..)) = self.actors.get_mut(&program_id) {
             prog.set_message_nonce(nonce);
         } else {
             panic!("Program not found in storage");
@@ -360,7 +382,7 @@ impl JournalHandler for ExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        if let Some((Program::Core(prog), _)) = self.programs.get_mut(&program_id) {
+        if let Some((Program::Core(prog), ..)) = self.actors.get_mut(&program_id) {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {
@@ -370,7 +392,19 @@ impl JournalHandler for ExtManager {
             panic!("Program not found in storage");
         }
     }
-    fn send_value(&mut self, _from: ProgramId, _to: Option<ProgramId>, _value: u128) {
-        todo!("TODO https://github.com/gear-tech/gear/issues/644")
+    fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
+        if let Some(to) = to {
+            if let Some((.., balance)) = self.actors.get_mut(&from) {
+                if *balance < value {
+                    panic!("Actor {:?} balance is less then sent value", from);
+                }
+
+                *balance -= value;
+            };
+
+            if let Some((.., balance)) = self.actors.get_mut(&to) {
+                *balance += value;
+            };
+        }
     }
 }

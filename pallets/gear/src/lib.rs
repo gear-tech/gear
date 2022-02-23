@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -25,6 +25,7 @@ pub use weights::WeightInfo;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+mod ext;
 pub mod manager;
 pub mod weights;
 
@@ -60,12 +61,11 @@ pub mod pallet {
 
     use common::{
         self, CodeMetadata, DAGBasedLedger, Dispatch, GasPrice, Message, Origin, Program,
-        ProgramState,
+        ProgramState, QueuedDispatch, QueuedMessage,
     };
     use core_processor::{
-        common::{DispatchOutcome as CoreDispatchOutcome, JournalNote},
+        common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
         configs::BlockInfo,
-        Ext,
     };
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
@@ -119,7 +119,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Log event from the specific program.
-        Log(common::Message),
+        Log(common::QueuedMessage),
         /// Program created and an init message enqueued.
         InitMessageEnqueued(MessageInfo),
         /// Program initialization error.
@@ -136,7 +136,7 @@ pub mod pallet {
         /// Value and gas has been claimed from a message in mailbox by the addressee
         ClaimedValueFromMailbox(H256),
         /// A message has been added to the wait list
-        AddedToWaitList(common::Message),
+        AddedToWaitList(common::QueuedMessage),
         /// A message has been removed from the wait list
         RemovedFromWaitList(H256),
         /// Program code with a calculated code hash is saved to the storage
@@ -180,6 +180,8 @@ pub mod pallet {
         CodeAlreadyExists,
         /// Failed to create a program.
         FailedToConstructProgram,
+        /// Value doesnt cover ExistenceDeposit
+        ValueLessThanMinimal,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -220,7 +222,7 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
-        StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::Message>>;
+        StorageMap<_, Identity, T::AccountId, BTreeMap<H256, common::QueuedMessage>>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -260,7 +262,7 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
-        pub fn insert_to_mailbox(user: H256, message: common::Message) {
+        pub fn insert_to_mailbox(user: H256, message: common::QueuedMessage) {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
             <Mailbox<T>>::mutate(user_id, |value| {
@@ -270,7 +272,7 @@ pub mod pallet {
             });
         }
 
-        pub fn get_from_mailbox(user: H256, message_id: H256) -> Option<common::Message> {
+        pub fn get_from_mailbox(user: H256, message_id: H256) -> Option<common::QueuedMessage> {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
             <Mailbox<T>>::try_get(user_id)
@@ -278,7 +280,7 @@ pub mod pallet {
                 .and_then(|mut messages| messages.remove(&message_id))
         }
 
-        pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<common::Message> {
+        pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<common::QueuedMessage> {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
             <Mailbox<T>>::try_mutate(user_id, |value| match value {
@@ -292,20 +294,9 @@ pub mod pallet {
         pub fn remove_and_claim_from_mailbox(
             user_id: &T::AccountId,
             message_id: H256,
-        ) -> Result<common::Message, DispatchError> {
+        ) -> Result<common::QueuedMessage, DispatchError> {
             let message = Self::remove_from_mailbox(user_id.clone().into_origin(), message_id)
                 .ok_or(Error::<T>::NoMessageInMailbox)?;
-
-            // There shouldn't be any associated gas tree for a message in a user's mailbox
-            // let maybe_gas_tree = common::value_tree::ValueView::get(GAS_VALUE_PREFIX, message.id);
-            let maybe_gas_tree = T::GasHandler::get(message.id);
-            if maybe_gas_tree.is_some() {
-                log::warn!(
-                    target: "runtime::gear",
-                    "Message in user's {:?} mailbox has an associated gas tree: {:?}",
-                    user_id.clone().into_origin(), message_id
-                );
-            }
 
             if message.value > 0 {
                 // Assuming the programs has enough balance
@@ -327,6 +318,8 @@ pub mod pallet {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
+
+            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
 
             let (dest, reply) = match kind {
                 HandleKind::Init(ref code) => (sp_io::hashing::blake2_256(code).into(), None),
@@ -350,19 +343,23 @@ pub mod pallet {
             let mut gas_burned = 0;
             let mut gas_to_send = 0;
 
-            let (kind, program) = match kind {
+            let (kind, actor) = match kind {
                 HandleKind::Init(code) => {
                     gas_burned = gas_burned
                         .saturating_add(<T as Config>::WeightInfo::submit_code(code.len() as u32));
                     (
                         DispatchKind::Init,
-                        ext_manager.program_from_code(dest, code)?,
+                        ext_manager.executable_actor_from_code(dest, code)?,
                     )
                 }
-                HandleKind::Handle(dest) => (DispatchKind::Handle, ext_manager.get_program(dest)?),
-                HandleKind::Reply(..) => {
-                    (DispatchKind::HandleReply, ext_manager.get_program(dest)?)
-                }
+                HandleKind::Handle(dest) => (
+                    DispatchKind::Handle,
+                    ext_manager.get_executable_actor(dest)?,
+                ),
+                HandleKind::Reply(..) => (
+                    DispatchKind::HandleReply,
+                    ext_manager.get_executable_actor(dest)?,
+                ),
             };
 
             let dispatch = Dispatch {
@@ -371,10 +368,14 @@ pub mod pallet {
                 payload_store: None,
             };
 
-            let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                Some(program),
+            let journal = core_processor::process::<
+                ext::LazyPagesExt,
+                SandboxEnvironment<ext::LazyPagesExt>,
+            >(
+                Some(actor),
                 dispatch.into(),
                 block_info,
+                existential_deposit,
             );
 
             for note in &journal {
@@ -425,22 +426,38 @@ pub mod pallet {
 
             let mut weight = Self::gas_allowance() as Weight;
             let mut total_handled = 0u32;
+
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
+            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
+
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
             }
             while let Some(dispatch) = common::dequeue_dispatch() {
+                // Update message gas limit for it may have changed in the meantime
+
+                let gas_limit = T::GasHandler::get_limit(*dispatch.message_id())
+                    .map(|(gas, _id)| gas)
+                    .unwrap_or(0);
+
+                log::debug!(
+                    "Processing message: {:?} to {:?} / gas_limit: {}",
+                    dispatch.message_id(),
+                    dispatch.message.dest,
+                    gas_limit
+                );
+
                 // Check whether we have enough of gas allowed for message processing
-                if dispatch.message.gas_limit > GasAllowance::<T>::get() {
+                if gas_limit > GasAllowance::<T>::get() {
                     common::queue_dispatch(dispatch);
                     break;
                 }
 
-                let maybe_active_program = {
+                let maybe_active_actor = {
                     let program_id = dispatch.message.dest;
                     let current_message_id = dispatch.message.id;
                     let maybe_message_reply = dispatch.message.reply;
@@ -466,13 +483,27 @@ pub mod pallet {
                         }
                     }
 
-                    maybe_active_program.try_into_native(program_id).ok()
+                    maybe_active_program
+                        .try_into_native(program_id)
+                        .ok()
+                        .map(|program| {
+                            let balance = T::Currency::free_balance(
+                                &<T::AccountId as Origin>::from_origin(program_id),
+                            )
+                            .unique_saturated_into();
+
+                            ExecutableActor { program, balance }
+                        })
                 };
 
-                let journal = core_processor::process::<SandboxEnvironment<Ext>>(
-                    maybe_active_program,
-                    dispatch.into(),
+                let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    maybe_active_actor,
+                    dispatch.into_dispatch(gas_limit),
                     block_info,
+                    existential_deposit,
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);
@@ -653,16 +684,15 @@ pub mod pallet {
 
             let _ = T::GasHandler::create(origin, init_message_id, gas_limit);
 
-            let message = common::Message {
+            let message = common::QueuedMessage {
                 id: init_message_id,
                 source: origin,
                 dest: id,
                 payload: init_payload,
-                gas_limit,
                 value: value.unique_saturated_into(),
                 reply: None,
             };
-            common::queue_dispatch(Dispatch::new_init(message));
+            common::queue_dispatch(QueuedDispatch::new_init(message));
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
                 message_id: init_message_id,
@@ -701,10 +731,19 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Check that provided `value` equals 0 or greater than existential deposit
+            ensure!(
+                0 == numeric_value || numeric_value >= minimum,
+                Error::<T>::ValueLessThanMinimal
             );
 
             ensure!(
@@ -731,16 +770,15 @@ pub mod pallet {
 
                 let _ = T::GasHandler::create(origin, message_id, gas_limit);
 
-                let message = Message {
+                let message = QueuedMessage {
                     id: message_id,
                     source: origin,
                     payload,
-                    gas_limit,
                     dest: destination,
                     value: value.unique_saturated_into(),
                     reply: None,
                 };
-                common::queue_dispatch(Dispatch::new_handle(message));
+                common::queue_dispatch(QueuedDispatch::new_handle(message));
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,
@@ -750,11 +788,10 @@ pub mod pallet {
             } else {
                 // Message in mailbox is not meant for any processing, hence 0 gas limit
                 // and no gas tree needs to be created
-                let message = Message {
+                let message = QueuedMessage {
                     id: message_id,
                     source: who.into_origin(),
                     payload,
-                    gas_limit: 0,
                     dest: destination,
                     value: value.unique_saturated_into(),
                     reply: None,
@@ -790,10 +827,19 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
+            let numeric_value: u128 = value.unique_saturated_into();
+            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
                 gas_limit <= T::BlockGasLimit::get(),
                 Error::<T>::GasLimitTooHigh
+            );
+
+            // Check that provided `value` equals 0 or greater than existential deposit
+            ensure!(
+                0 == numeric_value || numeric_value >= minimum,
+                Error::<T>::ValueLessThanMinimal
             );
 
             // Claim outstanding value from the original message first
@@ -819,16 +865,15 @@ pub mod pallet {
 
                 let _ = T::GasHandler::create(origin, message_id, gas_limit);
 
-                let message = Message {
+                let message = QueuedMessage {
                     id: message_id,
                     source: origin,
                     payload,
-                    gas_limit,
                     dest: destination,
                     value: value.unique_saturated_into(),
                     reply: Some((reply_to_id, 0)),
                 };
-                common::queue_dispatch(Dispatch::new_reply(message));
+                common::queue_dispatch(QueuedDispatch::new_reply(message));
 
                 Self::deposit_event(Event::DispatchMessageEnqueued(MessageInfo {
                     message_id,
@@ -838,11 +883,10 @@ pub mod pallet {
             } else {
                 // Message in mailbox is not meant for any processing, hence 0 gas limit
                 // and no gas tree needs to be created
-                let message = Message {
+                let message = QueuedMessage {
                     id: message_id,
                     source: who.into_origin(),
                     payload,
-                    gas_limit: 0,
                     dest: destination,
                     value: value.unique_saturated_into(),
                     reply: Some((reply_to_id, 0)),

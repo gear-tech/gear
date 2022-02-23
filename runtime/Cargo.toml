@@ -13,7 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dev-dependencies]
 wabt = "0.10.0"
 env_logger = "0.9.0"
-sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-io = { version = "5.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
@@ -38,12 +38,12 @@ pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https
 sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-block-builder = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, version = "4.0.0-dev" }
 sp-consensus-aura = { version = "0.10.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-core = { version = "4.1.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-core = { version = "5.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-inherents = { git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, version = "4.0.0-dev" }
 sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-runtime = { version = "4.1.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-runtime = { version = "5.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-std = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-version = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 

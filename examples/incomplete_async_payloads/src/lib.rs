@@ -18,7 +18,7 @@ async fn main() {
             let handle = msg::send_init();
             handle.push(b"STORED ");
 
-            let _ = msg::send_bytes_and_wait_for_reply(DEMO_PING, b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
 
@@ -33,7 +33,7 @@ async fn main() {
 
             msg::reply_push(b"STORED ");
 
-            let _ = msg::send_bytes_and_wait_for_reply(DEMO_PING, b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
 
@@ -59,7 +59,7 @@ async fn main() {
 
             msg::reply_bytes("FIRST", GAS_LIMIT, 0);
 
-            let _ = msg::send_bytes_and_wait_for_reply(DEMO_PING, b"PING", GAS_LIMIT, 0)
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", GAS_LIMIT, 0)
                 .await
                 .expect("Error in async message processing");
 

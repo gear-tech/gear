@@ -50,7 +50,7 @@ async fn init() {
 
     let mut threshold = 0usize;
     while !requests.is_empty() {
-        let (_, _, remaining) = future::select_all(requests).await;
+        let (.., remaining) = future::select_all(requests).await;
         threshold += 1;
 
         if threshold >= 2 {
@@ -68,10 +68,14 @@ async fn main() {
         return;
     }
 
-    let requests: Vec<_> = [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD]
-        .iter()
-        .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", GAS_LIMIT, 0))
-        .collect();
+    let requests: Vec<_> = [
+        unsafe { APPROVER_FIRST },
+        unsafe { APPROVER_SECOND },
+        unsafe { APPROVER_THIRD },
+    ]
+    .iter()
+    .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", GAS_LIMIT, 0))
+    .collect();
 
     let _ = future::select_all(requests).await;
 

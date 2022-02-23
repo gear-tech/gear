@@ -398,10 +398,11 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=a981bb84ed1e6edcceb4db6f93450551353c31dc#a981bb84ed1e6edcceb4db6f93450551353c31dc"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=703192a04d55a75899a69ca8c9f70810de421797#703192a04d55a75899a69ca8c9f70810de421797"
 dependencies = [
  "libc",
  "libc_print",
+ "page_size",
  "static_assertions",
  "str-buf",
 ]
@@ -828,6 +829,16 @@ name = "once_cell"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da32515d9f6e6e489d7bc9d84c71b060db7247dc035bbe44eac88cf87486d8d5"
+
+[[package]]
+name = "page_size"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eebde548fbbf1ea81a99b128872779c437752fb99f217c45245e1a61dcd9edcd"
+dependencies = [
+ "libc",
+ "winapi",
+]
 
 [[package]]
 name = "parity-scale-codec"

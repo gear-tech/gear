@@ -37,7 +37,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use common::{self, Dispatch, Program};
+    use common::{self, Program, QueuedDispatch};
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
@@ -85,7 +85,7 @@ pub mod pallet {
 
     #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct DebugData {
-        pub dispatch_queue: Vec<Dispatch>,
+        pub dispatch_queue: Vec<QueuedDispatch>,
         pub programs: Vec<ProgramDetails>,
     }
 
@@ -114,7 +114,7 @@ pub mod pallet {
 
     #[derive(Decode, Encode)]
     struct Node {
-        value: Dispatch,
+        value: QueuedDispatch,
         next: Option<H256>,
     }
 

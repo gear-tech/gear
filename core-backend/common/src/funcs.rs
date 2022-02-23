@@ -281,6 +281,12 @@ pub fn value<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static st
     move |value_ptr: i32| ext.with(|ext: &mut E| set_u128(ext, value_ptr as usize, ext.value()))
 }
 
+pub fn value_available<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |value_ptr: i32| {
+        ext.with(|ext: &mut E| set_u128(ext, value_ptr as usize, ext.value_available()))
+    }
+}
+
 pub fn leave<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
     move || {
         let _ = ext.with(|ext: &mut E| ext.leave())?;

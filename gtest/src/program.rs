@@ -89,8 +89,8 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .programs
-            .insert(program_id, (program, ProgramState::Uninitialized(None)))
+            .actors
+            .insert(program_id, (program, ProgramState::Uninitialized(None), 0))
             .is_some()
         {
             panic!(
@@ -166,7 +166,16 @@ impl<'a> Program<'a> {
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
-        self.send_bytes(from, payload.encode())
+        self.send_with_value(from, payload, 0)
+    }
+
+    pub fn send_with_value<ID: Into<ProgramIdWrapper>, C: Codec>(
+        &self,
+        from: ID,
+        payload: C,
+        value: u128,
+    ) -> RunResult {
+        self.send_bytes_with_value(from, payload.encode(), value)
     }
 
     pub fn send_bytes<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
@@ -174,12 +183,28 @@ impl<'a> Program<'a> {
         from: ID,
         payload: T,
     ) -> RunResult {
+        self.send_bytes_with_value(from, payload, 0)
+    }
+
+    pub fn send_bytes_with_value<ID: Into<ProgramIdWrapper>, T: AsRef<[u8]>>(
+        &self,
+        from: ID,
+        payload: T,
+        value: u128,
+    ) -> RunResult {
         let mut system = self.manager.borrow_mut();
 
         let source = from.into().0;
 
-        if system.programs.contains_key(&source) {
+        if system.actors.contains_key(&source) {
             panic!("Sending messages allowed only from users id");
+        }
+
+        if 0 < value && value < crate::EXISTENTIAL_DEPOSIT {
+            panic!(
+                "Value greater than 0, but less than required existential deposit ({})",
+                crate::EXISTENTIAL_DEPOSIT
+            );
         }
 
         let message = Message::new(
@@ -188,7 +213,7 @@ impl<'a> Program<'a> {
             self.id,
             payload.as_ref().to_vec().into(),
             u64::MAX,
-            0,
+            value,
         );
 
         system.run_message(message)

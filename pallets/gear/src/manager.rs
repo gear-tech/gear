@@ -21,9 +21,9 @@ use crate::{
     Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program, STORAGE_PROGRAM_PREFIX};
+use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch, STORAGE_PROGRAM_PREFIX};
 use core_processor::common::{
-    CollectState, DispatchOutcome as CoreDispatchOutcome, JournalHandler, State,
+    CollectState, DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, State,
 };
 use frame_support::{
     storage::PrefixIterator,
@@ -54,29 +54,39 @@ where
     T::AccountId: Origin,
 {
     fn collect(&self) -> State {
-        let programs: BTreeMap<ProgramId, NativeProgram> = PrefixIterator::<H256>::new(
+        let actors: BTreeMap<ProgramId, ExecutableActor> = PrefixIterator::<H256>::new(
             STORAGE_PROGRAM_PREFIX.to_vec(),
             STORAGE_PROGRAM_PREFIX.to_vec(),
             |key, _| Ok(H256::from_slice(key)),
         )
-        .filter_map(|k| self.get_program(k).map(|p| (p.id(), p)))
-        .map(|(id, mut prog)| {
+        .filter_map(|k| {
+            self.get_executable_actor(k)
+                .map(|actor| (actor.program.id(), actor))
+        })
+        .map(|(id, mut actor)| {
             let pages_data = {
-                let page_numbers = prog.get_pages().keys().map(|k| k.raw()).collect();
+                let page_numbers = actor.program.get_pages().keys().map(|k| k.raw()).collect();
                 let data = common::get_program_pages(id.into_origin(), page_numbers)
                     .expect("active program exists, therefore pages do");
                 data.into_iter().map(|(k, v)| (k.into(), v)).collect()
             };
-            let _ = prog.set_pages(pages_data);
-            (id, prog)
+            let _ = actor.program.set_pages(pages_data);
+            (id, actor)
         })
         .collect();
 
-        let dispatch_queue = common::dispatch_iter().map(Into::into).collect();
+        let dispatch_queue = common::dispatch_iter()
+            .map(|dispatch| {
+                let gas = T::GasHandler::get_limit(dispatch.message.id)
+                    .map(|(gas, _id)| gas)
+                    .unwrap_or(0);
+                dispatch.into_dispatch(gas)
+            })
+            .collect();
 
         State {
             dispatch_queue,
-            programs,
+            actors,
             ..Default::default()
         }
     }
@@ -97,15 +107,25 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn program_from_code(&self, id: H256, code: Vec<u8>) -> Option<NativeProgram> {
-        NativeProgram::new(ProgramId::from_origin(id), code).ok()
+    pub fn executable_actor_from_code(&self, id: H256, code: Vec<u8>) -> Option<ExecutableActor> {
+        NativeProgram::new(ProgramId::from_origin(id), code)
+            .ok()
+            .map(|program| ExecutableActor {
+                program,
+                balance: 0,
+            })
     }
 
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
-    pub fn get_program(&self, id: H256) -> Option<NativeProgram> {
-        common::get_program(id)
-            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())
+    pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
+        let program = common::get_program(id)
+            .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
+
+        let balance = T::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+            .unique_saturated_into();
+
+        Some(ExecutableActor { program, balance })
     }
 
     pub fn set_program(&self, program: NativeProgram, message_id: H256) {
@@ -146,10 +166,14 @@ where
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
         let event = match outcome {
-            CoreDispatchOutcome::Success(message_id) => Event::MessageDispatched(DispatchOutcome {
-                message_id: message_id.into_origin(),
-                outcome: ExecutionResult::Success,
-            }),
+            CoreDispatchOutcome::Success(message_id) => {
+                log::trace!("Dispatch outcome success: {:?}", message_id);
+
+                Event::MessageDispatched(DispatchOutcome {
+                    message_id: message_id.into_origin(),
+                    outcome: ExecutionResult::Success,
+                })
+            }
             CoreDispatchOutcome::MessageTrap {
                 message_id,
                 program_id,
@@ -166,6 +190,8 @@ where
                         v.as_bytes().to_vec()
                     })
                     .unwrap_or_default();
+
+                log::trace!("Dispatch outcome trap: {:?}", message_id);
 
                 Event::MessageDispatched(DispatchOutcome {
                     message_id: message_id.into_origin(),
@@ -194,6 +220,12 @@ where
 
                 common::set_program_initialized(program_id);
 
+                log::trace!(
+                    "Dispatch ({:?}) init success for program {:?}",
+                    message_id,
+                    program_id
+                );
+
                 event
             }
             CoreDispatchOutcome::InitFailure {
@@ -220,6 +252,12 @@ where
 
                 let res = common::set_program_terminated_status(program_id);
                 assert!(res.is_ok(), "only active program can cause init failure");
+
+                log::trace!(
+                    "Dispatch ({:?}) init failure for program {:?}",
+                    message_id,
+                    program_id
+                );
 
                 Event::InitFailure(
                     MessageInfo {
@@ -258,7 +296,7 @@ where
                 }
             }
             Err(err) => {
-                log::error!(
+                log::debug!(
                     "Error spending {:?} gas for message_id {:?}: {:?}",
                     amount,
                     message_id,
@@ -291,7 +329,7 @@ where
 
         if let Some((neg_imbalance, external)) = T::GasHandler::consume(message_id) {
             let gas_left = neg_imbalance.peek();
-            log::debug!("unreserve: {}", gas_left);
+            log::debug!("Unreserve balance on message processed: {}", gas_left);
 
             let refund = T::GasPrice::gas_price(gas_left);
 
@@ -302,7 +340,7 @@ where
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
         let message_id = message_id.into_origin();
-        let mut dispatch: common::Dispatch = dispatch.into();
+        let (gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
 
         // TODO reserve call must be infallible in https://github.com/gear-tech/gear/issues/644
         if dispatch.message.value != 0
@@ -327,23 +365,19 @@ where
         );
 
         if common::program_exists(dispatch.message.dest) {
-            let _ =
-                T::GasHandler::split(message_id, dispatch.message.id, dispatch.message.gas_limit);
+            let _ = T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
             common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            if dispatch.message.gas_limit > 0 {
-                dispatch.message.gas_limit = 0;
-            }
             Pallet::<T>::insert_to_mailbox(dispatch.message.dest, dispatch.message.clone());
             Pallet::<T>::deposit_event(Event::Log(dispatch.message));
         }
     }
 
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        let dispatch: common::Dispatch = dispatch.into();
+        let (_gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
 
         let dest = dispatch.message.dest;
         let message_id = dispatch.message.id;
@@ -373,7 +407,7 @@ where
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
         } else {
-            log::error!(
+            log::debug!(
                 "Attempt to awaken unknown message {:?} from {:?}",
                 awakening_id,
                 message_id.into_origin()

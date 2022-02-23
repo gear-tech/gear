@@ -130,10 +130,13 @@ pub trait Ext {
     fn refund_gas(&mut self, amount: u32) -> Result<(), &'static str>;
 
     /// Tell how much gas is left in running context.
-    fn gas_available(&mut self) -> u64;
+    fn gas_available(&self) -> u64;
 
     /// Value associated with message.
     fn value(&self) -> u128;
+
+    /// Tell how much value is left in running context.
+    fn value_available(&self) -> u128;
 
     /// Interrupt the program and reschedule execution.
     fn wait(&mut self) -> Result<(), &'static str>;
@@ -273,11 +276,14 @@ mod tests {
         fn refund_gas(&mut self, _amount: u32) -> Result<(), &'static str> {
             Ok(())
         }
-        fn gas_available(&mut self) -> u64 {
+        fn gas_available(&self) -> u64 {
             1_000_000
         }
         fn value(&self) -> u128 {
             0
+        }
+        fn value_available(&self) -> u128 {
+            1_000_000
         }
         fn leave(&mut self) -> Result<(), &'static str> {
             Ok(())
