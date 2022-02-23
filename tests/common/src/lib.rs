@@ -291,7 +291,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn message_consumed(&mut self, _message_id: MessageId) {}
 
-    fn send_dispatch(&mut self, _origin: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _origin: MessageId, mut dispatch: Dispatch) {
         match dispatch.message.reply {
             Some((message_id, 0)) => {
                 self.context.outcomes.insert(message_id, RunResult::Normal);
@@ -305,6 +305,11 @@ impl<'a> JournalHandler for Journal<'a> {
         }
 
         if self.context.actors.contains_key(&dispatch.message.dest) {
+            // imbuing gas-less messages
+            if let None = dispatch.message.gas_limit() {
+                dispatch.message.gas_limit = Some(u64::max_value());
+            }
+
             self.context.dispatch_queue.push(dispatch);
         } else {
             self.context.log.push(dispatch.message);

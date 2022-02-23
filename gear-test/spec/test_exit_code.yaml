@@ -53,20 +53,3 @@ fixtures:
             kind: utf-8
             value: 1
 
-  - title: gas limit trap
-
-    messages:
-      - destination: 2
-        source:
-          kind: id
-          value: 1
-        gas_limit: 0
-        payload:
-          kind: utf-8
-          value: any
-
-    # has no output due to gas absence
-    # not enough gas to reply for exit_code demo
-    expected:
-      - allowError: true
-        log: []
