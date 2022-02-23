@@ -41,7 +41,6 @@ mod wasm {
                 handle: u32,
                 message_id_ptr: *mut u8,
                 program: *const u8,
-                gas_limit: u64,
                 value_ptr: *const u8,
             );
         }
@@ -64,7 +63,6 @@ mod wasm {
                     handle,
                     message_id.as_mut_ptr(),
                     ActorId::from(0).as_ref().as_ptr(),
-                    0,
                     0u128.to_le_bytes().as_ptr(),
                 );
                 let data = "bytes";
