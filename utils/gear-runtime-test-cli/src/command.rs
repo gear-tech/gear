@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(unused_must_use)]
+
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -182,7 +184,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
         };
-        gear_common::set_program(id.clone(), program, Default::default());
+        gear_common::set_program(*id, program, Default::default());
     }
 
     // Enable remapping of the source and destination of messages
