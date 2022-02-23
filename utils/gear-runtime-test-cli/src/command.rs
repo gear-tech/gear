@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(unused_must_use)]
+
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -175,7 +177,14 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
     for id in programs_map.keys() {
-        sp_io::storage::set(&gear_common::program_key(*id), &[]);
+        let program = gear_common::ActiveProgram {
+            static_pages: 0,
+            nonce: 0,
+            persistent_pages: Default::default(),
+            code_hash: H256::default(),
+            state: gear_common::ProgramState::Initialized,
+        };
+        gear_common::set_program(*id, program, Default::default());
     }
 
     // Enable remapping of the source and destination of messages
@@ -185,7 +194,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     match init_fixture(test, &mut snapshots, &mut mailbox) {
         Ok(()) => {
-            log::info!("programs: {:?}", &programs);
+            log::trace!("programs: {:?}", &programs);
             let mut errors = vec![];
             let mut expected_log = vec![];
 
@@ -248,15 +257,12 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     };
                     gear_common::queue_dispatch(QueuedDispatch::new_handle(msg))
                 } else {
-                    log::info!(
-                        "{:?}",
-                        GearPallet::<Runtime>::send_message(
-                            Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
-                            dest,
-                            payload,
-                            gas_limit,
-                            value,
-                        )
+                    GearPallet::<Runtime>::send_message(
+                        Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+                        dest,
+                        payload,
+                        gas_limit,
+                        value,
                     );
                 }
 
@@ -282,21 +288,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .iter()
                     .map(|dispatch| dispatch.message.clone().into_message(0))
                     .collect();
-                let mut progs = snapshot
-                    .programs
-                    .iter()
-                    .map(|p| {
-                        CoreProgram::from_parts(
-                            *programs.iter().find(|(_, v)| v == &&p.id).unwrap().0,
-                            vec![],
-                            p.static_pages,
-                            p.nonce,
-                            p.persistent_pages.keys().cloned().collect(),
-                        )
-                    })
-                    .collect();
-
-                // let mut progs = vec![];
 
                 if let Some(mut expected_messages) = exp.messages.clone() {
                     if expected_messages.is_empty() {
@@ -328,7 +319,23 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         );
                     }
                 }
-
+                let mut progs: Vec<gear_core::program::Program> = snapshot
+                    .programs
+                    .iter()
+                    .filter_map(|p| {
+                        if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                            Some(CoreProgram::from_parts(
+                                *pid,
+                                vec![],
+                                p.static_pages,
+                                p.nonce,
+                                p.persistent_pages.keys().cloned().collect(),
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 if let Some(expected_memory) = &exp.memory {
                     if let Err(mem_errors) =
                         gear_test::check::check_memory(&mut progs, expected_memory)
@@ -351,7 +358,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
 
             if !expected_log.is_empty() {
-                log::info!("mailbox: {:?}", &mailbox);
+                log::trace!("mailbox: {:?}", &mailbox);
 
                 let messages: Vec<CoreMessage> = mailbox
                     .iter_mut()
@@ -360,7 +367,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 for message in &messages {
                     if let Ok(utf8) = core::str::from_utf8(message.payload()) {
-                        log::info!("log({})", utf8)
+                        log::trace!("log({})", utf8)
                     }
                 }
 
