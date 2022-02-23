@@ -853,7 +853,7 @@ pub mod pallet {
 
             let message_id = common::next_message_id(&payload);
 
-            if common::program_exists(destination) {
+            if common::program_exists(destination) | common::paused_program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
