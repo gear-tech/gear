@@ -1701,6 +1701,54 @@ fn messages_to_paused_program_skipped() {
     })
 }
 
+#[test]
+fn replies_to_paused_program_skipped() {
+    use tests_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(common::pause_program(program_id));
+
+        run_to_block(3, None);
+
+        let message_id = Gear::mailbox(USER_1).and_then(|t| {
+            let mut keys = t.keys();
+            keys.next().cloned()
+        });
+        assert!(message_id.is_some());
+
+        let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            message_id.unwrap(),
+            b"PONG".to_vec(),
+            50_000_000u64,
+            1000u128,
+        ));
+
+        run_to_block(4, None);
+
+        assert_eq!(before_balance, BalancesPallet::<Test>::free_balance(USER_1));
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
