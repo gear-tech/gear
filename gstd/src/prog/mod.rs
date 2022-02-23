@@ -18,17 +18,21 @@
 
 //! Program creation module
 
-use crate::{ActorId, CodeHash};
-use codec::Encode;
+use crate::{prelude::convert::AsRef, ActorId, CodeHash};
 
-pub fn create_program_with_gas<T1: Encode, T2: Encode>(
+pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
     code_hash: CodeHash,
     salt: T1,
     payload: T2,
     gas_limit: u64,
     value: u128,
 ) -> ActorId {
-    let salt = salt.encode();
-    let payload = payload.encode();
-    gcore::prog::create_program_with_gas(code_hash.into(), &salt, &payload, gas_limit, value).into()
+    gcore::prog::create_program_with_gas(
+        code_hash.into(),
+        salt.as_ref(),
+        payload.as_ref(),
+        gas_limit,
+        value,
+    )
+    .into()
 }
