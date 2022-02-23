@@ -105,7 +105,7 @@ impl JournalHandler for InMemoryExtManager {
             }
         };
     }
-    fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
+    fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
         self.actors.borrow_mut().remove(&id_exited);

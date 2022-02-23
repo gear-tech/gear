@@ -325,7 +325,7 @@ impl JournalHandler for ExtManager {
             } => self.init_success(message_id, program_id),
         }
     }
-    fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
+    fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
         self.actors.remove(&id_exited);

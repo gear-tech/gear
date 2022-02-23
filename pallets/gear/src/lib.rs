@@ -70,7 +70,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, ReservableCurrency},
+        traits::{BalanceStatus, Currency, Get, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -103,6 +103,10 @@ pub mod pallet {
         /// The maximum amount of gas that can be used within a single block.
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
+
+        /// The cost for a message to spend one block in the wait list
+        #[pallet::constant]
+        type WaitListFeePerBlock: Get<u64>;
 
         type DebugInfo: DebugInfo;
     }
@@ -262,6 +266,14 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        // Messages have only two options to be inserted in mailbox:
+        // 1. While message processing called `gr_wait`.
+        // 2. While message addressed to program, that hadn't finished it's initialization.
+        //
+        // This means that program always exists in storage in active or terminated status.
+        //
+        // We also remove messages from mailbox for cases of out of rent (in `pallet-usage`)
+        // and once program initialized or failed it's inititalization.
         pub fn insert_to_mailbox(user: H256, message: common::QueuedMessage) {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 

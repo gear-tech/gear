@@ -135,8 +135,6 @@ pub enum JournalNote {
     GasBurned {
         /// Message id in which gas was burned.
         message_id: MessageId,
-        /// Original actor that was handling the message.
-        origin: ProgramId,
         /// Amount of gas burned.
         amount: u64,
     },
@@ -206,7 +204,7 @@ pub trait JournalHandler {
     /// Process message dispatch.
     fn message_dispatched(&mut self, outcome: DispatchOutcome);
     /// Process gas burned.
-    fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64);
+    fn gas_burned(&mut self, message_id: MessageId, amount: u64);
     /// Process exit dispatch.
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId);
     /// Process message consumed.

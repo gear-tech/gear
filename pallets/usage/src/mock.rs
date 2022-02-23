@@ -108,6 +108,10 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
+parameter_types! {
+    pub const WaitListFeePerBlock: u64 = 100;
+}
+
 impl pallet_gear::Config for Test {
     type Event = Event;
     type Currency = Balances;
@@ -116,6 +120,7 @@ impl pallet_gear::Config for Test {
     type WeightInfo = ();
     type BlockGasLimit = ();
     type DebugInfo = ();
+    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 impl pallet_gas::Config for Test {}
@@ -126,7 +131,6 @@ parameter_types! {
     pub const ExpirationDuration: u64 = 3000;
     pub const TrapReplyExistentialGasLimit: u64 = 1000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
-    pub const WaitListFeePerBlock: u64 = 100;
 }
 
 impl pallet_usage::Config for Test {
@@ -138,7 +142,6 @@ impl pallet_usage::Config for Test {
     type MaxBatchSize = MaxBatchSize;
     type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
-    type WaitListFeePerBlock = WaitListFeePerBlock;
 }
 
 pub struct FixedBlockAuthor;
