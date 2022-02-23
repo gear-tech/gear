@@ -18,7 +18,7 @@
 
 //! Message processing module and context.
 
-use crate::program::ProgramId;
+use crate::program::{CodeHash, ProgramId};
 use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 use codec::{Decode, Encode};
 use core::{cell::RefCell, fmt};
@@ -124,6 +124,8 @@ pub enum Error {
     NoReplyFound,
     /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
     UncommittedPayloads,
+    /// Duplicate init message
+    DuplicateInit,
 }
 
 /// Incoming message.
@@ -459,6 +461,78 @@ impl Message {
     }
 }
 
+/// Outgoing program initialization message
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+pub struct ProgramInitMessage {
+    /// Message id
+    pub id: MessageId,
+    /// New program id
+    pub new_program_id: ProgramId,
+    /// Payload to init function
+    pub payload: Payload,
+    /// Provided to the message gas limit
+    pub gas_limit: u64,
+    /// Provided to the message value
+    pub value: u128,
+}
+
+impl ProgramInitMessage {
+    /// Converts init message into general `Message`
+    pub fn into_message(self, source: ProgramId) -> Message {
+        let ProgramInitMessage {
+            id,
+            new_program_id,
+            payload,
+            gas_limit,
+            value,
+        } = self;
+        let gas_limit = Some(gas_limit);
+        Message {
+            id,
+            source,
+            dest: new_program_id,
+            payload,
+            gas_limit,
+            value,
+            reply: None,
+        }
+    }
+}
+
+/// Program initialization packet
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+pub struct ProgramInitPacket {
+    /// Code hash of a new program
+    pub code_hash: CodeHash,
+    /// Salt used to generate id for a new program
+    pub salt: Vec<u8>,
+    /// Payload to init function
+    pub payload: Payload,
+    /// Provided to the message gas limit
+    pub gas_limit: u64,
+    /// Provided to the message value
+    pub value: u128,
+}
+
+impl ProgramInitPacket {
+    /// Create a new program init packet
+    pub fn new(
+        code_hash: CodeHash,
+        salt: Vec<u8>,
+        payload: Payload,
+        gas_limit: u64,
+        value: u128,
+    ) -> Self {
+        Self {
+            code_hash,
+            salt,
+            payload,
+            gas_limit,
+            value,
+        }
+    }
+}
+
 /// Outgoing message packet.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct OutgoingPacket {
@@ -574,6 +648,31 @@ pub trait MessageIdGenerator {
             exit_code: packet.exit_code,
         }
     }
+
+    /// Build program init message
+    ///
+    /// Message id will be generated
+    fn produce_init(
+        &mut self,
+        new_program_id: ProgramId,
+        packet: ProgramInitPacket,
+    ) -> ProgramInitMessage {
+        let id = self.next();
+        let ProgramInitPacket {
+            payload,
+            gas_limit,
+            value,
+            ..
+        } = packet;
+
+        ProgramInitMessage {
+            id,
+            new_program_id,
+            payload,
+            gas_limit,
+            value,
+        }
+    }
 }
 
 /// Message state of the current session.
@@ -583,6 +682,8 @@ pub trait MessageIdGenerator {
 pub struct MessageState {
     /// Collection of outgoing messages generated.
     pub outgoing: Vec<OutgoingMessage>,
+    /// Collection of init messages for new programs generated.
+    pub init_messages: Vec<ProgramInitMessage>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
     /// Messages to be waken.
@@ -594,6 +695,8 @@ pub struct MessageState {
 pub struct PayloadStore {
     /// Outgoing payloads ever formed for current message processing.
     pub outgoing: BTreeMap<u64, Option<Payload>>,
+    /// Program ids of newly created programs in the current message processing.
+    pub new_programs: Vec<ProgramId>,
     /// Reply payload ever formed for current message processing.
     pub reply: Option<Payload>,
     /// Messages were ever waken for current message processing.
@@ -750,12 +853,50 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
         (state, store)
     }
+
+    /// Send a new init program message
+    ///
+    /// Generates a new program id from provided `packet` data and returns it
+    /// along with init message id.
+    pub fn send_init_program(
+        &mut self,
+        packet: ProgramInitPacket,
+    ) -> Result<(ProgramId, MessageId), Error> {
+        let code_hash = packet.code_hash;
+        let new_program_id = {
+            let mut data = Vec::with_capacity(code_hash.inner().len() + packet.salt.len());
+            code_hash.encode_to(&mut data);
+            packet.salt.encode_to(&mut data);
+            ProgramId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+        };
+
+        {
+            let payload_store = self.store.borrow();
+            if payload_store
+                .new_programs
+                .iter()
+                .any(|id| id == &new_program_id)
+            {
+                return Err(Error::DuplicateInit);
+            }
+        }
+
+        let msg = self
+            .id_generator
+            .borrow_mut()
+            .produce_init(new_program_id, packet);
+        let msg_id = msg.id;
+        self.state.borrow_mut().init_messages.push(msg);
+        self.store.borrow_mut().new_programs.push(new_program_id);
+
+        Ok((new_program_id, msg_id))
+    }
 }
 
 /// Dispatch.
 ///
 /// Message plus information of entry point.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Dispatch {
     /// Kind of dispatch.
     pub kind: DispatchKind,
@@ -804,7 +945,7 @@ impl Dispatch {
 }
 
 /// Type of wasm execution entry point.
-#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum DispatchKind {
     /// Initialization.
     Init,

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,17 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+//! Program creation module
 
-pub mod exec;
-pub mod msg;
-pub mod prog;
+use crate::{prelude::convert::AsRef, ActorId, CodeHash};
 
-mod general;
-pub use general::*;
-
-mod utils;
-#[cfg(feature = "debug")]
-pub use utils::ext;
+pub fn create_program_with_gas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
+    code_hash: CodeHash,
+    salt: T1,
+    payload: T2,
+    gas_limit: u64,
+    value: u128,
+) -> ActorId {
+    gcore::prog::create_program_with_gas(
+        code_hash.into(),
+        salt.as_ref(),
+        payload.as_ref(),
+        gas_limit,
+        value,
+    )
+    .into()
+}

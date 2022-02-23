@@ -119,6 +119,7 @@ where
         env_builder.add_host_func("env", "free", funcs::free);
         env_builder.add_host_func("env", "gr_block_height", funcs::block_height);
         env_builder.add_host_func("env", "gr_block_timestamp", funcs::block_timestamp);
+        env_builder.add_host_func("env", "gr_create_program_wgas", funcs::create_program_wgas);
         env_builder.add_host_func("env", "gr_exit", funcs::exit);
         env_builder.add_host_func("env", "gr_exit_code", funcs::exit_code);
         env_builder.add_host_func("env", "gr_send", funcs::send);

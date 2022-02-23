@@ -174,3 +174,75 @@ impl From<gcore::MessageId> for MessageId {
         Self(other.0)
     }
 }
+
+#[derive(
+    Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq, TypeInfo, Decode, Encode,
+)]
+pub struct CodeHash([u8; 32]);
+
+impl CodeHash {
+    pub const fn new(arr: [u8; 32]) -> Self {
+        Self(arr)
+    }
+
+    pub fn from_slice(slice: &[u8]) -> Result<Self> {
+        if slice.len() != 32 {
+            return Err(ContractError::Convert("Slice should be 32 length"));
+        }
+
+        let mut ret: Self = Default::default();
+        ret.0.as_mut().copy_from_slice(slice);
+
+        Ok(ret)
+    }
+}
+
+impl AsRef<[u8]> for CodeHash {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl AsMut<[u8]> for CodeHash {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0.as_mut()
+    }
+}
+
+impl From<[u8; 32]> for CodeHash {
+    fn from(arr: [u8; 32]) -> Self {
+        Self(arr)
+    }
+}
+
+impl From<CodeHash> for [u8; 32] {
+    fn from(other: CodeHash) -> Self {
+        other.0
+    }
+}
+
+impl From<H256> for CodeHash {
+    fn from(h256: H256) -> Self {
+        Self::new(h256.to_fixed_bytes())
+    }
+}
+
+impl From<gcore::CodeHash> for CodeHash {
+    fn from(other: gcore::CodeHash) -> Self {
+        Self(other.0)
+    }
+}
+
+impl From<CodeHash> for gcore::CodeHash {
+    fn from(other: CodeHash) -> Self {
+        Self(other.0)
+    }
+}
+
+impl TryFrom<&[u8]> for CodeHash {
+    type Error = ContractError;
+
+    fn try_from(slice: &[u8]) -> Result<Self> {
+        Self::from_slice(slice)
+    }
+}

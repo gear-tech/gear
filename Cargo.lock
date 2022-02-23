@@ -1964,6 +1964,9 @@ dependencies = [
 [[package]]
 name = "gcore"
 version = "0.1.0"
+dependencies = [
+ "hex-literal",
+]
 
 [[package]]
 name = "gear-backend-common"
@@ -2017,6 +2020,7 @@ name = "gear-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blake2-rfc",
  "derive_more",
  "hashbrown 0.12.0",
  "log",

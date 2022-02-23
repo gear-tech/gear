@@ -24,6 +24,7 @@ use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use core::{cmp, fmt};
+use scale_info::TypeInfo;
 
 use crate::memory::{PageBuf, PageNumber};
 
@@ -31,7 +32,18 @@ use crate::memory::{PageBuf, PageNumber};
 ///
 /// 256-bit program identifier. In production environments, should be the result of a cryptohash function.
 #[derive(
-    Clone, Copy, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq, PartialOrd, Ord,
+    Clone,
+    Copy,
+    Decode,
+    Default,
+    Encode,
+    derive_more::From,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    TypeInfo,
 )]
 pub struct ProgramId([u8; 32]);
 
@@ -282,6 +294,35 @@ impl Program {
         self.message_nonce = 0;
 
         Ok(())
+    }
+}
+
+/// Blake2b hash of the program code.
+#[derive(Clone, Copy, Debug, Decode, Encode, Ord, PartialOrd, Eq, PartialEq)]
+pub struct CodeHash([u8; 32]);
+
+impl CodeHash {
+    /// Get inner (32 bytes) array representation
+    pub fn inner(&self) -> [u8; 32] {
+        self.0
+    }
+
+    /// Create new `CodeHash` bytes.
+    ///
+    /// Will panic if slice is not 32 bytes length.
+    pub fn from_slice(s: &[u8]) -> Self {
+        if s.len() != 32 {
+            panic!("Slice is not 32 bytes length")
+        };
+        let mut id = CodeHash([0u8; 32]);
+        id.0[..].copy_from_slice(s);
+        id
+    }
+}
+
+impl From<[u8; 32]> for CodeHash {
+    fn from(data: [u8; 32]) -> Self {
+        CodeHash(data)
     }
 }
 

@@ -145,3 +145,31 @@ impl ActorId {
         &mut self.0[..]
     }
 }
+
+#[derive(Clone, Copy, Debug, Default, Hash, Ord, PartialEq, PartialOrd, Eq)]
+pub struct CodeHash(pub [u8; 32]);
+
+impl From<[u8; 32]> for CodeHash {
+    fn from(v: [u8; 32]) -> Self {
+        CodeHash(v)
+    }
+}
+
+impl CodeHash {
+    /// Create a new `H256` from 32-byte slice `s`.
+    ///
+    /// Panics if the supplied slice length is other than 32.
+    pub fn from_slice(s: &[u8]) -> Self {
+        if s.len() != 32 {
+            panic!("The slice must contain 32 u8 to be casted to H256");
+        }
+        let mut ret = CodeHash([0u8; 32]);
+        ret.0[..].copy_from_slice(s);
+        ret
+    }
+
+    /// Get `H256` represented as a slice of `u8`.
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0[..]
+    }
+}

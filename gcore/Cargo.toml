@@ -9,3 +9,6 @@ license = "GPL-3.0"
 [features]
 debug=[]
 
+[dev-dependencies]
+hex-literal = "0.3.4"
+

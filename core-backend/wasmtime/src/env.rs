@@ -56,6 +56,10 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32("gas", funcs::gas);
         result.add_func_into_i32("gr_block_height", funcs::block_height);
         result.add_func_into_i64("gr_block_timestamp", funcs::block_timestamp);
+        result.add_func_i32_i32_i32_i32_i32_i64_i32_i32(
+            "gr_create_program_wgas",
+            funcs::create_program_wgas,
+        );
         result.add_func_to_i32("gr_exit_code", funcs::exit_code);
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);
@@ -164,6 +168,19 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         );
     }
 
+    fn add_func_i32_i32_i32_i32_i32_i64_i32_i32<F>(
+        &mut self,
+        key: &'static str,
+        func: fn(LaterExt<E>) -> F,
+    ) where
+        F: 'static + Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap8(func(self.ext.clone()))),
+        );
+    }
+
     fn add_func_i32_to_u32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
         F: 'static + Fn(i32) -> Result<u32, &'static str>,
@@ -236,6 +253,12 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         func: impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, &'static str>,
     ) -> impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, Trap> {
         move |a, b, c, d, e, f| func(a, b, c, d, e, f).map_err(Trap::new)
+    }
+
+    fn wrap8<T0, T1, T2, T3, T4, T5, T6, T7, R>(
+        func: impl Fn(T0, T1, T2, T3, T4, T5, T6, T7) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1, T2, T3, T4, T5, T6, T7) -> Result<R, Trap> {
+        move |a, b, c, d, e, f, g, h| func(a, b, c, d, e, f, g, h).map_err(Trap::new)
     }
 }
 
