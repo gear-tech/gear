@@ -97,7 +97,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, exec::gas_available() - 50_000_000, 0);
+        msg::reply(reply, 0);
     }
 
     fn state() -> &'static mut NodeState {
@@ -144,8 +144,7 @@ mod wasm {
                     .get(transition.query_index)
                     .expect("Checked above that it has that number of elements; qed");
 
-                transition.last_sent_message_id =
-                    msg::send(*next_sub_node, request, 1_000_000_000, 0);
+                transition.last_sent_message_id = msg::send(*next_sub_node, request, 0);
 
                 state().transition = Some(transition);
 
@@ -188,8 +187,7 @@ mod wasm {
                             .query_list
                             .get(0)
                             .expect("Checked above that sub_nodes is not empty; qed");
-                        transition.last_sent_message_id =
-                            msg::send(first_sub_node, request, 1_000_000_000, 0);
+                        transition.last_sent_message_id = msg::send(first_sub_node, request, 0);
                         state().transition = Some(transition);
                         exec::wait()
                     } else {
@@ -227,8 +225,7 @@ mod wasm {
 
                             transition.message_id = msg::id();
 
-                            transition.last_sent_message_id =
-                                msg::send(first_sub_node, request, 1_000_000_000, 0);
+                            transition.last_sent_message_id = msg::send(first_sub_node, request, 0);
 
                             state().transition = Some(transition);
 
@@ -287,7 +284,7 @@ mod wasm {
             transition: None,
         });
 
-        msg::reply((), exec::gas_available() - 50_000_000, 0);
+        msg::reply((), 0);
     }
 }
 

@@ -26,7 +26,6 @@ pub unsafe extern "C" fn handle() {
     msg::send(
         msg::source(),
         make_fib(new_msg as usize)[new_msg as usize - 1],
-        exec::gas_available() - 1_000_000_000,
         0,
     );
 

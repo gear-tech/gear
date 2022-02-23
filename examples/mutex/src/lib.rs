@@ -2,12 +2,10 @@
 
 use core::num::ParseIntError;
 use gstd::lock::mutex::Mutex;
-use gstd::{exec, msg, prelude::*, ActorId};
+use gstd::{msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
 static MUTEX: Mutex<u32> = Mutex::new(0);
-
-const GAS_LIMIT: u64 = 60_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
@@ -31,14 +29,14 @@ async fn main() {
     if message == "START" {
         let _val = MUTEX.lock().await;
 
-        let reply = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", GAS_LIMIT, 0)
+        let reply = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
             .await
             .expect("Error in async message processing");
 
         if reply == b"PONG" {
-            msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(b"SUCCESS", 0);
         } else {
-            msg::reply(b"FAIL", exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(b"FAIL", 0);
         }
     }
 }

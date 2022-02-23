@@ -212,7 +212,7 @@ impl<'a> Program<'a> {
             source,
             self.id,
             payload.as_ref().to_vec().into(),
-            u64::MAX,
+            Some(u64::MAX),
             value,
         );
 
@@ -255,7 +255,6 @@ mod tests {
                 prog.id(),
                 ProgramIdWrapper::from(user_id).0,
                 Default::default(),
-                0,
                 0,
                 Default::default(),
                 2,

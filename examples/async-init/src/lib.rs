@@ -20,8 +20,6 @@ static mut APPROVER_FIRST: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_SECOND: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_THIRD: ActorId = ActorId::new([0u8; 32]);
 
-const GAS_LIMIT: u64 = 110_000_000;
-
 #[derive(Debug, Decode, TypeInfo)]
 pub struct InputArgs {
     pub approver_first: ActorId,
@@ -45,7 +43,7 @@ async fn init() {
 
     let mut requests: Vec<_> = [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD]
         .iter()
-        .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", GAS_LIMIT, 0))
+        .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", 0))
         .collect();
 
     let mut threshold = 0usize;
@@ -74,10 +72,10 @@ async fn main() {
         unsafe { APPROVER_THIRD },
     ]
     .iter()
-    .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", GAS_LIMIT, 0))
+    .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", 0))
     .collect();
 
     let _ = future::select_all(requests).await;
 
-    msg::reply(b"PONG", GAS_LIMIT, 0);
+    msg::reply(b"PONG", 0);
 }
