@@ -119,6 +119,7 @@ where
         env_builder.add_host_func("env", "free", funcs::free);
         env_builder.add_host_func("env", "gr_block_height", funcs::block_height);
         env_builder.add_host_func("env", "gr_block_timestamp", funcs::block_timestamp);
+        env_builder.add_host_func("env", "gr_create_program", funcs::create_program);
         env_builder.add_host_func("env", "gr_exit", funcs::exit);
         env_builder.add_host_func("env", "gr_exit_code", funcs::exit_code);
         env_builder.add_host_func("env", "gr_send", funcs::send);
@@ -142,7 +143,6 @@ where
         env_builder.add_host_func("env", "gr_wait", funcs::wait);
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
         env_builder.add_host_func("env", "gas", funcs::gas);
-        env_builder.add_host_func("env", "gr_create_program", funcs::create_program);
 
         let mut runtime = Runtime::new(ext);
 
