@@ -121,6 +121,7 @@ where
         env_builder.add_host_func("env", "gr_block_timestamp", funcs::block_timestamp);
         env_builder.add_host_func("env", "gr_exit", funcs::exit);
         env_builder.add_host_func("env", "gr_exit_code", funcs::exit_code);
+        env_builder.add_host_func("env", "gr_initiator", funcs::initiator);
         env_builder.add_host_func("env", "gr_send", funcs::send);
         env_builder.add_host_func("env", "gr_send_commit", funcs::send_commit);
         env_builder.add_host_func("env", "gr_send_init", funcs::send_init);

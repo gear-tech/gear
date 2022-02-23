@@ -108,6 +108,15 @@ pub fn exit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str
     }
 }
 
+pub fn initiator<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |initiator_ptr: i32| {
+        ext.with(|ext: &mut E| {
+            let id = ext.initiator();
+            ext.set_mem(initiator_ptr as _, id.as_slice());
+        })
+    }
+}
+
 pub fn msg_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |msg_id_ptr: i32| {
         ext.with(|ext: &mut E| {
