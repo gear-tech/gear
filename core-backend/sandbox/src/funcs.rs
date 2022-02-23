@@ -84,7 +84,7 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|_err| {
+        .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send message");
             HostError
         });
@@ -112,7 +112,7 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|_err| {
+        .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send message");
             HostError
         })
@@ -122,8 +122,8 @@ pub fn send_init<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) 
     ctx.ext
         .with(|ext| ext.send_init())
         .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle as i32))))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to initiate message sending");
             HostError
         })
 }
@@ -141,8 +141,8 @@ pub fn send_push<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -
             ext.send_push(handle_ptr, &payload)
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to push message payload");
             HostError
         })
 }
@@ -438,8 +438,8 @@ pub fn msg_id<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> S
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to get message id");
             HostError
         })
 }
