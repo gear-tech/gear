@@ -34,4 +34,5 @@ members = [
     "utils/gear-runtime-test-cli",
     "utils/wasm-proc",
     "utils/wasm-builder",
+    "utils/economic-checks",
 ]

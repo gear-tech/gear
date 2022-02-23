@@ -1406,8 +1406,10 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-gear",
+ "pallet-usage",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
+ "parking_lot",
  "primitive-types",
  "quickcheck",
  "scale-info",
@@ -2100,7 +2102,6 @@ name = "gear-node"
 version = "0.1.0"
 dependencies = [
  "clap",
- "economic-checks",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "gear-lazy-pages",

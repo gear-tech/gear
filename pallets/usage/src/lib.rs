@@ -404,7 +404,9 @@ pub mod pallet {
                 _ => Err(DispatchError::BadOrigin),
             }?;
 
-            let total_collected = Self::do_rent_collection(payees_list, who.as_ref());
+            let total_collected = Self::do_rent_collection(payees_list.clone(), who.as_ref());
+
+            log::debug!("Collected {} from {:?}", total_collected, payees_list);
 
             if total_collected > 0 {
                 Self::deposit_event(Event::WaitListRentCollected(total_collected));

@@ -91,7 +91,8 @@ impl TestOutcome {
 }
 
 fn check_gas_consistency(params: &Params) -> Result<TestOutcome, DispatchError> {
-    new_test_ext(vec![(ALICE, 1_000_000_000_000_000_u128)]).execute_with(|| {
+    let (mut ext, pool) = with_offchain_ext(vec![(ALICE, 1_000_000_000_000_000_u128)]);
+    ext.execute_with(|| {
         // Initial value in all gas trees is 0
         if <Runtime as pallet_gear::Config>::GasHandler::total_supply() != 0
             || total_gas_in_wait_list() != 0
@@ -131,7 +132,7 @@ fn check_gas_consistency(params: &Params) -> Result<TestOutcome, DispatchError> 
         )
         .map_err(|e| e.error)?;
 
-        run_to_block(2, None);
+        run_to_block_with_ocw(2, pool.clone(), None);
 
         Gear::send_message(
             Origin::signed(ALICE.into()).into(),
@@ -142,7 +143,8 @@ fn check_gas_consistency(params: &Params) -> Result<TestOutcome, DispatchError> 
         )
         .map_err(|e| e.error)?;
 
-        run_to_block(4, None);
+        // Modeling offchain workers being run every certain number of blocks
+        run_to_block_with_ocw(50, pool.clone(), None);
 
         log::debug!(
             "Gas held by waitlisted messages: {:?}",
