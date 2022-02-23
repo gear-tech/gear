@@ -7,12 +7,10 @@ use core::{
     task::{Context, RawWaker, RawWakerVTable, Waker},
 };
 use gstd::lock::rwlock::RwLock;
-use gstd::{exec, msg, prelude::*, ActorId};
+use gstd::{msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
 static RWLOCK: RwLock<u32> = RwLock::new(0);
-
-const GAS_LIMIT: u64 = 1_000_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
@@ -34,22 +32,17 @@ async fn main() {
             *val += 1;
         }
         "ping&get" => {
-            let _ =
-                msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
-                    .await
-                    .expect("Error in async message processing");
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
+                .await
+                .expect("Error in async message processing");
             msg::reply(*RWLOCK.read().await, 0);
         }
         "inc&ping" => {
             let mut val = RWLOCK.write().await;
             *val += 1;
-            let _ = msg::send_bytes_and_wait_for_reply(
-                unsafe { PING_DEST },
-                b"PING",
-                0,
-            )
-            .await
-            .expect("Error in async message processing");
+            let _ = msg::send_bytes_and_wait_for_reply(unsafe { PING_DEST }, b"PING", 0)
+                .await
+                .expect("Error in async message processing");
         }
         "get&ping" => {
             let val = RWLOCK.read().await;

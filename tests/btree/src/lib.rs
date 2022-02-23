@@ -66,7 +66,7 @@ mod wasm {
             }
         };
 
-        msg::reply(reply, 1_000_000, 0);
+        msg::reply(reply, 0);
     }
 
     fn state() -> &'static mut BTreeMap<u32, u32> {
@@ -89,7 +89,7 @@ mod wasm {
     #[no_mangle]
     pub unsafe extern "C" fn init() {
         STATE = Some(BTreeMap::new());
-        msg::reply((), 0, 0);
+        msg::reply((), 0);
     }
 }
 

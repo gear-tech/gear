@@ -75,10 +75,8 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 use codec::Decode;
 use core::iter::{Cycle, Iterator};
-use gstd::{exec, msg, prelude::*};
+use gstd::{msg, prelude::*};
 use scale_info::TypeInfo;
-
-const GAS_SPENT: u64 = 100_000_000;
 
 static mut HANDLERS: Vec<Vec<Reply>> = vec![];
 static mut HANDLER_MAP: BTreeMap<Payload, HandlerIterator> = BTreeMap::new();
@@ -175,12 +173,7 @@ pub unsafe extern "C" fn init() {
     let maybe_handlers: Result<Vec<Handler>, _> = msg::load();
 
     maybe_handlers
-        .map_err(|_| {
-            msg::reply(
-                b"bot; failed to decode `Vec<Handler>`",
-                0,
-            )
-        })
+        .map_err(|_| msg::reply(b"bot; failed to decode `Vec<Handler>`", 0))
         .map(|v| {
             HANDLERS.reserve(v.len());
             v

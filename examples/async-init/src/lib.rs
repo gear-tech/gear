@@ -20,8 +20,6 @@ static mut APPROVER_FIRST: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_SECOND: ActorId = ActorId::new([0u8; 32]);
 static mut APPROVER_THIRD: ActorId = ActorId::new([0u8; 32]);
 
-const GAS_LIMIT: u64 = 110_000_000;
-
 #[derive(Debug, Decode, TypeInfo)]
 pub struct InputArgs {
     pub approver_first: ActorId,

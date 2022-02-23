@@ -55,10 +55,7 @@
 //! // Send a reply after the block timestamp reaches the February 22, 2022
 //! pub unsafe extern "C" fn handle() {
 //!     if exec::block_timestamp() >= 1645488000000 {
-//!         msg::reply(
-//!             b"The current block is generated after February 22, 2022",
-//!             0,
-//!         );
+//!         msg::reply(b"The current block is generated after February 22, 2022", 0);
 //!     }
 //! }
 //! ```

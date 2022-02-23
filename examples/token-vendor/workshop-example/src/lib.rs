@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{debug, exec, msg, prelude::*, ActorId};
+use gstd::{debug, msg, prelude::*, ActorId};
 
 gstd::metadata! {
     title: "Gear Workshop Contract Example",
@@ -28,7 +28,6 @@ impl State {
 }
 
 static mut STATE: State = State { user_id: None };
-const GAS_RESERVE: u64 = 20_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {

@@ -3,8 +3,6 @@
 use core::num::ParseIntError;
 use gstd::{debug, msg, prelude::*, ActorId};
 
-const GAS_LIMIT: u64 = 1_000_000_000;
-
 static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
 
 #[gstd::async_main]

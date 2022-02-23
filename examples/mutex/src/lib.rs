@@ -2,12 +2,10 @@
 
 use core::num::ParseIntError;
 use gstd::lock::mutex::Mutex;
-use gstd::{exec, msg, prelude::*, ActorId};
+use gstd::{msg, prelude::*, ActorId};
 
 static mut PING_DEST: ActorId = ActorId::new([0u8; 32]);
 static MUTEX: Mutex<u32> = Mutex::new(0);
-
-const GAS_LIMIT: u64 = 60_000_000;
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {

@@ -5,11 +5,9 @@
 #![feature(const_btree_new)]
 
 use codec::{Decode, Encode};
-use gstd::{debug, exec, msg, prelude::*, ActorId};
+use gstd::{debug, msg, prelude::*, ActorId};
 use primitive_types::H256;
 use scale_info::TypeInfo;
-
-const GAS_RESERVE: u64 = 500_000_000;
 
 #[derive(Debug)]
 struct FungibleToken {
@@ -76,10 +74,7 @@ impl FungibleToken {
             to: H256::from_slice(account.as_ref()),
             amount,
         };
-        msg::reply(
-            Event::Transfer(transfer_data),
-            0,
-        );
+        msg::reply(Event::Transfer(transfer_data), 0);
     }
     fn burn(&mut self, account: &ActorId, amount: u128) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
@@ -96,10 +91,7 @@ impl FungibleToken {
             to: H256::zero(),
             amount,
         };
-        msg::reply(
-            Event::Transfer(transfer_data),
-            0,
-        );
+        msg::reply(Event::Transfer(transfer_data), 0);
     }
     fn transfer(&mut self, sender: &ActorId, recipient: &ActorId, amount: u128) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
@@ -121,10 +113,7 @@ impl FungibleToken {
             to: H256::from_slice(recipient.as_ref()),
             amount,
         };
-        msg::reply(
-            Event::Transfer(transfer_data),
-            0,
-        );
+        msg::reply(Event::Transfer(transfer_data), 0);
     }
     fn approve(&mut self, owner: &ActorId, spender: &ActorId, amount: u128) {
         let zero = ActorId::new(H256::zero().to_fixed_bytes());
@@ -144,10 +133,7 @@ impl FungibleToken {
             spender: H256::from_slice(spender.as_ref()),
             amount,
         };
-        msg::reply(
-            Event::Approval(approve_data),
-            0,
-        );
+        msg::reply(Event::Approval(approve_data), 0);
     }
     fn get_allowance(&self, owner: &ActorId, spender: &ActorId) -> u128 {
         *self

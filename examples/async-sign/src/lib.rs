@@ -12,8 +12,6 @@ use sp_core::{
 static mut SIGNATORY: ActorId = ActorId::new([0u8; 32]);
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 
-const GAS_LIMIT: u64 = 1_000_000_000;
-
 #[derive(Debug, Encode, TypeInfo)]
 struct SignRequest {
     message: Vec<u8>,

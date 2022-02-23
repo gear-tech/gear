@@ -275,7 +275,6 @@ pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
 /// # Panics
 ///
 /// Panics if called in a context other than `handle_reply()`.
-///
 pub fn reply_to() -> MessageId {
     gcore::msg::reply_to().into()
 }

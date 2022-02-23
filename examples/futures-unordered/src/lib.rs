@@ -8,8 +8,6 @@ use gstd::{debug, msg, prelude::*, ActorId};
 static mut DEMO_ASYNC: ActorId = ActorId::new([0u8; 32]);
 static mut DEMO_PING: ActorId = ActorId::new([0u8; 32]);
 
-const GAS_LIMIT: u64 = 5_000_000_000;
-
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     let input = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
@@ -38,11 +36,7 @@ async fn main() {
             debug!("UNORDERED: Before any sending");
 
             let requests = vec![
-                msg::send_bytes_and_wait_for_reply(
-                    unsafe { DEMO_ASYNC },
-                    "START",
-                    0,
-                ),
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0),
                 msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0),
             ];
 
@@ -92,11 +86,7 @@ async fn main() {
             debug!("JOIN: Before any sending");
 
             let res = join!(
-                msg::send_bytes_and_wait_for_reply(
-                    unsafe { DEMO_ASYNC },
-                    "START",
-                    0
-                ),
+                msg::send_bytes_and_wait_for_reply(unsafe { DEMO_ASYNC }, "START", 0),
                 msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, "PING", 0)
             );
 

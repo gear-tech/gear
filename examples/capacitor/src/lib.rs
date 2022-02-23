@@ -22,11 +22,7 @@ pub unsafe extern "C" fn handle() {
     if CHARGE >= LIMIT {
         debug!("Discharge #{} due to limit {}", CHARGE, LIMIT);
 
-        msg::send_bytes(
-            msg::source(),
-            format!("Discharged: {}", CHARGE),
-            0,
-        );
+        msg::send_bytes(msg::source(), format!("Discharged: {}", CHARGE), 0);
         DISCHARGE_HISTORY.push(CHARGE);
         CHARGE = 0;
     }

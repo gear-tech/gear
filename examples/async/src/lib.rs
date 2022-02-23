@@ -1,7 +1,7 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{exec, msg, prelude::*, ActorId};
+use gstd::{msg, prelude::*, ActorId};
 
 static mut DEST_0: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_1: ActorId = ActorId::new([0u8; 32]);

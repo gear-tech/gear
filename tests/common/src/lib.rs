@@ -102,7 +102,7 @@ impl InitProgram {
                 source: self.source_id.unwrap_or_else(ProgramId::system),
                 dest: new_program_id,
                 payload: message.payload.into(),
-                gas_limit: message.gas_limit,
+                gas_limit: Some(message.gas_limit),
                 value: message.value,
                 reply: None,
             },
@@ -203,7 +203,7 @@ impl MessageDispatchBuilder {
             source: self.source.unwrap_or_else(ProgramId::system),
             dest: self.destination.unwrap_or_else(|| 1.into()),
             payload: ext_message.payload.into(),
-            gas_limit: ext_message.gas_limit,
+            gas_limit: Some(ext_message.gas_limit),
             value: ext_message.value,
             reply: None,
         }

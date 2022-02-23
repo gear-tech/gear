@@ -52,10 +52,10 @@ mod wasm {
     fn process_request(request: Request) {
         match request {
             Request::SendOnce => {
-                msg::send(ActorId::from(0), "SendOnce", 0, 0);
+                msg::send(ActorId::from(0), "SendOnce", 0);
             }
             Request::SendInf => loop {
-                msg::send(ActorId::from(0), "SendInf", 0, 0);
+                msg::send(ActorId::from(0), "SendInf", 0);
             },
             Request::SendPushAfterCommit => unsafe {
                 let handle = gear_sys::gr_send_init();
@@ -71,14 +71,14 @@ mod wasm {
                 gear_sys::gr_send_push(handle, data.as_ptr(), data.len() as u32);
             },
             Request::ReplyOnce => {
-                msg::reply("ReplyOnce", 0, 0);
+                msg::reply("ReplyOnce", 0);
             }
             Request::ReplyTwice => {
-                msg::reply("ReplyTwice1", 0, 0);
-                msg::reply("ReplyTwice2", 0, 0);
+                msg::reply("ReplyTwice1", 0);
+                msg::reply("ReplyTwice2", 0);
             }
             Request::ReplyPushAfterReply => {
-                msg::reply("ReplyPushAfterReply1", 0, 0);
+                msg::reply("ReplyPushAfterReply1", 0);
                 msg::reply_push("ReplyPushAfterReply2");
             }
         }
@@ -86,7 +86,7 @@ mod wasm {
 
     #[no_mangle]
     pub extern "C" fn init() {
-        msg::reply((), 0, 0);
+        msg::reply((), 0);
     }
 
     #[no_mangle]

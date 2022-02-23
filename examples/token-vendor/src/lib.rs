@@ -3,14 +3,12 @@
 
 extern crate alloc;
 
-use gstd::{debug, exec, msg, prelude::*, ActorId};
+use gstd::{debug, msg, prelude::*, ActorId};
 
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 use primitive_types::H256;
 use scale_info::TypeInfo;
-
-const GAS_RESERVE: u64 = 50_000_000;
 
 struct State {
     owner_id: Option<ActorId>,
@@ -162,13 +160,10 @@ async fn main() {
 
             let id = ActorId::new(hex.to_fixed_bytes());
 
-            let response = msg::send_bytes_and_wait_for_reply(
-                id,
-                &String::from("ping").encode(),
-                0,
-            )
-            .await
-            .expect("Error in async message processing");
+            let response =
+                msg::send_bytes_and_wait_for_reply(id, &String::from("ping").encode(), 0)
+                    .await
+                    .expect("Error in async message processing");
 
             let ping = String::decode(&mut response.as_ref())
                 .expect("Failed to decode string from pong-response");
@@ -176,13 +171,10 @@ async fn main() {
             debug!("Got ping-reply: '{}'", ping);
 
             if ping.to_lowercase() == "pong" {
-                let response = msg::send_bytes_and_wait_for_reply(
-                    id,
-                    &String::from("success").encode(),
-                    0,
-                )
-                .await
-                .expect("Error in async message processing");
+                let response =
+                    msg::send_bytes_and_wait_for_reply(id, &String::from("success").encode(), 0)
+                        .await
+                        .expect("Error in async message processing");
 
                 let success = String::decode(&mut response.as_ref())
                     .expect("Failed to decode string from MemberID-response");
@@ -198,9 +190,7 @@ async fn main() {
                         member_id, source
                     );
 
-                    msg::reply("Success", unsafe {
-                        STATE.reward
-                    });
+                    msg::reply("Success", unsafe { STATE.reward });
 
                     unsafe { STATE.members.remove(&member_id) };
                 }

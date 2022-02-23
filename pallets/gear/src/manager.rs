@@ -377,7 +377,8 @@ where
 
         if common::program_exists(dispatch.message.dest) {
             if let Some(gas_limit) = gas_limit {
-                let _ = T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+                let _ =
+                    T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
             } else {
                 let _ = T::GasHandler::split(message_id, *dispatch.message_id());
             }
