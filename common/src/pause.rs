@@ -24,12 +24,12 @@ struct PausedProgram {
     program_id: H256,
     program: ActiveProgram,
     pages_hash: H256,
-    wait_list: Vec<Dispatch>,
+    wait_list: Vec<QueuedDispatch>,
     waiting_init: Vec<H256>,
 }
 
-fn decode_dispatch_tuple(_: &[u8], value: &[u8]) -> Result<(Dispatch, u32), codec::Error> {
-    <(Dispatch, u32)>::decode(&mut &*value)
+fn decode_dispatch_tuple(_: &[u8], value: &[u8]) -> Result<(QueuedDispatch, u32), codec::Error> {
+    <(QueuedDispatch, u32)>::decode(&mut &*value)
 }
 
 fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
