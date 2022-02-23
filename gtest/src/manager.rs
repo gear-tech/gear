@@ -203,7 +203,6 @@ impl ExtManager {
                                     program_id,
                                     message.source(),
                                     payload.into(),
-                                    message.gas_limit(),
                                     0,
                                     message.id(),
                                     0,
@@ -236,7 +235,6 @@ impl ExtManager {
                                 program_id,
                                 message.source(),
                                 Default::default(),
-                                message.gas_limit(),
                                 0,
                                 message.id(),
                                 1,
@@ -341,8 +339,12 @@ impl JournalHandler for ExtManager {
         }
     }
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
-        let Dispatch { message, .. } = dispatch;
+        let Dispatch { mut message, .. } = dispatch;
         if self.actors.contains_key(&message.dest()) {
+            // imbuing gas-less messages with maximum gas!
+            if message.gas_limit.is_none() {
+                message.gas_limit = Some(u64::max_value());
+            }
             self.message_queue.push_back(message);
         } else {
             self.mailbox

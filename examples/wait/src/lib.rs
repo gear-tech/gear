@@ -29,7 +29,7 @@ pub unsafe extern "C" fn handle() {
             exec::wake(MSG_ID_2);
         }
         _ => {
-            msg::send(msg::source(), b"WAITED", 1_000_000, 0);
+            msg::send(msg::source(), b"WAITED", 0);
         }
     }
 }

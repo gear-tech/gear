@@ -102,7 +102,7 @@ impl InitProgram {
                 source: self.source_id.unwrap_or_else(ProgramId::system),
                 dest: new_program_id,
                 payload: message.payload.into(),
-                gas_limit: message.gas_limit,
+                gas_limit: Some(message.gas_limit),
                 value: message.value,
                 reply: None,
             },
@@ -203,7 +203,7 @@ impl MessageDispatchBuilder {
             source: self.source.unwrap_or_else(ProgramId::system),
             dest: self.destination.unwrap_or_else(|| 1.into()),
             payload: ext_message.payload.into(),
-            gas_limit: ext_message.gas_limit,
+            gas_limit: Some(ext_message.gas_limit),
             value: ext_message.value,
             reply: None,
         }
@@ -291,7 +291,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn message_consumed(&mut self, _message_id: MessageId) {}
 
-    fn send_dispatch(&mut self, _origin: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _origin: MessageId, mut dispatch: Dispatch) {
         match dispatch.message.reply {
             Some((message_id, 0)) => {
                 self.context.outcomes.insert(message_id, RunResult::Normal);
@@ -305,6 +305,11 @@ impl<'a> JournalHandler for Journal<'a> {
         }
 
         if self.context.actors.contains_key(&dispatch.message.dest) {
+            // imbuing gas-less messages
+            if dispatch.message.gas_limit().is_none() {
+                dispatch.message.gas_limit = Some(u64::max_value());
+            }
+
             self.context.dispatch_queue.push(dispatch);
         } else {
             self.context.log.push(dispatch.message);
