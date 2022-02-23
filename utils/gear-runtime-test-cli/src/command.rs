@@ -149,7 +149,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     pallet_gear_debug::DebugMode::<Runtime>::put(true);
 
     // Find out future program ids
-    let mut programs: BTreeMap<ProgramId, H256> = test
+    let programs: BTreeMap<ProgramId, H256> = test
         .programs
         .iter()
         .map(|program| {
@@ -271,20 +271,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
 
             process_queue(&mut snapshots, &mut mailbox);
-
-            // After processing queue some new programs could be created, so we
-            // search for them
-            for snapshot_program in &snapshots.last().unwrap().programs {
-                if programs.iter().any(|(_, v)| v == &snapshot_program.id) {
-                    continue;
-                } else {
-                    // A new program was created
-                    programs.insert(
-                        ProgramId::from_origin(snapshot_program.id),
-                        snapshot_program.id,
-                    );
-                }
-            }
 
             for exp in &fixture.expected {
                 let snapshot: DebugData = if let Some(step) = exp.step {
