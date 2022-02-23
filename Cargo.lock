@@ -4372,6 +4372,7 @@ dependencies = [
  "tests-exit-handle",
  "tests-exit-init",
  "tests-init-wait",
+ "tests-program-factory",
  "wabt",
 ]
 
@@ -7697,6 +7698,18 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "gstd",
+ "parity-scale-codec",
+ "tests-common",
+]
+
+[[package]]
+name = "tests-program-factory"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal",
  "parity-scale-codec",
  "tests-common",
 ]

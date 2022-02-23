@@ -118,6 +118,8 @@ pub struct Program {
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Message nonce
     message_nonce: u64,
+    /// Program is initialized
+    is_initialized: bool,
 }
 
 impl Program {
@@ -146,6 +148,7 @@ impl Program {
             static_pages,
             persistent_pages: Default::default(),
             message_nonce: 0,
+            is_initialized: false,
         })
     }
 
@@ -156,6 +159,7 @@ impl Program {
         static_pages: u32,
         message_nonce: u64,
         persistent_pages_numbers: BTreeSet<u32>,
+        is_initialized: bool,
     ) -> Self {
         Self {
             id,
@@ -166,6 +170,7 @@ impl Program {
                 .map(|k| (k.into(), None))
                 .collect(),
             message_nonce,
+            is_initialized,
         }
     }
 
@@ -182,6 +187,19 @@ impl Program {
     /// Get initial memory size for this program.
     pub fn static_pages(&self) -> u32 {
         self.static_pages
+    }
+
+    /// Get whether program is initialized
+    ///
+    /// By default the [`Program`] is not initialized. The initialized status
+    /// is set from the node.
+    pub fn is_initialized(&self) -> bool {
+        self.is_initialized
+    }
+
+    /// Set program initialized
+    pub fn set_initialized(&mut self) {
+        self.is_initialized = true;
     }
 
     /// Set the code of this program.

@@ -27,7 +27,7 @@ use gear_backend_common::Environment;
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, ExitCode, Message},
     program::ProgramId,
 };
 
@@ -38,7 +38,10 @@ pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environmen
     block_info: BlockInfo,
     existential_deposit: u128,
 ) -> Vec<JournalNote> {
-    if let Some(actor) = actor {
+    if let Some(exit_code) = is_non_executable(actor.as_ref(), &dispatch) {
+        process_non_executable(dispatch, exit_code)
+    } else {
+        let actor = actor.expect("message is not executed if actor is none");
         let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
         let initial_nonce = actor.program.message_nonce();
 
@@ -56,8 +59,6 @@ pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environmen
                 Some(e.reason),
             ),
         }
-    } else {
-        process_non_executable(dispatch)
     }
 }
 
@@ -105,6 +106,14 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     }
 
     journal
+}
+
+fn is_non_executable(actor: Option<&ExecutableActor>, dispatch: &Dispatch) -> Option<ExitCode> {
+    match actor.map(|a| a.program.is_initialized()) {
+        Some(true) if matches!(dispatch.kind, DispatchKind::Init) => Some(crate::RE_INIT_EXIT_CODE),
+        None => Some(crate::UNAVAILABLE_DEST_EXIT_CODE),
+        _ => None,
+    }
 }
 
 /// Helper function for journal creation in trap/error case
@@ -190,7 +199,15 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
         });
     }
 
-    for dispatch in res.outgoing {
+    // Must be handled before handling generated dispatches.
+    for (code_hash, candidates) in res.program_candidates_data {
+        journal.push(JournalNote::StoreNewPrograms {
+            code_hash,
+            candidates,
+        });
+    }
+
+    for dispatch in res.generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
@@ -251,7 +268,7 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
 }
 
 /// Helper function for journal creation in message no execution case
-fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
+fn process_non_executable(dispatch: Dispatch, exit_code: ExitCode) -> Vec<JournalNote> {
     // Number of notes is predetermined
     let mut journal = Vec::with_capacity(4);
 
@@ -278,7 +295,7 @@ fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
         // Error reply value must be 0!
         0,
         message_id,
-        crate::TERMINATED_DEST_EXIT_CODE,
+        exit_code,
     );
     journal.push(JournalNote::SendDispatch {
         message_id,

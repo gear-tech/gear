@@ -149,17 +149,17 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     pallet_gear_debug::DebugMode::<Runtime>::put(true);
 
     // Find out future program ids
-    let programs: BTreeMap<ProgramId, H256> = test
+    let mut programs: BTreeMap<ProgramId, H256> = test
         .programs
         .iter()
         .map(|program| {
             let program_path = program.path.clone();
             let code = std::fs::read(&program_path).unwrap();
+            let code_hash: H256 = sp_io::hashing::blake2_256(&code).into();
 
             let salt = program.id.to_program_id().as_slice().to_vec();
             let mut data = Vec::new();
-            // TODO #512
-            code.encode_to(&mut data);
+            code_hash.encode_to(&mut data);
             salt.encode_to(&mut data);
 
             let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
@@ -272,6 +272,20 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
             process_queue(&mut snapshots, &mut mailbox);
 
+            // After processing queue some new programs could be created, so we
+            // search for them
+            for snapshot_program in &snapshots.last().unwrap().programs {
+                if programs.iter().any(|(_, v)| v == &snapshot_program.id) {
+                    continue;
+                } else {
+                    // A new program was created
+                    programs.insert(
+                        ProgramId::from_origin(snapshot_program.id),
+                        snapshot_program.id,
+                    );
+                }
+            }
+
             for exp in &fixture.expected {
                 let snapshot: DebugData = if let Some(step) = exp.step {
                     if snapshots.len() < (step + test.programs.len()) {
@@ -330,6 +344,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                                 p.static_pages,
                                 p.nonce,
                                 p.persistent_pages.keys().cloned().collect(),
+                                true,
                             ))
                         } else {
                             None

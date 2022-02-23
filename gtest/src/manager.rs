@@ -25,7 +25,7 @@ use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    program::{CodeHash, Program as CoreProgram, ProgramId},
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -408,5 +408,13 @@ impl JournalHandler for ExtManager {
                 *balance += value;
             };
         }
+    }
+
+    fn store_new_programs(
+        &mut self,
+        _code_hash: CodeHash,
+        _candidates: Vec<(ProgramId, MessageId)>,
+    ) {
+        // TODO #714
     }
 }

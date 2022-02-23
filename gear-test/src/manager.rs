@@ -202,4 +202,12 @@ impl JournalHandler for InMemoryExtManager {
             };
         };
     }
+
+    fn store_new_programs(
+        &mut self,
+        _code_hash: gear_core::program::CodeHash,
+        _candidates: Vec<(ProgramId, MessageId)>,
+    ) {
+        // todo next pr
+    }
 }

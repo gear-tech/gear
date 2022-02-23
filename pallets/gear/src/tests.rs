@@ -23,6 +23,7 @@ use frame_system::Pallet as SystemPallet;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 use tests_distributor::{Request, WASM_BINARY};
+use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
 use super::{
     manager::HandleKind,
@@ -1600,6 +1601,455 @@ fn exit_init() {
 }
 
 #[test]
+fn test_create_program_no_code_hash() {
+    let non_constructable_wat = r#"
+    (module)
+    "#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let factory_code = PROGRAM_FACTORY_WASM_BINARY;
+        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+
+        let valid_code_hash =
+            sp_io::hashing::blake2_256(ProgramCodeKind::Default.to_bytes().as_slice());
+        let invalid_prog_code_kind = ProgramCodeKind::Custom(non_constructable_wat);
+        let invalid_prog_code_hash =
+            sp_io::hashing::blake2_256(invalid_prog_code_kind.to_bytes().as_slice());
+
+        // Creating factory
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_2).into(),
+            factory_code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        // Try to create a program with non existing code hash
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Default.encode(),
+            70_000_000,
+            0,
+        ));
+        run_to_block(2, None);
+
+        // Init and dispatch messages from the contract are dequeued, but not executed
+        // 2 error replies are generated, and executed
+        check_dequeued(4 + 2); // +2 for submit_program/send_messages
+        check_dispatched(2 + 1); // +1 for send_messages
+        check_init_success(1); // 1 for submitting factory
+
+        SystemPallet::<Test>::reset_events();
+
+        // Try to create multiple programs with non existing code hash
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                (valid_code_hash, b"salt1".to_vec(), 10_000),
+                (valid_code_hash, b"salt2".to_vec(), 10_000),
+                (valid_code_hash, b"salt3".to_vec(), 10_000),
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(3, None);
+        // Init and dispatch messages from the contract are dequeued, but not executed
+        // 2 error replies are generated, and executed
+        check_dequeued(12 + 1); // +1 for send_message
+        check_dispatched(6 + 1); // +1 for send_message
+        check_init_success(0);
+
+        assert_noop!(
+            GearPallet::<Test>::submit_code(
+                Origin::signed(USER_1).into(),
+                invalid_prog_code_kind.to_bytes(),
+            ),
+            Error::<Test>::FailedToConstructProgram,
+        );
+
+        SystemPallet::<Test>::reset_events();
+
+        // Try to create with invalid code hash
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                (invalid_prog_code_hash, b"salt1".to_vec(), 10_000),
+                (invalid_prog_code_hash, b"salt2".to_vec(), 10_000),
+                (invalid_prog_code_hash, b"salt3".to_vec(), 10_000),
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(4, None);
+
+        // Init and dispatch messages from the contract are dequeued, but not executed
+        // 2 error replies are generated, and executed
+        check_dequeued(12 + 1); // +1 for send_message
+        check_dispatched(6 + 1); // +1 for send_message
+        check_init_success(0);
+    });
+}
+
+#[test]
+fn test_create_program_simple() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let factory_code = PROGRAM_FACTORY_WASM_BINARY;
+        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+        let child_code = ProgramCodeKind::Default.to_bytes();
+        let child_code_hash = sp_io::hashing::blake2_256(child_code.as_slice());
+
+        // Submit the code
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1).into(),
+            child_code.clone(),
+        ));
+
+        // Creating factory
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_2).into(),
+            factory_code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+        run_to_block(2, None);
+
+        // Test create one successful in init program
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Default.encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(3, None);
+
+        // Test create one failing in init program
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(
+                vec![(child_code_hash, b"some_data".to_vec(), 3000)] // too little gas
+            )
+            .encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(4, None);
+
+        // First extrinsic call with successful program creation dequeues and executes init and dispatch messages
+        // Second extrinsic is failing one, for each message it generates replies, which are executed (4 dequeued, 2 dispatched)
+        check_dequeued(6 + 3); // +3 for extrinsics
+        check_dispatched(3 + 2); // +2 for extrinsics
+        check_init_success(1 + 1); // +1 for submitting factory
+
+        SystemPallet::<Test>::reset_events();
+
+        // Create multiple successful init programs
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                (child_code_hash, b"salt1".to_vec(), 10_000),
+                (child_code_hash, b"salt2".to_vec(), 10_000),
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(5, None);
+
+        // Create multiple successful init programs
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                (child_code_hash, b"salt3".to_vec(), 3000), // too little gas
+                (child_code_hash, b"salt4".to_vec(), 3000), // too little gas
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(6, None);
+
+        check_dequeued(12 + 2); // +2 for extrinsics
+        check_dispatched(6 + 2); // +2 for extrinsics
+        check_init_success(2);
+    })
+}
+
+#[test]
+fn test_create_program_duplicate() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let factory_code = PROGRAM_FACTORY_WASM_BINARY;
+        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+        let child_code = ProgramCodeKind::Default.to_bytes();
+        let child_code_hash = sp_io::hashing::blake2_256(child_code.as_slice());
+
+        // Submit the code
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_1).into(),
+            child_code.clone(),
+        ));
+
+        // Creating factory
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_2).into(),
+            factory_code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+        run_to_block(2, None);
+
+        // User creates a program
+        assert_ok!(submit_program_default(USER_1, ProgramCodeKind::Default));
+        run_to_block(3, None);
+
+        // Program tries to create the same
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![(child_code_hash, DEFAULT_SALT.to_vec(), 100_000),])
+                .encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(4, None);
+
+        // When duplicate try happens, init is not executed, a reply is generated and executed (+2 dequeued, +1 dispatched)
+        // Concerning dispatch message, it is executed, because destination exists (+1 dispatched, +1 dequeued)
+        check_dequeued(3 + 3); // +3 from extrinsics (2 submit_program, 1 send_message)
+        check_dispatched(2 + 1); // +1 from extrinsic (send_message)
+        check_init_success(2); // +2 from extrinsics (2 submit_program)
+
+        SystemPallet::<Test>::reset_events();
+
+        // Create a new program from program
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(5, None);
+
+        // Try to create the same
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_2).into(),
+            factory_id,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
+            99_000_000,
+            0,
+        ));
+        run_to_block(6, None);
+
+        // First call successfully creates a program and sends a messages to it (+2 dequeued, +1 dispatched)
+        // Second call will not cause init message execution, but a reply will be generated (+2 dequeued, +1 dispatched)
+        // Handle message from the second call will be executed (addressed for existing destination) (+1 dequeued, +1 dispatched)
+        check_dequeued(5 + 2); // +2 from extrinsics (send_message)
+        check_dispatched(3 + 2); // +2 from extrinsics (send_message)
+        check_init_success(1);
+
+        assert_noop!(
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_1).into(),
+                child_code,
+                b"salt1".to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                10_000_000,
+                0,
+            ),
+            Error::<Test>::ProgramAlreadyExists,
+        );
+    });
+}
+
+#[test]
+fn test_create_program_duplicate_in_one_execution() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let factory_code = PROGRAM_FACTORY_WASM_BINARY;
+        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+
+        let child_code = ProgramCodeKind::Default.to_bytes();
+        let child_code_hash = sp_io::hashing::blake2_256(&child_code);
+
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_2),
+            child_code,
+        ));
+
+        // Creating factory
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_2).into(),
+            factory_code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+        run_to_block(2, None);
+
+        // Try to create duplicate during one execution
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                (child_code_hash, b"salt1".to_vec(), 10_000), // could be successful init
+                (child_code_hash, b"salt1".to_vec(), 10_000), // duplicate
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+        assert!(!Mailbox::<Test>::contains_key(USER_1));
+
+        run_to_block(3, None);
+
+        // Duplicate init fails the call and returns error reply to the caller, which is USER_1.
+        // State roll-back is performed.
+        check_dequeued(2); // 2 for extrinsics
+        check_dispatched(1); // 1 for send_message
+        check_init_success(1); // 1 for creating a factory
+
+        assert!(Mailbox::<Test>::contains_key(USER_1));
+
+        SystemPallet::<Test>::reset_events();
+
+        // Successful child creation
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
+            99_000_000,
+            0,
+        ));
+
+        run_to_block(4, None);
+
+        check_dequeued(2 + 1); // 1 for extrinsics
+        check_dispatched(1 + 1); // 1 for send_message
+        check_init_success(1);
+    });
+}
+
+#[test]
+fn test_create_program_miscellaneous() {
+    // Same as ProgramCodeKind::Default, but has a different hash (init and handle method are swapped)
+    // So code hash is different
+    let child2_wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (export "handle" (func $handle))
+        (export "init" (func $init))
+        (func $init)
+        (func $handle)
+    )
+    "#;
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let factory_code = PROGRAM_FACTORY_WASM_BINARY;
+        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+
+        let child1_code = ProgramCodeKind::Default.to_bytes();
+        let child2_code = ProgramCodeKind::Custom(child2_wat).to_bytes();
+
+        let child1_code_hash = sp_io::hashing::blake2_256(&child1_code);
+        let child2_code_hash = sp_io::hashing::blake2_256(&child2_code);
+
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_2),
+            child1_code,
+        ));
+        assert_ok!(GearPallet::<Test>::submit_code(
+            Origin::signed(USER_2),
+            child2_code,
+        ));
+
+        // Creating factory
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_2).into(),
+            factory_code.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        run_to_block(2, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
+                (child1_code_hash, b"salt1".to_vec(), 10_000),
+                // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
+                // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
+                (child1_code_hash, b"salt2".to_vec(), 1000),
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+
+        run_to_block(3, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
+                // handle message is processed, but not executed, reply generated (+2 dequeued, +1 dispatched)
+                (child2_code_hash, b"salt1".to_vec(), 3000),
+                // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
+                (child2_code_hash, b"salt2".to_vec(), 10_000),
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+
+        run_to_block(4, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_2).into(),
+            factory_id,
+            CreateProgram::Custom(vec![
+                // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
+                (child2_code_hash, b"salt1".to_vec(), 10_000),
+                // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
+                (child2_code_hash, b"salt3".to_vec(), 10_000),
+            ])
+            .encode(),
+            99_000_000,
+            0,
+        ));
+
+        run_to_block(5, None);
+
+        check_dequeued(18 + 4); // +4 for 3 send_message calls and 1 submit_program call
+        check_dispatched(9 + 3); // +3 for send_message calls
+        check_init_success(3 + 1); // +1 for submitting factory
+    });
+}
+
+#[test]
 fn exit_handle() {
     use tests_exit_handle::WASM_BINARY;
 
@@ -1688,6 +2138,42 @@ mod utils {
             .format_module_path(false)
             .format_level(true)
             .try_init();
+    }
+
+    pub(super) fn check_init_success(expected: u32) {
+        let mut actual_children_amount = 0;
+        SystemPallet::<Test>::events()
+            .iter()
+            .for_each(|e| match e.event {
+                MockEvent::Gear(Event::InitSuccess(_)) => actual_children_amount += 1,
+                _ => {}
+            });
+
+        assert_eq!(expected, actual_children_amount);
+    }
+
+    pub(super) fn check_dequeued(expected: u32) {
+        let mut actual_dequeued = 0;
+        SystemPallet::<Test>::events()
+            .iter()
+            .for_each(|e| match e.event {
+                MockEvent::Gear(Event::MessagesDequeued(num)) => actual_dequeued += num,
+                _ => {}
+            });
+
+        assert_eq!(expected, actual_dequeued);
+    }
+
+    pub(super) fn check_dispatched(expected: u32) {
+        let mut actual_dispatched = 0;
+        SystemPallet::<Test>::events()
+            .iter()
+            .for_each(|e| match e.event {
+                MockEvent::Gear(Event::MessageDispatched(_)) => actual_dispatched += 1,
+                _ => {}
+            });
+
+        assert_eq!(expected, actual_dispatched);
     }
 
     // Creates a new program and puts message from program to `user` in mailbox
@@ -1794,12 +2280,13 @@ mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-        // TODO #512
-        let mut data = Vec::new();
-        code.encode_to(&mut data);
+        let code_hash = sp_io::hashing::blake2_256(code);
+        let mut data = Vec::with_capacity(code_hash.len() + salt.len());
+
+        code_hash.encode_to(&mut data);
         salt.encode_to(&mut data);
 
-        sp_io::hashing::blake2_256(&data[..]).into()
+        sp_io::hashing::blake2_256(&data).into()
     }
 
     pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {

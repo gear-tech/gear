@@ -44,14 +44,13 @@ fn parse_wat(source: &str) -> Vec<u8> {
 }
 
 pub fn program_id(code: &[u8]) -> H256 {
-    let mut data = Vec::new();
-    // TODO #512
-    code.encode_to(&mut data);
-    b"salt".to_vec().encode_to(&mut data);
+    let code_hash = sp_io::hashing::blake2_256(&code);
+    let salt = b"salt".to_vec();
+    let mut data = Vec::with_capacity(code_hash.len() + salt.len());
+    code_hash.encode_to(&mut data);
+    salt.encode_to(&mut data);
 
-    let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
-
-    id
+    sp_io::hashing::blake2_256(&data).into()
 }
 
 #[test]
@@ -136,17 +135,17 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-                        nonce: 0u64,
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                 ],
@@ -211,17 +210,17 @@ fn debug_mode_works() {
                 ],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-                        nonce: 0u64,
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                 ],
@@ -238,17 +237,17 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![
                     crate::ProgramDetails {
-                        id: program_id_1,
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
-                        nonce: 0u64,
-                    },
-                    crate::ProgramDetails {
                         id: program_id_2,
                         static_pages: 16,
                         persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        nonce: 0u64,
+                    },
+                    crate::ProgramDetails {
+                        id: program_id_1,
+                        static_pages: 16,
+                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
                         nonce: 0u64,
                     },
                 ],

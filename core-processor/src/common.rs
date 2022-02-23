@@ -28,7 +28,7 @@ use gear_core::{
     gas::GasAmount,
     memory::PageNumber,
     message::{Dispatch, Message, MessageId},
-    program::{Program, ProgramId},
+    program::{CodeHash, Program, ProgramId},
 };
 
 /// Kind of the dispatch result.
@@ -52,10 +52,13 @@ pub struct DispatchResult {
     /// Original dispatch.
     pub dispatch: Dispatch,
 
-    /// List of generated outgoing messages.
-    pub outgoing: Vec<Dispatch>,
+    /// List of generated from program messages.
+    pub generated_dispatches: Vec<Dispatch>,
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
+
+    /// New programs to be created with additional data (corresponding code hash and init message id).
+    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
 
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
@@ -195,6 +198,13 @@ pub enum JournalNote {
         /// Value amount
         value: u128,
     },
+    /// Store programs requested by user to be initialized later
+    StoreNewPrograms {
+        /// Code hash used to create new programs with ids in `candidates` field
+        code_hash: CodeHash,
+        /// Collection of program candidate ids and their init message ids.
+        candidates: Vec<(ProgramId, MessageId)>,
+    },
 }
 
 /// Journal handler.
@@ -231,6 +241,10 @@ pub trait JournalHandler {
     );
     /// Send value
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
+    /// Store new programs in storage
+    ///
+    /// Program ids are ids of_potential_ (planned to be initialized) programs.
+    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>);
 }
 
 /// Execution error.

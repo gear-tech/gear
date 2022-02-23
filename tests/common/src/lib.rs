@@ -385,6 +385,14 @@ impl<'a> JournalHandler for Journal<'a> {
             };
         };
     }
+
+    fn store_new_programs(
+        &mut self,
+        _code_hash: gear_core::program::CodeHash,
+        _candidates: Vec<(ProgramId, MessageId)>,
+    ) {
+        // TODO next pr
+    }
 }
 
 impl RunnerContext {

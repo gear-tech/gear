@@ -48,6 +48,7 @@ pub trait ProcessorExt {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
+        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self;
 
     /// Try to enable and initialize lazy pages env
@@ -117,6 +118,7 @@ impl ProcessorExt for Ext {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
+        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             gas_counter,
@@ -128,7 +130,7 @@ impl ProcessorExt for Ext {
             existential_deposit,
             error_explanation,
             exit_argument,
-            program_candidates_data: Default::default(), // to be changed
+            program_candidates_data,
         }
     }
 
