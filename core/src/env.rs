@@ -25,7 +25,7 @@ use anyhow::Result;
 use codec::{Decode, Encode};
 
 use crate::memory::PageNumber;
-use crate::message::{ExitCode, MessageId, OutgoingPacket, ReplyPacket};
+use crate::message::{ExitCode, MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket};
 use crate::program::ProgramId;
 
 /// Page access rights.
@@ -143,6 +143,9 @@ pub trait Ext {
 
     /// Wake the waiting message and move it to the processing queue.
     fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str>;
+
+    /// Send init message to create a new program
+    fn create_program(&mut self, packet: ProgramInitPacket) -> Result<ProgramId, &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -293,6 +296,12 @@ mod tests {
         }
         fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
             Ok(())
+        }
+        fn create_program(
+            &mut self,
+            _packet: ProgramInitPacket,
+        ) -> Result<ProgramId, &'static str> {
+            Ok(Default::default())
         }
     }
 

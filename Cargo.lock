@@ -1964,6 +1964,9 @@ dependencies = [
 [[package]]
 name = "gcore"
 version = "0.1.0"
+dependencies = [
+ "hex-literal",
+]
 
 [[package]]
 name = "gear-backend-common"

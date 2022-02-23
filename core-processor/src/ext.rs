@@ -20,16 +20,18 @@ use crate::{
     configs::{AllocationsConfig, BlockInfo},
     id::BlakeMessageIdGenerator,
 };
-use alloc::vec;
-use alloc::vec::Vec;
-use alloc::{boxed::Box, collections::BTreeMap};
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use codec::Encode;
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
     memory::{MemoryContext, PageBuf, PageNumber},
-    message::{ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
-    program::ProgramId,
+    message::{
+        ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ProgramInitPacket,
+        ReplyPacket,
+    },
+    program::{CodeHash, ProgramId},
 };
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -99,6 +101,9 @@ pub struct Ext {
     pub error_explanation: Option<&'static str>,
     /// Contains argument to the `exit` if it was called.
     pub exit_argument: Option<ProgramId>,
+    /// Map of code hashes to program ids of future programs, which are planned to be
+    /// initialized with the corresponding code (with the same code hash).
+    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -124,6 +129,7 @@ impl ProcessorExt for Ext {
             existential_deposit,
             error_explanation,
             exit_argument,
+            program_candidates_data: Default::default(), // to be changed
         }
     }
 
@@ -162,7 +168,7 @@ impl From<Ext> for ExtInfo {
         let accessed_pages_numbers = ext.memory_context.allocations().clone();
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
-            let mut buf = vec![0u8; PageNumber::size()];
+            let mut buf = alloc::vec![0u8; PageNumber::size()];
             ext.get_mem(page.offset(), &mut buf);
             accessed_pages.insert(page, buf);
         }
@@ -171,6 +177,7 @@ impl From<Ext> for ExtInfo {
 
         let (
             MessageState {
+                init_messages,
                 outgoing,
                 reply,
                 awakening,
@@ -182,10 +189,13 @@ impl From<Ext> for ExtInfo {
 
         let trap_explanation = ext.error_explanation;
 
+        let program_candidates_data = ext.program_candidates_data;
+
         ExtInfo {
             gas_amount,
             pages: ext.memory_context.allocations().clone(),
             accessed_pages,
+            init_messages,
             outgoing,
             reply,
             awakening,
@@ -193,6 +203,7 @@ impl From<Ext> for ExtInfo {
             payload_store: Some(store),
             trap_explanation,
             exit_argument: ext.exit_argument,
+            program_candidates_data,
         }
     }
 }
@@ -442,5 +453,34 @@ impl EnvExt for Ext {
 
     fn get_wasm_memory_begin_addr(&self) -> usize {
         self.memory_context.memory().get_wasm_memory_begin_addr()
+    }
+
+    fn create_program(&mut self, packet: ProgramInitPacket) -> Result<ProgramId, &'static str> {
+        let code_hash = packet.code_hash;
+        let new_program_id = {
+            let mut data = Vec::with_capacity(code_hash.inner().len() + packet.salt.len());
+            code_hash.encode_to(&mut data);
+            packet.salt.encode_to(&mut data);
+            ProgramId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+        };
+
+        let entry = self
+            .program_candidates_data
+            .entry(code_hash)
+            .or_insert(Vec::new());
+
+        if entry.iter().any(|(id, _)| id == &new_program_id) {
+            return self.return_and_store_err(Err("Duplicate init message for the same id"));
+        }
+
+        // Send a message for program creation
+        let (new_prog_id, init_msg_id) = self
+            .message_context
+            .send_init_program(new_program_id, packet);
+
+        // Save a program candidate for this run
+        entry.push((new_prog_id, init_msg_id));
+
+        Ok(new_prog_id)
     }
 }

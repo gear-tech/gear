@@ -18,7 +18,7 @@
 
 //! Message processing module and context.
 
-use crate::program::ProgramId;
+use crate::program::{CodeHash, ProgramId};
 use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 use codec::{Decode, Encode};
 use core::{cell::RefCell, fmt};
@@ -462,6 +462,77 @@ impl Message {
     }
 }
 
+/// Outgoing program initialization message
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+pub struct ProgramInitMessage {
+    /// Message id
+    pub id: MessageId,
+    /// New program id
+    pub new_program_id: ProgramId,
+    /// Payload to init function
+    pub payload: Payload,
+    /// Provided to the message gas limit
+    pub gas_limit: u64,
+    /// Provided to the message value
+    pub value: u128,
+}
+
+impl ProgramInitMessage {
+    /// Converts init message into general `Message`
+    pub fn into_message(self, source: ProgramId) -> Message {
+        let ProgramInitMessage {
+            id,
+            new_program_id,
+            payload,
+            gas_limit,
+            value,
+        } = self;
+        Message {
+            id,
+            source,
+            dest: new_program_id,
+            payload,
+            gas_limit,
+            value,
+            reply: None,
+        }
+    }
+}
+
+/// Program initialization packet
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+pub struct ProgramInitPacket {
+    /// Code hash of a new program
+    pub code_hash: CodeHash,
+    /// Salt used to generate id for a new program
+    pub salt: Vec<u8>,
+    /// Payload to init function
+    pub payload: Payload,
+    /// Provided to the message gas limit
+    pub gas_limit: u64,
+    /// Provided to the message value
+    pub value: u128,
+}
+
+impl ProgramInitPacket {
+    /// Create a new program init packet
+    pub fn new(
+        code_hash: CodeHash,
+        salt: Vec<u8>,
+        payload: Payload,
+        gas_limit: u64,
+        value: u128,
+    ) -> Self {
+        Self {
+            code_hash,
+            salt,
+            payload,
+            gas_limit,
+            value,
+        }
+    }
+}
+
 /// Outgoing message packet.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct OutgoingPacket {
@@ -586,6 +657,31 @@ pub trait MessageIdGenerator {
             exit_code: packet.exit_code,
         }
     }
+
+    /// Build program init message
+    ///
+    /// Message id will be generated
+    fn produce_init(
+        &mut self,
+        new_program_id: ProgramId,
+        packet: ProgramInitPacket,
+    ) -> ProgramInitMessage {
+        let id = self.next();
+        let ProgramInitPacket {
+            payload,
+            gas_limit,
+            value,
+            ..
+        } = packet;
+
+        ProgramInitMessage {
+            id,
+            new_program_id,
+            payload,
+            gas_limit,
+            value,
+        }
+    }
 }
 
 /// Message state of the current session.
@@ -595,6 +691,8 @@ pub trait MessageIdGenerator {
 pub struct MessageState {
     /// Collection of outgoing messages generated.
     pub outgoing: Vec<OutgoingMessage>,
+    /// Collection of init messages for new programs generated.
+    pub init_messages: Vec<ProgramInitMessage>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
     /// Messages to be waken.
@@ -762,12 +860,31 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
         (state, store)
     }
+
+    /// Send a new init program message
+    ///
+    /// Generates a new program id from provided `packet` data and returns it
+    /// along with init message id.
+    pub fn send_init_program(
+        &mut self,
+        new_program_id: ProgramId,
+        packet: ProgramInitPacket,
+    ) -> (ProgramId, MessageId) {
+        let msg = self
+            .id_generator
+            .borrow_mut()
+            .produce_init(new_program_id, packet);
+        let msg_id = msg.id;
+        self.state.borrow_mut().init_messages.push(msg);
+
+        (new_program_id, msg_id)
+    }
 }
 
 /// Dispatch.
 ///
 /// Message plus information of entry point.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Dispatch {
     /// Kind of dispatch.
     pub kind: DispatchKind,
@@ -816,7 +933,7 @@ impl Dispatch {
 }
 
 /// Type of wasm execution entry point.
-#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum DispatchKind {
     /// Initialization.
     Init,

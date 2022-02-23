@@ -60,6 +60,7 @@ impl From<LazyPagesExt> for ExtInfo {
 
         let (
             MessageState {
+                init_messages,
                 outgoing,
                 reply,
                 awakening,
@@ -70,6 +71,8 @@ impl From<LazyPagesExt> for ExtInfo {
         let gas_amount: GasAmount = ext.inner.gas_counter.into();
 
         let trap_explanation = ext.inner.error_explanation;
+
+        let program_candidates_data = ext.inner.program_candidates_data;
 
         ExtInfo {
             gas_amount,
@@ -82,6 +85,8 @@ impl From<LazyPagesExt> for ExtInfo {
             payload_store: Some(store),
             trap_explanation,
             exit_argument: ext.inner.exit_argument,
+            init_messages,
+            program_candidates_data,
         }
     }
 }
@@ -109,6 +114,7 @@ impl ProcessorExt for LazyPagesExt {
                 existential_deposit,
                 error_explanation,
                 exit_argument,
+                program_candidates_data: Default::default(), // to be changed
             },
             lazy_pages_enabled: false,
         }
@@ -316,5 +322,12 @@ impl EnvExt for LazyPagesExt {
 
     fn value_available(&self) -> u128 {
         self.inner.value_available()
+    }
+
+    fn create_program(
+        &mut self,
+        packet: gear_core::message::ProgramInitPacket,
+    ) -> Result<ProgramId, &'static str> {
+        self.inner.create_program(packet)
     }
 }

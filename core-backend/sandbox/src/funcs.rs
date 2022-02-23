@@ -25,7 +25,7 @@ use core::{
 use gear_backend_common::{funcs, ExtInfo, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
-    message::{MessageId, OutgoingPacket, ReplyPacket},
+    message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
@@ -75,7 +75,7 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
     let result = ctx
         .ext
         .with(|ext| {
-            let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
             let message_id =
@@ -102,7 +102,7 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
 
     ctx.ext
         .with(|ext| {
-            let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let value = funcs::get_u128(ext, value_ptr);
             let message_id = ext.send_commit(
                 handle_ptr,
@@ -180,7 +180,7 @@ pub fn exit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
     let _: Result<ReturnValue, HostError> = ctx
         .ext
         .with(|ext: &mut E| {
-            let value_dest: ProgramId = funcs::get_id(ext, value_dest_ptr).into();
+            let value_dest: ProgramId = funcs::get_bytes32(ext, value_dest_ptr).into();
             ext.exit(value_dest)
         })
         .map(|_| Ok(ReturnValue::Unit))
@@ -532,7 +532,7 @@ pub fn wake<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
 
     ctx.ext
         .with(|ext| {
-            let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
+            let waker_id: MessageId = funcs::get_bytes32(ext, waker_id_ptr).into();
             ext.wake(waker_id)
         })
         .map(|_| return_none())
@@ -540,4 +540,44 @@ pub fn wake<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
             ctx.trap = Some(err);
             HostError
         })?
+}
+
+pub fn create_program<E: Ext + Into<ExtInfo>>(
+    ctx: &mut Runtime<E>,
+    args: &[Value],
+) -> Result<ReturnValue, HostError> {
+    let mut args = args.iter();
+
+    let code_hash_ptr = pop_i32(&mut args)?;
+    let salt_ptr = pop_i32(&mut args)?;
+    let salt_len = pop_i32(&mut args)?;
+    let payload_ptr = pop_i32(&mut args)?;
+    let payload_len = pop_i32(&mut args)?;
+    let gas_limit = pop_i64(&mut args)?;
+    let value_ptr = pop_i32(&mut args)?;
+    let program_id_ptr = pop_i32(&mut args)?;
+
+    let result = ctx
+        .ext
+        .with(|ext: &mut E| -> Result<(), &'static str> {
+            let code_hash = funcs::get_bytes32(ext, code_hash_ptr);
+            let salt = funcs::get_vec(ext, salt_ptr, salt_len);
+            let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+            let value = funcs::get_u128(ext, value_ptr);
+            let new_actor_id = ext.create_program(ProgramInitPacket::new(
+                code_hash.into(),
+                salt,
+                payload.into(),
+                gas_limit,
+                value,
+            ))?;
+            ext.set_mem(program_id_ptr, new_actor_id.as_slice());
+            Ok(())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_err| {
+            ctx.trap = Some("Trapping: unable to create program");
+            HostError
+        });
+    result
 }

@@ -285,6 +285,35 @@ impl Program {
     }
 }
 
+/// Blake2b hash of the program code.
+#[derive(Clone, Copy, Debug, Decode, Encode, Ord, PartialOrd, Eq, PartialEq)]
+pub struct CodeHash([u8; 32]);
+
+impl CodeHash {
+    /// Get inner (32 bytes) array representation
+    pub fn inner(&self) -> [u8; 32] {
+        self.0
+    }
+
+    /// Create new `CodeHash` bytes.
+    ///
+    /// Will panic if slice is not 32 bytes length.
+    pub fn from_slice(s: &[u8]) -> Self {
+        if s.len() != 32 {
+            panic!("Slice is not 32 bytes length")
+        };
+        let mut id = CodeHash([0u8; 32]);
+        id.0[..].copy_from_slice(s);
+        id
+    }
+}
+
+impl From<[u8; 32]> for CodeHash {
+    fn from(data: [u8; 32]) -> Self {
+        CodeHash(data)
+    }
+}
+
 #[cfg(test)]
 /// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor

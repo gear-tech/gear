@@ -34,8 +34,8 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     memory::{Memory, PageBuf, PageNumber},
-    message::{MessageId, OutgoingMessage, PayloadStore, ReplyMessage},
-    program::ProgramId,
+    message::{MessageId, OutgoingMessage, PayloadStore, ProgramInitMessage, ReplyMessage},
+    program::{CodeHash, ProgramId},
 };
 
 pub const EXIT_TRAP_STR: &str = "exit";
@@ -58,9 +58,11 @@ pub struct ExtInfo {
     pub pages: BTreeSet<PageNumber>,
     pub accessed_pages: BTreeMap<PageNumber, Vec<u8>>,
     pub outgoing: Vec<OutgoingMessage>,
+    pub init_messages: Vec<ProgramInitMessage>,
     pub reply: Option<ReplyMessage>,
     pub awakening: Vec<MessageId>,
     pub nonce: u64,
+    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     pub payload_store: Option<PayloadStore>,
 
     pub trap_explanation: Option<&'static str>,
