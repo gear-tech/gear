@@ -24,7 +24,7 @@ use core_processor::{
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{GasAmount, GasCounter, ValueCounter},
+    gas::{GasCounter, ValueCounter},
     memory::{MemoryContext, PageBuf, PageNumber},
     message::{MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
     program::ProgramId,
@@ -60,6 +60,7 @@ impl From<LazyPagesExt> for ExtInfo {
 
         let (
             MessageState {
+                init_messages,
                 outgoing,
                 reply,
                 awakening,
@@ -67,12 +68,8 @@ impl From<LazyPagesExt> for ExtInfo {
             store,
         ) = ext.inner.message_context.drain();
 
-        let gas_amount: GasAmount = ext.inner.gas_counter.into();
-
-        let trap_explanation = ext.inner.error_explanation;
-
         ExtInfo {
-            gas_amount,
+            gas_amount: ext.inner.gas_counter.into(),
             pages: ext.inner.memory_context.allocations().clone(),
             accessed_pages,
             outgoing,
@@ -80,8 +77,10 @@ impl From<LazyPagesExt> for ExtInfo {
             awakening,
             nonce,
             payload_store: Some(store),
-            trap_explanation,
+            trap_explanation: ext.inner.error_explanation,
             exit_argument: ext.inner.exit_argument,
+            init_messages,
+            program_candidates_data: ext.inner.program_candidates_data,
         }
     }
 }
@@ -111,6 +110,7 @@ impl ProcessorExt for LazyPagesExt {
                 error_explanation,
                 exit_argument,
                 initiator,
+                program_candidates_data: Default::default(), // to be changed
             },
             lazy_pages_enabled: false,
         }
@@ -322,5 +322,12 @@ impl EnvExt for LazyPagesExt {
 
     fn value_available(&self) -> u128 {
         self.inner.value_available()
+    }
+
+    fn create_program(
+        &mut self,
+        packet: gear_core::message::ProgramInitPacket,
+    ) -> Result<ProgramId, &'static str> {
+        self.inner.create_program(packet)
     }
 }

@@ -18,11 +18,11 @@ async fn main() {
     if &msg == "async" {
         unsafe { COUNTER += 1 };
 
-        let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEST }, "PING", 100_000_000, 0)
+        let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEST }, "PING", 0)
             .await
             .expect("Error in async message processing");
 
-        msg::reply(unsafe { COUNTER } as i32, 100_000_000, 0);
+        msg::reply(unsafe { COUNTER } as i32, 0);
 
         unsafe {
             COUNTER = 0;

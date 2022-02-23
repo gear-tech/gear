@@ -239,7 +239,7 @@ where
             source: message_source,
             dest: message.destination.to_program_id(),
             payload: payload.into(),
-            gas_limit,
+            gas_limit: Some(gas_limit),
             value: message.value.unwrap_or_default() as _,
             reply: None,
         };

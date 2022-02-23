@@ -17,7 +17,7 @@ pub unsafe extern "C" fn handle() {
         panic!("not initialized");
     }
 
-    msg::reply(b"Hello, world!", 5_000_000, 0);
+    msg::reply(b"Hello, world!", 0);
 }
 
 #[no_mangle]
@@ -32,7 +32,6 @@ pub unsafe extern "C" fn init() {
             msg::send(
                 msg::source(),
                 b"PING",
-                1_000_000,
                 0,
             );
             STATE = State::WaitForReply;

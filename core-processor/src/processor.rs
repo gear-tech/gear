@@ -142,7 +142,6 @@ fn process_error(
     let message_id = message.id();
     let origin = message.source();
     let program_id = message.dest();
-    let gas_left = message.gas_limit() - gas_burned;
     let value = message.value();
 
     journal.push(JournalNote::GasBurned {
@@ -159,7 +158,7 @@ fn process_error(
         });
     }
 
-    if let Some(message) = generate_trap_reply(&message, gas_left, initial_nonce) {
+    if let Some(message) = generate_trap_reply(&message, initial_nonce) {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch: Dispatch::new_reply(message),
@@ -249,10 +248,7 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
             });
         }
         DispatchResultKind::Wait => {
-            let mut dispatch = res.dispatch;
-            dispatch.message.gas_limit = res.gas_amount.left();
-
-            journal.push(JournalNote::WaitDispatch(dispatch));
+            journal.push(JournalNote::WaitDispatch(res.dispatch));
         }
         DispatchResultKind::Success => {
             let outcome = match res.dispatch.kind {
@@ -301,7 +297,6 @@ fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
         message.dest(),
         message.source(),
         Default::default(),
-        message.gas_limit(),
         // Error reply value must be 0!
         0,
         message_id,
@@ -320,7 +315,7 @@ fn process_non_executable(dispatch: Dispatch) -> Vec<JournalNote> {
 }
 
 /// Helper function for reply generation
-fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<Message> {
+fn generate_trap_reply(message: &Message, nonce: u64) -> Option<Message> {
     if let Some((_, exit_code)) = message.reply() {
         if exit_code != 0 {
             return None;
@@ -334,7 +329,6 @@ fn generate_trap_reply(message: &Message, gas_limit: u64, nonce: u64) -> Option<
         message.dest(),
         message.source(),
         Default::default(),
-        gas_limit,
         0,
         message.id(),
         crate::ERR_EXIT_CODE,

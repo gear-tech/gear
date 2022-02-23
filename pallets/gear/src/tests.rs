@@ -420,7 +420,7 @@ fn block_gas_limit_works() {
     // Same as `ProgramCodeKind::OutgoingWithValueInHandle`, but without value sending
     let wat1 = r#"
     (module
-        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
         (import "env" "gr_source" (func $gr_source (param i32)))
         (import "env" "memory" (memory 1))
         (export "handle" (func $handle))
@@ -1899,7 +1899,7 @@ mod utils {
                     // [warning] - program payload data is inaccurate, don't make assumptions about it!
                     r#"
                     (module
-                        (import "env" "gr_send" (func $send (param i32 i32 i32 i64 i32 i32)))
+                        (import "env" "gr_send_wgas" (func $send (param i32 i32 i32 i64 i32 i32)))
                         (import "env" "gr_source" (func $gr_source (param i32)))
                         (import "env" "memory" (memory 1))
                         (export "handle" (func $handle))

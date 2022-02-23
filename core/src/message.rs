@@ -18,7 +18,7 @@
 
 //! Message processing module and context.
 
-use crate::program::ProgramId;
+use crate::program::{CodeHash, ProgramId};
 use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 use codec::{Decode, Encode};
 use core::{cell::RefCell, fmt};
@@ -124,6 +124,8 @@ pub enum Error {
     NoReplyFound,
     /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
     UncommittedPayloads,
+    /// Duplicate init message
+    DuplicateInit,
 }
 
 /// Incoming message.
@@ -180,7 +182,7 @@ impl From<Message> for IncomingMessage {
             id: s.id(),
             source: s.source(),
             payload: s.payload,
-            gas_limit: s.gas_limit,
+            gas_limit: s.gas_limit.unwrap_or_default(),
             value: s.value,
             reply: s.reply,
         }
@@ -245,7 +247,7 @@ impl IncomingMessage {
             source: self.source,
             dest,
             payload: self.payload,
-            gas_limit: self.gas_limit,
+            gas_limit: Some(self.gas_limit),
             value: self.value,
             reply: self.reply,
         }
@@ -258,7 +260,7 @@ pub struct OutgoingMessage {
     id: MessageId,
     dest: ProgramId,
     payload: Payload,
-    gas_limit: u64,
+    gas_limit: Option<u64>,
     value: u128,
 }
 
@@ -268,7 +270,7 @@ impl OutgoingMessage {
         id: MessageId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
+        gas_limit: Option<u64>,
         value: u128,
     ) -> Self {
         Self {
@@ -294,7 +296,7 @@ impl OutgoingMessage {
     }
 
     /// Return declared gas_limit of the message.
-    pub fn gas_limit(&self) -> u64 {
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 
@@ -313,8 +315,6 @@ pub struct ReplyMessage {
     exit_code: ExitCode,
     /// Payload of the reply message.
     payload: Payload,
-    /// Gas limit.
-    gas_limit: u64,
     /// Message value.
     value: u128,
 }
@@ -332,7 +332,7 @@ impl ReplyMessage {
             source: source_program,
             dest,
             payload: self.payload,
-            gas_limit: self.gas_limit,
+            gas_limit: None,
             value: self.value,
             reply: Some((source_message, self.exit_code)),
         }
@@ -356,7 +356,7 @@ pub struct Message {
     /// Payload of the message.
     pub payload: Payload,
     /// Gas limit.
-    pub gas_limit: u64,
+    pub gas_limit: Option<u64>,
     /// Message value.
     pub value: u128,
     /// In reply of.
@@ -369,7 +369,7 @@ impl Message {
         id: MessageId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
+        gas_limit: Option<u64>,
         value: u128,
     ) -> Message {
         Message {
@@ -389,7 +389,7 @@ impl Message {
         source: ProgramId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
+        gas_limit: Option<u64>,
         value: u128,
     ) -> Message {
         Message {
@@ -410,7 +410,6 @@ impl Message {
         source: ProgramId,
         dest: ProgramId,
         payload: Payload,
-        gas_limit: u64,
         value: u128,
         reply: MessageId,
         exit_code: ExitCode,
@@ -420,7 +419,7 @@ impl Message {
             source,
             dest,
             payload,
-            gas_limit,
+            gas_limit: None,
             value,
             reply: Some((reply, exit_code)),
         }
@@ -442,7 +441,7 @@ impl Message {
     }
 
     /// Message gas limit.
-    pub fn gas_limit(&self) -> u64 {
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 
@@ -462,18 +461,90 @@ impl Message {
     }
 }
 
+/// Outgoing program initialization message
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+pub struct ProgramInitMessage {
+    /// Message id
+    pub id: MessageId,
+    /// New program id
+    pub new_program_id: ProgramId,
+    /// Payload to init function
+    pub payload: Payload,
+    /// Provided to the message gas limit
+    pub gas_limit: u64,
+    /// Provided to the message value
+    pub value: u128,
+}
+
+impl ProgramInitMessage {
+    /// Converts init message into general `Message`
+    pub fn into_message(self, source: ProgramId) -> Message {
+        let ProgramInitMessage {
+            id,
+            new_program_id,
+            payload,
+            gas_limit,
+            value,
+        } = self;
+        let gas_limit = Some(gas_limit);
+        Message {
+            id,
+            source,
+            dest: new_program_id,
+            payload,
+            gas_limit,
+            value,
+            reply: None,
+        }
+    }
+}
+
+/// Program initialization packet
+#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+pub struct ProgramInitPacket {
+    /// Code hash of a new program
+    pub code_hash: CodeHash,
+    /// Salt used to generate id for a new program
+    pub salt: Vec<u8>,
+    /// Payload to init function
+    pub payload: Payload,
+    /// Provided to the message gas limit
+    pub gas_limit: u64,
+    /// Provided to the message value
+    pub value: u128,
+}
+
+impl ProgramInitPacket {
+    /// Create a new program init packet
+    pub fn new(
+        code_hash: CodeHash,
+        salt: Vec<u8>,
+        payload: Payload,
+        gas_limit: u64,
+        value: u128,
+    ) -> Self {
+        Self {
+            code_hash,
+            salt,
+            payload,
+            gas_limit,
+            value,
+        }
+    }
+}
+
 /// Outgoing message packet.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct OutgoingPacket {
     dest: ProgramId,
     payload: Payload,
-    gas_limit: u64,
+    gas_limit: Option<u64>,
     value: u128,
 }
 
 impl OutgoingPacket {
     /// New outgoing message packet.
-    pub fn new(dest: ProgramId, payload: Payload, gas_limit: u64, value: u128) -> Self {
+    pub fn new(dest: ProgramId, payload: Payload, gas_limit: Option<u64>, value: u128) -> Self {
         Self {
             dest,
             payload,
@@ -483,7 +554,7 @@ impl OutgoingPacket {
     }
 
     /// Gas limit.
-    pub fn gas_limit(&self) -> u64 {
+    pub fn gas_limit(&self) -> Option<u64> {
         self.gas_limit
     }
 
@@ -509,7 +580,7 @@ impl Default for OutgoingPacket {
         Self {
             dest: ProgramId::system(),
             payload: Payload::default(),
-            gas_limit: 0,
+            gas_limit: None,
             value: 0,
         }
     }
@@ -520,8 +591,6 @@ impl Default for OutgoingPacket {
 pub struct ReplyPacket {
     /// Payload of the reply message.
     pub payload: Payload,
-    /// Gas limit.
-    pub gas_limit: u64,
     /// Message value.
     pub value: u128,
     /// Exit code
@@ -530,18 +599,12 @@ pub struct ReplyPacket {
 
 impl ReplyPacket {
     /// New reply message in some message context.
-    pub fn new(exit_code: ExitCode, payload: Payload, gas_limit: u64, value: u128) -> Self {
+    pub fn new(exit_code: ExitCode, payload: Payload, value: u128) -> Self {
         Self {
             payload,
-            gas_limit,
             value,
             exit_code,
         }
-    }
-
-    /// Gas limit of the reply message.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
     }
 
     /// Value of the reply message.
@@ -581,9 +644,33 @@ pub trait MessageIdGenerator {
         ReplyMessage {
             id,
             payload: packet.payload,
-            gas_limit: packet.gas_limit,
             value: packet.value,
             exit_code: packet.exit_code,
+        }
+    }
+
+    /// Build program init message
+    ///
+    /// Message id will be generated
+    fn produce_init(
+        &mut self,
+        new_program_id: ProgramId,
+        packet: ProgramInitPacket,
+    ) -> ProgramInitMessage {
+        let id = self.next();
+        let ProgramInitPacket {
+            payload,
+            gas_limit,
+            value,
+            ..
+        } = packet;
+
+        ProgramInitMessage {
+            id,
+            new_program_id,
+            payload,
+            gas_limit,
+            value,
         }
     }
 }
@@ -595,6 +682,8 @@ pub trait MessageIdGenerator {
 pub struct MessageState {
     /// Collection of outgoing messages generated.
     pub outgoing: Vec<OutgoingMessage>,
+    /// Collection of init messages for new programs generated.
+    pub init_messages: Vec<ProgramInitMessage>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
     /// Messages to be waken.
@@ -606,6 +695,8 @@ pub struct MessageState {
 pub struct PayloadStore {
     /// Outgoing payloads ever formed for current message processing.
     pub outgoing: BTreeMap<u64, Option<Payload>>,
+    /// Program ids of newly created programs in the current message processing.
+    pub new_programs: Vec<ProgramId>,
     /// Reply payload ever formed for current message processing.
     pub reply: Option<Payload>,
     /// Messages were ever waken for current message processing.
@@ -762,12 +853,50 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
 
         (state, store)
     }
+
+    /// Send a new init program message
+    ///
+    /// Generates a new program id from provided `packet` data and returns it
+    /// along with init message id.
+    pub fn send_init_program(
+        &mut self,
+        packet: ProgramInitPacket,
+    ) -> Result<(ProgramId, MessageId), Error> {
+        let code_hash = packet.code_hash;
+        let new_program_id = {
+            let mut data = Vec::with_capacity(code_hash.inner().len() + packet.salt.len());
+            code_hash.encode_to(&mut data);
+            packet.salt.encode_to(&mut data);
+            ProgramId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+        };
+
+        {
+            let payload_store = self.store.borrow();
+            if payload_store
+                .new_programs
+                .iter()
+                .any(|id| id == &new_program_id)
+            {
+                return Err(Error::DuplicateInit);
+            }
+        }
+
+        let msg = self
+            .id_generator
+            .borrow_mut()
+            .produce_init(new_program_id, packet);
+        let msg_id = msg.id;
+        self.state.borrow_mut().init_messages.push(msg);
+        self.store.borrow_mut().new_programs.push(new_program_id);
+
+        Ok((new_program_id, msg_id))
+    }
 }
 
 /// Dispatch.
 ///
 /// Message plus information of entry point.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Dispatch {
     /// Kind of dispatch.
     pub kind: DispatchKind,
@@ -816,7 +945,7 @@ impl Dispatch {
 }
 
 /// Type of wasm execution entry point.
-#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, TypeInfo)]
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
 pub enum DispatchKind {
     /// Initialization.
     Init,
@@ -901,7 +1030,7 @@ mod tests {
         assert!(context.state.borrow().reply.is_none());
 
         // Creating a reply packet
-        let reply_packet = ReplyPacket::new(0, vec![0, 0].into(), 0, 0);
+        let reply_packet = ReplyPacket::new(0, vec![0, 0].into(), 0);
 
         // Checking that we are able to initialize reply
         assert!(context.reply_push(&[1, 2, 3]).is_ok());
@@ -960,7 +1089,7 @@ mod tests {
         let commit_packet = OutgoingPacket::new(
             ProgramId::from(OUTGOING_MESSAGE_DEST + 1),
             Payload::default(),
-            0,
+            Some(0),
             0,
         );
 

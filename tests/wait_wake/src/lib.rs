@@ -37,13 +37,13 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn init() {
-        msg::reply((), 0, 0);
+        msg::reply((), 0);
     }
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
         if let Some(reply) = unsafe { ECHOES.remove(&msg::id()) } {
-            msg::reply(reply, 0, 0);
+            msg::reply(reply, 0);
         } else {
             msg::load::<Request>().map(process_request);
         }

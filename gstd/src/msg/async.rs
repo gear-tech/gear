@@ -40,7 +40,6 @@ use futures::future::FusedFuture;
 /// returns `Ok()` with decoded structure inside or `Err()` in case of exit code
 /// does not equal 0. For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html),
 /// Gear returns the native one after decode.
-
 pub struct CodecMessageFuture<T> {
     waiting_reply_to: MessageId,
     phantom: PhantomData<T>,
@@ -80,7 +79,6 @@ impl<D: Decode> FusedFuture for CodecMessageFuture<D> {
 /// returns `Ok()` with raw bytes inside or `Err()` in case of exit code does
 /// not equal 0. For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html),
 /// Gear returns the native one after decode.
-
 pub struct MessageFuture {
     waiting_reply_to: MessageId,
 }
@@ -111,6 +109,7 @@ impl FusedFuture for MessageFuture {
 }
 
 /// Send a message and wait for reply.
+///
 /// This function works similarly to `send_bytes_and_wait_for_reply`,
 /// with one difference - it takes the structure in, then encodes it
 /// and sends it in bytes. When receiving the message, it decodes the bytes.
@@ -118,14 +117,12 @@ impl FusedFuture for MessageFuture {
 /// (https://docs.substrate.io/v3/advanced/scale-codec/).
 /// The program will be interrupted (waiting for a reply) if an `.await`
 /// has been called on the `CodecMessageFuture` object returned by the function.
-
 pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
     program: ActorId,
     payload: E,
-    gas_limit: u64,
     value: u128,
 ) -> CodecMessageFuture<D> {
-    let waiting_reply_to = crate::msg::send(program, payload, gas_limit, value);
+    let waiting_reply_to = crate::msg::send(program, payload, value);
     signals().register_signal(waiting_reply_to);
 
     CodecMessageFuture::<D> {
@@ -135,18 +132,17 @@ pub fn send_and_wait_for_reply<D: Decode, E: Encode>(
 }
 
 /// Send a message and wait for reply.
+///
 /// This function works similarly to `send_and_wait_for_reply`,
 /// with one difference - it works with raw bytes as a paylod.
 /// The program will be interrupted (waiting for a reply) if an `.await`
 /// has been called on the `MessageFuture` object returned by the function.
-
 pub fn send_bytes_and_wait_for_reply<T: AsRef<[u8]>>(
     program: ActorId,
     payload: T,
-    gas_limit: u64,
     value: u128,
 ) -> MessageFuture {
-    let waiting_reply_to = crate::msg::send_bytes(program, payload, gas_limit, value);
+    let waiting_reply_to = crate::msg::send_bytes(program, payload, value);
     signals().register_signal(waiting_reply_to);
 
     MessageFuture { waiting_reply_to }

@@ -56,6 +56,10 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32("gas", funcs::gas);
         result.add_func_into_i32("gr_block_height", funcs::block_height);
         result.add_func_into_i64("gr_block_timestamp", funcs::block_timestamp);
+        result.add_func_i32_i32_i32_i32_i32_i64_i32_i32(
+            "gr_create_program_wgas",
+            funcs::create_program_wgas,
+        );
         result.add_func_to_i32("gr_exit_code", funcs::exit_code);
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);
@@ -64,12 +68,14 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32("gr_msg_id", funcs::msg_id);
         result.add_func_i32("gr_program_id", funcs::program_id);
         result.add_func_i32_i32_i32("gr_read", funcs::read);
-        result.add_func_i32_i32_i64_i32_i32("gr_reply", funcs::reply);
-        result.add_func_i32_i64_i32("gr_reply_commit", funcs::reply_commit);
+        result.add_func_i32_i32_i32_i32("gr_reply", funcs::reply);
+        result.add_func_i32_i32("gr_reply_commit", funcs::reply_commit);
         result.add_func_i32_i32("gr_reply_push", funcs::reply_push);
         result.add_func_i32("gr_reply_to", funcs::reply_to);
-        result.add_func_i32_i32_i32_i64_i32_i32("gr_send", funcs::send);
-        result.add_func_i32_i32_i32_i64_i32("gr_send_commit", funcs::send_commit);
+        result.add_func_i32_i32_i32_i64_i32_i32("gr_send_wgas", funcs::send_wgas);
+        result.add_func_i32_i32_i32_i32_i32("gr_send", funcs::send);
+        result.add_func_i32_i32_i32_i64_i32("gr_send_commit_wgas", funcs::send_commit_wgas);
+        result.add_func_i32_i32_i32_i32("gr_send_commit", funcs::send_commit);
         result.add_func_to_i32("gr_send_init", funcs::send_init);
         result.add_func_i32_i32_i32("gr_send_push", funcs::send_push);
         result.add_func_into_i32("gr_size", funcs::size);
@@ -123,29 +129,19 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         );
     }
 
-    fn add_func_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    fn add_func_i32_i32_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
-        F: 'static + Fn(i32, i64, i32) -> Result<(), &'static str>,
+        F: 'static + Fn(i32, i32, i32, i32) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,
-            Func::wrap(&self.store, Self::wrap3(func(self.ext.clone()))),
+            Func::wrap(&self.store, Self::wrap4(func(self.ext.clone()))),
         );
     }
 
     fn add_func_i32_i32_i32_i64_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
     where
         F: 'static + Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str>,
-    {
-        self.funcs.insert(
-            key,
-            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
-        );
-    }
-
-    fn add_func_i32_i32_i64_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
-    where
-        F: 'static + Fn(i32, i32, i64, i32, i32) -> Result<(), &'static str>,
     {
         self.funcs.insert(
             key,
@@ -160,6 +156,29 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         self.funcs.insert(
             key,
             Func::wrap(&self.store, Self::wrap6(func(self.ext.clone()))),
+        );
+    }
+
+    fn add_func_i32_i32_i32_i32_i32<F>(&mut self, key: &'static str, func: fn(LaterExt<E>) -> F)
+    where
+        F: 'static + Fn(i32, i32, i32, i32, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap5(func(self.ext.clone()))),
+        );
+    }
+
+    fn add_func_i32_i32_i32_i32_i32_i64_i32_i32<F>(
+        &mut self,
+        key: &'static str,
+        func: fn(LaterExt<E>) -> F,
+    ) where
+        F: 'static + Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str>,
+    {
+        self.funcs.insert(
+            key,
+            Func::wrap(&self.store, Self::wrap8(func(self.ext.clone()))),
         );
     }
 
@@ -219,6 +238,12 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         move |a, b, c| func(a, b, c).map_err(Trap::new)
     }
 
+    fn wrap4<T0, T1, T2, T3, R>(
+        func: impl Fn(T0, T1, T2, T3) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1, T2, T3) -> Result<R, Trap> {
+        move |a, b, c, d| func(a, b, c, d).map_err(Trap::new)
+    }
+
     fn wrap5<T0, T1, T2, T3, T4, R>(
         func: impl Fn(T0, T1, T2, T3, T4) -> Result<R, &'static str>,
     ) -> impl Fn(T0, T1, T2, T3, T4) -> Result<R, Trap> {
@@ -229,6 +254,12 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         func: impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, &'static str>,
     ) -> impl Fn(T0, T1, T2, T3, T4, T5) -> Result<R, Trap> {
         move |a, b, c, d, e, f| func(a, b, c, d, e, f).map_err(Trap::new)
+    }
+
+    fn wrap8<T0, T1, T2, T3, T4, T5, T6, T7, R>(
+        func: impl Fn(T0, T1, T2, T3, T4, T5, T6, T7) -> Result<R, &'static str>,
+    ) -> impl Fn(T0, T1, T2, T3, T4, T5, T6, T7) -> Result<R, Trap> {
+        move |a, b, c, d, e, f, g, h| func(a, b, c, d, e, f, g, h).map_err(Trap::new)
     }
 }
 
