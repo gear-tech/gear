@@ -1662,6 +1662,54 @@ fn exit_handle() {
     })
 }
 
+#[test]
+fn set_code() {
+    use tests_exit_handle::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let mq_head_key = [common::STORAGE_MESSAGE_PREFIX, b"head"].concat();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            10_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert!(Gear::is_initialized(program_id));
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            program_id,
+            vec![],
+            0u64,
+            0u128
+        ));
+
+        assert!(Gear::is_initialized(program_id));
+
+        run_to_block(3, Some(0));
+
+        // Check that queue was not processed
+        assert!(sp_io::storage::get(&mq_head_key).is_some());
+
+        run_to_block(4, None);
+
+        // Check that queue is empty
+        assert!(sp_io::storage::get(&mq_head_key).is_none());
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};

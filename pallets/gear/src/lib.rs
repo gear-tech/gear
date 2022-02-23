@@ -252,7 +252,9 @@ pub mod pallet {
             // Adjust the block gas allowance based on actual remaining weight
             GasAllowance::<T>::put(remaining_weight);
             let mut weight = T::DbWeight::get().writes(1);
-            weight += Self::process_queue();
+            if remaining_weight != 0 {
+                weight += Self::process_queue();
+            }
 
             weight
         }
