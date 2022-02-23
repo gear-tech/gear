@@ -18,15 +18,15 @@
 
 //! Environment for running a module.
 
+use crate::{
+    memory::PageNumber,
+    message::{ExitCode, MessageId, OutgoingPacket, ReplyPacket},
+    program::ProgramId,
+};
 use alloc::rc::Rc;
-use core::cell::RefCell;
-
 use anyhow::Result;
 use codec::{Decode, Encode};
-
-use crate::memory::PageNumber;
-use crate::message::{ExitCode, MessageId, OutgoingPacket, ReplyPacket};
-use crate::program::ProgramId;
+use core::cell::RefCell;
 
 /// Page access rights.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Copy)]
@@ -51,6 +51,10 @@ pub trait Ext {
 
     /// Get the current block timestamp.
     fn block_timestamp(&self) -> u64;
+
+    /// Get the id of the user who initiated communication with blockchain,
+    /// during which, currently processing message was created.
+    fn initiator(&self) -> ProgramId;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
@@ -221,6 +225,9 @@ mod tests {
         }
         fn block_timestamp(&self) -> u64 {
             0
+        }
+        fn initiator(&self) -> ProgramId {
+            ProgramId::from(0)
         }
         fn send_init(&mut self) -> Result<usize, &'static str> {
             Ok(0)

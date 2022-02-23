@@ -47,6 +47,7 @@ pub trait ProcessorExt {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
+        initiator: ProgramId,
     ) -> Self;
 
     /// Try to enable and initialize lazy pages env
@@ -99,6 +100,8 @@ pub struct Ext {
     pub error_explanation: Option<&'static str>,
     /// Contains argument to the `exit` if it was called.
     pub exit_argument: Option<ProgramId>,
+    /// Communication initiator
+    pub initiator: ProgramId,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -113,6 +116,7 @@ impl ProcessorExt for Ext {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
+        initiator: ProgramId,
     ) -> Self {
         Self {
             gas_counter,
@@ -124,6 +128,7 @@ impl ProcessorExt for Ext {
             existential_deposit,
             error_explanation,
             exit_argument,
+            initiator,
         }
     }
 
@@ -257,6 +262,10 @@ impl EnvExt for Ext {
 
     fn block_timestamp(&self) -> u64 {
         self.block_info.timestamp
+    }
+
+    fn initiator(&self) -> ProgramId {
+        self.initiator
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {

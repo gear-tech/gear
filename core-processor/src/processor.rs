@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, JournalNote},
+    common::{
+        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
+        JournalNote,
+    },
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::ProcessorExt,
@@ -37,12 +40,19 @@ pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environmen
     dispatch: Dispatch,
     block_info: BlockInfo,
     existential_deposit: u128,
+    initiator: ProgramId,
 ) -> Vec<JournalNote> {
     if let Some(actor) = actor {
         let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
+        let execution_context = ExecutionContext { initiator };
         let initial_nonce = actor.program.message_nonce();
 
-        match executor::execute_wasm::<A, E>(actor, dispatch.clone(), execution_settings) {
+        match executor::execute_wasm::<A, E>(
+            actor,
+            dispatch.clone(),
+            execution_context,
+            execution_settings,
+        ) {
             Ok(res) => match res.kind {
                 DispatchResultKind::Trap(reason) => {
                     process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
@@ -67,16 +77,28 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
     existential_deposit: u128,
+    // Will go away some time soon
+    initiators: Vec<ProgramId>,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
+
+    assert_eq!(dispatches.len(), initiators.len());
+    let mut initiators = initiators.into_iter();
 
     for dispatch in dispatches {
         let actor = actors
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal =
-            process::<A, E>(actor.clone(), dispatch, block_info, existential_deposit);
+        let current_journal = process::<A, E>(
+            actor.clone(),
+            dispatch,
+            block_info,
+            existential_deposit,
+            initiators
+                .next()
+                .expect("Can't fail. Lengths checked above"),
+        );
 
         for note in &current_journal {
             if let Some(actor) = actor {

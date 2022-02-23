@@ -97,6 +97,7 @@ impl ProcessorExt for LazyPagesExt {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
+        initiator: ProgramId,
     ) -> Self {
         Self {
             inner: Ext {
@@ -109,6 +110,7 @@ impl ProcessorExt for LazyPagesExt {
                 existential_deposit,
                 error_explanation,
                 exit_argument,
+                initiator,
             },
             lazy_pages_enabled: false,
         }
@@ -216,6 +218,10 @@ impl EnvExt for LazyPagesExt {
 
     fn block_timestamp(&self) -> u64 {
         self.inner.block_timestamp()
+    }
+
+    fn initiator(&self) -> ProgramId {
+        self.inner.initiator()
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {

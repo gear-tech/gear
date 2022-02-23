@@ -74,7 +74,10 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::{message::DispatchKind, program::Program as NativeProgram};
+    use gear_core::{
+        message::DispatchKind,
+        program::{Program as NativeProgram, ProgramId},
+    };
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -388,6 +391,7 @@ pub mod pallet {
                 dispatch.into(),
                 block_info,
                 existential_deposit,
+                ProgramId::from_origin(source),
             );
 
             for note in &journal {
@@ -452,9 +456,8 @@ pub mod pallet {
             while let Some(dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
 
-                let gas_limit = T::GasHandler::get_limit(*dispatch.message_id())
-                    .map(|(gas, _id)| gas)
-                    .unwrap_or(0);
+                let (gas_limit, initiator) = T::GasHandler::get_limit(*dispatch.message_id())
+                    .expect("Should never fail if ValueNode works properly");
 
                 log::debug!(
                     "Processing message: {:?} to {:?} / gas_limit: {}",
@@ -516,6 +519,7 @@ pub mod pallet {
                     dispatch.into_dispatch(gas_limit),
                     block_info,
                     existential_deposit,
+                    ProgramId::from_origin(initiator),
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);

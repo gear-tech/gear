@@ -422,6 +422,7 @@ impl RunnerContext {
             payload_store: None,
         };
         let message_id = dispatch.message.id;
+        let initiator = dispatch.message.source;
 
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             Some(actor),
@@ -431,6 +432,7 @@ impl RunnerContext {
                 timestamp: 1,
             },
             EXISTENTIAL_DEPOSIT,
+            initiator,
         );
 
         core_processor::handle_journal(journal, &mut Journal { context: self });
@@ -583,6 +585,7 @@ impl RunnerContext {
             let journal = {
                 let messages = std::mem::take(&mut self.dispatch_queue);
                 let actors = self.actors.clone();
+                let initiators = vec![messages[0].message.source(); messages.len()];
 
                 core_processor::process_many::<Ext, WasmtimeEnvironment<Ext>>(
                     actors,
@@ -592,6 +595,7 @@ impl RunnerContext {
                         timestamp: 1,
                     },
                     EXISTENTIAL_DEPOSIT,
+                    initiators,
                 )
             };
 
