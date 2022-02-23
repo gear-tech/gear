@@ -56,7 +56,10 @@ impl<E: Ext + 'static> WasmtimeEnvironment<E> {
         result.add_func_i32("gas", funcs::gas);
         result.add_func_into_i32("gr_block_height", funcs::block_height);
         result.add_func_into_i64("gr_block_timestamp", funcs::block_timestamp);
-        result.add_func_i32_i32_i32_i32_i32_i64_i32_i32("gr_create_program", funcs::create_program);
+        result.add_func_i32_i32_i32_i32_i32_i64_i32_i32(
+            "gr_create_program_wgas",
+            funcs::create_program_wgas,
+        );
         result.add_func_to_i32("gr_exit_code", funcs::exit_code);
         result.add_func_into_i64("gr_gas_available", funcs::gas_available);
         result.add_func_i32_i32("gr_debug", funcs::debug);

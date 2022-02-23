@@ -542,7 +542,7 @@ pub fn wake<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
         })?
 }
 
-pub fn create_program<E: Ext + Into<ExtInfo>>(
+pub fn create_program_wgas<E: Ext + Into<ExtInfo>>(
     ctx: &mut Runtime<E>,
     args: &[Value],
 ) -> Result<ReturnValue, HostError> {

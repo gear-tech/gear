@@ -475,14 +475,14 @@ pub fn value() -> u128 {
     gcore::msg::value()
 }
 
-pub fn create_program<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
+pub fn create_program_wgas<T1: AsRef<[u8]>, T2: AsRef<[u8]>>(
     code_hash: CodeHash,
     salt: T1,
     payload: T2,
     gas_limit: u64,
     value: u128,
 ) -> ActorId {
-    gcore::msg::create_program(
+    gcore::msg::create_program_wgas(
         code_hash.into(),
         salt.as_ref(),
         payload.as_ref(),

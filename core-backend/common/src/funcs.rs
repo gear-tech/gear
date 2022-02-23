@@ -255,7 +255,7 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
     }
 }
 
-pub fn create_program<E: Ext>(
+pub fn create_program_wgas<E: Ext>(
     ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
     move |code_hash_ptr: i32,
