@@ -175,7 +175,14 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
     for id in programs_map.keys() {
-        sp_io::storage::set(&gear_common::program_key(*id), &[]);
+        let program = gear_common::ActiveProgram {
+            static_pages: 0,
+            nonce: 0,
+            persistent_pages: Default::default(),
+            code_hash: H256::default(),
+            state: gear_common::ProgramState::Initialized,
+        };
+        gear_common::set_program(id.clone(), program, Default::default());
     }
 
     // Enable remapping of the source and destination of messages
@@ -282,21 +289,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .iter()
                     .map(|dispatch| dispatch.message.clone().into_message(0))
                     .collect();
-                let mut progs = snapshot
-                    .programs
-                    .iter()
-                    .map(|p| {
-                        CoreProgram::from_parts(
-                            *programs.iter().find(|(_, v)| v == &&p.id).unwrap().0,
-                            vec![],
-                            p.static_pages,
-                            p.nonce,
-                            p.persistent_pages.keys().cloned().collect(),
-                        )
-                    })
-                    .collect();
-
-                // let mut progs = vec![];
 
                 if let Some(mut expected_messages) = exp.messages.clone() {
                     if expected_messages.is_empty() {
@@ -328,7 +320,23 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         );
                     }
                 }
-
+                let mut progs: Vec<gear_core::program::Program> = snapshot
+                    .programs
+                    .iter()
+                    .filter_map(|p| {
+                        if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                            Some(CoreProgram::from_parts(
+                                *pid,
+                                vec![],
+                                p.static_pages,
+                                p.nonce,
+                                p.persistent_pages.keys().cloned().collect(),
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 if let Some(expected_memory) = &exp.memory {
                     if let Err(mem_errors) =
                         gear_test::check::check_memory(&mut progs, expected_memory)
