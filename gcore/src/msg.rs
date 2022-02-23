@@ -36,14 +36,20 @@ mod sys {
         pub fn gr_reply(
             data_ptr: *const u8,
             data_len: u32,
-            gas_limit: u64,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
         );
-        pub fn gr_reply_commit(message_id_ptr: *mut u8, gas_limit: u64, value_ptr: *const u8);
+        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8);
         pub fn gr_reply_push(data_ptr: *const u8, data_len: u32);
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
+            program: *const u8,
+            data_ptr: *const u8,
+            data_len: u32,
+            value_ptr: *const u8,
+            message_id_ptr: *mut u8,
+        );
+        pub fn gr_send_wgas(
             program: *const u8,
             data_ptr: *const u8,
             data_len: u32,
@@ -52,6 +58,12 @@ mod sys {
             message_id_ptr: *mut u8,
         );
         pub fn gr_send_commit(
+            handle: u32,
+            message_id_ptr: *mut u8,
+            program: *const u8,
+            value_ptr: *const u8,
+        );
+        pub fn gr_send_commit_wgas(
             handle: u32,
             message_id_ptr: *mut u8,
             program: *const u8,
@@ -141,8 +153,6 @@ pub fn load(buffer: &mut [u8]) {
 /// `handle_reply`.
 ///
 /// First argument is the reply message payload in bytes. Second argument is
-/// `gas_limit`
-/// - maximum gas allowed to be utilized during the reply message processing.
 /// Last argument `value` is the value to be transferred from the current
 /// program account to the reply message target account.
 ///
@@ -156,20 +166,19 @@ pub fn load(buffer: &mut [u8]) {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply(b"PING", exec::gas_available(), 0);
+///     msg::reply(b"PING", 0);
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+pub fn reply(payload: &[u8], value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply(
             payload.as_ptr(),
             payload.len() as _,
-            gas_limit,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
         );
@@ -199,19 +208,18 @@ pub fn reply(payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
 ///     // ...
 ///     msg::reply_push(b"Part 2");
 ///     // ...
-///     msg::reply_commit(exec::gas_available(), 42);
+///     msg::reply_commit(42);
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(gas_limit: u64, value: u128) -> MessageId {
+pub fn reply_commit(value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit(
             message_id.as_mut_slice().as_mut_ptr(),
-            gas_limit,
             value.to_le_bytes().as_ptr(),
         );
         message_id
@@ -277,8 +285,6 @@ pub fn reply_to() -> MessageId {
 ///
 /// First argument is the address of the target account.
 /// Second argument is message payload in bytes.
-/// Third argument is gas_limit - maximum gas allowed to be utilized during the
-/// sent message processing.
 /// Last argument is the value to be transferred from the current program
 /// account to the message target account.
 /// Send transaction will be posted only after the execution of processing is
@@ -296,7 +302,7 @@ pub fn reply_to() -> MessageId {
 ///         id[i] = i as u8;
 ///     }
 ///
-///     msg::send(ActorId(id), b"HELLO", 1000, 12345678);
+///     msg::send(ActorId(id), b"HELLO", 12345678);
 /// }
 /// ```
 ///
@@ -304,10 +310,56 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send(program: ActorId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+pub fn send(program: ActorId, payload: &[u8], value: u128) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send(
+            program.as_slice().as_ptr(),
+            payload.as_ptr(),
+            payload.len() as _,
+            value.to_le_bytes().as_ptr(),
+            message_id.as_mut_slice().as_mut_ptr(),
+        );
+        message_id
+    }
+}
+
+/// Send a new message to the program or user, with gas limit.
+///
+/// Gear allows programs to communicate to each other and users via messages.
+/// [`send`] function allows sending such messages.
+///
+/// First argument is the address of the target account.
+/// Second argument is message payload in bytes.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+/// Send transaction will be posted only after the execution of processing is
+/// finished, similar to the reply message [`reply`].
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{msg, ActorId};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let mut id: [u8; 32] = [0; 32];
+///     for i in 0..id.len() {
+///         id[i] = i as u8;
+///     }
+///
+///     msg::send(ActorId(id), b"HELLO", 12345678);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
+/// message to send in parts.
+pub fn send_with_gas(program: ActorId, payload: &[u8], gas_limit: u64, value: u128) -> MessageId {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send_wgas(
             program.as_slice().as_ptr(),
             payload.as_ptr(),
             payload.len() as _,
@@ -343,7 +395,7 @@ pub fn send(program: ActorId, payload: &[u8], gas_limit: u64, value: u128) -> Me
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
 ///
@@ -356,12 +408,61 @@ pub fn send(program: ActorId, payload: &[u8], gas_limit: u64, value: u128) -> Me
 pub fn send_commit(
     handle: MessageHandle,
     program: ActorId,
-    gas_limit: u64,
     value: u128,
 ) -> MessageId {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit(
+            handle.0,
+            message_id.as_mut_slice().as_mut_ptr(),
+            program.as_slice().as_ptr(),
+            value.to_le_bytes().as_ptr(),
+        );
+        message_id
+    }
+}
+
+/// Finalize and send message formed in parts, with gas limit.
+///
+/// Gear allows programs to work with messages that consist of several parts.
+/// This function finalizes the message built in parts and sends it.
+///
+/// First argument is the message handle [MessageHandle] which specifies a
+/// particular message built in parts.
+/// Second argument is the address of the target account.
+/// Last argument is the value to be transferred from the current program
+/// account to the message target account.
+/// Send transaction will be posted only after the execution of processing is
+/// finished.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, msg};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let msg_handle = msg::send_init();
+///     msg::send_push(&msg_handle, b"PING");
+///     msg::send_commit_with_gas(msg_handle, msg::source(), 10_000_000, 42);
+/// }
+/// ```
+///
+/// # See also
+///
+/// [`send`] allows to send message in one step.
+///
+/// [`send_push`], [`send_init`] functions allows to form a message to send in
+/// parts.
+pub fn send_commit_with_gas(
+    handle: MessageHandle,
+    program: ActorId,
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
+    unsafe {
+        let mut message_id = MessageId::default();
+        sys::gr_send_commit_wgas(
             handle.0,
             message_id.as_mut_slice().as_mut_ptr(),
             program.as_slice().as_ptr(),
@@ -387,7 +488,7 @@ pub fn send_commit(
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
 ///
@@ -415,7 +516,7 @@ pub fn send_init() -> MessageHandle {
 ///     // ...
 ///     let msg_handle = msg::send_init();
 ///     msg::send_push(&msg_handle, b"PING");
-///     msg::send_commit(msg_handle, msg::source(), exec::gas_available(), 42);
+///     msg::send_commit(msg_handle, msg::source(), 42);
 /// }
 /// ```
 ///

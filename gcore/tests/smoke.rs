@@ -58,7 +58,7 @@ mod sys {
     }
 
     #[no_mangle]
-    unsafe extern "C" fn gr_send(
+    unsafe extern "C" fn gr_send_wgas(
         program: *const u8,
         data_ptr: *const u8,
         data_len: u32,
@@ -99,7 +99,7 @@ fn messages() {
         id[i] = i as u8;
     }
 
-    msg::send(ActorId(id), b"HELLO", 1000, 12345678);
+    msg::send_with_gas(ActorId(id), b"HELLO", 1000, 12345678);
 
     let msg_source = msg::source();
     assert_eq!(msg_source, ActorId(id));
