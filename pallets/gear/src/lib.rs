@@ -396,7 +396,7 @@ pub mod pallet {
                         gas_burned = gas_burned.saturating_add(*amount);
                     }
                     JournalNote::SendDispatch { dispatch, .. } => {
-                        gas_to_send = gas_to_send.saturating_add(dispatch.message.gas_limit());
+                        gas_to_send = gas_to_send.saturating_add(dispatch.message.gas_limit().unwrap_or(0));
                     }
                     JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
                         return None;

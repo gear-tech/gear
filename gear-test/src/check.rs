@@ -284,9 +284,11 @@ pub fn check_messages(
                     },
                 );
 
-                match_or_else(exp.gas_limit, msg.gas_limit, |expected, actual| {
-                    errors.push(MessagesError::gas_limit(position, expected, actual))
-                });
+                if let Some(msg_gas_limit) = msg.gas_limit {
+                    match_or_else(exp.gas_limit, msg_gas_limit, |expected, actual| {
+                        errors.push(MessagesError::gas_limit(position, expected, actual))
+                    });
+                }
 
                 match_or_else(exp.value, msg.value, |expected, actual| {
                     errors.push(MessagesError::value(position, expected, actual))

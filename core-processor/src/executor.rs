@@ -57,7 +57,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     log::debug!("Executing program {:?}", program_id);
 
     // Creating gas counter.
-    let mut gas_counter = GasCounter::new(message.gas_limit());
+    let mut gas_counter = GasCounter::new(message.gas_limit().unwrap_or(0));
 
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.message.value());

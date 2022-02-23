@@ -297,7 +297,7 @@ impl EnvExt for Ext {
             ));
         };
 
-        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
+        if self.gas_counter.reduce(msg.gas_limit().unwrap_or(0)) != ChargeResult::Enough {
             return self
                 .return_and_store_err(Err("Gas limit exceeded while trying to send message"));
         };
@@ -319,10 +319,6 @@ impl EnvExt for Ext {
             return self.return_and_store_err(Err(
                 "Value of the message is less than existance deposit, but greater than 0",
             ));
-        };
-
-        if self.gas_counter.reduce(msg.gas_limit()) != ChargeResult::Enough {
-            return self.return_and_store_err(Err("Gas limit exceeded while trying to reply"));
         };
 
         if self.value_counter.reduce(msg.value()) != ChargeResult::Enough {
