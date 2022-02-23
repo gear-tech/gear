@@ -16,17 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![no_std]
-#![cfg_attr(feature = "strict", deny(warnings))]
-#![doc(html_logo_url = "https://docs.gear.rs/logo.svg")]
+//! Program creation module
 
-pub mod exec;
-pub mod msg;
-pub mod prog;
+use crate::{ActorId, CodeHash};
+use codec::Encode;
 
-mod general;
-pub use general::*;
-
-mod utils;
-#[cfg(feature = "debug")]
-pub use utils::ext;
+pub fn create_program_wgas<T1: Encode, T2: Encode>(
+    code_hash: CodeHash,
+    salt: T1,
+    payload: T2,
+    gas_limit: u64,
+    value: u128,
+) -> ActorId {
+    let salt = salt.encode();
+    let payload = payload.encode();
+    gcore::prog::create_program_wgas(code_hash.into(), &salt, &payload, gas_limit, value).into()
+}

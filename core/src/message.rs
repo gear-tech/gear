@@ -124,6 +124,8 @@ pub enum Error {
     NoReplyFound,
     /// An attempt to interrupt execution with `wait(..)` while some messages weren't completed
     UncommittedPayloads,
+    /// Duplicate init message
+    DuplicateInit,
 }
 
 /// Incoming message.
@@ -704,6 +706,8 @@ pub struct MessageState {
 pub struct PayloadStore {
     /// Outgoing payloads ever formed for current message processing.
     pub outgoing: BTreeMap<u64, Option<Payload>>,
+    /// Program ids of newly created programs in the current message processing.
+    pub new_programs: Vec<ProgramId>,
     /// Reply payload ever formed for current message processing.
     pub reply: Option<Payload>,
     /// Messages were ever waken for current message processing.
@@ -867,17 +871,36 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
     /// along with init message id.
     pub fn send_init_program(
         &mut self,
-        new_program_id: ProgramId,
         packet: ProgramInitPacket,
-    ) -> (ProgramId, MessageId) {
+    ) -> Result<(ProgramId, MessageId), Error> {
+        let code_hash = packet.code_hash;
+        let new_program_id = {
+            let mut data = Vec::with_capacity(code_hash.inner().len() + packet.salt.len());
+            code_hash.encode_to(&mut data);
+            packet.salt.encode_to(&mut data);
+            ProgramId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
+        };
+
+        {
+            let payload_store = self.store.borrow();
+            if payload_store
+                .new_programs
+                .iter()
+                .any(|id| id == &new_program_id)
+            {
+                return Err(Error::DuplicateInit);
+            }
+        }
+
         let msg = self
             .id_generator
             .borrow_mut()
             .produce_init(new_program_id, packet);
         let msg_id = msg.id;
         self.state.borrow_mut().init_messages.push(msg);
+        self.store.borrow_mut().new_programs.push(new_program_id);
 
-        (new_program_id, msg_id)
+        Ok((new_program_id, msg_id))
     }
 }
 

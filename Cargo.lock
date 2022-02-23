@@ -2020,6 +2020,7 @@ name = "gear-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blake2-rfc",
  "derive_more",
  "hashbrown 0.12.0",
  "log",

@@ -21,11 +21,10 @@ use crate::{
     id::BlakeMessageIdGenerator,
 };
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use codec::Encode;
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
+    gas::{ChargeResult, GasCounter, ValueCounter},
     memory::{MemoryContext, PageBuf, PageNumber},
     message::{
         ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ProgramInitPacket,
@@ -185,14 +184,8 @@ impl From<Ext> for ExtInfo {
             store,
         ) = ext.message_context.drain();
 
-        let gas_amount: GasAmount = ext.gas_counter.into();
-
-        let trap_explanation = ext.error_explanation;
-
-        let program_candidates_data = ext.program_candidates_data;
-
         ExtInfo {
-            gas_amount,
+            gas_amount: ext.gas_counter.into(),
             pages: ext.memory_context.allocations().clone(),
             accessed_pages,
             init_messages,
@@ -201,9 +194,9 @@ impl From<Ext> for ExtInfo {
             awakening,
             nonce,
             payload_store: Some(store),
-            trap_explanation,
+            trap_explanation: ext.error_explanation,
             exit_argument: ext.exit_argument,
-            program_candidates_data,
+            program_candidates_data: ext.program_candidates_data,
         }
     }
 }
@@ -457,30 +450,20 @@ impl EnvExt for Ext {
 
     fn create_program(&mut self, packet: ProgramInitPacket) -> Result<ProgramId, &'static str> {
         let code_hash = packet.code_hash;
-        let new_program_id = {
-            let mut data = Vec::with_capacity(code_hash.inner().len() + packet.salt.len());
-            code_hash.encode_to(&mut data);
-            packet.salt.encode_to(&mut data);
-            ProgramId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
-        };
-
-        let entry = self
-            .program_candidates_data
-            .entry(code_hash)
-            .or_insert(Vec::new());
-
-        if entry.iter().any(|(id, _)| id == &new_program_id) {
-            return self.return_and_store_err(Err("Duplicate init message for the same id"));
-        }
 
         // Send a message for program creation
-        let (new_prog_id, init_msg_id) = self
+        let result = self
             .message_context
-            .send_init_program(new_program_id, packet);
+            .send_init_program(packet)
+            .map(|(new_prog_id, init_msg_id)| {
+                // Save a program candidate for this run
+                let entry = self.program_candidates_data.entry(code_hash).or_default();
+                entry.push((new_prog_id, init_msg_id));
 
-        // Save a program candidate for this run
-        entry.push((new_prog_id, init_msg_id));
+                new_prog_id
+            })
+            .map_err(|_| "Duplicate init message for the same id");
 
-        Ok(new_prog_id)
+        self.return_and_store_err(result)
     }
 }

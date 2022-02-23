@@ -24,6 +24,7 @@ use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use core::{cmp, fmt};
+use scale_info::TypeInfo;
 
 use crate::memory::{PageBuf, PageNumber};
 
@@ -31,7 +32,18 @@ use crate::memory::{PageBuf, PageNumber};
 ///
 /// 256-bit program identifier. In production environments, should be the result of a cryptohash function.
 #[derive(
-    Clone, Copy, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq, PartialOrd, Ord,
+    Clone,
+    Copy,
+    Decode,
+    Default,
+    Encode,
+    derive_more::From,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    TypeInfo,
 )]
 pub struct ProgramId([u8; 32]);
 

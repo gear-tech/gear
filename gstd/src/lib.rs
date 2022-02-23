@@ -34,6 +34,7 @@ pub mod lock;
 pub mod macros;
 pub mod msg;
 pub mod prelude;
+pub mod prog;
 
 pub use async_runtime::{message_loop, record_reply};
 pub use common::errors;
