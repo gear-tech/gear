@@ -596,8 +596,10 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            NativeProgram::new(Default::default(), code.clone())
-                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
+            NativeProgram::new(Default::default(), code.clone()).map_err(|e| {
+                log::debug!("Program failed to load: {}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let code_hash = Self::set_code_with_metadata(&code, who.into_origin())?;
 
@@ -672,8 +674,10 @@ pub mod pallet {
                 Error::<T>::ProgramAlreadyExists
             );
 
-            let program = NativeProgram::new(id, code.clone())
-                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
+            let program = NativeProgram::new(id, code.clone()).map_err(|e| {
+                log::debug!("Program failed to load: {}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
