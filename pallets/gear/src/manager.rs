@@ -32,16 +32,22 @@ use frame_support::{
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, ExitCode, MessageId},
-    program::{Program as NativeProgram, ProgramId},
+    program::{CodeHash, Program as NativeProgram, ProgramId},
 };
 use primitive_types::H256;
 use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
-use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
+use sp_std::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    marker::PhantomData,
+    prelude::*,
+};
 
 pub struct ExtManager<T: Config> {
+    // Messages with these destinations will be forcibly pushed to the queue.
+    marked_destinations: BTreeSet<ProgramId>,
     _phantom: PhantomData<T>,
 }
 
@@ -102,6 +108,7 @@ where
     fn default() -> Self {
         ExtManager {
             _phantom: PhantomData,
+            marked_destinations: Default::default(),
         }
     }
 }
@@ -375,7 +382,11 @@ where
             message_id
         );
 
-        if common::program_exists(dispatch.message.dest) {
+        if common::program_exists(dispatch.message.dest)
+            || self
+                .marked_destinations
+                .contains(&ProgramId::from_origin(dispatch.message.dest))
+        {
             if let Some(gas_limit) = gas_limit {
                 let _ =
                     T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
@@ -526,6 +537,31 @@ where
             log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
             let from = <T::AccountId as Origin>::from_origin(from);
             T::Currency::unreserve(&from, value.unique_saturated_into());
+        }
+    }
+
+    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
+        let code_hash = code_hash.inner().into();
+
+        if let Some(code) = common::get_code(code_hash) {
+            for (candidate_id, init_message) in candidates {
+                if !common::program_exists(candidate_id.into_origin()) {
+                    // Code hash for invalid code can't be added to the storage from extrinsics.
+                    let new_program = NativeProgram::new(candidate_id, code.clone())
+                        .expect("guaranteed to be valid");
+                    self.set_program(new_program, init_message.into_origin());
+                } else {
+                    log::debug!("Program with id {:?} already exists", candidate_id);
+                }
+            }
+        } else {
+            log::debug!(
+                "No referencing code with code hash {:?} for candidate programs",
+                code_hash
+            );
+            for (candidate, _) in candidates {
+                self.marked_destinations.insert(candidate);
+            }
         }
     }
 }

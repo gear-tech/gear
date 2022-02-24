@@ -74,7 +74,10 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::{message::DispatchKind, program::Program as NativeProgram};
+    use gear_core::{
+        message::DispatchKind,
+        program::{Program as NativeProgram, ProgramId},
+    };
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -475,11 +478,10 @@ pub mod pallet {
                     let current_message_id = dispatch.message.id;
                     let maybe_message_reply = dispatch.message.reply;
 
-                    let maybe_active_program = common::get_program(program_id)
-                        .expect("program with id got from message is guaranteed to exist");
+                    let maybe_program = common::get_program(program_id);
 
                     // Check whether message should be added to the wait list
-                    if let Program::Active(ref prog) = maybe_active_program {
+                    if let Some(Program::Active(ref prog)) = maybe_program {
                         let is_for_wait_list = maybe_message_reply.is_none()
                             && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id);
                         if is_for_wait_list {
@@ -496,9 +498,8 @@ pub mod pallet {
                         }
                     }
 
-                    maybe_active_program
-                        .try_into_native(program_id)
-                        .ok()
+                    maybe_program
+                        .and_then(|prog| prog.try_into_native(program_id).ok())
                         .map(|program| {
                             let balance = T::Currency::free_balance(
                                 &<T::AccountId as Origin>::from_origin(program_id),
@@ -661,20 +662,16 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let mut data = Vec::new();
-            // TODO #512
-            code.encode_to(&mut data);
-            salt.encode_to(&mut data);
+            let code_hash = sp_io::hashing::blake2_256(&code);
+            let id = ProgramId::generate(code_hash.into(), &salt);
 
             // Make sure there is no program with such id in program storage
-            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
             ensure!(
-                !common::program_exists(id),
+                !common::program_exists(id.into_origin()),
                 Error::<T>::ProgramAlreadyExists
             );
 
-            let H256(id_bytes) = id;
-            let program = NativeProgram::new(id_bytes.into(), code.to_vec())
+            let program = NativeProgram::new(id, code.clone())
                 .map_err(|_| Error::<T>::FailedToConstructProgram)?;
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
@@ -685,6 +682,7 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.into_origin();
+            let id = id.into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
