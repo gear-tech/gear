@@ -4368,6 +4368,7 @@ dependencies = [
  "tests-exit-handle",
  "tests-exit-init",
  "tests-init-wait",
+ "tests-proxy",
  "wabt",
 ]
 
@@ -7695,6 +7696,16 @@ dependencies = [
  "gstd",
  "parity-scale-codec",
  "tests-common",
+]
+
+[[package]]
+name = "tests-proxy"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]

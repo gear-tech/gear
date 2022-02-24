@@ -1749,6 +1749,61 @@ fn replies_to_paused_program_skipped() {
     })
 }
 
+#[test]
+fn program_messages_to_paused_program_skipped() {
+    use tests_init_wait::WASM_BINARY;
+    use tests_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let paused_program_id = utils::get_last_program_id();
+
+        let code = PROXY_WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_3).into(),
+            code.clone(),
+            vec![],
+            InputArgs{ destination: paused_program_id.into() }.encode(),
+            100_000_000u64,
+            1_000u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(common::pause_program(paused_program_id));
+
+        run_to_block(3, None);
+
+        assert_ok!(
+            GearPallet::<Test>::send_message(
+                Origin::signed(USER_3).into(),
+                program_id,
+                vec![],
+                100_000_000u64,
+                1_000u128
+            )
+        );
+
+        run_to_block(4, None);
+
+        assert_eq!(2_000u128, BalancesPallet::<Test>::free_balance(&<utils::AccountId as common::Origin>::from_origin(program_id)));
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
