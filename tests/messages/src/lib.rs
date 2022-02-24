@@ -173,8 +173,11 @@ mod tests {
         );
     }
 
+    /// Check that wasm export '__gear_stack_end' is used correct by core processor.
+    /// In this test we check that only last page == 16 is updated after execution,
+    /// all other pages are stack pages, so must be skipped.
     #[test]
-    fn check_pages() {
+    fn check_gear_stack_end() {
         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
         let mut runner = RunnerContext::default();
         let (_, prog_id) = runner.init_program(wasm_code());

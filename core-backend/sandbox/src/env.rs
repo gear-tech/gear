@@ -187,6 +187,7 @@ where
 
     fn get_stack_mem_end(&self) -> Option<i32> {
         let instance = self.instance.as_ref().expect("Must have instance");
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
         let global = instance.get_global_val("__gear_stack_end")?;
         global.as_i32()
     }

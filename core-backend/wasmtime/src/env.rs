@@ -354,7 +354,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
 
     fn get_stack_mem_end(&self) -> Option<i32> {
         let instance = self.instance.as_ref().expect("Must have instance");
-        // let export = instance.get_export("0")?;
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
         let global = instance.get_global("__gear_stack_end")?;
         global.get().i32()
     }
