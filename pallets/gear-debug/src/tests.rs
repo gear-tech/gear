@@ -20,9 +20,8 @@
 
 use super::*;
 use crate::mock::*;
-use codec::Encode;
 use common::{self, Origin as _, QueuedDispatch, QueuedMessage};
-use gear_core::message::DispatchKind;
+use gear_core::{message::DispatchKind, program::ProgramId};
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
 use sp_core::H256;
@@ -44,13 +43,8 @@ fn parse_wat(source: &str) -> Vec<u8> {
 }
 
 pub fn program_id(code: &[u8]) -> H256 {
-    let code_hash = sp_io::hashing::blake2_256(&code);
-    let salt = b"salt".to_vec();
-    let mut data = Vec::with_capacity(code_hash.len() + salt.len());
-    code_hash.encode_to(&mut data);
-    salt.encode_to(&mut data);
-
-    sp_io::hashing::blake2_256(&data).into()
+    let code_hash = sp_io::hashing::blake2_256(code).into();
+    ProgramId::generate(code_hash, b"salt").into_origin()
 }
 
 #[test]

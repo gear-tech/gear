@@ -79,6 +79,19 @@ impl From<&[u8]> for ProgramId {
 }
 
 impl ProgramId {
+    /// Generates a new program id from code hash and salt
+    ///
+    /// Uses blake2b hash function to generate unique program id.
+    pub fn generate(code_hash: CodeHash, salt: &[u8]) -> Self {
+        let id_hash = {
+            let mut data = Vec::with_capacity(code_hash.inner().len() + salt.len());
+            code_hash.encode_to(&mut data);
+            salt.encode_to(&mut data);
+            blake2_rfc::blake2b::blake2b(32, &[], &data)
+        };
+        ProgramId::from_slice(id_hash.as_bytes())
+    }
+
     /// Create new program id from bytes.
     ///
     /// Will panic if slice is not 32 bytes length.
@@ -118,7 +131,7 @@ pub struct Program {
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Message nonce
     message_nonce: u64,
-    /// Program is initialized
+    /// Program is initialized.
     is_initialized: bool,
 }
 

@@ -103,6 +103,7 @@ impl MessageId {
 }
 
 /// Exit code type for message replies
+// TODO https://github.com/gear-tech/gear/pull/722#discussion_r813672743
 pub type ExitCode = i32;
 
 /// Error using messages.
@@ -863,12 +864,7 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         packet: ProgramInitPacket,
     ) -> Result<(ProgramId, MessageId), Error> {
         let code_hash = packet.code_hash;
-        let new_program_id = {
-            let mut data = Vec::with_capacity(code_hash.inner().len() + packet.salt.len());
-            code_hash.encode_to(&mut data);
-            packet.salt.encode_to(&mut data);
-            ProgramId::from_slice(blake2_rfc::blake2b::blake2b(32, &[], &data).as_bytes())
-        };
+        let new_program_id = ProgramId::generate(code_hash, &packet.salt);
 
         {
             let payload_store = self.store.borrow();

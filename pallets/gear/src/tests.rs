@@ -2118,6 +2118,8 @@ mod utils {
     use sp_core::H256;
     use sp_std::convert::TryFrom;
 
+    use gear_core::program::ProgramId;
+
     use super::{
         assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MessageInfo, MockEvent,
         Origin, SystemPallet, Test,
@@ -2280,13 +2282,8 @@ mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-        let code_hash = sp_io::hashing::blake2_256(code);
-        let mut data = Vec::with_capacity(code_hash.len() + salt.len());
-
-        code_hash.encode_to(&mut data);
-        salt.encode_to(&mut data);
-
-        sp_io::hashing::blake2_256(&data).into()
+        let code_hash = sp_io::hashing::blake2_256(code).into();
+        ProgramId::generate(code_hash, salt).into_origin()
     }
 
     pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {

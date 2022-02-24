@@ -52,13 +52,13 @@ pub struct DispatchResult {
     /// Original dispatch.
     pub dispatch: Dispatch,
 
-    /// List of generated from program messages.
+    /// List of generated messages.
     pub generated_dispatches: Vec<Dispatch>,
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
 
     /// New programs to be created with additional data (corresponding code hash and init message id).
-    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
 
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
@@ -239,11 +239,11 @@ pub trait JournalHandler {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     );
-    /// Send value
+    /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
-    /// Store new programs in storage
+    /// Store new programs in storage.
     ///
-    /// Program ids are ids of_potential_ (planned to be initialized) programs.
+    /// Program ids are ids of _potential_ (planned to be initialized) programs.
     fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>);
 }
 

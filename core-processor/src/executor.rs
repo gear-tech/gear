@@ -283,7 +283,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     }
 
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
-    let program_candidates_data = info.program_candidates_data;
+    let program_candidates = info.program_candidates_data;
     let mut dispatch = dispatch;
     dispatch.payload_store = info.payload_store;
 
@@ -296,6 +296,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         gas_amount: info.gas_amount,
         page_update,
         nonce: info.nonce,
-        program_candidates_data,
+        program_candidates,
     })
 }

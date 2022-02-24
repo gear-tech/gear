@@ -46,9 +46,9 @@ use sp_std::{
 };
 
 pub struct ExtManager<T: Config> {
-    _phantom: PhantomData<T>,
     // Messages with these destinations will be forcibly pushed to the queue.
     marked_destinations: BTreeSet<ProgramId>,
+    _phantom: PhantomData<T>,
 }
 
 #[derive(Decode, Encode)]

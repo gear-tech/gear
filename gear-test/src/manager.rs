@@ -208,6 +208,6 @@ impl JournalHandler for InMemoryExtManager {
         _code_hash: gear_core::program::CodeHash,
         _candidates: Vec<(ProgramId, MessageId)>,
     ) {
-        // todo next pr
+        todo!() // Patch 3 is coming
     }
 }

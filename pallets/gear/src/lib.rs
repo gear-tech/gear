@@ -74,7 +74,10 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::{message::DispatchKind, program::Program as NativeProgram};
+    use gear_core::{
+        message::DispatchKind,
+        program::{Program as NativeProgram, ProgramId},
+    };
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -659,24 +662,16 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let id: H256 = {
-                let code_hash = sp_io::hashing::blake2_256(&code);
-                let mut data = Vec::with_capacity(code_hash.len() + salt.len());
-
-                code_hash.encode_to(&mut data);
-                salt.encode_to(&mut data);
-
-                sp_io::hashing::blake2_256(&data).into()
-            };
+            let code_hash = sp_io::hashing::blake2_256(&code);
+            let id = ProgramId::generate(code_hash.into(), &salt);
 
             // Make sure there is no program with such id in program storage
             ensure!(
-                !common::program_exists(id),
+                !common::program_exists(id.into_origin()),
                 Error::<T>::ProgramAlreadyExists
             );
 
-            let H256(id_bytes) = id;
-            let program = NativeProgram::new(id_bytes.into(), code.to_vec())
+            let program = NativeProgram::new(id, code.clone())
                 .map_err(|_| Error::<T>::FailedToConstructProgram)?;
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
@@ -687,6 +682,7 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.into_origin();
+            let id = id.into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.

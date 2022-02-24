@@ -415,6 +415,6 @@ impl JournalHandler for ExtManager {
         _code_hash: CodeHash,
         _candidates: Vec<(ProgramId, MessageId)>,
     ) {
-        // TODO #714
+        // todo!() #714
     }
 }

@@ -39,12 +39,12 @@ pub const ERR_EXIT_CODE: ExitCode = 1;
 ///
 /// These messages can be any of `init`,`handle`, `handle_reply`.
 /// If the message is `init` it means either:
-/// 1. Program tries to init program with non existing code hash
+/// 1. Program tries to init program with non existing code hash.
 /// 2. Program tries to init terminated program.
 /// If the message is `handle` or `handle_reply` it means, that destination
 /// was terminated while the message was in the queue.
 pub const UNAVAILABLE_DEST_EXIT_CODE: ExitCode = 2;
-/// A try to init again initialized, existing program
+/// A try to init again initialized, existing program.
 pub const RE_INIT_EXIT_CODE: ExitCode = 3;
 
 pub use executor::execute_wasm;

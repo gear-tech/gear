@@ -23,7 +23,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::util::{get_dispatch_queue, new_test_ext, process_queue};
 use crate::GearRuntimeTestCmd;
-use codec::Encode;
 use colored::{ColoredString, Colorize};
 
 use gear_runtime::{Origin, Runtime};
@@ -155,18 +154,14 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         .map(|program| {
             let program_path = program.path.clone();
             let code = std::fs::read(&program_path).unwrap();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&code).into();
-
+            let code_hash = sp_io::hashing::blake2_256(&code).into();
             let salt = program.id.to_program_id().as_slice().to_vec();
-            let mut data = Vec::new();
-            code_hash.encode_to(&mut data);
-            salt.encode_to(&mut data);
 
-            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
+            let id = ProgramId::generate(code_hash, &salt);
 
-            progs_n_paths.push((program.path.as_ref(), ProgramId::from(id.as_bytes())));
+            progs_n_paths.push((program.path.as_ref(), id));
 
-            (program.id.to_program_id(), id)
+            (program.id.to_program_id(), id.into_origin())
         })
         .collect();
 
