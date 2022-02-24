@@ -161,7 +161,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut module = parity_wasm::deserialize_file(file)?;
 
         if !skip_stack_end {
-            let _ = gear_wasm_builder::insert_stack_end_export(&mut module).map_err(|s| log::debug!("{}", s));
+            let _ = gear_wasm_builder::insert_stack_end_export(&mut module)
+                .map_err(|s| log::debug!("{}", s));
         }
 
         if !skip_opt {

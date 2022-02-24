@@ -39,8 +39,14 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
         return Err("has no stack pointer global");
     }
 
-    let glob_section = module.global_section().ok_or("Cannot find globals section")?;
-    let zero_global = glob_section.entries().iter().next().ok_or("there is no globals")?;
+    let glob_section = module
+        .global_section()
+        .ok_or("Cannot find globals section")?;
+    let zero_global = glob_section
+        .entries()
+        .iter()
+        .next()
+        .ok_or("there is no globals")?;
     if zero_global.global_type().content_type() != ValueType::I32 {
         return Err("has no i32 global 0");
     }
@@ -57,7 +63,9 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
 
     if let Instruction::I32Const(literal) = instr {
         log::debug!("stack pointer init == {:#x}", literal);
-        let export_section = module.export_section_mut().ok_or("Cannot find export section")?;
+        let export_section = module
+            .export_section_mut()
+            .ok_or("Cannot find export section")?;
         let x = export_section.entries_mut();
         x.push(ExportEntry::new(
             "__gear_stack_end".to_string(),

@@ -92,10 +92,12 @@ pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
         memory: &dyn Memory,
     ) -> Result<(), BackendError<'static>>;
 
+    /// Returns addr to the stack end if it can be identified
     fn get_stack_mem_end(&self) -> Option<i32>;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// NOTE: external environment must be set up.
+    /// NOTE: env is dropped after execution
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
 
     /// Create internal representation of wasm memory with size `total_pages`
