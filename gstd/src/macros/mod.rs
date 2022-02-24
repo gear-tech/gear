@@ -27,9 +27,8 @@ mod metadata;
 pub mod util {
     use crate::prelude::{Box, String, Vec};
     use codec::Encode;
-    use scale_info::{PortableRegistry, Registry};
-
     pub use scale_info::MetaType;
+    use scale_info::{PortableRegistry, Registry};
 
     /// Generate a registry from given meta types and encode it to hex.
     pub fn to_hex_registry(meta_types: Vec<MetaType>) -> String {
