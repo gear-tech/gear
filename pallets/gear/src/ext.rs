@@ -27,7 +27,7 @@ use gear_core::{
     gas::{GasCounter, ValueCounter},
     memory::{MemoryContext, PageBuf, PageNumber},
     message::{MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
-    program::ProgramId,
+    program::{CodeHash, ProgramId},
 };
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
 
@@ -97,6 +97,7 @@ impl ProcessorExt for LazyPagesExt {
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         initiator: ProgramId,
+        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             inner: Ext {
@@ -110,7 +111,7 @@ impl ProcessorExt for LazyPagesExt {
                 error_explanation,
                 exit_argument,
                 initiator,
-                program_candidates_data: Default::default(), // to be changed
+                program_candidates_data,
             },
             lazy_pages_enabled: false,
         }

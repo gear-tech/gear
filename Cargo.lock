@@ -102,9 +102,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.54"
+version = "1.0.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a99269dff3bc004caa411f38845c20303f1e393ca2bd6581576fa3a7f59577d"
+checksum = "159bb86af3a200e19a068f4224eae4c8bb2d0fa054c7e5d1cacd5cef95e684cd"
 
 [[package]]
 name = "approx"
@@ -774,9 +774,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.1.1"
+version = "3.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d76c22c9b9b215eeb8d016ad3a90417bd13cb24cf8142756e6472445876cab7"
+checksum = "5177fac1ab67102d8989464efd043c6ff44191b1557ec1ddd489b4f7e1447e77"
 dependencies = [
  "atty",
  "bitflags",
@@ -4372,6 +4372,7 @@ dependencies = [
  "tests-exit-handle",
  "tests-exit-init",
  "tests-init-wait",
+ "tests-program-factory",
  "wabt",
 ]
 
@@ -7697,6 +7698,18 @@ dependencies = [
  "env_logger",
  "gear-wasm-builder",
  "gstd",
+ "parity-scale-codec",
+ "tests-common",
+]
+
+[[package]]
+name = "tests-program-factory"
+version = "0.1.0"
+dependencies = [
+ "gear-core",
+ "gear-wasm-builder",
+ "gstd",
+ "hex-literal",
  "parity-scale-codec",
  "tests-common",
 ]

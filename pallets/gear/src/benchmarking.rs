@@ -150,7 +150,6 @@ fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 
 fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
     let code_hash = sp_io::hashing::blake2_256(&code).into();
-    // TODO set_program has redundant code set, that should be wiped off in #512
     common::set_program(
         program_id,
         common::ActiveProgram {
