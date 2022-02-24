@@ -83,9 +83,8 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     let mut journal = Vec::new();
 
     assert_eq!(dispatches.len(), initiators.len());
-    let mut initiators = initiators.into_iter();
 
-    for dispatch in dispatches {
+    for (dispatch, initiator) in dispatches.into_iter().zip(initiators.into_iter()) {
         let actor = actors
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
@@ -95,9 +94,7 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
             dispatch,
             block_info,
             existential_deposit,
-            initiators
-                .next()
-                .expect("Can't fail. Lengths checked above"),
+            initiator,
         );
 
         for note in &current_journal {
