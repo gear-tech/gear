@@ -140,6 +140,14 @@ where
 {
     let mut nonce = 1;
 
+    if let Some(codes) = &test.codes {
+        for code in codes {
+            let code_bytes = std::fs::read(&code.path)
+                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
+            journal_handler.store_code(&code_bytes);
+        }
+    }
+
     for program in &test.programs {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path)

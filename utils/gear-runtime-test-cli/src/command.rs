@@ -99,6 +99,25 @@ fn init_fixture(
     snapshots: &mut Vec<DebugData>,
     mailbox: &mut Vec<QueuedMessage>,
 ) -> anyhow::Result<()> {
+    if let Some(codes) = &test.codes {
+        for code in codes {
+            let code_bytes = std::fs::read(&code.path).map_err(|e| {
+                anyhow::format_err!(
+                    "Tried to read code from path {:?}. Failed: {:?}",
+                    code.path,
+                    e
+                )
+            })?;
+
+            if let Err(e) = GearPallet::<Runtime>::submit_code(
+                Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+                code_bytes,
+            ) {
+                return Err(anyhow::format_err!("Submit code error: {:?}", e));
+            }
+        }
+    }
+
     for program in &test.programs {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path).unwrap();
@@ -148,7 +167,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     pallet_gear_debug::DebugMode::<Runtime>::put(true);
 
     // Find out future program ids
-    let programs: BTreeMap<ProgramId, H256> = test
+    let mut programs: BTreeMap<ProgramId, H256> = test
         .programs
         .iter()
         .map(|program| {
@@ -266,6 +285,23 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             }
 
             process_queue(&mut snapshots, &mut mailbox);
+
+            // After processing queue some new programs could be created, so we
+            // search for them
+            for snapshot_program in &snapshots.last().unwrap().programs {
+                let exists = programs.iter().any(|(k, v)| {
+                    k.into_origin() == snapshot_program.id || v == &snapshot_program.id
+                });
+                if exists {
+                    continue;
+                } else {
+                    // A new program was created
+                    programs.insert(
+                        ProgramId::from_origin(snapshot_program.id),
+                        snapshot_program.id,
+                    );
+                }
+            }
 
             for exp in &fixture.expected {
                 let snapshot: DebugData = if let Some(step) = exp.step {
