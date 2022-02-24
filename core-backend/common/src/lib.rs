@@ -92,6 +92,8 @@ pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
         memory: &dyn Memory,
     ) -> Result<(), BackendError<'static>>;
 
+    fn get_stack_mem_end(&self) -> Option<i32>;
+
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// NOTE: external environment must be set up.
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;

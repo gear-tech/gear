@@ -25,7 +25,10 @@ use crate::wasm_project::WasmProject;
 mod builder_error;
 mod cargo_command;
 mod crate_info;
+mod stack_end;
 mod wasm_project;
+
+pub use stack_end::insert_stack_end_export;
 
 /// WASM building tool.
 pub struct WasmBuilder {
@@ -44,6 +47,7 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
+        env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("info")).init();
         if env::var(self.cargo.skip_build_env()).is_ok() {
             return;
         }

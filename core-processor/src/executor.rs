@@ -32,7 +32,7 @@ use gear_backend_common::{BackendReport, Environment, ExtInfo, TerminationReason
 use gear_core::{
     env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
-    memory::{MemoryContext, PageNumber},
+    memory::{MemoryContext, PageNumber, PAGE_SIZE},
     message::{Dispatch, MessageContext},
 };
 
@@ -197,6 +197,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         );
     }
 
+    // Page which is right after stack last page
+    let stack_end_page = env
+        .get_stack_mem_end()
+        .map(|addr| addr as u32 / PAGE_SIZE as u32);
+    log::debug!("Stack end = {:?}", stack_end_page);
+
     // Running backend.
     let BackendReport { termination, info } = match env.execute(kind.into_entry()) {
         Ok(report) => report,
@@ -234,10 +240,18 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         TerminationReason::Wait => DispatchResultKind::Wait,
     };
 
+    // changed and new pages will be updated in storage
     let mut page_update = BTreeMap::new();
-
-    // changed and new pages data will be updated in storage
     for (page, new_data) in info.accessed_pages {
+        // exception is stack memory pages - if there are some
+        // we ignore stack pages update, because they are unused after execution is ended,
+        // and for next program execution old data in stack it's just garbage.
+        if let Some(stack_end_page) = stack_end_page {
+            if page.raw() < stack_end_page {
+                continue;
+            }
+        }
+
         if let Some(initial_data) = initial_pages.get(&page) {
             let old_data = initial_data
                 .as_ref()
