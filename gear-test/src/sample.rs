@@ -69,6 +69,13 @@ pub struct Program {
     pub init_value: Option<u128>,
 }
 
+/// Code saved in the persistent layer before fixtures are run
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct Code {
+    /// Path to program's wasm blob.
+    pub path: String,
+}
+
 /// Expected data after running messages, defined in the fixture.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
@@ -212,6 +219,8 @@ pub struct Message {
 /// Main model describing test structure
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
+    /// Code that are needed to be submitted for tests
+    pub codes: Option<Vec<Code>>,
     /// Programs and related data used for tests
     pub programs: Vec<Program>,
     /// A set of messages and expected results of running them in the context of defined [programs](todo-field-ref).

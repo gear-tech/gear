@@ -4,16 +4,6 @@ use gstd::{debug, msg, prog, CodeHash, String};
 
 static mut COUNTER: i32 = 0;
 
-fn increase() {
-    unsafe {
-        COUNTER += 1;
-    }
-}
-
-fn get() -> i32 {
-    unsafe { COUNTER }
-}
-
 /// Creates the following program:
 /// ```
 /// let default_program = r#"
@@ -38,7 +28,7 @@ pub unsafe extern "C" fn handle() {
             // extrinsic and we got its hash. For more details please read README file.
             let new_program_id = prog::create_program_with_gas(
                 submitted_code,
-                get().to_le_bytes(),
+                COUNTER.to_le_bytes(),
                 b"unique",
                 10_000,
                 0,
@@ -48,12 +38,12 @@ pub unsafe extern "C" fn handle() {
             let msg_id = msg::send(new_program_id, b"", 0);
             debug!("Sent to a new program message with id {:?}", msg_id);
 
-            increase();
+            COUNTER += 1;
         }
         "duplicate" => {
             let new_program_id = prog::create_program_with_gas(
                 submitted_code,
-                (get() - 1).to_le_bytes(),
+                (COUNTER - 1).to_le_bytes(),
                 b"not_unique",
                 10_000,
                 0,
@@ -68,6 +58,3 @@ pub unsafe extern "C" fn handle() {
         }
     }
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn init() {}

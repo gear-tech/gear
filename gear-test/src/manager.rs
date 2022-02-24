@@ -50,10 +50,13 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
+    fn store_code(&mut self, code: &[u8]) {
+        let code_hash = sp_io::hashing::blake2_256(code).into();
+        self.codes.insert(code_hash, code.to_vec());
+    }
     fn store_program(&mut self, program: gear_core::program::Program, _init_message_id: MessageId) {
         self.waiting_init.insert(program.id(), vec![]);
-        let code_hash = sp_io::hashing::blake2_256(program.code()).into();
-        self.codes.insert(code_hash, program.code().to_vec());
+        self.store_code(program.code());
         self.actors.insert(
             program.id(),
             Some(ExecutableActor {

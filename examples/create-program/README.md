@@ -23,6 +23,6 @@ let code_bytes = wabt::Wat2Wasm::new()
     .to_vec();
 // [0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 2, 15, 1, 3, 101, 110, 118, 6, 109, 101, 109, 111, 114, 121, 2, 0, 1, 3, 3, 2, 0, 0, 7, 17, 2, 6, 104, 97, 110, 100, 108, 101, 0, 0, 4, 105, 110, 105, 116, 0, 1, 10, 7, 2, 2, 0, 11, 2, 0, 11]
 
-let code_hash: sp_core::H256 = sp_io::hashing::blake2_256(&code).into();
+let code_hash: sp_core::H256 = sp_io::hashing::blake2_256(&code_bytes).into();
 // 0xabf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a
 ```

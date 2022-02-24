@@ -99,6 +99,25 @@ fn init_fixture(
     snapshots: &mut Vec<DebugData>,
     mailbox: &mut Vec<QueuedMessage>,
 ) -> anyhow::Result<()> {
+    if let Some(codes) = &test.codes {
+        for code in codes {
+            let code_bytes = std::fs::read(&code.path).map_err(|e| {
+                anyhow::format_err!(
+                    "Tried to read code from path {:?}. Failed: {:?}",
+                    code.path,
+                    e
+                )
+            })?;
+
+            if let Err(e) = GearPallet::<Runtime>::submit_code(
+                Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
+                code_bytes,
+            ) {
+                return Err(anyhow::format_err!("Submit code error: {:?}", e));
+            }
+        }
+    }
+
     for program in &test.programs {
         let program_path = program.path.clone();
         let code = std::fs::read(&program_path).unwrap();

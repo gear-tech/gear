@@ -1,17 +1,15 @@
 title: Test create_program sys-call
 
+codes:
+  # Save child's code
+  - path: examples/create-program/child_contract.wasm
+
 programs:
   - id: 1
     source:
       kind: id
       value: 101
     path: target/wasm32-unknown-unknown/release/demo_create_program.wasm
-  # Deploy to save child's code  
-  - id: 2
-    source:
-      kind: id
-      value: 102
-    path: examples/create-program/child_contract.wasm
 
 fixtures:
   - title: Simple creation of program from program
@@ -29,9 +27,6 @@ fixtures:
       - programs:
           - kind: id
             value: 1
-
-          - kind: id
-            value: 2
 
           - kind: ss58
             # computed manually new program address
@@ -82,8 +77,6 @@ fixtures:
         programs:
           - kind: id
             value: 1
-          - kind: id
-            value: 2
           - kind: ss58
             # computed manually new program address
             value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
