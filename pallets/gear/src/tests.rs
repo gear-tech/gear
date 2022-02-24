@@ -1804,6 +1804,83 @@ fn program_messages_to_paused_program_skipped() {
     })
 }
 
+#[test]
+fn resume_program_works() {
+    use tests_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        let message_id = Gear::mailbox(USER_1).and_then(|t| {
+            let mut keys = t.keys();
+            keys.next().cloned()
+        });
+        assert!(message_id.is_some());
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            message_id.unwrap(),
+            b"PONG".to_vec(),
+            50_000_000u64,
+            1_000u128,
+        ));
+
+        run_to_block(3, None);
+
+        let program = match common::get_program(program_id).expect("program exists") {
+            common::Program::Active(p) => p,
+            _ => unreachable!(),
+        };
+        let memory_pages = common::get_program_pages(program_id, program.persistent_pages).expect("program exists, so do pages");
+
+        assert_ok!(common::pause_program(program_id));
+
+        run_to_block(4, None);
+
+        assert_ok!(GearPallet::<Test>::resume_program(
+            Origin::signed(USER_3).into(),
+            program_id,
+            memory_pages,
+            10_000u128));
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3).into(),
+            program_id,
+            vec![],
+            25_000_000u64,
+            0u128
+        ));
+
+        run_to_block(5, None);
+
+        let actual_n = Gear::mailbox(USER_3)
+            .map(|t| {
+                t.into_values().fold(0usize, |i, m| {
+                    assert_eq!(m.payload, b"Hello, world!".encode());
+                    i + 1
+                })
+            })
+            .unwrap_or(0);
+
+        assert_eq!(actual_n, 1);
+    })
+}
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
