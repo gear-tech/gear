@@ -22,7 +22,6 @@ mod bail;
 mod debug;
 mod export;
 mod metadata;
-mod require;
 
 /// Utility functions.
 pub mod util {
