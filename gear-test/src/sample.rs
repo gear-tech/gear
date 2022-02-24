@@ -89,6 +89,7 @@ pub struct Expectation {
     #[serde(rename = "allowError")]
     pub allow_error: Option<bool>,
     /// Expected active programs (not failed in the init) ids
+    #[serde(rename = "programs")]
     pub active_programs: Option<Vec<ChainAddress>>,
 }
 

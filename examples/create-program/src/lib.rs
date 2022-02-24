@@ -1,6 +1,6 @@
 #![no_std]
 
-use gstd::{debug, msg, CodeHash, String};
+use gstd::{debug, msg, prog, CodeHash, String};
 
 static mut COUNTER: i32 = 0;
 
@@ -36,8 +36,13 @@ pub unsafe extern "C" fn handle() {
         "default" => {
             // Assume that the code of the deploying program was submitted by `submit_code`
             // extrinsic and we got its hash. For more details please read README file.
-            let new_program_id =
-                prog::create_program_with_gas(submitted_code, get().to_le_bytes(), b"unique", 10_000, 0);
+            let new_program_id = prog::create_program_with_gas(
+                submitted_code,
+                get().to_le_bytes(),
+                b"unique",
+                10_000,
+                0,
+            );
             debug!("A new program is created {:?}", new_program_id);
 
             let msg_id = msg::send(new_program_id, b"", 0);
@@ -63,3 +68,6 @@ pub unsafe extern "C" fn handle() {
         }
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn init() {}

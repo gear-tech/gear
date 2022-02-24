@@ -1,0 +1,135 @@
+title: Test create_program sys-call
+
+programs:
+  - id: 1
+    source:
+      kind: id
+      value: 101
+    path: target/wasm32-unknown-unknown/release/demo_create_program.wasm
+  # Deploy to save child's code  
+  - id: 2
+    source:
+      kind: id
+      value: 102
+    path: examples/create-program/child_contract.wasm
+
+fixtures:
+  - title: Simple creation of program from program
+
+    messages:
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: default
+
+    expected:
+      - programs:
+          - kind: id
+            value: 1
+
+          - kind: id
+            value: 2
+
+          - kind: ss58
+            # computed manually new program address
+            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+
+  - title: Try to re-init existing program
+
+    messages:
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: default
+
+      - destination: 1
+        source:
+          kind: id
+          value: 100
+        payload:
+          kind: utf-8
+          value: duplicate    
+
+    expected:
+      - step: 1
+        messages:
+          - destination: 1
+            source:
+              kind: id
+              value: 100
+            payload:
+              kind: utf-8
+              value: duplicate
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: true
+            payload:
+              kind: utf-8
+              value: unique
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: false
+
+      - step: 2
+        programs:
+          - kind: id
+            value: 1
+          - kind: id
+            value: 2
+          - kind: ss58
+            # computed manually new program address
+            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+        messages:
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: true
+            payload:
+              kind: utf-8
+              value: unique
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: false
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: true
+            payload:
+              kind: utf-8
+              value: not_unique
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: false
+
+      - step: 4
+        messages:
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: true
+            payload:
+              kind: utf-8
+              value: not_unique
+          - destination:
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: false
+      - step: 5
+        messages:
+          - destination: 
+              kind: ss58
+              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            init: false
+          - destination: 1
+            init: false
+            exitCode: 3
