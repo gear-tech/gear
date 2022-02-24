@@ -23,7 +23,7 @@ pub mod native;
 pub mod storage_queue;
 
 mod pause;
-pub use pause::{pause_program, paused_program_exists, resume_program};
+pub use pause::{pause_program, paused_program_exists, resume_program, PauseError, ResumeError};
 
 use codec::{Decode, Encode};
 use frame_support::{
@@ -809,23 +809,21 @@ mod tests {
             );
 
             let msg_id_1 = H256::from_low_u64_be(1);
-            insert_waiting_message(program_id, msg_id_1, Dispatch::new_handle(Message {
+            insert_waiting_message(program_id, msg_id_1, QueuedDispatch::new_handle(QueuedMessage {
                 id: msg_id_1,
                 source: H256::from_low_u64_be(3),
                 dest: program_id,
                 payload: Default::default(),
-                gas_limit: u64::MAX,
                 value: 0,
                 reply: None,
             }), 0);
 
             let msg_id_2 = H256::from_low_u64_be(2);
-            insert_waiting_message(program_id, msg_id_2, Dispatch::new_handle(Message {
+            insert_waiting_message(program_id, msg_id_2, QueuedDispatch::new_handle(QueuedMessage {
                 id: msg_id_2,
                 source: H256::from_low_u64_be(4),
                 dest: program_id,
                 payload: Default::default(),
-                gas_limit: u64::MAX,
                 value: 0,
                 reply: None,
             }), 0);
@@ -866,7 +864,7 @@ mod tests {
             );
 
             assert_ok!(pause_program(program_id));
-            assert_err!(pause_program(program_id), pause::Error::ProgramNotFound);
+            assert_err!(pause_program(program_id), PauseError::ProgramNotFound);
         });
     }
 
@@ -893,7 +891,7 @@ mod tests {
 
             assert_ok!(set_program_terminated_status(program_id));
 
-            assert_err!(pause_program(program_id), pause::Error::ProgramTerminated);
+            assert_err!(pause_program(program_id), PauseError::ProgramTerminated);
         });
     }
 
@@ -928,35 +926,32 @@ mod tests {
         );
 
         // init message
-        insert_waiting_message(program_id, init_msg_id, Dispatch::new_handle(Message {
+        insert_waiting_message(program_id, init_msg_id, QueuedDispatch::new_handle(QueuedMessage {
             id: init_msg_id,
             source: H256::from_low_u64_be(3),
             dest: program_id,
             payload: Default::default(),
-            gas_limit: u64::MAX,
             value: 0,
             reply: None,
         }), 0);
 
         let msg_id_1 = H256::from_low_u64_be(1);
-        insert_waiting_message(program_id, msg_id_1, Dispatch::new_handle(Message {
+        insert_waiting_message(program_id, msg_id_1, QueuedDispatch::new_handle(QueuedMessage {
             id: msg_id_1,
             source: H256::from_low_u64_be(3),
             dest: program_id,
             payload: Default::default(),
-            gas_limit: u64::MAX,
             value: 0,
             reply: None,
         }), 0);
         waiting_init_append_message_id(program_id, msg_id_1);
 
         let msg_id_2 = H256::from_low_u64_be(2);
-        insert_waiting_message(program_id, msg_id_2, Dispatch::new_handle(Message {
+        insert_waiting_message(program_id, msg_id_2, QueuedDispatch::new_handle(QueuedMessage {
             id: msg_id_2,
             source: H256::from_low_u64_be(4),
             dest: program_id,
             payload: Default::default(),
-            gas_limit: u64::MAX,
             value: 0,
             reply: None,
         }), 0);
@@ -1025,7 +1020,7 @@ mod tests {
 
             let block_number = 100;
             assert_ok!(resume_program(program_id, memory_pages.clone(), block_number));
-            assert_err!(resume_program(program_id, memory_pages, block_number), pause::ResumeError::ProgramNotFound);
+            assert_err!(resume_program(program_id, memory_pages, block_number), ResumeError::ProgramNotFound);
         });
     }
 
@@ -1039,7 +1034,7 @@ mod tests {
 
             let block_number = 100;
             memory_pages.remove(&0);
-            assert_err!(resume_program(program_id, memory_pages, block_number), pause::ResumeError::WrongMemoryPages);
+            assert_err!(resume_program(program_id, memory_pages, block_number), ResumeError::WrongMemoryPages);
         });
     }
 }

@@ -37,15 +37,15 @@ fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Error
+pub enum PauseError
 {
     ProgramNotFound,
     ProgramTerminated,
 }
 
-pub fn pause_program(program_id: H256) -> Result<(), Error> {
-    let program = get_program(program_id).ok_or(Error::ProgramNotFound)?;
-    let program: ActiveProgram = program.try_into().map_err(|_| Error::ProgramTerminated)?;
+pub fn pause_program(program_id: H256) -> Result<(), PauseError> {
+    let program = get_program(program_id).ok_or(PauseError::ProgramNotFound)?;
+    let program: ActiveProgram = program.try_into().map_err(|_| PauseError::ProgramTerminated)?;
 
     let prefix = wait_prefix(program_id);
     let previous_key = prefix.clone();

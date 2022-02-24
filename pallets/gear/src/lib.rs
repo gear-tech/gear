@@ -70,7 +70,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, ReservableCurrency},
+        traits::{BalanceStatus, Currency, ReservableCurrency, ExistenceRequirement},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -78,7 +78,7 @@ pub mod pallet {
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
-    use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
+    use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
@@ -182,6 +182,14 @@ pub mod pallet {
         FailedToConstructProgram,
         /// Value doesnt cover ExistenceDeposit
         ValueLessThanMinimal,
+        /// Not enough value to resume program
+        ResumeProgramNotEnoughValue,
+        /// There is no program with specified id
+        ProgramNotFound,
+        /// Provided memory pages doesn't match the hash in the paused program
+        ResumeProgramWrongMemory,
+        /// Failed to transfer value to program being resumed
+        ResumeProgramTransferFailed,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -923,6 +931,35 @@ pub mod pallet {
             Self::deposit_event(Event::DatabaseWiped);
 
             Ok(())
+        }
+
+        /// TODO
+        #[frame_support::transactional]
+        #[pallet::weight(<T as Config>::WeightInfo::send_reply(memory_pages.values().map(|p| p.len() as u32).sum()))]
+        pub fn resume_program(
+            origin: OriginFor<T>,
+            program_id: H256,
+            memory_pages: BTreeMap<u32, Vec<u8>>,
+            value: BalanceOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let account = ensure_signed(origin)?;
+
+            ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);
+
+            common::resume_program(program_id, memory_pages, <frame_system::Pallet<T>>::block_number().unique_saturated_into())
+                .map_err(|e| match e {
+                    common::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
+                    common::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
+                })?;
+
+            T::Currency::transfer(
+                &account,
+                &<T::AccountId as Origin>::from_origin(program_id),
+                value,
+                ExistenceRequirement::AllowDeath,
+            ).map_err(|_| Error::<T>::ResumeProgramTransferFailed)?;
+
+            Ok(().into())
         }
     }
 
