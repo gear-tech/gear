@@ -61,16 +61,14 @@ fixtures:
             payload:
               kind: utf-8
               value: duplicate
-          - destination: 
+          - destination: &address
               kind: ss58
               value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
             init: true
             payload:
               kind: utf-8
               value: unique
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: false
 
       - step: 2
@@ -88,40 +86,28 @@ fixtures:
             payload:
               kind: utf-8
               value: unique
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: false
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: true
             payload:
               kind: utf-8
               value: not_unique
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: false
 
       - step: 4
         messages:
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: true
             payload:
               kind: utf-8
               value: not_unique
-          - destination:
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: false
       - step: 5
         messages:
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: false
           - destination: 1
             init: false
