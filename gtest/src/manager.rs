@@ -60,7 +60,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
     // Last run info
-    pub(crate) initiator: ProgramId,
+    pub(crate) origin: ProgramId,
     pub(crate) msg_id: MessageId,
     pub(crate) log: Vec<Message>,
     pub(crate) main_failed: bool,
@@ -174,7 +174,7 @@ impl ExtManager {
                         },
                         self.block_info,
                         crate::EXISTENTIAL_DEPOSIT,
-                        self.initiator,
+                        self.origin,
                     );
 
                     core_processor::handle_journal(journal, self);
@@ -257,9 +257,9 @@ impl ExtManager {
         }
     }
 
-    fn prepare_for(&mut self, msg_id: MessageId, initiator: ProgramId) {
+    fn prepare_for(&mut self, msg_id: MessageId, origin: ProgramId) {
         self.msg_id = msg_id;
-        self.initiator = initiator;
+        self.origin = origin;
         self.log.clear();
         self.main_failed = false;
         self.others_failed = false;

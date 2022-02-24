@@ -190,9 +190,9 @@ pub fn program_id() -> ActorId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     let _user = exec::initiator();
+///     let _user = exec::origin();
 /// }
 /// ```
-pub fn initiator() -> ActorId {
-    gcore::exec::initiator().into()
+pub fn origin() -> ActorId {
+    gcore::exec::origin().into()
 }

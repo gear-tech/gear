@@ -457,7 +457,7 @@ pub mod pallet {
             while let Some(dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
 
-                let (gas_limit, initiator) = T::GasHandler::get_limit(*dispatch.message_id())
+                let (gas_limit, origin) = T::GasHandler::get_limit(*dispatch.message_id())
                     .expect("Should never fail if ValueNode works properly");
 
                 log::debug!(
@@ -518,7 +518,7 @@ pub mod pallet {
                     dispatch.into_dispatch(gas_limit),
                     block_info,
                     existential_deposit,
-                    ProgramId::from_origin(initiator),
+                    ProgramId::from_origin(origin),
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);

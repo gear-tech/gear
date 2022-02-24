@@ -30,7 +30,7 @@ mod sys {
         pub fn gr_exit(value_dest_ptr: *const u8) -> !;
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
-        pub fn gr_initiator(initiator_ptr: *mut u8);
+        pub fn gr_origin(origin_ptr: *mut u8);
         pub fn gr_leave() -> !;
         pub fn gr_value_available(val: *mut u8);
         pub fn gr_wait() -> !;
@@ -240,11 +240,11 @@ pub fn program_id() -> ActorId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     let _user = exec::initiator();
+///     let _user = exec::origin();
 /// }
 /// ```
-pub fn initiator() -> ActorId {
+pub fn origin() -> ActorId {
     let mut actor_id = ActorId::default();
-    unsafe { sys::gr_initiator(actor_id.as_mut_slice().as_mut_ptr()) };
+    unsafe { sys::gr_origin(actor_id.as_mut_slice().as_mut_ptr()) };
     actor_id
 }

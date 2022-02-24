@@ -122,7 +122,7 @@ where
         env_builder.add_host_func("env", "gr_create_program_wgas", funcs::create_program_wgas);
         env_builder.add_host_func("env", "gr_exit", funcs::exit);
         env_builder.add_host_func("env", "gr_exit_code", funcs::exit_code);
-        env_builder.add_host_func("env", "gr_initiator", funcs::initiator);
+        env_builder.add_host_func("env", "gr_origin", funcs::origin);
         env_builder.add_host_func("env", "gr_send", funcs::send);
         env_builder.add_host_func("env", "gr_send_wgas", funcs::send_wgas);
         env_builder.add_host_func("env", "gr_send_commit", funcs::send_commit);

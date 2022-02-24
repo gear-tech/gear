@@ -342,20 +342,20 @@ pub fn block_timestamp<E: Ext + Into<ExtInfo>>(
     return_i64(block_timestamp)
 }
 
-pub fn initiator<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+pub fn origin<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
     let mut args = args.iter();
 
-    let initiator_ptr = pop_i32(&mut args)?;
+    let origin_ptr = pop_i32(&mut args)?;
 
     ctx.ext
         .with(|ext| {
-            let initiator = ext.initiator();
-            ext.set_mem(initiator_ptr, initiator.as_slice());
+            let origin = ext.origin();
+            ext.set_mem(origin_ptr, origin.as_slice());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
         .map_err(|_| {
-            ctx.trap = Some("Trapping: unable to get initiator");
+            ctx.trap = Some("Trapping: unable to get origin");
             HostError
         })
 }

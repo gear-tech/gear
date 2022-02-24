@@ -108,11 +108,11 @@ pub fn exit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str
     }
 }
 
-pub fn initiator<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
-    move |initiator_ptr: i32| {
+pub fn origin<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |origin_ptr: i32| {
         ext.with(|ext: &mut E| {
-            let id = ext.initiator();
-            ext.set_mem(initiator_ptr as _, id.as_slice());
+            let id = ext.origin();
+            ext.set_mem(origin_ptr as _, id.as_slice());
         })
     }
 }

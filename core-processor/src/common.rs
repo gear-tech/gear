@@ -269,8 +269,8 @@ pub struct ExecutableActor {
 /// Execution context.
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct ExecutionContext {
-    /// Original initiator.
-    pub initiator: ProgramId,
+    /// Original user.
+    pub origin: ProgramId,
 }
 
 #[derive(Clone, Default)]

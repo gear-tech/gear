@@ -96,7 +96,7 @@ impl ProcessorExt for LazyPagesExt {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
-        initiator: ProgramId,
+        origin: ProgramId,
         program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
@@ -110,7 +110,7 @@ impl ProcessorExt for LazyPagesExt {
                 existential_deposit,
                 error_explanation,
                 exit_argument,
-                initiator,
+                origin,
                 program_candidates_data,
             },
             lazy_pages_enabled: false,
@@ -221,8 +221,8 @@ impl EnvExt for LazyPagesExt {
         self.inner.block_timestamp()
     }
 
-    fn initiator(&self) -> ProgramId {
-        self.inner.initiator()
+    fn origin(&self) -> ProgramId {
+        self.inner.origin()
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {

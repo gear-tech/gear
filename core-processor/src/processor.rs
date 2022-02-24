@@ -40,14 +40,14 @@ pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environmen
     dispatch: Dispatch,
     block_info: BlockInfo,
     existential_deposit: u128,
-    initiator: ProgramId,
+    origin: ProgramId,
 ) -> Vec<JournalNote> {
     if let Err(exit_code) = check_is_executable(actor.as_ref(), &dispatch) {
         process_non_executable(dispatch, exit_code)
     } else {
         let actor = actor.expect("message is not executed if actor is none");
         let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
-        let execution_context = ExecutionContext { initiator };
+        let execution_context = ExecutionContext { origin };
         let initial_nonce = actor.program.message_nonce();
 
         match executor::execute_wasm::<A, E>(
@@ -79,13 +79,13 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     block_info: BlockInfo,
     existential_deposit: u128,
     // Will go away some time soon
-    initiators: Vec<ProgramId>,
+    origins: Vec<ProgramId>,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
-    assert_eq!(dispatches.len(), initiators.len());
+    assert_eq!(dispatches.len(), origins.len());
 
-    for (dispatch, initiator) in dispatches.into_iter().zip(initiators.into_iter()) {
+    for (dispatch, origin) in dispatches.into_iter().zip(origins.into_iter()) {
         let actor = actors
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
@@ -95,7 +95,7 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
             dispatch,
             block_info,
             existential_deposit,
-            initiator,
+            origin,
         );
 
         for note in &current_journal {

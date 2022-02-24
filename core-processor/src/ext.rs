@@ -48,7 +48,7 @@ pub trait ProcessorExt {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
-        initiator: ProgramId,
+        origin: ProgramId,
         program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self;
 
@@ -102,8 +102,8 @@ pub struct Ext {
     pub error_explanation: Option<&'static str>,
     /// Contains argument to the `exit` if it was called.
     pub exit_argument: Option<ProgramId>,
-    /// Communication initiator
-    pub initiator: ProgramId,
+    /// Communication origin
+    pub origin: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
     pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
@@ -121,7 +121,7 @@ impl ProcessorExt for Ext {
         existential_deposit: u128,
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
-        initiator: ProgramId,
+        origin: ProgramId,
         program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
@@ -134,7 +134,7 @@ impl ProcessorExt for Ext {
             existential_deposit,
             error_explanation,
             exit_argument,
-            initiator,
+            origin,
             program_candidates_data,
         }
     }
@@ -270,8 +270,8 @@ impl EnvExt for Ext {
         self.block_info.timestamp
     }
 
-    fn initiator(&self) -> ProgramId {
-        self.initiator
+    fn origin(&self) -> ProgramId {
+        self.origin
     }
 
     fn send_init(&mut self) -> Result<usize, &'static str> {

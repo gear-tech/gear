@@ -54,7 +54,7 @@ pub trait Ext {
 
     /// Get the id of the user who initiated communication with blockchain,
     /// during which, currently processing message was created.
-    fn initiator(&self) -> ProgramId;
+    fn origin(&self) -> ProgramId;
 
     /// Initialize a new incomplete message for another program and return its handle.
     fn send_init(&mut self) -> Result<usize, &'static str>;
@@ -229,7 +229,7 @@ mod tests {
         fn block_timestamp(&self) -> u64 {
             0
         }
-        fn initiator(&self) -> ProgramId {
+        fn origin(&self) -> ProgramId {
             ProgramId::from(0)
         }
         fn send_init(&mut self) -> Result<usize, &'static str> {
