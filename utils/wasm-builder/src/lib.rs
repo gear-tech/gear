@@ -47,7 +47,6 @@ impl WasmBuilder {
 
     /// Build the program and produce an output WASM binary.
     pub fn build(self) {
-        env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("info")).init();
         if env::var(self.cargo.skip_build_env()).is_ok() {
             return;
         }

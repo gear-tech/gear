@@ -25,51 +25,46 @@ use pwasm_utils::parity_wasm::elements::{ExportEntry, Instruction, Internal, Mod
 /// a name section, then we suppose that 0 global contains stack end addr, and insert an export
 /// for this global. This export can be used in runtime to identify end of stack memory
 /// and skip its uploading to storage.
-pub fn insert_stack_end_export(module: &mut Module) -> Option<()> {
-    let name_section = module.custom_sections().find(|x| x.name() == "name")?;
+pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
+    let name_section = module
+        .custom_sections()
+        .find(|x| x.name() == "name")
+        .ok_or("Cannot find name section")?;
     let payload = unsafe { std::str::from_utf8_unchecked(name_section.payload()) };
 
     // Unfortunatelly parity wasm cannot work with global names subsection in custom names section.
     // So, we just check, whether names section contains '__stack_pointer' as name.
     // TODO: make parsing of global names and identify that global 0 has name '__stack_pointer'
     if !payload.contains("__stack_pointer") {
-        log::debug!("has no stack pointer global");
-        return None;
+        return Err("has no stack pointer global");
     }
 
-    let glob_section = module.global_section()?;
-    let zero_global = glob_section.entries().iter().next()?;
+    let glob_section = module.global_section().ok_or("Cannot find globals section")?;
+    let zero_global = glob_section.entries().iter().next().ok_or("there is no globals")?;
     if zero_global.global_type().content_type() != ValueType::I32 {
-        log::debug!("has no i32 global 0");
-        return None;
+        return Err("has no i32 global 0");
     }
 
     let init_code = zero_global.init_expr().code();
     if init_code.len() != 2 {
-        log::debug!("num of init instructions != 2 for glob 0");
-        for instr in init_code {
-            log::trace!("{}", instr);
-        }
-        return None;
+        return Err("num of init instructions != 2 for glob 0");
     }
 
     let instr = init_code[0].clone();
     if init_code[1].clone() != Instruction::End {
-        log::debug!("second init instruction is not end");
-        return None;
+        return Err("second init instruction is not end");
     }
 
     if let Instruction::I32Const(literal) = instr {
         log::debug!("stack pointer init == {:#x}", literal);
-        let export_section = module.export_section_mut()?;
+        let export_section = module.export_section_mut().ok_or("Cannot find export section")?;
         let x = export_section.entries_mut();
         x.push(ExportEntry::new(
             "__gear_stack_end".to_string(),
             Internal::Global(0),
         ));
-        Some(())
+        Ok(())
     } else {
-        log::debug!("has unexpected instr for init: {}", instr);
-        None
+        Err("has unexpected instr for init")
     }
 }

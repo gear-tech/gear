@@ -196,7 +196,7 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
     fn generate_opt(from: &Path, to: &Path) -> Result<()> {
         let mut module =
             parity_wasm::deserialize_file(from).context("unable to read the original WASM")?;
-        insert_stack_end_export(&mut module);
+        let _ = insert_stack_end_export(&mut module);
         let exports = vec!["init", "handle", "handle_reply", "__gear_stack_end"];
         pwasm_utils::optimize(&mut module, exports)
             .map_err(|_| BuilderError::UnableToOptimize(from.to_path_buf()))?;
