@@ -108,6 +108,15 @@ pub fn exit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str
     }
 }
 
+pub fn origin<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |origin_ptr: i32| {
+        ext.with(|ext: &mut E| {
+            let id = ext.origin();
+            ext.set_mem(origin_ptr as _, id.as_slice());
+        })
+    }
+}
+
 pub fn msg_id<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |msg_id_ptr: i32| {
         ext.with(|ext: &mut E| {

@@ -266,6 +266,13 @@ pub struct ExecutableActor {
     pub balance: u128,
 }
 
+/// Execution context.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ExecutionContext {
+    /// Original user.
+    pub origin: ProgramId,
+}
+
 #[derive(Clone, Default)]
 /// In-memory state.
 pub struct State {

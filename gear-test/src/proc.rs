@@ -121,6 +121,7 @@ where
         message.into(),
         block_info,
         EXISTENTIAL_DEPOSIT,
+        Default::default(),
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -278,6 +279,7 @@ where
                     dispatch,
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
+                    Default::default(),
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -307,6 +309,7 @@ where
                     timestamp,
                 },
                 EXISTENTIAL_DEPOSIT,
+                Default::default(),
             );
             counter += 1;
 

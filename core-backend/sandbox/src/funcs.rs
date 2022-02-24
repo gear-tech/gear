@@ -115,7 +115,7 @@ pub fn send_wgas<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|_err| {
+        .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send message");
             HostError
         });
@@ -172,7 +172,7 @@ pub fn send_commit_wgas<E: Ext + Into<ExtInfo>>(
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|_err| {
+        .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send message");
             HostError
         })
@@ -182,8 +182,8 @@ pub fn send_init<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) 
     ctx.ext
         .with(|ext| ext.send_init())
         .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle as i32))))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to initiate message sending");
             HostError
         })
 }
@@ -201,8 +201,8 @@ pub fn send_push<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -
             ext.send_push(handle_ptr, &payload)
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to push message payload");
             HostError
         })
 }
@@ -342,6 +342,24 @@ pub fn block_timestamp<E: Ext + Into<ExtInfo>>(
     return_i64(block_timestamp)
 }
 
+pub fn origin<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    let mut args = args.iter();
+
+    let origin_ptr = pop_i32(&mut args)?;
+
+    ctx.ext
+        .with(|ext| {
+            let origin = ext.origin();
+            ext.set_mem(origin_ptr, origin.as_slice());
+            Ok(())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to get origin");
+            HostError
+        })
+}
+
 pub fn reply<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
     let mut args = args.iter();
 
@@ -477,8 +495,8 @@ pub fn msg_id<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> S
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to get message id");
             HostError
         })
 }

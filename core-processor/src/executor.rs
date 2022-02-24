@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{DispatchResult, DispatchResultKind, ExecutableActor, ExecutionError},
+    common::{
+        DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
+    },
     configs::ExecutionSettings,
     ext::ProcessorExt,
     id::BlakeMessageIdGenerator,
@@ -38,6 +40,7 @@ use gear_core::{
 pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: Dispatch,
+    context: ExecutionContext,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
     let mut env: E = Default::default();
@@ -172,6 +175,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         settings.existential_deposit,
         None,
         None,
+        context.origin,
         Default::default(),
     );
 

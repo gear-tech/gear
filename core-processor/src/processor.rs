@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, JournalNote},
+    common::{
+        DispatchOutcome, DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext,
+        JournalNote,
+    },
     configs::{BlockInfo, ExecutionSettings},
     executor,
     ext::ProcessorExt,
@@ -37,15 +40,22 @@ pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environmen
     dispatch: Dispatch,
     block_info: BlockInfo,
     existential_deposit: u128,
+    origin: ProgramId,
 ) -> Vec<JournalNote> {
     if let Err(exit_code) = check_is_executable(actor.as_ref(), &dispatch) {
         process_non_executable(dispatch, exit_code)
     } else {
         let actor = actor.expect("message is not executed if actor is none");
         let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
+        let execution_context = ExecutionContext { origin };
         let initial_nonce = actor.program.message_nonce();
 
-        match executor::execute_wasm::<A, E>(actor, dispatch.clone(), execution_settings) {
+        match executor::execute_wasm::<A, E>(
+            actor,
+            dispatch.clone(),
+            execution_context,
+            execution_settings,
+        ) {
             Ok(res) => match res.kind {
                 DispatchResultKind::Trap(reason) => {
                     process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
@@ -68,16 +78,25 @@ pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
     existential_deposit: u128,
+    // Will go away some time soon
+    origins: Vec<ProgramId>,
 ) -> Vec<JournalNote> {
     let mut journal = Vec::new();
 
-    for dispatch in dispatches {
+    assert_eq!(dispatches.len(), origins.len());
+
+    for (dispatch, origin) in dispatches.into_iter().zip(origins.into_iter()) {
         let actor = actors
             .get_mut(&dispatch.message.dest())
             .expect("Program wasn't found in programs");
 
-        let current_journal =
-            process::<A, E>(actor.clone(), dispatch, block_info, existential_deposit);
+        let current_journal = process::<A, E>(
+            actor.clone(),
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+        );
 
         for note in &current_journal {
             if let Some(actor) = actor {

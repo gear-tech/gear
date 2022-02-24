@@ -179,3 +179,20 @@ pub fn wake(waker_id: MessageId) {
 pub fn program_id() -> ActorId {
     gcore::exec::program_id().into()
 }
+
+/// Return the id of original user who initiated communication with blockchain,
+/// during which, currently processing message was created.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, ActorId};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let _user = exec::origin();
+/// }
+/// ```
+pub fn origin() -> ActorId {
+    gcore::exec::origin().into()
+}
