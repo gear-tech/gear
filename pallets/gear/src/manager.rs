@@ -306,7 +306,11 @@ where
                         );
                     }
                 } else {
-                    log::error!("Failed to get limit of {:?}", message_id);
+                    log::debug!(
+                        target: "essential",
+                        "Failed to get limit of {:?}",
+                        message_id,
+                    );
                 }
             }
             Err(err) => {
@@ -448,15 +452,20 @@ where
                             );
                         }
                     } else {
-                        log::error!("Failed to get limit of {:?}", message_id);
+                        log::debug!(
+                            target: "essential",
+                            "Failed to get limit of {:?}",
+                            message_id,
+                        );
                     }
                 }
                 Err(err) => {
-                    log::error!(
+                    log::debug!(
+                        target: "essential",
                         "Error charging {:?} gas rent of getting out of waitlist for message_id {:?}: {:?}",
                         chargeable_amount,
                         message_id,
-                        err
+                        err,
                     )
                 }
             };

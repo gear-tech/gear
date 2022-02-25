@@ -236,8 +236,8 @@ pub mod pallet {
 
             let res = Self::waitlist_usage(now);
             if let Err(e) = res {
-                log::error!(
-                    target: "runtime::usage",
+                log::debug!(
+                    target: "essential",
                     "Error in offchain worker at {:?}: {:?}", now, e,
                 )
             }
@@ -274,8 +274,9 @@ pub mod pallet {
                                     Some((actual_fee, origin, dispatch, msg_gas_balance))
                                 },
                                 _ => {
-                                    log::error!(
-                                        "Message in wait list doesn't have associated gas - can't charge rent"
+                                    log::debug!(
+                                        target: "essential",
+                                        "Message in wait list doesn't have associated gas - can't charge rent",
                                     );
                                     None
                                 }
@@ -286,7 +287,8 @@ pub mod pallet {
                 .for_each(|(fee, origin, dispatch, msg_gas_balance)| {
                     let msg_id = dispatch.message.id;
                     if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id, fee) {
-                        log::error!(
+                        log::debug!(
+                            target: "essential",
                             "Error spending {:?} gas from {:?}: {:?}",
                             fee, msg_id, e
                         );
@@ -372,9 +374,10 @@ pub mod pallet {
                         } else {
                                 // Wait init messages can't reach that, because if program init failed,
                                 // then all waiting messages are moved to queue deleted.
-                                log::error!(
+                                log::debug!(
+                                    target: "essential",
                                     "Program {:?} isn't in storage, but message with that dest is in WL",
-                                    program_id
+                                    program_id,
                                 )
                             }
                     } else {
