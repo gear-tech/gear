@@ -935,7 +935,17 @@ pub mod pallet {
             Ok(())
         }
 
-        /// TODO
+        /// Resumes a previously paused program
+        ///
+        /// The origin must be Signed and the sender must have sufficient funds to
+        /// transfer value to the program.
+        ///
+        /// Parameters:
+        /// - `program_id`: id of the program to resume.
+        /// - `memory_pages`: program memory before it was paused.
+        /// - `value`: balance to be transferred to the program once it's been resumed.
+        ///
+        /// - `ProgramResumed(H256)` in the case of success.
         #[frame_support::transactional]
         #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
         pub fn resume_program(
