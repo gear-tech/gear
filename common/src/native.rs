@@ -18,7 +18,7 @@
 
 use gear_core::{
     message::{Dispatch as CoreDispatch, Message as CoreMessage, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    program::{CodeHash, Program as CoreProgram, ProgramId},
 };
 
 use primitive_types::H256;
@@ -112,7 +112,7 @@ impl From<CoreDispatch> for Dispatch {
 }
 
 pub fn set_program(program: CoreProgram) {
-    let code_hash = sp_io::hashing::blake2_256(program.code()).into();
+    let code_hash = CodeHash::generate(program.code()).into_origin();
     // This code is only used in tests and is redundant for
     // production.
     if !crate::code_exists(code_hash) {

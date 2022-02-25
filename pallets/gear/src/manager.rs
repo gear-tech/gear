@@ -144,7 +144,7 @@ where
             "Must has empty persistent pages, has {:?}",
             program.get_pages()
         );
-        let code_hash: H256 = sp_io::hashing::blake2_256(program.code()).into();
+        let code_hash = CodeHash::generate(program.code()).into_origin();
         assert!(
             common::code_exists(code_hash),
             "Program set must be called only when code exists",
