@@ -22,13 +22,13 @@ use frame_support::{assert_ok, dispatch::DispatchError};
 use gear_runtime::{Gear, Origin, Runtime};
 use hex_literal::hex;
 use primitive_types::H256;
-use quickcheck::{quickcheck, Arbitrary, Gen, TestResult};
 use sp_std::collections::btree_map::BTreeMap;
 use tests_compose::WASM_BINARY_BLOATY as COMPOSE_WASM_BINARY;
 use tests_mul_by_const::WASM_BINARY_BLOATY as MUL_CONST_WASM_BINARY;
 use tests_ncompose::WASM_BINARY_BLOATY as NCOMPOSE_WASM_BINARY;
 
 use crate::util::*;
+use crate::Params;
 
 const ALICE: [u8; 32] = hex!["0100000000000000000000000000000000000000000000000000000000000000"];
 
@@ -58,25 +58,8 @@ fn total_gas_in_wait_list() -> u64 {
         .fold(0_u64, |acc, (_, val)| acc + val)
 }
 
-#[derive(Debug, Clone)]
-struct Params {
-    depth: u16,
-    intrinsic_value: u64,
-    gas_limit: u64,
-}
-
-impl Arbitrary for Params {
-    fn arbitrary(gen: &mut Gen) -> Self {
-        Self {
-            depth: <u16>::arbitrary(gen) / 64, // `depth` param varies within [0..1024] range
-            intrinsic_value: 100 + <u64>::arbitrary(gen) / (1024 * 1024 * 1024), // roughly [10^2..17*10^9]
-            gas_limit: 10_000_000_u64 + <u64>::arbitrary(gen) / (16 * 1024 * 1024), // roughly [10^7..10^12]
-        }
-    }
-}
-
 #[derive(Default, Debug)]
-struct TestOutcome {
+pub struct TestOutcome {
     total_gas_supply: u64,
     accounted: u64,
 }
@@ -85,7 +68,7 @@ impl TestOutcome {
     fn new(total: u64, accounted: u64) -> Self {
         Self {
             total_gas_supply: total,
-            accounted: accounted,
+            accounted,
         }
     }
 }
@@ -111,7 +94,7 @@ fn check_gas_consistency(params: &Params) -> Result<TestOutcome, DispatchError> 
         );
 
         Gear::submit_program(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             MUL_CONST_WASM_BINARY
                 .expect("Wasm binary missing!")
                 .to_vec(),
@@ -123,7 +106,7 @@ fn check_gas_consistency(params: &Params) -> Result<TestOutcome, DispatchError> 
         .map_err(|e| e.error)?;
 
         Gear::submit_program(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             NCOMPOSE_WASM_BINARY.expect("Wasm binary missing!").to_vec(),
             b"salt".to_vec(),
             (<[u8; 32]>::from(mul_id), params.depth).encode(),
@@ -135,7 +118,7 @@ fn check_gas_consistency(params: &Params) -> Result<TestOutcome, DispatchError> 
         run_to_block_with_ocw(2, pool.clone(), None);
 
         Gear::send_message(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             composer_id,
             1_u64.to_le_bytes().to_vec(),
             params.gas_limit,
@@ -159,22 +142,20 @@ fn check_gas_consistency(params: &Params) -> Result<TestOutcome, DispatchError> 
     })
 }
 
-quickcheck! {
-    fn chain_of_multiplications(params: Params) -> TestResult {
-        init_logger();
-        log::debug!("[quickcheck::chain_of_multiplications] params = {:?}", &params);
-        match check_gas_consistency(&params) {
-            Ok(outcome) => {
-                log::debug!("[quickcheck::chain_of_multiplications] test outcome = {:?}", &outcome);
-                TestResult::from_bool(outcome.total_gas_supply == outcome.accounted)
-            },
-            _ => TestResult::discard()
+pub fn chain_of_multiplications(params: Params) -> bool {
+    init_logger();
+
+    log::debug!("[chain_of_multiplications] params = {:?}", &params);
+    match check_gas_consistency(&params) {
+        Ok(outcome) => {
+            log::debug!("[chain_of_multiplications] test outcome = {:?}", &outcome);
+            outcome.total_gas_supply == outcome.accounted
         }
+        _ => false,
     }
 }
 
-#[test]
-fn gas_total_supply_is_stable() {
+pub fn gas_total_supply_is_stable() {
     init_logger();
     new_test_ext(vec![(ALICE, 1_000_000_000_000_000_u128)]).execute_with(|| {
         // Initial value in all gas trees is 0
@@ -184,6 +165,8 @@ fn gas_total_supply_is_stable() {
         );
         assert_eq!(total_gas_in_wait_list(), 0);
 
+        log::debug!("We're in");
+
         let composer_id =
             generate_program_id(NCOMPOSE_WASM_BINARY.expect("Wasm binary missing!"), b"salt");
         let mul_id = generate_program_id(
@@ -192,7 +175,7 @@ fn gas_total_supply_is_stable() {
         );
 
         assert_ok!(Gear::submit_program(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             MUL_CONST_WASM_BINARY
                 .expect("Wasm binary missing!")
                 .to_vec(),
@@ -203,7 +186,7 @@ fn gas_total_supply_is_stable() {
         ));
 
         assert_ok!(Gear::submit_program(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             NCOMPOSE_WASM_BINARY.expect("Wasm binary missing!").to_vec(),
             b"salt".to_vec(),
             (<[u8; 32]>::from(mul_id), 8_u16).encode(), // 8 iterations
@@ -214,7 +197,7 @@ fn gas_total_supply_is_stable() {
         run_to_block(2, None);
 
         assert_ok!(Gear::send_message(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             composer_id,
             10_u64.to_le_bytes().to_vec(),
             100_000_000_000,
@@ -236,8 +219,7 @@ fn gas_total_supply_is_stable() {
     });
 }
 
-#[test]
-fn two_contracts_composition_works() {
+pub fn two_contracts_composition_works() {
     init_logger();
     new_test_ext(vec![(ALICE, 1_000_000_000_000_000_u128)]).execute_with(|| {
         // Initial value in all gas trees is 0
@@ -259,7 +241,7 @@ fn two_contracts_composition_works() {
             generate_program_id(COMPOSE_WASM_BINARY.expect("Wasm binary missing!"), b"salt");
 
         assert_ok!(Gear::submit_program(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             MUL_CONST_WASM_BINARY
                 .expect("Wasm binary missing!")
                 .to_vec(),
@@ -270,7 +252,7 @@ fn two_contracts_composition_works() {
         ));
 
         assert_ok!(Gear::submit_program(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             MUL_CONST_WASM_BINARY
                 .expect("Wasm binary missing!")
                 .to_vec(),
@@ -281,7 +263,7 @@ fn two_contracts_composition_works() {
         ));
 
         assert_ok!(Gear::submit_program(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             COMPOSE_WASM_BINARY.expect("Wasm binary missing!").to_vec(),
             b"salt".to_vec(),
             (
@@ -296,7 +278,7 @@ fn two_contracts_composition_works() {
         run_to_block(2, None);
 
         assert_ok!(Gear::send_message(
-            Origin::signed(ALICE.into()).into(),
+            Origin::signed(ALICE.into()),
             compose_id,
             100_u64.to_le_bytes().to_vec(),
             100_000_000_000,

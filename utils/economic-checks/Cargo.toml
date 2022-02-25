@@ -5,9 +5,7 @@ authors = ["Gear Technologies"]
 edition = "2018"
 license = "GPL-3.0"
 
-
-
-[dev-dependencies]
+[dependencies]
 codec = { package = "parity-scale-codec", version = "2", features = ["derive"] }
 scale-info = { version = "1.0", features = ["derive"] }
 log = { version = "0.4.14" }
@@ -38,4 +36,4 @@ serde = "1.0.136"
 env_logger = "0.9"
 # wabt = "0.10"
 hex-literal = "0.3.4"
-quickcheck = "1.0.3"
+arbitrary = { version = "1" }

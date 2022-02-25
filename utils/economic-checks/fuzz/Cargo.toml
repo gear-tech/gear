@@ -1,0 +1,25 @@
+[package]
+name = "economic-checks-fuzz"
+version = "0.0.0"
+authors = ["Automatically generated"]
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.economic-checks]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "sample_fuzz_target"
+path = "fuzz_targets/sample_fuzz_target.rs"
+test = false
+doc = false

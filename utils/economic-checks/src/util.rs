@@ -73,7 +73,7 @@ pub(crate) fn run_to_block(n: u32, remaining_weight: Option<u64>) {
         System::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
         let remaining_weight =
-            remaining_weight.unwrap_or(<Runtime as pallet_gear::Config>::BlockGasLimit::get());
+            remaining_weight.unwrap_or_else(<Runtime as pallet_gear::Config>::BlockGasLimit::get);
         Gear::on_idle(System::block_number(), remaining_weight);
     }
 }
@@ -90,7 +90,7 @@ pub(crate) fn run_to_block_with_ocw(
         System::on_initialize(i);
         Gear::on_initialize(i);
         let remaining_weight =
-            remaining_weight.unwrap_or(<Runtime as pallet_gear::Config>::BlockGasLimit::get());
+            remaining_weight.unwrap_or_else(<Runtime as pallet_gear::Config>::BlockGasLimit::get);
         Gear::on_idle(i, remaining_weight);
         process_tx_pool(pool.clone());
         increase_offchain_time(1_000);
@@ -110,12 +110,8 @@ pub(crate) fn init_logger() {
 }
 
 pub(crate) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-    // TODO #512
-    let mut data = Vec::new();
-    code.encode_to(&mut data);
-    salt.encode_to(&mut data);
-
-    sp_io::hashing::blake2_256(&data[..]).into()
+    let code_hash = sp_io::hashing::blake2_256(code).into();
+    ProgramId::generate(code_hash, salt).into_origin()
 }
 
 pub(crate) fn process_tx_pool(pool: Arc<RwLock<PoolState>>) {
