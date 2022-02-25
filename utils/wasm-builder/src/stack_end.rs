@@ -56,12 +56,11 @@ pub fn insert_stack_end_export(module: &mut Module) -> Result<(), &str> {
         return Err("num of init instructions != 2 for glob 0");
     }
 
-    let instr = init_code[0].clone();
-    if init_code[1].clone() != Instruction::End {
+    if init_code[1] != Instruction::End {
         return Err("second init instruction is not end");
     }
 
-    if let Instruction::I32Const(literal) = instr {
+    if let Instruction::I32Const(literal) = init_code[0] {
         log::debug!("stack pointer init == {:#x}", literal);
         let export_section = module
             .export_section_mut()
