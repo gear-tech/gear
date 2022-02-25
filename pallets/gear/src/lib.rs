@@ -145,6 +145,8 @@ pub mod pallet {
         DatabaseWiped,
         /// Message was not executed
         MessageNotExecuted(H256),
+        /// Program has been successfully resumed
+        ProgramResumed(H256),
     }
 
     // Gear pallet error.
@@ -958,6 +960,8 @@ pub mod pallet {
                 value,
                 ExistenceRequirement::AllowDeath,
             ).map_err(|_| Error::<T>::ResumeProgramTransferFailed)?;
+
+            Self::deposit_event(Event::ProgramResumed(program_id));
 
             Ok(().into())
         }
