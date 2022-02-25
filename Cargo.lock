@@ -2243,6 +2243,7 @@ version = "0.1.1"
 dependencies = [
  "anyhow",
  "cargo_metadata",
+ "log",
  "pwasm-utils",
  "thiserror",
  "toml",
@@ -7685,6 +7686,7 @@ dependencies = [
 name = "tests-messages"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
@@ -8376,6 +8378,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "env_logger",
+ "gear-wasm-builder",
  "log",
  "pwasm-utils",
 ]

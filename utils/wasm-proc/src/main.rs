@@ -51,8 +51,11 @@ fn optimize(path: &str, mut binary_module: Module) -> Result<(), Box<dyn std::er
 
     let binary_file_name = PathBuf::from(path).with_extension("opt.wasm");
 
-    utils::optimize(&mut binary_module, vec!["handle", "handle_reply", "init"])
-        .map_err(|_| Error::OptimizerFailed)?;
+    utils::optimize(
+        &mut binary_module,
+        vec!["handle", "handle_reply", "init", "__gear_stack_end"],
+    )
+    .map_err(|_| Error::OptimizerFailed)?;
 
     parity_wasm::serialize_to_file(binary_file_name.clone(), binary_module)
         .map_err(Error::SerializationFailed)?;
@@ -122,7 +125,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .takes_value(false)
         .help("Provides debug logging info");
 
-    let app = Command::new("wasm-proc").args(&[path, skip_meta, skip_opt, verbose]);
+    let skip_stack_end = Arg::new("skip-stack-end")
+        .long("skip-stack-end")
+        .takes_value(false)
+        .help("Skips creating of global export with stack end addr");
+
+    let app = Command::new("wasm-proc").args(&[path, skip_meta, skip_opt, skip_stack_end, verbose]);
 
     let matches = app.get_matches();
 
@@ -137,6 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or(Error::UndefinedPaths)?
         .collect();
 
+    let skip_stack_end = matches.is_present("skip-stack-end");
     let skip_meta = matches.is_present("skip-meta");
     let skip_opt = matches.is_present("skip-opt");
 
@@ -149,7 +158,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        let module = parity_wasm::deserialize_file(file)?;
+        let mut module = parity_wasm::deserialize_file(file)?;
+
+        if !skip_stack_end {
+            let _ = gear_wasm_builder::insert_stack_end_export(&mut module)
+                .map_err(|s| log::debug!("{}", s));
+        }
+
         if !skip_opt {
             optimize(file, module.clone())?;
         }

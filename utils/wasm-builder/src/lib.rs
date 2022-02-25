@@ -25,7 +25,10 @@ use crate::wasm_project::WasmProject;
 mod builder_error;
 mod cargo_command;
 mod crate_info;
+mod stack_end;
 mod wasm_project;
+
+pub use stack_end::insert_stack_end_export;
 
 /// WASM building tool.
 pub struct WasmBuilder {
