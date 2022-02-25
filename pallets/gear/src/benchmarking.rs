@@ -170,9 +170,9 @@ benchmarks! {
     }
 
     submit_code {
-        let c in 0 .. MAX_CODE_LEN;
+        let c in MIN_CODE_LEN .. MAX_CODE_LEN;
         let caller: T::AccountId = account("caller", 0, 0);
-        let code = vec![0u8; c as usize];
+        let code = generate_wasm3(vec![0u8; (c - MIN_CODE_LEN) as usize]).unwrap();
         let code_hash: H256 = sp_io::hashing::blake2_256(&code).into();
     }: _(RawOrigin::Signed(caller), code)
     verify {
@@ -230,6 +230,23 @@ benchmarks! {
     }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
         assert!(common::dequeue_dispatch().is_some());
+    }
+
+    resume_program {
+        let q in 1 .. 256;
+        let caller: T::AccountId = account("caller", 0, 0);
+        T::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
+        let code = generate_wasm(q).unwrap();
+
+        let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
+        set_program(program_id, code, q, 0u64);
+
+        let memory_pages = common::get_program_pages(program_id, (0..q).collect()).unwrap();
+
+        common::pause_program(program_id).unwrap();
+    }: _(RawOrigin::Signed(caller), program_id, memory_pages, 10_000u32.into())
+    verify {
+        assert!(common::program_exists(program_id));
     }
 
     initial_allocation {
