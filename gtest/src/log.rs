@@ -1,6 +1,6 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::{message::Message, program::ProgramId};
+use gear_core::{message::Message, program::{CodeHash, ProgramId}};
 use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -169,10 +169,12 @@ impl PartialEq<Log> for CoreLog {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct RunResult {
     pub(crate) log: Vec<CoreLog>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
+    pub(crate) initialized_programs: Vec<(ProgramId, CodeHash)>,
 }
 
 impl RunResult {
@@ -192,6 +194,10 @@ impl RunResult {
 
     pub fn others_failed(&self) -> bool {
         self.others_failed
+    }
+
+    pub fn initialized_programs(&self) -> &Vec<ProgramId> {
+        &self.initialized_programs
     }
 
     pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {

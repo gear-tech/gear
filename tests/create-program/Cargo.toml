@@ -1,0 +1,19 @@
+[package]
+name = "demo-create-program"
+version = "0.1.0"
+authors = ["Gear Technologies"]
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+gstd = { path = "../../gstd", features = ["debug"] }
+hex-literal = "0.3.4"
+
+[build-dependencies]
+gear-wasm-builder = { path = "../../utils/wasm-builder" }
+
+[dev-dependencies]
+gtest = { path = "../../gtest" }
+log = "0.4.14"
+env_logger = "0.9"
+gear-core = { path = "../../core" }

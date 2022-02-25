@@ -1,6 +1,6 @@
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Program as InnerProgram, ProgramState},
+    manager::{ExtManager, Program as InnerProgram},
     system::System,
 };
 use codec::Codec;
@@ -89,8 +89,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .actors
-            .insert(program_id, (program, ProgramState::Uninitialized(None), 0))
+            .store_new_program(program_id, program, None)
             .is_some()
         {
             panic!(

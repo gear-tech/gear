@@ -6,7 +6,8 @@ use crate::{
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::message::Message;
-use std::{cell::RefCell, io::Write, thread};
+use path_clean::PathClean;
+use std::{env, fs, cell::RefCell, io::Write, thread, path::Path, borrow::BorrowMut};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
@@ -67,5 +68,15 @@ impl System {
             manager: &self.0,
             id: id.into().0,
         }
+    }
+
+    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(code_path)
+            .clean();
+        
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        self.0.borrow_mut().store_new_code(&code)
     }
 }

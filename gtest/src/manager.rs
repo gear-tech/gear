@@ -20,6 +20,7 @@ use crate::{
     log::{CoreLog, RunResult},
     program::WasmProgram,
 };
+use blake2_rfc::blake2b::blake2b;
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
@@ -27,8 +28,10 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, MessageId},
     program::{CodeHash, Program as CoreProgram, ProgramId},
 };
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+pub(crate) type Actor = (Program, ProgramState, u128);
 
 #[derive(Clone, Debug)]
 pub(crate) enum ProgramState {
@@ -53,7 +56,8 @@ pub(crate) struct ExtManager {
     pub(crate) id_nonce: u64,
 
     // State
-    pub(crate) actors: BTreeMap<ProgramId, (Program, ProgramState, u128)>,
+    pub(crate) actors: BTreeMap<ProgramId, Actor>,
+    pub(crate) codes: BTreeMap<CodeHash, Vec<u8>>,
     pub(crate) message_queue: VecDeque<Message>,
     pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Message>,
@@ -65,6 +69,9 @@ pub(crate) struct ExtManager {
     pub(crate) log: Vec<Message>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
+
+    // Additional state
+    pub(crate) marked_destinations: BTreeSet<ProgramId>,
 }
 
 impl ExtManager {
@@ -81,6 +88,21 @@ impl ExtManager {
             },
             ..Default::default()
         }
+    }
+
+    pub(crate) fn store_new_program(&mut self, program_id: ProgramId, program: Program, init_message_id: Option<MessageId>) -> Option<Actor> {
+        if let Program::Core(program) = &program {
+            self.store_new_code(program.code());
+        }
+        self.actors.insert(program_id, (program, ProgramState::Uninitialized(init_message_id), 0))
+    }
+
+    pub(crate) fn store_new_code(&mut self, code: &[u8]) {
+        let code_hash = {
+            let hash = blake2_rfc::blake2b::blake2b(32, &[], code);
+            CodeHash::from_slice(hash.as_bytes())
+        };
+        self.codes.insert(code_hash, code.to_vec());
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -249,11 +271,23 @@ impl ExtManager {
         }
 
         let log = self.log.clone();
+        let initialized_programs = self.actors
+            .iter()
+            .filter_map(|(program_id, (program, state, _))| {
+                if matches!(state, &ProgramState::Initialized) {
+                    Some(program_id)
+                } else {
+                    None
+                }
+            })
+            .copied()
+            .collect();
 
         RunResult {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
             log: log.into_iter().map(CoreLog::from_message).collect(),
+            initialized_programs,
         }
     }
 
@@ -415,9 +449,27 @@ impl JournalHandler for ExtManager {
 
     fn store_new_programs(
         &mut self,
-        _code_hash: CodeHash,
-        _candidates: Vec<(ProgramId, MessageId)>,
+        code_hash: CodeHash,
+        candidates: Vec<(ProgramId, MessageId)>,
     ) {
-        // todo!() #714
+        if let Some(code) = self.codes.get(&code_hash).cloned() {
+            for (candidate_id, init_message_id) in candidates {
+                if !self.actors.contains_key(&candidate_id) {
+                    let program = CoreProgram::new(candidate_id, code.clone())
+                        .expect(format!("internal error: program can't be constructed with provided code {:?}", code).as_str());
+                    self.store_new_program(candidate_id, Program::Core(program), Some(init_message_id));
+                } else {
+                    println!("Program with id {:?} already exists", candidate_id);
+                }
+            }
+        } else {
+            println!(
+                "No referencing code with code hash {:?} for candidate programs",
+                code_hash
+            );
+            for (invalid_candidate, _) in candidates {
+                self.marked_destinations.insert(invalid_candidate);
+            }
+        }
     }
 }
