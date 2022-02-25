@@ -40,10 +40,19 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes().as_ref()).map_err(ContractError::Decode)
 }
 
-pub fn reply<E: Encode>(payload: E, gas_limit: u64, value: u128) -> MessageId {
-    super::reply_bytes(payload.encode(), gas_limit, value)
+pub fn reply<E: Encode>(payload: E, value: u128) -> MessageId {
+    super::reply_bytes(payload.encode(), value)
 }
 
-pub fn send<E: Encode>(program: ActorId, payload: E, gas_limit: u64, value: u128) -> MessageId {
-    super::send_bytes(program, payload.encode(), gas_limit, value)
+pub fn send<E: Encode>(program: ActorId, payload: E, value: u128) -> MessageId {
+    super::send_bytes(program, payload.encode(), value)
+}
+
+pub fn send_with_gas<E: Encode>(
+    program: ActorId,
+    payload: E,
+    gas_limit: u64,
+    value: u128,
+) -> MessageId {
+    super::send_bytes_with_gas(program, payload.encode(), gas_limit, value)
 }

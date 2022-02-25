@@ -34,14 +34,24 @@ mod id;
 mod processor;
 
 /// Error exit code.
-pub const ERR_EXIT_CODE: i32 = 1;
-/// Destination doesn't exist anymore for the message
-pub const TERMINATED_DEST_EXIT_CODE: i32 = 2;
+pub const ERR_EXIT_CODE: ExitCode = 1;
+/// Destination isn't available for the message.
+///
+/// These messages can be any of `init`,`handle`, `handle_reply`.
+/// If the message is `init` it means either:
+/// 1. Program tries to init program with non existing code hash.
+/// 2. Program tries to init terminated program.
+/// If the message is `handle` or `handle_reply` it means, that destination
+/// was terminated while the message was in the queue.
+pub const UNAVAILABLE_DEST_EXIT_CODE: ExitCode = 2;
+/// A try to init again initialized, existing program.
+pub const RE_INIT_EXIT_CODE: ExitCode = 3;
 
 pub use executor::execute_wasm;
 pub use ext::Ext;
 pub use ext::ProcessorExt;
 pub use handler::handle_journal;
-pub use id::next_message_id;
-pub use id::BlakeMessageIdGenerator;
+pub use id::{next_message_id, next_system_reply_message_id, BlakeMessageIdGenerator};
 pub use processor::{process, process_many};
+
+use gear_core::message::ExitCode;

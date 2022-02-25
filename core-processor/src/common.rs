@@ -28,7 +28,7 @@ use gear_core::{
     gas::GasAmount,
     memory::PageNumber,
     message::{Dispatch, Message, MessageId},
-    program::{Program, ProgramId},
+    program::{CodeHash, Program, ProgramId},
 };
 
 /// Kind of the dispatch result.
@@ -52,10 +52,13 @@ pub struct DispatchResult {
     /// Original dispatch.
     pub dispatch: Dispatch,
 
-    /// List of generated outgoing messages.
-    pub outgoing: Vec<Dispatch>,
+    /// List of generated messages.
+    pub generated_dispatches: Vec<Dispatch>,
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
+
+    /// New programs to be created with additional data (corresponding code hash and init message id).
+    pub program_candidates: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
 
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
@@ -135,8 +138,6 @@ pub enum JournalNote {
     GasBurned {
         /// Message id in which gas was burned.
         message_id: MessageId,
-        /// Original actor that was handling the message.
-        origin: ProgramId,
         /// Amount of gas burned.
         amount: u64,
     },
@@ -197,6 +198,13 @@ pub enum JournalNote {
         /// Value amount
         value: u128,
     },
+    /// Store programs requested by user to be initialized later
+    StoreNewPrograms {
+        /// Code hash used to create new programs with ids in `candidates` field
+        code_hash: CodeHash,
+        /// Collection of program candidate ids and their init message ids.
+        candidates: Vec<(ProgramId, MessageId)>,
+    },
 }
 
 /// Journal handler.
@@ -206,7 +214,7 @@ pub trait JournalHandler {
     /// Process message dispatch.
     fn message_dispatched(&mut self, outcome: DispatchOutcome);
     /// Process gas burned.
-    fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64);
+    fn gas_burned(&mut self, message_id: MessageId, amount: u64);
     /// Process exit dispatch.
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId);
     /// Process message consumed.
@@ -231,8 +239,12 @@ pub trait JournalHandler {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     );
-    /// Send value
+    /// Send value.
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128);
+    /// Store new programs in storage.
+    ///
+    /// Program ids are ids of _potential_ (planned to be initialized) programs.
+    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>);
 }
 
 /// Execution error.
@@ -252,6 +264,13 @@ pub struct ExecutableActor {
     pub program: Program,
     /// Program value balance.
     pub balance: u128,
+}
+
+/// Execution context.
+#[derive(Clone, Debug, Decode, Encode)]
+pub struct ExecutionContext {
+    /// Original user.
+    pub origin: ProgramId,
 }
 
 #[derive(Clone, Default)]

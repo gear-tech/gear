@@ -24,6 +24,7 @@ use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
 use core::{cmp, fmt};
+use scale_info::TypeInfo;
 
 use crate::memory::{PageBuf, PageNumber};
 
@@ -31,7 +32,18 @@ use crate::memory::{PageBuf, PageNumber};
 ///
 /// 256-bit program identifier. In production environments, should be the result of a cryptohash function.
 #[derive(
-    Clone, Copy, Decode, Default, Encode, derive_more::From, Hash, PartialEq, Eq, PartialOrd, Ord,
+    Clone,
+    Copy,
+    Decode,
+    Default,
+    Encode,
+    derive_more::From,
+    Hash,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    TypeInfo,
 )]
 pub struct ProgramId([u8; 32]);
 
@@ -67,6 +79,19 @@ impl From<&[u8]> for ProgramId {
 }
 
 impl ProgramId {
+    /// Generates a new program id from code hash and salt
+    ///
+    /// Uses blake2b hash function to generate unique program id.
+    pub fn generate(code_hash: CodeHash, salt: &[u8]) -> Self {
+        let id_hash = {
+            let mut data = Vec::with_capacity(code_hash.inner().len() + salt.len());
+            code_hash.encode_to(&mut data);
+            salt.encode_to(&mut data);
+            blake2_rfc::blake2b::blake2b(32, &[], &data)
+        };
+        ProgramId::from_slice(id_hash.as_bytes())
+    }
+
     /// Create new program id from bytes.
     ///
     /// Will panic if slice is not 32 bytes length.
@@ -106,6 +131,8 @@ pub struct Program {
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Message nonce
     message_nonce: u64,
+    /// Program is initialized.
+    is_initialized: bool,
 }
 
 impl Program {
@@ -134,6 +161,7 @@ impl Program {
             static_pages,
             persistent_pages: Default::default(),
             message_nonce: 0,
+            is_initialized: false,
         })
     }
 
@@ -144,6 +172,7 @@ impl Program {
         static_pages: u32,
         message_nonce: u64,
         persistent_pages_numbers: BTreeSet<u32>,
+        is_initialized: bool,
     ) -> Self {
         Self {
             id,
@@ -154,6 +183,7 @@ impl Program {
                 .map(|k| (k.into(), None))
                 .collect(),
             message_nonce,
+            is_initialized,
         }
     }
 
@@ -170,6 +200,19 @@ impl Program {
     /// Get initial memory size for this program.
     pub fn static_pages(&self) -> u32 {
         self.static_pages
+    }
+
+    /// Get whether program is initialized
+    ///
+    /// By default the [`Program`] is not initialized. The initialized status
+    /// is set from the node.
+    pub fn is_initialized(&self) -> bool {
+        self.is_initialized
+    }
+
+    /// Set program initialized
+    pub fn set_initialized(&mut self) {
+        self.is_initialized = true;
     }
 
     /// Set the code of this program.
@@ -282,6 +325,35 @@ impl Program {
         self.message_nonce = 0;
 
         Ok(())
+    }
+}
+
+/// Blake2b hash of the program code.
+#[derive(Clone, Copy, Debug, Decode, Encode, Ord, PartialOrd, Eq, PartialEq)]
+pub struct CodeHash([u8; 32]);
+
+impl CodeHash {
+    /// Get inner (32 bytes) array representation
+    pub fn inner(&self) -> [u8; 32] {
+        self.0
+    }
+
+    /// Create new `CodeHash` bytes.
+    ///
+    /// Will panic if slice is not 32 bytes length.
+    pub fn from_slice(s: &[u8]) -> Self {
+        if s.len() != 32 {
+            panic!("Slice is not 32 bytes length")
+        };
+        let mut id = CodeHash([0u8; 32]);
+        id.0[..].copy_from_slice(s);
+        id
+    }
+}
+
+impl From<[u8; 32]> for CodeHash {
+    fn from(data: [u8; 32]) -> Self {
+        CodeHash(data)
     }
 }
 

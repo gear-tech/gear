@@ -50,7 +50,7 @@ mod wasm {
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
-        msg::send(DESTINATION, b"proxied message", 5_000_000, msg::value());
+        msg::send(DESTINATION, b"proxied message", msg::value());
     }
 
     #[no_mangle]

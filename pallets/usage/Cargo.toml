@@ -23,6 +23,7 @@ primitive-types = { version = "0.10.1", default-features = false, features = ["s
 common = { package = "gear-common", path = "../../common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "../../core-processor" }
 pallet-gear = { path = "../gear", default-features = false }
+gear-core = { path = "../../core" }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }

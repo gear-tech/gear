@@ -41,19 +41,19 @@ macro_rules! metadata {
         $state_input:expr,
         $state_output:expr
         $(, $t:ty) *) => {
-        gstd::export!(meta_title -> $title);
-        gstd::export!(meta_init_input -> $init_input);
-        gstd::export!(meta_init_output -> $init_output);
-        gstd::export!(meta_async_init_input -> $async_init_input);
-        gstd::export!(meta_async_init_output -> $async_init_output);
-        gstd::export!(meta_handle_input -> $handle_input);
-        gstd::export!(meta_handle_output -> $handle_output);
-        gstd::export!(meta_async_handle_input -> $async_handle_input);
-        gstd::export!(meta_async_handle_output -> $async_handle_output);
-        gstd::export!(meta_state_input -> $state_input);
-        gstd::export!(meta_state_output -> $state_output);
-        gstd::export!(meta_registry -> gstd::macros::util::to_hex_registry(
-            gstd::prelude::vec![$(gstd::macros::util::MetaType::new::<$t>()), *]
+        $crate::export!(meta_title -> $title);
+        $crate::export!(meta_init_input -> $init_input);
+        $crate::export!(meta_init_output -> $init_output);
+        $crate::export!(meta_async_init_input -> $async_init_input);
+        $crate::export!(meta_async_init_output -> $async_init_output);
+        $crate::export!(meta_handle_input -> $handle_input);
+        $crate::export!(meta_handle_output -> $handle_output);
+        $crate::export!(meta_async_handle_input -> $async_handle_input);
+        $crate::export!(meta_async_handle_output -> $async_handle_output);
+        $crate::export!(meta_state_input -> $state_input);
+        $crate::export!(meta_state_output -> $state_output);
+        $crate::export!(meta_registry -> $crate::util::to_hex_registry(
+            $crate::prelude::vec![$($crate::util::MetaType::new::<$t>()), *]
         ));
     };
 
@@ -85,7 +85,7 @@ macro_rules! metadata {
                 $(output: $so:ty,)?
         )?
     ) => {
-        gstd::metadata!(
+        $crate::metadata!(
             $title, // program title
             stringify!($($($ii)?)?), // init input
             stringify!($($($io)?)?), // init output

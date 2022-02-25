@@ -25,7 +25,7 @@ use core::{
 use gear_backend_common::{funcs, ExtInfo, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
-    message::{MessageId, OutgoingPacket, ReplyPacket},
+    message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
@@ -68,6 +68,33 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
     let program_id_ptr = pop_i32(&mut args)?;
     let payload_ptr = pop_i32(&mut args)?;
     let payload_len = pop_i32(&mut args)?;
+    let value_ptr = pop_i32(&mut args)?;
+    let message_id_ptr = pop_i32(&mut args)?;
+
+    let result = ctx
+        .ext
+        .with(|ext| {
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
+            let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+            let value = funcs::get_u128(ext, value_ptr);
+            let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
+            ext.set_mem(message_id_ptr, message_id.as_slice());
+            Ok(())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_err| {
+            ctx.trap = Some("Trapping: unable to send message");
+            HostError
+        });
+    result
+}
+
+pub fn send_wgas<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    let mut args = args.iter();
+
+    let program_id_ptr = pop_i32(&mut args)?;
+    let payload_ptr = pop_i32(&mut args)?;
+    let payload_len = pop_i32(&mut args)?;
     let gas_limit = pop_i64(&mut args)?;
     let value_ptr = pop_i32(&mut args)?;
     let message_id_ptr = pop_i32(&mut args)?;
@@ -75,16 +102,20 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
     let result = ctx
         .ext
         .with(|ext| {
-            let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id =
-                ext.send(OutgoingPacket::new(dest, payload.into(), gas_limit, value))?;
+            let message_id = ext.send(OutgoingPacket::new(
+                dest,
+                payload.into(),
+                Some(gas_limit),
+                value,
+            ))?;
             ext.set_mem(message_id_ptr, message_id.as_slice());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|_err| {
+        .map_err(|_| {
             ctx.trap = Some("Trapping: unable to send message");
             HostError
         });
@@ -97,16 +128,15 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
     let handle_ptr = pop_i32(&mut args)?;
     let message_id_ptr = pop_i32(&mut args)?;
     let program_id_ptr = pop_i32(&mut args)?;
-    let gas_limit = pop_i64(&mut args)?;
     let value_ptr = pop_i32(&mut args)?;
 
     ctx.ext
         .with(|ext| {
-            let dest: ProgramId = funcs::get_id(ext, program_id_ptr).into();
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let value = funcs::get_u128(ext, value_ptr);
             let message_id = ext.send_commit(
                 handle_ptr,
-                OutgoingPacket::new(dest, vec![].into(), gas_limit, value),
+                OutgoingPacket::new(dest, vec![].into(), None, value),
             )?;
             ext.set_mem(message_id_ptr, message_id.as_slice());
             Ok(())
@@ -118,12 +148,42 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
         })
 }
 
+pub fn send_commit_wgas<E: Ext + Into<ExtInfo>>(
+    ctx: &mut Runtime<E>,
+    args: &[Value],
+) -> SyscallOutput {
+    let mut args = args.iter();
+
+    let handle_ptr = pop_i32(&mut args)?;
+    let message_id_ptr = pop_i32(&mut args)?;
+    let program_id_ptr = pop_i32(&mut args)?;
+    let gas_limit = pop_i64(&mut args)?;
+    let value_ptr = pop_i32(&mut args)?;
+
+    ctx.ext
+        .with(|ext| {
+            let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
+            let value = funcs::get_u128(ext, value_ptr);
+            let message_id = ext.send_commit(
+                handle_ptr,
+                OutgoingPacket::new(dest, vec![].into(), Some(gas_limit), value),
+            )?;
+            ext.set_mem(message_id_ptr, message_id.as_slice());
+            Ok(())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to send message");
+            HostError
+        })
+}
+
 pub fn send_init<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
     ctx.ext
         .with(|ext| ext.send_init())
         .and_then(|res| res.map(|handle| ReturnValue::Value(Value::I32(handle as i32))))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to initiate message sending");
             HostError
         })
 }
@@ -141,8 +201,8 @@ pub fn send_push<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -
             ext.send_push(handle_ptr, &payload)
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to push message payload");
             HostError
         })
 }
@@ -180,7 +240,7 @@ pub fn exit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
     let _: Result<ReturnValue, HostError> = ctx
         .ext
         .with(|ext: &mut E| {
-            let value_dest: ProgramId = funcs::get_id(ext, value_dest_ptr).into();
+            let value_dest: ProgramId = funcs::get_bytes32(ext, value_dest_ptr).into();
             ext.exit(value_dest)
         })
         .map(|_| Ok(ReturnValue::Unit))
@@ -282,12 +342,29 @@ pub fn block_timestamp<E: Ext + Into<ExtInfo>>(
     return_i64(block_timestamp)
 }
 
+pub fn origin<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
+    let mut args = args.iter();
+
+    let origin_ptr = pop_i32(&mut args)?;
+
+    ctx.ext
+        .with(|ext| {
+            let origin = ext.origin();
+            ext.set_mem(origin_ptr, origin.as_slice());
+            Ok(())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to get origin");
+            HostError
+        })
+}
+
 pub fn reply<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> SyscallOutput {
     let mut args = args.iter();
 
     let payload_ptr = pop_i32(&mut args)?;
     let payload_len = pop_i32(&mut args)?;
-    let gas_limit = pop_i64(&mut args)?;
     let value_ptr = pop_i32(&mut args)?;
 
     let result = ctx
@@ -295,7 +372,7 @@ pub fn reply<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
         .with(|ext| {
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            ext.reply(ReplyPacket::new(0, payload.into(), gas_limit, value))
+            ext.reply(ReplyPacket::new(0, payload.into(), value))
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
         .map_err(|_| {
@@ -309,14 +386,12 @@ pub fn reply_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]
     let mut args = args.iter();
 
     let message_id_ptr = pop_i32(&mut args)?;
-    let gas_limit = pop_i64(&mut args)?;
     let value_ptr = pop_i32(&mut args)?;
 
     ctx.ext
         .with(|ext| {
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id =
-                ext.reply_commit(ReplyPacket::new(0, vec![].into(), gas_limit, value))?;
+            let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
             ext.set_mem(message_id_ptr, message_id.as_slice());
             Ok(())
         })
@@ -420,8 +495,8 @@ pub fn msg_id<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> S
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
-        .map_err(|err| {
-            ctx.trap = Some(err);
+        .map_err(|_| {
+            ctx.trap = Some("Trapping: unable to get message id");
             HostError
         })
 }
@@ -532,7 +607,7 @@ pub fn wake<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
 
     ctx.ext
         .with(|ext| {
-            let waker_id: MessageId = funcs::get_id(ext, waker_id_ptr).into();
+            let waker_id: MessageId = funcs::get_bytes32(ext, waker_id_ptr).into();
             ext.wake(waker_id)
         })
         .map(|_| return_none())
@@ -540,4 +615,44 @@ pub fn wake<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
             ctx.trap = Some(err);
             HostError
         })?
+}
+
+pub fn create_program_wgas<E: Ext + Into<ExtInfo>>(
+    ctx: &mut Runtime<E>,
+    args: &[Value],
+) -> Result<ReturnValue, HostError> {
+    let mut args = args.iter();
+
+    let code_hash_ptr = pop_i32(&mut args)?;
+    let salt_ptr = pop_i32(&mut args)?;
+    let salt_len = pop_i32(&mut args)?;
+    let payload_ptr = pop_i32(&mut args)?;
+    let payload_len = pop_i32(&mut args)?;
+    let gas_limit = pop_i64(&mut args)?;
+    let value_ptr = pop_i32(&mut args)?;
+    let program_id_ptr = pop_i32(&mut args)?;
+
+    let result = ctx
+        .ext
+        .with(|ext: &mut E| -> Result<(), &'static str> {
+            let code_hash = funcs::get_bytes32(ext, code_hash_ptr);
+            let salt = funcs::get_vec(ext, salt_ptr, salt_len);
+            let payload = funcs::get_vec(ext, payload_ptr, payload_len);
+            let value = funcs::get_u128(ext, value_ptr);
+            let new_actor_id = ext.create_program(ProgramInitPacket::new(
+                code_hash.into(),
+                salt,
+                payload.into(),
+                gas_limit,
+                value,
+            ))?;
+            ext.set_mem(program_id_ptr, new_actor_id.as_slice());
+            Ok(())
+        })
+        .and_then(|res| res.map(|_| ReturnValue::Unit))
+        .map_err(|_err| {
+            ctx.trap = Some("Trapping: unable to create program");
+            HostError
+        });
+    result
 }

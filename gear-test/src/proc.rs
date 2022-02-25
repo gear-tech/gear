@@ -121,6 +121,7 @@ where
         message.into(),
         block_info,
         EXISTENTIAL_DEPOSIT,
+        Default::default(),
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -138,6 +139,14 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
 {
     let mut nonce = 1;
+
+    if let Some(codes) = &test.codes {
+        for code in codes {
+            let code_bytes = std::fs::read(&code.path)
+                .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
+            journal_handler.store_code(&code_bytes);
+        }
+    }
 
     for program in &test.programs {
         let program_path = program.path.clone();
@@ -238,7 +247,7 @@ where
             source: message_source,
             dest: message.destination.to_program_id(),
             payload: payload.into(),
-            gas_limit,
+            gas_limit: Some(gas_limit),
             value: message.value.unwrap_or_default() as _,
             reply: None,
         };
@@ -278,6 +287,7 @@ where
                     dispatch,
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
+                    Default::default(),
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -307,6 +317,7 @@ where
                     timestamp,
                 },
                 EXISTENTIAL_DEPOSIT,
+                Default::default(),
             );
             counter += 1;
 

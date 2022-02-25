@@ -13,7 +13,7 @@ pub unsafe extern "C" fn handle() {
     if new_msg == "PING" {
         msg::reply_push(b"PO");
         msg::reply_push(b"NG");
-        msg::reply_commit(10_000_000, 0);
+        msg::reply_commit(0);
     }
 
     if new_msg == "PING PING PING" && COUNTER > 0 {
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn handle() {
         msg::send_push(&handle, b"PONG1");
         msg::send_push(&handle, b"PONG2");
         msg::send_push(&handle, b"PONG3");
-        msg::send_commit(handle, msg::source(), 10_000_000, 0);
+        msg::send_commit(handle, msg::source(), 0);
     }
 
     COUNTER += 1;

@@ -1,13 +1,11 @@
 #![no_std]
 
 use core::num::ParseIntError;
-use gstd::{exec, msg, prelude::*, ActorId};
+use gstd::{msg, prelude::*, ActorId};
 
 static mut DEST_0: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_1: ActorId = ActorId::new([0u8; 32]);
 static mut DEST_2: ActorId = ActorId::new([0u8; 32]);
-
-const GAS_LIMIT: u64 = 50_000_000;
 
 gstd::metadata! {
     title: "demo async",
@@ -51,20 +49,20 @@ fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
 async fn main() {
     let message = String::from_utf8(msg::load_bytes()).expect("Invalid message: should be utf-8");
     if message == "START" {
-        let reply1 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_0 }, b"PING", GAS_LIMIT, 0)
+        let reply1 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_0 }, b"PING", 0)
             .await
             .expect("Error in async message processing");
-        let reply2 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_1 }, b"PING", GAS_LIMIT, 0)
+        let reply2 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_1 }, b"PING", 0)
             .await
             .expect("Error in async message processing");
-        let reply3 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_2 }, b"PING", GAS_LIMIT, 0)
+        let reply3 = msg::send_bytes_and_wait_for_reply(unsafe { DEST_2 }, b"PING", 0)
             .await
             .expect("Error in async message processing");
 
         if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
-            msg::reply(b"SUCCESS", exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(b"SUCCESS", 0);
         } else {
-            msg::reply(b"FAIL", exec::gas_available() - GAS_LIMIT, 0);
+            msg::reply(b"FAIL", 0);
         }
     }
 }

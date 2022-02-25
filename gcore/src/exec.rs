@@ -30,6 +30,7 @@ mod sys {
         pub fn gr_exit(value_dest_ptr: *const u8) -> !;
         pub fn gr_gas_available() -> u64;
         pub fn gr_program_id(val: *mut u8);
+        pub fn gr_origin(origin_ptr: *mut u8);
         pub fn gr_leave() -> !;
         pub fn gr_value_available(val: *mut u8);
         pub fn gr_wait() -> !;
@@ -51,7 +52,7 @@ mod sys {
 /// // Send a reply after the block height reaches the number 1000
 /// pub unsafe extern "C" fn handle() {
 ///     if exec::block_height() >= 1000 {
-///         msg::reply(b"Block #1000 reached", 1_000_000, 0);
+///         msg::reply(b"Block #1000 reached", 0);
 ///     }
 /// }
 /// ```
@@ -71,11 +72,7 @@ pub fn block_height() -> u32 {
 /// // Send a reply after the block timestamp reaches the February 22, 2022
 /// pub unsafe extern "C" fn handle() {
 ///     if exec::block_timestamp() >= 1645488000000 {
-///         msg::reply(
-///             b"The current block is generated after February 22, 2022",
-///             1_000_000,
-///             0,
-///         );
+///         msg::reply(b"The current block is generated after February 22, 2022", 0);
 ///     }
 /// }
 /// ```
@@ -230,5 +227,24 @@ pub fn wake(waker_id: MessageId) {
 pub fn program_id() -> ActorId {
     let mut actor_id = ActorId::default();
     unsafe { sys::gr_program_id(actor_id.as_mut_slice().as_mut_ptr()) }
+    actor_id
+}
+
+/// Return the id of original user who initiated communication with blockchain,
+/// during which, currently processing message was created.
+///
+/// # Examples
+///
+/// ```
+/// use gcore::{exec, ActorId};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let _user = exec::origin();
+/// }
+/// ```
+pub fn origin() -> ActorId {
+    let mut actor_id = ActorId::default();
+    unsafe { sys::gr_origin(actor_id.as_mut_slice().as_mut_ptr()) };
     actor_id
 }

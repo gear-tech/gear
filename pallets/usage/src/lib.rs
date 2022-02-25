@@ -25,8 +25,6 @@ use common::DAGBasedLedger;
 pub use pallet::*;
 pub use weights::WeightInfo;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
 pub mod weights;
 
 #[cfg(test)]
@@ -43,13 +41,14 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{GasPrice, Origin, PaymentProvider, Program, QueuedDispatch, QueuedMessage};
+    use common::{GasPrice, Origin, PaymentProvider, QueuedDispatch, QueuedMessage};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
         traits::{Currency, Get},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
+    use gear_core::{message::MessageId, program::ProgramId};
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -96,10 +95,6 @@ pub mod pallet {
         /// The fraction of the collected wait list rent an external submitter will get as a reward
         #[pallet::constant]
         type ExternalSubmitterRewardFraction: Get<Perbill>;
-
-        /// The cost for a message to spend one block in the wait list
-        #[pallet::constant]
-        type WaitListFeePerBlock: Get<u64>;
     }
 
     type BalanceOf<T> = <<T as pallet_gear::Config>::Currency as Currency<
@@ -266,7 +261,7 @@ pub mod pallet {
                         common::remove_waiting_message(program_id, message_id).and_then(|(dispatch, bn)| {
                             let duration = current_block.saturated_into::<u32>().saturating_sub(bn);
                             let chargeable_amount =
-                                T::WaitListFeePerBlock::get().saturating_mul(duration.into());
+                            <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
                             match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
                                 Some((msg_gas_balance, origin)) => {
@@ -279,7 +274,7 @@ pub mod pallet {
                                     Some((actual_fee, origin, dispatch, msg_gas_balance))
                                 },
                                 _ => {
-                                    log::warn!(
+                                    log::error!(
                                         "Message in wait list doesn't have associated gas - can't charge rent"
                                     );
                                     None
@@ -336,18 +331,14 @@ pub mod pallet {
                     };
 
                     let program_id = dispatch.message.dest;
+                    let message_id = dispatch.message.id;
                     let new_msg_gas_balance = msg_gas_balance.saturating_sub(fee);
                     if new_msg_gas_balance <= T::TrapReplyExistentialGasLimit::get() {
-                        match common::get_program(program_id) {
-                            Some(Program::Active(mut program)) => {
+                        if common::get_program(program_id).is_some() {
+                                // TODO: generate system signal for program (#647)
+
                                 // Generate trap reply
-
-                                program.nonce += 1;
-
-                                let trap_message_id = core_processor::next_message_id(
-                                    program_id.as_ref().into(),
-                                    program.nonce,
-                                ).into_origin();
+                                let trap_message_id = core_processor::next_system_reply_message_id(ProgramId::from_origin(program_id), MessageId::from_origin(message_id)).into_origin();
                                 let trap_message = QueuedMessage {
                                     id: trap_message_id,
                                     source: program_id,
@@ -366,20 +357,14 @@ pub mod pallet {
                                     new_msg_gas_balance
                                 );
                                 common::queue_dispatch(reply_dispatch);
-
-                                // Save back the program with incremented nonce
-                                common::set_program(program_id, program, Default::default());
-                            }
-                            _ => {
+                        } else {
                                 // Wait init messages can't reach that, because if program init failed,
                                 // then all waiting messages are moved to queue deleted.
-                                // TODO #507 on each program delete/terminate action remove messages from WL
                                 log::error!(
-                                    "Program {:?} was killed, but message it generated is in WL",
+                                    "Program {:?} isn't in storage, but message with that dest is in WL",
                                     program_id
                                 )
                             }
-                        }
                     } else {
                         // Message still got enough gas limit and may keep waiting.
                         // Updating gas limit value and re-inserting the message into wait list.

@@ -273,7 +273,7 @@ impl QueuedDispatch {
         }
     }
 
-    pub fn without_gas_limit(dispatch: gear_core::message::Dispatch) -> (u64, Self) {
+    pub fn without_gas_limit(dispatch: gear_core::message::Dispatch) -> (Option<u64>, Self) {
         let (gas_limit, message) = QueuedMessage::without_gas_limit(dispatch.message);
 
         let dispatch = Self {
@@ -318,7 +318,7 @@ impl QueuedMessage {
             source: gear_core::program::ProgramId::from_origin(self.source),
             dest: gear_core::program::ProgramId::from_origin(self.dest),
             payload: self.payload.into(),
-            gas_limit,
+            gas_limit: Some(gas_limit),
             value: self.value,
             reply: self.reply.map(|(message_id, exit_code)| {
                 (
@@ -329,7 +329,7 @@ impl QueuedMessage {
         }
     }
 
-    pub fn without_gas_limit(message: gear_core::message::Message) -> (u64, Self) {
+    pub fn without_gas_limit(message: gear_core::message::Message) -> (Option<u64>, Self) {
         let gear_core::message::Message {
             id,
             source,
@@ -368,6 +368,7 @@ pub enum ProgramError {
 
 impl Program {
     pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
+        let is_initialized = self.is_initialized();
         let program: ActiveProgram = self.try_into()?;
         let code = crate::get_code(program.code_hash).ok_or(ProgramError::CodeHashNotFound)?;
         let native_program = NativeProgram::from_parts(
@@ -376,6 +377,7 @@ impl Program {
             program.static_pages,
             program.nonce,
             program.persistent_pages,
+            is_initialized,
         );
         Ok(native_program)
     }
@@ -706,6 +708,23 @@ fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     prog_id.encode_to(&mut key);
 
     key
+}
+
+fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
+    let mut key = Vec::new();
+    key.extend(STORAGE_WAITLIST_PREFIX);
+    prog_id.encode_to(&mut key);
+
+    key
+}
+
+pub fn remove_program_waitlist(prog_id: H256) -> Vec<QueuedDispatch> {
+    let key = program_waitlist_prefix(prog_id);
+    let messages =
+        sp_io::storage::get(&key).and_then(|v| Vec::<QueuedDispatch>::decode(&mut &v[..]).ok());
+    sp_io::storage::clear(&key);
+
+    messages.unwrap_or_default()
 }
 
 pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {

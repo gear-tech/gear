@@ -20,7 +20,7 @@ use crate::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use alloc::{string::String, vec, vec::Vec};
 use gear_core::{
     env::{Ext, LaterExt},
-    message::{MessageId, OutgoingPacket, ReplyPacket},
+    message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
 
@@ -99,12 +99,21 @@ pub fn gas_available<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i64 {
 pub fn exit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |program_id_ptr: i32| {
         let _ = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let value_dest: ProgramId = get_id(ext, program_id_ptr as u32 as _).into();
+            let value_dest: ProgramId = get_bytes32(ext, program_id_ptr as u32 as _).into();
             ext.exit(value_dest)
         })?;
 
         // Intentionally return an error to break the execution
         Err(EXIT_TRAP_STR)
+    }
+}
+
+pub fn origin<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
+    move |origin_ptr: i32| {
+        ext.with(|ext: &mut E| {
+            let id = ext.origin();
+            ext.set_mem(origin_ptr as _, id.as_slice());
+        })
     }
 }
 
@@ -128,19 +137,12 @@ pub fn read<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(), &'
     }
 }
 
-pub fn reply<E: Ext>(
-    ext: LaterExt<E>,
-) -> impl Fn(i32, i32, i64, i32, i32) -> Result<(), &'static str> {
-    move |payload_ptr: i32,
-          payload_len: i32,
-          gas_limit: i64,
-          value_ptr: i32,
-          message_id_ptr: i32| {
+pub fn reply<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |payload_ptr: i32, payload_len: i32, value_ptr: i32, message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
-            let message_id =
-                ext.reply(ReplyPacket::new(0, payload.into(), gas_limit as _, value))?;
+            let message_id = ext.reply(ReplyPacket::new(0, payload.into(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -148,14 +150,11 @@ pub fn reply<E: Ext>(
     }
 }
 
-pub fn reply_commit<E: Ext>(
-    ext: LaterExt<E>,
-) -> impl Fn(i32, i64, i32) -> Result<(), &'static str> {
-    move |message_id_ptr: i32, gas_limit: i64, value_ptr: i32| {
+pub fn reply_commit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(), &'static str> {
+    move |message_id_ptr: i32, value_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let value = get_u128(ext, value_ptr as usize);
-            let message_id =
-                ext.reply_commit(ReplyPacket::new(0, vec![].into(), gas_limit as _, value))?;
+            let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
         })?;
@@ -190,6 +189,26 @@ pub fn reply_to<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static
 
 pub fn send<E: Ext>(
     ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |program_id_ptr: i32,
+          payload_ptr: i32,
+          payload_len: i32,
+          value_ptr: i32,
+          message_id_ptr: i32| {
+        let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
+            let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
+            let value = get_u128(ext, value_ptr as usize);
+            let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            Ok(())
+        })?;
+        result.map_err(|_| "Trapping: unable to send message")
+    }
+}
+
+pub fn send_wgas<E: Ext>(
+    ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
     move |program_id_ptr: i32,
           payload_ptr: i32,
@@ -198,13 +217,13 @@ pub fn send<E: Ext>(
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send(OutgoingPacket::new(
                 dest,
                 payload.into(),
-                gas_limit as _,
+                Some(gas_limit as _),
                 value,
             ))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
@@ -216,6 +235,24 @@ pub fn send<E: Ext>(
 
 pub fn send_commit<E: Ext>(
     ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |handle_ptr: i32, message_id_ptr: i32, program_id_ptr: i32, value_ptr: i32| {
+        ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
+            let value = get_u128(ext, value_ptr as usize);
+            let message_id = ext.send_commit(
+                handle_ptr as _,
+                OutgoingPacket::new(dest, vec![].into(), None, value),
+            )?;
+            ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
+            Ok(())
+        })?
+        .map_err(|_| "Trapping: unable to commit and send message")
+    }
+}
+
+pub fn send_commit_wgas<E: Ext>(
+    ext: LaterExt<E>,
 ) -> impl Fn(i32, i32, i32, i64, i32) -> Result<(), &'static str> {
     move |handle_ptr: i32,
           message_id_ptr: i32,
@@ -223,11 +260,11 @@ pub fn send_commit<E: Ext>(
           gas_limit: i64,
           value_ptr: i32| {
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_id(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send_commit(
                 handle_ptr as _,
-                OutgoingPacket::new(dest, vec![].into(), gas_limit as _, value),
+                OutgoingPacket::new(dest, vec![].into(), Some(gas_limit as _), value),
             )?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_slice());
             Ok(())
@@ -252,6 +289,36 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
             ext.send_push(handle_ptr as _, &payload)
         })?
         .map_err(|_| "Trapping: unable to push payload into message")
+    }
+}
+
+pub fn create_program_wgas<E: Ext>(
+    ext: LaterExt<E>,
+) -> impl Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
+    move |code_hash_ptr: i32,
+          salt_ptr: i32,
+          salt_len: i32,
+          payload_ptr: i32,
+          payload_len: i32,
+          gas_limit: i64,
+          value_ptr: i32,
+          program_id_ptr: i32| {
+        let res = ext.with(|ext: &mut E| -> Result<(), &'static str> {
+            let code_hash = get_bytes32(ext, code_hash_ptr as usize);
+            let salt = get_vec(ext, salt_ptr as usize, salt_len as usize);
+            let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
+            let value = get_u128(ext, value_ptr as usize);
+            let new_actor_id = ext.create_program(ProgramInitPacket::new(
+                code_hash.into(),
+                salt,
+                payload.into(),
+                gas_limit as u64,
+                value,
+            ))?;
+            ext.set_mem(program_id_ptr as isize as _, new_actor_id.as_slice());
+            Ok(())
+        })?;
+        res.map_err(|_| "Trapping: unable to create a new program")
     }
 }
 
@@ -306,7 +373,7 @@ pub fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
 pub fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |waker_id_ptr| {
         ext.with(|ext: &mut E| {
-            let waker_id: MessageId = get_id(ext, waker_id_ptr as usize).into();
+            let waker_id: MessageId = get_bytes32(ext, waker_id_ptr as usize).into();
             ext.wake(waker_id)
         })?
     }
@@ -321,10 +388,10 @@ pub fn is_leave_trap(trap: &str) -> bool {
     trap.starts_with(LEAVE_TRAP_STR)
 }
 
-pub fn get_id<E: Ext>(ext: &E, ptr: usize) -> [u8; 32] {
-    let mut id = [0u8; 32];
-    ext.get_mem(ptr, &mut id);
-    id
+pub fn get_bytes32<E: Ext>(ext: &E, ptr: usize) -> [u8; 32] {
+    let mut ret = [0u8; 32];
+    ext.get_mem(ptr, &mut ret);
+    ret
 }
 
 pub fn get_u128<E: Ext>(ext: &E, ptr: usize) -> u128 {

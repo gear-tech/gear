@@ -22,6 +22,7 @@
 
 pub mod exec;
 pub mod msg;
+pub mod prog;
 
 mod general;
 pub use general::*;

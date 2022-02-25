@@ -31,11 +31,7 @@ pub fn handle_journal(
     for note in journal.into_iter() {
         match note {
             JournalNote::MessageDispatched(outcome) => handler.message_dispatched(outcome),
-            JournalNote::GasBurned {
-                message_id,
-                origin,
-                amount,
-            } => handler.gas_burned(message_id, origin, amount),
+            JournalNote::GasBurned { message_id, amount } => handler.gas_burned(message_id, amount),
             JournalNote::ExitDispatch {
                 id_exited,
                 value_destination,
@@ -63,6 +59,10 @@ pub fn handle_journal(
                 entry.insert(page_number, data);
             }
             JournalNote::SendValue { from, to, value } => handler.send_value(from, to, value),
+            JournalNote::StoreNewPrograms {
+                code_hash,
+                candidates,
+            } => handler.store_new_programs(code_hash, candidates),
         }
     }
 

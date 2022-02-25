@@ -48,7 +48,8 @@ use std::{
 const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
-    fn store_program(&self, program: gear_core::program::Program, init_message_id: MessageId);
+    fn store_code(&mut self, code: &[u8]);
+    fn store_program(&mut self, program: gear_core::program::Program, init_message_id: MessageId);
 }
 
 pub struct FixtureLogger {
@@ -284,9 +285,11 @@ pub fn check_messages(
                     },
                 );
 
-                match_or_else(exp.gas_limit, msg.gas_limit, |expected, actual| {
-                    errors.push(MessagesError::gas_limit(position, expected, actual))
-                });
+                if let Some(msg_gas_limit) = msg.gas_limit {
+                    match_or_else(exp.gas_limit, msg_gas_limit, |expected, actual| {
+                        errors.push(MessagesError::gas_limit(position, expected, actual))
+                    });
+                }
 
                 match_or_else(exp.value, msg.value, |expected, actual| {
                     errors.push(MessagesError::value(position, expected, actual))
@@ -529,7 +532,7 @@ where
                     // Final state returns only active programs
                     let actual_prog_ids = final_state.actors.iter().map(|(id, _)| *id).collect();
                     if let Err(prog_id_errors) =
-                        check_active_programs(actual_prog_ids, expected_prog_ids)
+                        check_active_programs(expected_prog_ids, actual_prog_ids)
                     {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(

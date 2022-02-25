@@ -20,26 +20,27 @@ use core_processor::common::*;
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{Program, ProgramId},
+    program::{CodeHash, Program, ProgramId},
 };
-use std::cell::RefCell;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use crate::check::ExecutionContext;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
+    codes: BTreeMap<CodeHash, Vec<u8>>,
+    marked_destinations: BTreeSet<ProgramId>,
     dispatch_queue: VecDeque<Dispatch>,
     log: Vec<Message>,
-    actors: RefCell<BTreeMap<ProgramId, Option<ExecutableActor>>>,
-    waiting_init: RefCell<BTreeMap<ProgramId, Vec<MessageId>>>,
+    actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
+    waiting_init: BTreeMap<ProgramId, Vec<MessageId>>,
     wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     current_failed: bool,
 }
 
 impl InMemoryExtManager {
     fn move_waiting_msgs_to_queue(&mut self, program_id: ProgramId) {
-        let waiting_messages = self.waiting_init.borrow_mut().remove(&program_id);
+        let waiting_messages = self.waiting_init.remove(&program_id);
         for m_id in waiting_messages.iter().flatten() {
             if let Some(dispatch) = self.wait_list.remove(&(program_id, *m_id)) {
                 self.dispatch_queue.push_back(dispatch);
@@ -49,9 +50,14 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
-    fn store_program(&self, program: Program, _init_message_id: MessageId) {
-        self.waiting_init.borrow_mut().insert(program.id(), vec![]);
-        self.actors.borrow_mut().insert(
+    fn store_code(&mut self, code: &[u8]) {
+        let code_hash = sp_io::hashing::blake2_256(code).into();
+        self.codes.insert(code_hash, code.to_vec());
+    }
+    fn store_program(&mut self, program: gear_core::program::Program, _init_message_id: MessageId) {
+        self.waiting_init.insert(program.id(), vec![]);
+        self.store_code(program.code());
+        self.actors.insert(
             program.id(),
             Some(ExecutableActor {
                 program,
@@ -72,9 +78,8 @@ impl CollectState for InMemoryExtManager {
         } = self.clone();
 
         let actors = actors
-            .into_inner()
             .into_iter()
-            .filter_map(|(id, p_opt)| p_opt.map(|p| (id, p)))
+            .filter_map(|(id, a_opt)| a_opt.map(|a| (id, a)))
             .collect();
 
         State {
@@ -92,7 +97,7 @@ impl JournalHandler for InMemoryExtManager {
             DispatchOutcome::MessageTrap { .. } => true,
             DispatchOutcome::InitFailure { program_id, .. } => {
                 self.move_waiting_msgs_to_queue(program_id);
-                if let Some(actor) = self.actors.borrow_mut().get_mut(&program_id) {
+                if let Some(actor) = self.actors.get_mut(&program_id) {
                     // Program is now considered terminated (in opposite to active). But not deleted from the state.
                     *actor = None;
                 }
@@ -100,15 +105,18 @@ impl JournalHandler for InMemoryExtManager {
             }
             DispatchOutcome::Success(_) | DispatchOutcome::NoExecution(_) => false,
             DispatchOutcome::InitSuccess { program_id, .. } => {
+                if let Some(Some(actor)) = self.actors.get_mut(&program_id) {
+                    actor.program.set_initialized();
+                }
                 self.move_waiting_msgs_to_queue(program_id);
                 false
             }
         };
     }
-    fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
+    fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
-        self.actors.borrow_mut().remove(&id_exited);
+        self.actors.remove(&id_exited);
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
@@ -120,12 +128,25 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
         let dest = dispatch.message.dest();
-        if self.actors.borrow().contains_key(&dest) {
-            if let (DispatchKind::Handle, Some(list)) =
-                (dispatch.kind, self.waiting_init.borrow_mut().get_mut(&dest))
-            {
+        if self.actors.contains_key(&dest) || self.marked_destinations.contains(&dest) {
+            // imbuing gas-less messages with maximum gas!
+            if dispatch.message.gas_limit.is_none() {
+                dispatch.message.gas_limit = Some(u64::max_value());
+            }
+
+            // Find in dispatch queue init message to the destination. By that we recognize
+            // messages to not yet initialized programs, whose init messages weren't executed yet.
+            let init_to_dest = self
+                .dispatch_queue
+                .iter()
+                .find(|d| d.message.dest() == dest && d.kind == DispatchKind::Init);
+            if let (DispatchKind::Handle, Some(list), None) = (
+                dispatch.kind,
+                self.waiting_init.get_mut(&dest),
+                init_to_dest,
+            ) {
                 let message_id = dispatch.message.id();
                 list.push(message_id);
                 self.wait_list.insert((dest, message_id), dispatch);
@@ -152,8 +173,8 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        let mut programs = self.actors.borrow_mut();
-        if let Some(actor) = programs
+        if let Some(actor) = self
+            .actors
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
@@ -166,8 +187,8 @@ impl JournalHandler for InMemoryExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        let mut actors = self.actors.borrow_mut();
-        if let Some(actor) = actors
+        if let Some(actor) = self
+            .actors
             .get_mut(&program_id)
             .expect("Program not found in storage")
         {
@@ -182,9 +203,7 @@ impl JournalHandler for InMemoryExtManager {
     }
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
-            let mut actors = self.actors.borrow_mut();
-
-            if let Some(Some(actor)) = actors.get_mut(&from) {
+            if let Some(Some(actor)) = self.actors.get_mut(&from) {
                 if actor.balance < value {
                     panic!("Actor {:?} balance is less then sent value", from);
                 }
@@ -192,9 +211,31 @@ impl JournalHandler for InMemoryExtManager {
                 actor.balance -= value;
             };
 
-            if let Some(Some(actor)) = actors.get_mut(&to) {
+            if let Some(Some(actor)) = self.actors.get_mut(&to) {
                 actor.balance += value;
             };
         };
+    }
+
+    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
+        if let Some(code) = self.codes.get(&code_hash).cloned() {
+            for (candidate_id, init_message_id) in candidates {
+                if !self.actors.contains_key(&candidate_id) {
+                    let program = Program::new(candidate_id, code.clone())
+                        .expect("guaranteed to have constructable code");
+                    self.store_program(program, init_message_id);
+                } else {
+                    log::debug!("Program with id {:?} already exists", candidate_id);
+                }
+            }
+        } else {
+            log::debug!(
+                "No referencing code with code hash {:?} for candidate programs",
+                code_hash
+            );
+            for (invalid_candidate, _) in candidates {
+                self.marked_destinations.insert(invalid_candidate);
+            }
+        }
     }
 }

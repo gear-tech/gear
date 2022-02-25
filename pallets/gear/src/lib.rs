@@ -70,11 +70,14 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, ReservableCurrency, ExistenceRequirement},
+        traits::{BalanceStatus, Currency, Get, ReservableCurrency, ExistenceRequirement},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
-    use gear_core::{message::DispatchKind, program::Program as NativeProgram};
+    use gear_core::{
+        message::DispatchKind,
+        program::{Program as NativeProgram, ProgramId},
+    };
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -103,6 +106,10 @@ pub mod pallet {
         /// The maximum amount of gas that can be used within a single block.
         #[pallet::constant]
         type BlockGasLimit: Get<u64>;
+
+        /// The cost for a message to spend one block in the wait list
+        #[pallet::constant]
+        type WaitListFeePerBlock: Get<u64>;
 
         type DebugInfo: DebugInfo;
     }
@@ -272,6 +279,14 @@ pub mod pallet {
     where
         T::AccountId: Origin,
     {
+        // Messages have only two options to be inserted in mailbox:
+        // 1. While message processing called `gr_wait`.
+        // 2. While message addressed to program, that hadn't finished it's initialization.
+        //
+        // This means that program always exists in storage in active or terminated status.
+        //
+        // We also remove messages from mailbox for cases of out of rent (in `pallet-usage`)
+        // and once program initialized or failed it's inititalization.
         pub fn insert_to_mailbox(user: H256, message: common::QueuedMessage) {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
@@ -386,6 +401,7 @@ pub mod pallet {
                 dispatch.into(),
                 block_info,
                 existential_deposit,
+                ProgramId::from_origin(source),
             );
 
             for note in &journal {
@@ -394,7 +410,8 @@ pub mod pallet {
                         gas_burned = gas_burned.saturating_add(*amount);
                     }
                     JournalNote::SendDispatch { dispatch, .. } => {
-                        gas_to_send = gas_to_send.saturating_add(dispatch.message.gas_limit());
+                        gas_to_send =
+                            gas_to_send.saturating_add(dispatch.message.gas_limit().unwrap_or(0));
                     }
                     JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
                         return None;
@@ -450,9 +467,8 @@ pub mod pallet {
             while let Some(dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
 
-                let gas_limit = T::GasHandler::get_limit(*dispatch.message_id())
-                    .map(|(gas, _id)| gas)
-                    .unwrap_or(0);
+                let (gas_limit, origin) = T::GasHandler::get_limit(*dispatch.message_id())
+                    .expect("Should never fail if ValueNode works properly");
 
                 log::debug!(
                     "Processing message: {:?} to {:?} / gas_limit: {}",
@@ -490,9 +506,7 @@ pub mod pallet {
                         }
                     }
 
-                    maybe_active_program
-                        .try_into_native(program_id)
-                        .ok()
+                    maybe_active_program.try_into_native(program_id).ok()
                         .map(|program| {
                             let balance = T::Currency::free_balance(
                                 &<T::AccountId as Origin>::from_origin(program_id),
@@ -513,6 +527,7 @@ pub mod pallet {
                     dispatch.into_dispatch(gas_limit),
                     block_info,
                     existential_deposit,
+                    ProgramId::from_origin(origin),
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);
@@ -590,8 +605,10 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            NativeProgram::new(Default::default(), code.clone())
-                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
+            NativeProgram::new(Default::default(), code.clone()).map_err(|e| {
+                log::debug!("Program failed to load: {}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let code_hash = Self::set_code_with_metadata(&code, who.into_origin())?;
 
@@ -657,21 +674,19 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let mut data = Vec::new();
-            // TODO #512
-            code.encode_to(&mut data);
-            salt.encode_to(&mut data);
+            let code_hash = sp_io::hashing::blake2_256(&code);
+            let id = ProgramId::generate(code_hash.into(), &salt);
 
             // Make sure there is no program with such id in program storage
-            let id: H256 = sp_io::hashing::blake2_256(&data[..]).into();
             ensure!(
-                !common::program_exists(id) & !common::paused_program_exists(id),
+                !common::program_exists(id.into_origin()) & !common::paused_program_exists(id.into_origin()),
                 Error::<T>::ProgramAlreadyExists
             );
 
-            let H256(id_bytes) = id;
-            let program = NativeProgram::new(id_bytes.into(), code.to_vec())
-                .map_err(|_| Error::<T>::FailedToConstructProgram)?;
+            let program = NativeProgram::new(id, code.clone()).map_err(|e| {
+                log::debug!("Program failed to load: {}", e);
+                Error::<T>::FailedToConstructProgram
+            })?;
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
@@ -681,6 +696,7 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.into_origin();
+            let id = id.into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.

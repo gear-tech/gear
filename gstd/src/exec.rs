@@ -45,7 +45,7 @@
 //! // Send a reply after the block height reaches the number 1000
 //! pub unsafe extern "C" fn handle() {
 //!     if exec::block_height() >= 1000 {
-//!         msg::reply(b"Block #1000 reached", 1_000_000, 0);
+//!         msg::reply(b"Block #1000 reached", 0);
 //!     }
 //! }
 //! ```
@@ -55,11 +55,7 @@
 //! // Send a reply after the block timestamp reaches the February 22, 2022
 //! pub unsafe extern "C" fn handle() {
 //!     if exec::block_timestamp() >= 1645488000000 {
-//!         msg::reply(
-//!             b"The current block is generated after February 22, 2022",
-//!             1_000_000,
-//!             0,
-//!         );
+//!         msg::reply(b"The current block is generated after February 22, 2022", 0);
 //!     }
 //! }
 //! ```
@@ -182,4 +178,21 @@ pub fn wake(waker_id: MessageId) {
 /// ```
 pub fn program_id() -> ActorId {
     gcore::exec::program_id().into()
+}
+
+/// Return the id of original user who initiated communication with blockchain,
+/// during which, currently processing message was created.
+///
+/// # Examples
+///
+/// ```
+/// use gstd::{exec, ActorId};
+///
+/// pub unsafe extern "C" fn handle() {
+///     // ...
+///     let _user = exec::origin();
+/// }
+/// ```
+pub fn origin() -> ActorId {
+    gcore::exec::origin().into()
 }

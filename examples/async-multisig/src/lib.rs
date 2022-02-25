@@ -15,8 +15,6 @@ static mut SIGNATORIES: Vec<ActorId> = vec![];
 static mut DESTINATION: ActorId = ActorId::new([0u8; 32]);
 static mut THRESHOLD: usize = 0;
 
-const GAS_LIMIT: u64 = 1_000_000_000;
-
 #[derive(Debug, Encode, TypeInfo)]
 struct SignRequest {
     message: Vec<u8>,
@@ -69,9 +67,7 @@ async fn main() {
     let mut requests: Vec<_> = unsafe { &SIGNATORIES }
         .iter()
         .enumerate()
-        .map(|(i, s)| {
-            msg::send_bytes_and_wait_for_reply(*s, &encoded, GAS_LIMIT, 0).map(move |r| (i, r))
-        })
+        .map(|(i, s)| msg::send_bytes_and_wait_for_reply(*s, &encoded, 0).map(move |r| (i, r)))
         .collect();
 
     let mut threshold = 0usize;
@@ -102,7 +98,7 @@ async fn main() {
             .unwrap_or(0);
 
         if unsafe { THRESHOLD } <= threshold {
-            msg::send_bytes(unsafe { DESTINATION }, message, GAS_LIMIT, 0);
+            msg::send_bytes(unsafe { DESTINATION }, message, 0);
             break;
         } else if threshold + remaining.len() < unsafe { THRESHOLD } {
             // threshold can't be reached even if all remaining

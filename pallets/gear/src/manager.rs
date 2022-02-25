@@ -27,18 +27,27 @@ use core_processor::common::{
 };
 use frame_support::{
     storage::PrefixIterator,
-    traits::{BalanceStatus, Currency, ExistenceRequirement, Imbalance, ReservableCurrency},
+    traits::{BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency},
 };
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, ExitCode, MessageId},
-    program::{Program as NativeProgram, ProgramId},
+    program::{CodeHash, Program as NativeProgram, ProgramId},
 };
 use primitive_types::H256;
-use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-use sp_std::{collections::btree_map::BTreeMap, marker::PhantomData, prelude::*};
+use sp_runtime::{
+    traits::{UniqueSaturatedInto, Zero},
+    SaturatedConversion,
+};
+use sp_std::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    marker::PhantomData,
+    prelude::*,
+};
 
 pub struct ExtManager<T: Config> {
+    // Messages with these destinations will be forcibly pushed to the queue.
+    marked_destinations: BTreeSet<ProgramId>,
     _phantom: PhantomData<T>,
 }
 
@@ -99,6 +108,7 @@ where
     fn default() -> Self {
         ExtManager {
             _phantom: PhantomData,
+            marked_destinations: Default::default(),
         }
     }
 }
@@ -276,7 +286,7 @@ where
         Pallet::<T>::deposit_event(event);
     }
 
-    fn gas_burned(&mut self, message_id: MessageId, origin: ProgramId, amount: u64) {
+    fn gas_burned(&mut self, message_id: MessageId, amount: u64) {
         let message_id = message_id.into_origin();
 
         log::debug!("burned: {:?} from: {:?}", amount, message_id);
@@ -284,15 +294,19 @@ where
         Pallet::<T>::decrease_gas_allowance(amount);
 
         match T::GasHandler::spend(message_id, amount) {
-            Ok(_spent) => {
-                let charge = T::GasPrice::gas_price(amount);
-                if let Some(author) = Authorship::<T>::author() {
-                    let _ = T::Currency::repatriate_reserved(
-                        &<T::AccountId as Origin>::from_origin(origin.into_origin()),
-                        &author,
-                        charge,
-                        BalanceStatus::Free,
-                    );
+            Ok(_) => {
+                if let Some((_, origin)) = T::GasHandler::get_limit(message_id) {
+                    let charge = T::GasPrice::gas_price(amount);
+                    if let Some(author) = Authorship::<T>::author() {
+                        let _ = T::Currency::repatriate_reserved(
+                            &<T::AccountId as Origin>::from_origin(origin),
+                            &author,
+                            charge,
+                            BalanceStatus::Free,
+                        );
+                    }
+                } else {
+                    log::error!("Failed to get limit of {:?}", message_id);
                 }
             }
             Err(err) => {
@@ -308,6 +322,11 @@ where
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, value_destination: ProgramId) {
         let program_id = id_exited.into_origin();
+
+        for message in common::remove_program_waitlist(program_id) {
+            common::queue_dispatch(message);
+        }
+
         let res = common::set_program_terminated_status(program_id);
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
@@ -342,7 +361,6 @@ where
         let message_id = message_id.into_origin();
         let (gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
 
-        // TODO reserve call must be infallible in https://github.com/gear-tech/gear/issues/644
         if dispatch.message.value != 0
             && T::Currency::reserve(
                 &<T::AccountId as Origin>::from_origin(dispatch.message.source),
@@ -365,8 +383,18 @@ where
         );
 
         let destination = dispatch.message.dest;
-        if common::program_exists(destination) | common::paused_program_exists(destination) {
-            let _ = T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+        if common::program_exists(destination)
+            || common::paused_program_exists(destination)
+            || self
+                .marked_destinations
+                .contains(&ProgramId::from_origin(destination))
+        {
+            if let Some(gas_limit) = gas_limit {
+                let _ =
+                    T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+            } else {
+                let _ = T::GasHandler::split(message_id, *dispatch.message_id());
+            }
             common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
@@ -401,9 +429,40 @@ where
     ) {
         let awakening_id = awakening_id.into_origin();
 
-        if let Some((dispatch, _)) =
+        if let Some((dispatch, bn)) =
             common::remove_waiting_message(program_id.into_origin(), awakening_id)
         {
+            let duration = <frame_system::Pallet<T>>::block_number()
+                .saturated_into::<u32>()
+                .saturating_sub(bn);
+            let chargeable_amount = T::WaitListFeePerBlock::get().saturating_mul(duration.into());
+
+            match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
+                Ok(_) => {
+                    if let Some((_, origin)) = T::GasHandler::get_limit(message_id.into_origin()) {
+                        let charge = T::GasPrice::gas_price(chargeable_amount);
+                        if let Some(author) = Authorship::<T>::author() {
+                            let _ = T::Currency::repatriate_reserved(
+                                &<T::AccountId as Origin>::from_origin(origin),
+                                &author,
+                                charge,
+                                BalanceStatus::Free,
+                            );
+                        }
+                    } else {
+                        log::error!("Failed to get limit of {:?}", message_id);
+                    }
+                }
+                Err(err) => {
+                    log::error!(
+                        "Error charging {:?} gas rent of getting out of waitlist for message_id {:?}: {:?}",
+                        chargeable_amount,
+                        message_id,
+                        err
+                    )
+                }
+            };
+
             common::queue_dispatch(dispatch);
 
             Pallet::<T>::deposit_event(Event::RemovedFromWaitList(awakening_id));
@@ -447,7 +506,6 @@ where
         };
     }
 
-    // TODO reserve call must be infallible in https://github.com/gear-tech/gear/issues/644 sending less then 500 should revert execution (rollback state)
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         let from = from.into_origin();
         if let Some(to) = to {
@@ -481,6 +539,31 @@ where
             log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
             let from = <T::AccountId as Origin>::from_origin(from);
             T::Currency::unreserve(&from, value.unique_saturated_into());
+        }
+    }
+
+    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
+        let code_hash = code_hash.inner().into();
+
+        if let Some(code) = common::get_code(code_hash) {
+            for (candidate_id, init_message) in candidates {
+                if !common::program_exists(candidate_id.into_origin()) {
+                    // Code hash for invalid code can't be added to the storage from extrinsics.
+                    let new_program = NativeProgram::new(candidate_id, code.clone())
+                        .expect("guaranteed to be valid");
+                    self.set_program(new_program, init_message.into_origin());
+                } else {
+                    log::debug!("Program with id {:?} already exists", candidate_id);
+                }
+            }
+        } else {
+            log::debug!(
+                "No referencing code with code hash {:?} for candidate programs",
+                code_hash
+            );
+            for (candidate, _) in candidates {
+                self.marked_destinations.insert(candidate);
+            }
         }
     }
 }

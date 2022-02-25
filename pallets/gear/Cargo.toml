@@ -51,6 +51,7 @@ tests-distributor = { path = "../../tests/distributor" }
 tests-init-wait = { path = "../../tests/init-wait" }
 tests-exit-init = { path = "../../tests/exit-init" }
 tests-exit-handle = { path = "../../tests/exit-handle" }
+tests-program-factory = { path = "../../tests/program-factory" }
 tests-proxy = { path = "../../tests/proxy" }
 
 [features]

@@ -124,7 +124,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 270,
+    spec_version: 320,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -334,6 +334,7 @@ parameter_types! {
     pub const WaitListTraversalInterval: u32 = 10;
     pub const ExpirationDuration: u64 = MILLISECS_PER_BLOCK.saturating_mul(WaitListTraversalInterval::get() as u64);
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
+    pub const WaitListFeePerBlock: u64 = 1_000;
 }
 
 impl pallet_gear::Config for Runtime {
@@ -343,6 +344,7 @@ impl pallet_gear::Config for Runtime {
     type GasHandler = Gas;
     type WeightInfo = pallet_gear::weights::GearWeight<Runtime>;
     type BlockGasLimit = BlockGasLimit;
+    type WaitListFeePerBlock = WaitListFeePerBlock;
     type DebugInfo = DebugInfo;
 }
 
@@ -361,7 +363,6 @@ impl pallet_usage::Config for Runtime {
     type MaxBatchSize = ConstU32<100>;
     type TrapReplyExistentialGasLimit = ConstU64<6000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
-    type WaitListFeePerBlock = ConstU64<1000>;
 }
 
 impl pallet_gas::Config for Runtime {}

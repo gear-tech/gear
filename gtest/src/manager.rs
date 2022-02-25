@@ -25,7 +25,7 @@ use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    program::{CodeHash, Program as CoreProgram, ProgramId},
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -60,6 +60,7 @@ pub(crate) struct ExtManager {
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
     // Last run info
+    pub(crate) origin: ProgramId,
     pub(crate) msg_id: MessageId,
     pub(crate) log: Vec<Message>,
     pub(crate) main_failed: bool,
@@ -119,7 +120,7 @@ impl ExtManager {
     }
 
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
-        self.prepare_for(message.id());
+        self.prepare_for(message.id(), message.source());
 
         if self.actors.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
@@ -173,6 +174,7 @@ impl ExtManager {
                         },
                         self.block_info,
                         crate::EXISTENTIAL_DEPOSIT,
+                        self.origin,
                     );
 
                     core_processor::handle_journal(journal, self);
@@ -203,7 +205,6 @@ impl ExtManager {
                                     program_id,
                                     message.source(),
                                     payload.into(),
-                                    message.gas_limit(),
                                     0,
                                     message.id(),
                                     0,
@@ -236,7 +237,6 @@ impl ExtManager {
                                 program_id,
                                 message.source(),
                                 Default::default(),
-                                message.gas_limit(),
                                 0,
                                 message.id(),
                                 1,
@@ -257,8 +257,9 @@ impl ExtManager {
         }
     }
 
-    fn prepare_for(&mut self, msg_id: MessageId) {
+    fn prepare_for(&mut self, msg_id: MessageId, origin: ProgramId) {
         self.msg_id = msg_id;
+        self.origin = origin;
         self.log.clear();
         self.main_failed = false;
         self.others_failed = false;
@@ -325,7 +326,7 @@ impl JournalHandler for ExtManager {
             } => self.init_success(message_id, program_id),
         }
     }
-    fn gas_burned(&mut self, _message_id: MessageId, _origin: ProgramId, _amount: u64) {}
+    fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
         self.actors.remove(&id_exited);
@@ -341,8 +342,12 @@ impl JournalHandler for ExtManager {
         }
     }
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
-        let Dispatch { message, .. } = dispatch;
+        let Dispatch { mut message, .. } = dispatch;
         if self.actors.contains_key(&message.dest()) {
+            // imbuing gas-less messages with maximum gas!
+            if message.gas_limit.is_none() {
+                message.gas_limit = Some(u64::max_value());
+            }
             self.message_queue.push_back(message);
         } else {
             self.mailbox
@@ -406,5 +411,13 @@ impl JournalHandler for ExtManager {
                 *balance += value;
             };
         }
+    }
+
+    fn store_new_programs(
+        &mut self,
+        _code_hash: CodeHash,
+        _candidates: Vec<(ProgramId, MessageId)>,
+    ) {
+        // todo!() #714
     }
 }

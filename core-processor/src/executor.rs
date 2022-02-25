@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    common::{DispatchResult, DispatchResultKind, ExecutableActor, ExecutionError},
+    common::{
+        DispatchResult, DispatchResultKind, ExecutableActor, ExecutionContext, ExecutionError,
+    },
     configs::ExecutionSettings,
     ext::ProcessorExt,
     id::BlakeMessageIdGenerator,
@@ -38,6 +40,7 @@ use gear_core::{
 pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: Dispatch,
+    context: ExecutionContext,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
     let mut env: E = Default::default();
@@ -57,7 +60,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     log::debug!("Executing program {:?}", program_id);
 
     // Creating gas counter.
-    let mut gas_counter = GasCounter::new(message.gas_limit());
+    let mut gas_counter = GasCounter::new(message.gas_limit().unwrap_or(0));
 
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.message.value());
@@ -172,6 +175,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         settings.existential_deposit,
         None,
         None,
+        context.origin,
+        Default::default(),
     );
 
     let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
@@ -263,20 +268,26 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         });
 
     // Storing outgoing dispatches
-    let mut outgoing = Vec::new();
+    let mut generated_dispatches = Vec::new();
+
+    for msg in info.init_messages {
+        generated_dispatches.push(Dispatch::new_init(msg.into_message(program_id)));
+    }
 
     for msg in info.outgoing {
-        outgoing.push(Dispatch::new_handle(msg.into_message(program_id)));
+        generated_dispatches.push(Dispatch::new_handle(msg.into_message(program_id)));
     }
 
     if let Some(reply_message) = info.reply {
-        outgoing.push(Dispatch::new_reply(reply_message.into_message(
+        generated_dispatches.push(Dispatch::new_reply(reply_message.into_message(
             message.id(),
             program_id,
             message.source(),
         )));
     }
 
+    // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
+    let program_candidates = info.program_candidates_data;
     let mut dispatch = dispatch;
     dispatch.payload_store = info.payload_store;
 
@@ -284,10 +295,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     Ok(DispatchResult {
         kind,
         dispatch,
-        outgoing,
+        generated_dispatches,
         awakening: info.awakening,
         gas_amount: info.gas_amount,
         page_update,
         nonce: info.nonce,
+        program_candidates,
     })
 }
