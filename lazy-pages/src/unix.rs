@@ -123,20 +123,25 @@ pub unsafe fn init_lazy_pages() -> bool {
     if cfg!(target_os = "linux") {
         let res = signal::sigaction(signal::SIGSEGV, &sig_action);
         if let Err(err_no) = res {
-            log::error!(
+            log::debug!(
+                target: "essential",
                 "Cannot set sigsegv handler: {}",
-                errno::Errno(err_no as i32)
+                errno::Errno(err_no as i32),
             );
             return false;
         }
     } else if cfg!(target_os = "macos") {
         let res = signal::sigaction(signal::SIGBUS, &sig_action);
         if let Err(err_no) = res {
-            log::error!("Cannot set sigbus handler: {}", errno::Errno(err_no as i32));
+            log::debug!(
+                target: "essential",
+                "Cannot set sigbus handler: {}",
+                errno::Errno(err_no as i32),
+            );
             return false;
         }
     } else {
-        log::debug!("Lazy pages doesn't support this OS");
+        log::debug!("Lazy pages are not supported on this OS");
         return false;
     }
 
