@@ -1141,14 +1141,12 @@ fn distributor_distribute() {
     });
 }
 
-// TODO #512 All `submit_code` tests should be changed to testing program creation from program logic.
-
 #[test]
 fn test_code_submission_pass() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_hash = sp_io::hashing::blake2_256(&code).into();
+        let code_hash = generate_code_hash(&code).into();
 
         assert_ok!(GearPallet::<Test>::submit_code(
             Origin::signed(USER_1),
@@ -1194,7 +1192,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_hash = sp_io::hashing::blake2_256(&code).into();
+        let code_hash = generate_code_hash(&code).into();
 
         // First submit program, which will set code and metadata
         assert_ok!(GearPallet::<Test>::submit_program(
@@ -1221,7 +1219,7 @@ fn test_code_is_not_resetted_within_program_submission() {
     init_logger();
     new_test_ext().execute_with(|| {
         let code = ProgramCodeKind::Default.to_bytes();
-        let code_hash = sp_io::hashing::blake2_256(&code).into();
+        let code_hash = generate_code_hash(&code).into();
 
         // First submit code
         assert_ok!(GearPallet::<Test>::submit_code(
@@ -1523,7 +1521,7 @@ fn test_message_processing_for_non_existing_destination() {
     new_test_ext().execute_with(|| {
         let program_id = submit_program_default(USER_1, ProgramCodeKind::GreedyInit).expect("todo");
         let code_hash =
-            sp_io::hashing::blake2_256(ProgramCodeKind::GreedyInit.to_bytes().as_slice()).into();
+            generate_code_hash(ProgramCodeKind::GreedyInit.to_bytes().as_slice()).into();
         let user_balance_before = BalancesPallet::<Test>::free_balance(USER_1);
 
         // After running, first message will end up with init failure, so destination address won't exist.
@@ -1611,11 +1609,10 @@ fn test_create_program_no_code_hash() {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
         let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
 
-        let valid_code_hash =
-            sp_io::hashing::blake2_256(ProgramCodeKind::Default.to_bytes().as_slice());
+        let valid_code_hash = generate_code_hash(ProgramCodeKind::Default.to_bytes().as_slice());
         let invalid_prog_code_kind = ProgramCodeKind::Custom(non_constructable_wat);
         let invalid_prog_code_hash =
-            sp_io::hashing::blake2_256(invalid_prog_code_kind.to_bytes().as_slice());
+            generate_code_hash(invalid_prog_code_kind.to_bytes().as_slice());
 
         // Creating factory
         assert_ok!(GearPallet::<Test>::submit_program(
@@ -1705,7 +1702,7 @@ fn test_create_program_simple() {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
         let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
         let child_code = ProgramCodeKind::Default.to_bytes();
-        let child_code_hash = sp_io::hashing::blake2_256(child_code.as_slice());
+        let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
         assert_ok!(GearPallet::<Test>::submit_code(
@@ -1796,7 +1793,7 @@ fn test_create_program_duplicate() {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
         let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
         let child_code = ProgramCodeKind::Default.to_bytes();
-        let child_code_hash = sp_io::hashing::blake2_256(child_code.as_slice());
+        let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
         assert_ok!(GearPallet::<Test>::submit_code(
@@ -1887,7 +1884,7 @@ fn test_create_program_duplicate_in_one_execution() {
         let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
 
         let child_code = ProgramCodeKind::Default.to_bytes();
-        let child_code_hash = sp_io::hashing::blake2_256(&child_code);
+        let child_code_hash = generate_code_hash(&child_code);
 
         assert_ok!(GearPallet::<Test>::submit_code(
             Origin::signed(USER_2),
@@ -1969,8 +1966,8 @@ fn test_create_program_miscellaneous() {
         let child1_code = ProgramCodeKind::Default.to_bytes();
         let child2_code = ProgramCodeKind::Custom(child2_wat).to_bytes();
 
-        let child1_code_hash = sp_io::hashing::blake2_256(&child1_code);
-        let child2_code_hash = sp_io::hashing::blake2_256(&child2_code);
+        let child1_code_hash = generate_code_hash(&child1_code);
+        let child2_code_hash = generate_code_hash(&child2_code);
 
         assert_ok!(GearPallet::<Test>::submit_code(
             Origin::signed(USER_2),
@@ -2058,7 +2055,7 @@ fn exit_handle() {
         System::reset_events();
 
         let code = WASM_BINARY.to_vec();
-        let code_hash = sp_io::hashing::blake2_256(&code).into();
+        let code_hash = generate_code_hash(&code).into();
         assert_ok!(GearPallet::<Test>::submit_program(
             Origin::signed(USER_1).into(),
             code.clone(),
@@ -2118,7 +2115,7 @@ mod utils {
     use sp_core::H256;
     use sp_std::convert::TryFrom;
 
-    use gear_core::program::ProgramId;
+    use gear_core::program::{CodeHash, ProgramId};
 
     use super::{
         assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MessageInfo, MockEvent,
@@ -2222,7 +2219,7 @@ mod utils {
                     .and_then(|p| common::ActiveProgram::try_from(p).ok())
                     .expect("program must exist")
                     .code_hash,
-                sp_io::hashing::blake2_256(&expected_code).into(),
+                generate_code_hash(&expected_code).into(),
                 "can invoke send to mailbox only from `ProgramCodeKind::OutgoingWithValueInHandle` program"
             );
         }
@@ -2231,7 +2228,7 @@ mod utils {
     }
 
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: H256) {
-        let expected_code_hash: H256 = sp_io::hashing::blake2_256(
+        let expected_code_hash: H256 = generate_code_hash(
             ProgramCodeKind::OutgoingWithValueInHandle
                 .to_bytes()
                 .as_slice(),
@@ -2282,8 +2279,11 @@ mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-        let code_hash = sp_io::hashing::blake2_256(code).into();
-        ProgramId::generate(code_hash, salt).into_origin()
+        ProgramId::generate(CodeHash::generate(code), salt).into_origin()
+    }
+
+    pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
+        CodeHash::generate(code).inner()
     }
 
     pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {

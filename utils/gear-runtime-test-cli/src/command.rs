@@ -27,9 +27,10 @@ use colored::{ColoredString, Colorize};
 
 use gear_runtime::{Origin, Runtime};
 
-use gear_core::message::Message as CoreMessage;
-use gear_core::program::Program as CoreProgram;
-use gear_core::program::ProgramId;
+use gear_core::{
+    message::Message as CoreMessage,
+    program::{CodeHash, Program as CoreProgram, ProgramId},
+};
 
 use gear_common::{DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
 use gear_test::{
@@ -173,10 +174,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         .map(|program| {
             let program_path = program.path.clone();
             let code = std::fs::read(&program_path).unwrap();
-            let code_hash = sp_io::hashing::blake2_256(&code).into();
             let salt = program.id.to_program_id().as_slice().to_vec();
 
-            let id = ProgramId::generate(code_hash, &salt);
+            let id = ProgramId::generate(CodeHash::generate(&code), &salt);
 
             progs_n_paths.push((program.path.as_ref(), id));
 

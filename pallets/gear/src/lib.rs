@@ -76,7 +76,7 @@ pub mod pallet {
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{
         message::DispatchKind,
-        program::{Program as NativeProgram, ProgramId},
+        program::{CodeHash, Program as NativeProgram, ProgramId},
     };
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
@@ -337,7 +337,7 @@ pub mod pallet {
             let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
 
             let (dest, reply) = match kind {
-                HandleKind::Init(ref code) => (sp_io::hashing::blake2_256(code).into(), None),
+                HandleKind::Init(ref code) => (CodeHash::generate(code).into_origin(), None),
                 HandleKind::Handle(dest) => (dest, None),
                 HandleKind::Reply(msg_id, exit_code) => {
                     let msg = Self::get_from_mailbox(source, msg_id)?;
@@ -550,7 +550,7 @@ pub mod pallet {
         /// # Note
         /// Code existence in storage means that metadata is there too.
         fn set_code_with_metadata(code: &[u8], who: H256) -> Result<H256, Error<T>> {
-            let code_hash = sp_io::hashing::blake2_256(code).into();
+            let code_hash = CodeHash::generate(code).into_origin();
             // *Important*: checks before storage mutations!
             ensure!(
                 !common::code_exists(code_hash),
@@ -665,8 +665,7 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let code_hash = sp_io::hashing::blake2_256(&code);
-            let id = ProgramId::generate(code_hash.into(), &salt);
+            let id = ProgramId::generate(CodeHash::generate(&code), &salt);
 
             // Make sure there is no program with such id in program storage
             ensure!(
