@@ -24,7 +24,7 @@ EOF
 }
 
 workspace_test() {
-  cargo test --workspace "$@"
+  cargo nextest run --workspace "$@"
 }
 
 # $1 - ROOT DIR
