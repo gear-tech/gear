@@ -149,10 +149,10 @@ where
         };
 
         match runtime_api_result {
-            Some(value) => Ok(try_into_rpc_gas_spent(value)?),
-            None => Err(RpcError {
+            Ok(gas) => Ok(try_into_rpc_gas_spent(gas)?),
+            Err(message) => Err(RpcError {
                 code: ErrorCode::ServerError(Error::RuntimeError.into()),
-                message: "Empty run result".to_string(),
+                message: String::from_utf8_lossy(&message).into(),
                 data: None,
             }),
         }

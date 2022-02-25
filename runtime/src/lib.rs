@@ -603,7 +603,7 @@ impl_runtime_apis! {
             account_id: H256,
             kind: HandleKind,
             payload: Vec<u8>,
-        ) -> Option<u64> {
+        ) -> Result<u64, Vec<u8>> {
             Gear::get_gas_spent(account_id, kind, payload)
         }
     }

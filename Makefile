@@ -183,6 +183,10 @@ run-dev-node:
 run-dev-node-release:
 	@ ./scripts/gear.sh run node --release -- --dev
 
+.PHONY: run-dev-node-release-log
+run-dev-node-release-log:
+	@ RUST_LOG="gwasm=debug,pallet_gear=debug,gear_core_processor=debug,gear_backend_sandbox=debug" ./scripts/gear.sh run node --release -- --dev -l0
+
 .PHONY: purge-chain
 purge-chain:
 	@ ./scripts/gear.sh run purge-chain
