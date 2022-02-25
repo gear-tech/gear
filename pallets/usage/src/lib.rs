@@ -305,7 +305,11 @@ pub mod pallet {
                                 who,
                                 user_reward,
                             ) {
-                                log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                                log::debug!(
+                                    target: "essential",
+                                    "Failed to repatriate reserved amount: {:?}",
+                                    e,
+                                );
                             }
                             if let Some(author) = Authorship::<T>::author() {
                                 if let Err(e) = T::PaymentProvider::withhold_reserved(
@@ -313,7 +317,11 @@ pub mod pallet {
                                     &author,
                                     validator_reward,
                                 ) {
-                                    log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                                    log::debug!(
+                                        target: "essential",
+                                        "Failed to repatriate reserved amount: {:?}",
+                                        e,
+                                    );
                                 }
                             }
                         }
@@ -324,7 +332,11 @@ pub mod pallet {
                                     &author,
                                     total_reward,
                                 ) {
-                                    log::warn!("Failed to repatriate reserved amount: {:?}", e);
+                                    log::debug!(
+                                        target: "essential",
+                                        "Failed to repatriate reserved amount: {:?}",
+                                        e,
+                                    );
                                 }
                             }
                         }
