@@ -935,7 +935,7 @@ pub mod pallet {
 
         /// TODO
         #[frame_support::transactional]
-        #[pallet::weight(<T as Config>::WeightInfo::send_reply(memory_pages.values().map(|p| p.len() as u32).sum()))]
+        #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
         pub fn resume_program(
             origin: OriginFor<T>,
             program_id: H256,
