@@ -37,23 +37,26 @@ fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum PauseError
-{
+pub enum PauseError {
     ProgramNotFound,
     ProgramTerminated,
 }
 
 pub fn pause_program(program_id: H256) -> Result<(), PauseError> {
     let program = get_program(program_id).ok_or(PauseError::ProgramNotFound)?;
-    let program: ActiveProgram = program.try_into().map_err(|_| PauseError::ProgramTerminated)?;
+    let program: ActiveProgram = program
+        .try_into()
+        .map_err(|_| PauseError::ProgramTerminated)?;
 
     let prefix = wait_prefix(program_id);
     let previous_key = prefix.clone();
 
     let paused_program = PausedProgram {
         program_id,
-        pages_hash: memory_pages_hash(&get_program_pages(program_id, program.persistent_pages.clone())
-            .expect("pause_program: active program exists, therefore pages do")),
+        pages_hash: memory_pages_hash(
+            &get_program_pages(program_id, program.persistent_pages.clone())
+                .expect("pause_program: active program exists, therefore pages do"),
+        ),
         program,
         wait_list: PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
             .drain()
@@ -84,16 +87,21 @@ pub fn paused_program_exists(id: H256) -> bool {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ResumeError
-{
+pub enum ResumeError {
     ProgramNotFound,
     WrongMemoryPages,
 }
 
-pub fn resume_program(program_id: H256, memory_pages: BTreeMap<u32, Vec<u8>>, block_number: u32) -> Result<(), ResumeError> {
+pub fn resume_program(
+    program_id: H256,
+    memory_pages: BTreeMap<u32, Vec<u8>>,
+    block_number: u32,
+) -> Result<(), ResumeError> {
     let paused_program_key = &paused_program_key(program_id);
     let paused_program = sp_io::storage::get(paused_program_key)
-        .map(|bytes| PausedProgram::decode(&mut &bytes[..]).expect("resume_program: encoded correctly"))
+        .map(|bytes| {
+            PausedProgram::decode(&mut &bytes[..]).expect("resume_program: encoded correctly")
+        })
         .ok_or(ResumeError::ProgramNotFound)?;
 
     if paused_program.pages_hash != memory_pages_hash(&memory_pages) {
@@ -104,8 +112,14 @@ pub fn resume_program(program_id: H256, memory_pages: BTreeMap<u32, Vec<u8>>, bl
 
     set_program(program_id, paused_program.program, memory_pages);
 
-    paused_program.wait_list.into_iter().for_each(|m| insert_waiting_message(program_id, m.message.id, m, block_number));
-    sp_io::storage::set(&waiting_init_prefix(program_id), &paused_program.waiting_init.encode()[..]);
+    paused_program
+        .wait_list
+        .into_iter()
+        .for_each(|m| insert_waiting_message(program_id, m.message.id, m, block_number));
+    sp_io::storage::set(
+        &waiting_init_prefix(program_id),
+        &paused_program.waiting_init.encode()[..],
+    );
 
     Ok(())
 }

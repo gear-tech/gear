@@ -828,24 +828,34 @@ mod tests {
             );
 
             let msg_id_1 = H256::from_low_u64_be(1);
-            insert_waiting_message(program_id, msg_id_1, QueuedDispatch::new_handle(QueuedMessage {
-                id: msg_id_1,
-                source: H256::from_low_u64_be(3),
-                dest: program_id,
-                payload: Default::default(),
-                value: 0,
-                reply: None,
-            }), 0);
+            insert_waiting_message(
+                program_id,
+                msg_id_1,
+                QueuedDispatch::new_handle(QueuedMessage {
+                    id: msg_id_1,
+                    source: H256::from_low_u64_be(3),
+                    dest: program_id,
+                    payload: Default::default(),
+                    value: 0,
+                    reply: None,
+                }),
+                0,
+            );
 
             let msg_id_2 = H256::from_low_u64_be(2);
-            insert_waiting_message(program_id, msg_id_2, QueuedDispatch::new_handle(QueuedMessage {
-                id: msg_id_2,
-                source: H256::from_low_u64_be(4),
-                dest: program_id,
-                payload: Default::default(),
-                value: 0,
-                reply: None,
-            }), 0);
+            insert_waiting_message(
+                program_id,
+                msg_id_2,
+                QueuedDispatch::new_handle(QueuedMessage {
+                    id: msg_id_2,
+                    source: H256::from_low_u64_be(4),
+                    dest: program_id,
+                    payload: Default::default(),
+                    value: 0,
+                    reply: None,
+                }),
+                0,
+            );
 
             assert_ok!(pause_program(program_id));
 
@@ -854,7 +864,10 @@ mod tests {
             assert!(get_code(code_hash).is_some());
 
             // although the memory pages should be removed
-            assert_eq!(get_program_pages(program_id, memory_pages.into_keys().collect()), None);
+            assert_eq!(
+                get_program_pages(program_id, memory_pages.into_keys().collect()),
+                None
+            );
 
             assert!(remove_waiting_message(program_id, msg_id_1).is_none());
             assert!(remove_waiting_message(program_id, msg_id_2).is_none());
@@ -914,7 +927,9 @@ mod tests {
         });
     }
 
-    fn create_uninitialized_program_messages(static_pages: u32) -> (H256, H256, H256, H256, H256, BTreeMap<u32, Vec<u8>>) {
+    fn create_uninitialized_program_messages(
+        static_pages: u32,
+    ) -> (H256, H256, H256, H256, H256, BTreeMap<u32, Vec<u8>>) {
         let code = b"pretended wasm code".to_vec();
         let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
         set_code(code_hash, &code);
@@ -939,51 +954,76 @@ mod tests {
                 persistent_pages: memory_pages.clone().into_keys().collect(),
                 code_hash,
                 nonce: 0,
-                state: ProgramState::Uninitialized{ message_id: init_msg_id },
+                state: ProgramState::Uninitialized {
+                    message_id: init_msg_id,
+                },
             },
             memory_pages.clone(),
         );
 
         // init message
-        insert_waiting_message(program_id, init_msg_id, QueuedDispatch::new_handle(QueuedMessage {
-            id: init_msg_id,
-            source: H256::from_low_u64_be(3),
-            dest: program_id,
-            payload: Default::default(),
-            value: 0,
-            reply: None,
-        }), 0);
+        insert_waiting_message(
+            program_id,
+            init_msg_id,
+            QueuedDispatch::new_handle(QueuedMessage {
+                id: init_msg_id,
+                source: H256::from_low_u64_be(3),
+                dest: program_id,
+                payload: Default::default(),
+                value: 0,
+                reply: None,
+            }),
+            0,
+        );
 
         let msg_id_1 = H256::from_low_u64_be(1);
-        insert_waiting_message(program_id, msg_id_1, QueuedDispatch::new_handle(QueuedMessage {
-            id: msg_id_1,
-            source: H256::from_low_u64_be(3),
-            dest: program_id,
-            payload: Default::default(),
-            value: 0,
-            reply: None,
-        }), 0);
+        insert_waiting_message(
+            program_id,
+            msg_id_1,
+            QueuedDispatch::new_handle(QueuedMessage {
+                id: msg_id_1,
+                source: H256::from_low_u64_be(3),
+                dest: program_id,
+                payload: Default::default(),
+                value: 0,
+                reply: None,
+            }),
+            0,
+        );
         waiting_init_append_message_id(program_id, msg_id_1);
 
         let msg_id_2 = H256::from_low_u64_be(2);
-        insert_waiting_message(program_id, msg_id_2, QueuedDispatch::new_handle(QueuedMessage {
-            id: msg_id_2,
-            source: H256::from_low_u64_be(4),
-            dest: program_id,
-            payload: Default::default(),
-            value: 0,
-            reply: None,
-        }), 0);
+        insert_waiting_message(
+            program_id,
+            msg_id_2,
+            QueuedDispatch::new_handle(QueuedMessage {
+                id: msg_id_2,
+                source: H256::from_low_u64_be(4),
+                dest: program_id,
+                payload: Default::default(),
+                value: 0,
+                reply: None,
+            }),
+            0,
+        );
         waiting_init_append_message_id(program_id, msg_id_2);
 
-        (program_id, code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages)
+        (
+            program_id,
+            code_hash,
+            init_msg_id,
+            msg_id_1,
+            msg_id_2,
+            memory_pages,
+        )
     }
 
     #[test]
     fn pause_uninitialized_program_works() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages) = create_uninitialized_program_messages(static_pages);
+            let (program_id, code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages) =
+                create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
@@ -993,7 +1033,10 @@ mod tests {
             assert!(get_code(code_hash).is_some());
 
             // although the memory pages should be removed
-            assert_eq!(get_program_pages(program_id, memory_pages.into_keys().collect()), None);
+            assert_eq!(
+                get_program_pages(program_id, memory_pages.into_keys().collect()),
+                None
+            );
 
             assert!(remove_waiting_message(program_id, msg_id_1).is_none());
             assert!(remove_waiting_message(program_id, msg_id_2).is_none());
@@ -1007,15 +1050,21 @@ mod tests {
     fn resume_uninitialized_program_works() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, _code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages) = create_uninitialized_program_messages(static_pages);
+            let (program_id, _code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages) =
+                create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
             let block_number = 100;
-            assert_ok!(resume_program(program_id, memory_pages.clone(), block_number));
+            assert_ok!(resume_program(
+                program_id,
+                memory_pages.clone(),
+                block_number
+            ));
             assert!(!paused_program_exists(program_id));
 
-            let new_memory_pages = get_program_pages(program_id, memory_pages.clone().into_keys().collect()).unwrap();
+            let new_memory_pages =
+                get_program_pages(program_id, memory_pages.clone().into_keys().collect()).unwrap();
             assert_eq!(memory_pages, new_memory_pages);
 
             let waiting_init = waiting_init_take_messages(program_id);
@@ -1023,9 +1072,24 @@ mod tests {
             assert!(waiting_init.contains(&msg_id_1));
             assert!(waiting_init.contains(&msg_id_2));
 
-            assert_eq!(block_number, remove_waiting_message(program_id, init_msg_id).map(|(_, bn)| bn).unwrap());
-            assert_eq!(block_number, remove_waiting_message(program_id, msg_id_1).map(|(_, bn)| bn).unwrap());
-            assert_eq!(block_number, remove_waiting_message(program_id, msg_id_2).map(|(_, bn)| bn).unwrap());
+            assert_eq!(
+                block_number,
+                remove_waiting_message(program_id, init_msg_id)
+                    .map(|(_, bn)| bn)
+                    .unwrap()
+            );
+            assert_eq!(
+                block_number,
+                remove_waiting_message(program_id, msg_id_1)
+                    .map(|(_, bn)| bn)
+                    .unwrap()
+            );
+            assert_eq!(
+                block_number,
+                remove_waiting_message(program_id, msg_id_2)
+                    .map(|(_, bn)| bn)
+                    .unwrap()
+            );
         });
     }
 
@@ -1033,13 +1097,21 @@ mod tests {
     fn resume_program_twice_fails() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, .., memory_pages) = create_uninitialized_program_messages(static_pages);
+            let (program_id, .., memory_pages) =
+                create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
             let block_number = 100;
-            assert_ok!(resume_program(program_id, memory_pages.clone(), block_number));
-            assert_err!(resume_program(program_id, memory_pages, block_number), ResumeError::ProgramNotFound);
+            assert_ok!(resume_program(
+                program_id,
+                memory_pages.clone(),
+                block_number
+            ));
+            assert_err!(
+                resume_program(program_id, memory_pages, block_number),
+                ResumeError::ProgramNotFound
+            );
         });
     }
 
@@ -1047,13 +1119,17 @@ mod tests {
     fn resume_program_wrong_memory_fails() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, .., mut memory_pages) = create_uninitialized_program_messages(static_pages);
+            let (program_id, .., mut memory_pages) =
+                create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
             let block_number = 100;
             memory_pages.remove(&0);
-            assert_err!(resume_program(program_id, memory_pages, block_number), ResumeError::WrongMemoryPages);
+            assert_err!(
+                resume_program(program_id, memory_pages, block_number),
+                ResumeError::WrongMemoryPages
+            );
         });
     }
 }

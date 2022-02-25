@@ -162,11 +162,11 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	// Storage: unknown [0x673a3a636f64653a3afda0ad7c1b0733865c5d2de8d7e965359c140b43a55934] (r:1 w:1)
 	// Storage: unknown [0x673a3a636f64653a3a6d657461646174613a3afda0ad7c1b0733865c5d2de8d7] (r:0 w:1)
 	fn submit_code(c: u32, ) -> Weight {
-		(27_434_000 as Weight)
+		(27_434_000u32 as Weight)
 			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(c as Weight))
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+			.saturating_add((2_000u32 as Weight).saturating_mul(c as Weight))
+			.saturating_add(T::DbWeight::get().reads(1u32 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2u32 as Weight))
 	}
 	// Storage: unknown [0x673a3a70726f673a3a67e342cacbd4e7809eb9498740b407c0bd24f18b77b3cf] (r:1 w:1)
 	// Storage: unknown [0x673a3a7061757365645f70726f673a3a67e342cacbd4e7809eb9498740b407c0] (r:1 w:0)
@@ -435,13 +435,13 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	// Storage: unknown [0x673a3a6d73673a3adee80d31c0f5560d6dd7324bc01693c341807653fda3b609] (r:0 w:1)
 	// Storage: unknown [0x673a3a6d73673a3a71aed0e1fa1a567fb7aaf0756a4515aa007d4f87f6ceb046] (r:0 w:1)
 	fn submit_program(c: u32, p: u32, ) -> Weight {
-		(81_628_000 as Weight)
+		(81_628_000u32 as Weight)
 			// Standard Error: 0
-			.saturating_add((4_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add((4_000u32 as Weight).saturating_mul(c as Weight))
 			// Standard Error: 0
-			.saturating_add((1_000 as Weight).saturating_mul(p as Weight))
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(10 as Weight))
+			.saturating_add((1_000u32 as Weight).saturating_mul(p as Weight))
+			.saturating_add(T::DbWeight::get().reads(8u32 as Weight))
+			.saturating_add(T::DbWeight::get().writes(10u32 as Weight))
 	}
 	// Storage: unknown [0x673a3a70726f673a3a13614ad1183876953cdd99749d6dcf5d41b7ffc0740cd2] (r:1 w:0)
 	// Storage: unknown [0x673a3a6d73673a3a6e6f6e6365] (r:1 w:1)
@@ -503,11 +503,11 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	// Storage: unknown [0x673a3a6d73673a3a53b03fae6bd8b459b234c767c0c3d0a16b08aef56b3f15db] (r:0 w:1)
 	// Storage: unknown [0x673a3a6d73673a3a9844704e94d0c75b6ec6fb1678261c4a197acb2683a44d7b] (r:0 w:1)
 	fn send_message(p: u32, ) -> Weight {
-		(58_540_000 as Weight)
+		(58_540_000u32 as Weight)
 			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(p as Weight))
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-			.saturating_add(T::DbWeight::get().writes(7 as Weight))
+			.saturating_add((2_000u32 as Weight).saturating_mul(p as Weight))
+			.saturating_add(T::DbWeight::get().reads(7u32 as Weight))
+			.saturating_add(T::DbWeight::get().writes(7u32 as Weight))
 	}
 	// Storage: Gear Mailbox (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
@@ -570,11 +570,11 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	// Storage: unknown [0x673a3a6d73673a3a53b03fae6bd8b459b234c767c0c3d0a16b08aef56b3f15db] (r:0 w:1)
 	// Storage: unknown [0x673a3a6d73673a3a9844704e94d0c75b6ec6fb1678261c4a197acb2683a44d7b] (r:0 w:1)
 	fn send_reply(p: u32, ) -> Weight {
-		(70_895_000 as Weight)
+		(70_895_000u32 as Weight)
 			// Standard Error: 0
-			.saturating_add((2_000 as Weight).saturating_mul(p as Weight))
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
-			.saturating_add(T::DbWeight::get().writes(8 as Weight))
+			.saturating_add((2_000u32 as Weight).saturating_mul(p as Weight))
+			.saturating_add(T::DbWeight::get().reads(8u32 as Weight))
+			.saturating_add(T::DbWeight::get().writes(8u32 as Weight))
 	}
 	// Storage: unknown [0x673a3a7061757365645f70726f673a3a13614ad1183876953cdd99749d6dcf5d] (r:1 w:1)
 	// Storage: System Account (r:2 w:2)
@@ -582,12 +582,12 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	// Storage: unknown [0x673a3a70726f673a3a13614ad1183876953cdd99749d6dcf5d41b7ffc0740cd2] (r:0 w:1)
 	// Storage: unknown [0x673a3a70726f675f776169743a3a13614ad1183876953cdd99749d6dcf5d41b7] (r:0 w:1)
 	fn resume_program(q: u32, ) -> Weight {
-		(0 as Weight)
+		(0u32 as Weight)
 			// Standard Error: 316_000
-			.saturating_add((130_619_000 as Weight).saturating_mul(q as Weight))
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(q as Weight)))
+			.saturating_add((130_619_000u32 as Weight).saturating_mul(q as Weight))
+			.saturating_add(T::DbWeight::get().reads(3u32 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5u32 as Weight))
+			.saturating_add(T::DbWeight::get().writes((1u32 as Weight).saturating_mul(q as Weight)))
 	}
 }
 

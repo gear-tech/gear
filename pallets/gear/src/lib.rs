@@ -70,7 +70,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, Get, ReservableCurrency, ExistenceRequirement},
+        traits::{BalanceStatus, Currency, ExistenceRequirement, Get, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -484,7 +484,9 @@ pub mod pallet {
                 }
 
                 let program_id = dispatch.message.dest;
-                let maybe_active_actor = if let Some(maybe_active_program) = common::get_program(program_id) {
+                let maybe_active_actor = if let Some(maybe_active_program) =
+                    common::get_program(program_id)
+                {
                     let current_message_id = dispatch.message.id;
                     let maybe_message_reply = dispatch.message.reply;
 
@@ -506,7 +508,9 @@ pub mod pallet {
                         }
                     }
 
-                    maybe_active_program.try_into_native(program_id).ok()
+                    maybe_active_program
+                        .try_into_native(program_id)
+                        .ok()
                         .map(|program| {
                             let balance = T::Currency::free_balance(
                                 &<T::AccountId as Origin>::from_origin(program_id),
@@ -679,7 +683,8 @@ pub mod pallet {
 
             // Make sure there is no program with such id in program storage
             ensure!(
-                !common::program_exists(id.into_origin()) & !common::paused_program_exists(id.into_origin()),
+                !common::program_exists(id.into_origin())
+                    & !common::paused_program_exists(id.into_origin()),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -974,18 +979,23 @@ pub mod pallet {
 
             ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);
 
-            common::resume_program(program_id, memory_pages, <frame_system::Pallet<T>>::block_number().unique_saturated_into())
-                .map_err(|e| match e {
-                    common::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
-                    common::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
-                })?;
+            common::resume_program(
+                program_id,
+                memory_pages,
+                <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+            )
+            .map_err(|e| match e {
+                common::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
+                common::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
+            })?;
 
             T::Currency::transfer(
                 &account,
                 &<T::AccountId as Origin>::from_origin(program_id),
                 value,
                 ExistenceRequirement::AllowDeath,
-            ).map_err(|_| Error::<T>::ResumeProgramTransferFailed)?;
+            )
+            .map_err(|_| Error::<T>::ResumeProgramTransferFailed)?;
 
             Self::deposit_event(Event::ProgramResumed(program_id));
 

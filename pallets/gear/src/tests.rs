@@ -2135,15 +2135,13 @@ fn messages_to_paused_program_skipped() {
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_3);
 
-        assert_ok!(
-            GearPallet::<Test>::send_message(
-                Origin::signed(USER_3).into(),
-                program_id,
-                vec![],
-                100_000_000u64,
-                1000u128
-            )
-        );
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3).into(),
+            program_id,
+            vec![],
+            100_000_000u64,
+            1000u128
+        ));
 
         run_to_block(3, None);
 
@@ -2225,7 +2223,10 @@ fn program_messages_to_paused_program_skipped() {
             Origin::signed(USER_3).into(),
             code.clone(),
             vec![],
-            InputArgs{ destination: paused_program_id.into() }.encode(),
+            InputArgs {
+                destination: paused_program_id.into()
+            }
+            .encode(),
             100_000_000u64,
             1_000u128
         ));
@@ -2238,19 +2239,22 @@ fn program_messages_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        assert_ok!(
-            GearPallet::<Test>::send_message(
-                Origin::signed(USER_3).into(),
-                program_id,
-                vec![],
-                100_000_000u64,
-                1_000u128
-            )
-        );
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3).into(),
+            program_id,
+            vec![],
+            100_000_000u64,
+            1_000u128
+        ));
 
         run_to_block(4, None);
 
-        assert_eq!(2_000u128, BalancesPallet::<Test>::free_balance(&<utils::AccountId as common::Origin>::from_origin(program_id)));
+        assert_eq!(
+            2_000u128,
+            BalancesPallet::<Test>::free_balance(
+                &<utils::AccountId as common::Origin>::from_origin(program_id)
+            )
+        );
     })
 }
 
@@ -2296,7 +2300,8 @@ fn resume_program_works() {
             common::Program::Active(p) => p,
             _ => unreachable!(),
         };
-        let memory_pages = common::get_program_pages(program_id, program.persistent_pages).expect("program exists, so do pages");
+        let memory_pages = common::get_program_pages(program_id, program.persistent_pages)
+            .expect("program exists, so do pages");
 
         assert_ok!(common::pause_program(program_id));
 
@@ -2306,7 +2311,8 @@ fn resume_program_works() {
             Origin::signed(USER_3).into(),
             program_id,
             memory_pages,
-            10_000u128));
+            10_000u128
+        ));
 
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_3).into(),
