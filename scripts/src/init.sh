@@ -44,4 +44,5 @@ js_update() {
 
 cargo_init() {
   cargo install cargo-hack
+  cargo install cargo-nextest
 }
