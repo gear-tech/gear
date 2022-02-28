@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -28,7 +28,7 @@ struct PausedProgram {
     waiting_init: Vec<H256>,
 }
 
-fn decode_dispatch_tuple(_: &[u8], value: &[u8]) -> Result<(QueuedDispatch, u32), codec::Error> {
+fn decode_dispatch_tuple(_key: &[u8], value: &[u8]) -> Result<(QueuedDispatch, u32), codec::Error> {
     <(QueuedDispatch, u32)>::decode(&mut &*value)
 }
 

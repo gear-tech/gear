@@ -811,9 +811,9 @@ mod tests {
             let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
             set_code(code_hash, &code);
 
-            let static_pages = 16;
+            let static_pages: u32 = 16;
             let memory_pages = {
-                let mut pages = BTreeMap::<u32, Vec<u8>>::new();
+                let mut pages = BTreeMap::new();
                 pages.insert(static_pages, vec![static_pages as u8]);
                 pages.insert(static_pages + 2, vec![static_pages as u8 + 2]);
                 for i in 0..static_pages {
@@ -937,9 +937,16 @@ mod tests {
         });
     }
 
-    fn create_uninitialized_program_messages(
-        static_pages: u32,
-    ) -> (H256, H256, H256, H256, H256, BTreeMap<u32, Vec<u8>>) {
+    struct CreateProgramResult {
+        program_id: H256,
+        code_hash: H256,
+        init_msg_id: H256,
+        msg_id_1: H256,
+        msg_id_2: H256,
+        memory_pages: BTreeMap<u32, Vec<u8>>,
+    }
+
+    fn create_uninitialized_program_messages(static_pages: u32) -> CreateProgramResult {
         let code = b"pretended wasm code".to_vec();
         let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
         set_code(code_hash, &code);
@@ -1018,22 +1025,28 @@ mod tests {
         );
         waiting_init_append_message_id(program_id, msg_id_2);
 
-        (
+        CreateProgramResult {
             program_id,
             code_hash,
             init_msg_id,
             msg_id_1,
             msg_id_2,
             memory_pages,
-        )
+        }
     }
 
     #[test]
     fn pause_uninitialized_program_works() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages) =
-                create_uninitialized_program_messages(static_pages);
+            let CreateProgramResult {
+                program_id,
+                code_hash,
+                init_msg_id,
+                msg_id_1,
+                msg_id_2,
+                memory_pages,
+            } = create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
@@ -1060,8 +1073,14 @@ mod tests {
     fn resume_uninitialized_program_works() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, _code_hash, init_msg_id, msg_id_1, msg_id_2, memory_pages) =
-                create_uninitialized_program_messages(static_pages);
+            let CreateProgramResult {
+                program_id,
+                init_msg_id,
+                msg_id_1,
+                msg_id_2,
+                memory_pages,
+                ..
+            } = create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
@@ -1107,8 +1126,11 @@ mod tests {
     fn resume_program_twice_fails() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, .., memory_pages) =
-                create_uninitialized_program_messages(static_pages);
+            let CreateProgramResult {
+                program_id,
+                memory_pages,
+                ..
+            } = create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
@@ -1129,8 +1151,11 @@ mod tests {
     fn resume_program_wrong_memory_fails() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let static_pages = 16;
-            let (program_id, .., mut memory_pages) =
-                create_uninitialized_program_messages(static_pages);
+            let CreateProgramResult {
+                program_id,
+                mut memory_pages,
+                ..
+            } = create_uninitialized_program_messages(static_pages);
 
             assert_ok!(pause_program(program_id));
 
