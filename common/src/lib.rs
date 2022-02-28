@@ -43,7 +43,7 @@ use sp_std::{
 
 use gear_core::{
     message::{DispatchKind, PayloadStore},
-    program::{Program as NativeProgram, ProgramId},
+    program::{CodeHash, Program as NativeProgram, ProgramId},
 };
 
 pub use storage_queue::Iterator;
@@ -101,6 +101,16 @@ impl Origin for H256 {
 
     fn from_origin(val: H256) -> Self {
         val
+    }
+}
+
+impl Origin for CodeHash {
+    fn into_origin(self) -> H256 {
+        self.inner().into()
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
     }
 }
 
@@ -777,7 +787,7 @@ mod tests {
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = sp_io::hashing::blake2_256(&code[..]).into();
+            let code_hash: H256 = CodeHash::generate(&code).into_origin();
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
                 static_pages: 256,

@@ -144,7 +144,7 @@ where
             "Must has empty persistent pages, has {:?}",
             program.get_pages()
         );
-        let code_hash: H256 = sp_io::hashing::blake2_256(program.code()).into();
+        let code_hash = CodeHash::generate(program.code()).into_origin();
         assert!(
             common::code_exists(code_hash),
             "Program set must be called only when code exists",
@@ -306,7 +306,11 @@ where
                         );
                     }
                 } else {
-                    log::error!("Failed to get limit of {:?}", message_id);
+                    log::debug!(
+                        target: "essential",
+                        "Failed to get limit of {:?}",
+                        message_id,
+                    );
                 }
             }
             Err(err) => {
@@ -450,15 +454,20 @@ where
                             );
                         }
                     } else {
-                        log::error!("Failed to get limit of {:?}", message_id);
+                        log::debug!(
+                            target: "essential",
+                            "Failed to get limit of {:?}",
+                            message_id,
+                        );
                     }
                 }
                 Err(err) => {
-                    log::error!(
+                    log::debug!(
+                        target: "essential",
                         "Error charging {:?} gas rent of getting out of waitlist for message_id {:?}: {:?}",
                         chargeable_amount,
                         message_id,
-                        err
+                        err,
                     )
                 }
             };

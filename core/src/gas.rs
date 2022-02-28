@@ -175,7 +175,11 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     use pwasm_utils::rules::{InstructionType, Metering};
 
     let module = parity_wasm::elements::Module::from_bytes(code).map_err(|e| {
-        log::error!("Error decoding module: {}", e);
+        log::debug!(
+            target: "essential",
+            "Error decoding module: {}",
+            e,
+        );
         InstrumentError::Decode
     })?;
 
@@ -194,12 +198,19 @@ pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
         "env",
     )
     .map_err(|_module| {
-        log::error!("Error injecting gas counter");
+        log::debug!(
+            target: "essential",
+            "Error injecting gas counter",
+        );
         InstrumentError::GasInjection
     })?;
 
     parity_wasm::elements::serialize(instrumented_module).map_err(|e| {
-        log::error!("Error encoding module: {}", e);
+        log::debug!(
+            target: "essential",
+            "Error encoding module: {}",
+            e,
+        );
         InstrumentError::Encode
     })
 }

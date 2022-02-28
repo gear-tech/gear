@@ -172,4 +172,29 @@ mod tests {
             RunResult::Trap(String::from("Reply payload push error"))
         );
     }
+
+    /// Check that wasm export '__gear_stack_end' is used correct by core processor.
+    /// In this test we check that only last page == 16 is updated after execution,
+    /// all other pages are stack pages, so must be skipped.
+    #[test]
+    fn check_gear_stack_end() {
+        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+        let mut runner = RunnerContext::default();
+        let (_, prog_id) = runner.init_program(wasm_code());
+        let actors = runner.get_actors_ref();
+        let actor = actors
+            .get(&prog_id)
+            .expect("Must be in actors")
+            .as_ref()
+            .expect("Must be some");
+        let pages = actor.program.get_pages();
+
+        assert_eq!(
+            pages.len(),
+            1,
+            "Must have only one page - with static data. Stack pages aren't updated"
+        );
+        let num = pages.iter().next().expect("Must have one page").0.raw();
+        assert_eq!(num, 16, "Currently we have 16 pages as stack");
+    }
 }

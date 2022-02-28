@@ -21,7 +21,10 @@
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _, QueuedDispatch, QueuedMessage};
-use gear_core::{message::DispatchKind, program::ProgramId};
+use gear_core::{
+    message::DispatchKind,
+    program::{CodeHash, ProgramId},
+};
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
 use sp_core::H256;
@@ -42,9 +45,12 @@ fn parse_wat(source: &str) -> Vec<u8> {
         .to_vec()
 }
 
-pub fn program_id(code: &[u8]) -> H256 {
-    let code_hash = sp_io::hashing::blake2_256(code).into();
-    ProgramId::generate(code_hash, b"salt").into_origin()
+fn generate_program_id(code: &[u8]) -> H256 {
+    ProgramId::generate(CodeHash::generate(code), b"salt").into_origin()
+}
+
+fn generate_code_hash(code: &[u8]) -> H256 {
+    CodeHash::generate(code).into_origin()
 }
 
 #[test]
@@ -76,8 +82,8 @@ fn debug_mode_works() {
         let code_1 = parse_wat(wat_1);
         let code_2 = parse_wat(wat_2);
 
-        let program_id_1 = program_id(&code_1);
-        let program_id_2 = program_id(&code_2);
+        let program_id_1 = generate_program_id(&code_1);
+        let program_id_2 = generate_program_id(&code_2);
 
         PalletGear::<Test>::submit_program(
             Origin::signed(1).into(),
@@ -103,7 +109,7 @@ fn debug_mode_works() {
                     id: program_id_1,
                     static_pages: 16,
                     persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                    code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                    code_hash: generate_code_hash(&code_1),
                     nonce: 0u64,
                 }],
             })
@@ -132,14 +138,14 @@ fn debug_mode_works() {
                         id: program_id_2,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        code_hash: generate_code_hash(&code_2),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        code_hash: generate_code_hash(&code_1),
                         nonce: 0u64,
                     },
                 ],
@@ -207,14 +213,14 @@ fn debug_mode_works() {
                         id: program_id_2,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        code_hash: generate_code_hash(&code_2),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        code_hash: generate_code_hash(&code_1),
                         nonce: 0u64,
                     },
                 ],
@@ -234,14 +240,14 @@ fn debug_mode_works() {
                         id: program_id_2,
                         static_pages: 16,
                         persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_2)),
+                        code_hash: generate_code_hash(&code_2),
                         nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
-                        code_hash: H256::from(sp_io::hashing::blake2_256(&code_1)),
+                        code_hash: generate_code_hash(&code_1),
                         nonce: 0u64,
                     },
                 ],
