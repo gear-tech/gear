@@ -22,14 +22,20 @@ use crate::{ActorId, CodeHash};
 
 mod sys {
     extern "C" {
+        // Instead of providing one pointer to multiple fix len params
+        // (`fix_len_params_ptr`), we could provide each param as a separate argument to
+        // the function and in that case we would have 8 function arguments
+        // (five u8 raw pointers, two u32 params, one u64 param). But such amount (size)
+        // of function arguments fails proper work of the host function on Apple
+        // M1 CPUs when using wasmtime version 0.27. So as a workaround, we provide a
+        // pointer to one buffer in which multiple params are encoded: code hash,
+        // gas limit and message value.
         pub fn gr_create_program_wgas(
-            code_hash: *const u8,
+            fix_len_params_ptr: *const u8,
             salt_ptr: *const u8,
             salt_len: u32,
             data_ptr: *const u8,
             data_len: u32,
-            gas_limit: u64,
-            value_ptr: *const u8,
             program_id_ptr: *mut u8,
         );
     }
@@ -109,18 +115,30 @@ pub fn create_program_with_gas(
     gas_limit: u64,
     value: u128,
 ) -> ActorId {
+    let mut inner = [0u8; 56];
+    let fix_len_data = code_hash
+        .iter()
+        .copied()
+        .chain(gas_limit.to_le_bytes())
+        .chain(value.to_le_bytes());
+    populate_from_iterator(&mut inner, fix_len_data);
+
     unsafe {
         let mut program_id = ActorId::default();
         sys::gr_create_program_wgas(
-            code_hash.as_slice().as_ptr(),
+            inner.as_slice().as_ptr(),
             salt.as_ptr(),
             salt.len() as _,
             payload.as_ptr(),
             payload.len() as _,
-            gas_limit,
-            value.to_le_bytes().as_ptr(),
             program_id.as_mut_slice().as_mut_ptr(),
         );
         program_id
+    }
+}
+
+fn populate_from_iterator(src: &mut [u8], data: impl Iterator<Item = u8>) {
+    for (s, d) in src.iter_mut().zip(data) {
+        *s = d;
     }
 }

@@ -99,7 +99,7 @@ pub fn gas_available<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> i64 {
 pub fn exit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |program_id_ptr: i32| {
         let _ = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let value_dest: ProgramId = get_bytes32(ext, program_id_ptr as u32 as _).into();
+            let value_dest: ProgramId = get_fixed_bytes(ext, program_id_ptr as u32 as _).into();
             ext.exit(value_dest)
         })?;
 
@@ -196,7 +196,7 @@ pub fn send<E: Ext>(
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_fixed_bytes(ext, program_id_ptr as usize).into();
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
@@ -217,7 +217,7 @@ pub fn send_wgas<E: Ext>(
           value_ptr: i32,
           message_id_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_fixed_bytes(ext, program_id_ptr as usize).into();
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send(OutgoingPacket::new(
@@ -238,7 +238,7 @@ pub fn send_commit<E: Ext>(
 ) -> impl Fn(i32, i32, i32, i32) -> Result<(), &'static str> {
     move |handle_ptr: i32, message_id_ptr: i32, program_id_ptr: i32, value_ptr: i32| {
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_fixed_bytes(ext, program_id_ptr as usize).into();
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send_commit(
                 handle_ptr as _,
@@ -260,7 +260,7 @@ pub fn send_commit_wgas<E: Ext>(
           gas_limit: i64,
           value_ptr: i32| {
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
+            let dest: ProgramId = get_fixed_bytes(ext, program_id_ptr as usize).into();
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send_commit(
                 handle_ptr as _,
@@ -294,20 +294,24 @@ pub fn send_push<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32) -> Result<(
 
 pub fn create_program_wgas<E: Ext>(
     ext: LaterExt<E>,
-) -> impl Fn(i32, i32, i32, i32, i32, i64, i32, i32) -> Result<(), &'static str> {
-    move |code_hash_ptr: i32,
+) -> impl Fn(i32, i32, i32, i32, i32, i32) -> Result<(), &'static str> {
+    move |fl_ptr: i32,
           salt_ptr: i32,
           salt_len: i32,
           payload_ptr: i32,
           payload_len: i32,
-          gas_limit: i64,
-          value_ptr: i32,
           program_id_ptr: i32| {
         let res = ext.with(|ext: &mut E| -> Result<(), &'static str> {
-            let code_hash = get_bytes32(ext, code_hash_ptr as usize);
+            // Handling data under `fl_ptr`, which is a pointer to multiple fixed len params needed to create a [`ProgramInitPacket`].
+            // For more info see [`gcore::prog::sys::gr_create_program_wgas`].
+            let code_hash = get_fixed_bytes(ext, fl_ptr as usize);
+            let gas_limit = get_u64(ext, fl_ptr as usize + code_hash.len());
+            let value = get_u128(
+                ext,
+                fl_ptr as usize + code_hash.len() + gas_limit.to_be_bytes().len(),
+            );
             let salt = get_vec(ext, salt_ptr as usize, salt_len as usize);
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
-            let value = get_u128(ext, value_ptr as usize);
             let new_actor_id = ext.create_program(ProgramInitPacket::new(
                 code_hash.into(),
                 salt,
@@ -373,7 +377,7 @@ pub fn wait<E: Ext>(ext: LaterExt<E>) -> impl Fn() -> Result<(), &'static str> {
 pub fn wake<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32) -> Result<(), &'static str> {
     move |waker_id_ptr| {
         ext.with(|ext: &mut E| {
-            let waker_id: MessageId = get_bytes32(ext, waker_id_ptr as usize).into();
+            let waker_id: MessageId = get_fixed_bytes(ext, waker_id_ptr as usize).into();
             ext.wake(waker_id)
         })?
     }
@@ -388,22 +392,24 @@ pub fn is_leave_trap(trap: &str) -> bool {
     trap.starts_with(LEAVE_TRAP_STR)
 }
 
-pub fn get_bytes32<E: Ext>(ext: &E, ptr: usize) -> [u8; 32] {
-    let mut ret = [0u8; 32];
-    ext.get_mem(ptr, &mut ret);
-    ret
+pub fn get_u64<E: Ext>(ext: &E, ptr: usize) -> u64 {
+    u64::from_le_bytes(get_fixed_bytes(ext, ptr))
 }
 
 pub fn get_u128<E: Ext>(ext: &E, ptr: usize) -> u128 {
-    let mut u128_le = [0u8; 16];
-    ext.get_mem(ptr, &mut u128_le);
-    u128::from_le_bytes(u128_le)
+    u128::from_le_bytes(get_fixed_bytes(ext, ptr))
 }
 
 pub fn get_vec<E: Ext>(ext: &E, ptr: usize, len: usize) -> Vec<u8> {
     let mut vec = vec![0u8; len];
     ext.get_mem(ptr, &mut vec);
     vec
+}
+
+pub fn get_fixed_bytes<E: Ext, const N: usize>(ext: &E, ptr: usize) -> [u8; N] {
+    let mut buf = [0u8; N];
+    ext.get_mem(ptr, &mut buf);
+    buf
 }
 
 pub fn set_u128<E: Ext>(ext: &mut E, ptr: usize, val: u128) {

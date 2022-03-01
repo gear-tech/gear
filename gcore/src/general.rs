@@ -172,4 +172,8 @@ impl CodeHash {
     pub fn as_slice(&self) -> &[u8] {
         &self.0[..]
     }
+
+    pub(crate) fn iter(&self) -> core::slice::Iter<u8> {
+        self.0.iter()
+    }
 }
