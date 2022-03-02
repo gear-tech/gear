@@ -185,6 +185,13 @@ where
         Ok(())
     }
 
+    fn get_stack_mem_end(&self) -> Option<i32> {
+        let instance = self.instance.as_ref().expect("Must have instance");
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+        let global = instance.get_global_val("__gear_stack_end")?;
+        global.as_i32()
+    }
+
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
         let instance = self.instance.as_mut().expect("Must have instance");
         let runtime = self.runtime.as_mut().expect("Must have runtime");

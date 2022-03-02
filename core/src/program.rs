@@ -333,6 +333,12 @@ impl Program {
 pub struct CodeHash([u8; 32]);
 
 impl CodeHash {
+    /// Instantiates [`CodeHash`] by computing blake2b hash of the program `code`.
+    pub fn generate(code: &[u8]) -> Self {
+        let blake2b_hash = blake2_rfc::blake2b::blake2b(32, &[], code);
+        Self::from_slice(blake2b_hash.as_bytes())
+    }
+
     /// Get inner (32 bytes) array representation
     pub fn inner(&self) -> [u8; 32] {
         self.0

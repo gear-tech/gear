@@ -352,6 +352,13 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         Ok(())
     }
 
+    fn get_stack_mem_end(&self) -> Option<i32> {
+        let instance = self.instance.as_ref().expect("Must have instance");
+        // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
+        let global = instance.get_global("__gear_stack_end")?;
+        global.get().i32()
+    }
+
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
         let instance = self.instance.as_mut().expect("Must have instance");
 

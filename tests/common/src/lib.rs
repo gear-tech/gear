@@ -408,7 +408,11 @@ impl RunnerContext {
         &self.log
     }
 
-    pub fn init_program<P>(&mut self, init_data: P) -> MessageId
+    pub fn get_actors_ref(&self) -> &BTreeMap<ProgramId, Option<ExecutableActor>> {
+        &self.actors
+    }
+
+    pub fn init_program<P>(&mut self, init_data: P) -> (MessageId, ProgramId)
     where
         P: Into<InitProgram>,
     {
@@ -450,7 +454,7 @@ impl RunnerContext {
 
         core_processor::handle_journal(journal, &mut Journal { context: self });
 
-        message_id
+        (message_id, new_program_id)
     }
 
     pub fn init_program_with_reply<P, D>(&mut self, init_data: P) -> D
@@ -458,7 +462,7 @@ impl RunnerContext {
         P: Into<InitProgram>,
         D: Decode,
     {
-        let message_id = self.init_program(init_data);
+        let (message_id, _) = self.init_program(init_data);
         reply_or_panic(self.get_response_to(message_id))
     }
 

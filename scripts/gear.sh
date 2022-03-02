@@ -6,7 +6,8 @@ SELF="$0"
 ROOT_DIR="$(cd "$(dirname "$SELF")"/.. && pwd)"
 SCRIPTS="$ROOT_DIR/scripts/src"
 TARGET_DIR="$ROOT_DIR/target"
-EXT="hack"
+CARGO_HACK="hack"
+CARGO_NEXTEST="nextest"
 
 . "$SCRIPTS"/build.sh
 . "$SCRIPTS"/check.sh
@@ -39,8 +40,8 @@ show() {
   npm -v
 }
 
-check_extension() {
-  if (! [ "$(cargo --list | awk -v e=$EXT '{ if ($1 == e) print e }')" = "$EXT" ])
+check_extensions() {
+  if [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_HACK$")" ] || [ -z "$(cargo --list | awk '{print $1}' | grep "^$CARGO_NEXTEST$")" ]
     then
       "$SELF" init cargo
   fi
@@ -110,7 +111,7 @@ case "$COMMAND" in
         gear_build "$@"; ;;
 
       examples)
-        check_extension
+        check_extensions
         header "Building gear examples"
         examples_build "$ROOT_DIR" "$TARGET_DIR" "$@"; ;;
 
@@ -143,7 +144,7 @@ case "$COMMAND" in
         gear_check "$@"; ;;
 
       examples)
-        check_extension
+        check_extensions
         header "Checking gear examples"
         examples_check "$ROOT_DIR" "$TARGET_DIR"; ;;
 
@@ -168,7 +169,7 @@ case "$COMMAND" in
         gear_clippy "$@"; ;;
 
       examples)
-        check_extension
+        check_extensions
         header "Invoking clippy on gear examples"
         examples_clippy "$ROOT_DIR"; ;;
 
@@ -251,7 +252,7 @@ case "$COMMAND" in
         js_update "$ROOT_DIR"; ;;
 
       cargo)
-        header "Installing cargo extension '$EXT'"
+        header "Installing cargo extensions '$CARGO_HACK' and(/or) '$CARGO_NEXTEST'"
         cargo_init; ;;
 
       *)
@@ -291,6 +292,7 @@ case "$COMMAND" in
         exit; ;;
 
       gear)
+        check_extensions
         header "Running gear tests"
         workspace_test "$@"; ;;
 
