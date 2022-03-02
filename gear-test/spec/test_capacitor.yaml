@@ -2,7 +2,7 @@ title: Basic capacitor check
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_capacitor.wasm
+    path: target/wasm32-unknown-unknown/release/demo_capacitor.opt.wasm
     init_message:
       kind: utf-8
       value: "200"

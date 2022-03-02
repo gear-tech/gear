@@ -2,7 +2,7 @@ title: guestbook test
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/guestbook.wasm
+    path: target/wasm32-unknown-unknown/release/guestbook.opt.wasm
     init_message:
       kind: utf-8
       value: test

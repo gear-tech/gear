@@ -2,7 +2,7 @@ title: State-rollback
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_state_rollback.wasm
+    path: target/wasm32-unknown-unknown/release/demo_state_rollback.opt.wasm
 
 fixtures:
   - title: state-rollback

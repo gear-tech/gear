@@ -2,12 +2,12 @@ title: basic
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_sum.wasm
+    path: target/wasm32-unknown-unknown/release/demo_sum.opt.wasm
     init_message:
       kind: utf-8
       value: "{2}"
   - id: 2
-    path: target/wasm32-unknown-unknown/release/demo_fib.wasm
+    path: target/wasm32-unknown-unknown/release/demo_fib.opt.wasm
 
 fixtures:
   - title: fibonacci-sum
