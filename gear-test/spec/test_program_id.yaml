@@ -2,7 +2,7 @@ title: Program_id test
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_program_id.wasm
+    path: target/wasm32-unknown-unknown/release/demo_program_id.opt.wasm
 
 fixtures:
   - title: program_id

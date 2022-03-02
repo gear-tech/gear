@@ -2,7 +2,7 @@ title: collector-1
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_collector.wasm
+    path: target/wasm32-unknown-unknown/release/demo_collector.opt.wasm
 
 fixtures:
   - title: collector pass 2 messages
