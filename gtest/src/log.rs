@@ -174,7 +174,7 @@ pub struct RunResult {
     pub(crate) log: Vec<CoreLog>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
-    pub(crate) initialized_programs: Vec<(ProgramId, CodeHash)>,
+    pub(crate) initialized_programs: Vec<(ProgramId, Option<CodeHash>)>,
 }
 
 impl RunResult {
@@ -196,7 +196,7 @@ impl RunResult {
         self.others_failed
     }
 
-    pub fn initialized_programs(&self) -> &Vec<(ProgramId, CodeHash)> {
+    pub fn initialized_programs(&self) -> &Vec<(ProgramId, Option<CodeHash>)> {
         &self.initialized_programs
     }
 

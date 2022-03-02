@@ -23,42 +23,34 @@ pub enum CreateProgram {
     Custom(Vec<([u8; 32], Vec<u8>, u64)>),
 }
 
+#[allow(unused)]
+const CHILD_CODE_HASH: [u8; 32] = hex_literal::hex!(
+    "abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a"
+);
+
 #[cfg(not(feature = "std"))]
 mod wasm {
     use gstd::{debug, msg, prog, CodeHash};
 
-    use super::CreateProgram;
+    use super::{CreateProgram, CHILD_CODE_HASH};
 
     static mut COUNTER: i32 = 0;
-
-    fn increase() {
-        unsafe {
-            COUNTER += 1;
-        }
-    }
-
-    fn get() -> i32 {
-        unsafe { COUNTER }
-    }
 
     #[no_mangle]
     pub unsafe extern "C" fn handle() {
         match msg::load().expect("provided invalid payload") {
             CreateProgram::Default => {
-                let submitted_code = hex_literal::hex!(
-                    "abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a"
-                )
-                .into();
+                let submitted_code = CHILD_CODE_HASH.into();
                 let new_program_id = prog::create_program_with_gas(
                     submitted_code,
-                    get().to_le_bytes(),
+                    COUNTER.to_le_bytes(),
                     [],
                     100_000,
                     0,
                 );
                 msg::send_with_gas(new_program_id, b"", 100_001, 0);
 
-                increase();
+                COUNTER += 1;
             }
             CreateProgram::Custom(custom_child_data) => {
                 for (code_hash, salt, gas_limit) in custom_child_data {
@@ -69,5 +61,56 @@ mod wasm {
                 }
             }
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use gtest::{System, Program};
+
+    #[test]
+    fn test_create_program_miscellaneous() {
+        env_logger::init();
+        let sys = System::new();
+
+        // Store child
+        let code_hash_stored = sys.submit_code("./child_contract.wasm");
+        assert_eq!(code_hash_stored.inner(), CHILD_CODE_HASH);
+        let new_actor_id_expected = Program::calculate_program_id(code_hash_stored, &0i32.to_le_bytes());
+
+        // Create program
+        let factory = Program::current_with_id(&sys, 100);
+        // init function
+        let res = factory.send_bytes(10001, "EMPTY");
+        assert!(!res.main_failed());
+        assert_eq!(res.initialized_programs().len(), 1);
+
+        let payload = CreateProgram::Default;
+
+        // handle function
+        let res = factory.send_bytes(10001, payload.encode());
+        assert!(!res.main_failed());
+        assert!(!res.others_failed());
+        assert_eq!(res.initialized_programs().len(), 2);
+
+        let (new_actor_id_actual, new_actor_code_hash) = res.initialized_programs().last().copied().unwrap();
+        assert_eq!(new_actor_id_expected, new_actor_id_actual);
+        assert_eq!(Some(code_hash_stored), new_actor_code_hash);
+
+        let child_program = sys.get_program(new_actor_id_expected);
+
+        let res = child_program.send_bytes(10001, "EMPTY");
+        assert!(!res.main_failed());
+        assert!(!res.others_failed());
+        
+        // duplicate
+        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, 0i32.to_be_bytes().to_vec(), 100_000)]);
+        let res = factory.send_bytes(10001, payload.encode());
+        assert!(!res.main_failed());
+        assert!(!res.others_failed());
+        // No new programs!
+        assert_eq!(res.initialized_programs().len(), 2);
     }
 }

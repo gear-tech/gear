@@ -1253,13 +1253,10 @@ dependencies = [
 name = "demo-create-program"
 version = "0.1.0"
 dependencies = [
- "env_logger",
- "gear-core",
  "gear-wasm-builder",
  "gstd",
  "gtest",
  "hex-literal",
- "log",
 ]
 
 [[package]]
@@ -7722,10 +7719,13 @@ dependencies = [
 name = "tests-program-factory"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "gear-core",
  "gear-wasm-builder",
  "gstd",
+ "gtest",
  "hex-literal",
+ "log",
  "parity-scale-codec",
  "tests-common",
 ]

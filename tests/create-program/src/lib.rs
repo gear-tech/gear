@@ -62,19 +62,14 @@ pub unsafe extern "C" fn handle() {
 #[cfg(test)]
 mod tests {
     use gtest::{System, Program};
-    use gear_core::program::ProgramId;
-
-    #[test]
-    fn init_logger() {
-        env_logger::init();
-    }
 
     #[test]
     fn test_simple() {
         let sys = System::new();
 
         // Store child
-        sys.submit_code("./child_contract.wasm");
+        let code_hash_stored = sys.submit_code("./child_contract.wasm");
+        let new_actor_id_expected = Program::calculate_program_id(code_hash_stored, &0i32.to_le_bytes());
 
         // Create program
         let program = Program::current_with_id(&sys, 100);
@@ -88,9 +83,9 @@ mod tests {
         assert!(!res.others_failed());
         assert_eq!(res.initialized_programs().len(), 2);
 
-        let new_actor_id_expected: ProgramId = [173, 56, 113, 196, 2, 178, 184, 108, 208, 216, 90, 30, 7, 125, 224, 22, 166, 157, 107, 146, 213, 208, 60, 4, 151, 77, 236, 74, 58, 235, 107, 157].into();
-        let new_actor_id_actual = res.initialized_programs().last().copied().unwrap();
+        let (new_actor_id_actual, new_actor_code_hash) = res.initialized_programs().last().copied().unwrap();
         assert_eq!(new_actor_id_expected, new_actor_id_actual);
+        assert_eq!(Some(code_hash_stored), new_actor_code_hash);
 
         let program = sys.get_program(new_actor_id_expected);
 

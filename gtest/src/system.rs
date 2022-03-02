@@ -5,9 +5,12 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::message::Message;
+use gear_core::{
+    program::CodeHash,
+    message::Message,
+};
 use path_clean::PathClean;
-use std::{env, fs, cell::RefCell, io::Write, thread, path::Path, borrow::BorrowMut};
+use std::{env, fs, cell::RefCell, io::Write, thread, path::Path};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
@@ -70,7 +73,14 @@ impl System {
         }
     }
 
-    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) {
+    /// Saves code to the storage and returns it's code hash
+    /// 
+    /// This method is mainly used for providing a proper program from program creation logic.
+    /// In order to successfully create a new program with `gstd::prog::create_program_with_gas`
+    /// function, developer should provide to the function "child's" code hash. Code for that
+    /// code hash must be in storage at the time of the function call. So this method stores
+    /// the code in storage.
+    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeHash {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(code_path)

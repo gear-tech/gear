@@ -20,7 +20,6 @@ use crate::{
     log::{CoreLog, RunResult},
     program::WasmProgram,
 };
-use blake2_rfc::blake2b::blake2b;
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
@@ -97,12 +96,10 @@ impl ExtManager {
         self.actors.insert(program_id, (program, ProgramState::Uninitialized(init_message_id), 0))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: &[u8]) {
-        let code_hash = {
-            let hash = blake2_rfc::blake2b::blake2b(32, &[], code);
-            CodeHash::from_slice(hash.as_bytes())
-        };
+    pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeHash {
+        let code_hash = CodeHash::generate(code);
         self.codes.insert(code_hash, code.to_vec());
+        code_hash
     }
 
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
@@ -118,25 +115,21 @@ impl ExtManager {
         self.id_nonce
     }
 
-    fn entry_point(message: &Message, state: &mut ProgramState) -> Option<DispatchKind> {
+    fn entry_point(message: &Message, state: &mut ProgramState) -> DispatchKind {
         message
             .reply()
             .map(|_| DispatchKind::HandleReply)
-            .or_else(|| {
+            .unwrap_or_else(|| {
                 if let ProgramState::Uninitialized(message_id) = state {
-                    if let Some(id) = message_id {
-                        if *id == message.id() {
-                            Some(DispatchKind::Init)
-                        } else {
-                            None
-                        }
+                    if matches!(message_id, Some(id) if *id != message.id()) {
+                        DispatchKind::Handle
                     } else {
                         *message_id = Some(message.id());
 
-                        Some(DispatchKind::Init)
+                        DispatchKind::Init
                     }
                 } else {
-                    Some(DispatchKind::Handle)
+                    DispatchKind::Handle
                 }
             })
     }
@@ -144,7 +137,8 @@ impl ExtManager {
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
         self.prepare_for(message.id(), message.source());
 
-        if self.actors.contains_key(&message.dest()) {
+        if let Some((_, state, _)) = self.actors.get(&message.dest()) {
+            let entry_point = Self::entry_point(&message, state);
             self.message_queue.push_back(message);
         } else {
             self.mailbox
@@ -187,6 +181,8 @@ impl ExtManager {
                         })
                     };
 
+                    logger::debug!("Executing message {:?} with kind {:?} on actor {:?}", message, kind, actor);
+
                     let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
                         actor,
                         Dispatch {
@@ -198,6 +194,13 @@ impl ExtManager {
                         crate::EXISTENTIAL_DEPOSIT,
                         self.origin,
                     );
+
+                    'a: for j in &journal {
+                        if let core_processor::common::JournalNote::UpdatePage{..} = j {
+                            continue 'a;
+                        }
+                        logger::debug!("NOTE {:?}", j);
+                    }
 
                     core_processor::handle_journal(journal, self);
                 }
@@ -273,19 +276,18 @@ impl ExtManager {
         let log = self.log.clone();
         let initialized_programs = self.actors
             .iter()
-            .filter_map(|(program_id, (program, state, _))| {
+            .filter_map(|(&program_id, (program, state, _))| {
                 let code_hash = if let Program::Core(p) = program {
                     Some(CodeHash::generate(p.code()))
                 } else {
                     None
                 };
                 if matches!(state, &ProgramState::Initialized) {
-                    Some(program_id)
+                    Some((program_id, code_hash))
                 } else {
                     None
                 }
             })
-            .copied()
             .collect();
 
         RunResult {

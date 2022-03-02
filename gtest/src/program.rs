@@ -6,7 +6,7 @@ use crate::{
 use codec::Codec;
 use gear_core::{
     message::{Message, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    program::{CodeHash, Program as CoreProgram, ProgramId},
 };
 use path_clean::PathClean;
 use std::{
@@ -79,6 +79,10 @@ pub struct Program<'a> {
 }
 
 impl<'a> Program<'a> {
+    pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
+        ProgramId::generate(code_hash, salt)
+    }
+
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,

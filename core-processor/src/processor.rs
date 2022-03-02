@@ -43,6 +43,7 @@ pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environmen
     origin: ProgramId,
 ) -> Vec<JournalNote> {
     if let Err(exit_code) = check_is_executable(actor.as_ref(), &dispatch) {
+        log::debug!("NON EXECUTABLE CODE {:?}", exit_code);
         process_non_executable(dispatch, exit_code)
     } else {
         let actor = actor.expect("message is not executed if actor is none");
