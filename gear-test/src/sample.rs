@@ -227,6 +227,8 @@ pub struct Test {
     pub fixtures: Vec<Fixture>,
 }
 
+/// get path to meta wasm file.
+/// `wasm_path` is path to wasm file.
 pub fn get_meta_wasm_path(wasm_path: String) -> String {
     wasm_path
         .replace(".opt.wasm", ".wasm")
