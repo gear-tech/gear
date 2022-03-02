@@ -274,6 +274,11 @@ impl ExtManager {
         let initialized_programs = self.actors
             .iter()
             .filter_map(|(program_id, (program, state, _))| {
+                let code_hash = if let Program::Core(p) = program {
+                    Some(CodeHash::generate(p.code()))
+                } else {
+                    None
+                };
                 if matches!(state, &ProgramState::Initialized) {
                     Some(program_id)
                 } else {

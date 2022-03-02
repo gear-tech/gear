@@ -196,7 +196,7 @@ impl RunResult {
         self.others_failed
     }
 
-    pub fn initialized_programs(&self) -> &Vec<ProgramId> {
+    pub fn initialized_programs(&self) -> &Vec<(ProgramId, CodeHash)> {
         &self.initialized_programs
     }
 
