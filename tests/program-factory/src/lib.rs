@@ -66,9 +66,12 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::panic::catch_unwind;
 
-    use gtest::{System, Program};
+    use gtest::{System, Program, Log};
+    use gear_core::message::{Payload, Message, MessageId};
+
+    use super::*;
 
     #[test]
     fn test_create_program_miscellaneous() {
@@ -78,9 +81,10 @@ mod tests {
         // Store child
         let code_hash_stored = sys.submit_code("./child_contract.wasm");
         assert_eq!(code_hash_stored.inner(), CHILD_CODE_HASH);
-        let new_actor_id_expected = Program::calculate_program_id(code_hash_stored, &0i32.to_le_bytes());
+        let first_call_salt = 0i32.to_le_bytes();
+        let new_actor_id_expected = Program::calculate_program_id(code_hash_stored, &first_call_salt);
 
-        // Create program
+        // Create factory
         let factory = Program::current_with_id(&sys, 100);
         // init function
         let res = factory.send_bytes(10001, "EMPTY");
@@ -101,16 +105,30 @@ mod tests {
 
         let child_program = sys.get_program(new_actor_id_expected);
 
+        // child is alive
         let res = child_program.send_bytes(10001, "EMPTY");
         assert!(!res.main_failed());
         assert!(!res.others_failed());
         
         // duplicate
-        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, 0i32.to_be_bytes().to_vec(), 100_000)]);
+        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, first_call_salt.to_vec(), 100_000)]);
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
         // No new programs!
         assert_eq!(res.initialized_programs().len(), 2);
-    }
+
+        // non existing code hash provided
+        let non_existing_code_hash = [10u8; 32];
+        let salt = b"some_salt";
+        let fictional_program_id = Program::calculate_program_id(non_existing_code_hash.into(), salt);
+        let payload = CreateProgram::Custom(
+            vec![(non_existing_code_hash, salt.to_vec(), 100_000)]
+        );
+        let res = factory.send_bytes(10001, payload.encode());
+        assert!(!res.main_failed());
+        // No new programs!
+        assert_eq!(res.initialized_programs().len(), 2);
+        assert!(!res.initialized_programs().iter().any(|(p_id, _)| p_id == &fictional_program_id));
+    }  
 }

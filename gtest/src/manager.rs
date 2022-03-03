@@ -57,9 +57,9 @@ pub(crate) struct ExtManager {
     // State
     pub(crate) actors: BTreeMap<ProgramId, Actor>,
     pub(crate) codes: BTreeMap<CodeHash, Vec<u8>>,
-    pub(crate) message_queue: VecDeque<Message>,
+    pub(crate) dispatch_queue: VecDeque<Dispatch>,
     pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
-    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Message>,
+    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
     // Last run info
@@ -137,38 +137,40 @@ impl ExtManager {
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
         self.prepare_for(message.id(), message.source());
 
-        if let Some((_, state, _)) = self.actors.get(&message.dest()) {
-            let entry_point = Self::entry_point(&message, state);
-            self.message_queue.push_back(message);
+        logger::debug!("received message {:?}", message);
+
+        if let Some((_, state, _)) = self.actors.get_mut(&message.dest()) {
+            let dispatch = Dispatch {
+                kind: Self::entry_point(&message, state),
+                message,
+                payload_store: None,
+            };
+            self.dispatch_queue.push_back(dispatch);
         } else {
+            logger::debug!("received message {:?}", message);
             self.mailbox
                 .entry(message.dest())
                 .or_default()
                 .push(message);
         }
 
-        while let Some(message) = self.message_queue.pop_front() {
+        while let Some(dispatch) = self.dispatch_queue.pop_front() {
+            let Dispatch {ref message, kind, .. } = dispatch;
             let (prog, state, balance) = self
                 .actors
                 .get_mut(&message.dest())
                 .expect("Somehow message queue contains message for user");
 
-            let kind = if let Some(kind) = Self::entry_point(&message, state) {
-                kind
-            } else {
+            let maybe_message_reply = message.reply();
+            if maybe_message_reply.is_none() && matches!(state, &mut ProgramState::Uninitialized(Some(id)) if id != message.id()) {
                 self.wait_init_list
                     .entry(message.dest())
                     .or_default()
                     .push(message.id());
-
-                self.wait_dispatch(Dispatch {
-                    kind: DispatchKind::Handle,
-                    message,
-                    payload_store: None,
-                });
+                self.wait_dispatch(dispatch);
 
                 continue;
-            };
+            }
 
             match prog {
                 Program::Core(program) => {
@@ -181,15 +183,11 @@ impl ExtManager {
                         })
                     };
 
-                    logger::debug!("Executing message {:?} with kind {:?} on actor {:?}", message, kind, actor);
+                    logger::debug!("Executing message {:?} with kind {:?} on actor {:?}", message, kind, actor.as_ref().map(|a| (a.program.id(), a.program.is_initialized())));
 
                     let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
                         actor,
-                        Dispatch {
-                            kind,
-                            message,
-                            payload_store: None,
-                        },
+                        dispatch,
                         self.block_info,
                         crate::EXISTENTIAL_DEPOSIT,
                         self.origin,
@@ -305,7 +303,7 @@ impl ExtManager {
         self.main_failed = false;
         self.others_failed = false;
 
-        if !self.message_queue.is_empty() {
+        if !self.dispatch_queue.is_empty() {
             panic!("Message queue isn't empty");
         }
     }
@@ -319,10 +317,14 @@ impl ExtManager {
     }
 
     fn init_success(&mut self, message_id: MessageId, program_id: ProgramId) {
-        let (_, state, _) = self
+        let (program, state, _) = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
+        
+        if let Program::Core(p) = program {
+            p.set_initialized();
+        }
 
         *state = ProgramState::Initialized;
 
@@ -375,34 +377,34 @@ impl JournalHandler for ExtManager {
 
     fn message_consumed(&mut self, message_id: MessageId) {
         if let Some(index) = self
-            .message_queue
+            .dispatch_queue
             .iter()
-            .position(|msg| msg.id() == message_id)
+            .position(|d| d.message.id() == message_id)
         {
-            self.message_queue.remove(index);
+            self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
-        let Dispatch { mut message, .. } = dispatch;
+    fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
+        let Dispatch { ref mut message, .. } = dispatch;
         if self.actors.contains_key(&message.dest()) {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
                 message.gas_limit = Some(u64::max_value());
             }
-            self.message_queue.push_back(message);
+            self.dispatch_queue.push_back(dispatch);
         } else {
             self.mailbox
                 .entry(message.dest())
                 .or_default()
                 .push(message.clone());
-            self.log.push(message);
+            self.log.push(dispatch.message);
         }
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.message_consumed(dispatch.message.id());
         self.wait_list.insert(
             (dispatch.message.dest(), dispatch.message.id()),
-            dispatch.message,
+            dispatch,
         );
     }
     fn wake_message(
@@ -411,8 +413,8 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
-            self.message_queue.push_back(msg);
+        if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
+            self.dispatch_queue.push_back(dispatch);
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
@@ -466,11 +468,11 @@ impl JournalHandler for ExtManager {
                         .expect(format!("internal error: program can't be constructed with provided code {:?}", code).as_str());
                     self.store_new_program(candidate_id, Program::Core(program), Some(init_message_id));
                 } else {
-                    println!("Program with id {:?} already exists", candidate_id);
+                    logger::debug!("Program with id {:?} already exists", candidate_id);
                 }
             }
         } else {
-            println!(
+            logger::debug!(
                 "No referencing code with code hash {:?} for candidate programs",
                 code_hash
             );
