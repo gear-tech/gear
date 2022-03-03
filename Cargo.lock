@@ -1250,16 +1250,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "demo-create-program"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "hex-literal",
-]
-
-[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"

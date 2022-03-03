@@ -66,59 +66,76 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    use std::panic::catch_unwind;
-
-    use gtest::{System, Program, Log};
-    use gear_core::message::{Payload, Message, MessageId};
+    use gtest::{System, Program};
 
     use super::*;
 
-    #[test]
-    fn test_create_program_miscellaneous() {
-        env_logger::init();
-        let sys = System::new();
-
+    // Creates a new factory and initializes it.
+    fn prepare_factory<'a>(sys: &'a System) -> Program<'a> {
         // Store child
         let code_hash_stored = sys.submit_code("./child_contract.wasm");
         assert_eq!(code_hash_stored.inner(), CHILD_CODE_HASH);
-        let first_call_salt = 0i32.to_le_bytes();
-        let new_actor_id_expected = Program::calculate_program_id(code_hash_stored, &first_call_salt);
 
-        // Create factory
-        let factory = Program::current_with_id(&sys, 100);
-        // init function
+        // Instantiate factory
+        let factory = Program::current_with_id(sys, 100);
+        // Send `init` msg to factory
         let res = factory.send_bytes(10001, "EMPTY");
         assert!(!res.main_failed());
         assert_eq!(res.initialized_programs().len(), 1);
 
-        let payload = CreateProgram::Default;
+        factory
+    }
 
-        // handle function
-        let res = factory.send_bytes(10001, payload.encode());
+    #[test]
+    fn test_simple() {
+        let sys = System::new();
+        let factory = prepare_factory(&sys);
+
+        let child_code_hash = CHILD_CODE_HASH.into();
+        let child_id_expected = Program::calculate_program_id(child_code_hash, &0i32.to_le_bytes());
+
+        // Send `handle` msg to factory to create a new child
+        let res = factory.send_bytes(10001, CreateProgram::Default.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
         assert_eq!(res.initialized_programs().len(), 2);
 
         let (new_actor_id_actual, new_actor_code_hash) = res.initialized_programs().last().copied().unwrap();
-        assert_eq!(new_actor_id_expected, new_actor_id_actual);
-        assert_eq!(Some(code_hash_stored), new_actor_code_hash);
+        assert_eq!(child_id_expected, new_actor_id_actual);
+        assert_eq!(Some(child_code_hash), new_actor_code_hash);
+    }
 
-        let child_program = sys.get_program(new_actor_id_expected);
+    #[test]
+    fn test_duplicate() {
+        let sys = System::new();
+        let factory = prepare_factory(&sys);
 
-        // child is alive
-        let res = child_program.send_bytes(10001, "EMPTY");
-        assert!(!res.main_failed());
-        assert!(!res.others_failed());
-        
-        // duplicate
+        let first_call_salt = 0i32.to_le_bytes();
+
+        // Send `handle` msg to factory to create a new child
+        let res = factory.send_bytes(10001, CreateProgram::Default.encode());
+        assert_eq!(res.initialized_programs().len(), 2);
+
+        // Duplicate
         let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, first_call_salt.to_vec(), 100_000)]);
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
         // No new programs!
         assert_eq!(res.initialized_programs().len(), 2);
+    }
 
-        // non existing code hash provided
+    #[test]
+    fn test_non_existing_code_hash() {
+        let sys = System::new();
+        let factory = prepare_factory(&sys);
+
+        // Send `handle` msg to factory to create a new child
+        factory.send_bytes(10001, CreateProgram::Default.encode());
+
+        env_logger::init();
+
+        // Non existing code hash provided
         let non_existing_code_hash = [10u8; 32];
         let salt = b"some_salt";
         let fictional_program_id = Program::calculate_program_id(non_existing_code_hash.into(), salt);
@@ -127,8 +144,7 @@ mod tests {
         );
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
-        // No new programs!
-        assert_eq!(res.initialized_programs().len(), 2);
+        // No new program with fictional id
         assert!(!res.initialized_programs().iter().any(|(p_id, _)| p_id == &fictional_program_id));
-    }  
+    }
 }
