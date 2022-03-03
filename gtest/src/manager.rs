@@ -153,21 +153,19 @@ impl ExtManager {
 
         while let Some(dispatch) = self.dispatch_queue.pop_front() {
             let Dispatch {ref message, kind, .. } = dispatch;
-            let (prog, state, balance) = self
-                .actors
-                .get_mut(&message.dest())
-                .expect("Somehow message queue contains message for user");
-
-            let maybe_message_reply = message.reply();
-            if maybe_message_reply.is_none() && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message.id()) {
-                self.wait_init_list
-                    .entry(message.dest())
-                    .or_default()
-                    .push(message.id());
-                self.wait_dispatch(dispatch);
-
-                continue;
-            }
+            let actor = self.actors.get_mut(&message.dest());
+            let prog = if let Some((prog, state, balance)) = actor {
+                let maybe_message_reply = message.reply();
+                if maybe_message_reply.is_none() && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message.id()) {
+                    self.wait_init_list
+                        .entry(message.dest())
+                        .or_default()
+                        .push(message.id());
+                    self.wait_dispatch(dispatch);
+    
+                    continue;
+                }
+            };
 
             match prog {
                 Program::Core(program) => {
@@ -187,6 +185,13 @@ impl ExtManager {
                         crate::EXISTENTIAL_DEPOSIT,
                         self.origin,
                     );
+
+                    'a: for j in &journal {
+                        if matches!(j, JournalNote::UpdatePage{..}) {
+                            continue 'a;
+                        }
+                        logger::debug!("{:?}", j);
+                    }
 
                     core_processor::handle_journal(journal, self);
                 }
@@ -374,7 +379,7 @@ impl JournalHandler for ExtManager {
     }
     fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
         let Dispatch { ref mut message, .. } = dispatch;
-        if self.actors.contains_key(&message.dest()) {
+        if self.actors.contains_key(&message.dest()) || self.marked_destinations.contains(&message.dest()) {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
                 message.gas_limit = Some(u64::max_value());

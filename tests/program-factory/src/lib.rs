@@ -100,9 +100,9 @@ mod tests {
         assert!(!res.others_failed());
         assert_eq!(res.initialized_programs().len(), 2);
 
-        let (new_actor_id_actual, new_actor_code_hash) = res.initialized_programs().last().copied().unwrap();
-        assert_eq!(child_id_expected, new_actor_id_actual);
-        assert_eq!(Some(child_code_hash), new_actor_code_hash);
+        let (child_id_actual, child_code_hash_actual) = res.initialized_programs().last().copied().unwrap();
+        assert_eq!(child_id_expected, child_id_actual);
+        assert_eq!(Some(child_code_hash), child_code_hash_actual);
     }
 
     #[test]
@@ -129,6 +129,8 @@ mod tests {
     fn test_non_existing_code_hash() {
         let sys = System::new();
         let factory = prepare_factory(&sys);
+
+        env_logger::init();
 
         // Send `handle` msg to factory to create a new child
         factory.send_bytes(10001, CreateProgram::Default.encode());
