@@ -639,7 +639,7 @@ pub fn create_program_wgas<E: Ext + Into<ExtInfo>>(
             let gas_limit = funcs::get_u64(ext, fl_ptr + code_hash.len());
             let value = funcs::get_u128(
                 ext,
-                fl_ptr + code_hash.len() + gas_limit.to_be_bytes().len(),
+                fl_ptr + code_hash.len() + core::mem::size_of_val(&gas_limit),
             );
             let salt = funcs::get_vec(ext, salt_ptr, salt_len);
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);

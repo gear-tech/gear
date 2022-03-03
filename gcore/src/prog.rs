@@ -115,18 +115,12 @@ pub fn create_program_with_gas(
     gas_limit: u64,
     value: u128,
 ) -> ActorId {
-    let mut inner = [0u8; 56];
-    let fix_len_data = code_hash
-        .iter()
-        .copied()
-        .chain(gas_limit.to_le_bytes())
-        .chain(value.to_le_bytes());
-    populate_from_iterator(&mut inner, fix_len_data);
+    let fl_data = pack((code_hash, gas_limit, value));
 
     unsafe {
         let mut program_id = ActorId::default();
         sys::gr_create_program_wgas(
-            inner.as_slice().as_ptr(),
+            fl_data.as_slice().as_ptr(),
             salt.as_ptr(),
             salt.len() as _,
             payload.as_ptr(),
@@ -137,8 +131,19 @@ pub fn create_program_with_gas(
     }
 }
 
-fn populate_from_iterator(src: &mut [u8], data: impl Iterator<Item = u8>) {
-    for (s, d) in src.iter_mut().zip(data) {
-        *s = d;
-    }
+// code hash, gas limit, message value
+type FixLenParams = (CodeHash, u64, u128);
+
+const SIZE: usize = CODE_HASH_SIZE + GAS_LIMIT_SIZE + VALUE_SIZE;
+const CODE_HASH_SIZE: usize = 32;
+const GAS_LIMIT_SIZE: usize = 8;
+const VALUE_SIZE: usize = 16;
+
+fn pack(params: FixLenParams) -> [u8; SIZE] {
+    let (code_hash, gas_limit, value) = params;
+    let mut data = [0u8; SIZE];
+    data[..CODE_HASH_SIZE].copy_from_slice(code_hash.as_slice());
+    data[CODE_HASH_SIZE..CODE_HASH_SIZE + GAS_LIMIT_SIZE].copy_from_slice(&gas_limit.to_le_bytes());
+    data[CODE_HASH_SIZE + GAS_LIMIT_SIZE..].copy_from_slice(&value.to_le_bytes());
+    data
 }
