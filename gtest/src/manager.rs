@@ -137,8 +137,6 @@ impl ExtManager {
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
         self.prepare_for(message.id(), message.source());
 
-        logger::debug!("received message {:?}", message);
-
         if let Some((_, state, _)) = self.actors.get_mut(&message.dest()) {
             let dispatch = Dispatch {
                 kind: Self::entry_point(&message, state),
@@ -147,7 +145,6 @@ impl ExtManager {
             };
             self.dispatch_queue.push_back(dispatch);
         } else {
-            logger::debug!("received message {:?}", message);
             self.mailbox
                 .entry(message.dest())
                 .or_default()
@@ -162,7 +159,7 @@ impl ExtManager {
                 .expect("Somehow message queue contains message for user");
 
             let maybe_message_reply = message.reply();
-            if maybe_message_reply.is_none() && matches!(state, &mut ProgramState::Uninitialized(Some(id)) if id != message.id()) {
+            if maybe_message_reply.is_none() && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message.id()) {
                 self.wait_init_list
                     .entry(message.dest())
                     .or_default()
@@ -183,8 +180,6 @@ impl ExtManager {
                         })
                     };
 
-                    logger::debug!("Executing message {:?} with kind {:?} on actor {:?}", message, kind, actor.as_ref().map(|a| (a.program.id(), a.program.is_initialized())));
-
                     let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
                         actor,
                         dispatch,
@@ -192,13 +187,6 @@ impl ExtManager {
                         crate::EXISTENTIAL_DEPOSIT,
                         self.origin,
                     );
-
-                    'a: for j in &journal {
-                        if let core_processor::common::JournalNote::UpdatePage{..} = j {
-                            continue 'a;
-                        }
-                        logger::debug!("NOTE {:?}", j);
-                    }
 
                     core_processor::handle_journal(journal, self);
                 }
@@ -275,13 +263,13 @@ impl ExtManager {
         let initialized_programs = self.actors
             .iter()
             .filter_map(|(&program_id, (program, state, _))| {
-                let code_hash = if let Program::Core(p) = program {
-                    Some(CodeHash::generate(p.code()))
-                } else {
-                    None
-                };
                 if matches!(state, &ProgramState::Initialized) {
-                    Some((program_id, code_hash))
+                    if let Program::Core(p) = program {
+                        let code_hash = Some(CodeHash::generate(p.code()));
+                        Some((program_id, code_hash))
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }

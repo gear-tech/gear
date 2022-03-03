@@ -133,8 +133,6 @@ mod tests {
         // Send `handle` msg to factory to create a new child
         factory.send_bytes(10001, CreateProgram::Default.encode());
 
-        env_logger::init();
-
         // Non existing code hash provided
         let non_existing_code_hash = [10u8; 32];
         let salt = b"some_salt";

@@ -14,8 +14,6 @@ hex-literal = "*"
 
 [dev-dependencies]
 gtest = { path = "../../gtest" }
-env_logger = "*"
-log = "*"
 
 [build-dependencies]
 gear-wasm-builder = { path = "../../utils/wasm-builder" }

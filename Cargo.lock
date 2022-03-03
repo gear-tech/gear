@@ -2388,7 +2388,6 @@ dependencies = [
 name = "gtest"
 version = "0.1.0"
 dependencies = [
- "blake2-rfc",
  "colored",
  "env_logger",
  "gear-backend-wasmtime",
@@ -7709,13 +7708,11 @@ dependencies = [
 name = "tests-program-factory"
 version = "0.1.0"
 dependencies = [
- "env_logger",
  "gear-core",
  "gear-wasm-builder",
  "gstd",
  "gtest",
  "hex-literal",
- "log",
  "parity-scale-codec",
  "tests-common",
 ]
