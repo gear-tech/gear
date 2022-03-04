@@ -33,9 +33,9 @@ use alloc::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
+    identifiers::{CodeId, MessageId, ProgramId},
     memory::{Memory, PageBuf, PageNumber},
-    message::{MessageId, OutgoingMessage, PayloadStore, ProgramInitMessage, ReplyMessage},
-    program::{CodeHash, ProgramId},
+    message::{OutgoingMessage, PayloadStore, ProgramInitMessage, ReplyMessage},
 };
 
 pub const EXIT_TRAP_STR: &str = "exit";
@@ -62,7 +62,7 @@ pub struct ExtInfo {
     pub reply: Option<ReplyMessage>,
     pub awakening: Vec<MessageId>,
     pub nonce: u64,
-    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     pub payload_store: Option<PayloadStore>,
 
     pub trap_explanation: Option<&'static str>,

@@ -22,8 +22,9 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::{Dispatch, DispatchKind, IncomingMessage, Message, MessageId},
-    program::{Program, ProgramId},
+    identifiers::{MessageId, ProgramId},
+    message::{Dispatch, DispatchKind, IncomingMessage, Message},
+    program::Program,
 };
 use regex::Regex;
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
@@ -46,7 +47,7 @@ pub fn parse_payload(payload: String) -> String {
     let mut s = payload;
     while let Some(caps) = program_id_regex.captures(&s) {
         let id = caps["id"].parse::<u64>().unwrap();
-        s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_slice()));
+        s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_ref()));
     }
 
     while let Some(caps) = account_regex.captures(&s) {
@@ -54,8 +55,8 @@ pub fn parse_payload(payload: String) -> String {
         s = s.replace(
             &caps[0],
             &hex::encode(
-                ProgramId::from_slice(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
-                    .as_slice(),
+                ProgramId::from(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
+                    .as_ref(),
             ),
         );
     }
@@ -65,8 +66,7 @@ pub fn parse_payload(payload: String) -> String {
         s = s.replace(
             &caps[0],
             &hex::encode(
-                ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
-                    .as_slice(),
+                ProgramId::from(Public::from_ss58check(id).unwrap().as_bytes_ref()).as_ref(),
             ),
         );
     }

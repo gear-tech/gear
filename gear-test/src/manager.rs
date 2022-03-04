@@ -18,9 +18,10 @@
 
 use core_processor::common::*;
 use gear_core::{
+    identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{CodeHash, Program, ProgramId},
+    message::{Dispatch, DispatchKind, Message},
+    program::Program,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -28,7 +29,7 @@ use crate::check::ExecutionContext;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
-    codes: BTreeMap<CodeHash, Vec<u8>>,
+    codes: BTreeMap<CodeId, Vec<u8>>,
     marked_destinations: BTreeSet<ProgramId>,
     dispatch_queue: VecDeque<Dispatch>,
     log: Vec<Message>,
@@ -51,7 +52,7 @@ impl InMemoryExtManager {
 
 impl ExecutionContext for InMemoryExtManager {
     fn store_code(&mut self, code: &[u8]) {
-        self.codes.insert(CodeHash::generate(code), code.to_vec());
+        self.codes.insert(CodeId::generate(code), code.to_vec());
     }
     fn store_program(&mut self, program: gear_core::program::Program, _init_message_id: MessageId) {
         self.waiting_init.insert(program.id(), vec![]);
@@ -216,7 +217,7 @@ impl JournalHandler for InMemoryExtManager {
         };
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
+    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {

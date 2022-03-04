@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::{
-    message::{Dispatch as CoreDispatch, Message as CoreMessage, MessageId},
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    identifiers::{CodeId, MessageId, ProgramId},
+    message::{Dispatch as CoreDispatch, Message as CoreMessage},
+    program::Program as CoreProgram,
 };
 
 use primitive_types::H256;
@@ -27,25 +28,21 @@ use crate::{Dispatch, Message, Origin};
 
 impl Origin for MessageId {
     fn into_origin(self) -> H256 {
-        let mut bytes = [0; 32];
-        bytes.copy_from_slice(self.as_slice());
-        H256(bytes)
+        H256(self.into())
     }
 
     fn from_origin(val: H256) -> Self {
-        Self::from_slice(val.as_ref())
+        Self::from(val.as_ref())
     }
 }
 
 impl Origin for ProgramId {
     fn into_origin(self) -> H256 {
-        let mut bytes = [0; 32];
-        bytes.copy_from_slice(self.as_slice());
-        H256(bytes)
+        H256(self.into())
     }
 
     fn from_origin(val: H256) -> Self {
-        Self::from_slice(val.as_ref())
+        Self::from(val.as_ref())
     }
 }
 
@@ -112,14 +109,14 @@ impl From<CoreDispatch> for Dispatch {
 }
 
 pub fn set_program(program: CoreProgram) {
-    let code_hash = CodeHash::generate(program.code()).into_origin();
+    let code_hash = CodeId::generate(program.code()).into_origin();
     // This code is only used in tests and is redundant for
     // production.
     if !crate::code_exists(code_hash) {
         crate::set_code(code_hash, program.code());
     }
     crate::set_program(
-        H256::from_slice(program.id().as_slice()),
+        H256::from_slice(program.id().as_ref()),
         crate::ActiveProgram {
             static_pages: program.static_pages(),
             persistent_pages: program

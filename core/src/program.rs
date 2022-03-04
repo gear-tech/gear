@@ -18,107 +18,14 @@
 
 //! Module for programs.
 
-use alloc::collections::BTreeSet;
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use crate::{
+    identifiers::ProgramId,
+    memory::{PageBuf, PageNumber},
+};
+use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
-use core::{cmp, fmt};
-use scale_info::TypeInfo;
-
-use crate::memory::{PageBuf, PageNumber};
-
-/// Program identifier.
-///
-/// 256-bit program identifier. In production environments, should be the result of a cryptohash function.
-#[derive(
-    Clone,
-    Copy,
-    Decode,
-    Default,
-    Encode,
-    derive_more::From,
-    Hash,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    TypeInfo,
-)]
-pub struct ProgramId([u8; 32]);
-
-impl fmt::Display for ProgramId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let p = cmp::min(self.0.len(), f.precision().unwrap_or(self.0.len()));
-        if let Ok(hex) = crate::util::encode_hex(&self.0[..p]) {
-            write!(f, "{}", hex)
-        } else {
-            Err(fmt::Error)
-        }
-    }
-}
-
-impl fmt::Debug for ProgramId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
-impl From<u64> for ProgramId {
-    fn from(v: u64) -> Self {
-        let mut id = ProgramId([0u8; 32]);
-        id.0[0..8].copy_from_slice(&v.to_le_bytes()[..]);
-        id
-    }
-}
-
-impl From<&[u8]> for ProgramId {
-    fn from(s: &[u8]) -> Self {
-        Self::from_slice(s)
-    }
-}
-
-impl ProgramId {
-    /// Generates a new program id from code hash and salt
-    ///
-    /// Uses blake2b hash function to generate unique program id.
-    pub fn generate(code_hash: CodeHash, salt: &[u8]) -> Self {
-        let id_hash = {
-            let mut data = Vec::with_capacity(code_hash.inner().len() + salt.len());
-            code_hash.encode_to(&mut data);
-            salt.encode_to(&mut data);
-            blake2_rfc::blake2b::blake2b(32, &[], &data)
-        };
-        ProgramId::from_slice(id_hash.as_bytes())
-    }
-
-    /// Create new program id from bytes.
-    ///
-    /// Will panic if slice is not 32 bytes length.
-    pub fn from_slice(s: &[u8]) -> Self {
-        if s.len() != 32 {
-            panic!("Slice is not 32 bytes length")
-        };
-        let mut id = ProgramId([0u8; 32]);
-        id.0[..].copy_from_slice(s);
-        id
-    }
-
-    /// Return reference to raw bytes of this program id.
-    pub fn as_slice(&self) -> &[u8] {
-        &self.0[..]
-    }
-
-    /// Return mutable reference to raw bytes of this program id.
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0[..]
-    }
-
-    /// System origin
-    pub fn system() -> Self {
-        Self([0u8; 32])
-    }
-}
 
 /// Program.
 #[derive(Clone, Debug, Decode, Encode)]
@@ -328,47 +235,11 @@ impl Program {
     }
 }
 
-/// Blake2b hash of the program code.
-#[derive(Clone, Copy, Debug, Decode, Encode, Ord, PartialOrd, Eq, PartialEq)]
-pub struct CodeHash([u8; 32]);
-
-impl CodeHash {
-    /// Instantiates [`CodeHash`] by computing blake2b hash of the program `code`.
-    pub fn generate(code: &[u8]) -> Self {
-        let blake2b_hash = blake2_rfc::blake2b::blake2b(32, &[], code);
-        Self::from_slice(blake2b_hash.as_bytes())
-    }
-
-    /// Get inner (32 bytes) array representation
-    pub fn inner(&self) -> [u8; 32] {
-        self.0
-    }
-
-    /// Create new `CodeHash` bytes.
-    ///
-    /// Will panic if slice is not 32 bytes length.
-    pub fn from_slice(s: &[u8]) -> Self {
-        if s.len() != 32 {
-            panic!("Slice is not 32 bytes length")
-        };
-        let mut id = CodeHash([0u8; 32]);
-        id.0[..].copy_from_slice(s);
-        id
-    }
-}
-
-impl From<[u8; 32]> for CodeHash {
-    fn from(data: [u8; 32]) -> Self {
-        CodeHash(data)
-    }
-}
-
 #[cfg(test)]
 /// This module contains tests of `fn encode_hex(bytes: &[u8]) -> String`
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::{Program, ProgramId};
-    use crate::util::encode_hex;
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -382,21 +253,12 @@ mod tests {
     }
 
     #[test]
-    /// Test that `encode_hex(...)` encodes correctly
-    fn hex_encoding() {
-        let bytes = "foobar".as_bytes();
-        let result = encode_hex(&bytes).unwrap();
-
-        assert_eq!(result, "666f6f626172");
-    }
-
-    #[test]
-    #[should_panic(expected = "Slice is not 32 bytes length")]
+    #[should_panic(expected = "Identifier must be 32 length")]
     /// Test that ProgramId's `from_slice(...)` constructor causes panic
     /// when the argument has the wrong length
     fn program_id_from_slice_error_implementation() {
-        let bytes = b"foobar";
-        let _ = ProgramId::from_slice(bytes);
+        let bytes = "foobar";
+        let _: ProgramId = bytes.as_bytes().into();
     }
 
     #[test]

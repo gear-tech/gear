@@ -39,8 +39,9 @@ use sp_std::{
 };
 
 use gear_core::{
+    identifiers::{CodeId, ProgramId},
     message::{DispatchKind, PayloadStore},
-    program::{CodeHash, Program as NativeProgram, ProgramId},
+    program::Program as NativeProgram,
 };
 
 pub use storage_queue::Iterator;
@@ -100,9 +101,9 @@ impl Origin for H256 {
     }
 }
 
-impl Origin for CodeHash {
+impl Origin for CodeId {
     fn into_origin(self) -> H256 {
-        self.inner().into()
+        H256(self.into())
     }
 
     fn from_origin(val: H256) -> Self {
@@ -320,15 +321,15 @@ pub struct QueuedMessage {
 impl QueuedMessage {
     pub fn into_message(self, gas_limit: u64) -> gear_core::message::Message {
         gear_core::message::Message {
-            id: gear_core::message::MessageId::from_origin(self.id),
-            source: gear_core::program::ProgramId::from_origin(self.source),
-            dest: gear_core::program::ProgramId::from_origin(self.dest),
+            id: gear_core::identifiers::MessageId::from_origin(self.id),
+            source: gear_core::identifiers::ProgramId::from_origin(self.source),
+            dest: gear_core::identifiers::ProgramId::from_origin(self.dest),
             payload: self.payload.into(),
             gas_limit: Some(gas_limit),
             value: self.value,
             reply: self.reply.map(|(message_id, exit_code)| {
                 (
-                    gear_core::message::MessageId::from_origin(message_id),
+                    gear_core::identifiers::MessageId::from_origin(message_id),
                     exit_code,
                 )
             }),
@@ -771,7 +772,7 @@ mod tests {
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let code = b"pretended wasm code".to_vec();
-            let code_hash: H256 = CodeHash::generate(&code).into_origin();
+            let code_hash: H256 = CodeId::generate(&code).into_origin();
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
                 static_pages: 256,

@@ -1,6 +1,6 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::{message::Message, program::ProgramId};
+use gear_core::{identifiers::ProgramId, message::Message};
 use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

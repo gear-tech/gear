@@ -24,9 +24,10 @@ use core_processor::{
 };
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
+    identifiers::{MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{Program, ProgramId},
+    message::{Dispatch, DispatchKind, Message},
+    program::Program,
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -50,6 +51,12 @@ pub struct ExtMessage {
     pub gas_limit: u64,
     /// Value associated with the message.
     pub value: u128,
+}
+
+fn num_to_arr(v: u64) -> [u8; 32] {
+    let mut id = [0u8; 32];
+    id[0..8].copy_from_slice(&v.to_le_bytes()[..]);
+    id
 }
 
 struct InitializeProgramInfo {
@@ -99,7 +106,7 @@ impl InitProgram {
             code: self.code,
             message: Message {
                 id: message.id,
-                source: self.source_id.unwrap_or_else(ProgramId::system),
+                source: self.source_id.unwrap_or_default(),
                 dest: new_program_id,
                 payload: message.payload.into(),
                 gas_limit: Some(message.gas_limit),
@@ -200,8 +207,8 @@ impl MessageDispatchBuilder {
         let ext_message = self.message.into_ext(runner);
         Message {
             id: ext_message.id,
-            source: self.source.unwrap_or_else(ProgramId::system),
-            dest: self.destination.unwrap_or_else(|| 1.into()),
+            source: self.source.unwrap_or_default(),
+            dest: self.destination.unwrap_or_else(|| num_to_arr(1).into()),
             payload: ext_message.payload.into(),
             gas_limit: Some(ext_message.gas_limit),
             value: ext_message.value,
@@ -388,7 +395,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn store_new_programs(
         &mut self,
-        _code_hash: gear_core::program::CodeHash,
+        _code_hash: gear_core::identifiers::CodeId,
         _candidates: Vec<(ProgramId, MessageId)>,
     ) {
         // TODO next pr
@@ -574,19 +581,25 @@ impl RunnerContext {
     }
 
     fn next_message_id(&mut self) -> MessageId {
-        while !self.used_message_ids.insert(self.message_id.into()) {
+        while !self
+            .used_message_ids
+            .insert(num_to_arr(self.message_id).into())
+        {
             self.message_id += 1;
         }
-        let message_id = self.message_id.into();
+        let message_id = num_to_arr(self.message_id).into();
         self.message_id += 1;
         message_id
     }
 
     fn next_program_id(&mut self) -> ProgramId {
-        while !self.used_program_ids.insert(self.program_id.into()) {
+        while !self
+            .used_program_ids
+            .insert(num_to_arr(self.program_id).into())
+        {
             self.program_id += 1;
         }
-        let program_id = self.program_id.into();
+        let program_id = num_to_arr(self.program_id).into();
         self.program_id += 1;
         program_id
     }

@@ -23,9 +23,10 @@ use crate::{
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
+    identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    message::{Dispatch, DispatchKind, Message},
+    program::Program as CoreProgram,
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -413,11 +414,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(
-        &mut self,
-        _code_hash: CodeHash,
-        _candidates: Vec<(ProgramId, MessageId)>,
-    ) {
+    fn store_new_programs(&mut self, _code_hash: CodeId, _candidates: Vec<(ProgramId, MessageId)>) {
         // todo!() #714
     }
 }

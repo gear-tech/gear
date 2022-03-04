@@ -20,8 +20,8 @@
 
 use blake2_rfc::blake2b;
 use gear_core::{
-    message::{MessageId, MessageIdGenerator},
-    program::ProgramId,
+    identifiers::{MessageId, ProgramId},
+    message::MessageIdGenerator,
 };
 
 /// Blake message id generator.
@@ -34,12 +34,12 @@ pub struct BlakeMessageIdGenerator {
 
 impl MessageIdGenerator for BlakeMessageIdGenerator {
     fn next(&mut self) -> MessageId {
-        let mut data = self.program_id.as_slice().to_vec();
+        let mut data = self.program_id.as_ref().to_vec();
         data.extend(&self.nonce.to_le_bytes());
 
         self.nonce += 1;
 
-        MessageId::from_slice(blake2b::blake2b(32, &[], &data).as_bytes())
+        MessageId::from(blake2b::blake2b(32, &[], &data).as_bytes())
     }
 
     fn current(&self) -> u64 {
@@ -57,8 +57,8 @@ pub fn next_message_id(program_id: ProgramId, nonce: u64) -> MessageId {
 /// This id is used when some message should be skipped from execution.
 /// In this case a reply message is generated for the original message sender, which is `program_id`.
 pub fn next_system_reply_message_id(program_id: ProgramId, reply_to_id: MessageId) -> MessageId {
-    let mut data = program_id.as_slice().to_vec();
-    data.extend(reply_to_id.as_slice());
+    let mut data = program_id.as_ref().to_vec();
+    data.extend(reply_to_id.as_ref());
 
-    MessageId::from_slice(blake2b::blake2b(32, &[], &data).as_bytes())
+    MessageId::from(blake2b::blake2b(32, &[], &data).as_bytes())
 }

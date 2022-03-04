@@ -5,8 +5,9 @@ use crate::{
 };
 use codec::Codec;
 use gear_core::{
-    message::{Message, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    identifiers::{MessageId, ProgramId},
+    message::Message,
+    program::Program as CoreProgram,
 };
 use path_clean::PathClean;
 use std::{
@@ -43,7 +44,9 @@ impl From<ProgramId> for ProgramIdWrapper {
 
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
-        Self(other.into())
+        let mut id = [0; 32];
+        id[0..8].copy_from_slice(&other.to_le_bytes()[..]);
+        Self(id.into())
     }
 }
 

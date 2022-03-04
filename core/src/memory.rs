@@ -18,9 +18,8 @@
 
 //! Module for memory and memory context.
 
-use crate::program::ProgramId;
-use alloc::collections::BTreeMap;
-use alloc::{boxed::Box, collections::BTreeSet};
+use crate::identifiers::ProgramId;
+use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet};
 use codec::{Decode, Encode};
 use core::any::Any;
 

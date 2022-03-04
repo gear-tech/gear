@@ -58,7 +58,7 @@ mod wasm {
 mod tests {
     use super::Request;
     use common::*;
-    use gear_core::message::MessageId;
+    use gear_core::identifiers::MessageId;
     use std::convert::TryInto;
 
     fn wasm_code() -> &'static [u8] {
@@ -100,7 +100,7 @@ mod tests {
         let reply = runner.try_request::<_, ()>(
             MessageBuilder::from(Request::Wake(
                 msg_id_1
-                    .as_slice()
+                    .as_ref()
                     .try_into()
                     .expect("MessageId inner array size is 32"),
             ))
@@ -111,7 +111,7 @@ mod tests {
         let reply = runner.try_request::<_, ()>(
             MessageBuilder::from(Request::Wake(
                 msg_id_2
-                    .as_slice()
+                    .as_ref()
                     .try_into()
                     .expect("MessageId inner array size is 32"),
             ))
@@ -161,7 +161,7 @@ mod tests {
         let reply = runner.try_request::<_, ()>(
             MessageBuilder::from(Request::Wake(
                 msg_id_1
-                    .as_slice()
+                    .as_ref()
                     .try_into()
                     .expect("MessageId inner array size is 32"),
             ))
@@ -172,7 +172,7 @@ mod tests {
         let reply = runner.try_request::<_, ()>(
             MessageBuilder::from(Request::Wake(
                 msg_id_2
-                    .as_slice()
+                    .as_ref()
                     .try_into()
                     .expect("MessageId inner array size is 32"),
             ))
@@ -189,7 +189,7 @@ mod tests {
         let reply = runner.try_request::<_, ()>(
             MessageBuilder::from(Request::Wake(
                 msg_id_2
-                    .as_slice()
+                    .as_ref()
                     .try_into()
                     .expect("MessageId inner array size is 32"),
             ))
@@ -206,7 +206,7 @@ mod tests {
         let reply = runner.try_request::<_, ()>(
             MessageBuilder::from(Request::Wake(
                 msg_id_1
-                    .as_slice()
+                    .as_ref()
                     .try_into()
                     .expect("MessageId inner array size is 32"),
             ))

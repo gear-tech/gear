@@ -48,7 +48,7 @@ pub mod pallet {
         traits::{Currency, Get},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
-    use gear_core::{message::MessageId, program::ProgramId};
+    use gear_core::identifiers::{MessageId, ProgramId};
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{

@@ -25,8 +25,8 @@ use core::{
 use gear_backend_common::{funcs, ExtInfo, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
-    message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
-    program::ProgramId,
+    identifiers::{MessageId, ProgramId},
+    message::{OutgoingPacket, ProgramInitPacket, ReplyPacket},
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -78,7 +78,7 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
             let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
-            ext.set_mem(message_id_ptr, message_id.as_slice());
+            ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -111,7 +111,7 @@ pub fn send_wgas<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -
                 Some(gas_limit),
                 value,
             ))?;
-            ext.set_mem(message_id_ptr, message_id.as_slice());
+            ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -138,7 +138,7 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
                 handle_ptr,
                 OutgoingPacket::new(dest, vec![].into(), None, value),
             )?;
-            ext.set_mem(message_id_ptr, message_id.as_slice());
+            ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -168,7 +168,7 @@ pub fn send_commit_wgas<E: Ext + Into<ExtInfo>>(
                 handle_ptr,
                 OutgoingPacket::new(dest, vec![].into(), Some(gas_limit), value),
             )?;
-            ext.set_mem(message_id_ptr, message_id.as_slice());
+            ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -350,7 +350,7 @@ pub fn origin<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> S
     ctx.ext
         .with(|ext| {
             let origin = ext.origin();
-            ext.set_mem(origin_ptr, origin.as_slice());
+            ext.set_mem(origin_ptr, origin.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -392,7 +392,7 @@ pub fn reply_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]
         .with(|ext| {
             let value = funcs::get_u128(ext, value_ptr);
             let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
-            ext.set_mem(message_id_ptr, message_id.as_slice());
+            ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -416,7 +416,7 @@ pub fn reply_to<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) ->
         Some((message_id, _)) => ctx
             .ext
             .with(|ext| {
-                ext.set_mem(dest, message_id.as_slice());
+                ext.set_mem(dest, message_id.as_ref());
             })
             .map_err(|err| {
                 ctx.trap = Some(err);
@@ -491,7 +491,7 @@ pub fn msg_id<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> S
     ctx.ext
         .with(|ext| {
             let message_id = ext.message_id();
-            ext.set_mem(msg_id_ptr, message_id.as_slice());
+            ext.set_mem(msg_id_ptr, message_id.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -509,7 +509,7 @@ pub fn program_id<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) 
     ctx.ext
         .with(|ext| {
             let source = ext.program_id();
-            ext.set_mem(source_ptr, source.as_slice());
+            ext.set_mem(source_ptr, source.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -527,7 +527,7 @@ pub fn source<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> S
     ctx.ext
         .with(|ext| {
             let source = ext.source();
-            ext.set_mem(source_ptr, source.as_slice());
+            ext.set_mem(source_ptr, source.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -646,7 +646,7 @@ pub fn create_program_wgas<E: Ext + Into<ExtInfo>>(
                 gas_limit,
                 value,
             ))?;
-            ext.set_mem(program_id_ptr, new_actor_id.as_slice());
+            ext.set_mem(program_id_ptr, new_actor_id.as_ref());
             Ok(())
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))

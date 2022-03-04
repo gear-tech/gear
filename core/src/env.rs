@@ -19,9 +19,9 @@
 //! Environment for running a module.
 
 use crate::{
+    identifiers::{MessageId, ProgramId},
     memory::PageNumber,
-    message::{ExitCode, MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
-    program::ProgramId,
+    message::{ExitCode, OutgoingPacket, ProgramInitPacket, ReplyPacket},
 };
 use alloc::rc::Rc;
 use anyhow::Result;

@@ -20,8 +20,8 @@
 
 use crate::Origin;
 use core::convert::TryFrom;
+use gear_core::identifiers::ProgramId;
 use gear_core::memory::{PageBuf, PageNumber};
-use gear_core::program::ProgramId;
 use gear_runtime_interface as gear_ri;
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec::Vec};
 

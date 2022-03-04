@@ -2112,10 +2112,9 @@ fn exit_handle() {
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
+    use gear_core::identifiers::{CodeId, ProgramId};
     use sp_core::H256;
     use sp_std::convert::TryFrom;
-
-    use gear_core::program::{CodeHash, ProgramId};
 
     use super::{
         assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MessageInfo, MockEvent,
@@ -2279,11 +2278,11 @@ mod utils {
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-        ProgramId::generate(CodeHash::generate(code), salt).into_origin()
+        ProgramId::generate(CodeId::generate(code), salt).into_origin()
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
-        CodeHash::generate(code).inner()
+        CodeId::generate(code).into()
     }
 
     pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {

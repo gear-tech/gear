@@ -28,8 +28,9 @@ use colored::{ColoredString, Colorize};
 use gear_runtime::{Origin, Runtime};
 
 use gear_core::{
+    identifiers::{CodeId, ProgramId},
     message::Message as CoreMessage,
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    program::Program as CoreProgram,
 };
 
 use gear_common::{DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
@@ -147,7 +148,7 @@ fn init_fixture(
         if let Err(e) = GearPallet::<Runtime>::submit_program(
             Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
             code.clone(),
-            program.id.to_program_id().as_slice().to_vec(),
+            program.id.to_program_id().as_ref().to_vec(),
             init_message,
             program.init_gas_limit.unwrap_or(5_000_000_000),
             program.init_value.unwrap_or(0) as u128,
@@ -174,9 +175,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         .map(|program| {
             let program_path = program.path.clone();
             let code = std::fs::read(&program_path).unwrap();
-            let salt = program.id.to_program_id().as_slice().to_vec();
+            let salt = program.id.to_program_id().as_ref().to_vec();
 
-            let id = ProgramId::generate(CodeHash::generate(&code), &salt);
+            let id = ProgramId::generate(CodeId::generate(&code), &salt);
 
             progs_n_paths.push((program.path.as_ref(), id));
 
@@ -186,7 +187,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     let programs_map: BTreeMap<H256, H256> = programs
         .iter()
-        .map(|(k, v)| (H256::from_slice(k.as_slice()), *v))
+        .map(|(k, v)| (H256::from_slice(k.as_ref()), *v))
         .collect();
 
     // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
@@ -255,7 +256,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 // Force push to MQ if msg.source.is_some()
                 if let Some(source) = &message.source {
-                    let source = H256::from_slice(source.to_program_id().as_slice());
+                    let source = H256::from_slice(source.to_program_id().as_ref());
                     let id = gear_common::next_message_id(&payload);
 
                     let _ =

@@ -100,7 +100,7 @@ mod tests {
         );
 
         MemoryContext::new(
-            0.into(),
+            Default::default(),
             Box::new(memory),
             Default::default(),
             static_pages.into(),

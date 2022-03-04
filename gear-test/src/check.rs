@@ -29,9 +29,10 @@ use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::{
+    identifiers::{MessageId, ProgramId},
     memory::PAGE_SIZE,
-    message::{Message, MessageId},
-    program::{Program, ProgramId},
+    message::Message,
+    program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;

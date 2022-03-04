@@ -26,9 +26,10 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_core::{
     gas::GasAmount,
+    identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, Message, MessageId},
-    program::{CodeHash, Program, ProgramId},
+    message::{Dispatch, Message},
+    program::Program,
 };
 
 /// Kind of the dispatch result.
@@ -58,7 +59,7 @@ pub struct DispatchResult {
     pub awakening: Vec<MessageId>,
 
     /// New programs to be created with additional data (corresponding code hash and init message id).
-    pub program_candidates: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
 
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
@@ -201,7 +202,7 @@ pub enum JournalNote {
     /// Store programs requested by user to be initialized later
     StoreNewPrograms {
         /// Code hash used to create new programs with ids in `candidates` field
-        code_hash: CodeHash,
+        code_hash: CodeId,
         /// Collection of program candidate ids and their init message ids.
         candidates: Vec<(ProgramId, MessageId)>,
     },
@@ -244,7 +245,7 @@ pub trait JournalHandler {
     /// Store new programs in storage.
     ///
     /// Program ids are ids of _potential_ (planned to be initialized) programs.
-    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>);
+    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>);
 }
 
 /// Execution error.

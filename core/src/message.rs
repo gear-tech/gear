@@ -18,10 +18,10 @@
 
 //! Message processing module and context.
 
-use crate::program::{CodeHash, ProgramId};
+use crate::identifiers::*;
 use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 use codec::{Decode, Encode};
-use core::{cell::RefCell, fmt};
+use core::cell::RefCell;
 use scale_info::TypeInfo;
 
 /// Message payload.
@@ -39,66 +39,6 @@ impl core::convert::AsRef<[u8]> for Payload {
     /// Raw bytes as reference.
     fn as_ref(&self) -> &[u8] {
         &self.0[..]
-    }
-}
-
-/// Message identifier.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Decode,
-    TypeInfo,
-    Default,
-    Encode,
-    derive_more::From,
-    Hash,
-    Ord,
-    PartialOrd,
-    PartialEq,
-    Eq,
-)]
-pub struct MessageId([u8; 32]);
-
-impl fmt::Display for MessageId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Ok(hex) = crate::util::encode_hex(&self.0[..]) {
-            write!(f, "{}", hex)
-        } else {
-            Err(fmt::Error)
-        }
-    }
-}
-
-impl From<u64> for MessageId {
-    fn from(v: u64) -> Self {
-        let mut id = Self([0u8; 32]);
-        id.0[0..8].copy_from_slice(&v.to_le_bytes()[..]);
-        id
-    }
-}
-
-impl MessageId {
-    /// Create new message id from bytes.
-    ///
-    /// Will panic if slice is not 32 bytes length.
-    pub fn from_slice(s: &[u8]) -> Self {
-        if s.len() != 32 {
-            panic!("Slice is not 32 bytes length")
-        };
-        let mut id = Self([0u8; 32]);
-        id.0[..].copy_from_slice(s);
-        id
-    }
-
-    /// Return reference to raw bytes of this program id.
-    pub fn as_slice(&self) -> &[u8] {
-        &self.0[..]
-    }
-
-    /// Return mutable reference to raw bytes of this program id.
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0[..]
     }
 }
 
@@ -229,18 +169,6 @@ impl IncomingMessage {
         }
     }
 
-    /// New system incoming message.
-    pub fn new_system(id: MessageId, payload: Payload, gas_limit: u64, value: u128) -> Self {
-        Self {
-            id,
-            source: ProgramId::system(),
-            payload,
-            gas_limit,
-            value,
-            reply: None,
-        }
-    }
-
     /// Convert incoming message to the stored message by providing `dest`.
     pub fn into_message(self, dest: ProgramId) -> Message {
         Message {
@@ -366,25 +294,6 @@ pub struct Message {
 
 impl Message {
     /// New system message to the specific program.
-    pub fn new_system(
-        id: MessageId,
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: Option<u64>,
-        value: u128,
-    ) -> Message {
-        Message {
-            id,
-            source: 0.into(),
-            dest,
-            payload,
-            gas_limit,
-            value,
-            reply: None,
-        }
-    }
-
-    /// New system message to the specific program.
     pub fn new(
         id: MessageId,
         source: ProgramId,
@@ -504,7 +413,7 @@ impl ProgramInitMessage {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct ProgramInitPacket {
     /// Code hash of a new program
-    pub code_hash: CodeHash,
+    pub code_hash: CodeId,
     /// Salt used to generate id for a new program
     pub salt: Vec<u8>,
     /// Payload to init function
@@ -518,7 +427,7 @@ pub struct ProgramInitPacket {
 impl ProgramInitPacket {
     /// Create a new program init packet
     pub fn new(
-        code_hash: CodeHash,
+        code_hash: CodeId,
         salt: Vec<u8>,
         payload: Payload,
         gas_limit: u64,
@@ -579,7 +488,7 @@ impl Default for OutgoingPacket {
     /// Empty packet with log dest.
     fn default() -> Self {
         Self {
-            dest: ProgramId::system(),
+            dest: Default::default(),
             payload: Payload::default(),
             gas_limit: None,
             value: 0,
@@ -977,13 +886,13 @@ mod tests {
 
     impl MessageIdGenerator for BlakeMessageIdGenerator {
         fn next(&mut self) -> MessageId {
-            let mut data: Vec<u8> = self.program_id.as_slice().to_vec();
+            let mut data: Vec<u8> = self.program_id.as_ref().to_vec();
             data.push(self.nonce as u8);
             data.remove(0);
 
             self.nonce += 1;
 
-            MessageId::from_slice(&data)
+            data[..].into()
         }
 
         fn current(&self) -> u64 {

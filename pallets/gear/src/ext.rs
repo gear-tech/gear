@@ -25,9 +25,9 @@ use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
     gas::{GasCounter, ValueCounter},
+    identifiers::{CodeId, MessageId, ProgramId},
     memory::{MemoryContext, PageBuf, PageNumber},
-    message::{MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
-    program::{CodeHash, ProgramId},
+    message::{MessageContext, MessageState, OutgoingPacket, ReplyPacket},
 };
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
 
@@ -97,7 +97,7 @@ impl ProcessorExt for LazyPagesExt {
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
-        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+        program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             inner: Ext {

@@ -30,9 +30,10 @@ use frame_support::{
     traits::{BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency},
 };
 use gear_core::{
+    identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, ExitCode, MessageId},
-    program::{CodeHash, Program as NativeProgram, ProgramId},
+    message::{Dispatch, ExitCode},
+    program::Program as NativeProgram,
 };
 use primitive_types::H256;
 use sp_runtime::{
@@ -144,7 +145,7 @@ where
             "Must has empty persistent pages, has {:?}",
             program.get_pages()
         );
-        let code_hash = CodeHash::generate(program.code()).into_origin();
+        let code_hash = CodeId::generate(program.code()).into_origin();
         assert!(
             common::code_exists(code_hash),
             "Program set must be called only when code exists",
@@ -549,8 +550,9 @@ where
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
-        let code_hash = code_hash.inner().into();
+    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+        let code_hash: [u8; 32] = code_hash.into();
+        let code_hash = code_hash.into();
 
         if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {

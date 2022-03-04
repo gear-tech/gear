@@ -30,8 +30,8 @@ use gear_backend_common::Environment;
 use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
+    identifiers::ProgramId,
     message::{Dispatch, DispatchKind, ExitCode, Message},
-    program::ProgramId,
 };
 
 /// Process program & dispatch for it and return journal for updates.

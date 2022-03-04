@@ -22,8 +22,8 @@ use super::*;
 use crate::mock::*;
 use common::{self, Origin as _, QueuedDispatch, QueuedMessage};
 use gear_core::{
+    identifiers::{CodeId, ProgramId},
     message::DispatchKind,
-    program::{CodeHash, ProgramId},
 };
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
@@ -46,11 +46,11 @@ fn parse_wat(source: &str) -> Vec<u8> {
 }
 
 fn generate_program_id(code: &[u8]) -> H256 {
-    ProgramId::generate(CodeHash::generate(code), b"salt").into_origin()
+    ProgramId::generate(CodeId::generate(code), b"salt").into_origin()
 }
 
 fn generate_code_hash(code: &[u8]) -> H256 {
-    CodeHash::generate(code).into_origin()
+    CodeId::generate(code).into_origin()
 }
 
 #[test]

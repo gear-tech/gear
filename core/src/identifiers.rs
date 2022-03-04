@@ -52,6 +52,12 @@ macro_rules! declare_id {
         )]
         pub struct $name([u8; 32]);
 
+        impl From<$name> for [u8; 32] {
+            fn from(val: $name) -> [u8; 32] {
+                val.0
+            }
+        }
+
         impl From<u64> for $name {
             fn from(v: u64) -> Self {
                 let mut id = Self([0u8; 32]);

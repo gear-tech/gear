@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::program::ProgramId;
+use gear_core::identifiers::ProgramId;
 use serde::{Deserialize, Deserializer, Serialize};
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public, H256};
 use sp_keyring::sr25519::Keyring;
@@ -44,14 +44,14 @@ impl Default for Address {
 impl Address {
     pub fn to_program_id(&self) -> ProgramId {
         match self {
-            Self::Account(s) => ProgramId::from_slice(
+            Self::Account(s) => ProgramId::from(
                 Keyring::from_str(s)
                     .expect("No account in Keyring")
                     .to_h256_public()
                     .as_bytes(),
             ),
             Self::ProgramId(id) => ProgramId::from(*id),
-            Self::SS58(s) => ProgramId::from_slice(
+            Self::SS58(s) => ProgramId::from(
                 Public::from_ss58check(s)
                     .expect("Failed to decode ss58")
                     .as_bytes_ref(),

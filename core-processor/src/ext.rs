@@ -25,12 +25,11 @@ use gear_backend_common::ExtInfo;
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasCounter, ValueCounter},
+    identifiers::{CodeId, MessageId, ProgramId},
     memory::{MemoryContext, PageBuf, PageNumber},
     message::{
-        ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ProgramInitPacket,
-        ReplyPacket,
+        ExitCode, MessageContext, MessageState, OutgoingPacket, ProgramInitPacket, ReplyPacket,
     },
-    program::{CodeHash, ProgramId},
 };
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -49,7 +48,7 @@ pub trait ProcessorExt {
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
-        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+        program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     ) -> Self;
 
     /// Try to enable and initialize lazy pages env
@@ -106,7 +105,7 @@ pub struct Ext {
     pub origin: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
-    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -122,7 +121,7 @@ impl ProcessorExt for Ext {
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
-        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+        program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             gas_counter,
