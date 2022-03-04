@@ -29,6 +29,7 @@ extern crate alloc;
 
 pub mod env;
 pub mod gas;
+pub mod identifiers;
 pub mod memory;
 pub mod message;
 pub mod program;
