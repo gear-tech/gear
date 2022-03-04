@@ -40,15 +40,15 @@ macro_rules! declare_id {
             Clone,
             Copy,
             Default,
-            codec::Encode,
-            codec::Decode,
-            scale_info::TypeInfo,
-            PartialEq,
+            Eq,
             Hash,
             Ord,
+            PartialEq,
             PartialOrd,
-            Eq,
+            codec::Decode,
+            codec::Encode,
             derive_more::From,
+            scale_info::TypeInfo,
         )]
         pub struct $name([u8; 32]);
 
@@ -131,8 +131,9 @@ impl MessageId {
         let user_id = user_id.as_ref();
         let local_nonce = local_nonce.to_le_bytes();
 
-        let mut argument =
-            Vec::with_capacity(block_number.len() + user_id.len() + local_nonce.len());
+        let len = block_number.len() + user_id.len() + local_nonce.len();
+
+        let mut argument = Vec::with_capacity(len);
         argument.extend(block_number);
         argument.extend_from_slice(user_id);
         argument.extend(local_nonce);
@@ -149,7 +150,9 @@ impl MessageId {
         let origin_msg_id = origin_msg_id.as_ref();
         let program_id = program_id.as_ref();
 
-        let mut argument = Vec::with_capacity(origin_msg_id.len() + program_id.len() + 1);
+        let len = origin_msg_id.len() + program_id.len() + 1;
+
+        let mut argument = Vec::with_capacity(len);
         argument.extend(origin_msg_id);
         argument.extend(program_id);
         argument.push(local_nonce);
@@ -161,7 +164,9 @@ impl MessageId {
     pub fn generate_reply(origin_msg_id: MessageId, exit_code: u8) -> MessageId {
         let origin_msg_id = origin_msg_id.as_ref();
 
-        let mut argument = Vec::with_capacity(origin_msg_id.len() + 1);
+        let len = origin_msg_id.len() + 1;
+
+        let mut argument = Vec::with_capacity(len);
         argument.extend(origin_msg_id);
         argument.push(exit_code);
 
@@ -176,7 +181,9 @@ impl ProgramId {
     pub fn generate(code_id: CodeId, salt: &[u8]) -> Self {
         let code_id = code_id.as_ref();
 
-        let mut argument = Vec::with_capacity(code_id.len() + salt.len());
+        let len = code_id.len() + salt.len();
+
+        let mut argument = Vec::with_capacity(len);
         argument.extend_from_slice(code_id);
         argument.extend_from_slice(salt);
 
@@ -187,7 +194,9 @@ impl ProgramId {
     pub fn generate_from_program(code_id: CodeId, salt: &[u8], local_nonce: u8) -> Self {
         let code_id = code_id.as_ref();
 
-        let mut argument = Vec::with_capacity(code_id.len() + salt.len() + 1);
+        let len = code_id.len() + salt.len() + 1;
+
+        let mut argument = Vec::with_capacity(len);
         argument.extend_from_slice(code_id);
         argument.extend_from_slice(salt);
         argument.push(local_nonce);
