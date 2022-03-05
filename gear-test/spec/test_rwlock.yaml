@@ -2,13 +2,13 @@ title: Async RwLock
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_rwlock.wasm
+    path: target/wasm32-unknown-unknown/release/demo_rwlock.opt.wasm
     init_message:
       kind: utf-8
       value: "{2}"
 
   - id: 2
-    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
 
 fixtures:
   - title: rwlock wide

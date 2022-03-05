@@ -18,7 +18,7 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use frame_support::traits::{FindAuthor, OffchainWorker, OnInitialize};
+use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use parking_lot::RwLock;
@@ -73,7 +73,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: u64 = 100;
 }
 
 impl system::Config for Test {
@@ -129,7 +129,6 @@ parameter_types! {
     pub const WaitListTraversalInterval: u32 = 5;
     pub const MaxBatchSize: u32 = 10;
     pub const ExpirationDuration: u64 = 3000;
-    pub const TrapReplyExistentialGasLimit: u64 = 1000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
 }
 
@@ -140,7 +139,7 @@ impl pallet_usage::Config for Test {
     type WaitListTraversalInterval = WaitListTraversalInterval;
     type ExpirationDuration = ExpirationDuration;
     type MaxBatchSize = MaxBatchSize;
-    type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
+    type TrapReplyExistentialGasLimit = ConstU64<1000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
 }
 
@@ -197,7 +196,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (8, 1_000_000_u128),
             (9, 1_000_000_u128),
             (10, 1_000_000_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (BLOCK_AUTHOR, 101_u128),
         ],
     }
     .assimilate_storage(&mut t)

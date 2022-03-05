@@ -236,7 +236,8 @@ pub fn check_messages(
                                     (false, false) => MetaType::HandleInput,
                                 };
 
-                                let path: String = path.replace(".wasm", ".meta.wasm");
+                                let path: String =
+                                    crate::sample::get_meta_wasm_path(String::from(path));
 
                                 let json = MetaData::Json(proc::parse_payload(
                                     serde_json::to_string(&v).expect("Cannot convert to string"),

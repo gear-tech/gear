@@ -2,7 +2,7 @@ title: Meta ping (simple check)
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_meta.wasm
+    path: target/wasm32-unknown-unknown/release/demo_meta.opt.wasm
     init_message:
       kind: custom
       value:
