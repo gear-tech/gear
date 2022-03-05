@@ -1,5 +1,7 @@
 title: Test create_program sys-call
 
+must_skip: true
+
 codes:
   # Save child's code
   - path: examples/create-program/child_contract.wasm
