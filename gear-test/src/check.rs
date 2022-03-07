@@ -671,7 +671,7 @@ where
                         skip_memory,
                     )
                 };
-                if !(output.starts_with("Ok") | output.starts_with("Skipped")) {
+                if !(output.starts_with("Ok") || output.starts_with("Skipped")) {
                     map.read()
                         .unwrap()
                         .get(&thread::current().id())
