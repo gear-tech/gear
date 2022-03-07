@@ -75,6 +75,7 @@ pub struct BackendReport<'a> {
     pub info: ExtInfo,
 }
 
+#[derive(Debug)]
 pub struct BackendError<'a> {
     pub gas_amount: GasAmount,
     pub reason: &'static str,

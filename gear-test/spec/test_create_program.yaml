@@ -11,7 +11,7 @@ programs:
     source:
       kind: id
       value: 101
-    path: target/wasm32-unknown-unknown/release/demo_create_program.wasm
+    path: target/wasm32-unknown-unknown/release/demo_create_program.opt.wasm
 
 fixtures:
   - title: Simple creation of program from program

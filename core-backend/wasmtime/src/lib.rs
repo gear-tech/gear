@@ -24,5 +24,7 @@ extern crate alloc;
 
 pub mod env;
 pub mod memory;
+mod funcs;
 
 pub use env::WasmtimeEnvironment;
+

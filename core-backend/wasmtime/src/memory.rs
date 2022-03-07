@@ -18,57 +18,73 @@
 
 //! Wasmtime extensions for memory and memory context.
 
+use crate::env::LaterStore;
 use alloc::boxed::Box;
 use core::any::Any;
 use gear_core::memory::{Error, Memory, PageNumber};
+use wasmtime::Store;
 
 /// Wrapper for wasmtime memory.
-pub struct MemoryWrap(wasmtime::Memory);
+pub struct MemoryWrap {
+    pub mem: wasmtime::Memory,
+    pub store: LaterStore<()>,
+}
 
 impl MemoryWrap {
     /// Wrap wasmtime memory for Memory trait.
-    pub fn new(mem: wasmtime::Memory) -> Self {
-        MemoryWrap(mem)
+    pub fn new(mem: wasmtime::Memory, store: &LaterStore<()>) -> Self {
+        Self {
+            mem,
+            store: store.clone(),
+        }
     }
 }
 
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
-        self.0
-            .grow(pages.raw())
-            .map(|offset| offset.into())
+        let mut store = self.store.clone();
+        self.mem
+            .grow(store.get_mut_ref(), pages.raw() as u64)
+            .map(|offset| (offset as u32).into())
             .map_err(|_| Error::OutOfMemory)
     }
 
     fn size(&self) -> PageNumber {
-        self.0.size().into()
+        let mut store = self.store.clone();
+        (self.mem.size(store.get_mut_ref()) as u32).into()
     }
 
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
-        self.0
-            .write(offset, buffer)
+        let mut store = self.store.clone();
+        self.mem
+            .write(store.get_mut_ref(), offset, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
     fn read(&self, offset: usize, buffer: &mut [u8]) {
-        self.0.read(offset, buffer).expect("Memory out of bounds.");
-    }
-
-    fn data_size(&self) -> usize {
-        self.0.data_size()
-    }
-
-    fn data_ptr(&self) -> *mut u8 {
-        self.0.data_ptr()
+        let mut store = self.store.clone();
+        self.mem
+            .read(store.get_mut_ref(), offset, buffer)
+            .expect("Memory out of bounds.")
     }
 
     fn clone(&self) -> Box<dyn Memory> {
         Box::new(Clone::clone(self))
     }
 
+    fn data_size(&self) -> usize {
+        let mut store = self.store.clone();
+        self.mem.data_size(store.get_mut_ref())
+    }
+
+    fn data_ptr(&self) -> *mut u8 {
+        let mut store = self.store.clone();
+        self.mem.data_ptr(store.get_mut_ref())
+    }
+
     fn as_any(&self) -> &dyn Any {
-        &self.0
+        &self.mem
     }
 
     fn get_wasm_memory_begin_addr(&self) -> usize {
@@ -78,7 +94,10 @@ impl Memory for MemoryWrap {
 
 impl Clone for MemoryWrap {
     fn clone(self: &MemoryWrap) -> Self {
-        MemoryWrap(self.0.clone())
+        Self {
+            mem: self.mem.clone(),
+            store: self.store.clone(),
+        }
     }
 }
 
@@ -88,14 +107,14 @@ mod tests {
     use gear_core::memory::MemoryContext;
 
     fn new_test_memory(static_pages: u32, max_pages: u32) -> MemoryContext {
-        use wasmtime::{Engine, Limits, Memory as WasmMemory, MemoryType, Store};
+        use wasmtime::{Engine, Memory as WasmMemory, MemoryType};
 
         let engine = Engine::default();
-        let store = Store::new(&engine);
+        let mut store = LaterStore::<()>::new(&engine);
 
-        let memory_ty = MemoryType::new(Limits::new(static_pages, Some(max_pages)));
-        let memory =
-            MemoryWrap::new(WasmMemory::new(&store, memory_ty).expect("Memory creation failed"));
+        let memory_ty = MemoryType::new(static_pages, Some(max_pages));
+        let mem = WasmMemory::new(store.get_mut_ref(), memory_ty).expect("Memory creation failed");
+        let memory = MemoryWrap::new(mem, &store);
 
         MemoryContext::new(
             0.into(),

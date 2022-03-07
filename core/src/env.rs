@@ -157,6 +157,9 @@ pub struct LaterExt<E: Ext> {
     inner: Rc<RefCell<Option<E>>>,
 }
 
+unsafe impl<E: Ext> Sync for LaterExt<E> {}
+unsafe impl<E: Ext> Send for LaterExt<E> {}
+
 impl<E: Ext> Default for LaterExt<E> {
     fn default() -> Self {
         Self {
