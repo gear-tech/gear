@@ -37,7 +37,7 @@ pub struct LaterStore<T>(Rc<Store<T>>);
 
 impl<T> Clone for LaterStore<T> {
     fn clone(&self) -> Self {
-        LaterStore(self.0.clone())
+        LaterStore(Rc::clone(&self.0))
     }
 }
 
