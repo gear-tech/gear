@@ -182,7 +182,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
 
     if let Err(err) = env.setup(ext, &instrumented_code, initial_pages, &*memory) {
-        log::debug!("Setup err = {:?}", err);
+        log::error!("Setup instance err = {:?}", err);
         return Err(ExecutionError {
             program_id,
             gas_amount: err.gas_amount,
