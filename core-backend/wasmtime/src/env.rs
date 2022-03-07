@@ -45,6 +45,12 @@ impl<T: Default> LaterStore<T> {
     pub fn new(eng: &Engine) -> Self {
         LaterStore(Rc::from(Store::new(eng, T::default())))
     }
+    /// In order to be able borrow mutable reference many times we need
+    /// to make it in unsafe manner.
+    /// Wasmtime store object must be mut borrowed to execute instance,
+    /// but also we must mut borrow it in memory sys-calls: alloc/free/...
+    /// But memory syscalls called in the same time with instance execution,
+    /// so there is no ways to avoid twice mut borrowing.
     pub fn get_mut_ref(&mut self) -> &mut Store<T> {
         unsafe {
             let r = self.0.as_ref();
