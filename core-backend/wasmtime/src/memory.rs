@@ -22,7 +22,6 @@ use crate::env::LaterStore;
 use alloc::boxed::Box;
 use core::any::Any;
 use gear_core::memory::{Error, Memory, PageNumber};
-use wasmtime::Store;
 
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap {
@@ -43,29 +42,25 @@ impl MemoryWrap {
 /// Memory interface for the allocator.
 impl Memory for MemoryWrap {
     fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error> {
-        let mut store = self.store.clone();
         self.mem
-            .grow(store.get_mut_ref(), pages.raw() as u64)
+            .grow(self.store.clone().get_mut_ref(), pages.raw() as u64)
             .map(|offset| (offset as u32).into())
             .map_err(|_| Error::OutOfMemory)
     }
 
     fn size(&self) -> PageNumber {
-        let mut store = self.store.clone();
-        (self.mem.size(store.get_mut_ref()) as u32).into()
+        (self.mem.size(self.store.clone().get_mut_ref()) as u32).into()
     }
 
     fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error> {
-        let mut store = self.store.clone();
         self.mem
-            .write(store.get_mut_ref(), offset, buffer)
+            .write(self.store.clone().get_mut_ref(), offset, buffer)
             .map_err(|_| Error::MemoryAccessError)
     }
 
     fn read(&self, offset: usize, buffer: &mut [u8]) {
-        let mut store = self.store.clone();
         self.mem
-            .read(store.get_mut_ref(), offset, buffer)
+            .read(self.store.clone().get_mut_ref(), offset, buffer)
             .expect("Memory out of bounds.")
     }
 
@@ -74,13 +69,11 @@ impl Memory for MemoryWrap {
     }
 
     fn data_size(&self) -> usize {
-        let mut store = self.store.clone();
-        self.mem.data_size(store.get_mut_ref())
+        self.mem.data_size(self.store.clone().get_mut_ref())
     }
 
     fn data_ptr(&self) -> *mut u8 {
-        let mut store = self.store.clone();
-        self.mem.data_ptr(store.get_mut_ref())
+        self.mem.data_ptr(self.store.clone().get_mut_ref())
     }
 
     fn as_any(&self) -> &dyn Any {

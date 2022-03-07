@@ -21,13 +21,10 @@ use gear_backend_common::funcs::*;
 use gear_backend_common::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::{Ext, LaterExt},
-    memory::PageNumber,
     message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
-use wasmtime::{Func, IntoFunc, Store, Trap};
-
-use crate::env::LaterStore;
+use wasmtime::{Func, Store, Trap};
 
 pub struct FuncsHandler<E: Ext + 'static, T> {
     _unneed1: E,

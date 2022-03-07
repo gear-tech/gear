@@ -19,7 +19,6 @@
 //! Wasmtime environment for running a module.
 
 use alloc::rc::Rc;
-use core::{cell::RefCell, iter::Inspect};
 
 use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
@@ -31,7 +30,7 @@ use gear_core::{
     memory::{Memory, PageBuf, PageNumber},
 };
 use wasmtime::{
-    AsContext, Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store,
+    Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store,
     Trap,
 };
 
@@ -44,27 +43,13 @@ impl<T: Default> LaterStore<T> {
     pub fn get_mut_ref(&mut self) -> &mut Store<T> {
         unsafe {
             let r = self.0.as_ref();
-            let ptr = r as *const Store<T> as *mut Store<T> as *mut u8;
-            (ptr as *mut Store<T>).as_mut().expect("ptr must be here")
+            let ptr = r as *const Store<T> as *mut Store<T>;
+            ptr.as_mut().expect("ptr must be here")
         }
     }
     pub fn clone(&self) -> Self {
         LaterStore(self.0.clone())
     }
-    // Call fn with inner ext
-    // pub fn with<R>(&self, f: impl FnOnce(&mut Store<T>) -> R) -> R {
-    //     let mut brw = self.0.borrow_mut();
-    //     let mut s = brw.take().expect("Must have store");
-    //     let res = f(&mut s);
-    //     brw.replace(s);
-    //     res
-    // }
-    // pub fn with_const<R>(&self, f: impl FnOnce(&Store<T>) -> R) -> R {
-    //     let brw = self.0.try_borrow_unguarded();
-    //     let s = brw.as_ref().expect("Must have store");
-    //     let res = f(s);
-    //     res
-    // }
 }
 
 /// Environment to run one module at a time providing Ext.
@@ -482,12 +467,11 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             })
             .collect::<Result<Vec<_>, BackendError>>()?;
 
-        let instance = Instance::new(store, &module, &externs)
-            .map_err(|e| BackendError {
-                reason: "Unable to create instance",
-                description: Some(e.to_string().into()),
-                gas_amount: self.ext.unset().into().gas_amount,
-            })?;
+        let instance = Instance::new(store, &module, &externs).map_err(|e| BackendError {
+            reason: "Unable to create instance",
+            description: Some(e.to_string().into()),
+            gas_amount: self.ext.unset().into().gas_amount,
+        })?;
 
         // Set module memory data
         memory.set_pages(memory_pages).map_err(|e| BackendError {
@@ -504,21 +488,15 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
     }
 
     fn get_stack_mem_end(&self) -> Option<i32> {
-        let mut tmp_store = self.store.clone();
-        let store = tmp_store.get_mut_ref();
-        let instance = self.instance.as_ref().expect("Must have instance");
         // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
-        let global = instance.get_global(store, "__gear_stack_end")?;
-        let mut tmp_store = self.store.clone();
-        let store = tmp_store.get_mut_ref();
-        global.get(store).i32()
+        let instance = self.instance.as_ref().expect("Must have instance");
+        let global = instance.get_global(self.store.clone().get_mut_ref(), "__gear_stack_end")?;
+        global.get(self.store.clone().get_mut_ref()).i32()
     }
 
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
-        let mut tmp_store = self.store.clone();
-        let store = tmp_store.get_mut_ref();
         let instance = self.instance.as_mut().expect("Must have instance");
-        let func = instance.get_func(store, entry_point);
+        let func = instance.get_func(self.store.clone().get_mut_ref(), entry_point);
         let entry_func = if let Some(f) = func {
             // Entry function found
             f
@@ -530,9 +508,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             });
         };
 
-        let mut tmp_store = self.store.clone();
-        let store = tmp_store.get_mut_ref();
-        let res = entry_func.call(store, &[], &mut []);
+        let res = entry_func.call(self.store.clone().get_mut_ref(), &[], &mut []);
         log::debug!("Execution res = {:?}", res);
 
         let info: ExtInfo = self.ext.unset().into();
@@ -566,10 +542,11 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
     }
 
     fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str> {
-        let mut tmp_store = self.store.clone();
-        let store = tmp_store.get_mut_ref();
-        let memory = WasmtimeMemory::new(store, MemoryType::new(total_pages, None))
-            .map_err(|_| "Create env memory fail")?;
+        let memory = WasmtimeMemory::new(
+            self.store.clone().get_mut_ref(),
+            MemoryType::new(total_pages, None),
+        )
+        .map_err(|_| "Create env memory fail")?;
         Ok(Box::new(MemoryWrap::new(memory, &self.store)))
     }
 }
