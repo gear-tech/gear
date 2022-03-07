@@ -476,6 +476,9 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
     E: Environment<Ext>,
 {
+    if let Some(true) = test.skip {
+        return "Skipped".bright_yellow();
+    }
     match proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
         Ok(()) => {
             let last_exp_steps = test.fixtures[fixture_no].expected.last().unwrap().step;
@@ -668,7 +671,7 @@ where
                         skip_memory,
                     )
                 };
-                if output != "Ok".bright_green() {
+                if !(output.starts_with("Ok") || output.starts_with("Skipped")) {
                     map.read()
                         .unwrap()
                         .get(&thread::current().id())

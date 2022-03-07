@@ -219,6 +219,9 @@ pub struct Message {
 /// Main model describing test structure
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
+    /// Flag which defines whether test should be skipped.
+    /// TODO: remove after resolving https://github.com/gear-tech/gear/pull/739
+    pub skip: Option<bool>,
     /// Code that are needed to be submitted for tests
     pub codes: Option<Vec<Code>>,
     /// Programs and related data used for tests
