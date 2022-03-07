@@ -30,17 +30,59 @@ use gear_core::{
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug)]
-pub(crate) enum ProgramState {
-    Initialized,
-    Uninitialized(Option<MessageId>),
-    FailedInitialization,
+// todo,1. Сделать мок программу - Clone и мутировать и сэтить ее иным образом. 
+// 2. Если применишь первое, то вторым можно будет сделать вспомогательные функции и переструктурировать управляющую конструкцию внутри run_message
+#[derive(Debug)]
+pub(crate) enum Actor {
+    Active(ActiveProgram, ProgramState, u128),
+    Dormant,
+}
+
+impl Actor {
+    fn try_into_mock_mut(&mut self) -> Result<&mut Box<dyn WasmProgram>, ()> {
+        match self {
+            Actor::Active(ActiveProgram::Mock(mock), _, _) => Ok(mock),
+            _ => Err(()),
+        }
+    }
+
+    fn get_state_mut(&mut self) -> Option<&mut ProgramState> {
+        match self {
+            Actor::Active(_, state, _) => Some(state),
+            _ => None,
+        }
+    }
+
+    fn try_into_executable_actor(&self) -> Result<ExecutableActor, ()> {
+        match self {
+            Actor::Active(ActiveProgram::Genuine(program), _, balance) => {
+                Ok(ExecutableActor {
+                    program: program.clone(),
+                    balance: *balance,
+                })
+            },
+            _ => Err(()),
+        }
+    }
+
+    fn get_state(&self) -> Option<ProgramState> {
+        match self {
+            Actor::Active(_, state, _) => Some(*state),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
-pub(crate) enum Program {
-    Core(CoreProgram),
+pub(crate) enum ActiveProgram {
+    Genuine(CoreProgram),
     Mock(Box<dyn WasmProgram>),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ProgramState {
+    Initialized,
+    Uninitialized(Option<MessageId>),
 }
 
 #[derive(Default, Debug)]
@@ -53,10 +95,10 @@ pub(crate) struct ExtManager {
     pub(crate) id_nonce: u64,
 
     // State
-    pub(crate) actors: BTreeMap<ProgramId, (Program, ProgramState, u128)>,
-    pub(crate) message_queue: VecDeque<Message>,
+    pub(crate) actors: BTreeMap<ProgramId, Actor>,
+    pub(crate) dispatch_queue: VecDeque<Dispatch>,
     pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
-    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Message>,
+    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
     // Last run info
@@ -96,25 +138,19 @@ impl ExtManager {
         self.id_nonce
     }
 
-    fn entry_point(message: &Message, state: &mut ProgramState) -> Option<DispatchKind> {
+    fn get_entry_point(message: &Message, state: ProgramState) -> DispatchKind {
         message
             .reply()
             .map(|_| DispatchKind::HandleReply)
-            .or_else(|| {
+            .unwrap_or_else(|| {
                 if let ProgramState::Uninitialized(message_id) = state {
-                    if let Some(id) = message_id {
-                        if *id == message.id() {
-                            Some(DispatchKind::Init)
-                        } else {
-                            None
-                        }
+                    if matches!(message_id, Some(id) if id != message.id()) {
+                        DispatchKind::Handle
                     } else {
-                        *message_id = Some(message.id());
-
-                        Some(DispatchKind::Init)
+                        DispatchKind::Init
                     }
                 } else {
-                    Some(DispatchKind::Handle)
+                    DispatchKind::Handle
                 }
             })
     }
@@ -122,129 +158,131 @@ impl ExtManager {
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
         self.prepare_for(message.id(), message.source());
 
-        if self.actors.contains_key(&message.dest()) {
-            self.message_queue.push_back(message);
-        } else {
-            self.mailbox
-                .entry(message.dest())
-                .or_default()
-                .push(message);
-        }
-
-        while let Some(message) = self.message_queue.pop_front() {
-            let (prog, state, balance) = self
+        {
+            let maybe_actor_state = self
                 .actors
                 .get_mut(&message.dest())
-                .expect("Somehow message queue contains message for user");
-
-            let kind = if let Some(kind) = Self::entry_point(&message, state) {
-                kind
-            } else {
-                self.wait_init_list
-                    .entry(message.dest())
-                    .or_default()
-                    .push(message.id());
-
-                self.wait_dispatch(Dispatch {
-                    kind: DispatchKind::Handle,
+                .and_then(|a| a.get_state_mut());
+            if let Some(state) = maybe_actor_state {
+                let kind = Self::get_entry_point(&message, *state);
+                let dispatch = Dispatch {
+                    kind,
                     message,
                     payload_store: None,
-                });
+                };
 
-                continue;
-            };
-
-            match prog {
-                Program::Core(program) => {
-                    let actor = if let ProgramState::FailedInitialization = state {
-                        None
-                    } else {
-                        Some(ExecutableActor {
-                            program: program.clone(),
-                            balance: *balance,
-                        })
-                    };
-
-                    let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
-                        actor,
-                        Dispatch {
-                            kind,
-                            message,
-                            payload_store: None,
-                        },
-                        self.block_info,
-                        crate::EXISTENTIAL_DEPOSIT,
-                        self.origin,
-                    );
-
-                    core_processor::handle_journal(journal, self);
+                if let ProgramState::Uninitialized(None) = state {
+                    *state = ProgramState::Uninitialized(Some(dispatch.message.id()));
                 }
-                Program::Mock(mock) => {
-                    let payload = message.payload().to_vec();
+                self.dispatch_queue.push_back(dispatch);
+            } else {
+                self.mailbox
+                    .entry(message.dest())
+                    .or_default()
+                    .push(message);
+            }
+        }
 
-                    let response = match kind {
-                        DispatchKind::Init => mock.init(payload),
-                        DispatchKind::Handle => mock.handle(payload),
-                        DispatchKind::HandleReply => mock.handle_reply(payload),
-                    };
+        while let Some(dispatch) = self.dispatch_queue.pop_front() {
+            let message_id = dispatch.message.id();
+            let dest = dispatch.message.dest();
+            let reply = dispatch.message.reply();
 
-                    let message_id = message.id();
-                    let program_id = message.dest();
+            let actor = self
+                .actors
+                .get_mut(&dispatch.message.dest())
+                .expect("Somehow message queue contains message for user");
 
-                    match response {
-                        Ok(reply) => {
-                            if let DispatchKind::Init = kind {
-                                self.init_success(message_id, program_id)
-                            }
+            if let Some(state) = actor.get_state() {
+                let is_for_wait_list = reply.is_none()
+                    && matches!(state, ProgramState::Uninitialized(Some(id)) if id != message_id);
+                if is_for_wait_list {
+                    self.wait_init_list
+                        .entry(dest)
+                        .or_default()
+                        .push(message_id);
+                    self.wait_dispatch(dispatch);
 
-                            if let Some(payload) = reply {
-                                let nonce = self.fetch_inc_message_nonce();
+                    continue;
+                }
+            }
 
-                                let reply_message = Message::new_reply(
-                                    nonce.into(),
-                                    program_id,
-                                    message.source(),
-                                    payload.into(),
-                                    0,
-                                    message.id(),
-                                    0,
-                                );
-                                self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
-                            }
+            if let Ok(executable_actor) = actor.try_into_executable_actor() {
+                self.process_dispatch_inner(Some(executable_actor), dispatch)
+            } else if let Ok(mock) = actor.try_into_mock_mut() {
+                let Dispatch {
+                    message, kind, ..
+                } = dispatch;
+                let payload = message.payload().to_vec();
+
+                let response = match kind {
+                    DispatchKind::Init => mock.init(payload),
+                    DispatchKind::Handle => mock.handle(payload),
+                    DispatchKind::HandleReply => mock.handle_reply(payload),
+                };
+
+                let message_id = message.id();
+                let program_id = message.dest();
+
+                match response {
+                    Ok(reply) => {
+                        if let DispatchKind::Init = kind {
+                            self.init_success(message_id, program_id)
                         }
-                        Err(expl) => {
-                            mock.debug(expl);
 
-                            if let DispatchKind::Init = kind {
-                                self.message_dispatched(DispatchOutcome::InitFailure {
-                                    message_id,
-                                    program_id,
-                                    origin: message.source(),
-                                    reason: expl,
-                                });
-                            } else {
-                                self.message_dispatched(DispatchOutcome::MessageTrap {
-                                    message_id,
-                                    program_id,
-                                    trap: Some(expl),
-                                })
-                            }
-
+                        if let Some(payload) = reply {
                             let nonce = self.fetch_inc_message_nonce();
 
                             let reply_message = Message::new_reply(
                                 nonce.into(),
                                 program_id,
                                 message.source(),
-                                Default::default(),
+                                payload.into(),
                                 0,
                                 message.id(),
-                                1,
+                                0,
                             );
-                            self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
+                            self.send_dispatch(
+                                message_id,
+                                Dispatch::new_reply(reply_message),
+                            );
                         }
                     }
+                    Err(expl) => {
+                        mock.debug(expl);
+
+                        if let DispatchKind::Init = kind {
+                            self.message_dispatched(DispatchOutcome::InitFailure {
+                                message_id,
+                                program_id,
+                                origin: message.source(),
+                                reason: expl,
+                            });
+                        } else {
+                            self.message_dispatched(DispatchOutcome::MessageTrap {
+                                message_id,
+                                program_id,
+                                trap: Some(expl),
+                            })
+                        }
+
+                        let nonce = self.fetch_inc_message_nonce();
+
+                        let reply_message = Message::new_reply(
+                            nonce.into(),
+                            program_id,
+                            message.source(),
+                            Default::default(),
+                            0,
+                            message.id(),
+                            1,
+                        );
+                        self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
+                    }
                 }
+            } else {
+                // Process dormant destination
+                self.process_dispatch_inner(None, dispatch)
             }
         }
 
@@ -264,7 +302,7 @@ impl ExtManager {
         self.main_failed = false;
         self.others_failed = false;
 
-        if !self.message_queue.is_empty() {
+        if !self.dispatch_queue.is_empty() {
             panic!("Message queue isn't empty");
         }
     }
@@ -278,23 +316,26 @@ impl ExtManager {
     }
 
     fn init_success(&mut self, message_id: MessageId, program_id: ProgramId) {
-        let (_, state, _) = self
+        let actor = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        *state = ProgramState::Initialized;
+        if let Actor::Active(ActiveProgram::Genuine(p), state, _) = actor {
+            p.set_initialized();
+            *state = ProgramState::Initialized;
+        }
 
         self.move_waiting_msgs_to_queue(message_id, program_id);
     }
 
     fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
-        let (_, state, _) = self
+        let actor = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        *state = ProgramState::FailedInitialization;
+        *actor = Actor::Dormant;
 
         self.move_waiting_msgs_to_queue(message_id, program_id);
         self.mark_failed(message_id);
@@ -306,6 +347,18 @@ impl ExtManager {
                 self.wake_message(message_id, program_id, id);
             }
         }
+    }
+
+    fn process_dispatch_inner(&mut self, executable_actor: Option<ExecutableActor>, dispatch: Dispatch) {
+        let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
+            executable_actor,
+            dispatch,
+            self.block_info,
+            crate::EXISTENTIAL_DEPOSIT,
+            self.origin,
+        );
+
+        core_processor::handle_journal(journal, self);
     }
 }
 
@@ -334,35 +387,35 @@ impl JournalHandler for ExtManager {
 
     fn message_consumed(&mut self, message_id: MessageId) {
         if let Some(index) = self
-            .message_queue
+            .dispatch_queue
             .iter()
-            .position(|msg| msg.id() == message_id)
+            .position(|d| d.message.id() == message_id)
         {
-            self.message_queue.remove(index);
+            self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
-        let Dispatch { mut message, .. } = dispatch;
+    fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
+        let Dispatch {
+            ref mut message, ..
+        } = dispatch;
         if self.actors.contains_key(&message.dest()) {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
                 message.gas_limit = Some(u64::max_value());
             }
-            self.message_queue.push_back(message);
+            self.dispatch_queue.push_back(dispatch);
         } else {
             self.mailbox
                 .entry(message.dest())
                 .or_default()
                 .push(message.clone());
-            self.log.push(message);
+            self.log.push(dispatch.message);
         }
     }
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.message_consumed(dispatch.message.id());
-        self.wait_list.insert(
-            (dispatch.message.dest(), dispatch.message.id()),
-            dispatch.message,
-        );
+        self.wait_list
+            .insert((dispatch.message.dest(), dispatch.message.id()), dispatch);
     }
     fn wake_message(
         &mut self,
@@ -370,15 +423,17 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
-            self.message_queue.push_back(msg);
+        if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
+            self.dispatch_queue.push_back(dispatch);
         }
     }
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        if let Some((Program::Core(prog), ..)) = self.actors.get_mut(&program_id) {
+        let actor = self
+            .actors
+            .get_mut(&program_id)
+            .expect("Can't find existing program");
+        if let Actor::Active(ActiveProgram::Genuine(prog), _, _) = actor {
             prog.set_message_nonce(nonce);
-        } else {
-            panic!("Program not found in storage");
         }
     }
     fn update_page(
@@ -387,19 +442,21 @@ impl JournalHandler for ExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        if let Some((Program::Core(prog), ..)) = self.actors.get_mut(&program_id) {
+        let actor = self
+            .actors
+            .get_mut(&program_id)
+            .expect("Can't find existing program");
+        if let Actor::Active(ActiveProgram::Genuine(prog), _, _) = actor {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {
                 prog.remove_page(page_number);
             }
-        } else {
-            panic!("Program not found in storage");
         }
     }
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
-            if let Some((.., balance)) = self.actors.get_mut(&from) {
+            if let Some(Actor::Active(.., balance)) = self.actors.get_mut(&from) {
                 if *balance < value {
                     panic!("Actor {:?} balance is less then sent value", from);
                 }
@@ -407,7 +464,7 @@ impl JournalHandler for ExtManager {
                 *balance -= value;
             };
 
-            if let Some((.., balance)) = self.actors.get_mut(&to) {
+            if let Some(Actor::Active(.., balance)) = self.actors.get_mut(&to) {
                 *balance += value;
             };
         }

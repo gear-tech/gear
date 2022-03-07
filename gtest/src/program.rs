@@ -1,12 +1,12 @@
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Program as InnerProgram, ProgramState},
+    manager::{ActiveProgram, Actor, ExtManager, ProgramState},
     system::System,
 };
 use codec::Codec;
 use gear_core::{
     message::{Message, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    program::{Program as NativeProgram, ProgramId},
 };
 use path_clean::PathClean;
 use std::{
@@ -82,7 +82,7 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: InnerProgram,
+        program: ActiveProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -90,7 +90,10 @@ impl<'a> Program<'a> {
             .0
             .borrow_mut()
             .actors
-            .insert(program_id, (program, ProgramState::Uninitialized(None), 0))
+            .insert(
+                program_id,
+                Actor::Active(program, ProgramState::Uninitialized(None), 0),
+            )
             .is_some()
         {
             panic!(
@@ -136,7 +139,7 @@ impl<'a> Program<'a> {
         id: I,
         mock: T,
     ) -> Self {
-        Self::program_with_id(system, id, InnerProgram::Mock(Box::new(mock)))
+        Self::program_with_id(system, id, ActiveProgram::Mock(Box::new(mock)))
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
@@ -160,9 +163,9 @@ impl<'a> Program<'a> {
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
 
         let program =
-            CoreProgram::new(program_id, code).expect("Failed to create Program from code");
+            NativeProgram::new(program_id, code).expect("Failed to create Program from code");
 
-        Self::program_with_id(system, id, InnerProgram::Core(program))
+        Self::program_with_id(system, id, ActiveProgram::Genuine(program))
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
