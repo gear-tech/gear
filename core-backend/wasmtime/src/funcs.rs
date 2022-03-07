@@ -71,7 +71,8 @@ impl<E: Ext + 'static, T> FuncsHandler<E, T> {
         let func = move |page: i32| {
             let page = page as u32;
             ext.with(|ext: &mut E| ext.free(page.into()))
-                .map_err(Trap::new)?.map_err(Trap::new)?;
+                .map_err(Trap::new)?
+                .map_err(Trap::new)?;
             if let Err(e) = ext
                 .with(|ext: &mut E| ext.free(page.into()))
                 .map_err(Trap::new)?

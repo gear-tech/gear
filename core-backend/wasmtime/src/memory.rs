@@ -88,7 +88,7 @@ impl Memory for MemoryWrap {
 impl Clone for MemoryWrap {
     fn clone(self: &MemoryWrap) -> Self {
         Self {
-            mem: self.mem.clone(),
+            mem: self.mem,
             store: self.store.clone(),
         }
     }
