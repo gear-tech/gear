@@ -221,7 +221,7 @@ pub struct Message {
 pub struct Test {
     /// Flag which defines whether test should be skipped.
     /// TODO: remove after resolving https://github.com/gear-tech/gear/pull/739
-    pub must_skip: Option<bool>,
+    pub skip: Option<bool>,
     /// Code that are needed to be submitted for tests
     pub codes: Option<Vec<Code>>,
     /// Programs and related data used for tests

@@ -1,6 +1,6 @@
 title: Test create_program sys-call
 
-must_skip: true
+skip: true
 
 codes:
   # Save child's code

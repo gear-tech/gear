@@ -476,7 +476,7 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
     E: Environment<Ext>,
 {
-    if let Some(true) = test.must_skip {
+    if let Some(true) = test.skip {
         return "Skipped".bright_yellow();
     }
     match proc::init_fixture::<E, JH>(test, fixture_no, &mut journal_handler) {
