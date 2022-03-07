@@ -183,7 +183,7 @@ impl ExtManager {
             }
         }
 
-        logger::debug!("VERSION 0.1.0");
+        logger::debug!("VERSION 0.1.1");
 
         while let Some(dispatch) = self.dispatch_queue.pop_front() {
             let message_id = dispatch.message.id();
