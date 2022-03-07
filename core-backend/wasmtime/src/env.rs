@@ -171,8 +171,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             .insert("gr_leave", funcs::leave(tmp_ext.clone(), store));
         self.funcs
             .insert("gr_wait", funcs::wait(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_wake", funcs::wake(tmp_ext, store));
+        self.funcs.insert("gr_wake", funcs::wake(tmp_ext, store));
 
         let module = Module::new(&self.engine, binary).map_err(|e| BackendError {
             reason: "Unable to create module",
