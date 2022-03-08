@@ -484,6 +484,7 @@ impl JournalHandler for ExtManager {
             prog.set_message_nonce(nonce);
         }
     }
+
     fn update_page(
         &mut self,
         program_id: ProgramId,
@@ -504,6 +505,7 @@ impl JournalHandler for ExtManager {
             unreachable!("No pages update for dormant program")
         }
     }
+
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
             if let Some(Actor::Active(.., balance)) = self.actors.get_mut(&from) {
