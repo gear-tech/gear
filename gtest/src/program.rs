@@ -1,12 +1,12 @@
 use crate::{
     log::RunResult,
-    manager::{ActiveProgram, Actor, ExtManager, ProgramState},
+    manager::{ActiveProgram, Actor, ExtManager},
     system::System,
 };
 use codec::Codec;
 use gear_core::{
     message::{Message, MessageId},
-    program::{Program as NativeProgram, ProgramId},
+    program::{Program as CoreProgram, ProgramId},
 };
 use path_clean::PathClean;
 use std::{
@@ -92,7 +92,7 @@ impl<'a> Program<'a> {
             .actors
             .insert(
                 program_id,
-                Actor::Active(program, ProgramState::Uninitialized(None), 0),
+                Actor::new_active(program),
             )
             .is_some()
         {
@@ -139,7 +139,7 @@ impl<'a> Program<'a> {
         id: I,
         mock: T,
     ) -> Self {
-        Self::program_with_id(system, id, ActiveProgram::Mock(Some(Box::new(mock))))
+        Self::program_with_id(system, id, ActiveProgram::new_mock(mock))
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
@@ -163,9 +163,9 @@ impl<'a> Program<'a> {
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
 
         let program =
-            NativeProgram::new(program_id, code).expect("Failed to create Program from code");
+            CoreProgram::new(program_id, code).expect("Failed to create Program from code");
 
-        Self::program_with_id(system, id, ActiveProgram::Genuine(program))
+        Self::program_with_id(system, id, ActiveProgram::new_genuine(program))
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {

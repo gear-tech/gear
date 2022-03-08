@@ -37,6 +37,10 @@ pub(crate) enum Actor {
 }
 
 impl Actor {
+    pub(crate) fn new_active(active_prog: ActiveProgram) -> Self {
+        Actor::Active(active_prog, ProgramState::Uninitialized(None), 0)
+    }
+
     fn get_state_mut(&mut self) -> Option<&mut ProgramState> {
         match self {
             Actor::Active(_, state, _) => Some(state),
@@ -74,6 +78,16 @@ pub(crate) enum ActiveProgram {
     Genuine(CoreProgram),
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
+}
+
+impl ActiveProgram {
+    pub(crate) fn new_genuine(prog: CoreProgram) -> Self {
+        ActiveProgram::Genuine(prog)
+    }
+
+    pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
+        ActiveProgram::Mock(Some(Box::new(mock)))
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
