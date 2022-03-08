@@ -170,17 +170,21 @@ impl ExtManager {
         self.prepare_for(message.id(), message.source());
 
         {
-            let maybe_actor_state = self
-                .actors
-                .get_mut(&message.dest())
-                .and_then(|a| a.get_state_mut());
-            if let Some(state) = maybe_actor_state {
-                if let ProgramState::Uninitialized(None) = state {
-                    *state = ProgramState::Uninitialized(Some(message.id()));
-                }
+            let maybe_actor = self.actors.get_mut(&message.dest());
+            if let Some(actor) = maybe_actor {
+                let kind = if let Some(state) = actor.get_state_mut() {
+                    // only active actor has state
+                    if let ProgramState::Uninitialized(None) = state {
+                        *state = ProgramState::Uninitialized(Some(message.id()));
+                    }
+                    Self::get_entry_point(&message, *state)
+                } else {
+                    // dormant actor
+                    DispatchKind::Handle
+                };
 
                 let dispatch = Dispatch {
-                    kind: Self::get_entry_point(&message, *state),
+                    kind,
                     message,
                     payload_store: None,
                 };

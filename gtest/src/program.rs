@@ -90,10 +90,7 @@ impl<'a> Program<'a> {
             .0
             .borrow_mut()
             .actors
-            .insert(
-                program_id,
-                Actor::new_active(program),
-            )
+            .insert(program_id, Actor::new_active(program))
             .is_some()
         {
             panic!(
@@ -247,8 +244,8 @@ mod tests {
             "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
         );
 
-        let handle_msg_payload = String::from("payload");
-        let run_result = prog.send(user_id, handle_msg_payload);
+        let init_msg_payload = String::from("InvalidInput");
+        let run_result = prog.send(user_id, init_msg_payload);
         assert!(run_result.main_failed);
 
         let expected_log = {
