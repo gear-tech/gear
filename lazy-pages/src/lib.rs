@@ -20,7 +20,7 @@
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
 //! During execution data from storage is loaded for all pages, which has been accesed.
-//! See also [handle_sigsegv].
+//! See also `handle_sigsegv`.
 
 use std::{cell::RefCell, collections::BTreeMap};
 
