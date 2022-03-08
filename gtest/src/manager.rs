@@ -44,6 +44,13 @@ impl Actor {
         }
     }
 
+    fn try_into_core_prog_mut(&mut self) -> Result<&mut CoreProgram, ()> {
+        match self {
+            Actor::Active(ActiveProgram::Genuine(prog), _, _) => Ok(prog),
+            _ => Err(()),
+        }
+    }
+
     fn try_into_mock(&mut self) -> Result<Box<dyn WasmProgram>, ()> {
         match self {
             Actor::Active(ActiveProgram::Mock(mock), _, _) => mock.take().ok_or(()),
@@ -135,7 +142,7 @@ impl ExtManager {
             .unwrap_or_else(|| {
                 assert!(
                     !matches!(state, ProgramState::Uninitialized(None)),
-                    "for uninitialized program init message id is set before storing dispatches to it"
+                    "init msg id is defined for uninitialized program before dispatches to it are saved"
                 );
                 if matches!(state, ProgramState::Uninitialized(Some(id)) if id == message.id()) {
                     DispatchKind::Init
@@ -268,18 +275,15 @@ impl ExtManager {
     }
 
     fn check_is_for_wait_list(&self, dispatch: &Dispatch) -> bool {
-        let message_id = dispatch.message.id();
-        let dest = dispatch.message.dest();
-        let reply = dispatch.message.reply();
+        let Dispatch { message, .. } = dispatch;
 
         let actor = self
             .actors
-            .get(&dest)
+            .get(&message.dest())
             .expect("method called for unknown destination");
-
         if let Actor::Active(_, state, _) = actor {
-            reply.is_none()
-                && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message_id)
+            message.reply().is_none()
+                && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message.id())
         } else {
             false
         }
@@ -292,7 +296,7 @@ impl ExtManager {
         let program_id = message.dest();
         let payload = message.payload().to_vec();
 
-        let response = match dispatch.kind {
+        let response = match kind {
             DispatchKind::Init => mock.init(payload),
             DispatchKind::Handle => mock.handle(payload),
             DispatchKind::HandleReply => mock.handle_reply(payload),
@@ -326,7 +330,7 @@ impl ExtManager {
             Err(expl) => {
                 mock.debug(expl);
 
-                if let DispatchKind::Init = dispatch.kind {
+                if let DispatchKind::Init = kind {
                     self.message_dispatched(DispatchOutcome::InitFailure {
                         message_id,
                         program_id,
@@ -404,6 +408,7 @@ impl JournalHandler for ExtManager {
             } => self.init_success(message_id, program_id),
         }
     }
+
     fn gas_burned(&mut self, _message_id: MessageId, _amount: u64) {}
 
     fn exit_dispatch(&mut self, id_exited: ProgramId, _value_destination: ProgramId) {
@@ -419,6 +424,7 @@ impl JournalHandler for ExtManager {
             self.dispatch_queue.remove(index);
         }
     }
+
     fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
         let Dispatch {
             ref mut message, ..
@@ -437,11 +443,13 @@ impl JournalHandler for ExtManager {
             self.log.push(dispatch.message);
         }
     }
+
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.message_consumed(dispatch.message.id());
         self.wait_list
             .insert((dispatch.message.dest(), dispatch.message.id()), dispatch);
     }
+
     fn wake_message(
         &mut self,
         _message_id: MessageId,
@@ -452,12 +460,13 @@ impl JournalHandler for ExtManager {
             self.dispatch_queue.push_back(dispatch);
         }
     }
+
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
         let actor = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
-        if let Actor::Active(ActiveProgram::Genuine(prog), _, _) = actor {
+        if let Ok(prog) = actor.try_into_core_prog_mut() {
             prog.set_message_nonce(nonce);
         }
     }
@@ -471,12 +480,14 @@ impl JournalHandler for ExtManager {
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
-        if let Actor::Active(ActiveProgram::Genuine(prog), _, _) = actor {
+        if let Ok(prog) = actor.try_into_core_prog_mut() {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {
                 prog.remove_page(page_number);
             }
+        } else {
+            unreachable!("No pages update for dormant program")
         }
     }
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
