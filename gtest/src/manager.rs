@@ -30,6 +30,7 @@ use gear_core::{
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[derive(Debug)]
 pub(crate) enum Actor {
     Active(ActiveProgram, ProgramState, u128),
     Dormant,
@@ -52,12 +53,10 @@ impl Actor {
 
     fn try_into_executable_actor(&self) -> Result<ExecutableActor, ()> {
         match self {
-            Actor::Active(ActiveProgram::Genuine(program), _, balance) => {
-                Ok(ExecutableActor {
-                    program: program.clone(),
-                    balance: *balance,
-                })
-            },
+            Actor::Active(ActiveProgram::Genuine(program), _, balance) => Ok(ExecutableActor {
+                program: program.clone(),
+                balance: *balance,
+            }),
             _ => Err(()),
         }
     }
@@ -134,12 +133,12 @@ impl ExtManager {
             .reply()
             .map(|_| DispatchKind::HandleReply)
             .unwrap_or_else(|| {
-                if let ProgramState::Uninitialized(message_id) = state {
-                    if matches!(message_id, Some(id) if id != message.id()) {
-                        DispatchKind::Handle
-                    } else {
-                        DispatchKind::Init
-                    }
+                assert!(
+                    !matches!(state, ProgramState::Uninitialized(None)),
+                    "for uninitialized program init message id is set before storing dispatches to it"
+                );
+                if matches!(state, ProgramState::Uninitialized(Some(id)) if id == message.id()) {
+                    DispatchKind::Init
                 } else {
                     DispatchKind::Handle
                 }
@@ -155,16 +154,15 @@ impl ExtManager {
                 .get_mut(&message.dest())
                 .and_then(|a| a.get_state_mut());
             if let Some(state) = maybe_actor_state {
-                let kind = Self::get_entry_point(&message, *state);
+                if let ProgramState::Uninitialized(None) = state {
+                    *state = ProgramState::Uninitialized(Some(message.id()));
+                }
+
                 let dispatch = Dispatch {
-                    kind,
+                    kind: Self::get_entry_point(&message, *state),
                     message,
                     payload_store: None,
                 };
-
-                if let ProgramState::Uninitialized(None) = state {
-                    *state = ProgramState::Uninitialized(Some(dispatch.message.id()));
-                }
                 self.dispatch_queue.push_back(dispatch);
             } else {
                 self.mailbox
@@ -188,10 +186,13 @@ impl ExtManager {
                 continue;
             }
 
-            let actor = self.actors.get_mut(&dest).expect("Somehow message queue contains message for user"); 
+            let actor = self
+                .actors
+                .get_mut(&dest)
+                .expect("Somehow message queue contains message for user");
 
             if let Ok(executable_actor) = actor.try_into_executable_actor() {
-                self.process_genuine(executable_actor, dispatch);
+                self.process_normal(executable_actor, dispatch);
             } else if let Ok(mock) = actor.try_into_mock() {
                 self.process_mock(mock, dispatch);
             } else {
@@ -271,21 +272,21 @@ impl ExtManager {
         let dest = dispatch.message.dest();
         let reply = dispatch.message.reply();
 
-        let actor = self.actors
+        let actor = self
+            .actors
             .get(&dest)
             .expect("method called for unknown destination");
 
         if let Actor::Active(_, state, _) = actor {
-            reply.is_none() && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message_id)
+            reply.is_none()
+                && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message_id)
         } else {
             false
         }
     }
 
     fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: Dispatch) {
-        let Dispatch {
-            message, kind, ..
-        } = dispatch;
+        let Dispatch { message, kind, .. } = dispatch;
 
         let message_id = message.id();
         let program_id = message.dest();
@@ -319,10 +320,7 @@ impl ExtManager {
                         message_id,
                         0,
                     );
-                    self.send_dispatch(
-                        message_id,
-                        Dispatch::new_reply(reply_message),
-                    );
+                    self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
                 }
             }
             Err(expl) => {
@@ -368,7 +366,7 @@ impl ExtManager {
         });
     }
 
-    fn process_genuine(&mut self, executable_actor: ExecutableActor, dispatch: Dispatch) {
+    fn process_normal(&mut self, executable_actor: ExecutableActor, dispatch: Dispatch) {
         self.process_dispatch(Some(executable_actor), dispatch);
     }
 
