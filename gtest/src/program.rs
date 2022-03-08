@@ -139,7 +139,7 @@ impl<'a> Program<'a> {
         id: I,
         mock: T,
     ) -> Self {
-        Self::program_with_id(system, id, ActiveProgram::Mock(Box::new(mock)))
+        Self::program_with_id(system, id, ActiveProgram::Mock(Some(Box::new(mock))))
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {

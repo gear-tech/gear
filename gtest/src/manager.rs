@@ -30,26 +30,23 @@ use gear_core::{
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// todo,1. Сделать мок программу - Clone и мутировать и сэтить ее иным образом. 
-// 2. Если применишь первое, то вторым можно будет сделать вспомогательные функции и переструктурировать управляющую конструкцию внутри run_message
-#[derive(Debug)]
 pub(crate) enum Actor {
     Active(ActiveProgram, ProgramState, u128),
     Dormant,
 }
 
 impl Actor {
-    fn try_into_mock_mut(&mut self) -> Result<&mut Box<dyn WasmProgram>, ()> {
-        match self {
-            Actor::Active(ActiveProgram::Mock(mock), _, _) => Ok(mock),
-            _ => Err(()),
-        }
-    }
-
     fn get_state_mut(&mut self) -> Option<&mut ProgramState> {
         match self {
             Actor::Active(_, state, _) => Some(state),
             _ => None,
+        }
+    }
+
+    fn try_into_mock(&mut self) -> Result<Box<dyn WasmProgram>, ()> {
+        match self {
+            Actor::Active(ActiveProgram::Mock(mock), _, _) => mock.take().ok_or(()),
+            _ => Err(()),
         }
     }
 
@@ -64,19 +61,13 @@ impl Actor {
             _ => Err(()),
         }
     }
-
-    fn get_state(&self) -> Option<ProgramState> {
-        match self {
-            Actor::Active(_, state, _) => Some(*state),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug)]
 pub(crate) enum ActiveProgram {
     Genuine(CoreProgram),
-    Mock(Box<dyn WasmProgram>),
+    // Contract: is always `Some`, option is used to take ownership
+    Mock(Option<Box<dyn WasmProgram>>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -183,108 +174,28 @@ impl ExtManager {
             }
         }
 
-        logger::debug!("VERSION 0.1.1");
-
         while let Some(dispatch) = self.dispatch_queue.pop_front() {
             let message_id = dispatch.message.id();
             let dest = dispatch.message.dest();
-            let reply = dispatch.message.reply();
 
-            let actor = self
-                .actors
-                .get_mut(&dispatch.message.dest())
-                .expect("Somehow message queue contains message for user");
+            if self.check_is_for_wait_list(&dispatch) {
+                self.wait_init_list
+                    .entry(dest)
+                    .or_default()
+                    .push(message_id);
+                self.wait_dispatch(dispatch);
 
-            if let Some(state) = actor.get_state() {
-                let is_for_wait_list = reply.is_none()
-                    && matches!(state, ProgramState::Uninitialized(Some(id)) if id != message_id);
-                if is_for_wait_list {
-                    self.wait_init_list
-                        .entry(dest)
-                        .or_default()
-                        .push(message_id);
-                    self.wait_dispatch(dispatch);
-
-                    continue;
-                }
+                continue;
             }
 
+            let actor = self.actors.get_mut(&dest).expect("Somehow message queue contains message for user"); 
+
             if let Ok(executable_actor) = actor.try_into_executable_actor() {
-                self.process_dispatch_inner(Some(executable_actor), dispatch)
-            } else if let Ok(mock) = actor.try_into_mock_mut() {
-                let Dispatch {
-                    message, kind, ..
-                } = dispatch;
-                let payload = message.payload().to_vec();
-
-                let response = match kind {
-                    DispatchKind::Init => mock.init(payload),
-                    DispatchKind::Handle => mock.handle(payload),
-                    DispatchKind::HandleReply => mock.handle_reply(payload),
-                };
-
-                let message_id = message.id();
-                let program_id = message.dest();
-
-                match response {
-                    Ok(reply) => {
-                        if let DispatchKind::Init = kind {
-                            self.init_success(message_id, program_id)
-                        }
-
-                        if let Some(payload) = reply {
-                            let nonce = self.fetch_inc_message_nonce();
-
-                            let reply_message = Message::new_reply(
-                                nonce.into(),
-                                program_id,
-                                message.source(),
-                                payload.into(),
-                                0,
-                                message.id(),
-                                0,
-                            );
-                            self.send_dispatch(
-                                message_id,
-                                Dispatch::new_reply(reply_message),
-                            );
-                        }
-                    }
-                    Err(expl) => {
-                        mock.debug(expl);
-
-                        if let DispatchKind::Init = kind {
-                            self.message_dispatched(DispatchOutcome::InitFailure {
-                                message_id,
-                                program_id,
-                                origin: message.source(),
-                                reason: expl,
-                            });
-                        } else {
-                            self.message_dispatched(DispatchOutcome::MessageTrap {
-                                message_id,
-                                program_id,
-                                trap: Some(expl),
-                            })
-                        }
-
-                        let nonce = self.fetch_inc_message_nonce();
-
-                        let reply_message = Message::new_reply(
-                            nonce.into(),
-                            program_id,
-                            message.source(),
-                            Default::default(),
-                            0,
-                            message.id(),
-                            1,
-                        );
-                        self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
-                    }
-                }
+                self.process_genuine(executable_actor, dispatch);
+            } else if let Ok(mock) = actor.try_into_mock() {
+                self.process_mock(mock, dispatch);
             } else {
-                // Process dormant destination
-                self.process_dispatch_inner(None, dispatch)
+                self.process_dormant(dispatch);
             }
         }
 
@@ -323,9 +234,13 @@ impl ExtManager {
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let Actor::Active(ActiveProgram::Genuine(p), state, _) = actor {
-            p.set_initialized();
+        if let Actor::Active(active_program, state, _) = actor {
             *state = ProgramState::Initialized;
+            if let ActiveProgram::Genuine(p) = active_program {
+                p.set_initialized();
+            }
+        } else {
+            panic!("can't call method for dormant program");
         }
 
         self.move_waiting_msgs_to_queue(message_id, program_id);
@@ -351,7 +266,117 @@ impl ExtManager {
         }
     }
 
-    fn process_dispatch_inner(&mut self, executable_actor: Option<ExecutableActor>, dispatch: Dispatch) {
+    fn check_is_for_wait_list(&self, dispatch: &Dispatch) -> bool {
+        let message_id = dispatch.message.id();
+        let dest = dispatch.message.dest();
+        let reply = dispatch.message.reply();
+
+        let actor = self.actors
+            .get(&dest)
+            .expect("method called for unknown destination");
+
+        if let Actor::Active(_, state, _) = actor {
+            reply.is_none() && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message_id)
+        } else {
+            false
+        }
+    }
+
+    fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: Dispatch) {
+        let Dispatch {
+            message, kind, ..
+        } = dispatch;
+
+        let message_id = message.id();
+        let program_id = message.dest();
+        let payload = message.payload().to_vec();
+
+        let response = match dispatch.kind {
+            DispatchKind::Init => mock.init(payload),
+            DispatchKind::Handle => mock.handle(payload),
+            DispatchKind::HandleReply => mock.handle_reply(payload),
+        };
+
+        match response {
+            Ok(reply) => {
+                if let DispatchKind::Init = kind {
+                    self.message_dispatched(DispatchOutcome::InitSuccess {
+                        message_id,
+                        program_id,
+                        origin: message.source(),
+                    });
+                }
+
+                if let Some(payload) = reply {
+                    let nonce = self.fetch_inc_message_nonce();
+
+                    let reply_message = Message::new_reply(
+                        nonce.into(),
+                        program_id,
+                        message.source(),
+                        payload.into(),
+                        0,
+                        message_id,
+                        0,
+                    );
+                    self.send_dispatch(
+                        message_id,
+                        Dispatch::new_reply(reply_message),
+                    );
+                }
+            }
+            Err(expl) => {
+                mock.debug(expl);
+
+                if let DispatchKind::Init = dispatch.kind {
+                    self.message_dispatched(DispatchOutcome::InitFailure {
+                        message_id,
+                        program_id,
+                        origin: message.source(),
+                        reason: expl,
+                    });
+                } else {
+                    self.message_dispatched(DispatchOutcome::MessageTrap {
+                        message_id,
+                        program_id,
+                        trap: Some(expl),
+                    })
+                }
+
+                let nonce = self.fetch_inc_message_nonce();
+
+                let reply_message = Message::new_reply(
+                    nonce.into(),
+                    program_id,
+                    message.source(),
+                    Default::default(),
+                    0,
+                    message_id,
+                    1,
+                );
+                self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
+            }
+        }
+
+        // Mock was mutated, so now can update it in actor's storage
+        // If init failed, then entry value is a dormant program.
+        // In this case value won't be updated.
+        self.actors.entry(program_id).and_modify(|a| {
+            if let Actor::Active(old_mock, _, _) = a {
+                *old_mock = ActiveProgram::Mock(Some(mock));
+            }
+        });
+    }
+
+    fn process_genuine(&mut self, executable_actor: ExecutableActor, dispatch: Dispatch) {
+        self.process_dispatch(Some(executable_actor), dispatch);
+    }
+
+    fn process_dormant(&mut self, dispatch: Dispatch) {
+        self.process_dispatch(None, dispatch);
+    }
+
+    fn process_dispatch(&mut self, executable_actor: Option<ExecutableActor>, dispatch: Dispatch) {
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             executable_actor,
             dispatch,
