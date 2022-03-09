@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -24,26 +24,16 @@ use codec::{Decode, Encode};
 use core::cell::RefCell;
 use scale_info::TypeInfo;
 
-/// Message payload.
-#[derive(Clone, Debug, Decode, Default, Encode, TypeInfo, derive_more::From, PartialEq, Eq)]
-pub struct Payload(Vec<u8>);
+/// Payload type for message.
+pub type Payload = Vec<u8>;
 
-impl Payload {
-    /// Return raw bytes of the message payload.
-    pub fn into_raw(self) -> Vec<u8> {
-        self.0
-    }
-}
+/// Gas limit type for message.
+pub type GasLimit = u64;
 
-impl core::convert::AsRef<[u8]> for Payload {
-    /// Raw bytes as reference.
-    fn as_ref(&self) -> &[u8] {
-        &self.0[..]
-    }
-}
+/// Value type for message.
+pub type Value = u128;
 
-/// Exit code type for message replies
-// TODO https://github.com/gear-tech/gear/pull/722#discussion_r813672743
+/// Exit code type for message replies.
 pub type ExitCode = i32;
 
 /// Error using messages.
@@ -69,41 +59,71 @@ pub enum Error {
     DuplicateInit,
 }
 
-/// Incoming message.
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct IncomingMessage {
+/// Message.
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
+pub struct Message {
     id: MessageId,
     source: ProgramId,
+    destination: ProgramId,
     payload: Payload,
-    gas_limit: u64,
-    value: u128,
+    gas_limit: Option<GasLimit>,
+    value: Value,
     reply: Option<(MessageId, ExitCode)>,
 }
 
-impl IncomingMessage {
-    /// Source of the incoming message, if any.
-    pub fn source(&self) -> ProgramId {
-        self.source
+impl Message {
+    /// New message from user
+    pub fn new(
+        user_id: ProgramId,
+        block_number: u32,
+        local_nonce: u32,
+        destination: ProgramId,
+        payload: Payload,
+        gas_limit: Option<GasLimit>,
+        value: Value,
+    ) -> Self {
+        let id = MessageId::generate_from_user(block_number, user_id, local_nonce);
+        Self {
+            id,
+            source: user_id,
+            destination,
+            payload,
+            gas_limit,
+            value,
+            reply: None,
+        }
     }
 
-    /// Payload of the incoming message.
-    pub fn payload(&self) -> &[u8] {
-        &self.payload.0[..]
-    }
-
-    /// Gas limit of the message.
-    pub fn gas_limit(&self) -> u64 {
-        self.gas_limit
-    }
-
-    /// Set gas limit of the message.
-    pub fn set_gas_limit(&mut self, gas_limit: u64) {
-        self.gas_limit = gas_limit;
-    }
-
-    /// Value of the message.
-    pub fn value(&self) -> u128 {
-        self.value
+    /// New reply message from user
+    pub fn new_reply(
+        user_id: ProgramId,
+        destination: ProgramId,
+        payload: Payload,
+        gas_limit: GasLimit,
+        value: Value,
+        reply_to: MessageId,
+    ) -> Self {
+        let id = MessageId::generate_reply(reply_to, 0);
+        Self {
+            id,
+            source: user_id,
+            destination,
+            payload,
+            gas_limit: Some(gas_limit),
+            value,
+            reply: Some((reply_to, 0)),
+        }
     }
 
     /// Id of the message.
@@ -111,329 +131,321 @@ impl IncomingMessage {
         self.id
     }
 
-    /// What this message is a reply to
-    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
-        self.reply
+    /// Source of the message.
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    /// Destination of the message.
+    pub fn destination(&self) -> ProgramId {
+        self.destination
+    }
+
+    /// Payload of the message.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    /// Gas limit of the message.
+    pub fn gas_limit(&self) -> Option<GasLimit> {
+        self.gas_limit
+    }
+
+    /// Value of the message.
+    pub fn value(&self) -> Value {
+        self.value
+    }
+
+    /// Message id what this message replies to.
+    pub fn reply_to(&self) -> Option<MessageId> {
+        self.reply.map(|(id, _)| id)
+    }
+
+    /// Exit code of the message.
+    pub fn exit_code(&self) -> Option<ExitCode> {
+        self.reply.map(|(_, exit_code)| exit_code)
+    }
+
+    /// Check if this message is reply.
+    pub fn is_reply(&self) -> bool {
+        self.reply.is_some()
     }
 }
 
-impl From<Message> for IncomingMessage {
-    fn from(s: Message) -> Self {
-        IncomingMessage {
-            id: s.id(),
-            source: s.source(),
-            payload: s.payload,
-            gas_limit: s.gas_limit.unwrap_or_default(),
-            value: s.value,
-            reply: s.reply,
-        }
-    }
+/// Incoming message.
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
+pub struct IncomingMessage {
+    id: MessageId,
+    source: ProgramId,
+    payload: Payload,
+    gas_limit: GasLimit,
+    value: Value,
+    reply: Option<(MessageId, ExitCode)>,
 }
 
 impl IncomingMessage {
-    /// New incoming message from specific `source`, `payload` and `gas_limit`.
+    /// From Message constructor.
+    pub fn from_message(msg: Message, gas_limit: GasLimit) -> Self {
+        Self {
+            id: msg.id,
+            source: msg.source,
+            payload: msg.payload,
+            gas_limit,
+            value: msg.value,
+            reply: msg.reply,
+        }
+    }
+
+    /// Id of the message.
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
+
+    /// Source of the message.
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    /// Payload of the message.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    /// Gas limit of the message.
+    pub fn gas_limit(&self) -> GasLimit {
+        self.gas_limit
+    }
+
+    /// Value of the message.
+    pub fn value(&self) -> Value {
+        self.value
+    }
+
+    /// Message id what this message replies to.
+    pub fn reply_to(&self) -> Option<MessageId> {
+        self.reply.map(|(id, _)| id)
+    }
+
+    /// Exit code of the message.
+    pub fn exit_code(&self) -> Option<ExitCode> {
+        self.reply.map(|(_, exit_code)| exit_code)
+    }
+
+    /// Check if this message is reply.
+    pub fn is_reply(&self) -> bool {
+        self.reply.is_some()
+    }
+}
+
+/// Outgoing message packet.
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
+pub struct OutgoingPacket {
+    destination: ProgramId,
+    payload: Payload,
+    gas_limit: Option<GasLimit>,
+    value: Value,
+}
+
+impl OutgoingPacket {
+    /// New outgoing message packet constructor.
     pub fn new(
-        id: MessageId,
-        source: ProgramId,
+        destination: ProgramId,
         payload: Payload,
-        gas_limit: u64,
-        value: u128,
+        gas_limit: Option<GasLimit>,
+        value: Value,
     ) -> Self {
         Self {
-            id,
-            source,
+            destination,
             payload,
             gas_limit,
             value,
-            reply: None,
-        }
-    }
-
-    /// New reply message from specific `source`, `payload` and `gas_limit` and `reply`.
-    pub fn new_reply(
-        id: MessageId,
-        source: ProgramId,
-        payload: Payload,
-        gas_limit: u64,
-        value: u128,
-        reply: MessageId,
-        exit_code: ExitCode,
-    ) -> Self {
-        Self {
-            id,
-            source,
-            payload,
-            gas_limit,
-            value,
-            reply: Some((reply, exit_code)),
-        }
-    }
-
-    /// Convert incoming message to the stored message by providing `dest`.
-    pub fn into_message(self, dest: ProgramId) -> Message {
-        Message {
-            id: self.id,
-            source: self.source,
-            dest,
-            payload: self.payload,
-            gas_limit: Some(self.gas_limit),
-            value: self.value,
-            reply: self.reply,
         }
     }
 }
 
 /// Outgoing message.
-#[derive(Clone, Debug, Decode, Encode)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
 pub struct OutgoingMessage {
     id: MessageId,
-    dest: ProgramId,
-    payload: Payload,
-    gas_limit: Option<u64>,
-    value: u128,
+    packet: OutgoingPacket,
 }
 
 impl OutgoingMessage {
     /// New outgoing message.
-    pub fn new(
-        id: MessageId,
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: Option<u64>,
-        value: u128,
-    ) -> Self {
-        Self {
-            id,
-            dest,
-            payload,
-            gas_limit,
-            value,
-        }
+    pub fn new(origin_msg_id: MessageId, local_nonce: u8, packet: OutgoingPacket) -> Self {
+        let id = MessageId::generate_outgoing(origin_msg_id, local_nonce);
+        Self { id, packet }
     }
 
-    /// Convert outgoing message to the stored message by providing `source`.
+    /// Convert outgoing message to message.
     pub fn into_message(self, source: ProgramId) -> Message {
         Message {
             id: self.id,
             source,
-            dest: self.dest,
-            payload: self.payload,
-            gas_limit: self.gas_limit,
-            value: self.value,
+            destination: self.packet.destination,
+            payload: self.packet.payload,
+            gas_limit: self.packet.gas_limit,
+            value: self.packet.value,
             reply: None,
         }
     }
+}
 
-    /// Return declared gas_limit of the message.
-    pub fn gas_limit(&self) -> Option<u64> {
-        self.gas_limit
-    }
+/// Reply message packet.
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
+pub struct ReplyPacket {
+    payload: Payload,
+    gas_limit: Option<GasLimit>,
+    value: Value,
+}
 
-    /// Return message id generated for this packet.
-    pub fn id(&self) -> MessageId {
-        self.id
+impl ReplyPacket {
+    /// New reply message packet constructor.
+    pub fn new(payload: Payload, gas_limit: Option<GasLimit>, value: Value) -> Self {
+        Self {
+            payload,
+            gas_limit,
+            value,
+        }
     }
 }
 
 /// Reply message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
 pub struct ReplyMessage {
-    /// Identifier of the reply message.
     id: MessageId,
-    /// Exit code
+    origin_msg_id: MessageId,
     exit_code: ExitCode,
-    /// Payload of the reply message.
-    payload: Payload,
-    /// Message value.
-    value: u128,
+    packet: ReplyPacket,
 }
 
 impl ReplyMessage {
-    /// Convert to generic message providing extra info.
-    pub fn into_message(
-        self,
-        source_message: MessageId,
-        source_program: ProgramId,
-        dest: ProgramId,
-    ) -> Message {
+    /// New reply message.
+    pub fn new(origin_msg_id: MessageId, exit_code: ExitCode, packet: ReplyPacket) -> Self {
+        let id = MessageId::generate_reply(origin_msg_id, exit_code);
+        Self {
+            id,
+            origin_msg_id,
+            exit_code,
+            packet,
+        }
+    }
+
+    /// New system reply message.
+    pub fn system(origin_msg_id: MessageId, exit_code: ExitCode) -> Self {
+        let id = MessageId::generate_reply(origin_msg_id, exit_code);
+        let packet = ReplyPacket::new(Default::default(), None, 0);
+        Self {
+            id,
+            origin_msg_id,
+            exit_code,
+            packet,
+        }
+    }
+
+    /// Convert reply message to message.
+    pub fn into_message(self, source: ProgramId, destination: ProgramId) -> Message {
         Message {
             id: self.id,
-            source: source_program,
-            dest,
-            payload: self.payload,
-            gas_limit: None,
-            value: self.value,
-            reply: Some((source_message, self.exit_code)),
-        }
-    }
-
-    /// Return message id generated for this packet.
-    pub fn id(&self) -> MessageId {
-        self.id
-    }
-}
-
-/// Message.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
-pub struct Message {
-    /// Id of the message
-    pub id: MessageId,
-    /// Source of the message.
-    pub source: ProgramId,
-    /// Destination of the message.
-    pub dest: ProgramId,
-    /// Payload of the message.
-    pub payload: Payload,
-    /// Gas limit.
-    pub gas_limit: Option<u64>,
-    /// Message value.
-    pub value: u128,
-    /// In reply of.
-    pub reply: Option<(MessageId, ExitCode)>,
-}
-
-impl Message {
-    /// New system message to the specific program.
-    pub fn new(
-        id: MessageId,
-        source: ProgramId,
-        dest: ProgramId,
-        payload: Payload,
-        gas_limit: Option<u64>,
-        value: u128,
-    ) -> Message {
-        Message {
-            id,
             source,
-            dest,
-            payload,
-            gas_limit,
-            value,
-            reply: None,
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    /// New system message to the specific program.
-    pub fn new_reply(
-        id: MessageId,
-        source: ProgramId,
-        dest: ProgramId,
-        payload: Payload,
-        value: u128,
-        reply: MessageId,
-        exit_code: ExitCode,
-    ) -> Message {
-        Message {
-            id,
-            source,
-            dest,
-            payload,
-            gas_limit: None,
-            value,
-            reply: Some((reply, exit_code)),
-        }
-    }
-
-    /// Return destination of this message.
-    pub fn dest(&self) -> ProgramId {
-        self.dest
-    }
-
-    /// Return source of this message.
-    pub fn source(&self) -> ProgramId {
-        self.source
-    }
-
-    /// Get the payload reference of this message.
-    pub fn payload(&self) -> &[u8] {
-        &self.payload.0[..]
-    }
-
-    /// Message gas limit.
-    pub fn gas_limit(&self) -> Option<u64> {
-        self.gas_limit
-    }
-
-    /// Message value.
-    pub fn value(&self) -> u128 {
-        self.value
-    }
-
-    /// Is message a reply and to what.
-    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
-        self.reply
-    }
-
-    /// Message identifier.
-    pub fn id(&self) -> MessageId {
-        self.id
-    }
-}
-
-/// Outgoing program initialization message
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
-pub struct ProgramInitMessage {
-    /// Message id
-    pub id: MessageId,
-    /// New program id
-    pub new_program_id: ProgramId,
-    /// Payload to init function
-    pub payload: Payload,
-    /// Provided to the message gas limit
-    pub gas_limit: u64,
-    /// Provided to the message value
-    pub value: u128,
-}
-
-impl ProgramInitMessage {
-    /// Converts init message into general `Message`
-    pub fn into_message(self, source: ProgramId) -> Message {
-        let ProgramInitMessage {
-            id,
-            new_program_id,
-            payload,
-            gas_limit,
-            value,
-        } = self;
-        let gas_limit = Some(gas_limit);
-        Message {
-            id,
-            source,
-            dest: new_program_id,
-            payload,
-            gas_limit,
-            value,
-            reply: None,
+            destination,
+            payload: self.packet.payload,
+            gas_limit: self.packet.gas_limit,
+            value: self.packet.value,
+            reply: Some((self.origin_msg_id, self.exit_code)),
         }
     }
 }
 
-/// Program initialization packet
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
-pub struct ProgramInitPacket {
-    /// Code hash of a new program
-    pub code_hash: CodeId,
-    /// Salt used to generate id for a new program
-    pub salt: Vec<u8>,
-    /// Payload to init function
-    pub payload: Payload,
-    /// Provided to the message gas limit
-    pub gas_limit: u64,
-    /// Provided to the message value
-    pub value: u128,
+/// Program initialization message packet
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
+pub struct InitPacket {
+    new_program_id: ProgramId,
+    code_hash: CodeId,
+    salt: Vec<u8>,
+    payload: Payload,
+    gas_limit: Option<GasLimit>,
+    value: Value,
 }
 
-impl ProgramInitPacket {
-    /// Create a new program init packet
+impl InitPacket {
+    /// New program initialization message packet constructor.
     pub fn new(
         code_hash: CodeId,
         salt: Vec<u8>,
         payload: Payload,
-        gas_limit: u64,
-        value: u128,
+        gas_limit: Option<GasLimit>,
+        value: Value,
     ) -> Self {
+        let new_program_id = ProgramId::generate(code_hash, &salt);
         Self {
+            new_program_id,
             code_hash,
             salt,
             payload,
@@ -443,144 +455,41 @@ impl ProgramInitPacket {
     }
 }
 
-/// Outgoing message packet.
-#[derive(Clone, Debug, Decode, Encode)]
-pub struct OutgoingPacket {
-    dest: ProgramId,
-    payload: Payload,
-    gas_limit: Option<u64>,
-    value: u128,
+/// Program initialization message
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    codec::Decode,
+    codec::Encode,
+    scale_info::TypeInfo,
+)]
+pub struct InitMessage {
+    id: MessageId,
+    packet: InitPacket,
 }
 
-impl OutgoingPacket {
-    /// New outgoing message packet.
-    pub fn new(dest: ProgramId, payload: Payload, gas_limit: Option<u64>, value: u128) -> Self {
-        Self {
-            dest,
-            payload,
-            gas_limit,
-            value,
-        }
+impl InitMessage {
+    /// New program initialization message.
+    pub fn new(origin_msg_id: MessageId, local_nonce: u8, packet: InitPacket) -> Self {
+        let id = MessageId::generate_outgoing(origin_msg_id, local_nonce);
+        Self { id, packet }
     }
 
-    /// Gas limit.
-    pub fn gas_limit(&self) -> Option<u64> {
-        self.gas_limit
-    }
-
-    /// Value.
-    pub fn value(&self) -> u128 {
-        self.value
-    }
-
-    /// Payload.
-    pub fn payload(&self) -> &[u8] {
-        self.payload.as_ref()
-    }
-
-    /// Destination.
-    pub fn dest(&self) -> ProgramId {
-        self.dest
-    }
-}
-
-impl Default for OutgoingPacket {
-    /// Empty packet with log dest.
-    fn default() -> Self {
-        Self {
-            dest: Default::default(),
-            payload: Payload::default(),
-            gas_limit: None,
-            value: 0,
-        }
-    }
-}
-
-/// Reply message packet.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
-pub struct ReplyPacket {
-    /// Payload of the reply message.
-    pub payload: Payload,
-    /// Message value.
-    pub value: u128,
-    /// Exit code
-    pub exit_code: ExitCode,
-}
-
-impl ReplyPacket {
-    /// New reply message in some message context.
-    pub fn new(exit_code: ExitCode, payload: Payload, value: u128) -> Self {
-        Self {
-            payload,
-            value,
-            exit_code,
-        }
-    }
-
-    /// Value of the reply message.
-    pub fn value(&self) -> u128 {
-        self.value
-    }
-}
-
-/// Generator of message id.
-pub trait MessageIdGenerator {
-    /// Generate next id.
-    fn next(&mut self) -> MessageId;
-
-    /// Query current nonce.
-    fn current(&self) -> u64;
-
-    /// Build outgoing message from current packet.
-    ///
-    /// Message id will be generated.
-    fn produce_outgoing(&mut self, packet: OutgoingPacket) -> OutgoingMessage {
-        let id = self.next();
-        OutgoingMessage {
-            id,
-            dest: packet.dest,
-            payload: packet.payload,
-            gas_limit: packet.gas_limit,
-            value: packet.value,
-        }
-    }
-
-    /// Build reply from reply packet.
-    ///
-    /// Message id will be generated.
-    fn produce_reply(&mut self, packet: ReplyPacket) -> ReplyMessage {
-        let id = self.next();
-
-        ReplyMessage {
-            id,
-            payload: packet.payload,
-            value: packet.value,
-            exit_code: packet.exit_code,
-        }
-    }
-
-    /// Build program init message
-    ///
-    /// Message id will be generated
-    fn produce_init(
-        &mut self,
-        new_program_id: ProgramId,
-        packet: ProgramInitPacket,
-    ) -> ProgramInitMessage {
-        let id = self.next();
-        let ProgramInitPacket {
-            payload,
-            gas_limit,
-            value,
-            ..
-        } = packet;
-
-        ProgramInitMessage {
-            id,
-            new_program_id,
-            payload,
-            gas_limit,
-            value,
+    /// Convert program initialization message to message.
+    pub fn into_message(self, source: ProgramId) -> Message {
+        Message {
+            id: self.id,
+            source,
+            destination: self.packet.new_program_id,
+            payload: self.packet.payload,
+            gas_limit: self.packet.gas_limit,
+            value: self.packet.value,
+            reply: None,
         }
     }
 }
@@ -593,7 +502,7 @@ pub struct MessageState {
     /// Collection of outgoing messages generated.
     pub outgoing: Vec<OutgoingMessage>,
     /// Collection of init messages for new programs generated.
-    pub init_messages: Vec<ProgramInitMessage>,
+    pub init_messages: Vec<InitMessage>,
     /// Reply generated.
     pub reply: Option<ReplyMessage>,
     /// Messages to be waken.
@@ -617,29 +526,23 @@ pub struct PayloadStore {
 
 /// Message context for the currently running program.
 #[derive(Clone)]
-pub struct MessageContext<IG: MessageIdGenerator + 'static> {
+pub struct MessageContext {
     state: Rc<RefCell<MessageState>>,
     store: Rc<RefCell<PayloadStore>>,
     outgoing_limit: u64,
     current: Rc<IncomingMessage>,
-    id_generator: Rc<RefCell<IG>>,
 }
 
-impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
+impl MessageContext {
     /// New context.
     ///
     /// Create context by providing incoming message for the program.
-    pub fn new(
-        incoming_message: IncomingMessage,
-        id_generator: IG,
-        store: Option<PayloadStore>,
-    ) -> MessageContext<IG> {
+    pub fn new(incoming_message: IncomingMessage, store: Option<PayloadStore>) -> MessageContext {
         MessageContext {
             state: Default::default(),
             store: store.map(|v| Rc::new(RefCell::from(v))).unwrap_or_default(),
             outgoing_limit: 128,
             current: Rc::new(incoming_message),
-            id_generator: Rc::new(id_generator.into()),
         }
     }
 
@@ -797,6 +700,45 @@ impl<IG: MessageIdGenerator + 'static> MessageContext<IG> {
         Ok((new_program_id, msg_id))
     }
 }
+
+//  /// New message from user
+//  pub fn new(
+//     user_id: ProgramId,
+//     block_number: u32,
+//     local_nonce: u32,
+//     destination: ProgramId,
+//     payload: Payload,
+//     value: Value,
+// ) -> Self {
+//     let id = MessageId::generate_from_user(block_number, user_id, local_nonce);
+//     Self {
+//         id,
+//         source: user_id,
+//         destination,
+//         payload,
+//         value,
+//         reply: None,
+//     }
+// }
+
+// /// New reply message from user
+// pub fn new_reply(
+//     user_id: ProgramId,
+//     destination: ProgramId,
+//     payload: Payload,
+//     value: Value,
+//     reply_to: MessageId,
+// ) -> Self {
+//     let id = MessageId::generate_reply(reply_to, 0);
+//     Self {
+//         id,
+//         source: user_id,
+//         destination,
+//         payload,
+//         value,
+//         reply: Some((reply_to, 0)),
+//     }
+// }
 
 /// Dispatch.
 ///

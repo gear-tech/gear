@@ -21,7 +21,7 @@
 use crate::{
     identifiers::{MessageId, ProgramId},
     memory::PageNumber,
-    message::{ExitCode, OutgoingPacket, ProgramInitPacket, ReplyPacket},
+    message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };
 use alloc::rc::Rc;
 use anyhow::Result;
@@ -63,14 +63,10 @@ pub trait Ext {
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str>;
 
     /// Complete message and send it to another program.
-    fn send_commit(
-        &mut self,
-        handle: usize,
-        msg: OutgoingPacket,
-    ) -> Result<MessageId, &'static str>;
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str>;
 
     /// Send message to another program.
-    fn send(&mut self, msg: OutgoingPacket) -> Result<MessageId, &'static str> {
+    fn send(&mut self, msg: HandlePacket) -> Result<MessageId, &'static str> {
         let handle = self.send_init()?;
         self.send_commit(handle, msg)
     }
@@ -149,7 +145,7 @@ pub trait Ext {
     fn wake(&mut self, waker_id: MessageId) -> Result<(), &'static str>;
 
     /// Send init message to create a new program
-    fn create_program(&mut self, packet: ProgramInitPacket) -> Result<ProgramId, &'static str>;
+    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str>;
 }
 
 /// Struct for interacting with Ext
@@ -247,7 +243,7 @@ mod tests {
         fn send_commit(
             &mut self,
             _handle: usize,
-            _msg: OutgoingPacket,
+            _msg: HandlePacket,
         ) -> Result<MessageId, &'static str> {
             Ok(MessageId::default())
         }
@@ -304,10 +300,7 @@ mod tests {
         fn wake(&mut self, _waker_id: MessageId) -> Result<(), &'static str> {
             Ok(())
         }
-        fn create_program(
-            &mut self,
-            _packet: ProgramInitPacket,
-        ) -> Result<ProgramId, &'static str> {
+        fn create_program(&mut self, _packet: InitPacket) -> Result<ProgramId, &'static str> {
             Ok(Default::default())
         }
     }

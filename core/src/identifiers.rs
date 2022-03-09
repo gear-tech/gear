@@ -16,8 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Base identifiers for gear primitives.
+//! Base identifiers for messaging primitives.
 
+use crate::message::ExitCode;
 use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 
@@ -39,6 +40,7 @@ macro_rules! declare_id {
         #[derive(
             Clone,
             Copy,
+            Debug,
             Default,
             Eq,
             Hash,
@@ -106,12 +108,6 @@ macro_rules! declare_id {
                 write!(f, "{}", hex::encode(&self.0[..end]))
             }
         }
-
-        impl core::fmt::Debug for $name {
-            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-                core::fmt::Display::fmt(self, f)
-            }
-        }
     };
 }
 
@@ -148,33 +144,28 @@ impl MessageId {
     }
 
     /// Generate MessageId for program outgoing message
-    pub fn generate_outgoing(
-        origin_msg_id: MessageId,
-        program_id: ProgramId,
-        local_nonce: u8,
-    ) -> MessageId {
-        let origin_msg_id = origin_msg_id.as_ref();
-        let program_id = program_id.as_ref();
-
-        let len = origin_msg_id.len() + program_id.len() + 1;
-
-        let mut argument = Vec::with_capacity(len);
-        argument.extend(origin_msg_id);
-        argument.extend(program_id);
-        argument.push(local_nonce);
-
-        hash(&argument).into()
-    }
-
-    /// Generate MessageId for reply message depent on exit code
-    pub fn generate_reply(origin_msg_id: MessageId, exit_code: u8) -> MessageId {
+    pub fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u8) -> MessageId {
         let origin_msg_id = origin_msg_id.as_ref();
 
         let len = origin_msg_id.len() + 1;
 
         let mut argument = Vec::with_capacity(len);
         argument.extend(origin_msg_id);
-        argument.push(exit_code);
+        argument.push(local_nonce);
+
+        hash(&argument).into()
+    }
+
+    /// Generate MessageId for reply message depent on exit code
+    pub fn generate_reply(origin_msg_id: MessageId, exit_code: ExitCode) -> MessageId {
+        let origin_msg_id = origin_msg_id.as_ref();
+        let exit_code = exit_code.to_le_bytes();
+
+        let len = origin_msg_id.len() + exit_code.len();
+
+        let mut argument = Vec::with_capacity(len);
+        argument.extend(exit_code);
+        argument.extend(origin_msg_id);
 
         hash(&argument).into()
     }
@@ -192,20 +183,6 @@ impl ProgramId {
         let mut argument = Vec::with_capacity(len);
         argument.extend_from_slice(code_id);
         argument.extend_from_slice(salt);
-
-        hash(&argument).into()
-    }
-
-    /// Generate ProgramId for program created by other program
-    pub fn generate_from_program(code_id: CodeId, salt: &[u8], local_nonce: u8) -> Self {
-        let code_id = code_id.as_ref();
-
-        let len = code_id.len() + salt.len() + 1;
-
-        let mut argument = Vec::with_capacity(len);
-        argument.extend_from_slice(code_id);
-        argument.extend_from_slice(salt);
-        argument.push(local_nonce);
 
         hash(&argument).into()
     }
