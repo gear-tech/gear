@@ -169,7 +169,7 @@ impl<T: Config> Pallet<T> {
         Self::send_transaction(entries)
     }
 
-    fn send_transaction(data: Vec<PayeeInfo>) -> Result<(), OffchainError> {
+    pub(crate) fn send_transaction(data: Vec<PayeeInfo>) -> Result<(), OffchainError> {
         let call = Call::collect_waitlist_rent { payees_list: data };
 
         SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()).map_err(|_| {

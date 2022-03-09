@@ -21,7 +21,7 @@ use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
 use common::{self, DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
 use core::convert::TryInto;
-use frame_support::{assert_ok, traits::ReservableCurrency};
+use frame_support::{assert_ok, traits::ReservableCurrency, unsigned::TransactionSource};
 use gear_core::message::DispatchKind;
 use hex_literal::hex;
 use sp_runtime::offchain::{
@@ -171,6 +171,88 @@ fn ocw_interval_maintained() {
         );
         // Another transaction added to the pool
         assert_eq!(pool.read().transactions.len(), 6);
+    })
+}
+
+fn decode_validate_usage_call(encoded: &[u8]) -> crate::Call<Test> {
+    let mut encoded = encoded.clone();
+    let extrinsic: Extrinsic = Decode::decode(&mut encoded).unwrap();
+
+    let call = extrinsic.call;
+    let inner = match call {
+        mock::Call::Usage(inner) => inner,
+        _ => unreachable!(),
+    };
+
+    assert_eq!(
+        <Usage as sp_runtime::traits::ValidateUnsigned>::validate_unsigned(
+            TransactionSource::Local,
+            &inner,
+        )
+        .is_ok(),
+        true
+    );
+
+    inner
+}
+
+#[test]
+fn ocw_double_charge() {
+    init_logger();
+    let (mut ext, pool) = with_offchain_ext();
+    ext.execute_with(|| {
+        // Reserve some currency on users' accounts
+        for i in 1u64..=10 {
+            assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&i, 20_000));
+        }
+
+        // Assert the tx pool is empty
+        assert_eq!(pool.read().transactions.len(), 0);
+
+        // Pretend the network has been up for a while
+        run_to_block(10);
+
+        // Expected number of batches needed to scan the entire wait list
+        let num_batches = 1u32;
+
+        // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
+        let num_entries = <Test as Config>::MaxBatchSize::get()
+            .saturating_mul(num_batches)
+            .saturating_sub(1) as u64;
+        // assert_eq!(num_entries, 29);
+        populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
+
+        run_to_block_with_ocw(14);
+
+        assert_eq!(pool.read().transactions.len(), 1);
+
+        let unsigned = decode_validate_usage_call(&pool.read().transactions[0]);
+        let payees_list = match unsigned {
+            crate::Call::collect_waitlist_rent{ payees_list } => payees_list,
+            _ => unreachable!()
+        };
+
+        assert_ok!(Usage::send_transaction(payees_list.clone()));
+
+        assert_eq!(pool.read().transactions.len(), 2);
+
+        run_to_block_with_ocw(15);
+
+        assert_eq!(pool.read().transactions.len(), 2);
+
+        // Calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::none(),
+            payees_list.clone()));
+
+        run_to_block_with_ocw(16);
+
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::none(),
+            payees_list));
+
+        // assert_eq!(Balances::reserved_balance(&1), 8_600);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 6001);
     })
 }
 
