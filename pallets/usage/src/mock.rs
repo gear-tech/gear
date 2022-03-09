@@ -162,7 +162,7 @@ impl pallet_authorship::Config for Test {
     type EventHandler = ();
 }
 
-type Extrinsic = TestXt<Call, ()>;
+pub type Extrinsic = TestXt<Call, ()>;
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
 where
