@@ -496,7 +496,7 @@ fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     key
 }
 
-fn pages_prefix(program_id: H256) -> Vec<u8> {
+pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
     program_id.encode_to(&mut key);

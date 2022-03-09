@@ -4358,6 +4358,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
+ "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -4406,6 +4407,27 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "wabt",
+]
+
+[[package]]
+name = "pallet-gear-program"
+version = "2.0.0"
+dependencies = [
+ "env_logger",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "hex-literal",
+ "log",
+ "parity-scale-codec",
+ "parking_lot",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]

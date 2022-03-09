@@ -28,7 +28,7 @@ use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_B
 use super::{
     manager::HandleKind,
     mock::{
-        new_test_ext, run_to_block, Event as MockEvent, Gear, Origin, System, Test, BLOCK_AUTHOR,
+        new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR,
         LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox,
@@ -2087,7 +2087,7 @@ fn paused_program_keeps_id() {
 
         run_to_block(2, None);
 
-        assert_ok!(common::pause_program(program_id));
+        assert_ok!(GearProgram::pause_program(program_id));
 
         assert_noop!(
             GearPallet::<Test>::submit_program(
@@ -2128,7 +2128,7 @@ fn messages_to_paused_program_skipped() {
 
         run_to_block(2, None);
 
-        assert_ok!(common::pause_program(program_id));
+        assert_ok!(GearProgram::pause_program(program_id));
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_3);
 
@@ -2168,7 +2168,7 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(2, None);
 
-        assert_ok!(common::pause_program(program_id));
+        assert_ok!(GearProgram::pause_program(program_id));
 
         run_to_block(3, None);
 
@@ -2232,7 +2232,7 @@ fn program_messages_to_paused_program_skipped() {
 
         run_to_block(2, None);
 
-        assert_ok!(common::pause_program(paused_program_id));
+        assert_ok!(GearProgram::pause_program(paused_program_id));
 
         run_to_block(3, None);
 

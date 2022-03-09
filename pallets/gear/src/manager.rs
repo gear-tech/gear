@@ -18,7 +18,7 @@
 
 use crate::{
     pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
-    Pallet,
+    Pallet, GearProgramPallet,
 };
 use codec::{Decode, Encode};
 use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch, STORAGE_PROGRAM_PREFIX};
@@ -387,8 +387,7 @@ where
         );
 
         let destination = dispatch.message.dest;
-        if common::program_exists(destination)
-            || common::paused_program_exists(destination)
+        if GearProgramPallet::<T>::program_exists(destination)
             || self
                 .marked_destinations
                 .contains(&ProgramId::from_origin(destination))
@@ -556,7 +555,7 @@ where
 
         if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {
-                if !common::program_exists(candidate_id.into_origin()) {
+                if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
                     // Code hash for invalid code can't be added to the storage from extrinsics.
                     let new_program = NativeProgram::new(candidate_id, code.clone())
                         .expect("guaranteed to be valid");

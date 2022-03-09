@@ -37,6 +37,8 @@ mod tests;
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
+use pallet_gear_program::Pallet as GearProgramPallet;
+
 pub trait DebugInfo {
     fn is_remap_id_enabled() -> bool;
     fn remap_id();
@@ -86,7 +88,7 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config
+        frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config + pallet_gear_program::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -682,8 +684,7 @@ pub mod pallet {
 
             // Make sure there is no program with such id in program storage
             ensure!(
-                !common::program_exists(id.into_origin())
-                    & !common::paused_program_exists(id.into_origin()),
+                !GearProgramPallet::<T>::program_exists(id.into_origin()),
                 Error::<T>::ProgramAlreadyExists
             );
 
@@ -788,7 +789,7 @@ pub mod pallet {
             T::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            if common::program_exists(destination) | common::paused_program_exists(destination) {
+            if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
@@ -883,7 +884,7 @@ pub mod pallet {
 
             let message_id = common::next_message_id(&payload);
 
-            if common::program_exists(destination) | common::paused_program_exists(destination) {
+            if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
