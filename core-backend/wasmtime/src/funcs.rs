@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use core::marker::PhantomData;
+
 use alloc::{string::String, vec};
 use gear_backend_common::funcs::*;
 use gear_backend_common::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
@@ -27,8 +29,7 @@ use gear_core::{
 use wasmtime::{Func, Store, Trap};
 
 pub struct FuncsHandler<E: Ext + 'static, T> {
-    _unneed1: E,
-    _unneed2: T,
+    _panthom: PhantomData<(E, T)>,
 }
 
 impl<E: Ext + 'static, T> FuncsHandler<E, T> {

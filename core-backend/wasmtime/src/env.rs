@@ -49,7 +49,7 @@ impl LaterStore {
     /// to make it in unsafe manner.
     /// Wasmtime store object must be mut borrowed to execute instance,
     /// but also we must mut borrow it in memory sys-calls: alloc/free/...
-    /// But memory syscalls called in the same time with instance execution,
+    /// But memory sys-calls are called in the same time with instance execution,
     /// so there is no ways to avoid twice mut borrowing.
     pub fn get_mut_ref(&mut self) -> &mut Store<()> {
         unsafe {
