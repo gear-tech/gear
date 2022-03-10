@@ -4417,6 +4417,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
+ "gear-core",
  "hex-literal",
  "log",
  "parity-scale-codec",

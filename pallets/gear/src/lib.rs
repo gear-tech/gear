@@ -949,6 +949,7 @@ pub mod pallet {
         pub fn reset(origin: OriginFor<T>) -> DispatchResult {
             ensure_root(origin)?;
             <Mailbox<T>>::remove_all(None);
+            GearProgramPallet::<T>::reset_storage();
             common::reset_storage();
 
             Self::deposit_event(Event::DatabaseWiped);
