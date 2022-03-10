@@ -2,25 +2,25 @@ title: Futures-unordered
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm
+    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.opt.wasm
     init_message:
       kind: utf-8
       value: "{2},{3}"
 
   - id: 2
-    path: target/wasm32-unknown-unknown/release/demo_async.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async.opt.wasm
     init_message:
       kind: utf-8
       value: "{3},{4},{5}"
 
   - id: 3
-    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
 
   - id: 4
-    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
 
   - id: 5
-    path: target/wasm32-unknown-unknown/release/demo_ping.wasm
+    path: target/wasm32-unknown-unknown/release/demo_ping.opt.wasm
 
 fixtures:
   - title: futures-unordered

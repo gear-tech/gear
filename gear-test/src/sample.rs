@@ -219,12 +219,23 @@ pub struct Message {
 /// Main model describing test structure
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
+    /// Flag which defines whether test should be skipped.
+    /// TODO: remove after resolving https://github.com/gear-tech/gear/pull/739
+    pub skip: Option<bool>,
     /// Code that are needed to be submitted for tests
     pub codes: Option<Vec<Code>>,
     /// Programs and related data used for tests
     pub programs: Vec<Program>,
     /// A set of messages and expected results of running them in the context of defined [programs](todo-field-ref).
     pub fixtures: Vec<Fixture>,
+}
+
+/// get path to meta wasm file.
+/// `wasm_path` is path to wasm file.
+pub fn get_meta_wasm_path(wasm_path: String) -> String {
+    wasm_path
+        .replace(".opt.wasm", ".wasm")
+        .replace(".wasm", ".meta.wasm")
 }
 
 #[test]
@@ -253,7 +264,18 @@ fn check_sample() {
     "#;
 
     let test: Test = serde_yaml::from_str(yaml).unwrap();
+    let path = test.programs.get(0).expect("Must have one").path.clone();
 
     assert_eq!(test.fixtures[0].messages.len(), 1);
     assert_eq!(test.fixtures[0].messages.len(), 1);
+    assert_eq!(
+        path,
+        "examples/target/wasm32-unknown-unknown/release/demo_ping.wasm"
+    );
+
+    let meta_wasm = get_meta_wasm_path(path);
+    assert_eq!(
+        meta_wasm,
+        "examples/target/wasm32-unknown-unknown/release/demo_ping.meta.wasm"
+    );
 }

@@ -2,7 +2,7 @@ title: Wait test
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_wait.wasm
+    path: target/wasm32-unknown-unknown/release/demo_wait.opt.wasm
 
 fixtures:
   - title: wait
