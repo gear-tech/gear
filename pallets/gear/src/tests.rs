@@ -2300,7 +2300,7 @@ fn resume_program_works() {
         let memory_pages = common::get_program_pages(program_id, program.persistent_pages)
             .expect("program exists, so do pages");
 
-        assert_ok!(common::pause_program(program_id));
+        assert_ok!(GearProgram::pause_program(program_id));
 
         run_to_block(4, None);
 

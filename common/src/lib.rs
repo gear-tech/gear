@@ -23,7 +23,6 @@ pub mod native;
 pub mod storage_queue;
 
 mod pause;
-pub use pause::{pause_program, paused_program_exists, resume_program, PauseError, ResumeError};
 
 use codec::{Decode, Encode};
 use frame_support::{
@@ -712,7 +711,7 @@ pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(Queue
     msg
 }
 
-fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
     prog_id.encode_to(&mut key);

@@ -1,3 +1,21 @@
+// This file is part of Gear.
+
+// Copyright (C) 2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 use super::*;
 use codec::{Decode, Encode};
 use common::{self, QueuedDispatch};
@@ -26,6 +44,12 @@ fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
 pub enum PauseError {
     ProgramNotFound,
     ProgramTerminated,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ResumeError {
+    ProgramNotFound,
+    WrongMemoryPages,
 }
 
 impl<T: Config> pallet::Pallet<T> {
@@ -64,5 +88,30 @@ impl<T: Config> pallet::Pallet<T> {
 
     pub fn paused_program_exists(id: H256) -> bool {
         PausedPrograms::<T>::contains_key(id)
+    }
+
+    pub fn resume_program(
+        program_id: H256,
+        memory_pages: BTreeMap<u32, Vec<u8>>,
+        block_number: u32,
+    ) -> Result<(), ResumeError> {
+        let paused_program = PausedPrograms::<T>::take(program_id).ok_or(ResumeError::ProgramNotFound)?;
+
+        if paused_program.pages_hash != memory_pages_hash(&memory_pages) {
+            return Err(ResumeError::WrongMemoryPages);
+        }
+
+        common::set_program(program_id, paused_program.program, memory_pages);
+
+        paused_program
+            .wait_list
+            .into_iter()
+            .for_each(|m| common::insert_waiting_message(program_id, m.message.id, m, block_number));
+        sp_io::storage::set(
+            &common::waiting_init_prefix(program_id),
+            &paused_program.waiting_init.encode()[..],
+        );
+
+        Ok(())
     }
 }

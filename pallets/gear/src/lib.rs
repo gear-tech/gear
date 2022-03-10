@@ -979,14 +979,14 @@ pub mod pallet {
 
             ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);
 
-            common::resume_program(
+            GearProgramPallet::<T>::resume_program(
                 program_id,
                 memory_pages,
                 <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
             )
             .map_err(|e| match e {
-                common::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
-                common::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
+                pallet_gear_program::pause::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
+                pallet_gear_program::pause::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
             })?;
 
             T::Currency::transfer(
