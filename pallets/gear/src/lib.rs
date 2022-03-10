@@ -986,8 +986,8 @@ pub mod pallet {
                 <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
             )
             .map_err(|e| match e {
-                pallet_gear_program::pause::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
-                pallet_gear_program::pause::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
+                pallet_gear_program::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
+                pallet_gear_program::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
             })?;
 
             T::Currency::transfer(

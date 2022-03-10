@@ -22,7 +22,9 @@ pub use pallet::*;
 use primitive_types::H256;
 use sp_std::prelude::*;
 
-pub mod pause;
+mod pause;
+pub use pause::{PauseError, ResumeError};
+
 mod program;
 
 #[cfg(test)]
@@ -43,40 +45,14 @@ pub mod pallet {
     pub trait Config:
         frame_system::Config
     {
-        /// Because this pallet emits events, it depends on the runtime's definition of an event.
-        type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-        // /// Time lock expiration duration for an offchain worker
-        // #[pallet::constant]
-        // type ExpirationDuration: Get<u64>;
-
-        // /// The maximum number of waitlisted messages to be processed on-chain in one go.
-        // #[pallet::constant]
-        // type MaxBatchSize: Get<u32>;
-
-        // /// The amount of gas necessary for a trap reply message to be processed.
-        // #[pallet::constant]
-        // type TrapReplyExistentialGasLimit: Get<u64>;
-
-        // /// The fraction of the collected wait list rent an external submitter will get as a reward
-        // #[pallet::constant]
-        // type ExternalSubmitterRewardFraction: Get<Perbill>;
     }
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
-    #[pallet::event]
-    #[pallet::generate_deposit(pub(super) fn deposit_event)]
-    pub enum Event<T: Config> {
-        WaitListRentCollected(u32),
-    }
-
     #[pallet::error]
     pub enum Error<T> {
-        /// Value not found for a key in storage.
-        FailedToGetValueFromStorage,
     }
 
     #[pallet::storage]

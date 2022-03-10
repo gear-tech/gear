@@ -38,7 +38,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage},
     }
 );
 
@@ -76,7 +76,6 @@ impl system::Config for Test {
 }
 
 impl pallet_gear_program::Config for Test {
-    type Event = Event;
 }
 
 // Build genesis storage according to the mock runtime.

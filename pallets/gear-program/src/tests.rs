@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use common::{ActiveProgram, ProgramState, QueuedDispatch, QueuedMessage, Origin};
-use frame_support::{assert_ok, assert_err};
+use frame_support::{assert_ok, assert_noop};
 use gear_core::program::CodeHash;
 use sp_std::collections::btree_map::BTreeMap;
 
@@ -133,7 +133,7 @@ fn pause_program_twice_fails() {
         run_to_block(2, None);
 
         assert_ok!(GearProgram::pause_program(program_id));
-        assert_err!(GearProgram::pause_program(program_id), pause::PauseError::ProgramNotFound);
+        assert_noop!(GearProgram::pause_program(program_id), PauseError::ProgramNotFound);
     });
 }
 
@@ -162,7 +162,7 @@ fn pause_terminated_program_fails() {
 
         assert_ok!(common::set_program_terminated_status(program_id));
 
-        assert_err!(GearProgram::pause_program(program_id), pause::PauseError::ProgramTerminated);
+        assert_noop!(GearProgram::pause_program(program_id), PauseError::ProgramTerminated);
     });
 }
 
@@ -277,9 +277,9 @@ fn resume_program_twice_fails() {
             memory_pages.clone(),
             block_number
         ));
-        assert_err!(
+        assert_noop!(
             GearProgram::resume_program(program_id, memory_pages, block_number),
-            pause::ResumeError::ProgramNotFound
+            ResumeError::ProgramNotFound
         );
     });
 }
@@ -300,9 +300,9 @@ fn resume_program_wrong_memory_fails() {
 
         let block_number = 100;
         memory_pages.remove(&0);
-        assert_err!(
+        assert_noop!(
             GearProgram::resume_program(program_id, memory_pages, block_number),
-            pause::ResumeError::WrongMemoryPages
+            ResumeError::WrongMemoryPages
         );
     });
 }

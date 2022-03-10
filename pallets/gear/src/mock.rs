@@ -44,7 +44,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
-        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -104,7 +104,6 @@ impl common::GasPrice for GasConverter {
 }
 
 impl pallet_gear_program::Config for Test {
-    type Event = Event;
 }
 
 parameter_types! {

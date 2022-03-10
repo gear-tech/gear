@@ -95,11 +95,13 @@ impl<T: Config> pallet::Pallet<T> {
         memory_pages: BTreeMap<u32, Vec<u8>>,
         block_number: u32,
     ) -> Result<(), ResumeError> {
-        let paused_program = PausedPrograms::<T>::take(program_id).ok_or(ResumeError::ProgramNotFound)?;
+        let paused_program = PausedPrograms::<T>::get(program_id).ok_or(ResumeError::ProgramNotFound)?;
 
         if paused_program.pages_hash != memory_pages_hash(&memory_pages) {
             return Err(ResumeError::WrongMemoryPages);
         }
+
+        PausedPrograms::<T>::remove(program_id);
 
         common::set_program(program_id, paused_program.program, memory_pages);
 
