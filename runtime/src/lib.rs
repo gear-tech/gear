@@ -328,6 +328,9 @@ impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
 }
 
+impl pallet_gear_program::Config for Runtime {
+}
+
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
@@ -393,6 +396,7 @@ construct_runtime!(
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         Authorship: pallet_authorship,
+        GearProgram: pallet_gear_program,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
@@ -419,6 +423,7 @@ construct_runtime!(
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         Authorship: pallet_authorship,
+        GearProgram: pallet_gear_program,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
