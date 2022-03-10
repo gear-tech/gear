@@ -88,7 +88,10 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config:
-        frame_system::Config + pallet_authorship::Config + pallet_timestamp::Config + pallet_gear_program::Config
+        frame_system::Config
+        + pallet_authorship::Config
+        + pallet_timestamp::Config
+        + pallet_gear_program::Config
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -987,7 +990,9 @@ pub mod pallet {
             )
             .map_err(|e| match e {
                 pallet_gear_program::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
-                pallet_gear_program::ResumeError::WrongMemoryPages => Error::<T>::ResumeProgramWrongMemory,
+                pallet_gear_program::ResumeError::WrongMemoryPages => {
+                    Error::<T>::ResumeProgramWrongMemory
+                }
             })?;
 
             T::Currency::transfer(

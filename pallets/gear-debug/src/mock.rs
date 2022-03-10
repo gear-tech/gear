@@ -118,8 +118,7 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
-impl pallet_gear_program::Config for Test {
-}
+impl pallet_gear_program::Config for Test {}
 
 impl pallet_gear::Config for Test {
     type Event = Event;

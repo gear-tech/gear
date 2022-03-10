@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::{ActiveProgram, ProgramState, QueuedDispatch, QueuedMessage, Origin};
-use frame_support::{assert_ok, assert_noop};
+use common::{ActiveProgram, Origin, ProgramState, QueuedDispatch, QueuedMessage};
+use frame_support::{assert_noop, assert_ok};
 use gear_core::program::CodeHash;
 use sp_std::collections::btree_map::BTreeMap;
 
@@ -108,7 +108,6 @@ fn pause_program_works() {
     });
 }
 
-
 #[test]
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
@@ -133,7 +132,10 @@ fn pause_program_twice_fails() {
         run_to_block(2, None);
 
         assert_ok!(GearProgram::pause_program(program_id));
-        assert_noop!(GearProgram::pause_program(program_id), PauseError::ProgramNotFound);
+        assert_noop!(
+            GearProgram::pause_program(program_id),
+            PauseError::ProgramNotFound
+        );
     });
 }
 
@@ -162,7 +164,10 @@ fn pause_terminated_program_fails() {
 
         assert_ok!(common::set_program_terminated_status(program_id));
 
-        assert_noop!(GearProgram::pause_program(program_id), PauseError::ProgramTerminated);
+        assert_noop!(
+            GearProgram::pause_program(program_id),
+            PauseError::ProgramTerminated
+        );
     });
 }
 
@@ -228,7 +233,8 @@ fn resume_uninitialized_program_works() {
         assert!(!GearProgram::paused_program_exists(program_id));
 
         let new_memory_pages =
-            common::get_program_pages(program_id, memory_pages.clone().into_keys().collect()).unwrap();
+            common::get_program_pages(program_id, memory_pages.clone().into_keys().collect())
+                .unwrap();
         assert_eq!(memory_pages, new_memory_pages);
 
         let waiting_init = common::waiting_init_take_messages(program_id);

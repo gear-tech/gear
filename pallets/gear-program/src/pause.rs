@@ -19,9 +19,9 @@
 use super::*;
 use codec::{Decode, Encode};
 use common::{self, QueuedDispatch};
+use frame_support::storage::PrefixIterator;
 use scale_info::TypeInfo;
 use sp_std::collections::btree_map::BTreeMap;
-use frame_support::storage::PrefixIterator;
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]
 pub(super) struct PausedProgram {
@@ -95,7 +95,8 @@ impl<T: Config> pallet::Pallet<T> {
         memory_pages: BTreeMap<u32, Vec<u8>>,
         block_number: u32,
     ) -> Result<(), ResumeError> {
-        let paused_program = PausedPrograms::<T>::get(program_id).ok_or(ResumeError::ProgramNotFound)?;
+        let paused_program =
+            PausedPrograms::<T>::get(program_id).ok_or(ResumeError::ProgramNotFound)?;
 
         if paused_program.pages_hash != memory_pages_hash(&memory_pages) {
             return Err(ResumeError::WrongMemoryPages);
@@ -105,10 +106,9 @@ impl<T: Config> pallet::Pallet<T> {
 
         common::set_program(program_id, paused_program.program, memory_pages);
 
-        paused_program
-            .wait_list
-            .into_iter()
-            .for_each(|m| common::insert_waiting_message(program_id, m.message.id, m, block_number));
+        paused_program.wait_list.into_iter().for_each(|m| {
+            common::insert_waiting_message(program_id, m.message.id, m, block_number)
+        });
         sp_io::storage::set(
             &common::waiting_init_prefix(program_id),
             &paused_program.waiting_init.encode()[..],

@@ -103,8 +103,7 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
-impl pallet_gear_program::Config for Test {
-}
+impl pallet_gear_program::Config for Test {}
 
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000;

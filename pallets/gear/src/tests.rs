@@ -28,8 +28,8 @@ use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_B
 use super::{
     manager::HandleKind,
     mock::{
-        new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram, Origin, System, Test, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram, Origin, System, Test,
+        BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox,
     MessageInfo, Pallet as GearPallet, Reason,

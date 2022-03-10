@@ -36,35 +36,26 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::{
-        pallet_prelude::*,
-    };
-    use frame_system::{pallet_prelude::*};
+    use frame_support::pallet_prelude::*;
+    use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config:
-        frame_system::Config
-    {
-    }
+    pub trait Config: frame_system::Config {}
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
     #[pallet::error]
-    pub enum Error<T> {
-    }
+    pub enum Error<T> {}
 
     #[pallet::storage]
     #[pallet::unbounded]
-    pub(crate) type PausedPrograms<T: Config> =
-        StorageMap<_, Identity, H256, pause::PausedProgram>;
+    pub(crate) type PausedPrograms<T: Config> = StorageMap<_, Identity, H256, pause::PausedProgram>;
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-    }
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     #[pallet::call]
-    impl<T: Config> Pallet<T> {
-    }
+    impl<T: Config> Pallet<T> {}
 }

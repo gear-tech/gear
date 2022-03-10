@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
-    Pallet, GearProgramPallet,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
+    MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
 use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch, STORAGE_PROGRAM_PREFIX};
