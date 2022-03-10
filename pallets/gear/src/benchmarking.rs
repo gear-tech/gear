@@ -243,10 +243,10 @@ benchmarks! {
 
         let memory_pages = common::get_program_pages(program_id, (0..q).collect()).unwrap();
 
-        common::pause_program(program_id).unwrap();
+        GearProgramPallet::<T>::pause_program(program_id).unwrap();
     }: _(RawOrigin::Signed(caller), program_id, memory_pages, 10_000u32.into())
     verify {
-        assert!(common::program_exists(program_id));
+        assert!(GearProgramPallet::<T>::program_exists(program_id));
     }
 
     initial_allocation {
