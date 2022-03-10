@@ -26,12 +26,12 @@ use gear_core::memory::{Error, Memory, PageNumber};
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap {
     pub mem: wasmtime::Memory,
-    pub store: LaterStore<()>,
+    pub store: LaterStore,
 }
 
 impl MemoryWrap {
     /// Wrap wasmtime memory for Memory trait.
-    pub fn new(mem: wasmtime::Memory, store: &LaterStore<()>) -> Self {
+    pub fn new(mem: wasmtime::Memory, store: &LaterStore) -> Self {
         Self {
             mem,
             store: store.clone(),
@@ -103,7 +103,7 @@ mod tests {
         use wasmtime::{Engine, Memory as WasmMemory, MemoryType};
 
         let engine = Engine::default();
-        let mut store = LaterStore::<()>::new(&engine);
+        let mut store = LaterStore::new(&engine);
 
         let memory_ty = MemoryType::new(static_pages, Some(max_pages));
         let mem = WasmMemory::new(store.get_mut_ref(), memory_ty).expect("Memory creation failed");

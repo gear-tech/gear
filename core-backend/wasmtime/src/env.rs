@@ -33,17 +33,17 @@ use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
 
-pub struct LaterStore<T>(Rc<Store<T>>);
+pub struct LaterStore(Rc<Store<()>>);
 
-impl<T> Clone for LaterStore<T> {
+impl Clone for LaterStore {
     fn clone(&self) -> Self {
         LaterStore(Rc::clone(&self.0))
     }
 }
 
-impl<T: Default> LaterStore<T> {
+impl LaterStore {
     pub fn new(eng: &Engine) -> Self {
-        LaterStore(Rc::from(Store::new(eng, T::default())))
+        LaterStore(Rc::from(Store::new(eng, ())))
     }
     /// In order to be able borrow mutable reference many times we need
     /// to make it in unsafe manner.
@@ -51,10 +51,10 @@ impl<T: Default> LaterStore<T> {
     /// but also we must mut borrow it in memory sys-calls: alloc/free/...
     /// But memory syscalls called in the same time with instance execution,
     /// so there is no ways to avoid twice mut borrowing.
-    pub fn get_mut_ref(&mut self) -> &mut Store<T> {
+    pub fn get_mut_ref(&mut self) -> &mut Store<()> {
         unsafe {
             let r = self.0.as_ref();
-            let ptr = r as *const Store<T> as *mut Store<T>;
+            let ptr = r as *const Store<()> as *mut Store<()>;
             ptr.as_mut().expect("ptr must be here")
         }
     }
@@ -62,7 +62,7 @@ impl<T: Default> LaterStore<T> {
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
-    store: LaterStore<()>,
+    store: LaterStore,
     ext: LaterExt<E>,
     funcs: BTreeMap<&'static str, Func>,
     instance: Option<Instance>,
@@ -97,7 +97,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         use crate::funcs::FuncsHandler as funcs;
         let tmp_ext = self.ext.clone();
         let mut tmp_store = self.store.clone();
-        let store = LaterStore::<()>::get_mut_ref(&mut tmp_store);
+        let store = LaterStore::get_mut_ref(&mut tmp_store);
         self.funcs
             .insert("alloc", funcs::alloc(tmp_ext.clone(), store));
         self.funcs
