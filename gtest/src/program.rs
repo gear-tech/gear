@@ -1,6 +1,6 @@
 use crate::{
     log::RunResult,
-    manager::{ActiveProgram, Actor, ExtManager},
+    manager::{Program as InnerProgram, Actor, ExtManager},
     system::System,
 };
 use codec::Codec;
@@ -82,7 +82,7 @@ impl<'a> Program<'a> {
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
-        program: ActiveProgram,
+        program: InnerProgram,
     ) -> Self {
         let program_id = id.clone().into().0;
 
@@ -90,7 +90,7 @@ impl<'a> Program<'a> {
             .0
             .borrow_mut()
             .actors
-            .insert(program_id, Actor::new_active(program))
+            .insert(program_id, (Actor::new(program), 0))
             .is_some()
         {
             panic!(
@@ -136,7 +136,7 @@ impl<'a> Program<'a> {
         id: I,
         mock: T,
     ) -> Self {
-        Self::program_with_id(system, id, ActiveProgram::new_mock(mock))
+        Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
@@ -162,7 +162,7 @@ impl<'a> Program<'a> {
         let program =
             CoreProgram::new(program_id, code).expect("Failed to create Program from code");
 
-        Self::program_with_id(system, id, ActiveProgram::new_genuine(program))
+        Self::program_with_id(system, id, InnerProgram::new_genuine(program))
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {

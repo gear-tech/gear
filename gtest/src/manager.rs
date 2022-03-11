@@ -32,68 +32,80 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug)]
 pub(crate) enum Actor {
-    Active(ActiveProgram, ProgramState, u128),
+    Initialized(Program),
+    // Contract: program is always `Some`, option is used to take ownership
+    Uninitialized(Option<MessageId>, Option<Program>),
     Dormant,
 }
 
 impl Actor {
-    pub(crate) fn new_active(active_prog: ActiveProgram) -> Self {
-        Actor::Active(active_prog, ProgramState::Uninitialized(None), 0)
+    pub(crate) fn new(prog: Program) -> Self {
+        Actor::Uninitialized(None, Some(prog))
     }
 
-    fn get_state_mut(&mut self) -> Option<&mut ProgramState> {
+    // #Panics
+    // If actor is initialized or dormant
+    fn transform_to_initialized(&mut self) {
+        assert!(self.is_uninitialized(), "can't transmute actor, which isn't uninitialized");
+        if let Actor::Uninitialized(_, prog) = self {
+            let prog = prog.take().expect("actor storage contains only `Some` values by contract");
+            *self = Actor::Initialized(prog);
+        }
+    }
+
+    fn is_dormant(&self) -> bool {
+        matches!(self, Actor::Dormant)
+    }
+
+    fn is_uninitialized(&self) -> bool {
+        matches!(self, Actor::Uninitialized(..))
+    }
+
+    fn as_mut_core_prog(&mut self) -> Option<&mut CoreProgram> {
         match self {
-            Actor::Active(_, state, _) => Some(state),
+            Actor::Initialized(Program::Genuine(prog)) => Some(prog),
             _ => None,
         }
     }
 
-    fn try_into_core_prog_mut(&mut self) -> Result<&mut CoreProgram, ()> {
+    fn to_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
         match self {
-            Actor::Active(ActiveProgram::Genuine(prog), _, _) => Ok(prog),
-            _ => Err(()),
+            Actor::Initialized(Program::Mock(mock)) => mock.take(),
+            Actor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
+            _ => None,
         }
     }
 
-    fn try_into_mock(&mut self) -> Result<Box<dyn WasmProgram>, ()> {
-        match self {
-            Actor::Active(ActiveProgram::Mock(mock), _, _) => mock.take().ok_or(()),
-            _ => Err(()),
-        }
-    }
-
-    fn try_into_executable_actor(&self) -> Result<ExecutableActor, ()> {
-        match self {
-            Actor::Active(ActiveProgram::Genuine(program), _, balance) => Ok(ExecutableActor {
-                program: program.clone(),
-                balance: *balance,
-            }),
-            _ => Err(()),
-        }
+    fn to_executable_actor(&mut self, balance: u128) -> Option<ExecutableActor> {
+        let program = match self {
+            Actor::Initialized(Program::Genuine(program)) => Some(program.clone()),
+            Actor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program.clone()),
+            _ => None,
+        };
+        program.map(|program| {
+            ExecutableActor {
+                program,
+                balance,
+            }
+        })
     }
 }
 
 #[derive(Debug)]
-pub(crate) enum ActiveProgram {
+pub(crate) enum Program {
     Genuine(CoreProgram),
     // Contract: is always `Some`, option is used to take ownership
     Mock(Option<Box<dyn WasmProgram>>),
 }
 
-impl ActiveProgram {
+impl Program {
     pub(crate) fn new_genuine(prog: CoreProgram) -> Self {
-        ActiveProgram::Genuine(prog)
+        Program::Genuine(prog)
     }
 
     pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
-        ActiveProgram::Mock(Some(Box::new(mock)))
+        Program::Mock(Some(Box::new(mock)))
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum ProgramState {
-    Initialized,
-    Uninitialized(Option<MessageId>),
 }
 
 #[derive(Default, Debug)]
@@ -106,7 +118,7 @@ pub(crate) struct ExtManager {
     pub(crate) id_nonce: u64,
 
     // State
-    pub(crate) actors: BTreeMap<ProgramId, Actor>,
+    pub(crate) actors: BTreeMap<ProgramId, (Actor, u128)>,
     pub(crate) dispatch_queue: VecDeque<Dispatch>,
     pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
@@ -149,16 +161,16 @@ impl ExtManager {
         self.id_nonce
     }
 
-    fn get_entry_point(message: &Message, state: ProgramState) -> DispatchKind {
+    fn get_entry_point(message: &Message, actor: &Actor) -> DispatchKind {
         message
             .reply()
             .map(|_| DispatchKind::HandleReply)
             .unwrap_or_else(|| {
                 assert!(
-                    !matches!(state, ProgramState::Uninitialized(None)),
+                    !matches!(actor, Actor::Uninitialized(None, _)),
                     "init msg id is defined for uninitialized program before dispatches to it are saved"
                 );
-                if matches!(state, ProgramState::Uninitialized(Some(id)) if id == message.id()) {
+                if matches!(actor, Actor::Uninitialized(Some(id), _) if *id == message.id()) {
                     DispatchKind::Init
                 } else {
                     DispatchKind::Handle
@@ -171,16 +183,14 @@ impl ExtManager {
 
         {
             let maybe_actor = self.actors.get_mut(&message.dest());
-            if let Some(actor) = maybe_actor {
-                let kind = if let Some(state) = actor.get_state_mut() {
-                    // only active actor has state
-                    if let ProgramState::Uninitialized(None) = state {
-                        *state = ProgramState::Uninitialized(Some(message.id()));
-                    }
-                    Self::get_entry_point(&message, *state)
-                } else {
-                    // dormant actor
+            if let Some((actor, _)) = maybe_actor {
+                let kind = if actor.is_dormant() {
                     DispatchKind::Handle
+                } else {
+                    if let Actor::Uninitialized(maybe_message_id, _) = actor {
+                        *maybe_message_id = maybe_message_id.or(Some(message.id()));
+                    }
+                    Self::get_entry_point(&message, &*actor)
                 };
 
                 let dispatch = Dispatch {
@@ -211,14 +221,14 @@ impl ExtManager {
                 continue;
             }
 
-            let actor = self
+            let (actor, balance) = self
                 .actors
                 .get_mut(&dest)
                 .expect("Somehow message queue contains message for user");
 
-            if let Ok(executable_actor) = actor.try_into_executable_actor() {
+            if let Some(executable_actor) = actor.to_executable_actor(*balance) {
                 self.process_normal(executable_actor, dispatch);
-            } else if let Ok(mock) = actor.try_into_mock() {
+            } else if let Some(mock) = actor.to_mock() {
                 self.process_mock(mock, dispatch);
             } else {
                 self.process_dormant(dispatch);
@@ -255,25 +265,26 @@ impl ExtManager {
     }
 
     fn init_success(&mut self, message_id: MessageId, program_id: ProgramId) {
-        let actor = self
+        let (actor, _) = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
 
-        if let Actor::Active(active_program, state, _) = actor {
-            *state = ProgramState::Initialized;
-            if let ActiveProgram::Genuine(p) = active_program {
+        if let Actor::Uninitialized(_, maybe_prog) = actor {
+            assert!(maybe_prog.is_some(), "there is always program by contract");
+            if let Some(Program::Genuine(p)) = maybe_prog {
                 p.set_initialized();
             }
+            actor.transform_to_initialized();
         } else {
-            panic!("can't call method for dormant program");
+            unreachable!("can't call method for dormant or initialized programs");
         }
 
         self.move_waiting_msgs_to_queue(message_id, program_id);
     }
 
     fn init_failure(&mut self, message_id: MessageId, program_id: ProgramId) {
-        let actor = self
+        let (actor, _) = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
@@ -292,16 +303,17 @@ impl ExtManager {
         }
     }
 
+    // When called for the `dispatch`, it must be in queue.
     fn check_is_for_wait_list(&self, dispatch: &Dispatch) -> bool {
         let Dispatch { message, .. } = dispatch;
 
-        let actor = self
+        let (actor, _) = self
             .actors
             .get(&message.dest())
             .expect("method called for unknown destination");
-        if let Actor::Active(_, state, _) = actor {
-            message.reply().is_none()
-                && matches!(state, ProgramState::Uninitialized(Some(id)) if *id != message.id())
+        if let Actor::Uninitialized(maybe_message_id, _) = actor {
+            let id = maybe_message_id.expect("message in dispatch queue has id");
+            message.reply().is_none() && id != message.id()
         } else {
             false
         }
@@ -378,12 +390,11 @@ impl ExtManager {
             }
         }
 
-        // Mock was mutated, so now can update it in actor's storage
-        // If init failed, then entry value is a dormant program.
-        // In this case value won't be updated.
-        self.actors.entry(program_id).and_modify(|a| {
-            if let Actor::Active(old_mock, _, _) = a {
-                *old_mock = ActiveProgram::Mock(Some(mock));
+        // After run either `init_success` is called or `init_failed`.
+        // So only active (init success) program can be modified 
+        self.actors.entry(program_id).and_modify(|(actor, _)| {
+            if let Actor::Initialized(old_mock) = actor {
+                *old_mock = Program::Mock(Some(mock));
             }
         });
     }
@@ -480,11 +491,11 @@ impl JournalHandler for ExtManager {
     }
 
     fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        let actor = self
+        let (actor, _) = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
-        if let Ok(prog) = actor.try_into_core_prog_mut() {
+        if let Some(prog) = actor.as_mut_core_prog() {
             prog.set_message_nonce(nonce);
         }
     }
@@ -495,11 +506,11 @@ impl JournalHandler for ExtManager {
         page_number: PageNumber,
         data: Option<Vec<u8>>,
     ) {
-        let actor = self
+        let (actor, _) = self
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
-        if let Ok(prog) = actor.try_into_core_prog_mut() {
+        if let Some(prog) = actor.as_mut_core_prog() {
             if let Some(data) = data {
                 let _ = prog.set_page(page_number, &data);
             } else {
@@ -512,7 +523,8 @@ impl JournalHandler for ExtManager {
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
-            if let Some(Actor::Active(.., balance)) = self.actors.get_mut(&from) {
+            // todo [sab] buggy, not only initialized
+            if let Some((_, balance)) = self.actors.get_mut(&from) {
                 if *balance < value {
                     panic!("Actor {:?} balance is less then sent value", from);
                 }
@@ -520,7 +532,7 @@ impl JournalHandler for ExtManager {
                 *balance -= value;
             };
 
-            if let Some(Actor::Active(.., balance)) = self.actors.get_mut(&to) {
+            if let Some((_, balance)) = self.actors.get_mut(&to) {
                 *balance += value;
             };
         }
