@@ -46,9 +46,14 @@ impl Actor {
     // #Panics
     // If actor is initialized or dormant
     fn transform_to_initialized(&mut self) {
-        assert!(self.is_uninitialized(), "can't transmute actor, which isn't uninitialized");
+        assert!(
+            self.is_uninitialized(),
+            "can't transmute actor, which isn't uninitialized"
+        );
         if let Actor::Uninitialized(_, prog) = self {
-            let prog = prog.take().expect("actor storage contains only `Some` values by contract");
+            let prog = prog
+                .take()
+                .expect("actor storage contains only `Some` values by contract");
             *self = Actor::Initialized(prog);
         }
     }
@@ -68,7 +73,7 @@ impl Actor {
         }
     }
 
-    fn to_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
+    fn pull_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
         match self {
             Actor::Initialized(Program::Mock(mock)) => mock.take(),
             Actor::Uninitialized(_, Some(Program::Mock(mock))) => mock.take(),
@@ -76,18 +81,13 @@ impl Actor {
         }
     }
 
-    fn to_executable_actor(&mut self, balance: u128) -> Option<ExecutableActor> {
+    fn pull_executable_actor(&mut self, balance: u128) -> Option<ExecutableActor> {
         let program = match self {
             Actor::Initialized(Program::Genuine(program)) => Some(program.clone()),
             Actor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program.clone()),
             _ => None,
         };
-        program.map(|program| {
-            ExecutableActor {
-                program,
-                balance,
-            }
-        })
+        program.map(|program| ExecutableActor { program, balance })
     }
 }
 
@@ -226,9 +226,9 @@ impl ExtManager {
                 .get_mut(&dest)
                 .expect("Somehow message queue contains message for user");
 
-            if let Some(executable_actor) = actor.to_executable_actor(*balance) {
+            if let Some(executable_actor) = actor.pull_executable_actor(*balance) {
                 self.process_normal(executable_actor, dispatch);
-            } else if let Some(mock) = actor.to_mock() {
+            } else if let Some(mock) = actor.pull_mock() {
                 self.process_mock(mock, dispatch);
             } else {
                 self.process_dormant(dispatch);
@@ -275,7 +275,7 @@ impl ExtManager {
             if let Some(Program::Genuine(p)) = maybe_prog {
                 p.set_initialized();
             }
-            actor.transform_to_initialized();
+            Actor::transform_to_initialized(actor);
         } else {
             unreachable!("can't call method for dormant or initialized programs");
         }
@@ -391,7 +391,7 @@ impl ExtManager {
         }
 
         // After run either `init_success` is called or `init_failed`.
-        // So only active (init success) program can be modified 
+        // So only active (init success) program can be modified
         self.actors.entry(program_id).and_modify(|(actor, _)| {
             if let Actor::Initialized(old_mock) = actor {
                 *old_mock = Program::Mock(Some(mock));
@@ -517,13 +517,12 @@ impl JournalHandler for ExtManager {
                 prog.remove_page(page_number);
             }
         } else {
-            unreachable!("No pages update for dormant program")
+            unreachable!("No pages update for non-initialized program")
         }
     }
 
     fn send_value(&mut self, from: ProgramId, to: Option<ProgramId>, value: u128) {
         if let Some(to) = to {
-            // todo [sab] buggy, not only initialized
             if let Some((_, balance)) = self.actors.get_mut(&from) {
                 if *balance < value {
                     panic!("Actor {:?} balance is less then sent value", from);
