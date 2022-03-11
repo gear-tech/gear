@@ -1,11 +1,14 @@
-# Tracking and charging fee for on-chain resources usage
+# API to work with programs
 
-A module providing extrinsics and offchain workers for things like charging rent for keeping messages in the wait list etc.
+A module provides functions for things like pause/resume/check existance of programs.
 
 ## Interface
 
 ### Dispatchable Functions
 
-* `collect_waitlist_rent` - called by any external account to collect wait list rent for a set of message IDs
+### Functions
 
-License: Unlicense
+* `pause_program` - pause running program
+* `resume_program` - resumes previously paused program
+* `paused_program_exists` - checks if the paused program with specified id exists
+* `program_exists` - checks if the program with specified id exists
