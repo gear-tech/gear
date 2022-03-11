@@ -2317,6 +2317,70 @@ fn resume_program_works() {
     })
 }
 
+#[test]
+fn calc_gas_spent() {
+    use crate::manager::HandleKind;
+    use tests_btree::{Request, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        let balance_after_init = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let request = Request::Clear.encode();
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            program_id,
+            request.clone(),
+            10_000_000,
+            0
+        ));
+
+        run_to_block(3, None);
+
+        let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let init_gas_spent = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+        )
+        .expect("Gas spent for init calculation error");
+
+        assert_eq!(
+            (initial_balance - balance_after_init) as u64,
+            init_gas_spent
+        );
+
+        let handle_gas_spent = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Handle(program_id),
+            request,
+        )
+        .expect("Gas spent for init calculation error");
+
+        assert_eq!(
+            balance_after_init - balance_after_handle,
+            handle_gas_spent as u128
+        );
+    });
+}
+
+
 mod utils {
     use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};

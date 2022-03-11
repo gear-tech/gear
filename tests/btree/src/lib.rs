@@ -28,6 +28,9 @@ mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Request {
     Insert(u32, u32),
