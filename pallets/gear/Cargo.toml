@@ -18,6 +18,7 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 log = { version = "0.4.14", default-features = false }
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
+wasm-instrument = { version = "0.1", default-features = false }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
@@ -41,6 +42,16 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
+# Benchmark deps
+sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
+serde = { version = "1", optional = true, features = ["derive"] }
+libsecp256k1 = { version = "0.7", optional = true, default-features = false, features = [
+	"hmac",
+	"static-context",
+] }
+rand = { version = "0.8", optional = true, default-features = false }
+rand_pcg = { version = "0.3", optional = true }
+
 [dev-dependencies]
 serde = "1.0.136"
 env_logger = "0.9"
@@ -61,6 +72,7 @@ std = [
 	"common/std",
 	"frame-support/std",
 	"frame-system/std",
+	"wasm-instrument/std",
 	"gear-backend-sandbox/std",
 	"pallet-gas/std",
 	"scale-info/std",
@@ -79,4 +91,9 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
+	"sp-sandbox",
+	"rand",
+	"libsecp256k1",
+	"rand",
+	"rand_pcg",
 ]

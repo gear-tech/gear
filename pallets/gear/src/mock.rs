@@ -105,6 +105,7 @@ impl common::GasPrice for GasConverter {
 parameter_types! {
     pub const BlockGasLimit: u64 = 100_000_000;
     pub const WaitListFeePerBlock: u64 = 1_000;
+    pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
 impl pallet_gear::Config for Test {
@@ -113,6 +114,7 @@ impl pallet_gear::Config for Test {
     type GasPrice = GasConverter;
     type GasHandler = Gas;
     type WeightInfo = ();
+    type Schedule = MySchedule;
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;

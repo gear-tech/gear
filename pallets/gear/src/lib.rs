@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "512")]
 
 extern crate alloc;
 
@@ -26,6 +27,8 @@ pub use weights::WeightInfo;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod ext;
+mod schedule;
+
 pub mod manager;
 pub mod weights;
 
@@ -34,6 +37,12 @@ mod mock;
 
 #[cfg(test)]
 mod tests;
+
+pub use crate::{
+    // exec::Frame,
+    pallet::*,
+    schedule::{InstructionWeights, Limits, Schedule},
+};
 
 pub type Authorship<T> = pallet_authorship::Pallet<T>;
 
@@ -102,6 +111,10 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        /// Cost schedule and limits.
+        #[pallet::constant]
+        type Schedule: Get<Schedule<Self>>;
 
         /// The maximum amount of gas that can be used within a single block.
         #[pallet::constant]

@@ -4354,6 +4354,7 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime-interface",
  "hex-literal",
+ "libsecp256k1",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -4362,12 +4363,15 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.42.2",
  "primitive-types",
+ "rand 0.8.5",
+ "rand_pcg 0.3.1",
  "scale-info",
  "serde",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-sandbox",
  "sp-std",
  "tests-distributor",
  "tests-exit-handle",
@@ -4375,6 +4379,45 @@ dependencies = [
  "tests-init-wait",
  "tests-program-factory",
  "wabt",
+ "wasm-instrument",
+]
+
+[[package]]
+name = "pallet-gear-benchmarks"
+version = "2.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-core",
+ "hex-literal",
+ "libsecp256k1",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-gear",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "primitive-types",
+ "rand 0.8.5",
+ "rand_pcg 0.3.1",
+ "scale-info",
+ "serde",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-sandbox",
+ "sp-std",
+ "tests-distributor",
+ "tests-exit-handle",
+ "tests-exit-init",
+ "tests-init-wait",
+ "tests-program-factory",
+ "wabt",
+ "wasm-instrument",
 ]
 
 [[package]]
@@ -5185,7 +5228,7 @@ dependencies = [
  "rand_chacha 0.2.2",
  "rand_core 0.5.1",
  "rand_hc",
- "rand_pcg",
+ "rand_pcg 0.2.1",
 ]
 
 [[package]]
@@ -5263,6 +5306,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16abd0c1b639e9eb4d7c50c0b8100b0d0f849be2349829c740fe8e6eb4816429"
 dependencies = [
  "rand_core 0.5.1",
+]
+
+[[package]]
+name = "rand_pcg"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59cad018caf63deb318e5a4586d99a24424a364f40f1e5778c29aca23f4fc73e"
+dependencies = [
+ "rand_core 0.6.3",
 ]
 
 [[package]]
