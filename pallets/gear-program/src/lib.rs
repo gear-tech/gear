@@ -48,7 +48,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use sp_runtime::traits::{UniqueSaturatedInto, Zero};
-    use weights::Info;
+    use weights::WeightInfo;
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -56,7 +56,7 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// Weight information for extrinsics in this pallet.
-        type WeightInfo: weights::Info;
+        type WeightInfo: WeightInfo;
 
         type Currency: Currency<Self::AccountId>;
     }

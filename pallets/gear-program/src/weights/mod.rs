@@ -23,14 +23,14 @@ mod pallet_gear_program;
 pub use pallet_gear_program::WeightInfo as GearProgramWeight;
 
 /// Weight functions for pallet_gear_program.
-pub trait Info {
+pub trait WeightInfo {
     fn resume_program(q: u32) -> Weight;
 }
 
 // For backwards compatibility and tests
 const SUBMIT_WEIGHT_PER_BYTE: u64 = 1_000_000;
 
-impl Info for () {
+impl WeightInfo for () {
     fn resume_program(q: u32) -> Weight {
         (0u64)
             .saturating_add(RocksDbWeight::get().writes(4u64))
