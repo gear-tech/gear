@@ -1,6 +1,6 @@
 use crate::{
     log::RunResult,
-    manager::{Actor, ExtManager, Program as InnerProgram},
+    manager::{ExtManager, Program as InnerProgram},
     system::System,
 };
 use codec::Codec;

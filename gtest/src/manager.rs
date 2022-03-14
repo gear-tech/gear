@@ -41,10 +41,6 @@ pub(crate) enum Actor {
 }
 
 impl Actor {
-    pub(crate) fn new(prog: Program) -> Self {
-        Actor::Uninitialized(None, Some(prog))
-    }
-
     // # Panics
     // If actor is initialized or dormant
     fn set_initialized(&mut self) {
@@ -315,10 +311,6 @@ impl ExtManager {
             .actors
             .get_mut(&program_id)
             .expect("Can't find existing program");
-        
-        if let Program::Core(p) = program {
-            p.set_initialized();
-        }
 
         actor.set_initialized();
 
