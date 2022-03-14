@@ -5,12 +5,9 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{
-    program::CodeHash,
-    message::Message,
-};
+use gear_core::{message::Message, program::CodeHash};
 use path_clean::PathClean;
-use std::{env, fs, cell::RefCell, io::Write, thread, path::Path};
+use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
@@ -74,7 +71,7 @@ impl System {
     }
 
     /// Saves code to the storage and returns it's code hash
-    /// 
+    ///
     /// This method is mainly used for providing a proper program from program creation logic.
     /// In order to successfully create a new program with `gstd::prog::create_program_with_gas`
     /// function, developer should provide to the function "child's" code hash. Code for that
@@ -85,7 +82,7 @@ impl System {
             .expect("Unable to get root directory of the project")
             .join(code_path)
             .clean();
-        
+
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
         self.0.borrow_mut().store_new_code(&code)
     }

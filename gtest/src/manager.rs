@@ -41,6 +41,10 @@ pub(crate) enum Actor {
 }
 
 impl Actor {
+    fn new(init_message_id: Option<MessageId>, program: Program) -> Self {
+        Actor::Uninitialized(init_message_id, Some(program))
+    }
+
     // # Panics
     // If actor is initialized or dormant
     fn set_initialized(&mut self) {
@@ -114,7 +118,7 @@ impl Program {
     fn get_code_hash(&self) -> Option<CodeHash> {
         match self {
             Program::Genuine(p) => Some(CodeHash::generate(p.code())),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -163,12 +167,17 @@ impl ExtManager {
         }
     }
 
-    pub(crate) fn store_new_program(&mut self, program_id: ProgramId, program: Program, init_message_id: Option<MessageId>) -> Option<(Actor, Balance)> {
+    pub(crate) fn store_new_actor(
+        &mut self,
+        program_id: ProgramId,
+        program: Program,
+        init_message_id: Option<MessageId>,
+    ) -> Option<(Actor, Balance)> {
         if let Program::Genuine(program) = &program {
             self.store_new_code(program.code());
         }
-        let actor = Actor::Uninitialized(init_message_id, Some(program));
-        self.actors.insert(program_id, (actor, 0))
+        self.actors
+            .insert(program_id, (Actor::new(init_message_id, program), 0))
     }
 
     pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeHash {
@@ -266,7 +275,8 @@ impl ExtManager {
         }
 
         let log = self.log.clone();
-        let initialized_programs = self.actors
+        let initialized_programs = self
+            .actors
             .iter()
             .filter_map(|(&program_id, (actor, _))| {
                 // todo [sab] change to be result of one run
@@ -488,8 +498,12 @@ impl JournalHandler for ExtManager {
         }
     }
     fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
-        let Dispatch { ref mut message, .. } = dispatch;
-        if self.actors.contains_key(&message.dest()) || self.marked_destinations.contains(&message.dest()) {
+        let Dispatch {
+            ref mut message, ..
+        } = dispatch;
+        if self.actors.contains_key(&message.dest())
+            || self.marked_destinations.contains(&message.dest())
+        {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
                 message.gas_limit = Some(u64::max_value());
@@ -568,17 +582,21 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(
-        &mut self,
-        code_hash: CodeHash,
-        candidates: Vec<(ProgramId, MessageId)>,
-    ) {
+    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let candidate = CoreProgram::new(candidate_id, code.clone())
-                        .expect(format!("internal error: program can't be constructed with provided code {:?}", code).as_str());
-                    self.store_new_program(candidate_id, Program::new(candidate), Some(init_message_id));
+                    let candidate = CoreProgram::new(candidate_id, code.clone()).unwrap_or_else(|e|
+                        panic!(
+                            "internal error: program can't be constructed with provided code {:?}. An error occurred {:?}",
+                            code, e
+                        )
+                    );
+                    self.store_new_actor(
+                        candidate_id,
+                        Program::new(candidate),
+                        Some(init_message_id),
+                    );
                 } else {
                     logger::debug!("Program with id {:?} already exists", candidate_id);
                 }
@@ -588,8 +606,9 @@ impl JournalHandler for ExtManager {
                 "No referencing code with code hash {:?} for candidate programs",
                 code_hash
             );
-            for (invalid_candidate, _) in candidates {
-                self.marked_destinations.insert(invalid_candidate);
+            for (invalid_candidate_id, _) in candidates {
+                self.actors
+                    .insert(invalid_candidate_id, (Actor::Dormant, 0));
             }
         }
     }

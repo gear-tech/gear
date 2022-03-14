@@ -24,9 +24,8 @@ pub enum CreateProgram {
 }
 
 #[allow(unused)]
-const CHILD_CODE_HASH: [u8; 32] = hex_literal::hex!(
-    "abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a"
-);
+const CHILD_CODE_HASH: [u8; 32] =
+    hex_literal::hex!("abf3746e72a6e8740bd9e12b879fbdd59e052cb390f116454e9116c22021ae4a");
 
 #[cfg(not(feature = "std"))]
 mod wasm {
@@ -66,7 +65,7 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    use gtest::{System, Program};
+    use gtest::{Program, System};
 
     use super::*;
 
@@ -100,7 +99,8 @@ mod tests {
         assert!(!res.others_failed());
         assert_eq!(res.initialized_programs().len(), 2);
 
-        let (child_id_actual, child_code_hash_actual) = res.initialized_programs().last().copied().unwrap();
+        let (child_id_actual, child_code_hash_actual) =
+            res.initialized_programs().last().copied().unwrap();
         assert_eq!(child_id_expected, child_id_actual);
         assert_eq!(Some(child_code_hash), child_code_hash_actual);
     }
@@ -117,7 +117,8 @@ mod tests {
         assert_eq!(res.initialized_programs().len(), 2);
 
         // Duplicate
-        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, first_call_salt.to_vec(), 100_000)]);
+        let payload =
+            CreateProgram::Custom(vec![(CHILD_CODE_HASH, first_call_salt.to_vec(), 100_000)]);
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
@@ -138,13 +139,15 @@ mod tests {
         // Non existing code hash provided
         let non_existing_code_hash = [10u8; 32];
         let salt = b"some_salt";
-        let fictional_program_id = Program::calculate_program_id(non_existing_code_hash.into(), salt);
-        let payload = CreateProgram::Custom(
-            vec![(non_existing_code_hash, salt.to_vec(), 100_000)]
-        );
+        let fictional_program_id =
+            Program::calculate_program_id(non_existing_code_hash.into(), salt);
+        let payload = CreateProgram::Custom(vec![(non_existing_code_hash, salt.to_vec(), 100_000)]);
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         // No new program with fictional id
-        assert!(!res.initialized_programs().iter().any(|(p_id, _)| p_id == &fictional_program_id));
+        assert!(!res
+            .initialized_programs()
+            .iter()
+            .any(|(p_id, _)| p_id == &fictional_program_id));
     }
 }

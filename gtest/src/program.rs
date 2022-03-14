@@ -93,7 +93,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .store_new_program(program_id, program, None)
+            .store_new_actor(program_id, program, None)
             .is_some()
         {
             panic!(
