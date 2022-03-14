@@ -76,7 +76,10 @@ mod tests {
         assert_eq!(code_hash_stored.inner(), CHILD_CODE_HASH);
 
         // Instantiate factory
-        let factory = Program::current_with_id(sys, 100);
+        let factory = Program::from_file(
+            sys,
+            "../../target/wasm32-unknown-unknown/debug/tests_program_factory.wasm",
+        );
         // Send `init` msg to factory
         let res = factory.send_bytes(10001, "EMPTY");
         assert!(!res.main_failed());
