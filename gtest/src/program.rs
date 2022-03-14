@@ -1,6 +1,6 @@
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Program as InnerProgram, ProgramState},
+    manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
 };
 use codec::Codec;
@@ -90,7 +90,7 @@ impl<'a> Program<'a> {
             .0
             .borrow_mut()
             .actors
-            .insert(program_id, (program, ProgramState::Uninitialized(None), 0))
+            .insert(program_id, (Actor::new(program), 0))
             .is_some()
         {
             panic!(
@@ -136,7 +136,7 @@ impl<'a> Program<'a> {
         id: I,
         mock: T,
     ) -> Self {
-        Self::program_with_id(system, id, InnerProgram::Mock(Box::new(mock)))
+        Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
@@ -162,7 +162,7 @@ impl<'a> Program<'a> {
         let program =
             CoreProgram::new(program_id, code).expect("Failed to create Program from code");
 
-        Self::program_with_id(system, id, InnerProgram::Core(program))
+        Self::program_with_id(system, id, InnerProgram::new(program))
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
@@ -244,8 +244,8 @@ mod tests {
             "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
         );
 
-        let handle_msg_payload = String::from("payload");
-        let run_result = prog.send(user_id, handle_msg_payload);
+        let init_msg_payload = String::from("InvalidInput");
+        let run_result = prog.send(user_id, init_msg_payload);
         assert!(run_result.main_failed);
 
         let expected_log = {
