@@ -144,14 +144,15 @@ impl MessageId {
     }
 
     /// Generate MessageId for program outgoing message
-    pub fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u8) -> MessageId {
+    pub fn generate_outgoing(origin_msg_id: MessageId, local_nonce: u32) -> MessageId {
         let origin_msg_id = origin_msg_id.as_ref();
+        let local_nonce = local_nonce.to_le_bytes();
 
-        let len = origin_msg_id.len() + 1;
+        let len = origin_msg_id.len() + local_nonce.len();
 
         let mut argument = Vec::with_capacity(len);
         argument.extend(origin_msg_id);
-        argument.push(local_nonce);
+        argument.extend(local_nonce);
 
         hash(&argument).into()
     }

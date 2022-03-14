@@ -122,17 +122,12 @@ pub struct ReplyPacket {
 
 impl ReplyPacket {
     /// Create new ReplyPacket.
-    pub fn new(
-        payload: Payload,
-        gas_limit: Option<GasLimit>,
-        value: Value,
-        exit_code: ExitCode,
-    ) -> Self {
+    pub fn new(payload: Payload, gas_limit: Option<GasLimit>, value: Value) -> Self {
         Self {
             payload,
             gas_limit,
             value,
-            exit_code,
+            exit_code: 0,
         }
     }
 
@@ -142,6 +137,11 @@ impl ReplyPacket {
             exit_code,
             ..Default::default()
         }
+    }
+
+    /// Prepend payload.
+    pub fn prepend(&mut self, data: Payload) {
+        self.payload.splice(0..0, data);
     }
 
     /// Packet payload reference.

@@ -131,6 +131,11 @@ impl InitPacket {
         }
     }
 
+    /// Prepend payload.
+    pub fn prepend(&mut self, data: Payload) {
+        self.payload.splice(0..0, data);
+    }
+
     /// Packet destination (newly created program id).
     pub fn destination(&self) -> ProgramId {
         self.new_program_id

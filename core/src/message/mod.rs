@@ -23,6 +23,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 mod common;
+mod context;
 mod handle;
 mod incoming;
 mod init;
@@ -30,6 +31,7 @@ mod reply;
 mod stored;
 
 pub use common::{Dispatch, Message};
+pub use context::{ContextOutcome, ContextStore, MessageContext};
 pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
@@ -50,10 +52,6 @@ pub type ExitCode = i32;
 
 /// Salt type for init message.
 pub type Salt = Vec<u8>;
-
-/// Store for previous message execution context.
-#[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
-pub struct ContextStore;
 
 /// Entry point for dispatch processing.
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
