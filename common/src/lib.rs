@@ -22,6 +22,9 @@ pub mod lazy_pages;
 pub mod native;
 pub mod storage_queue;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 use codec::{Decode, Encode};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},

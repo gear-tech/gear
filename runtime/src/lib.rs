@@ -328,7 +328,11 @@ impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
 }
 
-impl pallet_gear_program::Config for Runtime {}
+impl pallet_gear_program::Config for Runtime {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
+}
 
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);

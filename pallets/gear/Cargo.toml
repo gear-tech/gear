@@ -82,4 +82,5 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
+	"common/runtime-benchmarks"
 ]

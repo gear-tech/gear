@@ -53,7 +53,6 @@ pub trait WeightInfo {
 	fn submit_program(c: u32, p: u32) -> Weight;
 	fn send_message(p: u32) -> Weight;
 	fn send_reply(p: u32) -> Weight;
-	fn resume_program(q: u32) -> Weight;
 }
 
 /// Weight functions for `pallet_gear`.
@@ -576,19 +575,6 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(8u32 as Weight))
 			.saturating_add(T::DbWeight::get().writes(8u32 as Weight))
 	}
-	// Storage: unknown [0x673a3a7061757365645f70726f673a3a13614ad1183876953cdd99749d6dcf5d] (r:1 w:1)
-	// Storage: System Account (r:2 w:2)
-	// Storage: unknown [0x673a3a70616765733a3a13614ad1183876953cdd99749d6dcf5d41b7ffc0740c] (r:0 w:1)
-	// Storage: unknown [0x673a3a70726f673a3a13614ad1183876953cdd99749d6dcf5d41b7ffc0740cd2] (r:0 w:1)
-	// Storage: unknown [0x673a3a70726f675f776169743a3a13614ad1183876953cdd99749d6dcf5d41b7] (r:0 w:1)
-	fn resume_program(q: u32, ) -> Weight {
-		(0u32 as Weight)
-			// Standard Error: 316_000
-			.saturating_add((130_619_000u32 as Weight).saturating_mul(q as Weight))
-			.saturating_add(T::DbWeight::get().reads(3u32 as Weight))
-			.saturating_add(T::DbWeight::get().writes(5u32 as Weight))
-			.saturating_add(T::DbWeight::get().writes((1u32 as Weight).saturating_mul(q as Weight)))
-	}
 }
 
 // For backwards compatibility and tests
@@ -618,11 +604,5 @@ impl WeightInfo for () {
 		(0_u64)
 			.saturating_add(RocksDbWeight::get().writes(4_u64))
 			.saturating_add(MESSAGE_PER_BYTE.saturating_mul(p as Weight))
-	}
-
-	fn resume_program(q: u32) -> Weight {
-		(0_u64)
-			.saturating_add(RocksDbWeight::get().writes(4_u64))
-			.saturating_add(SUBMIT_WEIGHT_PER_BYTE.saturating_mul(q as Weight))
 	}
 }

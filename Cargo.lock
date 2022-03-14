@@ -2001,11 +2001,14 @@ dependencies = [
 name = "gear-common"
 version = "0.1.0"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
+ "frame-system",
  "gear-core",
  "gear-runtime-interface",
  "log",
  "parity-scale-codec",
+ "parity-wasm 0.42.2",
  "primitive-types",
  "scale-info",
  "sp-arithmetic",
