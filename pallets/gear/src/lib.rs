@@ -72,7 +72,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, ExistenceRequirement, Get, ReservableCurrency},
+        traits::{BalanceStatus, Currency, Get, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -83,7 +83,7 @@ pub mod pallet {
     use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
-    use sp_runtime::traits::{Saturating, UniqueSaturatedInto, Zero};
+    use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     #[pallet::config]
@@ -320,7 +320,7 @@ pub mod pallet {
 
             if message.value > 0 {
                 // Assuming the programs has enough balance
-                T::Currency::repatriate_reserved(
+                <T as Config>::Currency::repatriate_reserved(
                     &<T::AccountId as Origin>::from_origin(message.source),
                     user_id,
                     message.value.unique_saturated_into(),
@@ -339,7 +339,7 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             let (dest, reply) = match kind {
                 HandleKind::Init(ref code) => (CodeHash::generate(code).into_origin(), None),
@@ -454,7 +454,7 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
@@ -507,7 +507,7 @@ pub mod pallet {
                         .try_into_native(program_id)
                         .ok()
                         .map(|program| {
-                            let balance = T::Currency::free_balance(
+                            let balance = <T as Config>::Currency::free_balance(
                                 &<T::AccountId as Origin>::from_origin(program_id),
                             )
                             .unique_saturated_into();
@@ -690,7 +690,7 @@ pub mod pallet {
 
             // First we reserve enough funds on the account to pay for `gas_limit`
             // and to transfer declared value.
-            T::Currency::reserve(&who, reserve_fee + value)
+            <T as Config>::Currency::reserve(&who, reserve_fee + value)
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.into_origin();
@@ -755,7 +755,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             // Check that provided `gas_limit` value does not exceed the block gas limit
             ensure!(
@@ -779,14 +779,14 @@ pub mod pallet {
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
             // in the queue.
-            T::Currency::reserve(&who, value.unique_saturated_into())
+            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             if GearProgramPallet::<T>::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
-                T::Currency::reserve(&who, gas_limit_reserve)
+                <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let origin = who.into_origin();
@@ -851,7 +851,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             let numeric_value: u128 = value.unique_saturated_into();
-            let minimum: u128 = T::Currency::minimum_balance().unique_saturated_into();
+            let minimum: u128 = <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             // Ensure the `gas_limit` allows the extrinsic to fit into a block
             ensure!(
@@ -872,7 +872,7 @@ pub mod pallet {
             // Message is not guaranteed to be executed, that's why value is not immediately transferred.
             // That's because destination can fail to be initialized, while this dispatch message is next
             // in the queue.
-            T::Currency::reserve(&who, value.unique_saturated_into())
+            <T as Config>::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let message_id = common::next_message_id(&payload);
@@ -881,7 +881,7 @@ pub mod pallet {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
 
                 // First we reserve enough funds on the account to pay for `gas_limit`
-                T::Currency::reserve(&who, gas_limit_reserve)
+                <T as Config>::Currency::reserve(&who, gas_limit_reserve)
                     .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
                 let origin = who.into_origin();
@@ -962,7 +962,7 @@ pub mod pallet {
             dest: &T::AccountId,
             amount: Self::Balance,
         ) -> Result<(), DispatchError> {
-            let _ = T::Currency::repatriate_reserved(
+            let _ = <T as Config>::Currency::repatriate_reserved(
                 &<T::AccountId as Origin>::from_origin(source),
                 dest,
                 amount,

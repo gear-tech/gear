@@ -32,7 +32,7 @@ use super::{
         BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox,
-    MessageInfo, Pallet as GearPallet, Reason,
+    MessageInfo, Pallet as GearPallet, Reason, GearProgramPallet
 };
 
 use utils::*;
@@ -2304,7 +2304,7 @@ fn resume_program_works() {
 
         run_to_block(4, None);
 
-        assert_ok!(GearPallet::<Test>::resume_program(
+        assert_ok!(GearProgramPallet::<Test>::resume_program(
             Origin::signed(USER_3).into(),
             program_id,
             memory_pages,
