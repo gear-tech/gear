@@ -19,9 +19,8 @@
 use super::*;
 use codec::{Decode, Encode};
 use common::{self, QueuedDispatch};
-use frame_support::storage::PrefixIterator;
+use frame_support::{storage::PrefixIterator, dispatch::DispatchResult};
 use scale_info::TypeInfo;
-use sp_std::collections::btree_map::BTreeMap;
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]
 pub(super) struct PausedProgram {
@@ -44,12 +43,6 @@ fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
 pub enum PauseError {
     ProgramNotFound,
     ProgramTerminated,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ResumeError {
-    ProgramNotFound,
-    WrongMemoryPages,
 }
 
 impl<T: Config> pallet::Pallet<T> {
@@ -90,16 +83,16 @@ impl<T: Config> pallet::Pallet<T> {
         PausedPrograms::<T>::contains_key(id)
     }
 
-    pub fn resume_program(
+    pub(super) fn resume_program_impl(
         program_id: H256,
         memory_pages: BTreeMap<u32, Vec<u8>>,
         block_number: u32,
-    ) -> Result<(), ResumeError> {
+    ) -> DispatchResult {
         let paused_program =
-            PausedPrograms::<T>::get(program_id).ok_or(ResumeError::ProgramNotFound)?;
+            PausedPrograms::<T>::get(program_id).ok_or(Error::<T>::ProgramNotFound)?;
 
         if paused_program.pages_hash != memory_pages_hash(&memory_pages) {
-            return Err(ResumeError::WrongMemoryPages);
+            return Err(Error::<T>::WrongMemoryPages.into());
         }
 
         PausedPrograms::<T>::remove(program_id);

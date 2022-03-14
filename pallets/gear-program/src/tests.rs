@@ -225,7 +225,7 @@ fn resume_uninitialized_program_works() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let block_number = 100;
-        assert_ok!(GearProgram::resume_program(
+        assert_ok!(GearProgram::resume_program_impl(
             program_id,
             memory_pages.clone(),
             block_number
@@ -278,14 +278,14 @@ fn resume_program_twice_fails() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let block_number = 100;
-        assert_ok!(GearProgram::resume_program(
+        assert_ok!(GearProgram::resume_program_impl(
             program_id,
             memory_pages.clone(),
             block_number
         ));
         assert_noop!(
-            GearProgram::resume_program(program_id, memory_pages, block_number),
-            ResumeError::ProgramNotFound
+            GearProgram::resume_program_impl(program_id, memory_pages, block_number),
+            Error::<Test>::ProgramNotFound
         );
     });
 }
@@ -307,8 +307,8 @@ fn resume_program_wrong_memory_fails() {
         let block_number = 100;
         memory_pages.remove(&0);
         assert_noop!(
-            GearProgram::resume_program(program_id, memory_pages, block_number),
-            ResumeError::WrongMemoryPages
+            GearProgram::resume_program_impl(program_id, memory_pages, block_number),
+            Error::<Test>::WrongMemoryPages
         );
     });
 }

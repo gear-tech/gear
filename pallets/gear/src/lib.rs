@@ -91,7 +91,7 @@ pub mod pallet {
         frame_system::Config
         + pallet_authorship::Config
         + pallet_timestamp::Config
-        + pallet_gear_program::Config
+        + pallet_gear_program::Config<Currency = <Self as Config>::Currency>
     {
         /// Because this pallet emits events, it depends on the runtime's definition of an event.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -157,8 +157,6 @@ pub mod pallet {
         DatabaseWiped,
         /// Message was not executed
         MessageNotExecuted(H256),
-        /// Program has been successfully resumed
-        ProgramResumed(H256),
     }
 
     // Gear pallet error.
@@ -196,14 +194,6 @@ pub mod pallet {
         FailedToConstructProgram,
         /// Value doesnt cover ExistenceDeposit
         ValueLessThanMinimal,
-        /// Not enough value to resume program
-        ResumeProgramNotEnoughValue,
-        /// There is no program with specified id
-        ProgramNotFound,
-        /// Provided memory pages doesn't match the hash in the paused program
-        ResumeProgramWrongMemory,
-        /// Failed to transfer value to program being resumed
-        ResumeProgramTransferFailed,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -958,54 +948,6 @@ pub mod pallet {
             Self::deposit_event(Event::DatabaseWiped);
 
             Ok(())
-        }
-
-        /// Resumes a previously paused program
-        ///
-        /// The origin must be Signed and the sender must have sufficient funds to
-        /// transfer value to the program.
-        ///
-        /// Parameters:
-        /// - `program_id`: id of the program to resume.
-        /// - `memory_pages`: program memory before it was paused.
-        /// - `value`: balance to be transferred to the program once it's been resumed.
-        ///
-        /// - `ProgramResumed(H256)` in the case of success.
-        #[frame_support::transactional]
-        #[pallet::weight(<T as Config>::WeightInfo::resume_program(memory_pages.values().map(|p| p.len() as u32).sum()))]
-        pub fn resume_program(
-            origin: OriginFor<T>,
-            program_id: H256,
-            memory_pages: BTreeMap<u32, Vec<u8>>,
-            value: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let account = ensure_signed(origin)?;
-
-            ensure!(!value.is_zero(), Error::<T>::ResumeProgramNotEnoughValue);
-
-            GearProgramPallet::<T>::resume_program(
-                program_id,
-                memory_pages,
-                <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
-            )
-            .map_err(|e| match e {
-                pallet_gear_program::ResumeError::ProgramNotFound => Error::<T>::ProgramNotFound,
-                pallet_gear_program::ResumeError::WrongMemoryPages => {
-                    Error::<T>::ResumeProgramWrongMemory
-                }
-            })?;
-
-            T::Currency::transfer(
-                &account,
-                &<T::AccountId as Origin>::from_origin(program_id),
-                value,
-                ExistenceRequirement::AllowDeath,
-            )
-            .map_err(|_| Error::<T>::ResumeProgramTransferFailed)?;
-
-            Self::deposit_event(Event::ProgramResumed(program_id));
-
-            Ok(().into())
         }
     }
 
