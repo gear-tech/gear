@@ -25,7 +25,7 @@ use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, Message, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
 use std::collections::{BTreeMap, VecDeque};
@@ -55,10 +55,11 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) actors: BTreeMap<ProgramId, (Program, ProgramState, u128)>,
-    pub(crate) message_queue: VecDeque<Message>,
-    pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
+    pub(crate) message_queue: VecDeque<StoredDispatch>,
+    pub(crate) mailbox: BTreeMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Message>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
+    pub(crate) gas_limits: BTreeMap<MessageId, Option<u64>>,
 
     // Last run info
     pub(crate) origin: ProgramId,
@@ -97,52 +98,32 @@ impl ExtManager {
         self.id_nonce
     }
 
-    fn entry_point(message: &Message, state: &mut ProgramState) -> Option<DispatchKind> {
-        message
-            .reply()
-            .map(|_| DispatchKind::HandleReply)
-            .or_else(|| {
-                if let ProgramState::Uninitialized(message_id) = state {
-                    if let Some(id) = message_id {
-                        if *id == message.id() {
-                            Some(DispatchKind::Init)
-                        } else {
-                            None
-                        }
-                    } else {
-                        *message_id = Some(message.id());
+    pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+        self.prepare_for(dispatch.id(), dispatch.source());
 
-                        Some(DispatchKind::Init)
-                    }
-                } else {
-                    Some(DispatchKind::Handle)
-                }
-            })
-    }
+        self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
+        let dispatch = dispatch.into_stored();
 
-    pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
-        self.prepare_for(message.id(), message.source());
-
-        if self.actors.contains_key(&message.dest()) {
-            self.message_queue.push_back(message);
+        if self.actors.contains_key(&dispatch.destination()) {
+            self.message_queue.push_back(dispatch);
         } else {
             self.mailbox
-                .entry(message.dest())
+                .entry(dispatch.destination())
                 .or_default()
-                .push(message);
+                .push(dispatch.message().clone());
         }
 
         while let Some(message) = self.message_queue.pop_front() {
             let (prog, state, balance) = self
                 .actors
-                .get_mut(&message.dest())
+                .get_mut(&message.destination())
                 .expect("Somehow message queue contains message for user");
 
             let kind = if let Some(kind) = Self::entry_point(&message, state) {
                 kind
             } else {
                 self.wait_init_list
-                    .entry(message.dest())
+                    .entry(message.destination())
                     .or_default()
                     .push(message.id());
 
@@ -190,7 +171,7 @@ impl ExtManager {
                     };
 
                     let message_id = message.id();
-                    let program_id = message.dest();
+                    let program_id = message.destination();
 
                     match response {
                         Ok(reply) => {
@@ -344,7 +325,7 @@ impl JournalHandler for ExtManager {
     }
     fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         let Dispatch { mut message, .. } = dispatch;
-        if self.actors.contains_key(&message.dest()) {
+        if self.actors.contains_key(&message.destination()) {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
                 message.gas_limit = Some(u64::max_value());
@@ -352,7 +333,7 @@ impl JournalHandler for ExtManager {
             self.message_queue.push_back(message);
         } else {
             self.mailbox
-                .entry(message.dest())
+                .entry(message.destination())
                 .or_default()
                 .push(message.clone());
             self.log.push(message);
@@ -361,7 +342,7 @@ impl JournalHandler for ExtManager {
     fn wait_dispatch(&mut self, dispatch: Dispatch) {
         self.message_consumed(dispatch.message.id());
         self.wait_list.insert(
-            (dispatch.message.dest(), dispatch.message.id()),
+            (dispatch.message.destination(), dispatch.message.id()),
             dispatch.message,
         );
     }
