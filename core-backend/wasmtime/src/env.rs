@@ -20,20 +20,22 @@
 
 use alloc::rc::Rc;
 
-use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
+    TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
-    memory::{Memory, PageBuf, PageNumber},
+    memory::{Error, PageBuf, PageNumber},
 };
 use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
 
-pub struct LaterStore(Rc<Store<()>>);
+pub struct StoreData;
+
+pub struct LaterStore(Rc<Store<StoreData>>);
 
 impl Clone for LaterStore {
     fn clone(&self) -> Self {
@@ -43,7 +45,7 @@ impl Clone for LaterStore {
 
 impl LaterStore {
     pub fn new(eng: &Engine) -> Self {
-        LaterStore(Rc::from(Store::new(eng, ())))
+        LaterStore(Rc::from(Store::new(eng, StoreData)))
     }
     /// In order to be able borrow mutable reference many times we need
     /// to make it in unsafe manner.
@@ -51,10 +53,10 @@ impl LaterStore {
     /// but also we must mut borrow it in memory sys-calls: alloc/free/...
     /// But memory sys-calls are called in the same time with instance execution,
     /// so there is no ways to avoid twice mut borrowing.
-    pub fn get_mut_ref(&mut self) -> &mut Store<()> {
+    pub fn get_mut_ref(&mut self) -> &mut Store<StoreData> {
         unsafe {
             let r = self.0.as_ref();
-            let ptr = r as *const Store<()> as *mut Store<()>;
+            let ptr = r as *const Store<StoreData> as *mut Store<StoreData>;
             ptr.as_mut().expect("ptr must be here")
         }
     }
@@ -62,121 +64,138 @@ impl LaterStore {
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
-    store: LaterStore,
+    store: Store<StoreData>,
     ext: LaterExt<E>,
-    funcs: BTreeMap<&'static str, Func>,
-    instance: Option<Instance>,
-    engine: Engine,
+    memory: WasmtimeMemory,
+    instance: Instance,
 }
 
-impl<E: Ext + 'static> Default for WasmtimeEnvironment<E> {
-    /// Create a default environment.
-    fn default() -> Self {
-        let engine = Engine::default();
-        let store = LaterStore::new(&engine);
-        Self {
-            engine,
-            store,
-            ext: Default::default(),
-            funcs: BTreeMap::new(),
-            instance: None,
+fn set_pages(
+    mut store: &mut Store<StoreData>,
+    memory: &mut WasmtimeMemory,
+    pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+) -> Result<(), Error> {
+    for (num, buf) in pages {
+        if memory.size(&mut store) <= num.raw() as u64 {
+            return Err(Error::MemoryAccessError);
+        }
+        if let Some(buf) = buf {
+            memory
+                .write(&mut store, num.offset(), &buf[..])
+                .map_err(|_| Error::MemoryAccessError)?;
         }
     }
+    Ok(())
 }
 
-impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
+impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
     fn setup(
-        &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        memory: &dyn Memory,
-    ) -> Result<(), BackendError<'static>> {
-        self.ext.set(ext);
+        mem_size: u32,
+    ) -> Result<Self, BackendError<'static>> {
+        let mut later_ext = LaterExt::default();
+        later_ext.set(ext);
 
+        let engine = Engine::default();
+        let mut store = Store::<StoreData>::new(&engine, StoreData);
+
+        // Creates new wasm memory
+        let mut memory =
+            WasmtimeMemory::new(&mut store, MemoryType::new(mem_size, None)).map_err(|e| {
+                BackendError {
+                    reason: "Create env memory failed",
+                    description: Some(e.to_string().into()),
+                    gas_amount: later_ext.unset().into_gas_amount(),
+                }
+            })?;
+
+        /// Make import funcs
         use crate::funcs::FuncsHandler as funcs;
-        let tmp_ext = self.ext.clone();
-        let mut tmp_store = self.store.clone();
-        let store = LaterStore::get_mut_ref(&mut tmp_store);
-        self.funcs
-            .insert("alloc", funcs::alloc(tmp_ext.clone(), store));
-        self.funcs
-            .insert("free", funcs::free(tmp_ext.clone(), store));
-        self.funcs.insert("gas", funcs::gas(tmp_ext.clone(), store));
-        self.funcs.insert(
+        let mut funcs = BTreeMap::<&'static str, Func>::new();
+        funcs.insert("alloc", funcs::alloc(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert("free", funcs::free(later_ext.clone(), &mut store));
+        funcs.insert("gas", funcs::gas(later_ext.clone(), &mut store));
+        funcs.insert(
             "gr_block_height",
-            funcs::block_height(tmp_ext.clone(), store),
+            funcs::block_height(later_ext.clone(), &mut store),
         );
-        self.funcs.insert(
+        funcs.insert(
             "gr_block_timestamp",
-            funcs::block_timestamp(tmp_ext.clone(), store),
+            funcs::block_timestamp(later_ext.clone(), &mut store),
         );
-        self.funcs.insert(
+        funcs.insert(
             "gr_create_program_wgas",
-            funcs::create_program_wgas(tmp_ext.clone(), store),
+            funcs::create_program_wgas(later_ext.clone(), &mut store, memory.clone()),
         );
-        self.funcs
-            .insert("gr_exit_code", funcs::exit_code(tmp_ext.clone(), store));
-        self.funcs.insert(
+        funcs.insert(
+            "gr_exit_code",
+            funcs::exit_code(later_ext.clone(), &mut store),
+        );
+        funcs.insert(
             "gr_gas_available",
-            funcs::gas_available(tmp_ext.clone(), store),
+            funcs::gas_available(later_ext.clone(), &mut store),
         );
-        self.funcs
-            .insert("gr_debug", funcs::debug(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_exit", funcs::exit(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_origin", funcs::origin(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_msg_id", funcs::msg_id(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_program_id", funcs::program_id(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_read", funcs::read(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_reply", funcs::reply(tmp_ext.clone(), store));
-        self.funcs.insert(
+        funcs.insert("gr_debug", funcs::debug(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert("gr_exit", funcs::exit(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert("gr_origin", funcs::origin(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert("gr_msg_id", funcs::msg_id(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
+            "gr_program_id",
+            funcs::program_id(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert("gr_read", funcs::read(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert("gr_reply", funcs::reply(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
             "gr_reply_commit",
-            funcs::reply_commit(tmp_ext.clone(), store),
+            funcs::reply_commit(later_ext.clone(), &mut store, memory.clone()),
         );
-        self.funcs
-            .insert("gr_reply_push", funcs::reply_push(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_reply_to", funcs::reply_to(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_send_wgas", funcs::send_wgas(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_send", funcs::send(tmp_ext.clone(), store));
-        self.funcs.insert(
+        funcs.insert(
+            "gr_reply_push",
+            funcs::reply_push(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_reply_to",
+            funcs::reply_to(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_send_wgas",
+            funcs::send_wgas(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert("gr_send", funcs::send(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
             "gr_send_commit_wgas",
-            funcs::send_commit_wgas(tmp_ext.clone(), store),
+            funcs::send_commit_wgas(later_ext.clone(), &mut store, memory.clone()),
         );
-        self.funcs
-            .insert("gr_send_commit", funcs::send_commit(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_send_init", funcs::send_init(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_send_push", funcs::send_push(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_size", funcs::size(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_source", funcs::source(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_value", funcs::value(tmp_ext.clone(), store));
-        self.funcs.insert(
+        funcs.insert(
+            "gr_send_commit",
+            funcs::send_commit(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_send_init",
+            funcs::send_init(later_ext.clone(), &mut store),
+        );
+        funcs.insert(
+            "gr_send_push",
+            funcs::send_push(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert("gr_size", funcs::size(later_ext.clone(), &mut store));
+        funcs.insert("gr_source", funcs::source(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert("gr_value", funcs::value(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
             "gr_value_available",
-            funcs::value_available(tmp_ext.clone(), store),
+            funcs::value_available(later_ext.clone(), &mut store, memory.clone()),
         );
-        self.funcs
-            .insert("gr_leave", funcs::leave(tmp_ext.clone(), store));
-        self.funcs
-            .insert("gr_wait", funcs::wait(tmp_ext.clone(), store));
-        self.funcs.insert("gr_wake", funcs::wake(tmp_ext, store));
+        funcs.insert("gr_leave", funcs::leave(later_ext.clone(), &mut store));
+        funcs.insert("gr_wait", funcs::wait(later_ext.clone(), &mut store));
+        funcs.insert("gr_wake", funcs::wake(later_ext.clone(), &mut store, memory.clone()));
 
-        let module = Module::new(&self.engine, binary).map_err(|e| BackendError {
+
+        let module = Module::new(&engine, binary).map_err(|e| BackendError {
             reason: "Unable to create module",
             description: Some(e.to_string().into()),
-            gas_amount: self.ext.unset().into().gas_amount,
+            gas_amount: later_ext.unset().into_gas_amount(),
         })?;
 
         let mut imports = module
@@ -188,7 +207,7 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
                         description: import
                             .name()
                             .map(|v| format!("Function {:?} is not env", v).into()),
-                        gas_amount: self.ext.unset().into().gas_amount,
+                        gas_amount: later_ext.unset().into_gas_amount(),
                     })
                 } else {
                     Ok((import.name(), Option::<Extern>::None))
@@ -199,17 +218,8 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
         for (import_name, ref mut ext) in imports.iter_mut() {
             if let Some(name) = import_name {
                 *ext = match *name {
-                    "memory" => match memory.as_any().downcast_ref::<WasmtimeMemory>() {
-                        Some(mem) => Some(Extern::Memory(*mem)),
-                        _ => {
-                            return Err(BackendError {
-                                reason: "Memory is not wasmtime::Memory",
-                                description: None,
-                                gas_amount: self.ext.unset().into().gas_amount,
-                            })
-                        }
-                    },
-                    key if self.funcs.contains_key(key) => Some(self.funcs[key].into()),
+                    "memory" => Some(Extern::Memory(memory.clone())),
+                    key if funcs.contains_key(key) => Some(funcs[key].into()),
                     _ => continue,
                 }
             }
@@ -222,39 +232,47 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
                     reason: "Missing import",
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: self.ext.unset().into().gas_amount,
+                    gas_amount: later_ext.unset().into_gas_amount(),
                 })
             })
             .collect::<Result<Vec<_>, BackendError>>()?;
 
-        let instance = Instance::new(store, &module, &externs).map_err(|e| BackendError {
+        let instance = Instance::new(&mut store, &module, &externs).map_err(|e| BackendError {
             reason: "Unable to create instance",
             description: Some(e.to_string().into()),
-            gas_amount: self.ext.unset().into().gas_amount,
+            gas_amount: later_ext.unset().into_gas_amount(),
         })?;
 
         // Set module memory data
-        memory.set_pages(memory_pages).map_err(|e| BackendError {
-            reason: "Unable to set module memory",
+        set_pages(&mut store, &mut memory, memory_pages).map_err(|e| BackendError {
+            reason: "Unable to set module memory data",
             description: Some(format!("{:?}", e).into()),
-            gas_amount: self.ext.unset().into().gas_amount,
+            gas_amount: later_ext.unset().into_gas_amount(),
         })?;
 
-        self.instance.replace(instance);
-
-        Ok(())
+        Ok(WasmtimeEnvironment {
+            store,
+            ext: later_ext,
+            memory,
+            instance,
+        })
     }
 
-    fn get_stack_mem_end(&self) -> Option<i32> {
+    fn get_stack_mem_end(&mut self) -> Option<i32> {
         // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
-        let instance = self.instance.as_ref().expect("Must have instance");
-        let global = instance.get_global(self.store.clone().get_mut_ref(), "__gear_stack_end")?;
-        global.get(self.store.clone().get_mut_ref()).i32()
+        let global = self
+            .instance
+            .get_global(&mut self.store, "__gear_stack_end")?;
+        global.get(&mut self.store).i32()
+    }
+
+    fn get_wasm_memory_begin_addr(&mut self) -> usize {
+        self.memory.data_ptr(&mut self.store) as usize
     }
 
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
-        let instance = self.instance.as_mut().expect("Must have instance");
-        let func = instance.get_func(self.store.clone().get_mut_ref(), entry_point);
+        let func = self.instance.get_func(&mut self.store, entry_point);
+
         let entry_func = if let Some(f) = func {
             // Entry function found
             f
@@ -262,13 +280,28 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             // Entry function not found, so we mean this as empty function
             return Ok(BackendReport {
                 termination: TerminationReason::Success,
-                info: self.ext.unset().into(),
+                wasm_memory_addr: self.memory.data_ptr(&self.store) as usize,
+                info: self
+                    .ext
+                    .unset()
+                    .into_ext_info(|offset: usize, buffer: &mut [u8]| {
+                        self.memory
+                            .read(&mut self.store, offset, buffer)
+                            .expect("Must can be read");
+                    }),
             });
         };
 
-        let res = entry_func.call(self.store.clone().get_mut_ref(), &[], &mut []);
+        let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let info: ExtInfo = self.ext.unset().into();
+        let info: ExtInfo = self
+            .ext
+            .unset()
+            .into_ext_info(|offset: usize, buffer: &mut [u8]| {
+                self.memory
+                    .read(&mut self.store, offset, buffer)
+                    .expect("Must can be read");
+            });
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
@@ -295,15 +328,12 @@ impl<E: Ext + Into<ExtInfo>> Environment<E> for WasmtimeEnvironment<E> {
             TerminationReason::Success
         };
 
-        Ok(BackendReport { termination, info })
-    }
+        let wasm_memory_addr = self.memory.data_ptr(&self.store) as usize;
 
-    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str> {
-        let memory = WasmtimeMemory::new(
-            self.store.clone().get_mut_ref(),
-            MemoryType::new(total_pages, None),
-        )
-        .map_err(|_| "Create env memory fail")?;
-        Ok(Box::new(MemoryWrap::new(memory, &self.store)))
+        Ok(BackendReport {
+            termination,
+            wasm_memory_addr,
+            info,
+        })
     }
 }

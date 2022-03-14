@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{LEAVE_TRAP_STR, WAIT_TRAP_STR};
-use alloc::{vec, vec::Vec};
-use gear_core::env::Ext;
+use alloc::{vec, vec::Vec, boxed::Box};
+use gear_core::{env::Ext, memory::Memory};
 
 pub fn is_wait_trap(trap: &str) -> bool {
     trap.starts_with(WAIT_TRAP_STR)
@@ -28,24 +28,24 @@ pub fn is_leave_trap(trap: &str) -> bool {
     trap.starts_with(LEAVE_TRAP_STR)
 }
 
-pub fn get_bytes32<E: Ext>(ext: &E, ptr: usize) -> [u8; 32] {
+pub fn get_bytes32(mem: &dyn Memory, ptr: usize) -> [u8; 32] {
     let mut ret = [0u8; 32];
-    ext.get_mem(ptr, &mut ret);
+    mem.read(ptr, &mut ret);
     ret
 }
 
-pub fn get_u128<E: Ext>(ext: &E, ptr: usize) -> u128 {
+pub fn get_u128(mem: &dyn Memory, ptr: usize) -> u128 {
     let mut u128_le = [0u8; 16];
-    ext.get_mem(ptr, &mut u128_le);
+    mem.read(ptr, &mut u128_le);
     u128::from_le_bytes(u128_le)
 }
 
-pub fn get_vec<E: Ext>(ext: &E, ptr: usize, len: usize) -> Vec<u8> {
+pub fn get_vec(mem: &dyn Memory, ptr: usize, len: usize) -> Vec<u8> {
     let mut vec = vec![0u8; len];
-    ext.get_mem(ptr, &mut vec);
+    mem.read(ptr, &mut vec);
     vec
 }
 
-pub fn set_u128<E: Ext>(ext: &mut E, ptr: usize, val: u128) {
-    ext.set_mem(ptr, &val.to_le_bytes());
+pub fn set_u128(mem: &mut dyn Memory, ptr: usize, val: u128) {
+    mem.write(ptr, &val.to_le_bytes()).expect("TODO: remove");
 }

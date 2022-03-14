@@ -9,5 +9,5 @@ license = "GPL-3.0"
 gear-core = { path = "../../core" }
 gear-backend-common = { path = "../common" }
 
-wasmtime = { version = "0.34.1", default-features = false, features = ["parallel-compilation", "cranelift"] }
+wasmtime = { version = "0.35.1", default-features = false, features = ["parallel-compilation", "cranelift"] }
 log = "0.4.1"

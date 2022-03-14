@@ -26,8 +26,7 @@ use crate::{
     ext::ProcessorExt,
 };
 use alloc::{collections::BTreeMap, vec::Vec};
-use gear_backend_common::Environment;
-use gear_backend_common::ExtInfo;
+use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     message::{Dispatch, DispatchKind, ExitCode, Message},
@@ -35,7 +34,7 @@ use gear_core::{
 };
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
+pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: Option<ExecutableActor>,
     dispatch: Dispatch,
     block_info: BlockInfo,
@@ -73,7 +72,7 @@ pub fn process<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environmen
 }
 
 /// Process multiple dispatches into multiple programs and return journal notes for update.
-pub fn process_many<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
+pub fn process_many<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     mut actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     dispatches: Vec<Dispatch>,
     block_info: BlockInfo,
