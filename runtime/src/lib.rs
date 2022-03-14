@@ -623,6 +623,7 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
             list_benchmark!(list, extra, pallet_balances, Balances);
             list_benchmark!(list, extra, pallet_timestamp, Timestamp);
+            list_benchmark!(list, extra, pallet_gear_program, GearProgram);
             list_benchmark!(list, extra, pallet_gear, Gear);
 
             let storage_info = AllPalletsWithSystem::storage_info();
@@ -657,6 +658,7 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
             add_benchmark!(params, batches, pallet_balances, Balances);
             add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+            add_benchmark!(params, batches, pallet_gear_program, GearProgram);
             add_benchmark!(params, batches, pallet_gear, Gear);
 
             if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }

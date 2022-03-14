@@ -24,6 +24,7 @@ common = { package = "gear-common", path = "../../common", default-features = fa
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -52,6 +53,8 @@ std = [
 	"primitive-types/std",
 ]
 runtime-benchmarks = [
+	"frame-benchmarking",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
+	"common/runtime-benchmarks"
 ]
