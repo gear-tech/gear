@@ -23,7 +23,7 @@ use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
     identifiers::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, IncomingMessage, Message},
+    message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message, StoredDispatch},
     program::Program,
 };
 use regex::Regex;
@@ -84,13 +84,9 @@ pub struct InitMessage {
     pub message: IncomingMessage,
 }
 
-impl From<InitMessage> for Dispatch {
+impl From<InitMessage> for IncomingDispatch {
     fn from(other: InitMessage) -> Self {
-        Self {
-            kind: DispatchKind::Init,
-            message: other.message.into_message(other.id),
-            payload_store: None,
-        }
+        IncomingDispatch::new(DispatchKind::Init, other.message, None)
     }
 }
 
@@ -104,6 +100,7 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
 {
     let program = Program::new(message.id, message.code.clone())?;
+    let program_id = program.id();
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
         return Err(anyhow::anyhow!(
@@ -122,6 +119,7 @@ where
         block_info,
         EXISTENTIAL_DEPOSIT,
         Default::default(),
+        program_id,
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -191,6 +189,7 @@ where
                     init_message.into(),
                     program.init_gas_limit.unwrap_or(GAS_LIMIT),
                     program.init_value.unwrap_or(0) as u128,
+                    None,
                 ),
             },
             Default::default(),
@@ -245,13 +244,13 @@ where
         let message = Message {
             id: message_id,
             source: message_source,
-            dest: message.destination.to_program_id(),
+            destination: message.destination.to_program_id(),
             payload: payload.into(),
             gas_limit: Some(gas_limit),
             value: message.value.unwrap_or_default() as _,
             reply: None,
         };
-        journal_handler.send_dispatch(Default::default(), Dispatch::new_handle(message));
+        // journal_handler.send_dispatch(Default::default(), Dispatch::new(kind: DispatchKind, message: Message) Dispatch::new_handle(message));
 
         nonce += 1;
     }

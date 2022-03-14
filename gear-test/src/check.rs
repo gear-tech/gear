@@ -216,7 +216,7 @@ pub fn check_messages(
             .zip(messages.iter_mut())
             .enumerate()
             .for_each(|(position, (exp, msg))| {
-                let source_n_dest = [msg.source(), msg.dest()];
+                let source_n_dest = [msg.source(), msg.destination()];
                 let is_init = exp.init.unwrap_or(false);
 
                 if exp

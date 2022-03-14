@@ -266,7 +266,7 @@ pub struct ExecutionContext {
 /// In-memory state.
 pub struct State {
     /// Message queue.
-    pub dispatch_queue: VecDeque<Dispatch>,
+    pub dispatch_queue: VecDeque<StoredDispatch>,
     /// Log records.
     pub log: Vec<Message>,
     /// State of each executable actor.

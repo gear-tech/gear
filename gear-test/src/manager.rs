@@ -16,26 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message},
+    message::{Dispatch, DispatchKind, Message, StoredDispatch},
     program::Program,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-
-use crate::check::ExecutionContext;
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
     codes: BTreeMap<CodeId, Vec<u8>>,
     marked_destinations: BTreeSet<ProgramId>,
-    dispatch_queue: VecDeque<Dispatch>,
+    dispatch_queue: VecDeque<StoredDispatch>,
     log: Vec<Message>,
     actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     waiting_init: BTreeMap<ProgramId, Vec<MessageId>>,
-    wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
+    gas_limits: BTreeMap<MessageId, u64>,
+    wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     current_failed: bool,
 }
 
@@ -123,44 +123,46 @@ impl JournalHandler for InMemoryExtManager {
         if let Some(index) = self
             .dispatch_queue
             .iter()
-            .position(|d| d.message.id() == message_id)
+            .position(|d| d.message().id() == message_id)
         {
             self.dispatch_queue.remove(index);
         }
     }
     fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
-        let dest = dispatch.message.dest();
-        if self.actors.contains_key(&dest) || self.marked_destinations.contains(&dest) {
+        let destination = dispatch.destination();
+        if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
+        {
             // imbuing gas-less messages with maximum gas!
-            if dispatch.message.gas_limit.is_none() {
-                dispatch.message.gas_limit = Some(u64::max_value());
-            }
+            let gas_limit = dispatch.gas_limit().unwrap_or(u64::MAX);
+            self.gas_limits.insert(dispatch.id(), gas_limit);
 
             // Find in dispatch queue init message to the destination. By that we recognize
             // messages to not yet initialized programs, whose init messages weren't executed yet.
-            let init_to_dest = self
-                .dispatch_queue
-                .iter()
-                .find(|d| d.message.dest() == dest && d.kind == DispatchKind::Init);
+            let init_to_dest = self.dispatch_queue.iter().find(|d| {
+                d.message().destination() == destination && d.kind() == DispatchKind::Init
+            });
             if let (DispatchKind::Handle, Some(list), None) = (
-                dispatch.kind,
-                self.waiting_init.get_mut(&dest),
+                dispatch.kind(),
+                self.waiting_init.get_mut(&destination),
                 init_to_dest,
             ) {
-                let message_id = dispatch.message.id();
+                let message_id = dispatch.message().id();
                 list.push(message_id);
-                self.wait_list.insert((dest, message_id), dispatch);
+                self.wait_list
+                    .insert((destination, message_id), dispatch.into_stored());
             } else {
-                self.dispatch_queue.push_back(dispatch);
+                self.dispatch_queue.push_back(dispatch.into_stored());
             }
         } else {
-            self.log.push(dispatch.message);
+            self.log.push(dispatch.message().clone());
         }
     }
-    fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        self.message_consumed(dispatch.message.id());
-        self.wait_list
-            .insert((dispatch.message.dest(), dispatch.message.id()), dispatch);
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+        self.message_consumed(dispatch.message().id());
+        self.wait_list.insert(
+            (dispatch.message().destination(), dispatch.message().id()),
+            dispatch,
+        );
     }
     fn wake_message(
         &mut self,
@@ -170,15 +172,6 @@ impl JournalHandler for InMemoryExtManager {
     ) {
         if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
             self.dispatch_queue.push_back(dispatch);
-        }
-    }
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        if let Some(actor) = self
-            .actors
-            .get_mut(&program_id)
-            .expect("Program not found in storage")
-        {
-            actor.program.set_message_nonce(nonce);
         }
     }
     fn update_page(
