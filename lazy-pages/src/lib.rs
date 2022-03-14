@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 //! In runtime data for contract wasm memory pages can be loaded in lazy manner.
 //! All pages, which is supposed to be lazy, must be mprotected before contract execution.
 //! During execution data from storage is loaded for all pages, which has been accesed.
-//! See also [handle_sigsegv].
+//! See also `handle_sigsegv`.
 
 use std::{cell::RefCell, collections::BTreeMap};
 

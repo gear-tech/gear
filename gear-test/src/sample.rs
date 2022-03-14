@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -219,6 +219,9 @@ pub struct Message {
 /// Main model describing test structure
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Test {
+    /// Flag which defines whether test should be skipped.
+    /// TODO: remove after resolving https://github.com/gear-tech/gear/pull/739
+    pub skip: Option<bool>,
     /// Code that are needed to be submitted for tests
     pub codes: Option<Vec<Code>>,
     /// Programs and related data used for tests
