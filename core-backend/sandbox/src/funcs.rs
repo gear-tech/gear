@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::env::Runtime;
-use alloc::{string::String, vec};
+use alloc::{string::String, vec, vec::Vec};
 use core::{
     convert::{TryFrom, TryInto},
     slice::Iter,
@@ -26,7 +26,7 @@ use gear_backend_common::{funcs, ExtInfo, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TR
 use gear_core::{
     env::Ext,
     identifiers::{MessageId, ProgramId},
-    message::{OutgoingPacket, ProgramInitPacket, ReplyPacket},
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -77,7 +77,7 @@ pub fn send<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sys
             let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id = ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
+            let message_id = ext.send(HandlePacket::new(dest, payload, None, value))?;
             ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
@@ -105,12 +105,7 @@ pub fn send_wgas<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -
             let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id = ext.send(OutgoingPacket::new(
-                dest,
-                payload.into(),
-                Some(gas_limit),
-                value,
-            ))?;
+            let message_id = ext.send(HandlePacket::new(dest, payload, Some(gas_limit), value))?;
             ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
@@ -134,10 +129,8 @@ pub fn send_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value])
         .with(|ext| {
             let dest: ProgramId = funcs::get_bytes32(ext, program_id_ptr).into();
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id = ext.send_commit(
-                handle_ptr,
-                OutgoingPacket::new(dest, vec![].into(), None, value),
-            )?;
+            let message_id =
+                ext.send_commit(handle_ptr, HandlePacket::new(dest, vec![], None, value))?;
             ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
@@ -166,7 +159,7 @@ pub fn send_commit_wgas<E: Ext + Into<ExtInfo>>(
             let value = funcs::get_u128(ext, value_ptr);
             let message_id = ext.send_commit(
                 handle_ptr,
-                OutgoingPacket::new(dest, vec![].into(), Some(gas_limit), value),
+                HandlePacket::new(dest, vec![], Some(gas_limit), value),
             )?;
             ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
@@ -372,7 +365,7 @@ pub fn reply<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]) -> Sy
         .with(|ext| {
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            ext.reply(ReplyPacket::new(0, payload.into(), value))
+            ext.reply(ReplyPacket::new(payload, None, value))
         })
         .and_then(|res| res.map(|_| ReturnValue::Unit))
         .map_err(|_| {
@@ -391,7 +384,7 @@ pub fn reply_commit<E: Ext + Into<ExtInfo>>(ctx: &mut Runtime<E>, args: &[Value]
     ctx.ext
         .with(|ext| {
             let value = funcs::get_u128(ext, value_ptr);
-            let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
+            let message_id = ext.reply_commit(ReplyPacket::new(Vec::new(), None, value))?;
             ext.set_mem(message_id_ptr, message_id.as_ref());
             Ok(())
         })
@@ -628,7 +621,7 @@ pub fn create_program_wgas<E: Ext + Into<ExtInfo>>(
     let salt_len = pop_i32(&mut args)?;
     let payload_ptr = pop_i32(&mut args)?;
     let payload_len = pop_i32(&mut args)?;
-    let gas_limit = pop_i64(&mut args)?;
+    let gas_limit = Some(pop_i64(&mut args)?);
     let value_ptr = pop_i32(&mut args)?;
     let program_id_ptr = pop_i32(&mut args)?;
 
@@ -639,10 +632,10 @@ pub fn create_program_wgas<E: Ext + Into<ExtInfo>>(
             let salt = funcs::get_vec(ext, salt_ptr, salt_len);
             let payload = funcs::get_vec(ext, payload_ptr, payload_len);
             let value = funcs::get_u128(ext, value_ptr);
-            let new_actor_id = ext.create_program(ProgramInitPacket::new(
+            let new_actor_id = ext.create_program(InitPacket::new(
                 code_hash.into(),
                 salt,
-                payload.into(),
+                payload,
                 gas_limit,
                 value,
             ))?;
