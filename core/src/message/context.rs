@@ -67,8 +67,8 @@ pub struct ContextOutcome {
 }
 
 impl ContextOutcome {
-    /// TODO.
-    pub fn new(program_id: ProgramId, source: ProgramId, origin_msg_id: MessageId) -> Self {
+    /// Create new ContextOutcome.
+    fn new(program_id: ProgramId, source: ProgramId, origin_msg_id: MessageId) -> Self {
         Self {
             program_id,
             source,
@@ -77,7 +77,7 @@ impl ContextOutcome {
         }
     }
 
-    /// TODO.
+    /// Generate Vec of Dispatches for all generated messages.
     pub fn collect_dispatches(self) -> Vec<Dispatch> {
         let mut dispatches = Vec::new();
 
@@ -96,7 +96,7 @@ impl ContextOutcome {
         dispatches
     }
 
-    /// TODO.
+    /// Get reference to awaken message ids.
     pub fn awakening(&self) -> &BTreeSet<MessageId> {
         &self.awakening
     }
@@ -169,7 +169,10 @@ impl MessageContext {
         }
     }
 
-    /// TODO.
+    /// Send a new program initialization message.
+    ///
+    /// Generates a new message from provided data packet.
+    /// Returns message id and generated program id.
     pub fn init_program(&mut self, packet: InitPacket) -> Result<(ProgramId, MessageId), Error> {
         let program_id = packet.destination();
 
@@ -193,7 +196,10 @@ impl MessageContext {
         Ok((program_id, message_id))
     }
 
-    /// TODO.
+    /// Send a new program initialization message.
+    ///
+    /// Generates message from provided data packet and stored by handle payload.
+    /// Returns message id.
     pub fn send_commit(&mut self, handle: u32, packet: HandlePacket) -> Result<MessageId, Error> {
         if let Some(payload) = self.store.outgoing.get_mut(&handle) {
             if let Some(data) = payload.take() {
@@ -217,7 +223,9 @@ impl MessageContext {
         }
     }
 
-    /// TODO.
+    /// Provide space for storing payload for future message creation.
+    ///
+    /// Returns it's handle.
     pub fn send_init(&mut self) -> Result<u32, Error> {
         let last = self.store.outgoing.len() as u32;
 
@@ -230,7 +238,7 @@ impl MessageContext {
         }
     }
 
-    /// TODO.
+    /// Pushes payload into stored payload by handle.
     pub fn send_push(&mut self, handle: u32, buffer: &[u8]) -> Result<(), Error> {
         match self.store.outgoing.get_mut(&handle) {
             Some(Some(data)) => {
@@ -242,7 +250,10 @@ impl MessageContext {
         }
     }
 
-    /// TODO.
+    /// Send reply message.
+    ///
+    /// Generates reply from provided data packet and stored reply payload.
+    /// Returns message id.
     pub fn reply_commit(&mut self, packet: ReplyPacket) -> Result<MessageId, Error> {
         if !self.store.reply_sent {
             let data = self.store.reply.take().unwrap_or_default();
@@ -265,7 +276,7 @@ impl MessageContext {
         }
     }
 
-    /// TODO.
+    /// Pushes payload into stored reply payload.
     pub fn reply_push(&mut self, buffer: &[u8]) -> Result<(), Error> {
         if !self.store.reply_sent {
             let data = self.store.reply.get_or_insert_with(Default::default);
@@ -277,7 +288,7 @@ impl MessageContext {
         }
     }
 
-    /// TODO.
+    /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId) -> Result<(), Error> {
         if !self.store.awaken.insert(waker_id) {
             self.outcome.awakening.insert(waker_id);
@@ -288,17 +299,17 @@ impl MessageContext {
         }
     }
 
-    /// TODO.
+    /// Current processing incoming message.
     pub fn current(&self) -> &IncomingMessage {
         &self.current
     }
 
-    /// TODO.
+    /// Current program's id.
     pub fn program_id(&self) -> ProgramId {
         self.outcome.program_id
     }
 
-    /// TODO.
+    /// Destructs context after execution and returns provided outcome and store.
     pub fn drain(self) -> (ContextOutcome, ContextStore) {
         let Self { outcome, store, .. } = self;
 
