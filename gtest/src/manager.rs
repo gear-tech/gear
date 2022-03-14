@@ -79,6 +79,7 @@ impl Actor {
         }
     }
 
+    // Takes ownership over mock program, putting `None` value instead of it.
     fn take_mock(&mut self) -> Option<Box<dyn WasmProgram>> {
         match self {
             Actor::Initialized(Program::Mock(mock)) => mock.take(),
@@ -87,7 +88,8 @@ impl Actor {
         }
     }
 
-    fn take_executable_actor(&self, balance: Balance) -> Option<ExecutableActor> {
+    // Gets a new executable actor derived from the inner program.
+    fn get_executable_actor(&self, balance: Balance) -> Option<ExecutableActor> {
         let program = match self {
             Actor::Initialized(Program::Genuine(program)) => Some(program.clone()),
             Actor::Uninitialized(_, Some(Program::Genuine(program))) => Some(program.clone()),
@@ -233,7 +235,7 @@ impl ExtManager {
                 .get_mut(&dest)
                 .expect("Somehow message queue contains message for user");
 
-            if let Some(executable_actor) = actor.take_executable_actor(*balance) {
+            if let Some(executable_actor) = actor.get_executable_actor(*balance) {
                 self.process_normal(executable_actor, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
