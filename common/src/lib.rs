@@ -19,7 +19,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod lazy_pages;
-pub mod native;
 pub mod storage_queue;
 
 use codec::{Decode, Encode};
@@ -39,8 +38,8 @@ use sp_std::{
 };
 
 use gear_core::{
-    identifiers::{CodeId, ProgramId},
-    message::{DispatchKind, PayloadStore},
+    identifiers::{CodeId, MessageId, ProgramId},
+    message::StoredDispatch,
     program::Program as NativeProgram,
 };
 
@@ -98,6 +97,26 @@ impl Origin for H256 {
 
     fn from_origin(val: H256) -> Self {
         val
+    }
+}
+
+impl Origin for MessageId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for ProgramId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
     }
 }
 
@@ -205,159 +224,6 @@ pub trait DAGBasedLedger {
     /// If `key` does not identify any value an error is returned.
     /// This can't create imbalance as no value is burned or created.
     fn split(key: Self::Key, new_key: Self::Key) -> DispatchResult;
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct Dispatch {
-    pub kind: DispatchKind,
-    pub message: Message,
-    pub payload_store: Option<PayloadStore>,
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct QueuedDispatch {
-    pub kind: DispatchKind,
-    pub message: QueuedMessage,
-    pub payload_store: Option<PayloadStore>,
-}
-
-impl Dispatch {
-    pub fn new_init(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Init,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_handle(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Handle,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_reply(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::HandleReply,
-            payload_store: None,
-        }
-    }
-}
-
-impl QueuedDispatch {
-    pub fn new_init(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Init,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_handle(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Handle,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_reply(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::HandleReply,
-            payload_store: None,
-        }
-    }
-
-    pub fn into_dispatch(self, gas_limit: u64) -> gear_core::message::Dispatch {
-        gear_core::message::Dispatch {
-            message: self.message.into_message(gas_limit),
-            kind: self.kind,
-            payload_store: self.payload_store,
-        }
-    }
-
-    pub fn without_gas_limit(dispatch: gear_core::message::Dispatch) -> (Option<u64>, Self) {
-        let (gas_limit, message) = QueuedMessage::without_gas_limit(dispatch.message);
-
-        let dispatch = Self {
-            message,
-            kind: dispatch.kind,
-            payload_store: dispatch.payload_store,
-        };
-
-        (gas_limit, dispatch)
-    }
-
-    pub fn message_id(&self) -> &H256 {
-        &self.message.id
-    }
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct Message {
-    pub id: H256,
-    pub source: H256,
-    pub dest: H256,
-    pub payload: Vec<u8>,
-    pub gas_limit: u64,
-    pub value: u128,
-    pub reply: Option<(H256, ExitCode)>,
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct QueuedMessage {
-    pub id: H256,
-    pub source: H256,
-    pub dest: H256,
-    pub payload: Vec<u8>,
-    pub value: u128,
-    pub reply: Option<(H256, ExitCode)>,
-}
-
-impl QueuedMessage {
-    pub fn into_message(self, gas_limit: u64) -> gear_core::message::Message {
-        gear_core::message::Message {
-            id: gear_core::identifiers::MessageId::from_origin(self.id),
-            source: gear_core::identifiers::ProgramId::from_origin(self.source),
-            dest: gear_core::identifiers::ProgramId::from_origin(self.dest),
-            payload: self.payload.into(),
-            gas_limit: Some(gas_limit),
-            value: self.value,
-            reply: self.reply.map(|(message_id, exit_code)| {
-                (
-                    gear_core::identifiers::MessageId::from_origin(message_id),
-                    exit_code,
-                )
-            }),
-        }
-    }
-
-    pub fn without_gas_limit(message: gear_core::message::Message) -> (Option<u64>, Self) {
-        let gear_core::message::Message {
-            id,
-            source,
-            dest,
-            payload,
-            gas_limit,
-            value,
-            reply,
-        } = message;
-
-        let new_message = Self {
-            id: id.into_origin(),
-            source: source.into_origin(),
-            dest: dest.into_origin(),
-            payload: payload.into_raw(),
-            value,
-            reply: reply.map(|(message_id, exit_code)| (message_id.into_origin(), exit_code)),
-        };
-
-        (gas_limit, new_message)
-    }
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
@@ -596,18 +462,18 @@ pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
 }
 
-pub fn dequeue_dispatch() -> Option<QueuedDispatch> {
+pub fn dequeue_dispatch() -> Option<StoredDispatch> {
     let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     dispatch_queue.dequeue()
 }
 
-pub fn queue_dispatch(dispatch: QueuedDispatch) {
+pub fn queue_dispatch(dispatch: StoredDispatch) {
     let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = dispatch.message.id;
-    dispatch_queue.queue(dispatch, id);
+    let id = dispatch.id();
+    dispatch_queue.queue(dispatch, id.into_origin());
 }
 
-pub fn dispatch_iter() -> Iterator<QueuedDispatch> {
+pub fn dispatch_iter() -> Iterator<StoredDispatch> {
     StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
 
@@ -684,15 +550,15 @@ pub fn remove_program_page(program_id: H256, page_num: u32) {
     sp_io::storage::clear(&page_key);
 }
 
-pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: QueuedDispatch, bn: u32) {
+pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: StoredDispatch, bn: u32) {
     let payload = (dispatch, bn);
     sp_io::storage::set(&wait_key(dest_prog_id, msg_id), &payload.encode());
 }
 
-pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(QueuedDispatch, u32)> {
+pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(StoredDispatch, u32)> {
     let id = wait_key(dest_prog_id, msg_id);
     let msg = sp_io::storage::get(&id)
-        .and_then(|val| <(QueuedDispatch, u32)>::decode(&mut &val[..]).ok());
+        .and_then(|val| <(StoredDispatch, u32)>::decode(&mut &val[..]).ok());
 
     if msg.is_some() {
         sp_io::storage::clear(&id);
@@ -716,10 +582,10 @@ fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
     key
 }
 
-pub fn remove_program_waitlist(prog_id: H256) -> Vec<QueuedDispatch> {
+pub fn remove_program_waitlist(prog_id: H256) -> Vec<StoredDispatch> {
     let key = program_waitlist_prefix(prog_id);
     let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<QueuedDispatch>::decode(&mut &v[..]).ok());
+        sp_io::storage::get(&key).and_then(|v| Vec::<StoredDispatch>::decode(&mut &v[..]).ok());
     sp_io::storage::clear(&key);
 
     messages.unwrap_or_default()

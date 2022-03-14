@@ -416,13 +416,13 @@ fn trap_reply_message_is_sent() {
             hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
         )
         .unwrap();
-        common::native::set_program(program_1);
+        crate::mock::set_program(program_1);
         let program_2 = gear_core::program::Program::new(
             2.into(),
             hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
         )
         .unwrap();
-        common::native::set_program(program_2);
+        crate::mock::set_program(program_2);
 
         run_to_block(15);
 

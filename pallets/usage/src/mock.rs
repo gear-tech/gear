@@ -18,9 +18,14 @@
 
 use crate as pallet_usage;
 use codec::Decode;
+use common::Origin;
 use frame_support::traits::{FindAuthor, OffchainWorker, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
+use gear_core::{
+    identifiers::{CodeId, ProgramId},
+    program::Program,
+};
 use parking_lot::RwLock;
 use primitive_types::H256;
 use sp_core::offchain::{
@@ -249,4 +254,35 @@ pub(crate) fn get_current_offchain_time() -> u64 {
 pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
     let storage_value_ref = StorageValueRef::persistent(key);
     storage_value_ref.get::<T>().ok().flatten()
+}
+
+pub(crate) fn set_program(program: Program) {
+    let code_hash = CodeId::generate(program.code()).into_origin();
+    if !common::code_exists(code_hash) {
+        common::set_code(code_hash, program.code());
+    }
+    common::set_program(
+        H256::from_slice(program.id().as_ref()),
+        common::ActiveProgram {
+            static_pages: program.static_pages(),
+            persistent_pages: program
+                .get_pages()
+                .iter()
+                .map(|(num, _)| num.raw())
+                .collect(),
+            code_hash,
+            nonce: program.message_nonce(),
+            state: common::ProgramState::Initialized,
+        },
+        program
+            .get_pages()
+            .iter()
+            .map(|(num, buf)| {
+                let buf = buf
+                    .as_ref()
+                    .expect("When set program, each page must have data");
+                (num.raw(), buf.to_vec())
+            })
+            .collect(),
+    );
 }

@@ -75,6 +75,46 @@ impl StoredMessage {
             self.reply,
         )
     }
+
+    /// Message id.
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
+
+    /// Message source.
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    /// Message destination.
+    pub fn destination(&self) -> ProgramId {
+        self.destination
+    }
+
+    /// Message payload reference.
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_ref()
+    }
+
+    /// Message value.
+    pub fn value(&self) -> Value {
+        self.value
+    }
+
+    /// Check if this message is reply.
+    pub fn is_reply(&self) -> bool {
+        self.reply.is_some()
+    }
+
+    /// Message id what this message replies to, if reply.
+    pub fn reply_to(&self) -> Option<MessageId> {
+        self.reply.map(|(id, _)| id)
+    }
+
+    /// Exit code of the message, if reply.
+    pub fn exit_code(&self) -> Option<ExitCode> {
+        self.reply.map(|(_, exit_code)| exit_code)
+    }
 }
 
 /// Stored message with entry point and previous execution context, if exists.
