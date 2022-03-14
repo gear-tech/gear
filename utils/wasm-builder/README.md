@@ -10,7 +10,7 @@ This is a helper crate that can be used in build scripts for building Gear progr
 # ...
 
 [build-dependencies]
-gear-wasm-builder = "0.1.1"
+gear-wasm-builder = "0.1.2"
 
 # ...
 ```
