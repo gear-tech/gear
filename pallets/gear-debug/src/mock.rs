@@ -118,7 +118,11 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
-impl pallet_gear_program::Config for Test {}
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
+}
 
 impl pallet_gear::Config for Test {
     type Event = Event;
@@ -145,7 +149,7 @@ construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Authorship: pallet_authorship::{Pallet, Storage},
         Timestamp: pallet_timestamp::{Pallet, Storage},
-        GearProgram: pallet_gear_program::{Pallet, Storage},
+        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas,
     }
