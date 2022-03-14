@@ -28,7 +28,7 @@ use gear_core::{
     gas::GasAmount,
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, Message},
+    message::{ContextStore, Dispatch, IncomingDispatch, Message, StoredDispatch},
     program::Program,
 };
 
@@ -49,46 +49,43 @@ pub enum DispatchResultKind {
 pub struct DispatchResult {
     /// Kind of the dispatch.
     pub kind: DispatchResultKind,
-
     /// Original dispatch.
-    pub dispatch: Dispatch,
-
+    pub dispatch: IncomingDispatch,
+    /// Program id of actor which was executed.
+    pub program_id: ProgramId,
+    /// Context store after execution.
+    pub context_store: ContextStore,
     /// List of generated messages.
     pub generated_dispatches: Vec<Dispatch>,
     /// List of messages that should be woken.
     pub awakening: Vec<MessageId>,
-
     /// New programs to be created with additional data (corresponding code hash and init message id).
     pub program_candidates: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
-
     /// Gas amount after execution.
     pub gas_amount: GasAmount,
-
     /// Page updates.
     pub page_update: BTreeMap<PageNumber, Option<Vec<u8>>>,
-    /// New nonce.
-    pub nonce: u64,
 }
 
 impl DispatchResult {
     /// Return dispatch message id.
     pub fn message_id(&self) -> MessageId {
-        self.dispatch.message.id()
+        self.dispatch.id()
     }
 
-    /// Return dispatch target program id.
+    /// Return program id.
     pub fn program_id(&self) -> ProgramId {
-        self.dispatch.message.dest()
+        self.program_id
     }
 
     /// Return dispatch source program id.
     pub fn message_source(&self) -> ProgramId {
-        self.dispatch.message.source()
+        self.dispatch.source()
     }
 
     /// Return dispatch message value
     pub fn message_value(&self) -> u128 {
-        self.dispatch.message.value()
+        self.dispatch.value()
     }
 }
 
@@ -162,7 +159,7 @@ pub enum JournalNote {
         dispatch: Dispatch,
     },
     /// Put this dispatch in the wait list.
-    WaitDispatch(Dispatch),
+    WaitDispatch(StoredDispatch),
     /// Wake particular message.
     WakeMessage {
         /// Message which has initiated wake.
@@ -171,13 +168,6 @@ pub enum JournalNote {
         program_id: ProgramId,
         /// Message that should be wokoen.
         awakening_id: MessageId,
-    },
-    /// Update program nonce.
-    UpdateNonce {
-        /// Program id to be updated.
-        program_id: ProgramId,
-        /// Nonce to set.
-        nonce: u64,
     },
     /// Update page.
     UpdatePage {
@@ -223,7 +213,7 @@ pub trait JournalHandler {
     /// Process send dispatch.
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch);
     /// Process send message.
-    fn wait_dispatch(&mut self, dispatch: Dispatch);
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch);
     /// Process send message.
     fn wake_message(
         &mut self,
@@ -231,8 +221,6 @@ pub trait JournalHandler {
         program_id: ProgramId,
         awakening_id: MessageId,
     );
-    /// Process nonce update.
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64);
     /// Process page update.
     fn update_page(
         &mut self,

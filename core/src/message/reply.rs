@@ -51,13 +51,13 @@ impl ReplyMessage {
     /// Convert ReplyMessage into Message.
     pub fn into_message(
         self,
-        source: ProgramId,
+        program_id: ProgramId,
         destination: ProgramId,
         origin_msg_id: MessageId,
     ) -> Message {
         Message::new(
             self.id,
-            source,
+            program_id,
             destination,
             self.payload,
             self.gas_limit,

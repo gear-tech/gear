@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    configs::{AllocationsConfig, BlockInfo},
-    id::BlakeMessageIdGenerator,
-};
+use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_backend_common::ExtInfo;
 use gear_core::{
@@ -27,9 +24,7 @@ use gear_core::{
     gas::{ChargeResult, GasCounter, ValueCounter},
     identifiers::{CodeId, MessageId, ProgramId},
     memory::{MemoryContext, PageBuf, PageNumber},
-    message::{
-        ExitCode, MessageContext, MessageState, OutgoingPacket, ProgramInitPacket, ReplyPacket,
-    },
+    message::{ExitCode, HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -41,7 +36,7 @@ pub trait ProcessorExt {
         gas_counter: GasCounter,
         value_counter: ValueCounter,
         memory_context: MemoryContext,
-        message_context: MessageContext<BlakeMessageIdGenerator>,
+        message_context: MessageContext,
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
@@ -90,7 +85,7 @@ pub struct Ext {
     /// Memory context.
     pub memory_context: MemoryContext,
     /// Message context.
-    pub message_context: MessageContext<BlakeMessageIdGenerator>,
+    pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
@@ -114,7 +109,7 @@ impl ProcessorExt for Ext {
         gas_counter: GasCounter,
         value_counter: ValueCounter,
         memory_context: MemoryContext,
-        message_context: MessageContext<BlakeMessageIdGenerator>,
+        message_context: MessageContext,
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
@@ -178,28 +173,16 @@ impl From<Ext> for ExtInfo {
             accessed_pages.insert(page, buf);
         }
 
-        let nonce = ext.message_context.nonce();
-
-        let (
-            MessageState {
-                init_messages,
-                outgoing,
-                reply,
-                awakening,
-            },
-            store,
-        ) = ext.message_context.drain();
+        let (outcome, context_store) = ext.message_context.drain();
+        let (generated_dispatches, awakening) = outcome.drain();
 
         ExtInfo {
             gas_amount: ext.gas_counter.into(),
             pages: ext.memory_context.allocations().clone(),
             accessed_pages,
-            init_messages,
-            outgoing,
-            reply,
+            generated_dispatches,
             awakening,
-            nonce,
-            payload_store: Some(store),
+            context_store,
             trap_explanation: ext.error_explanation,
             exit_argument: ext.exit_argument,
             program_candidates_data: ext.program_candidates_data,
@@ -279,13 +262,13 @@ impl EnvExt for Ext {
             .send_init()
             .map_err(|_e| "Message init error");
 
-        self.return_and_store_err(result)
+        self.return_and_store_err(result.map(|v| v as usize))
     }
 
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         let result = self
             .message_context
-            .send_push(handle, buffer)
+            .send_push(handle as u32, buffer)
             .map_err(|_e| "Payload push error");
 
         self.return_and_store_err(result)
@@ -300,11 +283,7 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn send_commit(
-        &mut self,
-        handle: usize,
-        msg: OutgoingPacket,
-    ) -> Result<MessageId, &'static str> {
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str> {
         if 0 < msg.value() && msg.value() < self.existential_deposit {
             return self.return_and_store_err(Err(
                 "Value of the message is less than existance deposit, but greater than 0",
@@ -322,7 +301,7 @@ impl EnvExt for Ext {
 
         let result = self
             .message_context
-            .send_commit(handle, msg)
+            .send_commit(handle as u32, msg)
             .map_err(|_e| "Message commit error");
 
         self.return_and_store_err(result)
@@ -348,7 +327,15 @@ impl EnvExt for Ext {
     }
 
     fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
-        self.message_context.current().reply()
+        let current = self.message_context.current();
+        if current.is_reply() {
+            Some((
+                current.reply_to().expect("Can't fail"),
+                current.exit_code().expect("Can't fail"),
+            ))
+        } else {
+            None
+        }
     }
 
     fn source(&mut self) -> ProgramId {
@@ -454,13 +441,13 @@ impl EnvExt for Ext {
         self.memory_context.memory().get_wasm_memory_begin_addr()
     }
 
-    fn create_program(&mut self, packet: ProgramInitPacket) -> Result<ProgramId, &'static str> {
-        let code_hash = packet.code_hash;
+    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str> {
+        let code_hash = packet.code_id();
 
         // Send a message for program creation
         let result = self
             .message_context
-            .send_init_program(packet)
+            .init_program(packet)
             .map(|(new_prog_id, init_msg_id)| {
                 // Save a program candidate for this run
                 let entry = self.program_candidates_data.entry(code_hash).or_default();

@@ -25,7 +25,6 @@ pub fn handle_journal(
     handler: &mut dyn JournalHandler,
 ) {
     let mut page_updates = BTreeMap::new();
-    let mut nonces = BTreeMap::new();
     let mut exit_list = vec![];
 
     for note in journal.into_iter() {
@@ -47,9 +46,6 @@ pub fn handle_journal(
                 program_id,
                 awakening_id,
             } => handler.wake_message(message_id, program_id, awakening_id),
-            JournalNote::UpdateNonce { program_id, nonce } => {
-                nonces.insert(program_id, nonce);
-            }
             JournalNote::UpdatePage {
                 program_id,
                 page_number,
@@ -64,10 +60,6 @@ pub fn handle_journal(
                 candidates,
             } => handler.store_new_programs(code_hash, candidates),
         }
-    }
-
-    for (program_id, nonce) in nonces {
-        handler.update_nonce(program_id, nonce);
     }
 
     for (program_id, pages) in page_updates {

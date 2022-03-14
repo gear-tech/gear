@@ -22,24 +22,20 @@ use crate::{
     },
     configs::ExecutionSettings,
     ext::ProcessorExt,
-    id::BlakeMessageIdGenerator,
 };
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    vec::Vec,
-};
+use alloc::collections::{BTreeMap, BTreeSet};
 use gear_backend_common::{BackendReport, Environment, ExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
     memory::{MemoryContext, PageNumber, PAGE_SIZE},
-    message::{Dispatch, MessageContext},
+    message::{IncomingDispatch, MessageContext},
 };
 
 /// Execute wasm with dispatch and return dispatch result.
 pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
     actor: ExecutableActor,
-    dispatch: Dispatch,
+    dispatch: IncomingDispatch,
     context: ExecutionContext,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
@@ -50,20 +46,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         balance,
     } = actor;
 
-    let Dispatch {
-        kind,
-        message,
-        payload_store,
-    } = dispatch.clone();
-
     let program_id = program.id();
     log::debug!("Executing program {:?}", program_id);
 
     // Creating gas counter.
-    let mut gas_counter = GasCounter::new(message.gas_limit().unwrap_or(0));
+    let mut gas_counter = GasCounter::new(dispatch.gas_limit());
 
     // Creating value counter.
-    let value_counter = ValueCounter::new(balance + dispatch.message.value());
+    let value_counter = ValueCounter::new(balance + dispatch.value());
 
     let instrumented_code = match gas::instrument(program.code()) {
         Ok(code) => code,
@@ -154,12 +144,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
 
     // Creating message context.
     let message_context = MessageContext::new(
-        message.clone().into(),
-        BlakeMessageIdGenerator {
-            program_id,
-            nonce: program.message_nonce(),
-        },
-        payload_store,
+        dispatch.message().clone(),
+        program_id,
+        dispatch.context().clone(),
     );
 
     let initial_pages = program.get_pages_mut();
@@ -204,7 +191,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     log::debug!("Stack end = {:?}", stack_end_page);
 
     // Running backend.
-    let BackendReport { termination, info } = match env.execute(kind.into_entry()) {
+    let BackendReport { termination, info } = match env.execute(dispatch.kind().into_entry()) {
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
@@ -281,39 +268,19 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
             page_update.insert(*removed_page, None);
         });
 
-    // Storing outgoing dispatches
-    let mut generated_dispatches = Vec::new();
-
-    for msg in info.init_messages {
-        generated_dispatches.push(Dispatch::new_init(msg.into_message(program_id)));
-    }
-
-    for msg in info.outgoing {
-        generated_dispatches.push(Dispatch::new_handle(msg.into_message(program_id)));
-    }
-
-    if let Some(reply_message) = info.reply {
-        generated_dispatches.push(Dispatch::new_reply(reply_message.into_message(
-            message.id(),
-            program_id,
-            message.source(),
-        )));
-    }
-
     // Getting new programs that are scheduled to be initialized (respected messages are in `generated_dispatches` collection)
     let program_candidates = info.program_candidates_data;
-    let mut dispatch = dispatch;
-    dispatch.payload_store = info.payload_store;
 
     // Output.
     Ok(DispatchResult {
         kind,
         dispatch,
-        generated_dispatches,
+        program_id,
+        context_store: info.context_store,
+        generated_dispatches: info.generated_dispatches,
         awakening: info.awakening,
         gas_amount: info.gas_amount,
         page_update,
-        nonce: info.nonce,
         program_candidates,
     })
 }

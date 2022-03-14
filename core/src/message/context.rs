@@ -59,7 +59,7 @@ pub struct ContextOutcome {
     init: Vec<InitMessage>,
     handle: Vec<HandleMessage>,
     reply: Option<ReplyMessage>,
-    awakening: BTreeSet<MessageId>,
+    awakening: Vec<MessageId>,
     // Additional information section
     program_id: ProgramId,
     source: ProgramId,
@@ -77,8 +77,8 @@ impl ContextOutcome {
         }
     }
 
-    /// Generate Vec of Dispatches for all generated messages.
-    pub fn collect_dispatches(self) -> Vec<Dispatch> {
+    /// Destructs outcome after execution and returns provided dispatches and awaken message ids.
+    pub fn drain(self) -> (Vec<Dispatch>, Vec<MessageId>) {
         let mut dispatches = Vec::new();
 
         if let Some(msg) = self.reply {
@@ -93,12 +93,7 @@ impl ContextOutcome {
             dispatches.push(msg.into_dispatch(self.program_id));
         }
 
-        dispatches
-    }
-
-    /// Get reference to awaken message ids.
-    pub fn awakening(&self) -> &BTreeSet<MessageId> {
-        &self.awakening
+        (dispatches, self.awakening)
     }
 }
 
@@ -291,7 +286,7 @@ impl MessageContext {
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId) -> Result<(), Error> {
         if !self.store.awaken.insert(waker_id) {
-            self.outcome.awakening.insert(waker_id);
+            self.outcome.awakening.push(waker_id);
 
             Ok(())
         } else {

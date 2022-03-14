@@ -160,8 +160,8 @@ impl IncomingDispatch {
     }
 
     /// Previous execution context reference, if exists.
-    pub fn context(&self) -> Option<&ContextStore> {
-        self.context.as_ref()
+    pub fn context(&self) -> &Option<ContextStore> {
+        &self.context
     }
 }
 
