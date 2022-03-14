@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use common::{Origin, benchmarking};
+use common::{benchmarking, Origin};
 use sp_runtime::traits::UniqueSaturatedInto;
 
 #[allow(unused)]

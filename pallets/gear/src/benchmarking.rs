@@ -19,7 +19,7 @@
 //! Gear pallet benchmarking
 
 use super::*;
-use common::{Origin, benchmarking};
+use common::{benchmarking, Origin};
 use gear_core::program::CodeHash;
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;

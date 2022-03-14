@@ -20,8 +20,8 @@
 
 pub use pallet::*;
 use primitive_types::H256;
-use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
+use sp_std::prelude::*;
 
 mod pause;
 pub use pause::PauseError;
@@ -42,9 +42,12 @@ mod benchmarking;
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::{pallet_prelude::*, traits::{Currency, ExistenceRequirement}};
+    use frame_support::{
+        pallet_prelude::*,
+        traits::{Currency, ExistenceRequirement},
+    };
     use frame_system::pallet_prelude::*;
-    use sp_runtime::traits::{Zero, UniqueSaturatedInto};
+    use sp_runtime::traits::{UniqueSaturatedInto, Zero};
     use weights::Info;
 
     #[pallet::config]

@@ -339,7 +339,8 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit =
+                <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             let (dest, reply) = match kind {
                 HandleKind::Init(ref code) => (CodeHash::generate(code).into_origin(), None),
@@ -454,7 +455,8 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = <T as Config>::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit =
+                <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();

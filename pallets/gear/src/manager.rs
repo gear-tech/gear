@@ -132,8 +132,9 @@ where
         let program = common::get_program(id)
             .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
 
-        let balance = <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-            .unique_saturated_into();
+        let balance =
+            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+                .unique_saturated_into();
 
         Some(ExecutableActor { program, balance })
     }
@@ -356,8 +357,10 @@ where
 
             let refund = T::GasPrice::gas_price(gas_left);
 
-            let _ =
-                <T as Config>::Currency::unreserve(&<T::AccountId as Origin>::from_origin(external), refund);
+            let _ = <T as Config>::Currency::unreserve(
+                &<T::AccountId as Origin>::from_origin(external),
+                refund,
+            );
         }
     }
 
@@ -526,7 +529,8 @@ where
             );
             let from = <T::AccountId as Origin>::from_origin(from);
             let to = <T::AccountId as Origin>::from_origin(to);
-            if <T as Config>::Currency::can_reserve(&to, <T as Config>::Currency::minimum_balance()) {
+            if <T as Config>::Currency::can_reserve(&to, <T as Config>::Currency::minimum_balance())
+            {
                 // `to` account exists, so we can repatriate reserved value for it.
                 let _ = <T as Config>::Currency::repatriate_reserved(
                     &from,

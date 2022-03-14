@@ -19,7 +19,7 @@
 use super::*;
 use codec::{Decode, Encode};
 use common::{self, QueuedDispatch};
-use frame_support::{storage::PrefixIterator, dispatch::DispatchResult};
+use frame_support::{dispatch::DispatchResult, storage::PrefixIterator};
 use scale_info::TypeInfo;
 
 #[derive(Clone, Debug, PartialEq, Decode, Encode, TypeInfo)]

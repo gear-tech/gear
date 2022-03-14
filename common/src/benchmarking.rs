@@ -18,9 +18,9 @@
 
 use super::*;
 
-use sp_std::borrow::ToOwned;
 use parity_wasm::elements::*;
 use sp_io::hashing::blake2_256;
+use sp_std::borrow::ToOwned;
 
 pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
     let entropy = (name, index, seed).using_encoded(blake2_256);
