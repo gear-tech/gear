@@ -330,7 +330,7 @@ impl gear_common::GasPrice for GasConverter {
 
 impl pallet_gear_program::Config for Runtime {
     type Event = Event;
-    type WeightInfo = ();
+    type WeightInfo = pallet_gear_program::weights::GearProgramWeight<Runtime>;
     type Currency = Balances;
 }
 
