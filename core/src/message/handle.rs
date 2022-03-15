@@ -108,23 +108,33 @@ pub struct HandlePacket {
 }
 
 impl HandlePacket {
-    /// Create new packet.
-    pub fn new(
+    /// Create new packet without gas.
+    pub fn new(destination: ProgramId, payload: Payload, value: Value) -> Self {
+        Self {
+            destination,
+            payload,
+            gas_limit: None,
+            value,
+        }
+    }
+
+    /// Create new packet with gas.
+    pub fn new_with_gas(
         destination: ProgramId,
         payload: Payload,
-        gas_limit: Option<GasLimit>,
+        gas_limit: GasLimit,
         value: Value,
     ) -> Self {
         Self {
             destination,
             payload,
-            gas_limit,
+            gas_limit: Some(gas_limit),
             value,
         }
     }
 
     /// Prepend payload.
-    pub fn prepend(&mut self, data: Payload) {
+    pub(super) fn prepend(&mut self, data: Payload) {
         self.payload.splice(0..0, data);
     }
 

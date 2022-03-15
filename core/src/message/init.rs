@@ -41,7 +41,7 @@ impl InitMessage {
     pub fn from_packet(id: MessageId, packet: InitPacket) -> Self {
         Self {
             id,
-            destination: packet.new_program_id,
+            destination: packet.program_id,
             payload: packet.payload,
             gas_limit: packet.gas_limit,
             value: packet.value,
@@ -98,11 +98,7 @@ impl InitMessage {
 #[derive(Clone, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo)]
 pub struct InitPacket {
     /// Newly created program id.
-    new_program_id: ProgramId,
-    /// Program code id.
-    code_id: CodeId,
-    /// Salt for program id creation.
-    salt: Salt,
+    program_id: ProgramId,
     /// Message payload.
     payload: Payload,
     /// Message optional gas limit.
@@ -112,43 +108,55 @@ pub struct InitPacket {
 }
 
 impl InitPacket {
-    /// Create new InitPacket.
-    pub fn new(
-        code_id: CodeId,
-        salt: Salt,
-        payload: Payload,
-        gas_limit: Option<GasLimit>,
-        value: Value,
-    ) -> Self {
-        let new_program_id = ProgramId::generate(code_id, &salt);
+    /// Create new InitPacket without gas.
+    pub fn new(code_id: CodeId, salt: &Salt, payload: Payload, value: Value) -> Self {
+        Self::new_predefined(ProgramId::generate(code_id, salt), payload, value)
+    }
+
+    /// Create new InitPacket without gas, but with predefined program id.
+    pub fn new_predefined(program_id: ProgramId, payload: Payload, value: Value) -> Self {
         Self {
-            new_program_id,
-            code_id,
-            salt,
+            program_id,
             payload,
-            gas_limit,
+            gas_limit: None,
             value,
         }
     }
 
-    /// Prepend payload.
-    pub fn prepend(&mut self, data: Payload) {
-        self.payload.splice(0..0, data);
+    /// Create new InitPacket with gas.
+    pub fn new_with_gas(
+        code_id: CodeId,
+        salt: &Salt,
+        payload: Payload,
+        gas_limit: GasLimit,
+        value: Value,
+    ) -> Self {
+        Self::new_predefined_with_gas(
+            ProgramId::generate(code_id, salt),
+            payload,
+            gas_limit,
+            value,
+        )
+    }
+
+    /// Create new InitPacket with gas and predefined program id.
+    pub fn new_predefined_with_gas(
+        program_id: ProgramId,
+        payload: Payload,
+        gas_limit: GasLimit,
+        value: Value,
+    ) -> Self {
+        Self {
+            program_id,
+            payload,
+            gas_limit: Some(gas_limit),
+            value,
+        }
     }
 
     /// Packet destination (newly created program id).
     pub fn destination(&self) -> ProgramId {
-        self.new_program_id
-    }
-
-    /// Packet program code id.
-    pub fn code_id(&self) -> CodeId {
-        self.code_id
-    }
-
-    /// Packet salt for program id creation.
-    pub fn salt(&self) -> &[u8] {
-        self.salt.as_ref()
+        self.program_id
     }
 
     /// Packet payload reference.

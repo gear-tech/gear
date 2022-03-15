@@ -121,11 +121,21 @@ pub struct ReplyPacket {
 }
 
 impl ReplyPacket {
-    /// Create new ReplyPacket.
-    pub fn new(payload: Payload, gas_limit: Option<GasLimit>, value: Value) -> Self {
+    /// Create new ReplyPacket without gas.
+    pub fn new(payload: Payload, value: Value) -> Self {
         Self {
             payload,
-            gas_limit,
+            gas_limit: None,
+            value,
+            exit_code: 0,
+        }
+    }
+
+    /// Create new ReplyPacket with gas.
+    pub fn new_with_gas(payload: Payload, gas_limit: GasLimit, value: Value) -> Self {
+        Self {
+            payload,
+            gas_limit: Some(gas_limit),
             value,
             exit_code: 0,
         }
@@ -140,7 +150,7 @@ impl ReplyPacket {
     }
 
     /// Prepend payload.
-    pub fn prepend(&mut self, data: Payload) {
+    pub(super) fn prepend(&mut self, data: Payload) {
         self.payload.splice(0..0, data);
     }
 
