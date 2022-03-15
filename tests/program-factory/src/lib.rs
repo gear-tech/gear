@@ -78,7 +78,11 @@ mod tests {
         // Instantiate factory
         let factory = Program::from_file(
             sys,
-            "../../target/wasm32-unknown-unknown/debug/tests_program_factory.wasm",
+            // todo [sab] should be discussed
+            concat!(
+                env!("OUT_DIR"),
+                "/target/wasm32-unknown-unknown/release/tests_program_factory.wasm"
+            ),
         );
         // Send `init` msg to factory
         let res = factory.send_bytes(10001, "EMPTY");
