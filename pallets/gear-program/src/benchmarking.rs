@@ -46,7 +46,7 @@ benchmarks! {
     }: _(RawOrigin::Signed(caller), program_id, memory_pages, 10_000u32.into())
     verify {
         assert!(crate::Pallet::<T>::program_exists(program_id));
-        assert!(!crate::Pallet::<T>::paused_program_exists(program_id));
+        assert!(!crate::Pallet::<T>::program_paused(program_id));
     }
 }
 
