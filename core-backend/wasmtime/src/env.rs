@@ -18,8 +18,6 @@
 
 //! Wasmtime environment for running a module.
 
-use alloc::rc::Rc;
-
 use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
 use gear_backend_common::{
     funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
@@ -34,33 +32,6 @@ use wasmtime::{
 };
 
 pub struct StoreData;
-
-pub struct LaterStore(Rc<Store<StoreData>>);
-
-impl Clone for LaterStore {
-    fn clone(&self) -> Self {
-        LaterStore(Rc::clone(&self.0))
-    }
-}
-
-impl LaterStore {
-    pub fn new(eng: &Engine) -> Self {
-        LaterStore(Rc::from(Store::new(eng, StoreData)))
-    }
-    /// In order to be able borrow mutable reference many times we need
-    /// to make it in unsafe manner.
-    /// Wasmtime store object must be mut borrowed to execute instance,
-    /// but also we must mut borrow it in memory sys-calls: alloc/free/...
-    /// But memory sys-calls are called in the same time with instance execution,
-    /// so there is no ways to avoid twice mut borrowing.
-    pub fn get_mut_ref(&mut self) -> &mut Store<StoreData> {
-        unsafe {
-            let r = self.0.as_ref();
-            let ptr = r as *const Store<StoreData> as *mut Store<StoreData>;
-            ptr.as_mut().expect("ptr must be here")
-        }
-    }
-}
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
@@ -114,7 +85,10 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         /// Make import funcs
         use crate::funcs::FuncsHandler as funcs;
         let mut funcs = BTreeMap::<&'static str, Func>::new();
-        funcs.insert("alloc", funcs::alloc(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
+            "alloc",
+            funcs::alloc(later_ext.clone(), &mut store, memory.clone()),
+        );
         funcs.insert("free", funcs::free(later_ext.clone(), &mut store));
         funcs.insert("gas", funcs::gas(later_ext.clone(), &mut store));
         funcs.insert(
@@ -137,16 +111,34 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             "gr_gas_available",
             funcs::gas_available(later_ext.clone(), &mut store),
         );
-        funcs.insert("gr_debug", funcs::debug(later_ext.clone(), &mut store, memory.clone()));
-        funcs.insert("gr_exit", funcs::exit(later_ext.clone(), &mut store, memory.clone()));
-        funcs.insert("gr_origin", funcs::origin(later_ext.clone(), &mut store, memory.clone()));
-        funcs.insert("gr_msg_id", funcs::msg_id(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
+            "gr_debug",
+            funcs::debug(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_exit",
+            funcs::exit(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_origin",
+            funcs::origin(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_msg_id",
+            funcs::msg_id(later_ext.clone(), &mut store, memory.clone()),
+        );
         funcs.insert(
             "gr_program_id",
             funcs::program_id(later_ext.clone(), &mut store, memory.clone()),
         );
-        funcs.insert("gr_read", funcs::read(later_ext.clone(), &mut store, memory.clone()));
-        funcs.insert("gr_reply", funcs::reply(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
+            "gr_read",
+            funcs::read(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_reply",
+            funcs::reply(later_ext.clone(), &mut store, memory.clone()),
+        );
         funcs.insert(
             "gr_reply_commit",
             funcs::reply_commit(later_ext.clone(), &mut store, memory.clone()),
@@ -163,7 +155,10 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             "gr_send_wgas",
             funcs::send_wgas(later_ext.clone(), &mut store, memory.clone()),
         );
-        funcs.insert("gr_send", funcs::send(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
+            "gr_send",
+            funcs::send(later_ext.clone(), &mut store, memory.clone()),
+        );
         funcs.insert(
             "gr_send_commit_wgas",
             funcs::send_commit_wgas(later_ext.clone(), &mut store, memory.clone()),
@@ -181,16 +176,24 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             funcs::send_push(later_ext.clone(), &mut store, memory.clone()),
         );
         funcs.insert("gr_size", funcs::size(later_ext.clone(), &mut store));
-        funcs.insert("gr_source", funcs::source(later_ext.clone(), &mut store, memory.clone()));
-        funcs.insert("gr_value", funcs::value(later_ext.clone(), &mut store, memory.clone()));
+        funcs.insert(
+            "gr_source",
+            funcs::source(later_ext.clone(), &mut store, memory.clone()),
+        );
+        funcs.insert(
+            "gr_value",
+            funcs::value(later_ext.clone(), &mut store, memory.clone()),
+        );
         funcs.insert(
             "gr_value_available",
             funcs::value_available(later_ext.clone(), &mut store, memory.clone()),
         );
         funcs.insert("gr_leave", funcs::leave(later_ext.clone(), &mut store));
         funcs.insert("gr_wait", funcs::wait(later_ext.clone(), &mut store));
-        funcs.insert("gr_wake", funcs::wake(later_ext.clone(), &mut store, memory.clone()));
-
+        funcs.insert(
+            "gr_wake",
+            funcs::wake(later_ext.clone(), &mut store, memory.clone()),
+        );
 
         let module = Module::new(&engine, binary).map_err(|e| BackendError {
             reason: "Unable to create module",

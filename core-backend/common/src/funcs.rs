@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{LEAVE_TRAP_STR, WAIT_TRAP_STR};
-use alloc::{vec, vec::Vec, boxed::Box};
-use gear_core::{env::Ext, memory::Memory};
+use alloc::{vec, vec::Vec};
+use gear_core::memory::Memory;
 
 pub fn is_wait_trap(trap: &str) -> bool {
     trap.starts_with(WAIT_TRAP_STR)

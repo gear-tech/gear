@@ -33,7 +33,7 @@ use alloc::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::{PageBuf, PageNumber, Memory},
+    memory::{PageBuf, PageNumber},
     message::{MessageId, OutgoingMessage, PayloadStore, ProgramInitMessage, ReplyMessage},
     program::{CodeHash, ProgramId},
 };
@@ -71,7 +71,7 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> ()>(self, get_page_data: F) -> ExtInfo;
+    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, get_page_data: F) -> ExtInfo;
     fn into_gas_amount(self) -> GasAmount;
 }
 

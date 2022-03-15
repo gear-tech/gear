@@ -20,18 +20,17 @@ use core::marker::PhantomData;
 
 use crate::memory::MemoryWrap;
 use alloc::format;
-use alloc::{boxed::Box, string::String, vec};
+use alloc::{string::String, vec};
 use gear_backend_common::funcs::*;
 use gear_backend_common::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::{Ext, LaterExt},
-    memory::Error,
     memory::Memory,
     message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
 use wasmtime::Memory as WasmtimeMemory;
-use wasmtime::{AsContextMut, Caller, Extern, Func, Store, Trap};
+use wasmtime::{AsContextMut, Caller, Func, Store, Trap};
 
 use crate::env::StoreData;
 
@@ -44,7 +43,10 @@ fn get_caller_memory<'a>(
     mem: &WasmtimeMemory,
 ) -> MemoryWrap<'a> {
     let store = caller.as_context_mut();
-    MemoryWrap { mem: mem.clone(), store }
+    MemoryWrap {
+        mem: mem.clone(),
+        store,
+    }
 }
 
 fn write_to_caller_memory<'a>(
@@ -150,9 +152,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func =
             move |mut caller: Caller<'_, StoreData>, program_id_ptr: i32| -> Result<(), Trap> {
                 ext.with(|ext: &mut E| {
-                    let value_dest: ProgramId =
-                        get_bytes32(&get_caller_memory(&mut caller, &mem), program_id_ptr as u32 as _)
-                            .into();
+                    let value_dest: ProgramId = get_bytes32(
+                        &get_caller_memory(&mut caller, &mem),
+                        program_id_ptr as u32 as _,
+                    )
+                    .into();
                     ext.exit(value_dest)
                 })
                 .map_err(Trap::new)?
@@ -180,7 +184,12 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |mut caller: Caller<'_, StoreData>, msg_id_ptr: i32| {
             ext.with(|ext: &mut E| {
                 let message_id = ext.message_id();
-                write_to_caller_memory(&mut caller, &mem, msg_id_ptr as isize as _, message_id.as_slice())
+                write_to_caller_memory(
+                    &mut caller,
+                    &mem,
+                    msg_id_ptr as isize as _,
+                    message_id.as_slice(),
+                )
             })
             .map_err(Trap::new)?
             .map_err(Trap::new)
@@ -227,7 +236,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         Func::wrap(store, func)
     }
 
-    pub fn reply_commit(ext: LaterExt<E>, store: &mut Store<StoreData>, mem: WasmtimeMemory) -> Func {
+    pub fn reply_commit(
+        ext: LaterExt<E>,
+        store: &mut Store<StoreData>,
+        mem: WasmtimeMemory,
+    ) -> Func {
         let func = move |mut caller: Caller<'_, StoreData>, message_id_ptr: i32, value_ptr: i32| {
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
@@ -334,7 +347,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         Func::wrap(store, func)
     }
 
-    pub fn send_commit(ext: LaterExt<E>, store: &mut Store<StoreData>, mem: WasmtimeMemory) -> Func {
+    pub fn send_commit(
+        ext: LaterExt<E>,
+        store: &mut Store<StoreData>,
+        mem: WasmtimeMemory,
+    ) -> Func {
         let func = move |mut caller: Caller<'_, StoreData>,
                          handle_ptr: i32,
                          message_id_ptr: i32,
@@ -362,7 +379,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         Func::wrap(store, func)
     }
 
-    pub fn send_commit_wgas(ext: LaterExt<E>, store: &mut Store<StoreData>, mem: WasmtimeMemory) -> Func {
+    pub fn send_commit_wgas(
+        ext: LaterExt<E>,
+        store: &mut Store<StoreData>,
+        mem: WasmtimeMemory,
+    ) -> Func {
         let func = move |mut caller: Caller<'_, StoreData>,
                          handle_ptr: i32,
                          message_id_ptr: i32,
@@ -419,7 +440,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         Func::wrap(store, func)
     }
 
-    pub fn create_program_wgas(ext: LaterExt<E>, store: &mut Store<StoreData>, mem: WasmtimeMemory) -> Func {
+    pub fn create_program_wgas(
+        ext: LaterExt<E>,
+        store: &mut Store<StoreData>,
+        mem: WasmtimeMemory,
+    ) -> Func {
         let func = move |mut caller: Caller<'_, StoreData>,
                          code_hash_ptr: i32,
                          salt_ptr: i32,
@@ -497,7 +522,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         Func::wrap(store, func)
     }
 
-    pub fn value_available(ext: LaterExt<E>, store: &mut Store<StoreData>, mem: WasmtimeMemory) -> Func {
+    pub fn value_available(
+        ext: LaterExt<E>,
+        store: &mut Store<StoreData>,
+        mem: WasmtimeMemory,
+    ) -> Func {
         let func = move |mut caller: Caller<'_, StoreData>, value_ptr: i32| {
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);

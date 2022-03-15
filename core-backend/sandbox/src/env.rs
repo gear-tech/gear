@@ -18,14 +18,15 @@
 
 //! sp-sandbox environment for running a module.
 
-use crate::{funcs, memory::MemoryWrap};
+use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
+    TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
-    memory::{Memory, PageBuf, PageNumber},
+    memory::{Error, Memory, PageBuf, PageNumber},
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -33,49 +34,16 @@ use sp_sandbox::{
 };
 
 /// Environment to run one module at a time providing Ext.
-pub struct SandboxEnvironment<E>
-where
-    E: Ext + Into<ExtInfo>,
-{
-    runtime: Option<Runtime<E>>,
-    instance: Option<Instance<Runtime<E>>>,
-    entries: Option<Vec<String>>,
+pub struct SandboxEnvironment<E: Ext + IntoExtInfo> {
+    runtime: Runtime<E>,
+    instance: Instance<Runtime<E>>,
+    entries: Vec<String>,
 }
 
-impl<E> Default for SandboxEnvironment<E>
-where
-    E: Ext + Into<ExtInfo>,
-{
-    fn default() -> Self {
-        Self {
-            runtime: None,
-            instance: None,
-            entries: None,
-        }
-    }
-}
-
-pub struct Runtime<E>
-where
-    E: Ext + Into<ExtInfo>,
-{
-    pub(crate) ext: LaterExt<E>,
-    pub(crate) trap: Option<&'static str>,
-}
-
-impl<E> Runtime<E>
-where
-    E: Ext + Into<ExtInfo> + 'static,
-{
-    fn new(ext: E) -> Self {
-        let mut later_ext = LaterExt::default();
-        later_ext.set(ext);
-
-        Self {
-            ext: later_ext,
-            trap: None,
-        }
-    }
+pub(crate) struct Runtime<E: Ext> {
+    pub ext: LaterExt<E>,
+    pub memory: MemoryWrap,
+    pub trap: Option<&'static str>,
 }
 
 fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
@@ -89,31 +57,40 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
         .collect())
 }
 
-impl<E> Environment<E> for SandboxEnvironment<E>
-where
-    E: Ext + Into<ExtInfo> + 'static,
-{
+fn set_pages(
+    memory: &mut dyn Memory,
+    pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+) -> Result<(), Error> {
+    for (num, buf) in pages {
+        if let Some(buf) = buf {
+            memory
+                .write(num.offset(), &buf[..])
+                .map_err(|_| Error::MemoryAccessError)?;
+        }
+    }
+    Ok(())
+}
+
+impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
     fn setup(
-        &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        memory: &dyn Memory,
-    ) -> Result<(), BackendError<'static>> {
-        let mem = match memory.as_any().downcast_ref::<DefaultExecutorMemory>() {
-            Some(x) => x,
-            None => {
-                let info: ExtInfo = ext.into();
-                return Err(BackendError {
-                    reason: "Memory is not SandboxMemory",
-                    description: None,
-                    gas_amount: info.gas_amount,
-                });
-            }
-        };
+        mem_size: u32,
+    ) -> Result<Self, BackendError<'static>> {
+        let mut later_ext = LaterExt::default();
+        later_ext.set(ext);
+
+        let mem: DefaultExecutorMemory =
+            SandboxMemory::new(mem_size, None).map_err(|e| BackendError {
+                reason: "Create env memory fail",
+                description: Some(format!("{:?}", e).into()),
+                gas_amount: later_ext.unset().into_gas_amount(),
+            })?;
 
         let mut env_builder = EnvironmentDefinitionBuilder::new();
 
+        use crate::funcs::FuncsHandler as funcs;
         env_builder.add_memory("env", "memory", mem.clone());
         env_builder.add_host_func("env", "alloc", funcs::alloc);
         env_builder.add_host_func("env", "free", funcs::free);
@@ -147,66 +124,64 @@ where
         env_builder.add_host_func("env", "gr_wake", funcs::wake);
         env_builder.add_host_func("env", "gas", funcs::gas);
 
-        let mut runtime = Runtime::new(ext);
+        let mut runtime = Runtime {
+            ext: later_ext,
+            memory: MemoryWrap::new(mem),
+            trap: None,
+        };
 
-        let instance = Instance::new(binary, &env_builder, &mut runtime).map_err(|e| {
-            let info: ExtInfo = runtime.ext.unset().into();
-            BackendError {
+        let instance =
+            Instance::new(binary, &env_builder, &mut runtime).map_err(|e| BackendError {
                 reason: "Unable to instanciate module",
                 description: Some(format!("{:?}", e).into()),
-                gas_amount: info.gas_amount,
-            }
-        })?;
+                gas_amount: runtime.ext.unset().into_gas_amount(),
+            })?;
 
-        let entries = get_module_exports(binary).map_err(|e| {
-            let info: ExtInfo = runtime.ext.unset().into();
-            BackendError {
-                reason: "Unable to get wasm module exports",
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: info.gas_amount,
-            }
+        let entries = get_module_exports(binary).map_err(|e| BackendError {
+            reason: "Unable to get wasm module exports",
+            description: Some(format!("{:?}", e).into()),
+            gas_amount: runtime.ext.unset().into_gas_amount(),
         })?;
 
         // Set module memory.
-        memory.set_pages(memory_pages).map_err(|e| {
-            let info: ExtInfo = runtime.ext.unset().into();
-
-            BackendError {
-                reason: "Unable to set module memory",
-                description: Some(format!("{:?}", e).into()),
-                gas_amount: info.gas_amount,
-            }
+        set_pages(&mut runtime.memory, memory_pages).map_err(|e| BackendError {
+            reason: "Unable to set module memory data",
+            description: Some(format!("{:?}", e).into()),
+            gas_amount: runtime.ext.unset().into_gas_amount(),
         })?;
 
-        self.runtime.replace(runtime);
-        self.instance.replace(instance);
-        self.entries.replace(entries);
-
-        Ok(())
+        Ok(SandboxEnvironment {
+            runtime,
+            instance,
+            entries,
+        })
     }
 
-    fn get_stack_mem_end(&self) -> Option<i32> {
-        let instance = self.instance.as_ref().expect("Must have instance");
+    fn get_stack_mem_end(&mut self) -> Option<i32> {
         // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
-        let global = instance.get_global_val("__gear_stack_end")?;
+        let global = self.instance.get_global_val("__gear_stack_end")?;
         global.as_i32()
     }
 
-    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
-        let instance = self.instance.as_mut().expect("Must have instance");
-        let runtime = self.runtime.as_mut().expect("Must have runtime");
-        let entries = self.entries.as_mut().expect("Must have entries");
+    fn get_wasm_memory_begin_addr(&mut self) -> usize {
+        self.runtime.memory.get_wasm_memory_begin_addr()
+    }
 
-        let res = if entries.contains(&String::from(entry_point)) {
-            instance.invoke(entry_point, &[], runtime)
+    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
+        let res = if self.entries.contains(&String::from(entry_point)) {
+            self.instance.invoke(entry_point, &[], &mut self.runtime)
         } else {
             Ok(ReturnValue::Unit)
         };
 
-        let info: ExtInfo = runtime.ext.unset().into();
+        log::debug!("execution res = {:?}", res);
+
+        let info: ExtInfo = self.runtime.ext.unset().into_ext_info(|ptr, buff| {
+            self.runtime.memory.read(ptr, buff);
+        });
 
         let termination = if res.is_err() {
-            let reason = if let Some(trap) = runtime.trap {
+            let reason = if let Some(trap) = self.runtime.trap {
                 if let Some(value_dest) = info.exit_argument {
                     Some(TerminationReason::Exit(value_dest))
                 } else if common_funcs::is_wait_trap(trap) {
@@ -222,18 +197,18 @@ where
 
             reason.unwrap_or_else(|| TerminationReason::Trap {
                 explanation: info.trap_explanation,
-                description: runtime.trap.map(Into::into),
+                description: self.runtime.trap.map(Into::into),
             })
         } else {
             TerminationReason::Success
         };
 
-        Ok(BackendReport { termination, info })
-    }
+        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
 
-    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str> {
-        Ok(Box::new(MemoryWrap::new(
-            SandboxMemory::new(total_pages, None).map_err(|_| "Create env memory fail")?,
-        )))
+        Ok(BackendReport {
+            termination,
+            wasm_memory_addr,
+            info,
+        })
     }
 }

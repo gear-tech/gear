@@ -18,14 +18,14 @@
 
 //! Environment for running a module.
 
+use crate::memory::Memory;
 use crate::{
     memory::PageNumber,
     message::{ExitCode, MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
 use alloc::sync::Arc;
-use anyhow::{Result};
-use crate::memory::Memory;
+use anyhow::Result;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
 
@@ -45,7 +45,11 @@ pub trait Ext {
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutives memory pages.
-    fn alloc(&mut self, pages: PageNumber, mem: &mut dyn Memory) -> Result<PageNumber, &'static str>;
+    fn alloc(
+        &mut self,
+        pages: PageNumber,
+        mem: &mut dyn Memory,
+    ) -> Result<PageNumber, &'static str>;
 
     /// Get the current block height.
     fn block_height(&self) -> u32;
@@ -215,7 +219,11 @@ mod tests {
 
     /// Empty Ext implementation for test struct
     impl Ext for ExtImplementedStruct {
-        fn alloc(&mut self, _pages: PageNumber, _mem: &mut dyn Memory) -> Result<PageNumber, &'static str> {
+        fn alloc(
+            &mut self,
+            _pages: PageNumber,
+            _mem: &mut dyn Memory,
+        ) -> Result<PageNumber, &'static str> {
             Err("")
         }
         fn block_height(&self) -> u32 {

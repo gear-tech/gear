@@ -28,7 +28,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{BackendReport, Environment, TerminationReason, IntoExtInfo};
+use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
@@ -175,12 +175,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     })?;
 
+    let x: Vec<u32> = initial_pages.iter().map(|(a, _b)| a.raw()).collect();
+    log::debug!("init memory {:?}", x);
+
     if lazy_pages_enabled {
-        A::protect_pages_and_init_info(
-            initial_pages,
-            program_id,
-            env.get_wasm_memory_begin_addr(),
-        );
+        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr());
     }
 
     // Page which is right after stack last page
@@ -190,7 +189,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     log::debug!("Stack end = {:?}", stack_end_page);
 
     // Running backend.
-    let BackendReport { termination, wasm_memory_addr, info } = match env.execute(kind.into_entry()) {
+    let BackendReport {
+        termination,
+        wasm_memory_addr,
+        info,
+    } = match env.execute(kind.into_entry()) {
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
@@ -239,6 +242,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
+            log::debug!("page = {}", page.raw());
             let old_data = initial_data
                 .as_ref()
                 .expect("Must have data for all accessed pages");

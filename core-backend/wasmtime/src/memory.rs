@@ -18,11 +18,9 @@
 
 //! Wasmtime extensions for memory and memory context.
 
-use alloc::{boxed::Box, collections::BTreeMap};
-use core::any::Any;
-use gear_core::memory::{Error, Memory, PageBuf, PageNumber};
-use wasmtime::{Store, StoreContextMut};
 use crate::env::StoreData;
+use gear_core::memory::{Error, Memory, PageNumber};
+use wasmtime::StoreContextMut;
 
 /// Wrapper for wasmtime memory.
 pub struct MemoryWrap<'a> {
@@ -64,7 +62,7 @@ impl<'a> Memory for MemoryWrap<'a> {
     }
 
     fn get_wasm_memory_begin_addr(&self) -> usize {
-        panic!("Not implemented");
+        self.mem.data_ptr(&self.store) as usize
     }
 }
 

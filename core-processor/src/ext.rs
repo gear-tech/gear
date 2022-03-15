@@ -24,15 +24,14 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter, ValueCounter, GasAmount},
-    memory::{MemoryContext, PageBuf, PageNumber, Memory},
+    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
+    memory::{Memory, MemoryContext, PageBuf, PageNumber},
     message::{
         ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ProgramInitPacket,
         ReplyPacket,
     },
     program::{CodeHash, ProgramId},
 };
-use anyhow::Error;
 
 /// Trait to which ext must have to work in processor wasm executor.
 /// Currently used only for lazy-pages support.
@@ -171,7 +170,7 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> ()>(self, mut get_page_data: F) -> ExtInfo {
+    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, mut get_page_data: F) -> ExtInfo {
         let accessed_pages_numbers = self.memory_context.allocations().clone();
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
@@ -227,7 +226,11 @@ impl Ext {
 }
 
 impl EnvExt for Ext {
-    fn alloc(&mut self, pages_num: PageNumber, mem: &mut dyn Memory) -> Result<PageNumber, &'static str> {
+    fn alloc(
+        &mut self,
+        pages_num: PageNumber,
+        mem: &mut dyn Memory,
+    ) -> Result<PageNumber, &'static str> {
         // Greedily charge gas for allocations
         self.charge_gas(pages_num.raw() * self.config.alloc_cost as u32)?;
         // Greedily charge gas for grow

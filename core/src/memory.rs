@@ -22,7 +22,6 @@ use crate::program::ProgramId;
 use alloc::collections::BTreeMap;
 use alloc::{boxed::Box, collections::BTreeSet};
 use codec::{Decode, Encode};
-use core::any::Any;
 
 /// A WebAssembly page has a constant size of 65,536 bytes, i.e., 64KiB.
 pub const PAGE_SIZE: usize = 65536;
@@ -115,7 +114,10 @@ pub trait Memory {
     fn data_ptr(&self) -> *mut u8;
 
     /// Set memory pages from PageBuf map, grow if possible.
-    fn set_pages(&mut self, pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>) -> Result<(), Error> {
+    fn set_pages(
+        &mut self,
+        pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
+    ) -> Result<(), Error> {
         for (num, buf) in pages {
             if self.size() <= *num {
                 return Err(Error::MemoryAccessError);
