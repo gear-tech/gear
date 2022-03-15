@@ -182,10 +182,14 @@ impl WasmProject {
 
         let wasm_binary_path = self.original_dir.join(".binpath");
 
-        let relative_path_to_opt = pathdiff::diff_paths(&to_opt_path, &self.original_dir).expect("Unable to calculate relative path");
+        let relative_path_to_opt = pathdiff::diff_paths(&to_opt_path, &self.original_dir)
+            .expect("Unable to calculate relative path");
 
-        fs::write(&wasm_binary_path, format!("{}", relative_path_to_opt.display()))
-            .context("unable to write `.binpath`")?;
+        fs::write(
+            &wasm_binary_path,
+            format!("{}", relative_path_to_opt.display()),
+        )
+        .context("unable to write `.binpath`")?;
 
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         fs::write(
