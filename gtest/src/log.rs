@@ -1,6 +1,9 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::{identifiers::ProgramId, message::Message};
+use gear_core::{
+    identifiers::ProgramId,
+    message::{ExitCode, Message},
+};
 use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -71,9 +74,9 @@ impl Log {
         Default::default()
     }
 
-    pub fn error_builder() -> Self {
+    pub fn error_builder(exit_code: ExitCode) -> Self {
         let mut log = Self::builder();
-        log.exit_code = 1;
+        log.exit_code = exit_code;
         log.payload = Some(Vec::new());
 
         log

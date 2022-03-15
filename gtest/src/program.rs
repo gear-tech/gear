@@ -6,7 +6,7 @@ use crate::{
 use codec::Codec;
 use gear_core::{
     identifiers::{MessageId, ProgramId},
-    message::Message,
+    message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
 };
 use path_clean::PathClean;
@@ -210,16 +210,31 @@ impl<'a> Program<'a> {
             );
         }
 
+        let (_, state, _) = system.actors.get(&self.id).expect("Can't fail");
+
+        let kind = if matches!(state, ProgramState::Uninitialized(_)) {
+            DispatchKind::Init
+        } else {
+            DispatchKind::Handle
+        };
+
         let message = Message::new(
-            MessageId::from(system.fetch_inc_message_nonce()),
+            MessageId::generate_from_user(
+                system.block_info.height,
+                source,
+                system.fetch_inc_message_nonce() as u32,
+            ),
             source,
             self.id,
-            payload.as_ref().to_vec().into(),
+            payload.as_ref().to_vec(),
             Some(u64::MAX),
             value,
+            None,
         );
 
-        system.run_message(message)
+        let dispatch = Dispatch::new(kind, message);
+
+        system.run_dispatch(dispatch)
     }
 
     pub fn id(&self) -> ProgramId {
@@ -229,11 +244,9 @@ impl<'a> Program<'a> {
 
 #[cfg(test)]
 mod tests {
-    use gear_core::message::Message;
+    use crate::{Log, System};
 
-    use crate::{CoreLog, System};
-
-    use super::{Program, ProgramIdWrapper};
+    use super::Program;
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -251,21 +264,11 @@ mod tests {
         let run_result = prog.send(user_id, handle_msg_payload);
         assert!(run_result.main_failed);
 
-        let expected_log = {
-            // id, payload, gas limit, value and reply id aren't important
-            let msg = Message::new_reply(
-                Default::default(),
-                prog.id(),
-                ProgramIdWrapper::from(user_id).0,
-                Default::default(),
-                0,
-                Default::default(),
-                2,
-            );
-            CoreLog::from_message(msg)
-        };
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
+
+        let expected_log = Log::error_builder(2).source(prog.id()).dest(user_id);
+
         assert!(!run_result.main_failed());
-        assert!(run_result.log.contains(&expected_log));
+        assert!(run_result.contains(&expected_log));
     }
 }

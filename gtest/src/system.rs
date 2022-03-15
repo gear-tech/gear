@@ -5,7 +5,7 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::message::Message;
+use gear_core::message::Dispatch;
 use std::{cell::RefCell, io::Write, thread};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
@@ -53,8 +53,8 @@ impl System {
             .try_init();
     }
 
-    pub fn send_message(&self, message: Message) -> RunResult {
-        self.0.borrow_mut().run_message(message)
+    pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
+        self.0.borrow_mut().run_dispatch(dispatch)
     }
 
     pub fn spend_blocks(&self, amount: u32) {
