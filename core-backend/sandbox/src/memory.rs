@@ -60,10 +60,6 @@ impl Memory for MemoryWrap {
         (self.0.size() * 65536) as usize
     }
 
-    fn data_ptr(&self) -> *mut u8 {
-        todo!()
-    }
-
     fn get_wasm_memory_begin_addr(&self) -> usize {
         unsafe { self.0.get_buff() as usize }
     }

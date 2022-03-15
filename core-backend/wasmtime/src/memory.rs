@@ -57,72 +57,7 @@ impl<'a> Memory for MemoryWrap<'a> {
         self.mem.data_size(&self.store)
     }
 
-    fn data_ptr(&self) -> *mut u8 {
-        self.mem.data_ptr(&self.store)
-    }
-
     fn get_wasm_memory_begin_addr(&self) -> usize {
         self.mem.data_ptr(&self.store) as usize
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use gear_core::memory::MemoryContext;
-
-//     fn new_test_memory(static_pages: u32, max_pages: u32) -> (MemoryContext, Box<dyn Memory>) {
-//         use wasmtime::{Engine, Memory as WasmMemory, MemoryType};
-
-//         let engine = Engine::default();
-//         let mut store = Store::new(&engine, ());
-//         wasmtime::StoreContextMut
-
-//         let memory_ty = MemoryType::new(static_pages, Some(max_pages));
-//         let mem = WasmMemory::new(store, memory_ty).expect("Memory creation failed");
-//         let memory = MemoryWrap { mem, store: StoreContextMut::from_e };
-
-//         (
-//             MemoryContext::new(
-//                 0.into(),
-//                 Default::default(),
-//                 static_pages.into(),
-//                 max_pages.into(),
-//             ),
-//             Box::new(memory),
-//         )
-//     }
-
-//     #[test]
-//     fn smoky() {
-//         let (mut ctx, mut mem) = new_test_memory(16, 256);
-
-//         assert_eq!(ctx.alloc(16.into(), &mut mem).expect("allocation failed"), 16.into());
-
-//         // there is a space for 14 more
-//         for _ in 0..14 {
-//             ctx.alloc(16.into(), &mut mem).expect("allocation failed");
-//         }
-
-//         // no more mem!
-//         assert!(ctx.alloc(1.into(), &mut mem).is_err());
-
-//         // but we free some
-//         ctx.free(137.into()).expect("free failed");
-
-//         // and now can allocate page that was freed
-//         assert_eq!(ctx.alloc(1.into(), &mut mem).expect("allocation failed").raw(), 137);
-
-//         // if we have 2 in a row we can allocate even 2
-//         ctx.free(117.into()).expect("free failed");
-//         ctx.free(118.into()).expect("free failed");
-
-//         assert_eq!(ctx.alloc(2.into(), &mut mem).expect("allocation failed").raw(), 117);
-
-//         // but if 2 are not in a row, bad luck
-//         ctx.free(117.into()).expect("free failed");
-//         ctx.free(158.into()).expect("free failed");
-
-//         assert!(ctx.alloc(2.into(), &mut mem).is_err());
-//     }
-// }

@@ -19,8 +19,7 @@
 //! Module for memory and memory context.
 
 use crate::program::ProgramId;
-use alloc::collections::BTreeMap;
-use alloc::{boxed::Box, collections::BTreeSet};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 
 /// A WebAssembly page has a constant size of 65,536 bytes, i.e., 64KiB.
@@ -110,26 +109,9 @@ pub trait Memory {
     /// Returns the byte length of this memory.
     fn data_size(&self) -> usize;
 
-    /// Returns the base pointer, in the host’s address space, that the memory is located at.
-    fn data_ptr(&self) -> *mut u8;
-
-    /// Set memory pages from PageBuf map, grow if possible.
-    fn set_pages(
-        &mut self,
-        pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> Result<(), Error> {
-        for (num, buf) in pages {
-            if self.size() <= *num {
-                return Err(Error::MemoryAccessError);
-            }
-            if let Some(buf) = buf {
-                self.write(num.offset(), &buf[..])?;
-            }
-        }
-        Ok(())
-    }
-
     /// Returns native addr of wasm memory buffer in wasm executor
+    /// FIXME: pointer size in host and wasm32 can differ, so we must
+    /// returns type, which is not smaller then both pointer sizes.
     fn get_wasm_memory_begin_addr(&self) -> usize;
 }
 
