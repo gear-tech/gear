@@ -24,7 +24,7 @@ use crate::{
     message::{ExitCode, MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
-use alloc::sync::Arc;
+use alloc::rc::Rc;
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::cell::RefCell;
@@ -150,7 +150,7 @@ pub trait Ext {
 
 /// Struct for interacting with Ext
 pub struct LaterExt<E: Ext> {
-    inner: Arc<RefCell<Option<E>>>,
+    inner: Rc<RefCell<Option<E>>>,
 }
 
 unsafe impl<E: Ext> Sync for LaterExt<E> {}
@@ -159,7 +159,7 @@ unsafe impl<E: Ext> Send for LaterExt<E> {}
 impl<E: Ext> Default for LaterExt<E> {
     fn default() -> Self {
         Self {
-            inner: Arc::new(RefCell::new(None)),
+            inner: Rc::new(RefCell::new(None)),
         }
     }
 }
@@ -167,7 +167,7 @@ impl<E: Ext> Default for LaterExt<E> {
 impl<E: Ext> Clone for LaterExt<E> {
     fn clone(&self) -> Self {
         Self {
-            inner: Arc::clone(&self.inner),
+            inner: Rc::clone(&self.inner),
         }
     }
 }
@@ -315,7 +315,7 @@ mod tests {
     fn empty_ext_creation() {
         let ext: LaterExt<ExtImplementedStruct> = Default::default();
 
-        assert_eq!(ext.inner, Arc::new(RefCell::new(None)));
+        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
     }
 
     #[test]
@@ -327,13 +327,13 @@ mod tests {
 
         assert_eq!(
             ext.inner,
-            Arc::new(RefCell::new(Some(ExtImplementedStruct(0))))
+            Rc::new(RefCell::new(Some(ExtImplementedStruct(0))))
         );
 
         let inner = ext.unset();
 
         assert_eq!(inner, ExtImplementedStruct(0));
-        assert_eq!(ext.inner, Arc::new(RefCell::new(None)));
+        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
 
         ext.set(ExtImplementedStruct(0));
         // When we set a new value, the previous one is reset
@@ -342,7 +342,7 @@ mod tests {
         let inner = ext.unset();
 
         assert_eq!(inner, ExtImplementedStruct(1));
-        assert_eq!(ext.inner, Arc::new(RefCell::new(None)));
+        assert_eq!(ext.inner, Rc::new(RefCell::new(None)));
     }
 
     #[test]
