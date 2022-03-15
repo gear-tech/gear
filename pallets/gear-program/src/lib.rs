@@ -73,11 +73,13 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// Program has been successfully resumed
         ProgramResumed(H256),
+        /// Program has been paused
+        ProgramPaused(H256),
     }
 
     #[pallet::error]
     pub enum Error<T> {
-        ProgramNotFound,
+        PausedProgramNotFound,
         WrongMemoryPages,
         ResumeProgramNotEnoughValue,
     }

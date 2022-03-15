@@ -19,8 +19,7 @@
 use frame_support::weights::{constants::RocksDbWeight, Weight};
 
 mod pallet_gear_program;
-
-pub use pallet_gear_program::WeightInfo as GearProgramWeight;
+pub use self::pallet_gear_program::WeightInfo as GearProgramWeight;
 
 /// Weight functions for pallet_gear_program.
 pub trait WeightInfo {

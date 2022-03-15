@@ -93,7 +93,7 @@ fn pause_program_works() {
 
         assert_ok!(GearProgram::pause_program(program_id));
 
-        assert!(GearProgram::paused_program_exists(program_id));
+        assert!(GearProgram::program_paused(program_id));
 
         assert!(common::get_code(code_hash).is_some());
 
@@ -188,7 +188,7 @@ fn pause_uninitialized_program_works() {
 
         assert_ok!(GearProgram::pause_program(program_id));
 
-        assert!(GearProgram::paused_program_exists(program_id));
+        assert!(GearProgram::program_paused(program_id));
         assert!(common::get_program(program_id).is_none());
 
         assert!(common::get_code(code_hash).is_some());
@@ -230,7 +230,7 @@ fn resume_uninitialized_program_works() {
             memory_pages.clone(),
             block_number
         ));
-        assert!(!GearProgram::paused_program_exists(program_id));
+        assert!(!GearProgram::program_paused(program_id));
 
         let new_memory_pages =
             common::get_program_pages(program_id, memory_pages.clone().into_keys().collect())
@@ -285,7 +285,7 @@ fn resume_program_twice_fails() {
         ));
         assert_noop!(
             GearProgram::resume_program_impl(program_id, memory_pages, block_number),
-            Error::<Test>::ProgramNotFound
+            Error::<Test>::PausedProgramNotFound
         );
     });
 }

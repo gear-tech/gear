@@ -1,6 +1,6 @@
 # API to work with programs
 
-A module provides functions for things like pause/resume/check existance of programs.
+A module provides functions for things like pause/resume/check existence of programs.
 
 ## Interface
 

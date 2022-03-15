@@ -76,10 +76,12 @@ impl<T: Config> pallet::Pallet<T> {
 
         PausedPrograms::<T>::insert(program_id, paused_program);
 
+        Self::deposit_event(Event::ProgramPaused(program_id));
+
         Ok(())
     }
 
-    pub fn paused_program_exists(id: H256) -> bool {
+    pub fn program_paused(id: H256) -> bool {
         PausedPrograms::<T>::contains_key(id)
     }
 
@@ -89,7 +91,7 @@ impl<T: Config> pallet::Pallet<T> {
         block_number: u32,
     ) -> DispatchResult {
         let paused_program =
-            PausedPrograms::<T>::get(program_id).ok_or(Error::<T>::ProgramNotFound)?;
+            PausedPrograms::<T>::get(program_id).ok_or(Error::<T>::PausedProgramNotFound)?;
 
         if paused_program.pages_hash != memory_pages_hash(&memory_pages) {
             return Err(Error::<T>::WrongMemoryPages.into());
