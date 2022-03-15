@@ -31,10 +31,7 @@ sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git",
 sp-runtime = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 [dev-dependencies]
-parking_lot = "0.11.2"
-serde = "1.0.136"
 env_logger = "0.9"
-hex-literal = "0.3.3"
 gear-core = { path = "../../core" }
 
 [features]
