@@ -150,7 +150,7 @@ impl ReplyPacket {
     }
 
     /// Prepend payload.
-    pub fn prepend(&mut self, data: Payload) {
+    pub(super) fn prepend(&mut self, data: Payload) {
         self.payload.splice(0..0, data);
     }
 
