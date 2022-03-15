@@ -72,7 +72,7 @@ fn wto<E: Ext>(ctx: &mut Runtime<E>, ptr: usize, buff: &[u8]) -> Result<(), &'st
 }
 
 pub(crate) struct FuncsHandler<E: Ext + 'static> {
-    _panthom: PhantomData<E>,
+    _phantom: PhantomData<E>,
 }
 
 impl<E: Ext + 'static> FuncsHandler<E> {
