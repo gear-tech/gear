@@ -21,7 +21,7 @@ use crate::{
     Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch, STORAGE_PROGRAM_PREFIX};
+use common::{DAGBasedLedger, GasPrice, Origin, Program, STORAGE_PROGRAM_PREFIX};
 use core_processor::common::{
     CollectState, DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, State,
 };
@@ -32,7 +32,7 @@ use frame_support::{
 use gear_core::{
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, ExitCode},
+    message::{Dispatch, ExitCode, StoredDispatch, StoredMessage},
     program::Program as NativeProgram,
 };
 use primitive_types::H256;
@@ -481,10 +481,6 @@ where
                 message_id.into_origin()
             );
         }
-    }
-
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        common::set_program_nonce(program_id.into_origin(), nonce);
     }
 
     fn update_page(

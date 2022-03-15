@@ -18,8 +18,7 @@
 
 use common::{lazy_pages, ExitCode};
 use core_processor::{
-    configs::{AllocationsConfig, BlockInfo},
-    BlakeMessageIdGenerator, Ext, ProcessorExt,
+    configs::{AllocationsConfig, BlockInfo}, Ext, ProcessorExt,
 };
 use gear_backend_common::ExtInfo;
 use gear_core::{
@@ -27,7 +26,7 @@ use gear_core::{
     gas::{GasCounter, ValueCounter},
     identifiers::{CodeId, MessageId, ProgramId},
     memory::{MemoryContext, PageBuf, PageNumber},
-    message::{MessageContext, MessageState, OutgoingPacket, ReplyPacket},
+    message::{MessageContext, ContextOutcome, HandlePacket, ReplyPacket},
 };
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
 
@@ -90,7 +89,7 @@ impl ProcessorExt for LazyPagesExt {
         gas_counter: GasCounter,
         value_counter: ValueCounter,
         memory_context: MemoryContext,
-        message_context: MessageContext<BlakeMessageIdGenerator>,
+        message_context: MessageContext,
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
