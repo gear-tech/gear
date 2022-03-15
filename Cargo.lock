@@ -2032,6 +2032,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-core-new"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "blake2-rfc",
+ "derive_more",
+ "hashbrown 0.12.0",
+ "hex",
+ "log",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "pwasm-utils",
+ "scale-info",
+ "wabt",
+]
+
+[[package]]
 name = "gear-core-processor"
 version = "0.1.0"
 dependencies = [

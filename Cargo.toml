@@ -18,6 +18,7 @@ default-members = ["node"]
 members = [
     "common",
     "core",
+    "core_new",
     "core-backend/common",
     "core-backend/wasmtime",
     "core-backend/sandbox",
