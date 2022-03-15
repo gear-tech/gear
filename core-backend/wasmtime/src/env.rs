@@ -85,10 +85,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         /// Make import funcs
         use crate::funcs::FuncsHandler as funcs;
         let mut funcs = BTreeMap::<&'static str, Func>::new();
-        funcs.insert(
-            "alloc",
-            funcs::alloc(later_ext.clone(), &mut store, memory.clone()),
-        );
+        funcs.insert("alloc", funcs::alloc(later_ext.clone(), &mut store, memory));
         funcs.insert("free", funcs::free(later_ext.clone(), &mut store));
         funcs.insert("gas", funcs::gas(later_ext.clone(), &mut store));
         funcs.insert(
@@ -101,7 +98,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         );
         funcs.insert(
             "gr_create_program_wgas",
-            funcs::create_program_wgas(later_ext.clone(), &mut store, memory.clone()),
+            funcs::create_program_wgas(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_exit_code",
@@ -113,59 +110,59 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         );
         funcs.insert(
             "gr_debug",
-            funcs::debug(later_ext.clone(), &mut store, memory.clone()),
+            funcs::debug(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_exit",
-            funcs::exit(later_ext.clone(), &mut store, memory.clone()),
+            funcs::exit(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_origin",
-            funcs::origin(later_ext.clone(), &mut store, memory.clone()),
+            funcs::origin(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_msg_id",
-            funcs::msg_id(later_ext.clone(), &mut store, memory.clone()),
+            funcs::msg_id(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_program_id",
-            funcs::program_id(later_ext.clone(), &mut store, memory.clone()),
+            funcs::program_id(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_read",
-            funcs::read(later_ext.clone(), &mut store, memory.clone()),
+            funcs::read(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_reply",
-            funcs::reply(later_ext.clone(), &mut store, memory.clone()),
+            funcs::reply(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_reply_commit",
-            funcs::reply_commit(later_ext.clone(), &mut store, memory.clone()),
+            funcs::reply_commit(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_reply_push",
-            funcs::reply_push(later_ext.clone(), &mut store, memory.clone()),
+            funcs::reply_push(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_reply_to",
-            funcs::reply_to(later_ext.clone(), &mut store, memory.clone()),
+            funcs::reply_to(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_send_wgas",
-            funcs::send_wgas(later_ext.clone(), &mut store, memory.clone()),
+            funcs::send_wgas(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_send",
-            funcs::send(later_ext.clone(), &mut store, memory.clone()),
+            funcs::send(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_send_commit_wgas",
-            funcs::send_commit_wgas(later_ext.clone(), &mut store, memory.clone()),
+            funcs::send_commit_wgas(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_send_commit",
-            funcs::send_commit(later_ext.clone(), &mut store, memory.clone()),
+            funcs::send_commit(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_send_init",
@@ -173,26 +170,26 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         );
         funcs.insert(
             "gr_send_push",
-            funcs::send_push(later_ext.clone(), &mut store, memory.clone()),
+            funcs::send_push(later_ext.clone(), &mut store, memory),
         );
         funcs.insert("gr_size", funcs::size(later_ext.clone(), &mut store));
         funcs.insert(
             "gr_source",
-            funcs::source(later_ext.clone(), &mut store, memory.clone()),
+            funcs::source(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_value",
-            funcs::value(later_ext.clone(), &mut store, memory.clone()),
+            funcs::value(later_ext.clone(), &mut store, memory),
         );
         funcs.insert(
             "gr_value_available",
-            funcs::value_available(later_ext.clone(), &mut store, memory.clone()),
+            funcs::value_available(later_ext.clone(), &mut store, memory),
         );
         funcs.insert("gr_leave", funcs::leave(later_ext.clone(), &mut store));
         funcs.insert("gr_wait", funcs::wait(later_ext.clone(), &mut store));
         funcs.insert(
             "gr_wake",
-            funcs::wake(later_ext.clone(), &mut store, memory.clone()),
+            funcs::wake(later_ext.clone(), &mut store, memory),
         );
 
         let module = Module::new(&engine, binary).map_err(|e| BackendError {
@@ -221,7 +218,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         for (import_name, ref mut ext) in imports.iter_mut() {
             if let Some(name) = import_name {
                 *ext = match *name {
-                    "memory" => Some(Extern::Memory(memory.clone())),
+                    "memory" => Some(Extern::Memory(memory)),
                     key if funcs.contains_key(key) => Some(funcs[key].into()),
                     _ => continue,
                 }

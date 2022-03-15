@@ -43,10 +43,7 @@ fn get_caller_memory<'a>(
     mem: &WasmtimeMemory,
 ) -> MemoryWrap<'a> {
     let store = caller.as_context_mut();
-    MemoryWrap {
-        mem: mem.clone(),
-        store,
-    }
+    MemoryWrap { mem: *mem, store }
 }
 
 fn write_to_caller_memory<'a>(
@@ -514,7 +511,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |mut caller: Caller<'_, StoreData>, value_ptr: i32| {
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);
-                Ok(set_u128(&mut mem_wrap, value_ptr as usize, ext.value()))
+                set_u128(&mut mem_wrap, value_ptr as usize, ext.value());
+                Ok(())
             })
             .map_err(Trap::new)?
             .map_err(Trap::new)
@@ -530,11 +528,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |mut caller: Caller<'_, StoreData>, value_ptr: i32| {
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);
-                Ok(set_u128(
-                    &mut mem_wrap,
-                    value_ptr as usize,
-                    ext.value_available(),
-                ))
+                set_u128(&mut mem_wrap, value_ptr as usize, ext.value_available());
+                Ok(())
             })
             .map_err(Trap::new)?
             .map_err(Trap::new)
