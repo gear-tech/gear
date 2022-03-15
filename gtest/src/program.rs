@@ -115,12 +115,11 @@ impl<'a> Program<'a> {
         system: &'a System,
         id: I,
     ) -> Self {
-        let path_file = env::var("OUT_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| env::current_dir().expect("Unable to get current dir"));
-        let path_file = path_file.join("wasm_binary_path.txt");
+        let current_dir = env::current_dir().expect("Unable to get current dir");
+        let path_file = current_dir.join(".binpath");
         let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
-        let path = String::from_utf8(path_bytes).expect("Invalid path");
+        let relative_path: PathBuf = String::from_utf8(path_bytes).expect("Invalid path").into();
+        let path = current_dir.join(relative_path);
 
         Self::from_file_with_id(system, id, path)
     }
