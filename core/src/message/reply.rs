@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::identifiers::{MessageId, ProgramId};
-use crate::message::{Dispatch, DispatchKind, ExitCode, GasLimit, Message, Payload, Value};
+use crate::message::{
+    Dispatch, DispatchKind, ExitCode, GasLimit, Message, Payload, StoredDispatch, StoredMessage,
+    Value,
+};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -66,6 +69,17 @@ impl ReplyMessage {
         )
     }
 
+    /// Convert ReplyMessage into StoredMessage.
+    pub fn into_stored(
+        self,
+        program_id: ProgramId,
+        destination: ProgramId,
+        origin_msg_id: MessageId,
+    ) -> StoredMessage {
+        self.into_message(program_id, destination, origin_msg_id)
+            .into_stored()
+    }
+
     /// Convert ReplyMessage into Dispatch.
     pub fn into_dispatch(
         self,
@@ -77,6 +91,17 @@ impl ReplyMessage {
             DispatchKind::Reply,
             self.into_message(source, destination, origin_msg_id),
         )
+    }
+
+    /// Convert ReplyMessage into StoredDispatch.
+    pub fn into_stored_dispatch(
+        self,
+        source: ProgramId,
+        destination: ProgramId,
+        origin_msg_id: MessageId,
+    ) -> StoredDispatch {
+        self.into_dispatch(source, destination, origin_msg_id)
+            .into_stored()
     }
 
     /// Message id.

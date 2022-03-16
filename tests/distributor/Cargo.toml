@@ -14,7 +14,7 @@ gear-wasm-builder = { path = "../../utils/wasm-builder" }
 
 [dev-dependencies]
 env_logger = "0.9"
-common = { package = "tests-common", path = "../common" }
+# common = { package = "tests-common", path = "../common" }
 
 [lib]
 

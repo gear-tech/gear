@@ -32,7 +32,7 @@ use frame_support::{
 use gear_core::{
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, ExitCode, StoredDispatch, StoredMessage},
+    message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,
 };
 use primitive_types::H256;
@@ -85,14 +85,7 @@ where
         })
         .collect();
 
-        let dispatch_queue = common::dispatch_iter()
-            .map(|dispatch| {
-                let gas = T::GasHandler::get_limit(dispatch.message.id)
-                    .map(|(gas, _id)| gas)
-                    .unwrap_or(0);
-                dispatch.into_dispatch(gas)
-            })
-            .collect();
+        let dispatch_queue = common::dispatch_iter().collect();
 
         State {
             dispatch_queue,
@@ -364,64 +357,64 @@ where
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
         let message_id = message_id.into_origin();
-        let (gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
+        let gas_limit = dispatch.gas_limit();
+        let dispatch = dispatch.into_stored();
 
-        if dispatch.message.value != 0
+        if dispatch.value() != 0
             && T::Currency::reserve(
-                &<T::AccountId as Origin>::from_origin(dispatch.message.source),
-                dispatch.message.value.unique_saturated_into(),
+                &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
+                dispatch.value().unique_saturated_into(),
             )
             .is_err()
         {
             log::debug!(
                 "Message (from: {:?}) {:?} will be skipped",
                 message_id,
-                dispatch.message
+                dispatch.message()
             );
             return;
         }
 
         log::debug!(
             "Sending message {:?} from {:?}",
-            dispatch.message,
+            dispatch.message(),
             message_id
         );
 
-        if common::program_exists(dispatch.message.dest)
-            || self
-                .marked_destinations
-                .contains(&ProgramId::from_origin(dispatch.message.dest))
+        if common::program_exists(dispatch.destination().into_origin())
+            || self.marked_destinations.contains(&dispatch.destination())
         {
             if let Some(gas_limit) = gas_limit {
-                let _ =
-                    T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+                let _ = T::GasHandler::split_with_value(
+                    message_id,
+                    dispatch.id().into_origin(),
+                    gas_limit,
+                );
             } else {
-                let _ = T::GasHandler::split(message_id, *dispatch.message_id());
+                let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
             }
             common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            Pallet::<T>::insert_to_mailbox(dispatch.message.dest, dispatch.message.clone());
-            Pallet::<T>::deposit_event(Event::Log(dispatch.message));
+            Pallet::<T>::insert_to_mailbox(
+                dispatch.destination().into_origin(),
+                dispatch.message().clone(),
+            );
+            Pallet::<T>::deposit_event(Event::Log(dispatch.message().clone()));
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        let (_gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
-
-        let dest = dispatch.message.dest;
-        let message_id = dispatch.message.id;
-
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
         common::insert_waiting_message(
-            dest,
-            message_id,
+            dispatch.destination().into_origin(),
+            dispatch.id().into_origin(),
             dispatch.clone(),
             <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
         );
 
-        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch.message));
+        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch));
     }
 
     fn wake_message(

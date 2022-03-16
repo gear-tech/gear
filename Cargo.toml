@@ -30,7 +30,7 @@ members = [
     "node",
     "pallets/*",
     "runtime",
-    "tests/*",
+    # "tests/*",
     "utils/gear-runtime-test-cli",
     "utils/wasm-proc",
     "utils/wasm-builder",

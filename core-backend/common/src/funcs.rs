@@ -142,7 +142,7 @@ pub fn reply<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32, i32, i32) -> Result<
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
-            let message_id = ext.reply(ReplyPacket::new(payload, None, value))?;
+            let message_id = ext.reply(ReplyPacket::new(payload, value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_ref());
             Ok(())
         })?;
@@ -154,7 +154,7 @@ pub fn reply_commit<E: Ext>(ext: LaterExt<E>) -> impl Fn(i32, i32) -> Result<(),
     move |message_id_ptr: i32, value_ptr: i32| {
         let result = ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let value = get_u128(ext, value_ptr as usize);
-            let message_id = ext.reply_commit(ReplyPacket::new(Vec::new(), None, value))?;
+            let message_id = ext.reply_commit(ReplyPacket::new(Vec::new(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_ref());
             Ok(())
         })?;
@@ -199,7 +199,7 @@ pub fn send<E: Ext>(
             let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
-            let message_id = ext.send(HandlePacket::new(dest, payload, None, value))?;
+            let message_id = ext.send(HandlePacket::new(dest, payload, value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_ref());
             Ok(())
         })?;
@@ -220,10 +220,10 @@ pub fn send_wgas<E: Ext>(
             let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
-            let message_id = ext.send(HandlePacket::new(
+            let message_id = ext.send(HandlePacket::new_with_gas(
                 dest,
                 payload,
-                Some(gas_limit as _),
+                gas_limit as _,
                 value,
             ))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_ref());
@@ -240,10 +240,8 @@ pub fn send_commit<E: Ext>(
         ext.with(|ext: &mut E| -> Result<(), &'static str> {
             let dest: ProgramId = get_bytes32(ext, program_id_ptr as usize).into();
             let value = get_u128(ext, value_ptr as usize);
-            let message_id = ext.send_commit(
-                handle_ptr as _,
-                HandlePacket::new(dest, Vec::new(), None, value),
-            )?;
+            let message_id =
+                ext.send_commit(handle_ptr as _, HandlePacket::new(dest, Vec::new(), value))?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_ref());
             Ok(())
         })?
@@ -264,7 +262,7 @@ pub fn send_commit_wgas<E: Ext>(
             let value = get_u128(ext, value_ptr as usize);
             let message_id = ext.send_commit(
                 handle_ptr as _,
-                HandlePacket::new(dest, Vec::new(), Some(gas_limit as _), value),
+                HandlePacket::new_with_gas(dest, Vec::new(), gas_limit as _, value),
             )?;
             ext.set_mem(message_id_ptr as isize as _, message_id.as_ref());
             Ok(())
@@ -308,11 +306,11 @@ pub fn create_program_wgas<E: Ext>(
             let salt = get_vec(ext, salt_ptr as usize, salt_len as usize);
             let payload = get_vec(ext, payload_ptr as usize, payload_len as usize);
             let value = get_u128(ext, value_ptr as usize);
-            let new_actor_id = ext.create_program(InitPacket::new(
+            let new_actor_id = ext.create_program(InitPacket::new_with_gas(
                 code_hash.into(),
                 salt,
                 payload,
-                Some(gas_limit as u64),
+                gas_limit as _,
                 value,
             ))?;
             ext.set_mem(program_id_ptr as isize as _, new_actor_id.as_ref());

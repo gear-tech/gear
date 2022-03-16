@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::identifiers::{CodeId, MessageId, ProgramId};
-use crate::message::{Dispatch, DispatchKind, GasLimit, Message, Payload, Salt, Value};
+use crate::message::{
+    Dispatch, DispatchKind, GasLimit, Message, Payload, Salt, StoredDispatch, StoredMessage, Value,
+};
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -61,9 +63,19 @@ impl InitMessage {
         )
     }
 
+    /// Convert InitMessage into StoredMessage.
+    pub fn into_stored(self, source: ProgramId) -> StoredMessage {
+        self.into_message(source).into_stored()
+    }
+
     /// Convert InitMessage into Dispatch.
     pub fn into_dispatch(self, source: ProgramId) -> Dispatch {
         Dispatch::new(DispatchKind::Init, self.into_message(source))
+    }
+
+    /// Convert InitMessage into StoredDispatch.
+    pub fn into_stored_dispatch(self, source: ProgramId) -> StoredDispatch {
+        self.into_dispatch(source).into_stored()
     }
 
     /// Message id.
@@ -99,6 +111,10 @@ impl InitMessage {
 pub struct InitPacket {
     /// Newly created program id.
     program_id: ProgramId,
+    /// Code id.
+    code_id: CodeId,
+    /// Salt.
+    salt: Salt,
     /// Message payload.
     payload: Payload,
     /// Message optional gas limit.
@@ -109,54 +125,48 @@ pub struct InitPacket {
 
 impl InitPacket {
     /// Create new InitPacket without gas.
-    pub fn new(code_id: CodeId, salt: &Salt, payload: Payload, value: Value) -> Self {
-        Self::new_predefined(ProgramId::generate(code_id, salt), payload, value)
-    }
-
-    /// Create new InitPacket without gas, but with predefined program id.
-    pub fn new_predefined(program_id: ProgramId, payload: Payload, value: Value) -> Self {
+    pub fn new(code_id: CodeId, salt: Salt, payload: Payload, value: Value) -> Self {
         Self {
-            program_id,
+            program_id: ProgramId::generate(code_id, &salt),
+            code_id,
+            salt,
             payload,
-            gas_limit: None,
             value,
+            gas_limit: None,
         }
     }
 
     /// Create new InitPacket with gas.
     pub fn new_with_gas(
         code_id: CodeId,
-        salt: &Salt,
-        payload: Payload,
-        gas_limit: GasLimit,
-        value: Value,
-    ) -> Self {
-        Self::new_predefined_with_gas(
-            ProgramId::generate(code_id, salt),
-            payload,
-            gas_limit,
-            value,
-        )
-    }
-
-    /// Create new InitPacket with gas and predefined program id.
-    pub fn new_predefined_with_gas(
-        program_id: ProgramId,
+        salt: Salt,
         payload: Payload,
         gas_limit: GasLimit,
         value: Value,
     ) -> Self {
         Self {
-            program_id,
+            program_id: ProgramId::generate(code_id, &salt),
+            code_id,
+            salt,
             payload,
-            gas_limit: Some(gas_limit),
             value,
+            gas_limit: Some(gas_limit),
         }
     }
 
     /// Packet destination (newly created program id).
     pub fn destination(&self) -> ProgramId {
         self.program_id
+    }
+
+    /// Code id.
+    pub fn code_id(&self) -> CodeId {
+        self.code_id
+    }
+
+    /// Salt.
+    pub fn salt(&self) -> &[u8] {
+        self.salt.as_ref()
     }
 
     /// Packet payload reference.

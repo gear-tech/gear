@@ -9,7 +9,7 @@ license = "GPL-3.0"
 gstd = { path = "../../gstd", features = ["debug"] }
 gear-core = { path = "../../core", optional = true }
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
-common = { package = "tests-common", path = "../common", optional = true }
+# common = { package = "tests-common", path = "../common", optional = true }
 hex-literal = "*"
 
 [build-dependencies]
@@ -18,5 +18,5 @@ gear-wasm-builder = { path = "../../utils/wasm-builder" }
 [lib]
 
 [features]
-std = ["gear-core", "codec/std", "common"]
+std = ["gear-core", "codec/std"] #, "common"]
 default = ["std"]

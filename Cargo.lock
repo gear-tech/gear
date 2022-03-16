@@ -7628,27 +7628,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tests-btree"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-common"
-version = "0.1.0"
-dependencies = [
- "gear-backend-wasmtime",
- "gear-core",
- "gear-core-processor",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "tests-distributor"
 version = "0.1.0"
 dependencies = [
@@ -7656,7 +7635,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "parity-scale-codec",
- "tests-common",
 ]
 
 [[package]]
@@ -7684,28 +7662,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tests-messages"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-node"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
 name = "tests-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -7714,18 +7670,6 @@ dependencies = [
  "gstd",
  "hex-literal",
  "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-wait-wake"
-version = "0.1.0"
-dependencies = [
- "gear-core",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
 ]
 
 [[package]]

@@ -193,7 +193,7 @@ impl ExtManager {
 
                             if let Some(payload) = reply {
                                 let id = MessageId::generate_reply(dispatch.id(), 0);
-                                let packet = ReplyPacket::new(payload, None, 0);
+                                let packet = ReplyPacket::new(payload, 0);
                                 let message = ReplyMessage::from_packet(id, packet);
 
                                 self.send_dispatch(

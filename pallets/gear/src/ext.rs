@@ -18,7 +18,8 @@
 
 use common::{lazy_pages, ExitCode};
 use core_processor::{
-    configs::{AllocationsConfig, BlockInfo}, Ext, ProcessorExt,
+    configs::{AllocationsConfig, BlockInfo},
+    Ext, ProcessorExt,
 };
 use gear_backend_common::ExtInfo;
 use gear_core::{
@@ -26,7 +27,7 @@ use gear_core::{
     gas::{GasCounter, ValueCounter},
     identifiers::{CodeId, MessageId, ProgramId},
     memory::{MemoryContext, PageBuf, PageNumber},
-    message::{MessageContext, ContextOutcome, HandlePacket, ReplyPacket},
+    message::{HandlePacket, MessageContext, ReplyPacket},
 };
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
 
@@ -55,30 +56,18 @@ impl From<LazyPagesExt> for ExtInfo {
             accessed_pages.insert(page, buf);
         }
 
-        let nonce = ext.inner.message_context.nonce();
-
-        let (
-            MessageState {
-                init_messages,
-                outgoing,
-                reply,
-                awakening,
-            },
-            store,
-        ) = ext.inner.message_context.drain();
+        let (outcome, context_store) = ext.inner.message_context.drain();
+        let (generated_dispatches, awakening) = outcome.drain();
 
         ExtInfo {
             gas_amount: ext.inner.gas_counter.into(),
             pages: ext.inner.memory_context.allocations().clone(),
             accessed_pages,
-            outgoing,
-            reply,
+            generated_dispatches,
             awakening,
-            nonce,
-            payload_store: Some(store),
+            context_store,
             trap_explanation: ext.inner.error_explanation,
             exit_argument: ext.inner.exit_argument,
-            init_messages,
             program_candidates_data: ext.inner.program_candidates_data,
         }
     }
@@ -236,11 +225,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_push(buffer)
     }
 
-    fn send_commit(
-        &mut self,
-        handle: usize,
-        msg: OutgoingPacket,
-    ) -> Result<MessageId, &'static str> {
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str> {
         self.inner.send_commit(handle, msg)
     }
 
@@ -326,7 +311,7 @@ impl EnvExt for LazyPagesExt {
 
     fn create_program(
         &mut self,
-        packet: gear_core::message::ProgramInitPacket,
+        packet: gear_core::message::InitPacket,
     ) -> Result<ProgramId, &'static str> {
         self.inner.create_program(packet)
     }
