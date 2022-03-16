@@ -38,6 +38,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
     }
 );
@@ -66,7 +67,7 @@ impl system::Config for Test {
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<u128>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
@@ -75,10 +76,22 @@ impl system::Config for Test {
     type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
+impl pallet_balances::Config for Test {
+    type MaxLocks = ();
+    type MaxReserves = ();
+    type ReserveIdentifier = [u8; 8];
+    type Balance = u128;
+    type DustRemoval = ();
+    type Event = Event;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
+}
+
 impl pallet_gear_program::Config for Test {
     type Event = Event;
     type WeightInfo = ();
-    type Currency = ();
+    type Currency = Balances;
 }
 
 // Build genesis storage according to the mock runtime.

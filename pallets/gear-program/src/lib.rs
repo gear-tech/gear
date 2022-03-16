@@ -44,11 +44,13 @@ pub mod pallet {
     use super::*;
     use frame_support::{
         pallet_prelude::*,
-        traits::{Currency, ExistenceRequirement},
+        traits::{Currency, LockableCurrency, LockIdentifier, ExistenceRequirement, WithdrawReasons},
     };
     use frame_system::pallet_prelude::*;
     use sp_runtime::traits::{UniqueSaturatedInto, Zero};
     use weights::WeightInfo;
+
+    const LOCK_ID: LockIdentifier = *b"resume_p";
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -58,7 +60,7 @@ pub mod pallet {
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
 
-        type Currency: Currency<Self::AccountId>;
+        type Currency: LockableCurrency<Self::AccountId>;
     }
 
     type BalanceOf<T> =
@@ -125,12 +127,15 @@ pub mod pallet {
                 <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
             )?;
 
+            let program_account = &<T::AccountId as common::Origin>::from_origin(program_id);
             T::Currency::transfer(
                 &account,
-                &<T::AccountId as common::Origin>::from_origin(program_id),
+                program_account,
                 value,
                 ExistenceRequirement::AllowDeath,
             )?;
+
+            T::Currency::extend_lock(LOCK_ID, program_account, value, WithdrawReasons::FEE);
 
             Self::deposit_event(Event::ProgramResumed(program_id));
 

@@ -72,7 +72,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, Get, ReservableCurrency},
+        traits::{BalanceStatus, Currency, Get, ReservableCurrency, LockableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
@@ -97,7 +97,7 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// Gas and value transfer currency
-        type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
+        type Currency: LockableCurrency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 
         /// Gas to Currency converter
         type GasPrice: GasPrice<Balance = BalanceOf<Self>>;

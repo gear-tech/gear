@@ -29,6 +29,7 @@ sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
 env_logger = "0.9"
@@ -48,6 +49,7 @@ std = [
 	"sp-core/std",
 	"sp-runtime/std",
 	"primitive-types/std",
+	"pallet-balances/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

@@ -4425,6 +4425,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "log",
+ "pallet-balances",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
