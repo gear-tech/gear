@@ -33,6 +33,7 @@ use wasmtime::{
 
 /// Complitelly same as LaterExt, but with Sync + Send implementations,
 /// which is needed only for wasmtime restrictions and never used actually.
+/// TODO: see https://github.com/gear-tech/gear/issues/763
 pub struct SyncLaterExt<E: Ext>(LaterExt<E>);
 
 impl<E: Ext> Default for SyncLaterExt<E> {
