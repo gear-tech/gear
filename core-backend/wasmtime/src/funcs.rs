@@ -18,6 +18,7 @@
 
 use core::marker::PhantomData;
 
+use crate::env::{StoreData, SyncLaterExt as LaterExt};
 use crate::memory::MemoryWrap;
 use alloc::format;
 use alloc::{string::String, vec};
@@ -31,7 +32,6 @@ use gear_core::{
 };
 use wasmtime::Memory as WasmtimeMemory;
 use wasmtime::{AsContextMut, Caller, Func, Store, Trap};
-use crate::env::{StoreData, SyncLaterExt as LaterExt};
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _panthom: PhantomData<E>,
