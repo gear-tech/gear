@@ -43,7 +43,7 @@ benchmarks! {
         let memory_pages = common::get_program_pages(program_id, (0..q).collect()).unwrap();
 
         crate::Pallet::<T>::pause_program(program_id).unwrap();
-    }: _(RawOrigin::Signed(caller), program_id, memory_pages, 10_000u32.into())
+    }: _(RawOrigin::Signed(caller), program_id, memory_pages, Default::default(), 10_000u32.into())
     verify {
         assert!(crate::Pallet::<T>::program_exists(program_id));
         assert!(!crate::Pallet::<T>::program_paused(program_id));
