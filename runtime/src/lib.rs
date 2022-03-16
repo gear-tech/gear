@@ -124,7 +124,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 350,
+    spec_version: 360,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -328,6 +328,12 @@ impl gear_common::GasPrice for GasConverter {
     type Balance = Balance;
 }
 
+impl pallet_gear_program::Config for Runtime {
+    type Event = Event;
+    type WeightInfo = pallet_gear_program::weights::GearProgramWeight<Runtime>;
+    type Currency = Balances;
+}
+
 parameter_types! {
     pub const GasLimitMaxPercentage: Percent = Percent::from_percent(75);
     pub BlockGasLimit: u64 = GasLimitMaxPercentage::get() * BlockWeights::get().max_block;
@@ -393,6 +399,7 @@ construct_runtime!(
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         Authorship: pallet_authorship,
+        GearProgram: pallet_gear_program,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
@@ -419,6 +426,7 @@ construct_runtime!(
         Sudo: pallet_sudo,
         Utility: pallet_utility,
         Authorship: pallet_authorship,
+        GearProgram: pallet_gear_program,
         Gear: pallet_gear,
         Usage: pallet_usage,
         Gas: pallet_gas,
@@ -615,6 +623,7 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
             list_benchmark!(list, extra, pallet_balances, Balances);
             list_benchmark!(list, extra, pallet_timestamp, Timestamp);
+            list_benchmark!(list, extra, pallet_gear_program, GearProgram);
             list_benchmark!(list, extra, pallet_gear, Gear);
 
             let storage_info = AllPalletsWithSystem::storage_info();
@@ -649,6 +658,7 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
             add_benchmark!(params, batches, pallet_balances, Balances);
             add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+            add_benchmark!(params, batches, pallet_gear_program, GearProgram);
             add_benchmark!(params, batches, pallet_gear, Gear);
 
             if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }

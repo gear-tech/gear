@@ -22,6 +22,9 @@ pub mod lazy_pages;
 pub mod native;
 pub mod storage_queue;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 use codec::{Decode, Encode};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
@@ -492,22 +495,32 @@ fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     key
 }
 
-fn page_key(id: H256, page: u32) -> Vec<u8> {
+pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    id.encode_to(&mut key);
+    program_id.encode_to(&mut key);
+
+    key
+}
+
+fn page_key(id: H256, page: u32) -> Vec<u8> {
+    let mut key = pages_prefix(id);
     key.extend(b"::");
     page.encode_to(&mut key);
     key
 }
 
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
     key.extend(b"::");
-    msg_id.encode_to(&mut key);
+    key
+}
 
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+    let mut key = wait_prefix(prog_id);
+    msg_id.encode_to(&mut key);
     key
 }
 
@@ -545,9 +558,8 @@ pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
         if program.is_terminated() {
             return Err(ProgramError::IsTerminated);
         }
-        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-        pages_prefix.extend(&program_key(id));
-        sp_io::storage::clear_prefix(&pages_prefix, None);
+
+        sp_io::storage::clear_prefix(&pages_prefix(id), None);
         sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
 
         Ok(())
@@ -699,7 +711,7 @@ pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(Queue
     msg
 }
 
-fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
     prog_id.encode_to(&mut key);

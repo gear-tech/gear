@@ -1,12 +1,12 @@
 [package]
-name = "pallet-gear"
+name = "pallet-gear-program"
 version = "2.0.0"
 authors = ['Gear Technologies']
 edition = '2018'
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-description = "Gear main pallet"
+description = "Gear pallet to work with programs"
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -16,17 +16,10 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
-parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
 # Internal deps
 common = { package = "gear-common", path = "../../common", default-features = false }
-core-processor = { package = "gear-core-processor", path = "../../core-processor" }
-gear-core = { path = "../../core" }
-gear-backend-common = { path = "../../core-backend/common", default-features = false }
-gear-backend-sandbox = { path = "../../core-backend/sandbox", default-features = false }
-gear-runtime-interface = { path = "../../runtime-interface", default-features = false }
-pallet-gas = { path = "../gas", default-features = false }
 
 # Substrate deps
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
@@ -36,24 +29,11 @@ sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
-sp-arithmetic = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-gear-program = { path = "../gear-program", default-features = false }
 
 [dev-dependencies]
-serde = "1.0.136"
 env_logger = "0.9"
-wabt = "0.10"
 gear-core = { path = "../../core" }
-hex-literal = "0.3.4"
-tests-distributor = { path = "../../tests/distributor" }
-tests-init-wait = { path = "../../tests/init-wait" }
-tests-exit-init = { path = "../../tests/exit-init" }
-tests-exit-handle = { path = "../../tests/exit-handle" }
-tests-program-factory = { path = "../../tests/program-factory" }
-tests-proxy = { path = "../../tests/proxy" }
 
 [features]
 default = ['std']
@@ -63,24 +43,17 @@ std = [
 	"common/std",
 	"frame-support/std",
 	"frame-system/std",
-	"gear-backend-sandbox/std",
-	"pallet-gas/std",
 	"scale-info/std",
 	"sp-io/std",
 	"sp-std/std",
 	"sp-core/std",
 	"sp-runtime/std",
-	"pallet-balances/std",
-	"pallet-authorship/std",
-	"pallet-gear-program/std",
 	"primitive-types/std",
-	"serde/std",
-	"gear-runtime-interface/std",
+	"pallet-balances/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
-	"parity-wasm",
 	"common/runtime-benchmarks"
 ]

@@ -2001,11 +2001,14 @@ dependencies = [
 name = "gear-common"
 version = "0.1.0"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
+ "frame-system",
  "gear-core",
  "gear-runtime-interface",
  "log",
  "parity-scale-codec",
+ "parity-wasm 0.42.2",
  "primitive-types",
  "scale-info",
  "sp-arithmetic",
@@ -2125,6 +2128,7 @@ dependencies = [
  "pallet-gas",
  "pallet-gear",
  "pallet-gear-debug",
+ "pallet-gear-program",
  "pallet-gear-rpc-runtime-api",
  "pallet-grandpa",
  "pallet-randomness-collective-flip",
@@ -4358,6 +4362,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
+ "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -4374,6 +4379,7 @@ dependencies = [
  "tests-exit-init",
  "tests-init-wait",
  "tests-program-factory",
+ "tests-proxy",
  "wabt",
 ]
 
@@ -4394,6 +4400,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gas",
  "pallet-gear",
+ "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -4405,6 +4412,27 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "wabt",
+]
+
+[[package]]
+name = "pallet-gear-program"
+version = "2.0.0"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "gear-common",
+ "gear-core",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "primitive-types",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4586,6 +4614,7 @@ dependencies = [
  "pallet-balances",
  "pallet-gas",
  "pallet-gear",
+ "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -7714,6 +7743,16 @@ dependencies = [
  "hex-literal",
  "parity-scale-codec",
  "tests-common",
+]
+
+[[package]]
+name = "tests-proxy"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
