@@ -21,11 +21,11 @@ use crate::{
     id::BlakeMessageIdGenerator,
 };
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use gear_backend_common::ExtInfo;
+use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter, ValueCounter},
-    memory::{MemoryContext, PageBuf, PageNumber},
+    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
+    memory::{Memory, MemoryContext, PageBuf, PageNumber},
     message::{
         ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ProgramInitPacket,
         ReplyPacket,
@@ -169,17 +169,17 @@ impl ProcessorExt for Ext {
     }
 }
 
-impl From<Ext> for ExtInfo {
-    fn from(ext: Ext) -> ExtInfo {
-        let accessed_pages_numbers = ext.memory_context.allocations().clone();
+impl IntoExtInfo for Ext {
+    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, mut get_page_data: F) -> ExtInfo {
+        let accessed_pages_numbers = self.memory_context.allocations().clone();
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
-            ext.get_mem(page.offset(), &mut buf);
+            get_page_data(page.offset(), &mut buf);
             accessed_pages.insert(page, buf);
         }
 
-        let nonce = ext.message_context.nonce();
+        let nonce = self.message_context.nonce();
 
         let (
             MessageState {
@@ -189,11 +189,11 @@ impl From<Ext> for ExtInfo {
                 awakening,
             },
             store,
-        ) = ext.message_context.drain();
+        ) = self.message_context.drain();
 
         ExtInfo {
-            gas_amount: ext.gas_counter.into(),
-            pages: ext.memory_context.allocations().clone(),
+            gas_amount: self.gas_counter.into(),
+            pages: self.memory_context.allocations().clone(),
             accessed_pages,
             init_messages,
             outgoing,
@@ -201,10 +201,14 @@ impl From<Ext> for ExtInfo {
             awakening,
             nonce,
             payload_store: Some(store),
-            trap_explanation: ext.error_explanation,
-            exit_argument: ext.exit_argument,
-            program_candidates_data: ext.program_candidates_data,
+            trap_explanation: self.error_explanation,
+            exit_argument: self.exit_argument,
+            program_candidates_data: self.program_candidates_data,
         }
+    }
+
+    fn into_gas_amount(self: Ext) -> GasAmount {
+        self.gas_counter.into()
     }
 }
 
@@ -222,17 +226,21 @@ impl Ext {
 }
 
 impl EnvExt for Ext {
-    fn alloc(&mut self, pages_num: PageNumber) -> Result<PageNumber, &'static str> {
+    fn alloc(
+        &mut self,
+        pages_num: PageNumber,
+        mem: &mut dyn Memory,
+    ) -> Result<PageNumber, &'static str> {
         // Greedily charge gas for allocations
         self.charge_gas(pages_num.raw() * self.config.alloc_cost as u32)?;
         // Greedily charge gas for grow
         self.charge_gas(pages_num.raw() * self.config.mem_grow_cost as u32)?;
 
-        let old_mem_size = self.memory_context.memory().size().raw();
+        let old_mem_size = mem.size().raw();
 
         let result = self
             .memory_context
-            .alloc(pages_num)
+            .alloc(pages_num, mem)
             .map_err(|_e| "Allocation error");
 
         if result.is_err() {
@@ -240,7 +248,7 @@ impl EnvExt for Ext {
         }
 
         // Returns back greedily used gas for grow
-        let new_mem_size = self.memory_context.memory().size().raw();
+        let new_mem_size = mem.size().raw();
         let grow_pages_num = new_mem_size - old_mem_size;
         let mut gas_to_return_back =
             self.config.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
@@ -390,18 +398,6 @@ impl EnvExt for Ext {
         Ok(())
     }
 
-    fn set_mem(&mut self, ptr: usize, val: &[u8]) {
-        self.memory_context
-            .memory()
-            .write(ptr, val)
-            // TODO: remove and propagate error, issue #97
-            .expect("Memory out of bounds.");
-    }
-
-    fn get_mem(&self, ptr: usize, buffer: &mut [u8]) {
-        self.memory_context.memory().read(ptr, buffer);
-    }
-
     fn msg(&mut self) -> &[u8] {
         self.message_context.current().payload()
     }
@@ -449,10 +445,6 @@ impl EnvExt for Ext {
             .map_err(|_| "Unable to mark the message to be woken");
 
         self.return_and_store_err(result)
-    }
-
-    fn get_wasm_memory_begin_addr(&self) -> usize {
-        self.memory_context.memory().get_wasm_memory_begin_addr()
     }
 
     fn create_program(&mut self, packet: ProgramInitPacket) -> Result<ProgramId, &'static str> {

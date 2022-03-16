@@ -1,7 +1,5 @@
 title: Test create_program sys-call
 
-skip: true
-
 codes:
   # Save child's code
   - path: examples/create-program/child_contract.wasm
@@ -11,7 +9,7 @@ programs:
     source:
       kind: id
       value: 101
-    path: target/wasm32-unknown-unknown/release/demo_create_program.wasm
+    path: target/wasm32-unknown-unknown/release/demo_create_program.opt.wasm
 
 fixtures:
   - title: Simple creation of program from program

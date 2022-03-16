@@ -19,10 +19,8 @@
 //! Module for memory and memory context.
 
 use crate::program::ProgramId;
-use alloc::collections::BTreeMap;
-use alloc::{boxed::Box, collections::BTreeSet};
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
-use core::any::Any;
 
 /// A WebAssembly page has a constant size of 65,536 bytes, i.e., 64KiB.
 pub const PAGE_SIZE: usize = 65536;
@@ -95,15 +93,15 @@ impl core::ops::Sub for PageNumber {
 }
 
 /// Memory interface for the allocator.
-pub trait Memory: Any {
+pub trait Memory {
     /// Grow memory by number of pages.
-    fn grow(&self, pages: PageNumber) -> Result<PageNumber, Error>;
+    fn grow(&mut self, pages: PageNumber) -> Result<PageNumber, Error>;
 
     /// Return current size of the memory.
     fn size(&self) -> PageNumber;
 
     /// Set memory region at specific pointer.
-    fn write(&self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
+    fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
 
     /// Reads memory contents at the given offset into a buffer.
     fn read(&self, offset: usize, buffer: &mut [u8]);
@@ -111,36 +109,15 @@ pub trait Memory: Any {
     /// Returns the byte length of this memory.
     fn data_size(&self) -> usize;
 
-    /// Returns the base pointer, in the host’s address space, that the memory is located at.
-    fn data_ptr(&self) -> *mut u8;
-
-    /// Set memory pages from PageBuf map, grow if possible.
-    fn set_pages(&self, pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>) -> Result<(), Error> {
-        for (num, buf) in pages {
-            if self.size() <= *num {
-                return Err(Error::MemoryAccessError);
-            }
-            if let Some(buf) = buf {
-                self.write(num.offset(), &buf[..])?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Clone this memory.
-    fn clone(&self) -> Box<dyn Memory>;
-
-    /// Downcast to exact memory type
-    fn as_any(&self) -> &dyn Any;
-
     /// Returns native addr of wasm memory buffer in wasm executor
+    /// FIXME: pointer size in host and wasm32 can differ, so we must
+    /// returns type, which is not smaller then both pointer sizes.
     fn get_wasm_memory_begin_addr(&self) -> usize;
 }
 
 /// Memory context for the running program.
 pub struct MemoryContext {
     program_id: ProgramId,
-    memory: Box<dyn Memory>,
     /// Pages which has been in storage before execution
     init_allocations: BTreeSet<PageNumber>,
     allocations: BTreeSet<PageNumber>,
@@ -152,18 +129,11 @@ impl Clone for MemoryContext {
     fn clone(&self) -> Self {
         Self {
             program_id: self.program_id,
-            memory: self.memory.clone(),
             allocations: self.allocations.clone(),
             init_allocations: self.init_allocations.clone(),
             max_pages: self.max_pages,
             static_pages: self.static_pages,
         }
-    }
-}
-
-impl Clone for Box<dyn Memory> {
-    fn clone(self: &Box<dyn Memory>) -> Box<dyn Memory> {
-        Memory::clone(&**self)
     }
 }
 
@@ -175,14 +145,12 @@ impl MemoryContext {
     /// are set.
     pub fn new(
         program_id: ProgramId,
-        memory: Box<dyn Memory>,
         allocations: BTreeSet<PageNumber>,
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
         Self {
             program_id,
-            memory,
             init_allocations: allocations.clone(),
             allocations,
             max_pages,
@@ -202,7 +170,7 @@ impl MemoryContext {
     }
 
     /// Alloc specific number of pages for the currently running program.
-    pub fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, Error> {
+    pub fn alloc(&mut self, pages: PageNumber, mem: &mut dyn Memory) -> Result<PageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
         let mut candidate = self.static_pages.raw();
         let mut found = 0u32;
@@ -227,9 +195,9 @@ impl MemoryContext {
             found += 1;
         }
 
-        if candidate + found > self.memory.size().raw() {
-            let extra_grow = candidate + found - self.memory.size().raw();
-            self.memory.grow(extra_grow.into())?;
+        if candidate + found > mem.size().raw() {
+            let extra_grow = candidate + found - mem.size().raw();
+            mem.grow(extra_grow.into())?;
         }
 
         for page_num in candidate..candidate + found {
@@ -254,11 +222,6 @@ impl MemoryContext {
     /// Return reference to the allocation manager.
     pub fn allocations(&self) -> &BTreeSet<PageNumber> {
         &self.allocations
-    }
-
-    /// Return reference to the memory blob.
-    pub fn memory(&self) -> &dyn Memory {
-        &*self.memory
     }
 }
 

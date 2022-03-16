@@ -33,7 +33,7 @@ use alloc::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    memory::{Memory, PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber},
     message::{MessageId, OutgoingMessage, PayloadStore, ProgramInitMessage, ReplyMessage},
     program::{CodeHash, ProgramId},
 };
@@ -70,36 +70,42 @@ pub struct ExtInfo {
     pub exit_argument: Option<ProgramId>,
 }
 
+pub trait IntoExtInfo {
+    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, get_page_data: F) -> ExtInfo;
+    fn into_gas_amount(self) -> GasAmount;
+}
+
 pub struct BackendReport<'a> {
     pub termination: TerminationReason<'a>,
+    pub wasm_memory_addr: usize,
     pub info: ExtInfo,
 }
 
+#[derive(Debug)]
 pub struct BackendError<'a> {
     pub gas_amount: GasAmount,
     pub reason: &'static str,
     pub description: Option<Cow<'a, str>>,
 }
 
-pub trait Environment<E: Ext + Into<ExtInfo> + 'static>: Default + Sized {
+pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Setup external environment, provide `ext`, set the beginning of the memory region
     /// to the `static_area` content after creatig instance.
     fn setup(
-        &mut self,
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        memory: &dyn Memory,
-    ) -> Result<(), BackendError<'static>>;
+        mem_size: u32,
+    ) -> Result<Self, BackendError<'static>>;
 
     /// Returns addr to the stack end if it can be identified
-    fn get_stack_mem_end(&self) -> Option<i32>;
+    fn get_stack_mem_end(&mut self) -> Option<i32>;
+
+    /// Returns host address of wasm memory buffer. Needed for lazy-pages
+    fn get_wasm_memory_begin_addr(&mut self) -> usize;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// NOTE: external environment must be set up.
     /// NOTE: env is dropped after execution
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
-
-    /// Create internal representation of wasm memory with size `total_pages`
-    fn create_memory(&self, total_pages: u32) -> Result<Box<dyn Memory>, &'static str>;
 }

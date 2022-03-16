@@ -28,7 +28,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{BackendReport, Environment, ExtInfo, TerminationReason};
+use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
@@ -37,14 +37,12 @@ use gear_core::{
 };
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
+pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: Dispatch,
     context: ExecutionContext,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    let mut env: E = Default::default();
-
     let ExecutableActor {
         mut program,
         balance,
@@ -122,18 +120,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         program.static_pages()
     );
 
-    // Creating memory.
-    let memory = match env.create_memory(mem_size) {
-        Ok(mem) => mem,
-        Err(e) => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: e,
-            })
-        }
-    };
-
     let initial_pages = program.get_pages();
 
     // Getting allocations.
@@ -146,7 +132,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     // Creating memory context.
     let memory_context = MemoryContext::new(
         program_id,
-        memory.clone(),
         allocations,
         program.static_pages().into(),
         settings.max_pages(),
@@ -181,20 +166,20 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
 
     let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
 
-    if let Err(err) = env.setup(ext, &instrumented_code, initial_pages, &*memory) {
-        return Err(ExecutionError {
+    let mut env = E::setup(ext, &instrumented_code, initial_pages, mem_size).map_err(|err| {
+        log::error!("Setup instance err = {:?}", err);
+        ExecutionError {
             program_id,
             gas_amount: err.gas_amount,
             reason: err.reason,
-        });
-    }
+        }
+    })?;
+
+    let x: Vec<u32> = initial_pages.iter().map(|(a, _b)| a.raw()).collect();
+    log::debug!("init memory {:?}", x);
 
     if lazy_pages_enabled {
-        A::protect_pages_and_init_info(
-            initial_pages,
-            program_id,
-            memory.get_wasm_memory_begin_addr(),
-        );
+        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr());
     }
 
     // Page which is right after stack last page
@@ -204,7 +189,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     log::debug!("Stack end = {:?}", stack_end_page);
 
     // Running backend.
-    let BackendReport { termination, info } = match env.execute(kind.into_entry()) {
+    let BackendReport {
+        termination,
+        wasm_memory_addr,
+        info,
+    } = match env.execute(kind.into_entry()) {
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
@@ -217,7 +206,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
 
     if lazy_pages_enabled {
         // accessed lazy pages old data will be added to `initial_pages`
-        A::post_execution_actions(initial_pages, memory.get_wasm_memory_begin_addr());
+        A::post_execution_actions(initial_pages, wasm_memory_addr);
     }
 
     // Parsing outcome.
@@ -253,6 +242,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
+            log::debug!("page = {}", page.raw());
             let old_data = initial_data
                 .as_ref()
                 .expect("Must have data for all accessed pages");
