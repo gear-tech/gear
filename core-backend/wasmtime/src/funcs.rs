@@ -24,15 +24,14 @@ use alloc::{string::String, vec};
 use gear_backend_common::funcs::*;
 use gear_backend_common::{EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
-    env::{Ext, LaterExt},
+    env::Ext,
     memory::Memory,
     message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
     program::ProgramId,
 };
 use wasmtime::Memory as WasmtimeMemory;
 use wasmtime::{AsContextMut, Caller, Func, Store, Trap};
-
-use crate::env::StoreData;
+use crate::env::{StoreData, SyncLaterExt as LaterExt};
 
 pub struct FuncsHandler<E: Ext + 'static> {
     _panthom: PhantomData<E>,

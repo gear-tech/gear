@@ -31,12 +31,57 @@ use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
 };
 
+/// Complitelly same as LaterExt, but with Sync + Send implementations,
+/// which is needed only for wasmtime restrictions and never used actually.
+pub struct SyncLaterExt<E: Ext>(LaterExt<E>);
+
+impl<E: Ext> Default for SyncLaterExt<E> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
+impl<E: Ext> Clone for SyncLaterExt<E> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<E: Ext> SyncLaterExt<E> {
+    /// Set ext
+    pub fn set(&mut self, e: E) {
+        self.0.set(e)
+    }
+
+    /// Call fn with inner ext
+    pub fn with<R>(&self, f: impl FnOnce(&mut E) -> R) -> Result<R, &'static str> {
+        self.0.with(f)
+    }
+
+    /// Call fn with inner ext
+    pub fn with_fallible<R>(
+        &self,
+        f: impl FnOnce(&mut E) -> Result<R, &'static str>,
+    ) -> Result<R, &'static str> {
+        self.0.with_fallible(f)
+    }
+
+    /// Unset inner ext
+    pub fn unset(&mut self) -> E {
+        self.0.unset()
+    }
+}
+
+unsafe impl<E: Ext> Sync for SyncLaterExt<E> {}
+unsafe impl<E: Ext> Send for SyncLaterExt<E> {}
+
+/// Data type in wasmtime store. Not used actually in our case.
 pub struct StoreData;
 
 /// Environment to run one module at a time providing Ext.
 pub struct WasmtimeEnvironment<E: Ext + 'static> {
     store: Store<StoreData>,
-    ext: LaterExt<E>,
+    ext: SyncLaterExt<E>,
     memory: WasmtimeMemory,
     instance: Instance,
 }
@@ -66,7 +111,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: u32,
     ) -> Result<Self, BackendError<'static>> {
-        let mut later_ext = LaterExt::default();
+        let mut later_ext = SyncLaterExt::default();
         later_ext.set(ext);
 
         let engine = Engine::default();
