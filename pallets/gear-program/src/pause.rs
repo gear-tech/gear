@@ -27,7 +27,7 @@ pub(super) struct PausedProgram {
     program_id: H256,
     program: common::ActiveProgram,
     pages_hash: H256,
-    wait_list: Vec<QueuedDispatch>,
+    wait_list_hash: H256,
     waiting_init: Vec<H256>,
 }
 
@@ -37,6 +37,10 @@ fn decode_dispatch_tuple(_key: &[u8], value: &[u8]) -> Result<(QueuedDispatch, u
 
 fn memory_pages_hash(pages: &BTreeMap<u32, Vec<u8>>) -> H256 {
     pages.using_encoded(sp_io::hashing::blake2_256).into()
+}
+
+fn wait_list_hash(wait_list: &BTreeMap<H256, QueuedDispatch>) -> H256 {
+    wait_list.using_encoded(sp_io::hashing::blake2_256).into()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -62,10 +66,10 @@ impl<T: Config> pallet::Pallet<T> {
                     .expect("pause_program: active program exists, therefore pages do"),
             ),
             program,
-            wait_list: PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
+            wait_list_hash: wait_list_hash(&PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
                 .drain()
-                .map(|(d, _)| d)
-                .collect(),
+                .map(|(d, _)| (d.message.id, d))
+                .collect()),
             waiting_init: common::waiting_init_take_messages(program_id),
         };
 
@@ -88,6 +92,7 @@ impl<T: Config> pallet::Pallet<T> {
     pub(super) fn resume_program_impl(
         program_id: H256,
         memory_pages: BTreeMap<u32, Vec<u8>>,
+        wait_list: BTreeMap<H256, QueuedDispatch>,
         block_number: u32,
     ) -> DispatchResult {
         let paused_program =
@@ -97,12 +102,16 @@ impl<T: Config> pallet::Pallet<T> {
             return Err(Error::<T>::WrongMemoryPages.into());
         }
 
+        if paused_program.wait_list_hash != wait_list_hash(&wait_list) {
+            return Err(Error::<T>::WrongWaitList.into());
+        }
+
         PausedPrograms::<T>::remove(program_id);
 
         common::set_program(program_id, paused_program.program, memory_pages);
 
-        paused_program.wait_list.into_iter().for_each(|m| {
-            common::insert_waiting_message(program_id, m.message.id, m, block_number)
+        wait_list.into_iter().for_each(|(msg_id, d)| {
+            common::insert_waiting_message(program_id, msg_id, d, block_number)
         });
         sp_io::storage::set(
             &common::waiting_init_prefix(program_id),

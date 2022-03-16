@@ -84,6 +84,7 @@ pub mod pallet {
         PausedProgramNotFound,
         WrongMemoryPages,
         ResumeProgramNotEnoughValue,
+        WrongWaitList,
     }
 
     #[pallet::storage]
@@ -115,6 +116,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             program_id: H256,
             memory_pages: BTreeMap<u32, Vec<u8>>,
+            wait_list: BTreeMap<H256, common::QueuedDispatch>,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let account = ensure_signed(origin)?;
@@ -124,6 +126,7 @@ pub mod pallet {
             Self::resume_program_impl(
                 program_id,
                 memory_pages,
+                wait_list,
                 <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
             )?;
 

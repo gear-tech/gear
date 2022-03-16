@@ -2308,6 +2308,7 @@ fn resume_program_works() {
             Origin::signed(USER_3).into(),
             program_id,
             memory_pages,
+            Default::default(),
             10_000u128
         ));
 
