@@ -44,7 +44,9 @@ pub mod pallet {
     use super::*;
     use frame_support::{
         pallet_prelude::*,
-        traits::{Currency, LockableCurrency, LockIdentifier, ExistenceRequirement, WithdrawReasons},
+        traits::{
+            Currency, ExistenceRequirement, LockIdentifier, LockableCurrency, WithdrawReasons,
+        },
     };
     use frame_system::pallet_prelude::*;
     use sp_runtime::traits::{UniqueSaturatedInto, Zero};

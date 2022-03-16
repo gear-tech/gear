@@ -66,10 +66,12 @@ impl<T: Config> pallet::Pallet<T> {
                     .expect("pause_program: active program exists, therefore pages do"),
             ),
             program,
-            wait_list_hash: wait_list_hash(&PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
-                .drain()
-                .map(|(d, _)| (d.message.id, d))
-                .collect()),
+            wait_list_hash: wait_list_hash(
+                &PrefixIterator::<_, ()>::new(prefix, previous_key, decode_dispatch_tuple)
+                    .drain()
+                    .map(|(d, _)| (d.message.id, d))
+                    .collect(),
+            ),
             waiting_init: common::waiting_init_take_messages(program_id),
         };
 

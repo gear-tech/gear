@@ -72,7 +72,7 @@ pub mod pallet {
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
-        traits::{BalanceStatus, Currency, Get, ReservableCurrency, LockableCurrency},
+        traits::{BalanceStatus, Currency, Get, LockableCurrency, ReservableCurrency},
     };
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;

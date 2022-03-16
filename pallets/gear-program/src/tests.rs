@@ -224,7 +224,9 @@ fn resume_uninitialized_program_works() {
 
         assert_ok!(GearProgram::pause_program(program_id));
 
-        let wait_list = IntoIterator::into_iter([&init_msg, &msg_1, &msg_2]).map(|d| (d.message.id, d.clone())).collect::<BTreeMap<_, _>>();
+        let wait_list = IntoIterator::into_iter([&init_msg, &msg_1, &msg_2])
+            .map(|d| (d.message.id, d.clone()))
+            .collect::<BTreeMap<_, _>>();
 
         let block_number = 100;
         assert_ok!(GearProgram::resume_program_impl(
@@ -283,7 +285,9 @@ fn resume_program_twice_fails() {
 
         assert_ok!(GearProgram::pause_program(program_id));
 
-        let wait_list = IntoIterator::into_iter([init_msg, msg_1, msg_2]).map(|d| (d.message.id, d)).collect::<BTreeMap<_, _>>();
+        let wait_list = IntoIterator::into_iter([init_msg, msg_1, msg_2])
+            .map(|d| (d.message.id, d))
+            .collect::<BTreeMap<_, _>>();
 
         let block_number = 100;
         assert_ok!(GearProgram::resume_program_impl(
@@ -319,9 +323,14 @@ fn resume_program_wrong_memory_fails() {
         let block_number = 100;
         memory_pages.remove(&0);
         assert_noop!(
-            GearProgram::resume_program_impl(program_id, memory_pages,
-                IntoIterator::into_iter([init_msg, msg_1, msg_2]).map(|d| (d.message.id, d)).collect(),
-                block_number),
+            GearProgram::resume_program_impl(
+                program_id,
+                memory_pages,
+                IntoIterator::into_iter([init_msg, msg_1, msg_2])
+                    .map(|d| (d.message.id, d))
+                    .collect(),
+                block_number
+            ),
             Error::<Test>::WrongMemoryPages
         );
     });
@@ -347,9 +356,14 @@ fn resume_program_wrong_list_fails() {
         let block_number = 100;
         msg_2.message.payload = [0, 1, 2, 3, 4, 5].into();
         assert_noop!(
-            GearProgram::resume_program_impl(program_id, memory_pages,
-                IntoIterator::into_iter([init_msg, msg_1, msg_2]).map(|d| (d.message.id, d)).collect(),
-                block_number),
+            GearProgram::resume_program_impl(
+                program_id,
+                memory_pages,
+                IntoIterator::into_iter([init_msg, msg_1, msg_2])
+                    .map(|d| (d.message.id, d))
+                    .collect(),
+                block_number
+            ),
             Error::<Test>::WrongWaitList
         );
     });
@@ -408,12 +422,7 @@ mod utils {
             value: 0,
             reply: None,
         });
-        common::insert_waiting_message(
-            program_id,
-            init_msg_id,
-            init_msg.clone(),
-            0,
-        );
+        common::insert_waiting_message(program_id, init_msg_id, init_msg.clone(), 0);
 
         let msg_id_1 = H256::from_low_u64_be(1);
         let msg_1 = QueuedDispatch::new_handle(QueuedMessage {
@@ -424,12 +433,7 @@ mod utils {
             value: 0,
             reply: None,
         });
-        common::insert_waiting_message(
-            program_id,
-            msg_id_1,
-            msg_1.clone(),
-            0,
-        );
+        common::insert_waiting_message(program_id, msg_id_1, msg_1.clone(), 0);
         common::waiting_init_append_message_id(program_id, msg_id_1);
 
         let msg_id_2 = H256::from_low_u64_be(2);
@@ -441,12 +445,7 @@ mod utils {
             value: 0,
             reply: None,
         });
-        common::insert_waiting_message(
-            program_id,
-            msg_id_2,
-            msg_2.clone(),
-            0,
-        );
+        common::insert_waiting_message(program_id, msg_id_2, msg_2.clone(), 0);
         common::waiting_init_append_message_id(program_id, msg_id_2);
 
         CreateProgramResult {
