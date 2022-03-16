@@ -140,6 +140,7 @@ pub mod pallet {
                 ExistenceRequirement::AllowDeath,
             )?;
 
+            // TODO: maybe it is sufficient just to reserve value? (#762)
             T::Currency::extend_lock(LOCK_ID, program_account, value, WithdrawReasons::FEE);
 
             Self::deposit_event(Event::ProgramResumed(program_id));
