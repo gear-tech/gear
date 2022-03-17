@@ -89,8 +89,10 @@ pub struct BackendError<'a> {
 }
 
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
-    /// Setup external environment, provide `ext`, set the beginning of the memory region
-    /// to the `static_area` content after creatig instance.
+    /// Creates new external environment to execute wasm binary:
+    /// 1) instatiates wasm binary.
+    /// 2) creates wasm memory with filled data (execption if lazy pages enabled).
+    /// 3) instatiate external funcs for wasm module.
     fn new(
         ext: E,
         binary: &[u8],
@@ -105,7 +107,6 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn get_wasm_memory_begin_addr(&mut self) -> usize;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
-    /// NOTE: external environment must be set up.
-    /// NOTE: env is dropped after execution
+    /// - IMPORTANT: env is in inconsistent state after execution.
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
 }
