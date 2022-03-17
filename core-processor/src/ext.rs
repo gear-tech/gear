@@ -243,9 +243,7 @@ impl EnvExt for Ext {
             .alloc(pages_num, mem)
             .map_err(|_e| "Allocation error");
 
-        if result.is_err() {
-            return self.return_and_store_err(result);
-        }
+        let page_number = self.return_and_store_err(result)?;
 
         // Returns back greedily used gas for grow
         let new_mem_size = mem.size().raw();
@@ -254,7 +252,7 @@ impl EnvExt for Ext {
             self.config.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
 
         // Returns back greedily used gas for allocations
-        let first_page = result.unwrap().raw();
+        let first_page = page_number.raw();
         let last_page = first_page + pages_num.raw() - 1;
         let mut new_alloced_pages_num = 0;
         for page in first_page..=last_page {
@@ -267,7 +265,7 @@ impl EnvExt for Ext {
 
         self.refund_gas(gas_to_return_back as u32)?;
 
-        self.return_and_store_err(result)
+        Ok(page_number)
     }
 
     fn block_height(&self) -> u32 {
