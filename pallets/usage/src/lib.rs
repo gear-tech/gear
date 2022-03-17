@@ -41,14 +41,17 @@ pub type Authorship<T> = pallet_authorship::Pallet<T>;
 pub mod pallet {
     use super::offchain::PayeeInfo;
     use super::*;
-    use common::{GasPrice, Origin, PaymentProvider, QueuedDispatch, QueuedMessage};
+    use common::{GasPrice, Origin, PaymentProvider};
     use frame_support::{
         dispatch::{DispatchError, DispatchResultWithPostInfo},
         pallet_prelude::*,
         traits::{Currency, Get},
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
-    use gear_core::identifiers::{MessageId, ProgramId};
+    use gear_core::{
+        identifiers::MessageId,
+        message::{ReplyMessage, ReplyPacket},
+    };
     use sp_core::offchain::Duration;
     use sp_runtime::{
         offchain::{
@@ -263,7 +266,7 @@ pub mod pallet {
                             let chargeable_amount =
                             <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
-                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
+                            match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.id().into_origin()) {
                                 Some((msg_gas_balance, origin)) => {
                                     let usable_gas = msg_gas_balance
                                         .saturating_sub(T::TrapReplyExistentialGasLimit::get());
@@ -285,8 +288,8 @@ pub mod pallet {
                     },
                 )
                 .for_each(|(fee, origin, dispatch, msg_gas_balance)| {
-                    let msg_id = dispatch.message.id;
-                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id, fee) {
+                    let msg_id = dispatch.id();
+                    if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id.into_origin(), fee) {
                         log::debug!(
                             target: "essential",
                             "Error spending {:?} gas from {:?}: {:?}",
@@ -344,33 +347,25 @@ pub mod pallet {
                         }
                     };
 
-                    let program_id = dispatch.message.dest;
-                    let message_id = dispatch.message.id;
+                    let program_id = dispatch.destination();
                     let new_msg_gas_balance = msg_gas_balance.saturating_sub(fee);
                     if new_msg_gas_balance <= T::TrapReplyExistentialGasLimit::get() {
-                        if common::get_program(program_id).is_some() {
+                        if common::get_program(program_id.into_origin()).is_some() {
                                 // TODO: generate system signal for program (#647)
 
                                 // Generate trap reply
-                                let trap_message_id = core_processor::next_system_reply_message_id(ProgramId::from_origin(program_id), MessageId::from_origin(message_id)).into_origin();
-                                let trap_message = QueuedMessage {
-                                    id: trap_message_id,
-                                    source: program_id,
-                                    dest: dispatch.message.source,
-                                    payload: vec![],
-                                    value: 0,
-                                    reply: Some((msg_id, core_processor::ERR_EXIT_CODE)),
-                                };
-
-                                let reply_dispatch = QueuedDispatch::new_reply(trap_message);
+                                let trap_message_id = MessageId::generate_reply(msg_id, core_processor::ERR_EXIT_CODE);
+                                let packet = ReplyPacket::system(core_processor::ERR_EXIT_CODE);
+                                let message = ReplyMessage::from_packet(trap_message_id, packet);
+                                let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
                                 // Enqueue the trap reply message
                                 let _ = <T as pallet_gear::Config>::GasHandler::split_with_value(
-                                    msg_id,
-                                    trap_message_id,
+                                    msg_id.into_origin(),
+                                    trap_message_id.into_origin(),
                                     new_msg_gas_balance
                                 );
-                                common::queue_dispatch(reply_dispatch);
+                                common::queue_dispatch(dispatch);
                         } else {
                                 // Wait init messages can't reach that, because if program init failed,
                                 // then all waiting messages are moved to queue deleted.
@@ -384,8 +379,8 @@ pub mod pallet {
                         // Message still got enough gas limit and may keep waiting.
                         // Updating gas limit value and re-inserting the message into wait list.
                         common::insert_waiting_message(
-                            program_id,
-                            msg_id,
+                            program_id.into_origin(),
+                            msg_id.into_origin(),
                             dispatch,
                             current_block.saturated_into(),
                         );
