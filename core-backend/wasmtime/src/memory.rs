@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Wasmtime extensions for memory and memory context.
+//! Wasmtime extensions for memory.
 
 use crate::env::StoreData;
 use gear_core::memory::{Error, Memory, PageNumber};

@@ -226,7 +226,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let len: usize = pop_i32(&mut args)?;
         let dest = pop_i32(&mut args)?;
 
-        log::debug!("read");
         ctx.ext
             .clone()
             .with(|ext| {
@@ -241,7 +240,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     }
 
     pub fn size(ctx: &mut Runtime<E>, _args: &[Value]) -> SyscallOutput {
-        log::debug!("size");
         ctx.ext
             .with(|ext| ext.msg().len())
             .map(return_i32)
@@ -379,7 +377,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let payload_len = pop_i32(&mut args)?;
         let value_ptr = pop_i32(&mut args)?;
 
-        log::debug!("reply");
         let result = ctx
             .ext
             .with(|ext| {
@@ -463,7 +460,6 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let str_ptr = pop_i32(&mut args)?;
         let str_len = pop_i32(&mut args)?;
 
-        log::debug!("debug");
         ctx.ext
             .clone()
             .with_fallible(|ext| {

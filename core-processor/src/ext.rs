@@ -25,7 +25,7 @@ use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
-    memory::{Memory, MemoryContext, PageBuf, PageNumber},
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::{
         ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ProgramInitPacket,
         ReplyPacket,
@@ -41,7 +41,7 @@ pub trait ProcessorExt {
     fn new(
         gas_counter: GasCounter,
         value_counter: ValueCounter,
-        memory_context: MemoryContext,
+        allocations_context: AllocationsContext,
         message_context: MessageContext<BlakeMessageIdGenerator>,
         block_info: BlockInfo,
         config: AllocationsConfig,
@@ -49,6 +49,7 @@ pub trait ProcessorExt {
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
+        program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self;
 
@@ -88,8 +89,8 @@ pub struct Ext {
     pub gas_counter: GasCounter,
     /// Value counter.
     pub value_counter: ValueCounter,
-    /// Memory context.
-    pub memory_context: MemoryContext,
+    /// Allocations context.
+    pub allocations_context: AllocationsContext,
     /// Message context.
     pub message_context: MessageContext<BlakeMessageIdGenerator>,
     /// Block info.
@@ -104,6 +105,8 @@ pub struct Ext {
     pub exit_argument: Option<ProgramId>,
     /// Communication origin
     pub origin: ProgramId,
+    /// Current program id
+    pub program_id: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
     pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
@@ -114,7 +117,7 @@ impl ProcessorExt for Ext {
     fn new(
         gas_counter: GasCounter,
         value_counter: ValueCounter,
-        memory_context: MemoryContext,
+        allocations_context: AllocationsContext,
         message_context: MessageContext<BlakeMessageIdGenerator>,
         block_info: BlockInfo,
         config: AllocationsConfig,
@@ -122,12 +125,13 @@ impl ProcessorExt for Ext {
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
+        program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             gas_counter,
             value_counter,
-            memory_context,
+            allocations_context,
             message_context,
             block_info,
             config,
@@ -135,6 +139,7 @@ impl ProcessorExt for Ext {
             error_explanation,
             exit_argument,
             origin,
+            program_id,
             program_candidates_data,
         }
     }
@@ -171,7 +176,7 @@ impl ProcessorExt for Ext {
 
 impl IntoExtInfo for Ext {
     fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, mut get_page_data: F) -> ExtInfo {
-        let accessed_pages_numbers = self.memory_context.allocations().clone();
+        let accessed_pages_numbers = self.allocations_context.allocations().clone();
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
@@ -193,7 +198,7 @@ impl IntoExtInfo for Ext {
 
         ExtInfo {
             gas_amount: self.gas_counter.into(),
-            pages: self.memory_context.allocations().clone(),
+            pages: self.allocations_context.allocations().clone(),
             accessed_pages,
             init_messages,
             outgoing,
@@ -239,7 +244,7 @@ impl EnvExt for Ext {
         let old_mem_size = mem.size().raw();
 
         let result = self
-            .memory_context
+            .allocations_context
             .alloc(pages_num, mem)
             .map_err(|_e| "Allocation error");
 
@@ -258,7 +263,7 @@ impl EnvExt for Ext {
         let last_page = first_page + pages_num.raw() - 1;
         let mut new_alloced_pages_num = 0;
         for page in first_page..=last_page {
-            if !self.memory_context.is_init_page(page.into()) {
+            if !self.allocations_context.is_init_page(page.into()) {
                 new_alloced_pages_num += 1;
             }
         }
@@ -378,14 +383,17 @@ impl EnvExt for Ext {
     }
 
     fn program_id(&self) -> ProgramId {
-        self.memory_context.program_id()
+        self.program_id
     }
 
     fn free(&mut self, ptr: PageNumber) -> Result<(), &'static str> {
-        let result = self.memory_context.free(ptr).map_err(|_e| "Free error");
+        let result = self
+            .allocations_context
+            .free(ptr)
+            .map_err(|_e| "Free error");
 
         // Returns back gas for allocated page if it's new
-        if !self.memory_context.is_init_page(ptr) {
+        if !self.allocations_context.is_init_page(ptr) {
             self.refund_gas(self.config.alloc_cost as u32)?;
         }
 

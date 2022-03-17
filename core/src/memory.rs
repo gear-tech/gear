@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Module for memory and memory context.
+//! Module for memory and allocations context.
 
-use crate::program::ProgramId;
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 
@@ -115,9 +114,8 @@ pub trait Memory {
     fn get_wasm_memory_begin_addr(&self) -> usize;
 }
 
-/// Memory context for the running program.
-pub struct MemoryContext {
-    program_id: ProgramId,
+/// Pages allocations context for the running program.
+pub struct AllocationsContext {
     /// Pages which has been in storage before execution
     init_allocations: BTreeSet<PageNumber>,
     allocations: BTreeSet<PageNumber>,
@@ -125,10 +123,9 @@ pub struct MemoryContext {
     static_pages: PageNumber,
 }
 
-impl Clone for MemoryContext {
+impl Clone for AllocationsContext {
     fn clone(&self) -> Self {
         Self {
-            program_id: self.program_id,
             allocations: self.allocations.clone(),
             init_allocations: self.init_allocations.clone(),
             max_pages: self.max_pages,
@@ -137,20 +134,18 @@ impl Clone for MemoryContext {
     }
 }
 
-impl MemoryContext {
-    /// New memory context.
+impl AllocationsContext {
+    /// New allocations context.
     ///
     /// Provide currently running `program_id`, boxed memory abstraction
     /// and allocation manager. Also configurable `static_pages` and `max_pages`
     /// are set.
     pub fn new(
-        program_id: ProgramId,
         allocations: BTreeSet<PageNumber>,
         static_pages: PageNumber,
         max_pages: PageNumber,
     ) -> Self {
         Self {
-            program_id,
             init_allocations: allocations.clone(),
             allocations,
             max_pages,
@@ -162,11 +157,6 @@ impl MemoryContext {
     /// it means that the page was already in the storage.
     pub fn is_init_page(&self, page: PageNumber) -> bool {
         self.init_allocations.contains(&page)
-    }
-
-    /// Return currently used program id.
-    pub fn program_id(&self) -> ProgramId {
-        self.program_id
     }
 
     /// Alloc specific number of pages for the currently running program.

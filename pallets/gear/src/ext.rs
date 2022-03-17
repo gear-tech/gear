@@ -25,7 +25,7 @@ use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{GasCounter, ValueCounter},
-    memory::{Memory, MemoryContext, PageBuf, PageNumber},
+    memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::{MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
     program::{CodeHash, ProgramId},
 };
@@ -42,7 +42,7 @@ impl IntoExtInfo for LazyPagesExt {
         self,
         mut get_page_data: F,
     ) -> gear_backend_common::ExtInfo {
-        let mut accessed_pages_numbers = self.inner.memory_context.allocations().clone();
+        let mut accessed_pages_numbers = self.inner.allocations_context.allocations().clone();
 
         // accessed pages are all pages except current lazy pages
         if self.lazy_pages_enabled {
@@ -75,7 +75,7 @@ impl IntoExtInfo for LazyPagesExt {
 
         ExtInfo {
             gas_amount: self.inner.gas_counter.into(),
-            pages: self.inner.memory_context.allocations().clone(),
+            pages: self.inner.allocations_context.allocations().clone(),
             accessed_pages,
             outgoing,
             reply,
@@ -98,7 +98,7 @@ impl ProcessorExt for LazyPagesExt {
     fn new(
         gas_counter: GasCounter,
         value_counter: ValueCounter,
-        memory_context: MemoryContext,
+        allocations_context: AllocationsContext,
         message_context: MessageContext<BlakeMessageIdGenerator>,
         block_info: BlockInfo,
         config: AllocationsConfig,
@@ -106,13 +106,14 @@ impl ProcessorExt for LazyPagesExt {
         error_explanation: Option<&'static str>,
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
+        program_id: ProgramId,
         program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             inner: Ext {
                 gas_counter,
                 value_counter,
-                memory_context,
+                allocations_context,
                 message_context,
                 block_info,
                 config,
@@ -120,6 +121,7 @@ impl ProcessorExt for LazyPagesExt {
                 error_explanation,
                 exit_argument,
                 origin,
+                program_id,
                 program_candidates_data,
             },
             lazy_pages_enabled: false,
@@ -190,7 +192,7 @@ impl EnvExt for LazyPagesExt {
 
         let result = self
             .inner
-            .memory_context
+            .allocations_context
             .alloc(pages_num, mem)
             .map_err(|_e| "Allocation error");
 
@@ -214,7 +216,7 @@ impl EnvExt for LazyPagesExt {
         let last_page = first_page + pages_num.raw() - 1;
         let mut new_alloced_pages_num = 0;
         for page in first_page..=last_page {
-            if !self.inner.memory_context.is_init_page(page.into()) {
+            if !self.inner.allocations_context.is_init_page(page.into()) {
                 new_alloced_pages_num += 1;
             }
         }
