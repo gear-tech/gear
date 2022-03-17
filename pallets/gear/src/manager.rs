@@ -96,7 +96,7 @@ where
             }
             (id, actor)
         })
-        .collect();
+        .collect::<BTreeMap<_, Option<_>>>();
 
         let dispatch_queue = common::dispatch_iter()
             .map(|dispatch| {
