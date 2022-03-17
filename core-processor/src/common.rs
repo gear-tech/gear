@@ -303,6 +303,7 @@ impl Debug for State {
                     .actors
                     .iter()
                     .filter_map(|(id, actor)| {
+<<<<<<< HEAD
                         actor.as_ref().map(|actor| {
                             (
                                 *id,
@@ -310,13 +311,28 @@ impl Debug for State {
                                     actor.balance,
                                     actor
                                         .program
+=======
+                        actor.
+                            clone()
+                            .map(|ExecutableActor { program, balance }| {
+(
+                                *id,
+                                (
+                                    balance,
+                                    program
+>>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
                                         .get_pages()
                                         .keys()
                                         .cloned()
                                         .collect::<BTreeSet<PageNumber>>(),
                                 ),
+<<<<<<< HEAD
                             )
                         })
+=======
+                            )}
+                        )
+>>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
                     })
                     .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
             )

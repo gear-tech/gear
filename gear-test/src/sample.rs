@@ -76,6 +76,10 @@ pub struct Code {
     pub path: String,
 }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ChainProgram {
     #[serde(flatten)]
@@ -105,6 +109,10 @@ pub struct Expectation {
     /// If this flag turned on, we check that only tested programs were executed
     pub exact_programs: Option<bool>,
     /// Expected active programs (not failed in the init) ids
+<<<<<<< HEAD
+=======
+    #[serde(rename = "programs")]
+>>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
     pub programs: Option<Vec<ChainProgram>>,
 }
 
