@@ -304,6 +304,7 @@ impl Debug for State {
                     .iter()
                     .filter_map(|(id, actor)| {
 <<<<<<< HEAD
+<<<<<<< HEAD
                         actor.as_ref().map(|actor| {
                             (
                                 *id,
@@ -316,6 +317,10 @@ impl Debug for State {
                             clone()
                             .map(|ExecutableActor { program, balance }| {
 (
+=======
+                        actor.clone().map(|ExecutableActor { program, balance }| {
+                            (
+>>>>>>> pre-commit corrections
                                 *id,
                                 (
                                     balance,
@@ -327,12 +332,17 @@ impl Debug for State {
                                         .collect::<BTreeSet<PageNumber>>(),
                                 ),
 <<<<<<< HEAD
+<<<<<<< HEAD
                             )
                         })
 =======
                             )}
                         )
 >>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
+=======
+                            )
+                        })
+>>>>>>> pre-commit corrections
                     })
                     .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
             )
