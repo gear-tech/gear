@@ -559,7 +559,7 @@ where
                         .map(|program| (program.address.to_program_id(), program.terminated.unwrap_or_default()))
                         .collect();
                     // Final state returns only active programs
-                    let actual_prog_ids = final_state.actors.iter().map(|(id, actor)| (*id, actor.is_some())).collect();
+                    let actual_prog_ids = final_state.actors.iter().map(|(id, actor)| (*id, actor.is_none())).collect();
                     if let Err(prog_id_errors) =
                         check_active_programs(expected_prog_ids, &actual_prog_ids, false)
                     {

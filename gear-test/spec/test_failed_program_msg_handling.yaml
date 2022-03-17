@@ -26,6 +26,10 @@ fixtures:
     expected:
       # no active programs in the state
       - programs:
+        - kind: id
+          value: 1
+          terminated: true
+
         log:
           # Trap in init generates trap reply
           - destination: 1000001
