@@ -33,6 +33,12 @@ use gear_core::{
     program::ProgramId,
 };
 
+enum SuccessfulDispatchResultKind {
+    Exit(ProgramId),
+    Wait,
+    Success,
+}
+
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     maybe_actor: Option<ExecutableActor>,
@@ -108,10 +114,13 @@ fn check_is_executable(
     maybe_actor: Option<ExecutableActor>,
     dispatch: &Dispatch,
 ) -> Result<ExecutableActor, ExitCode> {
-    maybe_actor.map(|a| if a.program.is_initialized() & matches!(dispatch.kind, DispatchKind::Init) {
-            Err(crate::RE_INIT_EXIT_CODE)
-        } else {
-            Ok(a)
+    maybe_actor
+        .map(|a| {
+            if a.program.is_initialized() & matches!(dispatch.kind, DispatchKind::Init) {
+                Err(crate::RE_INIT_EXIT_CODE)
+            } else {
+                Ok(a)
+            }
         })
         .unwrap_or(Err(crate::UNAVAILABLE_DEST_EXIT_CODE))
 }
@@ -177,17 +186,31 @@ fn process_error(
 }
 
 /// Helper function for journal creation in success case
-fn process_success(res: DispatchResult) -> Vec<JournalNote> {
+fn process_success(
+    kind: SuccessfulDispatchResultKind,
+    DispatchResult {
+        dispatch,
+        generated_dispatches,
+        awakening,
+        program_candidates,
+        gas_amount,
+        page_update,
+        nonce,
+        ..
+    }: DispatchResult,
+) -> Vec<JournalNote> {
+    use SuccessfulDispatchResultKind::*;
+
     let mut journal = Vec::new();
 
-    let message_id = res.message_id();
-    let origin = res.message_source();
-    let program_id = res.program_id();
-    let value = res.message_value();
+    let message_id = dispatch.message.id();
+    let origin = dispatch.message.source();
+    let program_id = dispatch.message.dest();
+    let value = dispatch.message.value();
 
     journal.push(JournalNote::GasBurned {
         message_id,
-        amount: res.gas_amount.burned(),
+        amount: gas_amount.burned(),
     });
 
     if value != 0 {
@@ -200,21 +223,21 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     }
 
     // Must be handled before handling generated dispatches.
-    for (code_hash, candidates) in res.program_candidates {
+    for (code_hash, candidates) in program_candidates {
         journal.push(JournalNote::StoreNewPrograms {
             code_hash,
             candidates,
         });
     }
 
-    for dispatch in res.generated_dispatches {
+    for dispatch in generated_dispatches {
         journal.push(JournalNote::SendDispatch {
             message_id,
             dispatch,
         });
     }
 
-    for awakening_id in res.awakening {
+    for awakening_id in awakening {
         journal.push(JournalNote::WakeMessage {
             message_id,
             program_id,
@@ -222,12 +245,9 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
         });
     }
 
-    journal.push(JournalNote::UpdateNonce {
-        program_id,
-        nonce: res.nonce,
-    });
+    journal.push(JournalNote::UpdateNonce { program_id, nonce });
 
-    for (page_number, data) in res.page_update {
+    for (page_number, data) in page_update {
         journal.push(JournalNote::UpdatePage {
             program_id,
             page_number,
@@ -235,18 +255,18 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
         })
     }
 
-    match res.kind {
-        DispatchResultKind::Exit(value_destination) => {
+    match kind {
+        Exit(value_destination) => {
             journal.push(JournalNote::ExitDispatch {
                 id_exited: program_id,
                 value_destination,
             });
         }
-        DispatchResultKind::Wait => {
-            journal.push(JournalNote::WaitDispatch(res.dispatch));
+        Wait => {
+            journal.push(JournalNote::WaitDispatch(dispatch));
         }
-        DispatchResultKind::Success => {
-            let outcome = match res.dispatch.kind {
+        Success => {
+            let outcome = match dispatch.kind {
                 DispatchKind::Init => DispatchOutcome::InitSuccess {
                     message_id,
                     origin,
@@ -257,10 +277,6 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
 
             journal.push(JournalNote::MessageDispatched(outcome));
             journal.push(JournalNote::MessageConsumed(message_id));
-        }
-        // Handled in other function
-        _ => {
-            unreachable!()
         }
     };
 
@@ -274,6 +290,8 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     existential_deposit: u128,
     origin: ProgramId,
 ) -> Vec<JournalNote> {
+    use SuccessfulDispatchResultKind::*;
+
     let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
     let execution_context = ExecutionContext { origin };
     let initial_nonce = actor.program.message_nonce();
@@ -288,7 +306,11 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
             DispatchResultKind::Trap(reason) => {
                 process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
             }
-            _ => process_success(res),
+            DispatchResultKind::Success => process_success(Success, res),
+            DispatchResultKind::Wait => process_success(Wait, res),
+            DispatchResultKind::Exit(value_destination) => {
+                process_success(Exit(value_destination), res)
+            }
         },
         Err(e) => process_error(
             dispatch,
