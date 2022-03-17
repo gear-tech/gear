@@ -77,6 +77,16 @@ impl CollectState for InMemoryExtManager {
             ..
         } = self.clone();
 
+        let dispatch_queue = dispatch_queue
+            .into_iter()
+            .map(|msg| {
+                (
+                    msg,
+                    *self.gas_limits.get(&msg.id()).expect("Shouldn't fail"),
+                )
+            })
+            .collect();
+
         let actors = actors
             .into_iter()
             .filter_map(|(id, a_opt)| a_opt.map(|a| (id, a)))

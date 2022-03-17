@@ -28,7 +28,7 @@ use gear_core::{
     gas::GasAmount,
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{ContextStore, Dispatch, IncomingDispatch, Message, StoredDispatch},
+    message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, Message, StoredDispatch},
     program::Program,
 };
 
@@ -266,7 +266,7 @@ pub struct ExecutionContext {
 /// In-memory state.
 pub struct State {
     /// Message queue.
-    pub dispatch_queue: VecDeque<StoredDispatch>,
+    pub dispatch_queue: VecDeque<(StoredDispatch, GasLimit)>,
     /// Log records.
     pub log: Vec<Message>,
     /// State of each executable actor.

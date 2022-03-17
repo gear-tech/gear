@@ -23,7 +23,7 @@ use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
     identifiers::{MessageId, ProgramId},
-    message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message, StoredDispatch},
+    message::{DispatchKind, IncomingDispatch, IncomingMessage, Message},
     program::Program,
 };
 use regex::Regex;
@@ -278,15 +278,16 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            if let Some(dispatch) = state.dispatch_queue.pop_front() {
-                let actor = state.actors.get(&dispatch.message.dest()).cloned();
+            if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
+                let actor = state.actors.get(&dispatch.destination()).cloned();
 
                 let journal = core_processor::process::<Ext, E>(
                     actor,
-                    dispatch,
+                    dispatch.into_incoming(gas_limit),
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
                     Default::default(),
+                    dispatch.destination(),
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -300,8 +301,8 @@ where
         }
     } else {
         let mut counter = 0;
-        while let Some(dispatch) = state.dispatch_queue.pop_front() {
-            let actor = state.actors.get(&dispatch.message.dest()).cloned();
+        while let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
+            let actor = state.actors.get(&dispatch.destination()).cloned();
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -310,13 +311,14 @@ where
 
             let journal = core_processor::process::<Ext, E>(
                 actor,
-                dispatch,
+                dispatch.into_incoming(gas_limit),
                 BlockInfo {
                     height: counter,
                     timestamp,
                 },
                 EXISTENTIAL_DEPOSIT,
                 Default::default(),
+                dispatch.destination(),
             );
             counter += 1;
 

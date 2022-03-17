@@ -85,7 +85,17 @@ where
         })
         .collect();
 
-        let dispatch_queue = common::dispatch_iter().collect();
+        let dispatch_queue = common::dispatch_iter()
+            .map(|msg| {
+                let id = msg.id();
+                (
+                    msg,
+                    T::GasHandler::get_limit(id.into_origin())
+                        .expect("Should never fail if ValueNode works properly")
+                        .0,
+                )
+            })
+            .collect();
 
         State {
             dispatch_queue,
