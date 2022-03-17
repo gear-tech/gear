@@ -96,16 +96,18 @@ where
             }
             (id, actor)
         })
-        .collect();
+        .collect::<BTreeMap<_, Option<_>>>();
 
         let dispatch_queue = common::dispatch_iter()
             .map(|dispatch| {
-                let gas = T::GasHandler::get_limit(dispatch.message.id)
+                let gas = T::GasHandler::get_limit(dispatch.message().id().into_origin())
                     .map(|(gas, _id)| gas)
                     .unwrap_or(0);
-                dispatch.into_dispatch(gas)
+                (dispatch, gas)
             })
             .collect();
+
+            
 
         State {
             dispatch_queue,
