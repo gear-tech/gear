@@ -91,7 +91,7 @@ pub struct BackendError<'a> {
 pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     /// Setup external environment, provide `ext`, set the beginning of the memory region
     /// to the `static_area` content after creatig instance.
-    fn setup(
+    fn new(
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,

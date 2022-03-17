@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! sp-sandbox extensions for memory and memory context.
+//! sp-sandbox extensions for memory.
 
 use gear_core::memory::{Error, Memory, PageNumber};
 use sp_sandbox::SandboxMemory;
@@ -69,9 +69,9 @@ impl Memory for MemoryWrap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gear_core::memory::MemoryContext;
+    use gear_core::memory::AllocationsContext;
 
-    fn new_test_memory(static_pages: u32, max_pages: u32) -> (MemoryContext, MemoryWrap) {
+    fn new_test_memory(static_pages: u32, max_pages: u32) -> (AllocationsContext, MemoryWrap) {
         use sp_sandbox::SandboxMemory as WasmMemory;
 
         let memory = MemoryWrap::new(
@@ -79,12 +79,7 @@ mod tests {
         );
 
         (
-            MemoryContext::new(
-                0.into(),
-                Default::default(),
-                static_pages.into(),
-                max_pages.into(),
-            ),
+            AllocationsContext::new(Default::default(), static_pages.into(), max_pages.into()),
             memory,
         )
     }

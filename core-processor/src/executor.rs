@@ -32,7 +32,7 @@ use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationRe
 use gear_core::{
     env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
-    memory::{MemoryContext, PageNumber, PAGE_SIZE},
+    memory::{AllocationsContext, PageNumber, PAGE_SIZE},
     message::{Dispatch, MessageContext},
 };
 
@@ -129,9 +129,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         (0..program.static_pages()).map(Into::into).collect()
     };
 
-    // Creating memory context.
-    let memory_context = MemoryContext::new(
-        program_id,
+    // Creating allocations context.
+    let allocations_context = AllocationsContext::new(
         allocations,
         program.static_pages().into(),
         settings.max_pages(),
@@ -153,7 +152,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mut ext = A::new(
         gas_counter,
         value_counter,
-        memory_context,
+        allocations_context,
         message_context,
         settings.block_info,
         settings.config,
@@ -161,12 +160,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         None,
         None,
         context.origin,
+        program_id,
         Default::default(),
     );
 
     let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
 
-    let mut env = E::setup(ext, &instrumented_code, initial_pages, mem_size).map_err(|err| {
+    let mut env = E::new(ext, &instrumented_code, initial_pages, mem_size).map_err(|err| {
         log::error!("Setup instance err = {:?}", err);
         ExecutionError {
             program_id,
@@ -175,8 +175,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     })?;
 
-    let x: Vec<u32> = initial_pages.iter().map(|(a, _b)| a.raw()).collect();
-    log::debug!("init memory {:?}", x);
+    log::trace!(
+        "init memory pages = {:?}",
+        initial_pages
+            .iter()
+            .map(|(a, _b)| a.raw())
+            .collect::<Vec<u32>>()
+    );
 
     if lazy_pages_enabled {
         A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr());
@@ -186,7 +191,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let stack_end_page = env
         .get_stack_mem_end()
         .map(|addr| addr as u32 / PAGE_SIZE as u32);
-    log::debug!("Stack end = {:?}", stack_end_page);
+    log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Running backend.
     let BackendReport {
