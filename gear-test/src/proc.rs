@@ -286,7 +286,7 @@ where
                 let program_id = dispatch.destination();
 
                 let journal = core_processor::process::<Ext, E>(
-                    actor,
+                    actor.unwrap_or_default(),
                     dispatch.into_incoming(gas_limit),
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
@@ -317,7 +317,7 @@ where
             let program_id = dispatch.destination();
 
             let journal = core_processor::process::<Ext, E>(
-                actor,
+                actor.unwrap_or_default(),
                 dispatch.into_incoming(gas_limit),
                 BlockInfo {
                     height: counter,

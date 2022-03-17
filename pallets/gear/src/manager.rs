@@ -55,6 +55,49 @@ pub enum HandleKind {
     Reply(H256, ExitCode),
 }
 
+impl<T: Config> CollectState for ExtManager<T>
+where
+    T::AccountId: Origin,
+{
+    fn collect(&self) -> State {
+        let actors = PrefixIterator::<H256>::new(
+            STORAGE_PROGRAM_PREFIX.to_vec(),
+            STORAGE_PROGRAM_PREFIX.to_vec(),
+            |key, _| Ok(H256::from_slice(key)),
+        )
+        .filter_map(|k| {
+            self.get_executable_actor(k)
+                .map(|actor| (actor.program.id(), actor))
+        })
+        .map(|(id, mut actor)| {
+            let pages_data = {
+                let page_numbers = actor.program.get_pages().keys().map(|k| k.raw()).collect();
+                let data = common::get_program_pages(id.into_origin(), page_numbers)
+                    .expect("active program exists, therefore pages do");
+                data.into_iter().map(|(k, v)| (k.into(), v)).collect()
+            };
+            let _ = actor.program.set_pages(pages_data);
+            (id, Some(actor))
+        })
+        .collect::<BTreeMap<_, Option<_>>>();
+
+        let dispatch_queue = common::dispatch_iter()
+            .map(|dispatch| {
+                let gas = T::GasHandler::get_limit(dispatch.message.id)
+                    .map(|(gas, _id)| gas)
+                    .unwrap_or(0);
+                dispatch.into_dispatch(gas)
+            })
+            .collect();
+
+        State {
+            dispatch_queue,
+            actors,
+            ..Default::default()
+        }
+    }
+}
+
 impl<T: Config> Default for ExtManager<T>
 where
     T::AccountId: Origin,

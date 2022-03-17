@@ -287,7 +287,7 @@ pub struct State {
     /// Log records.
     pub log: Vec<StoredMessage>,
     /// State of each executable actor.
-    pub actors: BTreeMap<ProgramId, ExecutableActor>,
+    pub actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     /// Is current state failed.
     pub current_failed: bool,
 }
@@ -302,17 +302,21 @@ impl Debug for State {
                 &self
                     .actors
                     .iter()
-                    .map(|(id, ExecutableActor { program, balance })| {
-                        (
-                            *id,
-                            (
-                                *balance,
-                                program
-                                    .get_pages()
-                                    .keys()
-                                    .cloned()
-                                    .collect::<BTreeSet<PageNumber>>(),
-                            ),
+                    .filter_map(|(id, actor)| {
+                        actor.
+                            clone()
+                            .map(|ExecutableActor { program, balance }| {
+(
+                                *id,
+                                (
+                                    balance,
+                                    program
+                                        .get_pages()
+                                        .keys()
+                                        .cloned()
+                                        .collect::<BTreeSet<PageNumber>>(),
+                                ),
+                            )}
                         )
                     })
                     .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
