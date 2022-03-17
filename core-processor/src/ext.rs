@@ -327,15 +327,7 @@ impl EnvExt for Ext {
     }
 
     fn reply_to(&self) -> Option<(MessageId, ExitCode)> {
-        let current = self.message_context.current();
-        if current.is_reply() {
-            Some((
-                current.reply_to().expect("Can't fail"),
-                current.exit_code().expect("Can't fail"),
-            ))
-        } else {
-            None
-        }
+        self.message_context.current().reply()
     }
 
     fn source(&mut self) -> ProgramId {

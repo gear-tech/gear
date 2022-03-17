@@ -191,64 +191,36 @@ pub mod pallet {
                         let mut current_node = Node::decode(&mut &bytes[..]).unwrap();
                         for (k, v) in programs_map.iter() {
                             if *k == current_node.value.destination().into_origin() {
-                                let mut reply = None;
-                                if current_node.value.is_reply() {
-                                    reply = Some((
-                                        current_node
-                                            .value
-                                            .reply_to()
-                                            .expect("Can't fail. Checked above"),
-                                        current_node
-                                            .value
-                                            .exit_code()
-                                            .expect("Can't fail. Checked above"),
-                                    ));
-                                }
-                                let message = StoredMessage::new(
-                                    current_node.value.id(),
-                                    current_node.value.source(),
-                                    ProgramId::from_origin(*v),
-                                    (*current_node.value.payload()).to_vec(),
-                                    current_node.value.value(),
-                                    reply,
-                                );
-                                let dispatch = StoredDispatch::new(
+                                current_node.value = StoredDispatch::new(
                                     current_node.value.kind(),
-                                    message,
+                                    StoredMessage::new(
+                                        current_node.value.id(),
+                                        current_node.value.source(),
+                                        ProgramId::from_origin(*v),
+                                        (*current_node.value.payload()).to_vec(),
+                                        current_node.value.value(),
+                                        current_node.value.reply(),
+                                    ),
                                     current_node.value.context().clone(),
                                 );
-                                current_node.value = dispatch;
+
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
 
                             if *v == current_node.value.source().into_origin() {
-                                let mut reply = None;
-                                if current_node.value.is_reply() {
-                                    reply = Some((
-                                        current_node
-                                            .value
-                                            .reply_to()
-                                            .expect("Can't fail. Checked above"),
-                                        current_node
-                                            .value
-                                            .exit_code()
-                                            .expect("Can't fail. Checked above"),
-                                    ));
-                                }
-                                let message = StoredMessage::new(
-                                    current_node.value.id(),
-                                    ProgramId::from_origin(*k),
-                                    current_node.value.destination(),
-                                    (*current_node.value.payload()).to_vec(),
-                                    current_node.value.value(),
-                                    reply,
-                                );
-                                let dispatch = StoredDispatch::new(
+                                current_node.value = StoredDispatch::new(
                                     current_node.value.kind(),
-                                    message,
+                                    StoredMessage::new(
+                                        current_node.value.id(),
+                                        ProgramId::from_origin(*k),
+                                        current_node.value.destination(),
+                                        (*current_node.value.payload()).to_vec(),
+                                        current_node.value.value(),
+                                        current_node.value.reply(),
+                                    ),
                                     current_node.value.context().clone(),
                                 );
-                                current_node.value = dispatch;
+
                                 sp_io::storage::set(&next_node_key, &current_node.encode());
                             }
                         }

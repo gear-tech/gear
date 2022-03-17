@@ -99,6 +99,11 @@ impl IncomingMessage {
         self.value
     }
 
+    /// Message reply.
+    pub fn reply(&self) -> Option<(MessageId, ExitCode)> {
+        self.reply
+    }
+
     /// Check if this message is reply.
     pub fn is_reply(&self) -> bool {
         self.reply.is_some()
