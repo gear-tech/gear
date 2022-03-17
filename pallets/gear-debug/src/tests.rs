@@ -20,10 +20,10 @@
 
 use super::*;
 use crate::mock::*;
-use common::{self, Origin as _, QueuedDispatch, QueuedMessage};
+use common::{self, Origin as _};
 use gear_core::{
-    identifiers::{CodeId, ProgramId},
-    message::DispatchKind,
+    identifiers::{CodeId, MessageId, ProgramId},
+    message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::DebugInfo;
 use pallet_gear::Pallet as PalletGear;
@@ -183,30 +183,30 @@ fn debug_mode_works() {
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![
                     // message will have reverse order since the first one requeued to the end
-                    QueuedDispatch {
-                        kind: DispatchKind::Handle,
-                        message: QueuedMessage {
-                            id: message_id_2,
-                            source: 1.into_origin(),
-                            dest: program_id_2,
-                            payload: vec![],
-                            value: 0,
-                            reply: None,
-                        },
-                        payload_store: None,
-                    },
-                    QueuedDispatch {
-                        kind: DispatchKind::Handle,
-                        message: QueuedMessage {
-                            id: message_id_1,
-                            source: 1.into_origin(),
-                            dest: program_id_1,
-                            payload: vec![],
-                            value: 0,
-                            reply: None,
-                        },
-                        payload_store: None,
-                    },
+                    StoredDispatch::new(
+                        DispatchKind::Handle,
+                        StoredMessage::new(
+                            MessageId::from_origin(message_id_2),
+                            1.into(),
+                            ProgramId::from_origin(program_id_2),
+                            Default::default(),
+                            0,
+                            None,
+                        ),
+                        None,
+                    ),
+                    StoredDispatch::new(
+                        DispatchKind::Handle,
+                        StoredMessage::new(
+                            MessageId::from_origin(message_id_1),
+                            1.into(),
+                            ProgramId::from_origin(program_id_1),
+                            Default::default(),
+                            0,
+                            None,
+                        ),
+                        None,
+                    ),
                 ],
                 programs: vec![
                     crate::ProgramDetails {

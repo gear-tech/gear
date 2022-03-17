@@ -626,10 +626,10 @@ fn mailbox_works() {
             res.expect("was asserted previously")
         };
 
-        assert_eq!(mailbox_message.id, reply_to_id,);
+        assert_eq!(mailbox_message.id().into_origin(), reply_to_id);
 
         // Gas limit should have been ignored by the code that puts a message into a mailbox
-        assert_eq!(mailbox_message.value, 1000);
+        assert_eq!(mailbox_message.value(), 1000);
 
         // Gas is not passed to mailboxed messages and should have been all spent by now
         assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
@@ -927,7 +927,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
         assert!(mailbox.contains_key(&error_reply_id));
 
         let message = mailbox.get(&error_reply_id).expect("Checked above");
-        assert!(matches!(message.reply, Some((_, 1))));
+        assert!(matches!(message.reply(), Some((_, 1))));
     })
 }
 
@@ -1433,9 +1433,13 @@ fn defer_program_initialization() {
             .expect("should be one reply for the program author")
             .into_values()
             .next();
+
         assert!(message.is_some());
 
-        assert_eq!(message.unwrap().payload, b"Hello, world!".encode());
+        assert_eq!(
+            message.unwrap().payload().to_vec(),
+            b"Hello, world!".encode()
+        );
     })
 }
 
@@ -1505,7 +1509,7 @@ fn wake_messages_after_program_inited() {
         let actual_n = Gear::mailbox(USER_3)
             .map(|t| {
                 t.into_values().fold(0usize, |i, m| {
-                    assert_eq!(m.payload, b"Hello, world!".encode());
+                    assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
                     i + 1
                 })
             })

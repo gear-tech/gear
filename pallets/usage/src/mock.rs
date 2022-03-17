@@ -18,14 +18,11 @@
 
 use crate as pallet_usage;
 use codec::Decode;
-use common::Origin;
+use common::Origin as _;
 use frame_support::traits::{FindAuthor, OffchainWorker, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
-use gear_core::{
-    identifiers::{CodeId, ProgramId},
-    program::Program,
-};
+use gear_core::{identifiers::CodeId, program::Program};
 use parking_lot::RwLock;
 use primitive_types::H256;
 use sp_core::offchain::{
