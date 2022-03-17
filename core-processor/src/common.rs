@@ -28,7 +28,7 @@ use gear_core::{
     gas::GasAmount,
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, Message, StoredDispatch},
+    message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
     program::Program,
 };
 
@@ -268,7 +268,7 @@ pub struct State {
     /// Message queue.
     pub dispatch_queue: VecDeque<(StoredDispatch, GasLimit)>,
     /// Log records.
-    pub log: Vec<Message>,
+    pub log: Vec<StoredMessage>,
     /// State of each executable actor.
     pub actors: BTreeMap<ProgramId, ExecutableActor>,
     /// Is current state failed.

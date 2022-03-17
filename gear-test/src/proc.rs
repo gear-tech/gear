@@ -23,7 +23,7 @@ use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
     identifiers::{MessageId, ProgramId},
-    message::{DispatchKind, IncomingDispatch, IncomingMessage, Message},
+    message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
     program::Program,
 };
 use regex::Regex;
@@ -186,7 +186,7 @@ where
                 message: IncomingMessage::new(
                     message_id,
                     init_source,
-                    init_message.into(),
+                    init_message,
                     program.init_gas_limit.unwrap_or(GAS_LIMIT),
                     program.init_value.unwrap_or(0) as u128,
                     None,
@@ -241,16 +241,18 @@ where
             message_source = source.to_program_id();
         }
 
-        let message = Message {
-            id: message_id,
-            source: message_source,
-            destination: message.destination.to_program_id(),
-            payload: payload.into(),
-            gas_limit: Some(gas_limit),
-            value: message.value.unwrap_or_default() as _,
-            reply: None,
-        };
-        // journal_handler.send_dispatch(Default::default(), Dispatch::new(kind: DispatchKind, message: Message) Dispatch::new_handle(message));
+        let message = Message::new(
+            message_id,
+            message_source,
+            message.destination.to_program_id(),
+            payload,
+            Some(gas_limit),
+            message.value.unwrap_or_default() as _,
+            None,
+        );
+        let dispatch = Dispatch::new(DispatchKind::Init, message);
+
+        journal_handler.send_dispatch(Default::default(), dispatch);
 
         nonce += 1;
     }
@@ -281,13 +283,15 @@ where
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
                 let actor = state.actors.get(&dispatch.destination()).cloned();
 
+                let program_id = dispatch.destination();
+
                 let journal = core_processor::process::<Ext, E>(
                     actor,
                     dispatch.into_incoming(gas_limit),
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
                     Default::default(),
-                    dispatch.destination(),
+                    program_id,
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -309,6 +313,8 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
+            let program_id = dispatch.destination();
+
             let journal = core_processor::process::<Ext, E>(
                 actor,
                 dispatch.into_incoming(gas_limit),
@@ -318,7 +324,7 @@ where
                 },
                 EXISTENTIAL_DEPOSIT,
                 Default::default(),
-                dispatch.destination(),
+                program_id,
             );
             counter += 1;
 

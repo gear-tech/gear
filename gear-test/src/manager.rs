@@ -21,7 +21,7 @@ use core_processor::common::*;
 use gear_core::{
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message, StoredDispatch},
+    message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
     program::Program,
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -31,7 +31,7 @@ pub struct InMemoryExtManager {
     codes: BTreeMap<CodeId, Vec<u8>>,
     marked_destinations: BTreeSet<ProgramId>,
     dispatch_queue: VecDeque<StoredDispatch>,
-    log: Vec<Message>,
+    log: Vec<StoredMessage>,
     actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
     waiting_init: BTreeMap<ProgramId, Vec<MessageId>>,
     gas_limits: BTreeMap<MessageId, u64>,
@@ -80,10 +80,8 @@ impl CollectState for InMemoryExtManager {
         let dispatch_queue = dispatch_queue
             .into_iter()
             .map(|msg| {
-                (
-                    msg,
-                    *self.gas_limits.get(&msg.id()).expect("Shouldn't fail"),
-                )
+                let id = msg.id();
+                (msg, *self.gas_limits.get(&id).expect("Shouldn't fail"))
             })
             .collect();
 
@@ -138,7 +136,7 @@ impl JournalHandler for InMemoryExtManager {
             self.dispatch_queue.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
         let destination = dispatch.destination();
         if self.actors.contains_key(&destination) || self.marked_destinations.contains(&destination)
         {
@@ -164,7 +162,7 @@ impl JournalHandler for InMemoryExtManager {
                 self.dispatch_queue.push_back(dispatch.into_stored());
             }
         } else {
-            self.log.push(dispatch.message().clone());
+            self.log.push(dispatch.message().clone().into_stored());
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {

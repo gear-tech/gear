@@ -31,7 +31,7 @@ use gear_backend_common::Environment;
 use gear_core::{
     identifiers::{MessageId, ProgramId},
     memory::PAGE_SIZE,
-    message::Message,
+    message::*,
     program::Program,
 };
 use log::{Log, Metadata, Record, SetLoggerError};
@@ -199,8 +199,9 @@ fn match_or_else<T: PartialEq + Copy>(expectation: Option<T>, value: T, f: impl 
 
 pub fn check_messages(
     progs_n_paths: &[(&str, ProgramId)],
-    messages: &[Message],
+    messages: &[(StoredMessage, GasLimit)],
     expected_messages: &[sample::Message],
+    skip_gas: bool,
 ) -> Result<(), Vec<MessagesError>> {
     let mut errors = Vec::new();
     if expected_messages.len() != messages.len() {
@@ -210,12 +211,14 @@ pub fn check_messages(
         ))
     } else {
         let mut expected_messages: Vec<sample::Message> = expected_messages.into();
-        let mut messages: Vec<Message> = messages.into();
+        let mut messages: Vec<(StoredMessage, GasLimit)> = messages.into();
         expected_messages
             .iter_mut()
-            .zip(messages.iter_mut())
             .enumerate()
-            .for_each(|(position, (exp, msg))| {
+            .for_each(|(position, exp)| {
+                let (msg, gas_limit) = messages
+                    .get_mut(position)
+                    .expect("Can't fail. Lengths checked above");
                 let source_n_dest = [msg.source(), msg.destination()];
                 let is_init = exp.init.unwrap_or(false);
 
@@ -254,16 +257,24 @@ pub fn check_messages(
                                         .into_json(),
                                 );
 
-                                msg.payload = MetaData::CodecBytes(msg.payload.clone().into_raw())
+                                let new_payload = MetaData::CodecBytes((*msg.payload()).to_vec())
                                     .convert(&path, &meta_type)
                                     .expect("Unable to get bytes")
-                                    .into_bytes()
-                                    .into();
+                                    .into_bytes();
+
+                                *msg = StoredMessage::new(
+                                    msg.id(),
+                                    msg.source(),
+                                    msg.destination(),
+                                    new_payload,
+                                    msg.value(),
+                                    msg.reply(),
+                                );
                             };
 
-                            !payload.equals(msg.payload.as_ref())
+                            !payload.equals(msg.payload())
                         }
-                        _ => !payload.equals(msg.payload.as_ref()),
+                        _ => !payload.equals(msg.payload()),
                     })
                     .unwrap_or(false)
                 {
@@ -274,31 +285,31 @@ pub fn check_messages(
                             .expect("Checked above.")
                             .clone()
                             .into_raw(),
-                        msg.payload.clone().into_raw(),
+                        (*msg.payload()).to_vec(),
                     ))
                 }
 
                 match_or_else(
                     Some(exp.destination.to_program_id()),
-                    msg.dest,
+                    msg.destination(),
                     |expected, actual| {
                         errors.push(MessagesError::destination(position, expected, actual))
                     },
                 );
 
-                if let Some(msg_gas_limit) = msg.gas_limit {
-                    match_or_else(exp.gas_limit, msg_gas_limit, |expected, actual| {
+                if !skip_gas && exp.gas_limit.is_some() {
+                    match_or_else(exp.gas_limit, *gas_limit, |expected, actual| {
                         errors.push(MessagesError::gas_limit(position, expected, actual))
                     });
                 }
 
-                match_or_else(exp.value, msg.value, |expected, actual| {
+                match_or_else(exp.value, msg.value(), |expected, actual| {
                     errors.push(MessagesError::value(position, expected, actual))
                 });
 
                 match_or_else(
                     exp.exit_code,
-                    msg.reply.map(|(_, exit_code)| exit_code).unwrap_or(0),
+                    msg.exit_code().unwrap_or(0),
                     |expected, actual| {
                         errors.push(MessagesError::exit_code(position, expected, actual))
                     },
@@ -497,9 +508,11 @@ where
                         let msgs: Vec<_> = final_state
                             .dispatch_queue
                             .into_iter()
-                            .map(|d| d.message)
+                            .map(|(d, gas_limit)| (d.message().clone(), gas_limit))
                             .collect();
-                        if let Err(msg_errors) = check_messages(progs_n_paths, &msgs, messages) {
+                        if let Err(msg_errors) =
+                            check_messages(progs_n_paths, &msgs, messages, false)
+                        {
                             errors.push(format!("step: {:?}", exp.step));
                             errors.extend(
                                 msg_errors
@@ -516,7 +529,13 @@ where
                         }
                     }
 
-                    if let Err(log_errors) = check_messages(progs_n_paths, &final_state.log, log) {
+                    let logs = final_state
+                        .log
+                        .into_iter()
+                        .map(|v| (v, 0u64))
+                        .collect::<Vec<(StoredMessage, GasLimit)>>();
+
+                    if let Err(log_errors) = check_messages(progs_n_paths, &logs, log, true) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
                             log_errors
