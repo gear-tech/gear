@@ -556,10 +556,19 @@ where
                 if let Some(programs) = &exp.programs {
                     let expected_prog_ids = programs
                         .iter()
-                        .map(|program| (program.address.to_program_id(), program.terminated.unwrap_or_default()))
+                        .map(|program| {
+                            (
+                                program.address.to_program_id(),
+                                program.terminated.unwrap_or_default(),
+                            )
+                        })
                         .collect();
-                    // Final state returns only active programs
-                    let actual_prog_ids = final_state.actors.iter().map(|(id, actor)| (*id, actor.is_none())).collect();
+
+                    let actual_prog_ids = final_state
+                        .actors
+                        .iter()
+                        .map(|(id, actor)| (*id, actor.is_none()))
+                        .collect();
                     if let Err(prog_id_errors) =
                         check_active_programs(expected_prog_ids, &actual_prog_ids, false)
                     {
@@ -577,7 +586,7 @@ where
                             .actors
                             .clone()
                             .into_iter()
-                            .filter_map(|(_ , v)| v)
+                            .filter_map(|(_, v)| v)
                             .map(|v| v.program)
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {

@@ -303,10 +303,8 @@ impl Debug for State {
                     .actors
                     .iter()
                     .filter_map(|(id, actor)| {
-                        actor.
-                            clone()
-                            .map(|ExecutableActor { program, balance }| {
-(
+                        actor.clone().map(|ExecutableActor { program, balance }| {
+                            (
                                 *id,
                                 (
                                     balance,
@@ -316,8 +314,8 @@ impl Debug for State {
                                         .cloned()
                                         .collect::<BTreeSet<PageNumber>>(),
                                 ),
-                            )}
-                        )
+                            )
+                        })
                     })
                     .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
             )

@@ -76,7 +76,6 @@ pub struct Code {
     pub path: String,
 }
 
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ChainProgram {
     #[serde(flatten)]
