@@ -221,7 +221,7 @@ test-js: init-js
 # You can specify yaml list to run using yamls="path/to/yaml1 path/to/yaml2 ..." argument
 .PHONY: gtest
 gtest: init-js examples
-	@ ./scripts/gear.sh test gtest yamls="$(yamls)"
+	@ ./scripts/gear.sh test gtest yamls="$(yamls)" --verbose
 
 .PHONY: rtest
 rtest: init-js examples
