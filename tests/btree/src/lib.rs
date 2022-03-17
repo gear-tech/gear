@@ -93,52 +93,52 @@ mod wasm {
     }
 }
 
-#[cfg(test)]
-#[cfg(feature = "std")]
-mod tests {
-    use super::{Reply, Request};
-    use common::{InitProgram, RunnerContext};
+// #[cfg(test)]
+// #[cfg(feature = "std")]
+// mod tests {
+//     use super::{Reply, Request};
+//     use common::{InitProgram, RunnerContext};
 
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+//     fn wasm_code() -> &'static [u8] {
+//         super::code::WASM_BINARY_OPT
+//     }
 
-    #[test]
-    fn program_can_be_initialized() {
-        let mut runner = RunnerContext::default();
+//     #[test]
+//     fn program_can_be_initialized() {
+//         let mut runner = RunnerContext::default();
 
-        // Assertions are performed when decoding reply
-        let _reply: () =
-            runner.init_program_with_reply(InitProgram::from(wasm_code()).message(b"init"));
-    }
+//         // Assertions are performed when decoding reply
+//         let _reply: () =
+//             runner.init_program_with_reply(InitProgram::from(wasm_code()).message(b"init"));
+//     }
 
-    #[test]
-    fn simple() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+//     #[test]
+//     fn simple() {
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(wasm_code());
 
-        let reply: Vec<Reply> = runner.request_batch(&[
-            Request::Insert(0, 1),
-            Request::Insert(0, 2),
-            Request::Insert(1, 3),
-            Request::Insert(2, 5),
-            Request::Remove(1),
-            Request::List,
-            Request::Clear,
-            Request::List,
-        ]);
-        assert_eq!(
-            reply,
-            &[
-                Reply::Value(None),
-                Reply::Value(Some(1)),
-                Reply::Value(None),
-                Reply::Value(None),
-                Reply::Value(Some(3)),
-                Reply::List(vec![(0, 2), (2, 5)]),
-                Reply::None,
-                Reply::List(vec![]),
-            ],
-        );
-    }
-}
+//         let reply: Vec<Reply> = runner.request_batch(&[
+//             Request::Insert(0, 1),
+//             Request::Insert(0, 2),
+//             Request::Insert(1, 3),
+//             Request::Insert(2, 5),
+//             Request::Remove(1),
+//             Request::List,
+//             Request::Clear,
+//             Request::List,
+//         ]);
+//         assert_eq!(
+//             reply,
+//             &[
+//                 Reply::Value(None),
+//                 Reply::Value(Some(1)),
+//                 Reply::Value(None),
+//                 Reply::Value(None),
+//                 Reply::Value(Some(3)),
+//                 Reply::List(vec![(0, 2), (2, 5)]),
+//                 Reply::None,
+//                 Reply::List(vec![]),
+//             ],
+//         );
+//     }
+// }

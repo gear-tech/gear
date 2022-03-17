@@ -53,171 +53,171 @@ mod wasm {
     pub unsafe extern "C" fn handle_reply() {}
 }
 
-#[cfg(test)]
-#[cfg(feature = "std")]
-mod tests {
-    use super::Request;
-    use common::*;
-    use gear_core::identifiers::MessageId;
-    use std::convert::TryInto;
+// #[cfg(test)]
+// #[cfg(feature = "std")]
+// mod tests {
+//     use super::Request;
+//     use common::*;
+//     use gear_core::identifiers::MessageId;
+//     use std::convert::TryInto;
 
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+//     fn wasm_code() -> &'static [u8] {
+//         super::code::WASM_BINARY_OPT
+//     }
 
-    #[test]
-    fn program_can_be_initialized() {
-        let mut runner = RunnerContext::default();
+//     #[test]
+//     fn program_can_be_initialized() {
+//         let mut runner = RunnerContext::default();
 
-        // Assertions are performed when decoding reply
-        let _reply: () = runner.init_program_with_reply(InitProgram::from(wasm_code()));
-    }
+//         // Assertions are performed when decoding reply
+//         let _reply: () = runner.init_program_with_reply(InitProgram::from(wasm_code()));
+//     }
 
-    #[test]
-    fn wake_self() {
-        let prog_id_1 = 1;
+//     #[test]
+//     fn wake_self() {
+//         let prog_id_1 = 1;
 
-        let mut runner = RunnerContext::default();
-        runner.init_program(InitProgram::from(wasm_code()).id(prog_id_1));
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(InitProgram::from(wasm_code()).id(prog_id_1));
 
-        let msg_id_1 = MessageId::from(10);
-        let msg_id_2 = MessageId::from(20);
+//         let msg_id_1 = MessageId::from(10);
+//         let msg_id_2 = MessageId::from(20);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(100))
-                .id(msg_id_1)
-                .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::EchoWait(100))
+//                 .id(msg_id_1)
+//                 .destination(prog_id_1),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(200))
-                .id(msg_id_2)
-                .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::EchoWait(200))
+//                 .id(msg_id_2)
+//                 .destination(prog_id_1),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_1
-                    .as_ref()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::Wake(
+//                 msg_id_1
+//                     .as_ref()
+//                     .try_into()
+//                     .expect("MessageId inner array size is 32"),
+//             ))
+//             .destination(prog_id_1),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_2
-                    .as_ref()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::Wake(
+//                 msg_id_2
+//                     .as_ref()
+//                     .try_into()
+//                     .expect("MessageId inner array size is 32"),
+//             ))
+//             .destination(prog_id_1),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply: u32 = runner
-            .get_response_to(msg_id_1)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 100);
+//         let reply: u32 = runner
+//             .get_response_to(msg_id_1)
+//             .expect("No response to original message")
+//             .expect("Unable to parse response to original message");
+//         assert_eq!(reply, 100);
 
-        let reply: u32 = runner
-            .get_response_to(msg_id_2)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 200);
-    }
+//         let reply: u32 = runner
+//             .get_response_to(msg_id_2)
+//             .expect("No response to original message")
+//             .expect("Unable to parse response to original message");
+//         assert_eq!(reply, 200);
+//     }
 
-    #[test]
-    fn wake_other() {
-        let prog_id_1 = 1;
-        let prog_id_2 = 2;
+//     #[test]
+//     fn wake_other() {
+//         let prog_id_1 = 1;
+//         let prog_id_2 = 2;
 
-        let mut runner = RunnerContext::default();
-        runner.init_program(InitProgram::from(wasm_code()).id(prog_id_1));
-        runner.init_program(InitProgram::from(wasm_code()).id(prog_id_2));
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(InitProgram::from(wasm_code()).id(prog_id_1));
+//         runner.init_program(InitProgram::from(wasm_code()).id(prog_id_2));
 
-        let msg_id_1 = MessageId::from(10);
-        let msg_id_2 = MessageId::from(20);
+//         let msg_id_1 = MessageId::from(10);
+//         let msg_id_2 = MessageId::from(20);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(100))
-                .id(msg_id_1)
-                .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::EchoWait(100))
+//                 .id(msg_id_1)
+//                 .destination(prog_id_1),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(200))
-                .id(msg_id_2)
-                .destination(prog_id_2),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::EchoWait(200))
+//                 .id(msg_id_2)
+//                 .destination(prog_id_2),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_1
-                    .as_ref()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_2),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::Wake(
+//                 msg_id_1
+//                     .as_ref()
+//                     .try_into()
+//                     .expect("MessageId inner array size is 32"),
+//             ))
+//             .destination(prog_id_2),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_2
-                    .as_ref()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::Wake(
+//                 msg_id_2
+//                     .as_ref()
+//                     .try_into()
+//                     .expect("MessageId inner array size is 32"),
+//             ))
+//             .destination(prog_id_1),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner.get_response_to::<_, u32>(msg_id_1);
-        assert_eq!(reply, None);
+//         let reply = runner.get_response_to::<_, u32>(msg_id_1);
+//         assert_eq!(reply, None);
 
-        let reply = runner.get_response_to::<_, u32>(msg_id_2);
-        assert_eq!(reply, None);
+//         let reply = runner.get_response_to::<_, u32>(msg_id_2);
+//         assert_eq!(reply, None);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_2
-                    .as_ref()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_2),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::Wake(
+//                 msg_id_2
+//                     .as_ref()
+//                     .try_into()
+//                     .expect("MessageId inner array size is 32"),
+//             ))
+//             .destination(prog_id_2),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner
-            .get_response_to::<_, u32>(msg_id_2)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 200);
+//         let reply = runner
+//             .get_response_to::<_, u32>(msg_id_2)
+//             .expect("No response to original message")
+//             .expect("Unable to parse response to original message");
+//         assert_eq!(reply, 200);
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_1
-                    .as_ref()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
+//         let reply = runner.try_request::<_, ()>(
+//             MessageBuilder::from(Request::Wake(
+//                 msg_id_1
+//                     .as_ref()
+//                     .try_into()
+//                     .expect("MessageId inner array size is 32"),
+//             ))
+//             .destination(prog_id_1),
+//         );
+//         assert_eq!(reply, None);
 
-        let reply = runner
-            .get_response_to::<_, u32>(msg_id_1)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 100);
-    }
-}
+//         let reply = runner
+//             .get_response_to::<_, u32>(msg_id_1)
+//             .expect("No response to original message")
+//             .expect("Unable to parse response to original message");
+//         assert_eq!(reply, 100);
+//     }
+// }

@@ -97,104 +97,104 @@ mod wasm {
     }
 }
 
-#[cfg(test)]
-#[cfg(feature = "std")]
-mod tests {
-    use super::Request;
-    use common::{RunResult, RunnerContext};
+// #[cfg(test)]
+// #[cfg(feature = "std")]
+// mod tests {
+//     use super::Request;
+//     use common::{RunResult, RunnerContext};
 
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+//     fn wasm_code() -> &'static [u8] {
+//         super::code::WASM_BINARY_OPT
+//     }
 
-    #[test]
-    fn program_can_be_initialized() {
-        let mut runner = RunnerContext::default();
+//     #[test]
+//     fn program_can_be_initialized() {
+//         let mut runner = RunnerContext::default();
 
-        // Assertions are performed when decoding reply
-        let _reply: () = runner.init_program_with_reply(wasm_code());
-    }
+//         // Assertions are performed when decoding reply
+//         let _reply: () = runner.init_program_with_reply(wasm_code());
+//     }
 
-    #[test]
-    fn send_message_limit() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+//     #[test]
+//     fn send_message_limit() {
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(wasm_code());
 
-        let report = runner.request_report::<_, ()>(Request::SendInf);
-        assert_eq!(
-            report.result,
-            RunResult::Trap(String::from("Message init error"))
-        );
-    }
+//         let report = runner.request_report::<_, ()>(Request::SendInf);
+//         assert_eq!(
+//             report.result,
+//             RunResult::Trap(String::from("Message init error"))
+//         );
+//     }
 
-    #[test]
-    fn send_push_after_commit() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+//     #[test]
+//     fn send_push_after_commit() {
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(wasm_code());
 
-        let report = runner.request_report::<_, ()>(Request::SendPushAfterCommit);
-        assert_eq!(
-            report.result,
-            RunResult::Trap(String::from("Payload push error"))
-        );
-    }
+//         let report = runner.request_report::<_, ()>(Request::SendPushAfterCommit);
+//         assert_eq!(
+//             report.result,
+//             RunResult::Trap(String::from("Payload push error"))
+//         );
+//     }
 
-    #[test]
-    fn reply_normal() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+//     #[test]
+//     fn reply_normal() {
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(wasm_code());
 
-        let report = runner.request_report::<_, String>(Request::ReplyOnce);
-        assert_eq!(report.result, RunResult::Normal);
-        assert_eq!(report.response, Some(Ok(String::from("ReplyOnce"))));
-    }
+//         let report = runner.request_report::<_, String>(Request::ReplyOnce);
+//         assert_eq!(report.result, RunResult::Normal);
+//         assert_eq!(report.response, Some(Ok(String::from("ReplyOnce"))));
+//     }
 
-    #[test]
-    fn reply_twice() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+//     #[test]
+//     fn reply_twice() {
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(wasm_code());
 
-        let report = runner.request_report::<_, String>(Request::ReplyTwice);
-        assert_eq!(
-            report.result,
-            RunResult::Trap(String::from("Reply commit error"))
-        );
-    }
+//         let report = runner.request_report::<_, String>(Request::ReplyTwice);
+//         assert_eq!(
+//             report.result,
+//             RunResult::Trap(String::from("Reply commit error"))
+//         );
+//     }
 
-    #[test]
-    fn reply_push_after_reply() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+//     #[test]
+//     fn reply_push_after_reply() {
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(wasm_code());
 
-        let report = runner.request_report::<_, String>(Request::ReplyPushAfterReply);
-        assert_eq!(
-            report.result,
-            RunResult::Trap(String::from("Reply payload push error"))
-        );
-    }
+//         let report = runner.request_report::<_, String>(Request::ReplyPushAfterReply);
+//         assert_eq!(
+//             report.result,
+//             RunResult::Trap(String::from("Reply payload push error"))
+//         );
+//     }
 
-    /// Check that wasm export '__gear_stack_end' is used correct by core processor.
-    /// In this test we check that only last page == 16 is updated after execution,
-    /// all other pages are stack pages, so must be skipped.
-    #[test]
-    fn check_gear_stack_end() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
-        let mut runner = RunnerContext::default();
-        let (_, prog_id) = runner.init_program(wasm_code());
-        let actors = runner.get_actors_ref();
-        let actor = actors
-            .get(&prog_id)
-            .expect("Must be in actors")
-            .as_ref()
-            .expect("Must be some");
-        let pages = actor.program.get_pages();
+//     /// Check that wasm export '__gear_stack_end' is used correct by core processor.
+//     /// In this test we check that only last page == 16 is updated after execution,
+//     /// all other pages are stack pages, so must be skipped.
+//     #[test]
+//     fn check_gear_stack_end() {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//         let mut runner = RunnerContext::default();
+//         let (_, prog_id) = runner.init_program(wasm_code());
+//         let actors = runner.get_actors_ref();
+//         let actor = actors
+//             .get(&prog_id)
+//             .expect("Must be in actors")
+//             .as_ref()
+//             .expect("Must be some");
+//         let pages = actor.program.get_pages();
 
-        assert_eq!(
-            pages.len(),
-            1,
-            "Must have only one page - with static data. Stack pages aren't updated"
-        );
-        let num = pages.iter().next().expect("Must have one page").0.raw();
-        assert_eq!(num, 16, "Currently we have 16 pages as stack");
-    }
-}
+//         assert_eq!(
+//             pages.len(),
+//             1,
+//             "Must have only one page - with static data. Stack pages aren't updated"
+//         );
+//         let num = pages.iter().next().expect("Must have one page").0.raw();
+//         assert_eq!(num, 16, "Currently we have 16 pages as stack");
+//     }
+// }

@@ -288,96 +288,96 @@ mod wasm {
     }
 }
 
-#[cfg(test)]
-#[cfg(feature = "std")]
-mod tests {
-    use super::{Initialization, Operation, Reply, Request};
-    use common::*;
+// #[cfg(test)]
+// #[cfg(feature = "std")]
+// mod tests {
+//     use super::{Initialization, Operation, Reply, Request};
+//     use common::*;
 
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+//     fn wasm_code() -> &'static [u8] {
+//         super::code::WASM_BINARY_OPT
+//     }
 
-    #[test]
-    fn test_message_send_to_failed_program() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(InitProgram::from(wasm_code()).message(true));
-        runner.try_request::<_, ()>(Request::IsReady);
+//     #[test]
+//     fn test_message_send_to_failed_program() {
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(InitProgram::from(wasm_code()).message(true));
+//         runner.try_request::<_, ()>(Request::IsReady);
 
-        let err_log = runner.log().last().cloned().expect("no err replies");
-        assert!(matches!(err_log.reply, Some((_, 2))));
-    }
+//         let err_log = runner.log().last().cloned().expect("no err replies");
+//         assert!(matches!(err_log.reply, Some((_, 2))));
+//     }
 
-    #[test]
-    fn program_can_be_initialized() {
-        let mut runner = RunnerContext::default();
+//     #[test]
+//     fn program_can_be_initialized() {
+//         let mut runner = RunnerContext::default();
 
-        // Assertions are performed when decoding reply
-        let _reply: () = runner.init_program_with_reply(
-            InitProgram::from(wasm_code()).message(Initialization { status: 5 }),
-        );
-    }
+//         // Assertions are performed when decoding reply
+//         let _reply: () = runner.init_program_with_reply(
+//             InitProgram::from(wasm_code()).message(Initialization { status: 5 }),
+//         );
+//     }
 
-    #[test]
-    fn one_node_can_change_status() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//     #[test]
+//     fn one_node_can_change_status() {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let mut runner = RunnerContext::default();
+//         let mut runner = RunnerContext::default();
 
-        runner.init_program(InitProgram::from(wasm_code()).message(Initialization { status: 5 }));
+//         runner.init_program(InitProgram::from(wasm_code()).message(Initialization { status: 5 }));
 
-        let reply: Reply = runner.request(Request::IsReady);
-        assert_eq!(reply, Reply::Yes);
+//         let reply: Reply = runner.request(Request::IsReady);
+//         assert_eq!(reply, Reply::Yes);
 
-        let reply: Reply = runner.request(Request::Begin(Operation { to_status: 7 }));
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply = runner.request(Request::Begin(Operation { to_status: 7 }));
+//         assert_eq!(reply, Reply::Success);
 
-        let reply: Reply = runner.request(Request::Commit);
-        assert_eq!(reply, Reply::Success);
-    }
+//         let reply: Reply = runner.request(Request::Commit);
+//         assert_eq!(reply, Reply::Success);
+//     }
 
-    #[test]
-    fn multiple_nodes_can_prepare_to_change_status() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//     #[test]
+//     fn multiple_nodes_can_prepare_to_change_status() {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let mut runner = RunnerContext::default();
+//         let mut runner = RunnerContext::default();
 
-        let program_id_1 = 1;
-        let program_id_2 = 2;
-        let program_id_3 = 3;
+//         let program_id_1 = 1;
+//         let program_id_2 = 2;
+//         let program_id_3 = 3;
 
-        runner.init_program(
-            InitProgram::from(wasm_code())
-                .message(Initialization { status: 5 })
-                .id(program_id_1),
-        );
-        runner.init_program(
-            InitProgram::from(wasm_code())
-                .message(Initialization { status: 5 })
-                .id(program_id_2),
-        );
-        runner.init_program(
-            InitProgram::from(wasm_code())
-                .message(Initialization { status: 9 })
-                .id(program_id_3),
-        );
+//         runner.init_program(
+//             InitProgram::from(wasm_code())
+//                 .message(Initialization { status: 5 })
+//                 .id(program_id_1),
+//         );
+//         runner.init_program(
+//             InitProgram::from(wasm_code())
+//                 .message(Initialization { status: 5 })
+//                 .id(program_id_2),
+//         );
+//         runner.init_program(
+//             InitProgram::from(wasm_code())
+//                 .message(Initialization { status: 9 })
+//                 .id(program_id_3),
+//         );
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Add(2)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Add(2)).destination(program_id_1));
+//         assert_eq!(reply, Reply::Success);
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Add(3)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Add(3)).destination(program_id_1));
+//         assert_eq!(reply, Reply::Success);
 
-        let reply: Reply = runner.request(
-            MessageBuilder::from(Request::Begin(Operation { to_status: 7 }))
-                .destination(program_id_1),
-        );
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply = runner.request(
+//             MessageBuilder::from(Request::Begin(Operation { to_status: 7 }))
+//                 .destination(program_id_1),
+//         );
+//         assert_eq!(reply, Reply::Success);
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Commit).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
-    }
-}
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Commit).destination(program_id_1));
+//         assert_eq!(reply, Reply::Success);
+//     }
+// }

@@ -221,105 +221,105 @@ mod wasm {
     }
 }
 
-#[cfg(test)]
-#[cfg(feature = "std")]
-mod tests {
-    use super::{Reply, Request};
-    use common::*;
+// #[cfg(test)]
+// #[cfg(feature = "std")]
+// mod tests {
+//     use super::{Reply, Request};
+//     use common::*;
 
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+//     fn wasm_code() -> &'static [u8] {
+//         super::code::WASM_BINARY_OPT
+//     }
 
-    #[test]
-    fn program_can_be_initialized() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//     #[test]
+//     fn program_can_be_initialized() {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let mut runner = RunnerContext::default();
+//         let mut runner = RunnerContext::default();
 
-        // Assertions are performed when decoding reply
-        let _reply: () = runner.init_program_with_reply(wasm_code());
-    }
+//         // Assertions are performed when decoding reply
+//         let _reply: () = runner.init_program_with_reply(wasm_code());
+//     }
 
-    #[test]
-    fn single_program() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//     #[test]
+//     fn single_program() {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+//         let mut runner = RunnerContext::default();
+//         runner.init_program(wasm_code());
 
-        let reply: Reply = runner.request(Request::Receive(10));
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply = runner.request(Request::Receive(10));
+//         assert_eq!(reply, Reply::Success);
 
-        let reply: Reply = runner.request(Request::Report);
-        assert_eq!(reply, Reply::Amount(10));
-    }
+//         let reply: Reply = runner.request(Request::Report);
+//         assert_eq!(reply, Reply::Amount(10));
+//     }
 
-    fn multi_program_setup(
-        program_id_1: u64,
-        program_id_2: u64,
-        program_id_3: u64,
-    ) -> RunnerContext {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//     fn multi_program_setup(
+//         program_id_1: u64,
+//         program_id_2: u64,
+//         program_id_3: u64,
+//     ) -> RunnerContext {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let mut runner = RunnerContext::default();
+//         let mut runner = RunnerContext::default();
 
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_1));
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_2));
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_3));
+//         runner.init_program(InitProgram::from(wasm_code()).id(program_id_1));
+//         runner.init_program(InitProgram::from(wasm_code()).id(program_id_2));
+//         runner.init_program(InitProgram::from(wasm_code()).id(program_id_3));
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Join(2)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Join(2)).destination(program_id_1));
+//         assert_eq!(reply, Reply::Success);
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Join(3)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Join(3)).destination(program_id_1));
+//         assert_eq!(reply, Reply::Success);
 
-        runner
-    }
+//         runner
+//     }
 
-    #[test]
-    fn composite_program() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//     #[test]
+//     fn composite_program() {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let program_id_1 = 1;
-        let program_id_2 = 2;
-        let program_id_3 = 3;
+//         let program_id_1 = 1;
+//         let program_id_2 = 2;
+//         let program_id_3 = 3;
 
-        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
+//         let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Receive(11)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Receive(11)).destination(program_id_1));
+//         assert_eq!(reply, Reply::Success);
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Report).destination(program_id_2));
-        assert_eq!(reply, Reply::Amount(5));
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Report).destination(program_id_2));
+//         assert_eq!(reply, Reply::Amount(5));
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Report).destination(program_id_1));
-        assert_eq!(reply, Reply::Amount(11));
-    }
+//         let reply: Reply =
+//             runner.request(MessageBuilder::from(Request::Report).destination(program_id_1));
+//         assert_eq!(reply, Reply::Amount(11));
+//     }
 
-    // This test show how RefCell will prevent to do conflicting changes (prevent multi-aliasing of the program state)
-    #[test]
-    fn conflicting_nodes() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+//     // This test show how RefCell will prevent to do conflicting changes (prevent multi-aliasing of the program state)
+//     #[test]
+//     fn conflicting_nodes() {
+//         let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
 
-        let program_id_1 = 1;
-        let program_id_2 = 2;
-        let program_id_3 = 3;
-        let program_id_4 = 4;
+//         let program_id_1 = 1;
+//         let program_id_2 = 2;
+//         let program_id_3 = 3;
+//         let program_id_4 = 4;
 
-        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_4));
+//         let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
+//         runner.init_program(InitProgram::from(wasm_code()).id(program_id_4));
 
-        let results: Vec<Reply> = runner.request_batch(vec![
-            MessageBuilder::from(Request::Receive(11)).destination(program_id_1),
-            MessageBuilder::from(Request::Join(4)).destination(program_id_1),
-        ]);
+//         let results: Vec<Reply> = runner.request_batch(vec![
+//             MessageBuilder::from(Request::Receive(11)).destination(program_id_1),
+//             MessageBuilder::from(Request::Join(4)).destination(program_id_1),
+//         ]);
 
-        assert_eq!(results, vec![Reply::Success, Reply::Success])
-    }
-}
+//         assert_eq!(results, vec![Reply::Success, Reply::Success])
+//     }
+// }
