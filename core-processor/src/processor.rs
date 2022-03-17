@@ -35,38 +35,16 @@ use gear_core::{
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    actor: Option<ExecutableActor>,
+    maybe_actor: Option<ExecutableActor>,
     dispatch: Dispatch,
     block_info: BlockInfo,
     existential_deposit: u128,
     origin: ProgramId,
 ) -> Vec<JournalNote> {
-    if let Err(exit_code) = check_is_executable(actor.as_ref(), &dispatch) {
-        process_non_executable(dispatch, exit_code)
-    } else {
-        let actor = actor.expect("message is not executed if actor is none");
-        let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
-        let execution_context = ExecutionContext { origin };
-        let initial_nonce = actor.program.message_nonce();
-
-        match executor::execute_wasm::<A, E>(
-            actor,
-            dispatch.clone(),
-            execution_context,
-            execution_settings,
-        ) {
-            Ok(res) => match res.kind {
-                DispatchResultKind::Trap(reason) => {
-                    process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
-                }
-                _ => process_success(res),
-            },
-            Err(e) => process_error(
-                dispatch,
-                initial_nonce,
-                e.gas_amount.burned(),
-                Some(e.reason),
-            ),
+    match check_is_executable(maybe_actor, &dispatch) {
+        Err(exit_code) => process_non_executable(dispatch, exit_code),
+        Ok(actor) => {
+            process_executable::<A, E>(actor, dispatch, block_info, existential_deposit, origin)
         }
     }
 }
@@ -127,14 +105,15 @@ pub fn process_many<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 }
 
 fn check_is_executable(
-    actor: Option<&ExecutableActor>,
+    maybe_actor: Option<ExecutableActor>,
     dispatch: &Dispatch,
-) -> Result<(), ExitCode> {
-    match actor.map(|a| a.program.is_initialized()) {
-        Some(true) if matches!(dispatch.kind, DispatchKind::Init) => Err(crate::RE_INIT_EXIT_CODE),
-        None => Err(crate::UNAVAILABLE_DEST_EXIT_CODE),
-        _ => Ok(()),
-    }
+) -> Result<ExecutableActor, ExitCode> {
+    maybe_actor.map(|a| if a.program.is_initialized() & matches!(dispatch.kind, DispatchKind::Init) {
+            Err(crate::RE_INIT_EXIT_CODE)
+        } else {
+            Ok(a)
+        })
+        .unwrap_or(Err(crate::UNAVAILABLE_DEST_EXIT_CODE))
 }
 
 /// Helper function for journal creation in trap/error case
@@ -286,6 +265,38 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
     };
 
     journal
+}
+
+pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+    actor: ExecutableActor,
+    dispatch: Dispatch,
+    block_info: BlockInfo,
+    existential_deposit: u128,
+    origin: ProgramId,
+) -> Vec<JournalNote> {
+    let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
+    let execution_context = ExecutionContext { origin };
+    let initial_nonce = actor.program.message_nonce();
+
+    match executor::execute_wasm::<A, E>(
+        actor,
+        dispatch.clone(),
+        execution_context,
+        execution_settings,
+    ) {
+        Ok(res) => match res.kind {
+            DispatchResultKind::Trap(reason) => {
+                process_error(res.dispatch, initial_nonce, res.gas_amount.burned(), reason)
+            }
+            _ => process_success(res),
+        },
+        Err(e) => process_error(
+            dispatch,
+            initial_nonce,
+            e.gas_amount.burned(),
+            Some(e.reason),
+        ),
+    }
 }
 
 /// Helper function for journal creation in message no execution case
