@@ -28,12 +28,12 @@ use colored::{ColoredString, Colorize};
 use gear_runtime::{Origin, Runtime};
 
 use gear_core::{
-    identifiers::{CodeId, ProgramId},
-    message::Message as CoreMessage,
+    identifiers::{CodeId, MessageId, ProgramId},
+    message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
 
-use gear_common::{DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
+use gear_common::{DAGBasedLedger, Origin as _};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -99,7 +99,7 @@ impl CliConfiguration for GearRuntimeTestCmd {
 fn init_fixture(
     test: &'_ sample::Test,
     snapshots: &mut Vec<DebugData>,
-    mailbox: &mut Vec<QueuedMessage>,
+    mailbox: &mut Vec<StoredMessage>,
 ) -> anyhow::Result<()> {
     if let Some(codes) = &test.codes {
         for code in codes {
@@ -205,7 +205,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     // Enable remapping of the source and destination of messages
     pallet_gear_debug::ProgramsMap::<Runtime>::put(programs_map);
     pallet_gear_debug::RemapId::<Runtime>::put(true);
-    let mut mailbox: Vec<QueuedMessage> = vec![];
+    let mut mailbox: Vec<StoredMessage> = vec![];
 
     match init_fixture(test, &mut snapshots, &mut mailbox) {
         Ok(()) => {
@@ -262,15 +262,19 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     let _ =
                         <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
 
-                    let msg = QueuedMessage {
-                        id,
-                        source,
-                        dest,
+                    let msg = StoredMessage::new(
+                        MessageId::from_origin(id),
+                        ProgramId::from_origin(source),
+                        ProgramId::from_origin(dest),
                         payload,
                         value,
-                        reply: None,
-                    };
-                    gear_common::queue_dispatch(QueuedDispatch::new_handle(msg))
+                        None,
+                    );
+                    gear_common::queue_dispatch(StoredDispatch::new(
+                        DispatchKind::Handle,
+                        msg,
+                        None,
+                    ));
                 } else {
                     GearPallet::<Runtime>::send_message(
                         Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
@@ -315,10 +319,20 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     snapshots.last().unwrap().clone()
                 };
 
-                let mut message_queue: Vec<CoreMessage> = snapshot
+                let mut message_queue: Vec<(StoredMessage, GasLimit)> = snapshot
                     .dispatch_queue
                     .iter()
-                    .map(|dispatch| dispatch.message.clone().into_message(0))
+                    .map(|dispatch| {
+                        let id = dispatch.id();
+                        (
+                            dispatch.message().clone(),
+                            <Runtime as pallet_gear::Config>::GasHandler::get_limit(
+                                id.into_origin(),
+                            )
+                            .expect("Should never fail if ValueNode works properly")
+                            .0,
+                        )
+                    })
                     .collect();
 
                 if let Some(mut expected_messages) = exp.messages.clone() {
@@ -326,9 +340,16 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         break;
                     }
 
-                    message_queue.iter_mut().for_each(|msg| {
-                        if let Some(id) = programs.get(&msg.dest) {
-                            msg.dest = ProgramId::from(id.as_bytes());
+                    message_queue.iter_mut().for_each(|(msg, _gas)| {
+                        if let Some(id) = programs.get(&msg.destination()) {
+                            *msg = StoredMessage::new(
+                                msg.id(),
+                                msg.source(),
+                                ProgramId::from(id.as_bytes()),
+                                msg.payload().to_vec(),
+                                msg.value(),
+                                msg.reply(),
+                            );
                         }
                     });
 
@@ -342,6 +363,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         &progs_n_paths,
                         &message_queue,
                         &expected_messages,
+                        false,
                     ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
@@ -393,19 +415,17 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             if !expected_log.is_empty() {
                 log::trace!("mailbox: {:?}", &mailbox);
 
-                let messages: Vec<CoreMessage> = mailbox
-                    .iter_mut()
-                    .map(|msg| msg.clone().into_message(0))
-                    .collect();
+                let messages: Vec<(StoredMessage, GasLimit)> =
+                    mailbox.into_iter().map(|msg| (msg, 0)).collect();
 
-                for message in &messages {
+                for (message, _) in &messages {
                     if let Ok(utf8) = core::str::from_utf8(message.payload()) {
                         log::trace!("log({})", utf8)
                     }
                 }
 
                 if let Err(log_errors) =
-                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log)
+                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log, true)
                 {
                     errors.extend(
                         log_errors
