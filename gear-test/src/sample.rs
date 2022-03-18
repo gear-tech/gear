@@ -108,6 +108,8 @@ pub struct Expectation {
     /// Flag, which points that errors are allowed. Could be used to check traps.
     #[serde(rename = "allowError")]
     pub allow_error: Option<bool>,
+    /// If this flag turned on, we check that only tested programs was executed
+    pub exact: Option<bool>,
     /// Expected active programs (not failed in the init) ids
     pub programs: Option<Programs>,
 }
