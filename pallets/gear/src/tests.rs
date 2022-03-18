@@ -27,10 +27,8 @@ use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_B
 
 use super::{
     mock::{
-        new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram, Origin, System, Test,
-        BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
-        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, Origin,
-        System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
+        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
     pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance,
     GearProgramPallet, Mailbox, MessageInfo, Pallet as GearPallet, Reason,
@@ -2358,6 +2356,7 @@ fn calc_gas_spent() {
             USER_1.into_origin(),
             HandleKind::Init(WASM_BINARY.to_vec()),
             EMPTY_PAYLOAD.to_vec(),
+            0,
         )
         .expect("Gas spent for init calculation error");
 
@@ -2370,6 +2369,7 @@ fn calc_gas_spent() {
             USER_1.into_origin(),
             HandleKind::Handle(program_id),
             request,
+            0,
         )
         .expect("Gas spent for init calculation error");
 
@@ -2379,7 +2379,6 @@ fn calc_gas_spent() {
         );
     });
 }
-
 
 mod utils {
     use codec::Encode;

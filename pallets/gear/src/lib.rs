@@ -337,6 +337,7 @@ pub mod pallet {
             source: H256,
             kind: HandleKind,
             payload: Vec<u8>,
+            value: u128,
         ) -> Result<u64, Vec<u8>> {
             let mut ext_manager = ExtManager::<T>::default();
 
@@ -374,7 +375,7 @@ pub mod pallet {
                 source,
                 dest,
                 payload,
-                value: 0,
+                value,
                 reply,
             };
 
@@ -392,12 +393,13 @@ pub mod pallet {
                 timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
             };
 
-            let existential_deposit = T::Currency::minimum_balance().unique_saturated_into();
+            let existential_deposit =
+                <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
             let mut max_gas_spent = 0;
 
-            while let Some(dispatch) = common::dequeue_dispatch() {
-                let actor_id = dispatch.message.dest;
+            while let Some(queued_dispatch) = common::dequeue_dispatch() {
+                let actor_id = queued_dispatch.message.dest;
                 let actor = ext_manager
                     .get_executable_actor(actor_id)
                     .ok_or_else(|| b"Program not found in the storage".to_vec())?;
@@ -407,7 +409,7 @@ pub mod pallet {
                     SandboxEnvironment<ext::LazyPagesExt>,
                 >(
                     Some(actor),
-                    dispatch.into_dispatch(initial_gas),
+                    queued_dispatch.into_dispatch(initial_gas),
                     block_info,
                     existential_deposit,
                     ProgramId::from_origin(source),
