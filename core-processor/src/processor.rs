@@ -133,7 +133,11 @@ fn process_error(
 /// Helper function for journal creation in success case
 fn process_success(
     kind: SuccessfulDispatchResultKind,
-    DispatchResult {
+    dispatch_result: DispatchResult,
+) -> Vec<JournalNote> {
+    use SuccessfulDispatchResultKind::*;
+
+    let DispatchResult {
         dispatch,
         generated_dispatches,
         awakening,
@@ -142,9 +146,7 @@ fn process_success(
         page_update,
         nonce,
         ..
-    }: DispatchResult,
-) -> Vec<JournalNote> {
-    use SuccessfulDispatchResultKind::*;
+    } = dispatch_result;
 
     let mut journal = Vec::new();
 
