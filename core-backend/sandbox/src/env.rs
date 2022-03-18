@@ -72,7 +72,7 @@ fn set_pages(
 }
 
 impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
-    fn setup(
+    fn new(
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
