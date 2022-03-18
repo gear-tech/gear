@@ -25,7 +25,7 @@ use crate::{
     executor,
     ext::ProcessorExt,
 };
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
@@ -53,61 +53,6 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
             process_executable::<A, E>(actor, dispatch, block_info, existential_deposit, origin)
         }
     }
-}
-
-/// Process multiple dispatches into multiple programs and return journal notes for update.
-pub fn process_many<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
-    mut actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
-    dispatches: Vec<Dispatch>,
-    block_info: BlockInfo,
-    existential_deposit: u128,
-    // Will go away some time soon
-    origins: Vec<ProgramId>,
-) -> Vec<JournalNote> {
-    let mut journal = Vec::new();
-
-    assert_eq!(dispatches.len(), origins.len());
-
-    for (dispatch, origin) in dispatches.into_iter().zip(origins.into_iter()) {
-        let actor = actors
-            .get_mut(&dispatch.message.dest())
-            .expect("Program wasn't found in programs");
-
-        let current_journal = process::<A, E>(
-            actor.clone(),
-            dispatch,
-            block_info,
-            existential_deposit,
-            origin,
-        );
-
-        for note in &current_journal {
-            if let Some(actor) = actor {
-                match note {
-                    JournalNote::UpdateNonce { nonce, .. } => {
-                        actor.program.set_message_nonce(*nonce)
-                    }
-                    JournalNote::UpdatePage {
-                        page_number, data, ..
-                    } => {
-                        if let Some(data) = data {
-                            actor
-                                .program
-                                .set_page(*page_number, data)
-                                .expect("Can't fail");
-                        } else {
-                            actor.program.remove_page(*page_number);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        journal.extend(current_journal);
-    }
-
-    journal
 }
 
 fn check_is_executable(
