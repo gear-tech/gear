@@ -60,7 +60,7 @@ where
     T::AccountId: Origin,
 {
     fn collect(&self) -> State {
-        let actors = PrefixIterator::<H256>::new(
+        let actors: BTreeMap<ProgramId, Option<ExecutableActor>> = PrefixIterator::<H256>::new(
             STORAGE_PROGRAM_PREFIX.to_vec(),
             STORAGE_PROGRAM_PREFIX.to_vec(),
             |key, _| Ok(H256::from_slice(key)),
@@ -69,7 +69,7 @@ where
             self.get_executable_actor(k)
                 .map(|actor| (actor.program.id(), actor))
         })
-        .map(|(id, mut actor)| {
+        .filter_map(|(id, mut actor)| {
             let pages_data = {
                 let page_numbers = actor.program.get_pages().keys().map(|k| k.raw()).collect();
                 let data = common::get_program_pages(id.into_origin(), page_numbers)
@@ -77,9 +77,15 @@ where
                 data.into_iter().map(|(k, v)| (k.into(), v)).collect()
             };
             let _ = actor.program.set_pages(pages_data);
-            (id, Some(actor))
+            let program = common::get_program(id.into_origin());
+
+            match program {
+                Some(Program::Active(_)) => Some((id, Some(actor))),
+                Some(Program::Terminated) => Some((id, None)),
+                None => None,
+            }
         })
-        .collect::<BTreeMap<_, Option<_>>>();
+        .collect();
 
         let dispatch_queue = common::dispatch_iter()
             .map(|dispatch| {

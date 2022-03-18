@@ -24,6 +24,8 @@ fixtures:
           value: unknown
 
     expected:
+      - exact: true
+
       # no active programs in the state
       - programs:
         - kind: id

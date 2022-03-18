@@ -303,12 +303,13 @@ impl Debug for State {
                     .actors
                     .iter()
                     .filter_map(|(id, actor)| {
-                        actor.clone().map(|ExecutableActor { program, balance }| {
+                        actor.as_ref().map(|actor| {
                             (
                                 *id,
                                 (
-                                    balance,
-                                    program
+                                    actor.balance,
+                                    actor
+                                        .program
                                         .get_pages()
                                         .keys()
                                         .cloned()

@@ -439,28 +439,32 @@ pub fn check_memory(
     }
 }
 
-fn check_active_programs(
-    expected_programs: Vec<(ProgramId, bool)>,
+fn check_programs_state(
+    expected_programs: &BTreeMap<ProgramId, bool>,
     actual_programs: &BTreeMap<ProgramId, bool>,
     exact: bool,
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
-    if exact && expected_programs.len() != actual_programs.len() {
-        errors.push(format!(
-            "invalid amount of programs: expected - {:?}, actual - {:?}",
-            expected_programs.len(),
-            actual_programs.len()
-        ));
+    if exact {
+        for id in actual_programs.keys() {
+            if expected_programs.get(id).is_none() {
+                errors.push(format!("unexpected program {:?} was executed", id,));
+            }
+        }
     }
 
     for (id, terminated) in expected_programs {
-        let actual_termination = actual_programs.get(&id);
-        if actual_termination != Some(&terminated) {
-            errors.push(format!(
-                "invalid program id. {:?} expected to be {:?}, but it is {:?}",
-                id, terminated, actual_termination,
-            ));
+        let actual_termination = actual_programs.get(id);
+        if let Some(actual_termination) = actual_termination {
+            if actual_termination != terminated {
+                errors.push(format!(
+                    "invalid program id. {:?} expected to be {:?}, but it is {:?}",
+                    id, terminated, actual_termination,
+                ));
+            }
+        } else {
+            errors.push(format!("Invalid program id {:?}.", id));
         }
     }
 
@@ -569,9 +573,11 @@ where
                         .iter()
                         .map(|(id, actor)| (*id, actor.is_none()))
                         .collect();
-                    if let Err(prog_id_errors) =
-                        check_active_programs(expected_prog_ids, &actual_prog_ids, false)
-                    {
+                    if let Err(prog_id_errors) = check_programs_state(
+                        &expected_prog_ids,
+                        &actual_prog_ids,
+                        exp.exact.unwrap_or_default(),
+                    ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
                             prog_id_errors
@@ -600,8 +606,7 @@ where
                         let mut progs: Vec<Program> = final_state
                             .actors
                             .into_iter()
-                            .filter_map(|(_, v)| v)
-                            .map(|v| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
                             .collect();
                         if let Err(mem_errors) = check_memory(&mut progs, mem) {
                             errors.push(format!("step: {:?}", exp.step));
