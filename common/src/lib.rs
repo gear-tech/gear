@@ -50,7 +50,6 @@ pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
-pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
@@ -473,30 +472,6 @@ pub fn queue_dispatch(dispatch: StoredDispatch) {
 
 pub fn dispatch_iter() -> Iterator<StoredDispatch> {
     StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
-}
-
-// WARN: Never call that in threads
-pub fn fetch_inc_block_nonce() -> u128 {
-    let original_nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or_default();
-
-    let new_nonce = original_nonce.wrapping_add(1);
-
-    sp_io::storage::set(STORAGE_MESSAGE_NONCE_KEY, &new_nonce.encode());
-
-    original_nonce
-}
-
-pub fn peek_last_message_id(payload: &[u8]) -> H256 {
-    let nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
-
-    let mut data = payload.encode();
-    data.extend_from_slice(&(nonce.wrapping_sub(1)).to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
-    message_id
 }
 
 pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>) {
