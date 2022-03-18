@@ -194,7 +194,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     for id in programs_map.keys() {
         let program = gear_common::ActiveProgram {
             static_pages: 0,
-            nonce: 0,
             persistent_pages: Default::default(),
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
@@ -257,7 +256,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 // Force push to MQ if msg.source.is_some()
                 if let Some(source) = &message.source {
                     let source = H256::from_slice(source.to_program_id().as_ref());
-                    let id = gear_common::next_message_id(&payload);
+                    let id = GearPallet::<Runtime>::next_message_id(source);
 
                     let _ =
                         <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
@@ -382,7 +381,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                                 *pid,
                                 vec![],
                                 p.static_pages,
-                                p.nonce,
                                 p.persistent_pages.keys().cloned().collect(),
                                 true,
                             ))

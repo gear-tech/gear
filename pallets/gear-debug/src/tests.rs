@@ -21,6 +21,7 @@
 use super::*;
 use crate::mock::*;
 use common::{self, Origin as _};
+use frame_system::Pallet as SystemPallet;
 use gear_core::{
     identifiers::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
@@ -110,7 +111,6 @@ fn debug_mode_works() {
                     static_pages: 16,
                     persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                     code_hash: generate_code_hash(&code_1),
-                    nonce: 0u64,
                 }],
             })
             .into(),
@@ -139,14 +139,12 @@ fn debug_mode_works() {
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_2),
-                        nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_1),
-                        nonce: 0u64,
                     },
                 ],
             })
@@ -162,7 +160,7 @@ fn debug_mode_works() {
         )
         .expect("Failed to send message");
 
-        let message_id_1 = common::peek_last_message_id(&[]);
+        let message_id_1 = get_last_message_id();
 
         PalletGear::<Test>::send_message(
             Origin::signed(1).into(),
@@ -173,7 +171,7 @@ fn debug_mode_works() {
         )
         .expect("Failed to send message");
 
-        let message_id_2 = common::peek_last_message_id(&[]);
+        let message_id_2 = get_last_message_id();
 
         run_to_block(4, Some(0)); // no message will get processed
 
@@ -214,14 +212,12 @@ fn debug_mode_works() {
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_2),
-                        nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_1),
-                        nonce: 0u64,
                     },
                 ],
             })
@@ -241,18 +237,35 @@ fn debug_mode_works() {
                         static_pages: 16,
                         persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_2),
-                        nonce: 0u64,
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_1),
-                        nonce: 0u64,
                     },
                 ],
             })
             .into(),
         );
     })
+}
+
+fn get_last_message_id() -> H256 {
+    use pallet_gear::{Event, MessageInfo};
+
+    let event = match SystemPallet::<Test>::events()
+        .last()
+        .map(|r| r.event.clone())
+    {
+        Some(super::mock::Event::Gear(e)) => e,
+        _ => unreachable!("Should be one Gear event"),
+    };
+
+    match event {
+        Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+        Event::Log(msg) => msg.id().into_origin(),
+        Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+        _ => unreachable!("expect sending"),
+    }
 }

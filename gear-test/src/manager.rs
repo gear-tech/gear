@@ -65,6 +65,9 @@ impl ExecutionContext for InMemoryExtManager {
             }),
         );
     }
+    fn write_gas(&mut self, message_id: MessageId, gas_limit: u64) {
+        self.gas_limits.insert(message_id, gas_limit);
+    }
 }
 
 impl CollectState for InMemoryExtManager {
@@ -166,11 +169,9 @@ impl JournalHandler for InMemoryExtManager {
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
-        self.message_consumed(dispatch.message().id());
-        self.wait_list.insert(
-            (dispatch.message().destination(), dispatch.message().id()),
-            dispatch,
-        );
+        self.message_consumed(dispatch.id());
+        self.wait_list
+            .insert((dispatch.destination(), dispatch.id()), dispatch);
     }
     fn wake_message(
         &mut self,

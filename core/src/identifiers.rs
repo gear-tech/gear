@@ -127,7 +127,7 @@ impl MessageId {
     pub fn generate_from_user(
         block_number: u32,
         user_id: ProgramId,
-        local_nonce: u32,
+        local_nonce: u128,
     ) -> MessageId {
         let block_number = block_number.to_le_bytes();
         let user_id = user_id.as_ref();

@@ -47,7 +47,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     } = actor;
 
     let program_id = program.id();
-    log::debug!("Executing program {:?}", program_id);
+    log::debug!("Executing program {}", program_id);
+    log::debug!("Executing dispatch {:?}", dispatch);
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());

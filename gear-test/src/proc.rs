@@ -109,6 +109,7 @@ where
     }
 
     journal_handler.store_program(program.clone(), message.message.id());
+    journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
     let journal = core_processor::process::<Ext, E>(
         Some(ExecutableActor {
@@ -250,7 +251,7 @@ where
             message.value.unwrap_or_default() as _,
             None,
         );
-        let dispatch = Dispatch::new(DispatchKind::Init, message);
+        let dispatch = Dispatch::new(DispatchKind::Handle, message);
 
         journal_handler.send_dispatch(Default::default(), dispatch);
 

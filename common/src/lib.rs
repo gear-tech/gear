@@ -248,7 +248,6 @@ impl Program {
             ProgramId::from_origin(id),
             code,
             program.static_pages,
-            program.nonce,
             program.persistent_pages,
             is_initialized,
         );
@@ -300,7 +299,6 @@ pub struct ActiveProgram {
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
-    pub nonce: u64,
     pub state: ProgramState,
 }
 
@@ -477,10 +475,11 @@ pub fn dispatch_iter() -> Iterator<StoredDispatch> {
     StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
 
-pub fn nonce_fetch_inc() -> u128 {
+// WARN: Never call that in threads
+pub fn fetch_inc_block_nonce() -> u128 {
     let original_nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
         .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
+        .unwrap_or_default();
 
     let new_nonce = original_nonce.wrapping_add(1);
 
@@ -498,37 +497,6 @@ pub fn peek_last_message_id(payload: &[u8]) -> H256 {
     data.extend_from_slice(&(nonce.wrapping_sub(1)).to_le_bytes());
     let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
     message_id
-}
-
-// WARN: Never call that in threads
-pub fn next_message_id(payload: &[u8]) -> H256 {
-    let nonce = nonce_fetch_inc();
-    let mut data = payload.encode();
-    data.extend_from_slice(&nonce.to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
-    message_id
-}
-
-pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
-    let mut key_id = STORAGE_MESSAGE_USER_NONCE_KEY.to_vec();
-    key_id.extend(&caller_id[..]);
-
-    let original_nonce = sp_io::storage::get(&key_id)
-        .map(|val| u64::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0);
-
-    let new_nonce = original_nonce.wrapping_add(1);
-
-    sp_io::storage::set(&key_id, &new_nonce.encode());
-
-    original_nonce
-}
-
-pub fn set_program_nonce(id: H256, nonce: u64) {
-    if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.nonce = nonce;
-        sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
-    }
 }
 
 pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>) {
@@ -621,15 +589,6 @@ pub fn reset_storage() {
 mod tests {
     use super::*;
 
-    #[test]
-    fn nonce_incremented() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            assert_eq!(nonce_fetch_inc(), 0_u128);
-            assert_eq!(nonce_fetch_inc(), 1_u128);
-            assert_eq!(nonce_fetch_inc(), 2_u128);
-        });
-    }
-
     fn get_active_program(id: H256) -> Option<ActiveProgram> {
         get_program(id).and_then(|p| p.try_into().ok())
     }
@@ -644,7 +603,6 @@ mod tests {
                 static_pages: 256,
                 persistent_pages: Default::default(),
                 code_hash,
-                nonce: 0,
                 state: ProgramState::Initialized,
             };
             set_code(code_hash, &code);

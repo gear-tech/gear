@@ -38,6 +38,7 @@ mod tests;
 pub mod pallet {
     use super::*;
     use common::{self, Origin, Program};
+    use core::fmt;
     use frame_support::{
         dispatch::DispatchResultWithPostInfo, pallet_prelude::*, storage::PrefixIterator,
     };
@@ -78,13 +79,26 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {}
 
-    #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
+    #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramDetails {
         pub id: H256,
         pub static_pages: u32,
         pub persistent_pages: BTreeMap<u32, Vec<u8>>,
         pub code_hash: H256,
-        pub nonce: u64,
+    }
+
+    impl fmt::Debug for ProgramDetails {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("ProgramDetails")
+                .field("id", &self.id)
+                .field("static_pages", &self.static_pages)
+                .field(
+                    "persistent_pages",
+                    &self.persistent_pages.keys().cloned().collect::<Vec<u32>>(),
+                )
+                .field("code_hash", &self.code_hash)
+                .finish()
+        }
     }
 
     #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
@@ -160,7 +174,6 @@ pub mod pallet {
                 persistent_pages: common::get_program_pages(id, p.persistent_pages)
                     .expect("active program exists, therefore pages do"),
                 code_hash: p.code_hash,
-                nonce: p.nonce,
             })
             .collect();
 

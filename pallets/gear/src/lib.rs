@@ -124,7 +124,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Log event from the specific program.
-        Log(gear_core::message::StoredMessage),
+        Log(StoredMessage),
         /// Program created and an init message enqueued.
         InitMessageEnqueued(MessageInfo),
         /// Program initialization error.
@@ -141,7 +141,7 @@ pub mod pallet {
         /// Value and gas has been claimed from a message in mailbox by the addressee
         ClaimedValueFromMailbox(H256),
         /// A message has been added to the wait list
-        AddedToWaitList(gear_core::message::StoredDispatch),
+        AddedToWaitList(StoredDispatch),
         /// A message has been removed from the wait list
         RemovedFromWaitList(H256),
         /// Program code with a calculated code hash is saved to the storage
@@ -224,6 +224,15 @@ pub mod pallet {
     #[pallet::getter(fn gas_allowance)]
     pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
 
+    #[pallet::type_value]
+    pub fn Zero() -> u128 {
+        0
+    }
+
+    #[pallet::storage]
+    #[pallet::getter(fn messages_sent)]
+    pub type MessagesSent<T: Config> = StorageValue<_, u128, ValueQuery, Zero>;
+
     #[pallet::storage]
     #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
@@ -238,6 +247,7 @@ pub mod pallet {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Reset block gas allowance
             GasAllowance::<T>::put(T::BlockGasLimit::get());
+            MessagesSent::<T>::put(0);
             T::DbWeight::get().writes(1)
         }
 
@@ -256,6 +266,7 @@ pub mod pallet {
             );
             // Adjust the block gas allowance based on actual remaining weight
             GasAllowance::<T>::put(remaining_weight);
+            MessagesSent::<T>::put(0);
             let mut weight = T::DbWeight::get().writes(1);
             weight += Self::process_queue();
 
@@ -307,7 +318,7 @@ pub mod pallet {
         pub fn remove_and_claim_from_mailbox(
             user_id: &T::AccountId,
             message_id: H256,
-        ) -> Result<gear_core::message::StoredMessage, DispatchError> {
+        ) -> Result<StoredMessage, DispatchError> {
             let message = Self::remove_from_mailbox(user_id.clone().into_origin(), message_id)
                 .ok_or(Error::<T>::NoMessageInMailbox)?;
 
@@ -441,6 +452,16 @@ pub mod pallet {
                 .unwrap_or(false)
         }
 
+        /// Returns MessageId for newly created user message.
+        pub fn next_message_id(user_id: H256) -> H256 {
+            let nonce = Self::messages_sent();
+            MessagesSent::<T>::mutate(|x| *x = x.saturating_add(1));
+            let block_number = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let user_id = ProgramId::from_origin(user_id);
+
+            MessageId::generate_from_user(block_number, user_id, nonce).into_origin()
+        }
+
         /// Message Queue processing.
         ///
         /// Can emit the following events:
@@ -491,7 +512,7 @@ pub mod pallet {
 
                     // Check whether message should be added to the wait list
                     if let Some(Program::Active(ref prog)) = maybe_program {
-                        let is_for_wait_list = maybe_message_reply
+                        let is_for_wait_list = !maybe_message_reply
                             && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id.into_origin());
                         if is_for_wait_list {
                             Self::deposit_event(Event::AddedToWaitList(dispatch.clone()));
@@ -716,29 +737,21 @@ pub mod pallet {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
-            // TODO: (alarm) REMOVE THIS IN ORDER TO PROPER GENERATION
-            let message_id = MessageId::generate_from_user(0, Default::default(), 0);
-            let init_message_id = message_id.into_origin();
-            ExtManager::<T>::default().set_program(program, init_message_id);
+            let message_id = Self::next_message_id(origin).into_origin();
+            ExtManager::<T>::default().set_program(program, message_id);
 
-            let _ = T::GasHandler::create(
-                origin,
-                init_message_id,
-                packet.gas_limit().expect("Can't fail"),
-            );
+            let _ =
+                T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));
 
-            // TODO: (alarm) REMOVE THIS IN ORDER TO PROPER GENERATION
-            let message_id = MessageId::generate_from_user(0, Default::default(), 0);
-
-            let message = gear_core::message::InitMessage::from_packet(message_id, packet);
+            let message = InitMessage::from_packet(MessageId::from_origin(message_id), packet);
             let dispatch = message
-                .into_dispatch(gear_core::identifiers::ProgramId::from_origin(origin))
+                .into_dispatch(ProgramId::from_origin(origin))
                 .into_stored();
 
             common::queue_dispatch(dispatch);
 
             Self::deposit_event(Event::InitMessageEnqueued(MessageInfo {
-                message_id: init_message_id,
+                message_id,
                 program_id: id,
                 origin,
             }));
@@ -800,15 +813,16 @@ pub mod pallet {
             T::Currency::reserve(&who, value.unique_saturated_into())
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
-            // TODO: (alarm) REMOVE THIS IN ORDER TO PROPER GENERATION
-            let message_id = MessageId::generate_from_user(0, Default::default(), 0);
+            let origin = who.clone().into_origin();
+
+            let message_id = Self::next_message_id(origin);
             let packet = HandlePacket::new_with_gas(
                 ProgramId::from_origin(destination),
                 payload,
                 gas_limit,
                 value.unique_saturated_into(),
             );
-            let message = HandleMessage::from_packet(message_id, packet);
+            let message = HandleMessage::from_packet(MessageId::from_origin(message_id), packet);
 
             if common::program_exists(destination) {
                 let gas_limit_reserve = T::GasPrice::gas_price(gas_limit);
@@ -890,7 +904,6 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let message_id = MessageId::generate_reply(original_message.id(), 0);
-
             let packet =
                 ReplyPacket::new_with_gas(payload, gas_limit, value.unique_saturated_into());
             let message = ReplyMessage::from_packet(message_id, packet);

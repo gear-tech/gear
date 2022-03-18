@@ -81,10 +81,6 @@ impl ContextOutcome {
     pub fn drain(self) -> (Vec<Dispatch>, Vec<MessageId>) {
         let mut dispatches = Vec::new();
 
-        if let Some(msg) = self.reply {
-            dispatches.push(msg.into_dispatch(self.program_id, self.source, self.origin_msg_id));
-        };
-
         for msg in self.init.into_iter() {
             dispatches.push(msg.into_dispatch(self.program_id));
         }
@@ -92,6 +88,10 @@ impl ContextOutcome {
         for msg in self.handle.into_iter() {
             dispatches.push(msg.into_dispatch(self.program_id));
         }
+
+        if let Some(msg) = self.reply {
+            dispatches.push(msg.into_dispatch(self.program_id, self.source, self.origin_msg_id));
+        };
 
         (dispatches, self.awakening)
     }
@@ -285,7 +285,7 @@ impl MessageContext {
 
     /// Wake message by it's message id.
     pub fn wake(&mut self, waker_id: MessageId) -> Result<(), Error> {
-        if !self.store.awaken.insert(waker_id) {
+        if self.store.awaken.insert(waker_id) {
             self.outcome.awakening.push(waker_id);
 
             Ok(())

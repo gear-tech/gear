@@ -36,8 +36,6 @@ pub struct Program {
     static_pages: u32,
     /// Saved state of memory pages.
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    /// Message nonce
-    message_nonce: u64,
     /// Program is initialized.
     is_initialized: bool,
 }
@@ -67,7 +65,6 @@ impl Program {
             code,
             static_pages,
             persistent_pages: Default::default(),
-            message_nonce: 0,
             is_initialized: false,
         })
     }
@@ -77,7 +74,6 @@ impl Program {
         id: ProgramId,
         code: Vec<u8>,
         static_pages: u32,
-        message_nonce: u64,
         persistent_pages_numbers: BTreeSet<u32>,
         is_initialized: bool,
     ) -> Self {
@@ -89,7 +85,6 @@ impl Program {
                 .into_iter()
                 .map(|k| (k.into(), None))
                 .collect(),
-            message_nonce,
             is_initialized,
         }
     }
@@ -208,28 +203,10 @@ impl Program {
         self.persistent_pages.clear();
     }
 
-    /// Message nonce.
-    pub fn message_nonce(&self) -> u64 {
-        self.message_nonce
-    }
-
-    /// Set message nonce.
-    pub fn set_message_nonce(&mut self, val: u64) {
-        self.message_nonce = val;
-    }
-
-    /// Fetch and increment message nonce
-    pub fn fetch_inc_message_nonce(&mut self) -> u64 {
-        let nonce = self.message_nonce;
-        self.message_nonce += 1;
-        nonce
-    }
-
     /// Reset the program.
     pub fn reset(&mut self, code: Vec<u8>) -> Result<()> {
         self.set_code(code)?;
         self.clear_memory();
-        self.message_nonce = 0;
 
         Ok(())
     }

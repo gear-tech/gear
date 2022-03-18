@@ -268,7 +268,6 @@ pub(crate) fn set_program(program: Program) {
                 .map(|(num, _)| num.raw())
                 .collect(),
             code_hash,
-            nonce: program.message_nonce(),
             state: common::ProgramState::Initialized,
         },
         program

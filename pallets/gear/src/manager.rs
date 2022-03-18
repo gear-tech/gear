@@ -164,7 +164,6 @@ where
 
         let program = common::ActiveProgram {
             static_pages: program.static_pages(),
-            nonce: program.message_nonce(),
             persistent_pages: persistent_pages.keys().copied().collect(),
             code_hash,
             state: common::ProgramState::Uninitialized { message_id },

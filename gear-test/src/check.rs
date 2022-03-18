@@ -51,6 +51,7 @@ const FILTER_ENV: &str = "RUST_LOG";
 pub trait ExecutionContext {
     fn store_code(&mut self, code: &[u8]);
     fn store_program(&mut self, program: gear_core::program::Program, init_message_id: MessageId);
+    fn write_gas(&mut self, message_id: MessageId, gas_limit: u64);
 }
 
 pub struct FixtureLogger {

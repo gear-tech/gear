@@ -222,7 +222,7 @@ impl<'a> Program<'a> {
             MessageId::generate_from_user(
                 system.block_info.height,
                 source,
-                system.fetch_inc_message_nonce() as u32,
+                system.fetch_inc_message_nonce() as u128,
             ),
             source,
             self.id,

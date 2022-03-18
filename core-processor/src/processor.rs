@@ -112,7 +112,7 @@ fn process_error(
         });
     }
 
-    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") != 0 {
+    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), crate::ERR_EXIT_CODE);
         let packet = ReplyPacket::system(crate::ERR_EXIT_CODE);
         let message = ReplyMessage::from_packet(id, packet);
@@ -206,7 +206,7 @@ fn process_success(res: DispatchResult) -> Vec<JournalNote> {
         }
         DispatchResultKind::Wait => {
             journal.push(JournalNote::WaitDispatch(
-                res.dispatch.into_stored(origin, res.context_store),
+                res.dispatch.into_stored(program_id, res.context_store),
             ));
         }
         DispatchResultKind::Success => {
@@ -253,7 +253,7 @@ fn process_non_executable(
     }
 
     // Reply back to the message `source`
-    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") != 0 {
+    if !dispatch.is_reply() || dispatch.exit_code().expect("Checked before") == 0 {
         let id = MessageId::generate_reply(dispatch.id(), exit_code);
         let packet = ReplyPacket::system(exit_code);
         let message = ReplyMessage::from_packet(id, packet);
