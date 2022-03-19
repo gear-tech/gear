@@ -226,10 +226,9 @@ impl<'a> Program<'a> {
 
 #[cfg(test)]
 mod tests {
-    use gear_core::message::Message;
+    use gear_core::message::{Message, MessageId, Payload};
 
-    use crate::{CoreLog, System};
-
+    use crate::{CoreLog, manager, program, System};
     use super::{Program, ProgramIdWrapper};
 
     #[test]
@@ -264,5 +263,40 @@ mod tests {
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
         assert!(!run_result.main_failed());
         assert!(run_result.log.contains(&expected_log));
+    }
+
+    #[test]
+    fn mailbox_mock_works(){
+        //Arrange
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let message_payload: Payload = vec![1,2,3].into();
+        let reply_payload: Payload = vec![3,2,1].into();
+        let program = manager::Actor::Mock(Box::new(()));//should put some wasm program into box
+
+        let message = Message::new(
+            message_id,
+            source_user_id,
+            destination_user_id,
+            message_payload,
+            Default::default(),
+            2,
+        );
+
+        //Act
+        system.0.borrow_mut().actors.insert(source_user_id, (program, 1));
+        let message_result = system.send_message(message);
+        let message_log = message_result.log.last().expect("No message log in run result ");
+
+        let reply_result = message_log.reply(&system, reply_payload, 2);
+
+        let reply_log = reply_result
+            .expect("No actor with such program id")
+            .log;
+
+        //Assert
+        assert_eq!(reply_log.len(), 2);
     }
 }

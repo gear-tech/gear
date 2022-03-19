@@ -2,6 +2,8 @@ use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
 use gear_core::{message::Message, program::ProgramId};
 use std::fmt::Debug;
+use gear_core::message::{MessageId, Payload};
+use crate::System;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
@@ -9,6 +11,7 @@ pub struct CoreLog {
     dest: ProgramId,
     payload: Vec<u8>,
     exit_code: Option<i32>,
+    message_id: MessageId
 }
 
 impl CoreLog {
@@ -18,7 +21,39 @@ impl CoreLog {
             dest: other.dest,
             payload: other.payload.into_raw(),
             exit_code: other.reply.map(|(_, code)| Some(code)).unwrap_or_default(),
+            message_id: other.id
         }
+    }
+
+    pub(crate) fn generate_reply(&self, payload: Payload, message_id: MessageId, value: u128) -> Message{
+        Message{
+            source: self.source,
+            dest: self.dest,
+            payload,
+            gas_limit: None,
+            value,
+            id: message_id,
+            reply: match self.exit_code {
+                None => {None}
+                Some(exit_code) => {Some((self.message_id, exit_code))}
+            }
+        }
+    }
+
+    pub(crate) fn reply(&self, system: &System, payload: Payload, value: u128) -> Result<RunResult, String>{
+        let message = self.generate_reply(
+            payload,
+            MessageId::from(system.fetch_inc_message_nonce()),
+            value
+        );
+        match system.0.borrow_mut().remove_message(&message.source, &message.id){
+            Result::Ok(_) => {Result::Ok(system.send_message(message))},
+            Result::Err(e) => {Result::Err(e)}
+        }
+    }
+
+    pub fn reply_bytes(&self, system: &System, raw_payload: &[u8], value: u128) -> Result<RunResult, String> {
+        self.reply(system, raw_payload.to_vec().into(), value)
     }
 }
 
@@ -28,6 +63,7 @@ pub struct DecodedCoreLog<T: Codec + Debug> {
     dest: ProgramId,
     payload: T,
     exit_code: Option<i32>,
+    message_id: MessageId
 }
 
 impl<T: Codec + Debug> DecodedCoreLog<T> {
@@ -39,6 +75,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
             dest: log.dest,
             payload,
             exit_code: log.exit_code,
+            message_id: log.message_id
         })
     }
 }
@@ -121,6 +158,7 @@ impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
             dest: other.dest,
             payload: other.payload.encode(),
             exit_code: other.exit_code,
+            message_id: other.message_id
         };
 
         core_log.eq(self)

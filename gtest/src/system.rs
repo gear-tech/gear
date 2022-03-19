@@ -1,12 +1,11 @@
-use crate::{
-    log::RunResult,
-    manager::ExtManager,
-    program::{Program, ProgramIdWrapper},
-};
+use crate::{log::RunResult, manager::{ExtManager, Mailbox}, program::{Program, ProgramIdWrapper}};
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::message::Message;
 use std::{cell::RefCell, io::Write, thread};
+use gear_core::{
+    message::Message,
+    program::ProgramId
+};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
@@ -54,7 +53,7 @@ impl System {
     }
 
     pub fn send_message(&self, message: Message) -> RunResult {
-        self.0.borrow_mut().run_message(message)
+         self.0.borrow_mut().run_message(message.clone())
     }
 
     pub fn spend_blocks(&self, amount: u32) {
@@ -68,4 +67,12 @@ impl System {
             id: id.into().0,
         }
     }
+
+    pub fn get_mailbox(&mut self, program_id: &ProgramId) -> Option<&Mailbox>{
+        self.0.get_mut().get_mailbox(program_id)
+    }
+
+     pub(crate) fn fetch_inc_message_nonce(&self) -> u64 {
+         self.0.borrow_mut().fetch_inc_message_nonce()
+     }
 }
