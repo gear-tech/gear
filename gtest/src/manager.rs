@@ -24,11 +24,13 @@ use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message, MessageId},
+    message::{Dispatch, DispatchKind, Message, MessageId, Payload},
     program::{CodeHash, Program as CoreProgram, ProgramId},
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 #[derive(Clone, Debug)]
 pub(crate) enum ProgramState {
@@ -55,7 +57,7 @@ pub(crate) struct ExtManager {
     // State
     pub(crate) actors: BTreeMap<ProgramId, (Program, ProgramState, u128)>,
     pub(crate) message_queue: VecDeque<Message>,
-    pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
+    pub(crate) actor_to_mailbox: HashMap<ProgramId, Mailbox>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Message>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
@@ -79,6 +81,7 @@ impl ExtManager {
                     .expect("Time went backwards")
                     .as_secs(),
             },
+            actor_to_mailbox: HashMap::new(),
             ..Default::default()
         }
     }
@@ -125,10 +128,10 @@ impl ExtManager {
         if self.actors.contains_key(&message.dest()) {
             self.message_queue.push_back(message);
         } else {
-            self.mailbox
+            self.actor_to_mailbox
                 .entry(message.dest())
                 .or_default()
-                .push(message);
+                .insert(message);
         }
 
         while let Some(message) = self.message_queue.pop_front() {
@@ -307,6 +310,17 @@ impl ExtManager {
             }
         }
     }
+
+    pub(crate) fn get_mailbox(&self, program_id: &ProgramId) -> Option<&Mailbox>{
+        self.actor_to_mailbox.get(program_id)
+    }
+
+    pub(crate) fn remove_message(&mut self, program_id: &ProgramId, message_id: &MessageId) -> Result<Message, String>{
+        match  self.actor_to_mailbox.get_mut(program_id) {
+            None => {Err(String::from("No actor with such program id"))}
+            Some(mailbox) => { mailbox.remove_message(message_id)}
+        }
+    }
 }
 
 impl JournalHandler for ExtManager {
@@ -346,14 +360,14 @@ impl JournalHandler for ExtManager {
         if self.actors.contains_key(&message.dest()) {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
-                message.gas_limit = Some(u64::max_value());
+                message.gas_limit = Some(u64::MAX);
             }
             self.message_queue.push_back(message);
         } else {
-            self.mailbox
+            self.actor_to_mailbox
                 .entry(message.dest())
                 .or_default()
-                .push(message.clone());
+                .insert(message.clone());
             self.log.push(message);
         }
     }
@@ -421,3 +435,44 @@ impl JournalHandler for ExtManager {
         // todo!() #714
     }
 }
+
+#[derive(Debug)]
+pub struct Mailbox{
+    mail: HashMap<MessageId, Message>
+}
+
+impl Mailbox {
+    pub fn new(message: Message) -> Mailbox {
+        let mut mailbox = Mailbox{mail: HashMap::new()};
+        mailbox.insert(message);
+        mailbox
+    }
+
+    pub fn get(&self, payload: &Payload) -> Option<&Message> {
+        for message in self.mail.values(){
+            if message.payload.eq(payload){
+                return Option::Some(message);
+            }
+        }
+        None
+    }
+
+    pub fn insert(&mut self, message: Message) -> Option<Message> {
+        self.mail.insert(message.id.clone(), message)
+    }
+
+    pub fn remove_message(&mut self, message_id: &MessageId) -> Result<Message, String>{
+        match self.mail.remove(message_id) {
+            None => {Result::Err(String::from("No message with such message id"))}
+            Some(message) => {Result::Ok(message)}
+        }
+    }
+}
+
+impl Default for Mailbox{
+    fn default() -> Mailbox {
+        Mailbox{mail: HashMap::new()}
+    }
+}
+
+
