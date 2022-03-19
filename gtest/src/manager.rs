@@ -130,7 +130,7 @@ pub(crate) struct ExtManager {
     // State
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
     pub(crate) dispatch_queue: VecDeque<Dispatch>,
-    pub(crate) actor_to_mailbox: HashMap<ProgramId, Mailbox>,
+    pub(crate) actor_to_mailbox: HashMap<ProgramId, Vec<Message>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
@@ -154,7 +154,6 @@ impl ExtManager {
                     .expect("Time went backwards")
                     .as_secs(),
             },
-            actor_to_mailbox: HashMap::new(),
             ..Default::default()
         }
     }
@@ -216,6 +215,7 @@ impl ExtManager {
                     .entry(message.dest())
                     .or_default()
                     .insert(message.clone());
+                self.log.push(message)
             }
         }
 
