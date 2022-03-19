@@ -1,8 +1,4 @@
-use crate::{
-    log::RunResult,
-    manager::ExtManager,
-    program::{Program, ProgramIdWrapper},
-};
+use crate::{log::RunResult, manager::{ExtManager, Mailbox}, program::{Program, ProgramIdWrapper}};
 use colored::Colorize;
 use env_logger::{Builder, Env};
 use gear_core::{message::Message, program::CodeHash};

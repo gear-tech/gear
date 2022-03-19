@@ -29,6 +29,8 @@ use gear_core::{
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 pub(crate) type Balance = u128;
 
@@ -129,7 +131,7 @@ pub(crate) struct ExtManager {
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
     pub(crate) codes: BTreeMap<CodeHash, Vec<u8>>,
     pub(crate) dispatch_queue: VecDeque<Dispatch>,
-    pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
+    pub(crate) actor_to_mailbox: HashMap<ProgramId, Mailbox>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
@@ -230,10 +232,10 @@ impl ExtManager {
                 };
                 self.dispatch_queue.push_back(dispatch);
             } else {
-                self.mailbox
+                self.actor_to_mailbox
                     .entry(message.dest())
                     .or_default()
-                    .push(message);
+                    .insert(message.clone());
             }
         }
 
@@ -480,6 +482,7 @@ impl JournalHandler for ExtManager {
             self.dispatch_queue.remove(index);
         }
     }
+
     fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
         let Dispatch {
             ref mut message, ..
@@ -487,15 +490,15 @@ impl JournalHandler for ExtManager {
         if self.actors.contains_key(&message.dest()) {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
-                message.gas_limit = Some(u64::max_value());
+                message.gas_limit = Some(u64::MAX);
             }
             self.dispatch_queue.push_back(dispatch);
         } else {
-            self.mailbox
+            self.actor_to_mailbox
                 .entry(message.dest())
                 .or_default()
-                .push(message.clone());
-            self.log.push(dispatch.message);
+                .insert(message.clone());
+            self.log.push(dispatch.message.clone());
         }
     }
 
