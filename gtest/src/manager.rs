@@ -31,7 +31,10 @@ use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     fmt::Debug,
     time::{SystemTime, UNIX_EPOCH},
+    message::{Dispatch, DispatchKind, Message, MessageId, Payload},
+    program::{CodeHash, Program as CoreProgram, ProgramId},
 };
+
 
 pub(crate) type Balance = u128;
 
@@ -47,7 +50,6 @@ impl Actor {
     fn new(init_message_id: Option<MessageId>, program: Program) -> Self {
         Actor::Uninitialized(init_message_id, Some(program))
     }
-
     // # Panics
     // If actor is initialized or dormant
     fn set_initialized(&mut self) {
