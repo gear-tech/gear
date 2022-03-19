@@ -26,6 +26,7 @@ use tests_distributor::{Request, WASM_BINARY};
 use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
 use super::{
+    manager::HandleKind,
     mock::{
         calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
         Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
@@ -2316,8 +2317,7 @@ fn resume_program_works() {
 }
 
 #[test]
-fn calc_gas_spent() {
-    use crate::manager::HandleKind;
+fn gas_spent_vs_balance() {
     use tests_btree::{Request, WASM_BINARY};
 
     init_logger();
@@ -2333,7 +2333,7 @@ fn calc_gas_spent() {
             0,
         ));
 
-        let program_id = utils::get_last_program_id();
+        let prog_id = utils::get_last_program_id();
 
         run_to_block(2, None);
 
@@ -2342,7 +2342,7 @@ fn calc_gas_spent() {
         let request = Request::Clear.encode();
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1).into(),
-            program_id,
+            prog_id,
             request.clone(),
             10_000_000,
             0
@@ -2367,16 +2367,70 @@ fn calc_gas_spent() {
 
         let handle_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
-            HandleKind::Handle(program_id),
+            HandleKind::Handle(prog_id),
             request,
             0,
         )
-        .expect("Gas spent for init calculation error");
+        .expect("Gas spent for handle calculation error");
 
         assert_eq!(
             balance_after_init - balance_after_handle,
             handle_gas_spent as u128
         );
+    });
+}
+
+#[test]
+fn gas_spent_precalculated() {
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $handle
+            i32.const 42
+            call $doWork
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let prog_id = submit_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("submit result was asserted");
+
+        run_to_block(2, None);
+
+        let gas_spent_1 = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Handle(prog_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+        )
+        .expect("Gas spent for handle calculation error");
+
+        // 42 times loop, 9 ops inside the loop, plus 7 ops outside the loop; 1000 gas per instruction
+        assert_eq!(gas_spent_1, (42 * 9 + 7) * 1000);
+
+        let (gas_spent_2, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
+
+        assert_eq!(gas_spent_1, gas_spent_2);
     });
 }
 
