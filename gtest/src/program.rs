@@ -228,9 +228,8 @@ pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
 #[cfg(test)]
 mod tests {
     use gear_core::message::{Message, MessageId, Payload};
-
+    use crate::{CoreLog, manager, program, System, Log};
     use super::{Program, ProgramIdWrapper};
-    use crate::{CoreLog, Log, System};
 
     #[test]
     fn test_handle_messages_to_failing_program() {

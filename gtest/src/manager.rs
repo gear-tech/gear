@@ -500,7 +500,7 @@ impl JournalHandler for ExtManager {
                 .entry(message.dest())
                 .or_default()
                 .push(message.clone());
-            self.log.push(dispatch.message.clone());
+            self.log.push(dispatch.message);
         }
     }
 

@@ -1,8 +1,8 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::message::{MessageId, Payload};
-use gear_core::{message::Message, program::ProgramId};
+use gear_core::{message::{MessageId, Payload, Message}, program::ProgramId};
 use std::fmt::Debug;
+use crate::System;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
@@ -113,6 +113,7 @@ impl Log {
         if self.payload.is_some() {
             panic!("Payload was already set for this log");
         }
+
         self.payload = Some(payload.as_ref().to_vec());
 
         self

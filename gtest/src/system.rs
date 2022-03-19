@@ -1,6 +1,6 @@
 use crate::{
     log::RunResult,
-    manager::ExtManager,
+    manager::{ExtManager, Mailbox},
     program::{Program, ProgramIdWrapper},
     CoreLog, Log,
 };
@@ -12,6 +12,7 @@ use gear_core::{
     message::{Message, MessageId, Payload},
     program::{ProgramId, CodeHash},
 };
+
 
 #[derive(Debug)]
 pub struct System(pub(crate) RefCell<ExtManager>);
