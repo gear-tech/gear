@@ -131,7 +131,7 @@ pub(crate) struct ExtManager {
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
     pub(crate) codes: BTreeMap<CodeHash, Vec<u8>>,
     pub(crate) dispatch_queue: VecDeque<Dispatch>,
-    pub(crate) actor_to_mailbox: HashMap<ProgramId, Mailbox>,
+    pub(crate) actor_to_mailbox: HashMap<ProgramId, Vec<Message>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
@@ -236,6 +236,7 @@ impl ExtManager {
                     .entry(message.dest())
                     .or_default()
                     .insert(message.clone());
+                self.log.push(message)
             }
         }
 
