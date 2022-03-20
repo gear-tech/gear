@@ -109,7 +109,7 @@ pub struct Expectation {
     #[serde(rename = "allowError")]
     pub allow_error: Option<bool>,
     /// If this flag turned on, we check that only tested programs was executed
-    pub exact: Option<bool>,
+    pub exact_programs: Option<bool>,
     /// Expected active programs (not failed in the init) ids
     pub programs: Option<Programs>,
 }
