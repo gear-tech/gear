@@ -256,10 +256,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
-            log::debug!("page = {}", page.raw());
-            let old_data = initial_data
-                .as_ref()
-                .expect("Must have data for all accessed pages");
+            let old_data = initial_data.as_ref().ok_or_else(|| ExecutionError {
+                program_id,
+                gas_amount: info.gas_amount.clone(),
+                reason: "RUNTIME ERROR: changed page has no data in initial pages",
+            })?;
             if !new_data.eq(old_data.as_ref()) {
                 page_update.insert(page, Some(new_data));
                 log::trace!(
