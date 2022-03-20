@@ -184,7 +184,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     );
 
     if lazy_pages_enabled {
-        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr());
+        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr())
+            .map_err(|e| ExecutionError {
+                program_id,
+                gas_amount: env.drop(),
+                reason: e,
+            })?;
     }
 
     // Page which is right after stack last page
@@ -211,7 +216,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     if lazy_pages_enabled {
         // accessed lazy pages old data will be added to `initial_pages`
-        A::post_execution_actions(initial_pages, wasm_memory_addr);
+        A::post_execution_actions(initial_pages, wasm_memory_addr).map_err(|e| ExecutionError {
+            program_id,
+            gas_amount: info.gas_amount.clone(),
+            reason: e,
+        })?;
     }
 
     // Parsing outcome.

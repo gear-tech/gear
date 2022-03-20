@@ -120,6 +120,15 @@ pub struct GasAmount {
     burned: u64,
 }
 
+impl Clone for GasAmount {
+    fn clone(&self) -> Self {
+        Self {
+            left: self.left,
+            burned: self.burned,
+        }
+    }
+}
+
 impl GasAmount {
     /// Report how much gas were left.
     pub fn left(&self) -> u64 {

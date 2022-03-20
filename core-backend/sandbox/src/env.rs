@@ -26,6 +26,7 @@ use gear_backend_common::{
 };
 use gear_core::{
     env::{Ext, LaterExt},
+    gas::GasAmount,
     memory::{Error, Memory, PageBuf, PageNumber},
 };
 use sp_sandbox::{
@@ -210,5 +211,9 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             wasm_memory_addr,
             info,
         })
+    }
+
+    fn drop(&mut self) -> GasAmount {
+        self.runtime.ext.unset().into_gas_amount()
     }
 }

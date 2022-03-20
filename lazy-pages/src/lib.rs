@@ -76,8 +76,12 @@ pub fn get_released_pages() -> sp_std::vec::Vec<u32> {
 }
 
 /// Returns page data which page has in storage before execution
-pub fn get_released_page_old_data(page: u32) -> sp_std::vec::Vec<u8> {
-    RELEASED_LAZY_PAGES.with(|x| x.borrow().get(&page).expect("Must have this page").to_vec())
+#[allow(clippy::result_unit_err)]
+pub fn get_released_page_old_data(page: u32) -> sp_std::result::Result<sp_std::vec::Vec<u8>, ()> {
+    RELEASED_LAZY_PAGES.with(|x| match x.borrow().get(&page) {
+        Some(data) => Ok(data.to_vec()),
+        None => Err(()), // This page is not in released pages list
+    })
 }
 
 pub use sys::init_lazy_pages;

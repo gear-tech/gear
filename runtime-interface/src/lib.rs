@@ -25,8 +25,10 @@ use sp_runtime_interface::runtime_interface;
 #[cfg(feature = "std")]
 use gear_core::memory::PAGE_SIZE;
 
-pub use sp_std::vec::Vec;
+pub use sp_std::{result::Result, vec::Vec};
 
+#[allow(clippy::result_unit_err)]
+#[cfg(feature = "std")]
 #[cfg(unix)]
 unsafe fn sys_mprotect_wasm_pages(
     from_ptr: u64,
@@ -34,7 +36,7 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_read: bool,
     prot_write: bool,
     prot_exec: bool,
-) {
+) -> Result<(), ()> {
     let mut prot_mask = libc::PROT_NONE;
     if prot_read {
         prot_mask |= libc::PROT_READ;
@@ -48,16 +50,21 @@ unsafe fn sys_mprotect_wasm_pages(
     for page in pages_nums {
         let addr = from_ptr as usize + *page as usize * PAGE_SIZE;
         let res = libc::mprotect(addr as *mut libc::c_void, PAGE_SIZE, prot_mask);
-        assert!(
-            res == 0,
-            "Cannot set page protection for {:#x}: {}",
-            addr,
-            errno::errno()
-        );
+        if res != 0 {
+            log::error!(
+                "Cannot set page protection for {:#x}: {}",
+                addr,
+                errno::errno()
+            );
+            return Err(());
+        }
         log::trace!("mprotect wasm page: {:#x}, mask {:#x}", addr, prot_mask);
     }
+    Ok(())
 }
 
+#[allow(clippy::result_unit_err)]
+#[cfg(feature = "std")]
 #[cfg(not(unix))]
 unsafe fn sys_mprotect_wasm_pages(
     from_ptr: u64,
@@ -65,24 +72,24 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_read: bool,
     prot_write: bool,
     prot_exec: bool,
-) {
-    unreachable!("unsupported OS for pages protectections");
+) -> Result<(), ()> {
+    log::error!("unsupported OS for pages protectections");
+    Err(())
 }
 
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
     /// Apply mprotect syscall for given list of wasm pages.
+    #[allow(clippy::result_unit_err)]
     fn mprotect_wasm_pages(
         from_ptr: u64,
         pages_nums: &[u32],
         prot_read: bool,
         prot_write: bool,
         prot_exec: bool,
-    ) {
-        unsafe {
-            sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec);
-        }
+    ) -> Result<(), ()> {
+        unsafe { sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec) }
     }
 
     fn save_page_lazy_info(wasm_page: u32, key: &[u8]) {
@@ -109,7 +116,8 @@ pub trait GearRI {
         gear_lazy_pages::get_released_pages()
     }
 
-    fn get_released_page_old_data(page: u32) -> Vec<u8> {
+    #[allow(clippy::result_unit_err)]
+    fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, ()> {
         gear_lazy_pages::get_released_page_old_data(page)
     }
 

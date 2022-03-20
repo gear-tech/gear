@@ -64,7 +64,7 @@ pub fn protect_pages_and_init_info(
     memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     prog_id: ProgramId,
     wasm_mem_begin_addr: usize,
-) {
+) -> Result<(), &'static str> {
     let lazy_pages = memory_pages
         .iter()
         .filter(|(_num, buf)| buf.is_none())
@@ -86,25 +86,29 @@ pub fn protect_pages_and_init_info(
         false,
         false,
         false,
-    );
+    )
+    .map_err(|_| "Cannot set protection for some pages")
 }
 
 /// Lazy pages contract post execution actions
 pub fn post_execution_actions(
     memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     wasm_mem_begin_addr: usize,
-) {
+) -> Result<(), &'static str> {
     // Loads data for released lazy pages. Data which was before execution.
     let released_pages = gear_ri::gear_ri::get_released_pages();
-    released_pages.into_iter().for_each(|page| {
-        let data = gear_ri::gear_ri::get_released_page_old_data(page);
+    for page in released_pages.into_iter() {
+        let data = match gear_ri::gear_ri::get_released_page_old_data(page) {
+            Ok(data) => data,
+            Err(_) => return Err("Some of released pages has no data in released pages data map"),
+        };
         memory_pages.insert(
             (page).into(),
             Option::from(Box::new(
                 PageBuf::try_from(data).expect("Must be able to convert"),
             )),
         );
-    });
+    }
 
     // Removes protections from lazy pages
     let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
@@ -114,17 +118,24 @@ pub fn post_execution_actions(
         true,
         true,
         false,
-    );
+    )
+    .map_err(|_| "Cannot set protection for some pages")?;
+
+    Ok(())
 }
 
 /// Remove lazy-pages protection, returns wasm memory begin addr
-pub fn remove_lazy_pages_prot(mem_addr: usize) {
+pub fn remove_lazy_pages_prot(mem_addr: usize) -> Result<(), &'static str> {
     let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
-    gear_ri::gear_ri::mprotect_wasm_pages(mem_addr as u64, &lazy_pages, true, true, false);
+    gear_ri::gear_ri::mprotect_wasm_pages(mem_addr as u64, &lazy_pages, true, true, false)
+        .map_err(|_| "Cannot set protection for some pages")
 }
 
 /// Protect lazy-pages and set new wasm mem addr if it has been changed
-pub fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_addr: usize) {
+pub fn protect_lazy_pages_and_update_wasm_mem_addr(
+    old_mem_addr: usize,
+    new_mem_addr: usize,
+) -> Result<(), &'static str> {
     if new_mem_addr != old_mem_addr {
         log::debug!(
             "backend executor has changed wasm mem buff: from {:#x} to {:#x}",
@@ -134,7 +145,8 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_
         gear_ri::gear_ri::set_wasm_mem_begin_addr(new_mem_addr as u64);
     }
     let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
-    gear_ri::gear_ri::mprotect_wasm_pages(new_mem_addr as u64, &lazy_pages, false, false, false);
+    gear_ri::gear_ri::mprotect_wasm_pages(new_mem_addr as u64, &lazy_pages, false, false, false)
+        .map_err(|_| "Cannot set protection for some pages")
 }
 
 /// Returns list of current lazy pages numbers
