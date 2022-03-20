@@ -303,9 +303,6 @@ impl Debug for State {
                     .actors
                     .iter()
                     .filter_map(|(id, actor)| {
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
                         actor.as_ref().map(|actor| {
                             (
                                 *id,
@@ -313,46 +310,13 @@ impl Debug for State {
                                     actor.balance,
                                     actor
                                         .program
-=======
-                        actor.
-                            clone()
-                            .map(|ExecutableActor { program, balance }| {
-(
-=======
-                        actor.clone().map(|ExecutableActor { program, balance }| {
-=======
-                        actor.as_ref().map(|actor| {
->>>>>>> refactor + panic then message to user in dispatch queue
-                            (
->>>>>>> pre-commit corrections
-                                *id,
-                                (
-<<<<<<< HEAD
-                                    balance,
-                                    program
->>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
-=======
-                                    actor.balance,
-                                    actor
-                                        .program
->>>>>>> refactor + panic then message to user in dispatch queue
                                         .get_pages()
                                         .keys()
                                         .cloned()
                                         .collect::<BTreeSet<PageNumber>>(),
                                 ),
-<<<<<<< HEAD
-<<<<<<< HEAD
                             )
                         })
-=======
-                            )}
-                        )
->>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
-=======
-                            )
-                        })
->>>>>>> pre-commit corrections
                     })
                     .collect::<BTreeMap<ProgramId, (u128, BTreeSet<PageNumber>)>>(),
             )
