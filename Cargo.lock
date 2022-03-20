@@ -4354,6 +4354,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tests-btree",
  "tests-distributor",
  "tests-exit-handle",
  "tests-exit-init",

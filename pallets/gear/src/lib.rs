@@ -61,9 +61,10 @@ impl DebugInfo for () {
 pub mod pallet {
     use super::*;
 
+    use alloc::format;
     use common::{
-        self, CodeMetadata, DAGBasedLedger, Dispatch, GasPrice, Message, Origin, Program,
-        ProgramState, QueuedDispatch, QueuedMessage,
+        self, CodeMetadata, DAGBasedLedger, GasPrice, Origin, Program, ProgramState,
+        QueuedDispatch, QueuedMessage,
     };
     use core_processor::{
         common::{DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalNote},
@@ -80,11 +81,12 @@ pub mod pallet {
         message::DispatchKind,
         program::{CodeHash, Program as NativeProgram, ProgramId},
     };
-    use manager::{ExtManager, HandleKind};
     use primitive_types::H256;
     use scale_info::TypeInfo;
-    use sp_runtime::traits::{Saturating, UniqueSaturatedInto};
+    use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+
+    use crate::manager::{ExtManager, HandleKind};
 
     #[pallet::config]
     pub trait Config:
@@ -331,8 +333,60 @@ pub mod pallet {
             Ok(message)
         }
 
-        pub fn get_gas_spent(source: H256, kind: HandleKind, payload: Vec<u8>) -> Option<u64> {
-            let ext_manager = ExtManager::<T>::default();
+        pub fn get_gas_spent(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            let mut ext_manager = ExtManager::<T>::default();
+
+            let root_message_id = common::next_message_id(&payload);
+
+            let (kind, dest, reply) = match kind {
+                HandleKind::Init(code) => {
+                    let id = sp_io::hashing::blake2_256(&code);
+                    common::set_code(id.into(), &code);
+                    let program = NativeProgram::new(id.into(), code).map_err(|_| {
+                        b"Unable to create a program for the code provided".to_vec()
+                    })?;
+                    ext_manager.set_program(program, root_message_id);
+
+                    (DispatchKind::Init, id.into(), None)
+                }
+                HandleKind::Handle(dest) => (DispatchKind::Handle, dest, None),
+                HandleKind::Reply(msg_id, exit_code) => {
+                    let msg = Self::get_from_mailbox(source, msg_id)
+                        .ok_or_else(|| b"Message not found in the mailbox".to_vec())?;
+                    (
+                        DispatchKind::HandleReply,
+                        msg.source,
+                        Some((msg_id, exit_code)),
+                    )
+                }
+            };
+
+            let initial_gas = T::BlockGasLimit::get();
+            T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
+                .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
+
+            let message = QueuedMessage {
+                id: root_message_id,
+                source,
+                dest,
+                payload,
+                value,
+                reply,
+            };
+
+            let dispatch = QueuedDispatch {
+                kind,
+                message,
+                payload_store: None,
+            };
+
+            common::clear_dispatch_queue();
+            common::queue_dispatch(dispatch);
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -342,81 +396,59 @@ pub mod pallet {
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-            let (dest, reply) = match kind {
-                HandleKind::Init(ref code) => (CodeHash::generate(code).into_origin(), None),
-                HandleKind::Handle(dest) => (dest, None),
-                HandleKind::Reply(msg_id, exit_code) => {
-                    let msg = Self::get_from_mailbox(source, msg_id)?;
-                    (msg.source, Some((msg_id, exit_code)))
-                }
-            };
+            let mut max_gas_spent = 0;
 
-            let message = Message {
-                id: common::next_message_id(&payload),
-                source,
-                dest,
-                gas_limit: u64::MAX,
-                payload,
-                value: 0,
-                reply,
-            };
+            while let Some(queued_dispatch) = common::dequeue_dispatch() {
+                let actor_id = queued_dispatch.message.dest;
+                let actor = ext_manager
+                    .get_executable_actor(actor_id)
+                    .ok_or_else(|| b"Program not found in the storage".to_vec())?;
 
-            let mut gas_burned = 0;
-            let mut gas_to_send = 0;
+                let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    Some(actor),
+                    queued_dispatch.into_dispatch(initial_gas),
+                    block_info,
+                    existential_deposit,
+                    ProgramId::from_origin(source),
+                );
 
-            let (kind, actor) = match kind {
-                HandleKind::Init(code) => {
-                    gas_burned = gas_burned
-                        .saturating_add(<T as Config>::WeightInfo::submit_code(code.len() as u32));
-                    (
-                        DispatchKind::Init,
-                        ext_manager.executable_actor_from_code(dest, code)?,
-                    )
-                }
-                HandleKind::Handle(dest) => (
-                    DispatchKind::Handle,
-                    ext_manager.get_executable_actor(dest)?,
-                ),
-                HandleKind::Reply(..) => (
-                    DispatchKind::HandleReply,
-                    ext_manager.get_executable_actor(dest)?,
-                ),
-            };
+                core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
-            let dispatch = Dispatch {
-                kind,
-                message,
-                payload_store: None,
-            };
+                let (remaining_gas, _) =
+                    T::GasHandler::get_limit(root_message_id).ok_or_else(|| {
+                        b"Internal error: unable to get gas limit after execution".to_vec()
+                    })?;
 
-            let journal = core_processor::process::<
-                ext::LazyPagesExt,
-                SandboxEnvironment<ext::LazyPagesExt>,
-            >(
-                Some(actor),
-                dispatch.into(),
-                block_info,
-                existential_deposit,
-                ProgramId::from_origin(source),
-            );
-
-            for note in &journal {
-                match note {
-                    JournalNote::GasBurned { amount, .. } => {
-                        gas_burned = gas_burned.saturating_add(*amount);
+                // TODO: Check whether we charge gas fee for submitting code after #646
+                for note in journal {
+                    match note {
+                        JournalNote::SendDispatch { .. }
+                        | JournalNote::WaitDispatch(..)
+                        | JournalNote::MessageConsumed(..) => {
+                            let gas_spent = initial_gas.saturating_sub(remaining_gas);
+                            if gas_spent > max_gas_spent {
+                                max_gas_spent = gas_spent;
+                            }
+                        }
+                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                            trap,
+                            ..
+                        }) => {
+                            return Err(format!(
+                                "Program terminated with a trap: {}",
+                                trap.unwrap_or("No reason")
+                            )
+                            .into_bytes());
+                        }
+                        _ => (),
                     }
-                    JournalNote::SendDispatch { dispatch, .. } => {
-                        gas_to_send =
-                            gas_to_send.saturating_add(dispatch.message.gas_limit().unwrap_or(0));
-                    }
-                    JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap { .. }) => {
-                        return None;
-                    }
-                    _ => (),
                 }
             }
 
-            Some(gas_burned.saturating_add(gas_to_send))
+            Ok(max_gas_spent)
         }
 
         pub(crate) fn decrease_gas_allowance(gas_charge: u64) {

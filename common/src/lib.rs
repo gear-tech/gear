@@ -607,6 +607,10 @@ pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
 }
 
+pub fn clear_dispatch_queue() {
+    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
+}
+
 pub fn dequeue_dispatch() -> Option<QueuedDispatch> {
     let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     dispatch_queue.dequeue()
