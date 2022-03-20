@@ -84,6 +84,9 @@ function encodePayload(api: GearApi, expMessage: IExpMessage, source: string | H
   return payload;
 }
 
+// Here snapshots must be "snapshots: DebugData[]", but as argument this function
+// gets DebugData[][] , I don't now how TS ignore this.
+// Also message type is changed.
 function findMessage(api: GearApi, expMessage: IExpMessage, snapshots: any, start: number) {
   console.log("dest id = ", expMessage.destination);
   console.log("expect dest = ", programs[expMessage.destination]);
@@ -192,6 +195,7 @@ async function checkLog(api: GearApi, exp: IExpected) {
   return errors;
 }
 
+// Here also DebugData
 async function checkMessages(api: GearApi, exp: IExpected, snapshots: DebugData[]) {
   const errors = [];
   let found = 0;
@@ -244,6 +248,7 @@ async function checkMemory(api: GearApi, exp: IExpected, snapshots: DebugData[],
   return errors;
 }
 
+// Here debug data
 async function processExpected(api: GearApi, sudoPair: KeyringPair, fixture: IFixtures, snapshots: DebugData[]) {
   const output = [];
   const errors = [];
