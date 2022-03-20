@@ -447,9 +447,19 @@ fn check_programs_state(
     let mut errors = Vec::new();
 
     if exact {
+        if actual_programs.len() != expected_programs.len() {
+            errors.push(format!(
+                "Different lens of actual and expected programs: actual length={}, expected length={}",
+                actual_programs.len(), expected_programs.len(),
+            ));
+        }
+
         for id in actual_programs.keys() {
-            if expected_programs.get(id).is_none() {
-                errors.push(format!("unexpected program {:?} was executed", id,));
+            if !expected_programs.contains_key(id) {
+                errors.push(format!(
+                    "Actual program {:?} wasn't found in expectations",
+                    id,
+                ));
             }
         }
     }
@@ -459,7 +469,7 @@ fn check_programs_state(
         if let Some(actual_termination) = actual_termination {
             if actual_termination != terminated {
                 errors.push(format!(
-                    "invalid program id. {:?} expected to be {:?}, but it is {:?}",
+                    "Wrong state of program: {:?} expected to be active={:?}, but it is active={:?}",
                     id, terminated, actual_termination,
                 ));
             }
@@ -573,10 +583,11 @@ where
                         .iter()
                         .map(|(id, actor)| (*id, actor.is_none()))
                         .collect();
+
                     if let Err(prog_id_errors) = check_programs_state(
                         &expected_prog_ids,
                         &actual_prog_ids,
-                        exp.exact.unwrap_or_default(),
+                        exp.exact_programs.unwrap_or_default(),
                     ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
@@ -592,8 +603,7 @@ where
                             .actors
                             .clone()
                             .into_iter()
-                            .filter_map(|(_, v)| v)
-                            .map(|v| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
