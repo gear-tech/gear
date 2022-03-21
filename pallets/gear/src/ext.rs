@@ -196,9 +196,7 @@ impl EnvExt for LazyPagesExt {
             .alloc(pages_num, mem)
             .map_err(|_e| "Allocation error");
 
-        if result.is_err() {
-            return self.inner.return_and_store_err(result);
-        }
+        let page_number = self.inner.return_and_store_err(result)?;
 
         if self.lazy_pages_enabled {
             let new_mem_addr = mem.get_wasm_memory_begin_addr();
@@ -212,7 +210,7 @@ impl EnvExt for LazyPagesExt {
             self.inner.config.mem_grow_cost * (pages_num.raw() - grow_pages_num) as u64;
 
         // Returns back greedily used gas for allocations
-        let first_page = result.unwrap().raw();
+        let first_page = page_number.raw();
         let last_page = first_page + pages_num.raw() - 1;
         let mut new_alloced_pages_num = 0;
         for page in first_page..=last_page {
@@ -225,7 +223,7 @@ impl EnvExt for LazyPagesExt {
 
         self.refund_gas(gas_to_return_back as u32)?;
 
-        self.inner.return_and_store_err(result)
+        Ok(page_number)
     }
 
     fn block_height(&self) -> u32 {
