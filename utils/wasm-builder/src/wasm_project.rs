@@ -159,6 +159,7 @@ impl WasmProject {
             .file_base_name
             .as_ref()
             .expect("Run `WasmProject::create_project()` first");
+
         let from_path = self
             .out_dir
             .join("target/wasm32-unknown-unknown/release")
@@ -179,9 +180,16 @@ impl WasmProject {
             .join(format!("{}.meta.wasm", &file_base_name));
         Self::generate_meta(&from_path, &to_meta_path)?;
 
-        let wasm_binary_path = self.out_dir.join("wasm_binary_path.txt");
-        fs::write(&wasm_binary_path, format!("{}", to_opt_path.display()))
-            .context("unable to write `wasm_binary_path.txt`")?;
+        let wasm_binary_path = self.original_dir.join(".binpath");
+
+        let relative_path_to_opt = pathdiff::diff_paths(&to_opt_path, &self.original_dir)
+            .expect("Unable to calculate relative path");
+
+        fs::write(
+            &wasm_binary_path,
+            format!("{}", relative_path_to_opt.display()),
+        )
+        .context("unable to write `.binpath`")?;
 
         let wasm_binary_rs = self.out_dir.join("wasm_binary.rs");
         fs::write(

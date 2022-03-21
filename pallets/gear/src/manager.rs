@@ -117,15 +117,6 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn executable_actor_from_code(&self, id: H256, code: Vec<u8>) -> Option<ExecutableActor> {
-        NativeProgram::new(ProgramId::from_origin(id), code)
-            .ok()
-            .map(|program| ExecutableActor {
-                program,
-                balance: 0,
-            })
-    }
-
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
