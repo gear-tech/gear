@@ -15,7 +15,7 @@ import { Codec } from '@polkadot/types/types';
 import YAML from 'yaml';
 import * as fs from 'fs';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { IExpected, IExpMessage, IFixtures, ITestData, ITestMetadata, ITestPrograms } from './interfaces';
+import { IPayload, IExpected, IExpMessage, IFixtures, ITestData, ITestMetadata, ITestPrograms } from './interfaces';
 
 var metadata: ITestMetadata = {};
 var programs: ITestPrograms = {};
@@ -46,33 +46,32 @@ function replaceRegex(input: string) {
       }
     }
   }
-  console.log('input = ', input);
   return { input, ids };
 }
 
-function encodePayload(api: GearApi, expMessage: IExpMessage, source: string | H256) {
+function encodePayload(api: GearApi, exp_payload: IPayload, is_init: boolean, source: string | H256) {
   let payload: Codec;
-  if (expMessage.payload.kind === 'bytes') {
-    payload = api.createType('Bytes', expMessage.payload.value);
-  } else if (expMessage.payload.kind === 'i32') {
-    payload = api.createType('Bytes', Array.from(api.createType('i32', expMessage.payload.value).toU8a()));
-  } else if (expMessage.payload.kind === 'i64') {
-    payload = api.createType('Bytes', Array.from(api.createType('i64', expMessage.payload.value).toU8a()));
-  } else if (expMessage.payload.kind === 'f32') {
-    payload = api.createType('Bytes', Array.from(api.createType('f32', expMessage.payload.value).toU8a()));
-  } else if (expMessage.payload.kind === 'f64') {
-    payload = api.createType('Bytes', Array.from(api.createType('f64', expMessage.payload.value).toU8a()));
-  } else if (expMessage.payload.kind === 'utf-8') {
-    payload = api.createType('Bytes', replaceRegex(expMessage.payload.value));
-  } else if (expMessage.payload.kind === 'custom') {
-    expMessage.payload.value = JSON.stringify(expMessage.payload.value);
-    expMessage.payload.value = replaceRegex(expMessage.payload.value);
+  if (exp_payload.kind === 'bytes') {
+    payload = api.createType('Bytes', exp_payload.value);
+  } else if (exp_payload.kind === 'i32') {
+    payload = api.createType('Bytes', Array.from(api.createType('i32', exp_payload.value).toU8a()));
+  } else if (exp_payload.kind === 'i64') {
+    payload = api.createType('Bytes', Array.from(api.createType('i64', exp_payload.value).toU8a()));
+  } else if (exp_payload.kind === 'f32') {
+    payload = api.createType('Bytes', Array.from(api.createType('f32', exp_payload.value).toU8a()));
+  } else if (exp_payload.kind === 'f64') {
+    payload = api.createType('Bytes', Array.from(api.createType('f64', exp_payload.value).toU8a()));
+  } else if (exp_payload.kind === 'utf-8') {
+    payload = api.createType('Bytes', replaceRegex(exp_payload.value).input);
+  } else if (exp_payload.kind === 'custom') {
+    exp_payload.value = JSON.stringify(exp_payload.value);
+    exp_payload.value = replaceRegex(exp_payload.value).input;
     let pid = Object.keys(programs).find((key) => programs[key] === source);
     try {
-      if (expMessage.init) {
-        payload = CreateType.create(metadata[pid].init_output, expMessage.payload.value, metadata[pid]);
+      if (is_init) {
+        payload = CreateType.create(metadata[pid].init_output, exp_payload.value, metadata[pid]);
       } else {
-        payload = CreateType.create(metadata[pid].handle_output, expMessage.payload.value, metadata[pid]);
+        payload = CreateType.create(metadata[pid].handle_output, exp_payload.value, metadata[pid]);
       }
     } catch (error) {
       console.log(error);
@@ -92,9 +91,13 @@ function findMessage(api: GearApi, expMessage: IExpMessage, snapshots: DebugData
           let match = true;
 
           if (expMessage.payload) {
-            let payload = encodePayload(api, expMessage, message.source);
-
-            if (payload && !payload.eq(message.payload)) {
+            let payload = encodePayload(api, expMessage.payload, expMessage.init, message.source);
+            let message_payload = {
+              kind: 'bytes',
+              value: message.payload,
+            }
+            let message_encoded = encodePayload(api, message_payload, false, "");
+            if (payload && !payload.eq(message_encoded)) {
               match = false;
             }
           }
@@ -146,11 +149,14 @@ async function checkLog(api: GearApi, exp: IExpected) {
   if (messagesOpt.isSome) {
     let messages = messagesOpt.unwrap();
 
-    for (const log of exp.log) {
+    for (let log of exp.log) {
       if ('payload' in log) {
         let found = false;
+        if (log.destination == 1000001) {
+          log.destination = '0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d';
+        }
         for (const index of Object.keys(metadata)) {
-          let encoded = encodePayload(api, log, programs[index]);
+          let encoded = encodePayload(api, log.payload, log.init, programs[index]);
 
           if (!encoded) {
             console.log('Skip: Cannot construct unknown type');
@@ -158,12 +164,20 @@ async function checkLog(api: GearApi, exp: IExpected) {
             continue;
           }
 
-          messages.forEach((message, _id) => {
-            if (encoded.toHex() === message.payload.toHex()) {
-              found = true;
-              return;
+          for (const [_id, message] of messages) {
+            if (message.dest.toString() != log.destination) {
+                continue;
             }
-          });
+            let message_payload = {
+              kind: 'bytes',
+              value: message.payload,
+            };
+            let message_encoded = encodePayload(api, message_payload, false, "");
+            if (encoded.toHex() === message_encoded.toHex()) {
+              found = true;
+              return errors;
+            }
+          }
         }
 
         if (!found) {
@@ -259,7 +273,7 @@ async function processExpected(api: GearApi, sudoPair: KeyringPair, fixture: IFi
       }
     }
 
-    // TODO
+    // TODO: support memory checks
     // if ('memory' in exp) {
     //   const res = await checkMemory(api, exp, snapshots, programs);
     //   if (res.length === 0) {
@@ -268,6 +282,7 @@ async function processExpected(api: GearApi, sudoPair: KeyringPair, fixture: IFi
     //     errors.push(`MEMORY ERR: ${res}`);
     //   }
     // }
+
     if (errors.length > 0) {
       console.log(`Fixture ${fixture.title}`);
       for (const err of errors) {
@@ -314,11 +329,11 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     } else if (message.payload.kind === 'f64') {
       payload = api.createType('f64', message.payload.value).toU8a();
     } else if (message.payload.kind === 'utf-8') {
-      payload = replaceRegex(message.payload.value);
+      payload = replaceRegex(message.payload.value).input;
       payload = api.createType('Bytes', message.payload.value);
     } else if (message.payload.kind === 'custom') {
       message.payload.value = JSON.stringify(message.payload.value);
-      payload = replaceRegex(message.payload.value);
+      payload = replaceRegex(message.payload.value).input;
       payload = message.payload.value;
     } else {
       payload = message.payload.value;
@@ -399,7 +414,6 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
         if (handled_nums.has(program.id)) {
           continue;
         }
-        console.log('program number = ', program.id);
         if (typeof program.id === 'object') {
           console.log('Skipped');
 
@@ -417,8 +431,11 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
             }
             payload = api.createType('Bytes', input);
           } else if (program.init_message.kind === 'custom') {
-            payload = JSON.stringify(program.init_message.value);
-            payload = replaceRegex(payload);
+            console.log('Skipped');
+            break fixtureLoop;
+            // TODO: support custom payload
+            // payload = JSON.stringify(program.init_message.value);
+            // payload = replaceRegex(payload).input;
           } else if (program.init_message.kind === 'bytes') {
             payload = api.createType('Bytes', program.init_message.value);
           }
@@ -434,7 +451,6 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
             meta,
           );
           programs[program.id] = res.programId;
-          console.log('program id = ', programs[program.id]);
         } else {
           const meta = { init_input: 'Bytes' };
           let res = api.program.submit(
@@ -448,8 +464,6 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
             meta,
           );
           programs[program.id] = res.programId;
-          console.log('program id = ', programs[program.id]);
-          // assert
         }
         handled_nums.add(program.id);
         txs.push(api.program.submitted);
