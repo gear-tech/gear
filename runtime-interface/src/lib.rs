@@ -29,7 +29,7 @@ use gear_core::memory::PAGE_SIZE;
 pub use sp_std::{result::Result, vec::Vec};
 
 #[derive(Encode, Decode)]
-pub enum MproterctError {
+pub enum MprotectError {
     PageError,
     OsError,
 }
@@ -45,7 +45,7 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_read: bool,
     prot_write: bool,
     prot_exec: bool,
-) -> Result<(), MproterctError> {
+) -> Result<(), MprotectError> {
     let mut prot_mask = libc::PROT_NONE;
     if prot_read {
         prot_mask |= libc::PROT_READ;
@@ -65,7 +65,7 @@ unsafe fn sys_mprotect_wasm_pages(
                 addr,
                 errno::errno()
             );
-            return Err(MproterctError::PageError);
+            return Err(MprotectError::PageError);
         }
         log::trace!("mprotect wasm page: {:#x}, mask {:#x}", addr, prot_mask);
     }
@@ -80,9 +80,9 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_read: bool,
     prot_write: bool,
     prot_exec: bool,
-) -> Result<(), MproterctError> {
+) -> Result<(), MprotectError> {
     log::error!("unsupported OS for pages protectections");
-    Err(MproterctError::OsError)
+    Err(MprotectError::OsError)
 }
 
 /// !!! Note: Will be expanded as gear_ri
@@ -95,7 +95,7 @@ pub trait GearRI {
         prot_read: bool,
         prot_write: bool,
         prot_exec: bool,
-    ) -> Result<(), MproterctError> {
+    ) -> Result<(), MprotectError> {
         unsafe { sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec) }
     }
 
@@ -123,7 +123,6 @@ pub trait GearRI {
         gear_lazy_pages::get_released_pages()
     }
 
-    #[allow(clippy::result_unit_err)]
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
         gear_lazy_pages::get_released_page_old_data(page).map_err(|_| GetReleasedPageError)
     }

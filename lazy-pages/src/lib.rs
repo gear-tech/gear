@@ -55,7 +55,7 @@ pub fn save_page_lazy_info(wasm_page: u32, key: &[u8]) {
 }
 
 /// Returns vec of not-accessed wasm lazy pages
-pub fn get_wasm_lazy_pages_numbers() -> sp_std::vec::Vec<u32> {
+pub fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
     LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().iter().map(|x| *x.0).collect())
 }
 
