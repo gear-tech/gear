@@ -67,7 +67,7 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    use std::io::{Read, Write};
 
     use gtest::{Program, System};
 
@@ -94,8 +94,10 @@ mod tests {
         let mut dir = std::env::temp_dir();
         dir.push("tmp_test_file");
 
-        let mut file = std::fs::File::create(dir.as_path()).expect("internal error: can't create tmp file");
-        file.write(data).expect("internal error: can't write to tmp");
+        let mut file =
+            std::fs::File::create(dir.as_path()).expect("internal error: can't create tmp file");
+        file.write(data)
+            .expect("internal error: can't write to tmp");
 
         dir
     }
@@ -165,7 +167,11 @@ mod tests {
         let invalid_wasm_path_buf = create_tmp_file_with_data(&invalid_wasm);
         let invalid_wasm_code_hash = sys.submit_code(invalid_wasm_path_buf);
 
-        let payload = CreateProgram::Custom(vec![(invalid_wasm_code_hash.inner(), b"some_salt".to_vec(), 100_000)]);
+        let payload = CreateProgram::Custom(vec![(
+            invalid_wasm_code_hash.inner(),
+            b"some_salt".to_vec(),
+            100_000,
+        )]);
         factory.send_bytes(10001, payload.encode());
     }
 }
