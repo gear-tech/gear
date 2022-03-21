@@ -25,7 +25,6 @@ use gear_backend_common::{
 };
 use gear_core::{
     env::{Ext, LaterExt},
-    gas::GasAmount,
     memory::{Error, PageBuf, PageNumber},
 };
 use wasmtime::{
@@ -382,9 +381,5 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             wasm_memory_addr,
             info,
         })
-    }
-
-    fn drop_env(&mut self) -> GasAmount {
-        self.ext.unset().into_gas_amount()
     }
 }

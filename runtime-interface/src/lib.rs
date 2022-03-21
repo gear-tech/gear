@@ -20,24 +20,13 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::{Decode, Encode};
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
 use gear_core::memory::PAGE_SIZE;
 
-pub use sp_std::{result::Result, vec::Vec};
+pub use sp_std::vec::Vec;
 
-#[derive(Encode, Decode)]
-pub enum MprotectError {
-    PageError,
-    OsError,
-}
-
-#[derive(Encode, Decode)]
-pub struct GetReleasedPageError;
-
-#[cfg(feature = "std")]
 #[cfg(unix)]
 unsafe fn sys_mprotect_wasm_pages(
     from_ptr: u64,
@@ -45,7 +34,7 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_read: bool,
     prot_write: bool,
     prot_exec: bool,
-) -> Result<(), MprotectError> {
+) {
     let mut prot_mask = libc::PROT_NONE;
     if prot_read {
         prot_mask |= libc::PROT_READ;
@@ -59,20 +48,16 @@ unsafe fn sys_mprotect_wasm_pages(
     for page in pages_nums {
         let addr = from_ptr as usize + *page as usize * PAGE_SIZE;
         let res = libc::mprotect(addr as *mut libc::c_void, PAGE_SIZE, prot_mask);
-        if res != 0 {
-            log::error!(
-                "Cannot set page protection for {:#x}: {}",
-                addr,
-                errno::errno()
-            );
-            return Err(MprotectError::PageError);
-        }
+        assert!(
+            res == 0,
+            "Cannot set page protection for {:#x}: {}",
+            addr,
+            errno::errno()
+        );
         log::trace!("mprotect wasm page: {:#x}, mask {:#x}", addr, prot_mask);
     }
-    Ok(())
 }
 
-#[cfg(feature = "std")]
 #[cfg(not(unix))]
 unsafe fn sys_mprotect_wasm_pages(
     from_ptr: u64,
@@ -80,9 +65,8 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_read: bool,
     prot_write: bool,
     prot_exec: bool,
-) -> Result<(), MprotectError> {
-    log::error!("unsupported OS for pages protectections");
-    Err(MprotectError::OsError)
+) {
+    unreachable!("unsupported OS for pages protectections");
 }
 
 /// !!! Note: Will be expanded as gear_ri
@@ -95,8 +79,10 @@ pub trait GearRI {
         prot_read: bool,
         prot_write: bool,
         prot_exec: bool,
-    ) -> Result<(), MprotectError> {
-        unsafe { sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec) }
+    ) {
+        unsafe {
+            sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec);
+        }
     }
 
     fn save_page_lazy_info(wasm_page: u32, key: &[u8]) {
@@ -123,8 +109,8 @@ pub trait GearRI {
         gear_lazy_pages::get_released_pages()
     }
 
-    fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
-        gear_lazy_pages::get_released_page_old_data(page).map_err(|_| GetReleasedPageError)
+    fn get_released_page_old_data(page: u32) -> Vec<u8> {
+        gear_lazy_pages::get_released_page_old_data(page)
     }
 
     fn print_hello() {
