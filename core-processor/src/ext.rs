@@ -58,26 +58,29 @@ pub trait ProcessorExt {
         &mut self,
         program_id: ProgramId,
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool;
+    ) -> Result<bool, &'static str>;
 
     /// Protect and save storage keys for pages which has no data
     fn protect_pages_and_init_info(
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         prog_id: ProgramId,
         wasm_mem_begin_addr: usize,
-    );
+    ) -> Result<(), &'static str>;
 
     /// Lazy pages contract post execution actions
     fn post_execution_actions(
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         wasm_mem_begin_addr: usize,
-    );
+    ) -> Result<(), &'static str>;
 
     /// Remove lazy-pages protection, returns wasm memory begin addr
-    fn remove_lazy_pages_prot(mem_addr: usize);
+    fn remove_lazy_pages_prot(mem_addr: usize) -> Result<(), &'static str>;
 
     /// Protect lazy-pages and set new wasm mem addr if it has been changed
-    fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_addr: usize);
+    fn protect_lazy_pages_and_update_wasm_mem_addr(
+        old_mem_addr: usize,
+        new_mem_addr: usize,
+    ) -> Result<(), &'static str>;
 
     /// Returns list of current lazy pages numbers
     fn get_lazy_pages_numbers() -> Vec<u32>;
@@ -148,26 +151,35 @@ impl ProcessorExt for Ext {
         &mut self,
         _program_id: ProgramId,
         _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool {
-        false
+    ) -> Result<bool, &'static str> {
+        Ok(false)
     }
 
     fn protect_pages_and_init_info(
         _memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         _prog_id: ProgramId,
         _wasm_mem_begin_addr: usize,
-    ) {
+    ) -> Result<(), &'static str> {
+        Ok(())
     }
 
     fn post_execution_actions(
         _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         _wasm_mem_begin_addr: usize,
-    ) {
+    ) -> Result<(), &'static str> {
+        Ok(())
     }
 
-    fn remove_lazy_pages_prot(_mem_addr: usize) {}
+    fn remove_lazy_pages_prot(_mem_addr: usize) -> Result<(), &'static str> {
+        Ok(())
+    }
 
-    fn protect_lazy_pages_and_update_wasm_mem_addr(_old_mem_addr: usize, _new_mem_addr: usize) {}
+    fn protect_lazy_pages_and_update_wasm_mem_addr(
+        _old_mem_addr: usize,
+        _new_mem_addr: usize,
+    ) -> Result<(), &'static str> {
+        Ok(())
+    }
 
     fn get_lazy_pages_numbers() -> Vec<u32> {
         Vec::default()
