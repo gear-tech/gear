@@ -563,7 +563,7 @@ impl JournalHandler for ExtManager {
                 if !self.actors.contains_key(&candidate_id) {
                     let candidate = CoreProgram::new(candidate_id, code.clone()).unwrap_or_else(|e|
                         panic!(
-                            "internal error: program can't be constructed with provided code {:?}. An error occurred {:?}",
+                            "Program can't be constructed with provided code {:?}. An error occurred {:?}",
                             code, e
                         )
                     );

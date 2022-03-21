@@ -67,6 +67,8 @@ mod wasm {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     use gtest::{Program, System};
 
     use super::*;
@@ -86,6 +88,16 @@ mod tests {
         assert!(sys.get_program(100).is_some());
 
         factory
+    }
+
+    fn create_tmp_file_with_data(data: &[u8]) -> std::path::PathBuf {
+        let mut dir = std::env::temp_dir();
+        dir.push("tmp_test_file");
+
+        let mut file = std::fs::File::create(dir.as_path()).expect("internal error: can't create tmp file");
+        file.write(data).expect("internal error: can't write to tmp");
+
+        dir
     }
 
     #[test]
@@ -131,8 +143,6 @@ mod tests {
         let sys = System::new();
         let factory = prepare_factory(&sys);
 
-        env_logger::init();
-
         // Non existing code hash provided
         let non_existing_code_hash = [10u8; 32];
         let salt = b"some_salt";
@@ -143,5 +153,19 @@ mod tests {
         assert!(!res.main_failed());
         // No new program with fictional id
         assert!(sys.get_program(fictional_program_id).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "Program can't be constructed with provided code")]
+    fn test_invalid_wasm_child() {
+        let sys = System::new();
+        let factory = prepare_factory(&sys);
+
+        let invalid_wasm = [10u8; 32];
+        let invalid_wasm_path_buf = create_tmp_file_with_data(&invalid_wasm);
+        let invalid_wasm_code_hash = sys.submit_code(invalid_wasm_path_buf);
+
+        let payload = CreateProgram::Custom(vec![(invalid_wasm_code_hash.inner(), b"some_salt".to_vec(), 100_000)]);
+        factory.send_bytes(10001, payload.encode());
     }
 }

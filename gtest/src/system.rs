@@ -66,6 +66,9 @@ impl System {
         self.0.borrow_mut().block_info.timestamp += amount as u64;
     }
 
+    /// Gets a program by `id`
+    ///
+    /// Returns `None` if program with `id` doesn't exist or is a dormant actor.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&'_ self, id: ID) -> Option<Program<'_>> {
         let id = id.into().0;
         self.0
@@ -81,6 +84,9 @@ impl System {
             })
     }
 
+    /// Returns program ids of successfully initialized programs.
+    ///
+    /// Ids of uninitialized and failed during initialization programs aren't returned.
     pub fn initialized_programs(&self) -> Vec<ProgramId> {
         self.0
             .borrow()
