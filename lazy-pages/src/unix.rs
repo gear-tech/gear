@@ -37,8 +37,6 @@ use crate::{LAZY_PAGES_ENABLED, LAZY_PAGES_INFO, RELEASED_LAZY_PAGES, WASM_MEM_B
 /// instruction, which cause signal. Now memory which this instruction accesses
 /// is not protected and with correct data.
 extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
-    // In this function we use panics in check instead of err return, because it's signal handler.
-
     let (wasm_page, wasm_page_native_addr) = unsafe {
         log::debug!(target: "gear_node::sig_handler", "Interrupted, sig-info = {:?}", *info);
         let mem = (*info).si_addr();
@@ -106,18 +104,9 @@ pub unsafe fn init_lazy_pages() -> bool {
         return true;
     }
 
-    if !LAZY_PAGES_INFO.with(|x| x.borrow().is_empty()) {
-        log::error!("Lazy pages info must be empty before initialization");
-        return false;
-    }
-    if !WASM_MEM_BEGIN.with(|x| *x.borrow() == 0) {
-        log::error!("Wasm mem begin must be 0 before initialization");
-        return false;
-    }
-    if !RELEASED_LAZY_PAGES.with(|x| x.borrow().is_empty()) {
-        log::error!("Released lazy pages must be empty before initialization");
-        return false;
-    }
+    assert!(LAZY_PAGES_INFO.with(|x| x.borrow().is_empty()));
+    assert!(WASM_MEM_BEGIN.with(|x| *x.borrow() == 0));
+    assert!(RELEASED_LAZY_PAGES.with(|x| x.borrow().is_empty()));
 
     if page_size::get() > PAGE_SIZE || PAGE_SIZE % page_size::get() != 0 {
         log::debug!("Unsupported native pages size: {:#x}", page_size::get());

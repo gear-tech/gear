@@ -114,7 +114,7 @@ impl GasCounter {
 }
 
 /// Read-only representation of consumed `GasCounter`.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct GasAmount {
     left: u64,
     burned: u64,
