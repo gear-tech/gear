@@ -58,7 +58,7 @@ pub trait ProcessorExt {
         &mut self,
         program_id: ProgramId,
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool;
+    ) -> Result<bool, &'static str>;
 
     /// Protect and save storage keys for pages which has no data
     fn protect_pages_and_init_info(
@@ -151,8 +151,8 @@ impl ProcessorExt for Ext {
         &mut self,
         _program_id: ProgramId,
         _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool {
-        false
+    ) -> Result<bool, &'static str> {
+        Ok(false)
     }
 
     fn protect_pages_and_init_info(

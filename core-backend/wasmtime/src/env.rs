@@ -384,7 +384,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         })
     }
 
-    fn drop(&mut self) -> GasAmount {
+    fn drop_env(&mut self) -> GasAmount {
         self.ext.unset().into_gas_amount()
     }
 }

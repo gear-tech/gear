@@ -111,5 +111,5 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
 
     /// Unset env ext and returns gas amount.
-    fn drop(&mut self) -> GasAmount;
+    fn drop_env(&mut self) -> GasAmount;
 }

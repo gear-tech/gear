@@ -2156,6 +2156,7 @@ dependencies = [
  "libc",
  "log",
  "page_size",
+ "parity-scale-codec",
  "sp-runtime-interface",
  "sp-std",
 ]

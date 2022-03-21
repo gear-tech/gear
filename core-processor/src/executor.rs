@@ -164,7 +164,16 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Default::default(),
     );
 
-    let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
+    let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, initial_pages) {
+        Ok(enabled) => enabled,
+        Err(e) => {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: ext.into_gas_amount(),
+                reason: e,
+            })
+        }
+    };
 
     let mut env = E::new(ext, &instrumented_code, initial_pages, mem_size).map_err(|err| {
         log::error!("Setup instance err = {:?}", err);
@@ -187,7 +196,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr())
             .map_err(|e| ExecutionError {
                 program_id,
-                gas_amount: env.drop(),
+                gas_amount: env.drop_env(),
                 reason: e,
             })?;
     }

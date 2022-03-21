@@ -132,9 +132,9 @@ impl ProcessorExt for LazyPagesExt {
         &mut self,
         program_id: ProgramId,
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool {
-        self.lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages(program_id, memory_pages);
-        self.lazy_pages_enabled
+    ) -> Result<bool, &'static str> {
+        self.lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages(program_id, memory_pages)?;
+        Ok(self.lazy_pages_enabled)
     }
 
     fn protect_pages_and_init_info(

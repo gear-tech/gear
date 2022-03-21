@@ -114,19 +114,10 @@ impl GasCounter {
 }
 
 /// Read-only representation of consumed `GasCounter`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GasAmount {
     left: u64,
     burned: u64,
-}
-
-impl Clone for GasAmount {
-    fn clone(&self) -> Self {
-        Self {
-            left: self.left,
-            burned: self.burned,
-        }
-    }
 }
 
 impl GasAmount {

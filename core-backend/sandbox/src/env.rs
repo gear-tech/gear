@@ -213,7 +213,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         })
     }
 
-    fn drop(&mut self) -> GasAmount {
+    fn drop_env(&mut self) -> GasAmount {
         self.runtime.ext.unset().into_gas_amount()
     }
 }
