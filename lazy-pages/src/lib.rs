@@ -76,6 +76,7 @@ pub fn get_released_pages() -> Vec<u32> {
     RELEASED_LAZY_PAGES.with(|x| x.borrow().iter().map(|x| *x.0).collect())
 }
 
+#[derive(Debug)]
 pub struct GetReleasedPageError;
 
 /// Returns page data which page has in storage before execution

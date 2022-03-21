@@ -28,13 +28,13 @@ use gear_core::memory::PAGE_SIZE;
 
 pub use sp_std::{result::Result, vec::Vec};
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode)]
 pub enum MprotectError {
     PageError,
     OsError,
 }
 
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode)]
 pub struct GetReleasedPageError;
 
 #[cfg(feature = "std")]
@@ -88,7 +88,20 @@ unsafe fn sys_mprotect_wasm_pages(
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    fn mprotect_wasm_pages(
+        from_ptr: u64,
+        pages_nums: &[u32],
+        prot_read: bool,
+        prot_write: bool,
+        prot_exec: bool,
+    ) {
+        unsafe {
+            let _ = sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec);
+        }
+    }
+
     /// Apply mprotect syscall for given list of wasm pages.
+    #[version(2)]
     fn mprotect_wasm_pages(
         from_ptr: u64,
         pages_nums: &[u32],
@@ -123,6 +136,11 @@ pub trait GearRI {
         gear_lazy_pages::get_released_pages()
     }
 
+    fn get_released_page_old_data(page: u32) -> Vec<u8> {
+        gear_lazy_pages::get_released_page_old_data(page).expect("Must have data for released page")
+    }
+
+    #[version(2)]
     fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
         gear_lazy_pages::get_released_page_old_data(page).map_err(|_| GetReleasedPageError)
     }
