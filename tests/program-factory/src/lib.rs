@@ -1,6 +1,8 @@
-//! A simple example of `create_program` sys-call.
+//! An example of `create_program_with_gas` sys-call.
 //!
 //! The program is mainly used for testing the sys-call logic in pallet `gear` tests.
+//! It works as a program factory: depending on input type it sends program creation
+//! request (message).
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -76,12 +78,12 @@ mod tests {
         assert_eq!(code_hash_stored.inner(), CHILD_CODE_HASH);
 
         // Instantiate factory
-        let factory = Program::current(sys);
+        let factory = Program::current_with_id(sys, 100);
 
         // Send `init` msg to factory
         let res = factory.send_bytes(10001, "EMPTY");
         assert!(!res.main_failed());
-        assert_eq!(res.initialized_programs().len(), 1);
+        assert!(sys.get_program(100).is_some());
 
         factory
     }
@@ -91,19 +93,14 @@ mod tests {
         let sys = System::new();
         let factory = prepare_factory(&sys);
 
-        let child_code_hash = CHILD_CODE_HASH.into();
-        let child_id_expected = Program::calculate_program_id(child_code_hash, &0i32.to_le_bytes());
+        let child_id_expected =
+            Program::calculate_program_id(CHILD_CODE_HASH.into(), &0i32.to_le_bytes());
 
         // Send `handle` msg to factory to create a new child
         let res = factory.send_bytes(10001, CreateProgram::Default.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
-        assert_eq!(res.initialized_programs().len(), 2);
-
-        let (child_id_actual, child_code_hash_actual) =
-            res.initialized_programs().last().copied().unwrap();
-        assert_eq!(child_id_expected, child_id_actual);
-        assert_eq!(Some(child_code_hash), child_code_hash_actual);
+        assert!(sys.get_program(child_id_expected).is_some());
     }
 
     #[test]
@@ -111,20 +108,22 @@ mod tests {
         let sys = System::new();
         let factory = prepare_factory(&sys);
 
-        let first_call_salt = 0i32.to_le_bytes();
+        let salt = 0i32.to_be_bytes();
+        let child_id_expected = Program::calculate_program_id(CHILD_CODE_HASH.into(), &salt);
+        let payload = CreateProgram::Custom(vec![(CHILD_CODE_HASH, salt.to_vec(), 100_000)]);
 
         // Send `handle` msg to factory to create a new child
-        let res = factory.send_bytes(10001, CreateProgram::Default.encode());
-        assert_eq!(res.initialized_programs().len(), 2);
+        let res = factory.send_bytes(10001, payload.encode());
+        assert!(!res.main_failed());
+        assert!(!res.others_failed());
+        assert!(sys.get_program(child_id_expected).is_some());
 
-        // Duplicate
-        let payload =
-            CreateProgram::Custom(vec![(CHILD_CODE_HASH, first_call_salt.to_vec(), 100_000)]);
+        // Send `handle` msg to create a duplicate
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
         // No new programs!
-        assert_eq!(res.initialized_programs().len(), 2);
+        assert_eq!(sys.initialized_programs().len(), 2);
     }
 
     #[test]
@@ -133,9 +132,6 @@ mod tests {
         let factory = prepare_factory(&sys);
 
         env_logger::init();
-
-        // Send `handle` msg to factory to create a new child
-        factory.send_bytes(10001, CreateProgram::Default.encode());
 
         // Non existing code hash provided
         let non_existing_code_hash = [10u8; 32];
@@ -146,9 +142,6 @@ mod tests {
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         // No new program with fictional id
-        assert!(!res
-            .initialized_programs()
-            .iter()
-            .any(|(p_id, _)| p_id == &fictional_program_id));
+        assert!(sys.get_program(fictional_program_id).is_none());
     }
 }

@@ -1,11 +1,14 @@
 use crate::{
     log::RunResult,
-    manager::ExtManager,
+    manager::{Actor, ExtManager},
     program::{Program, ProgramIdWrapper},
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{message::Message, program::CodeHash};
+use gear_core::{
+    message::Message,
+    program::{CodeHash, ProgramId},
+};
 use path_clean::PathClean;
 use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
@@ -63,11 +66,31 @@ impl System {
         self.0.borrow_mut().block_info.timestamp += amount as u64;
     }
 
-    pub fn get_program<ID: Into<ProgramIdWrapper>>(&'_ self, id: ID) -> Program<'_> {
-        Program {
-            manager: &self.0,
-            id: id.into().0,
-        }
+    pub fn get_program<ID: Into<ProgramIdWrapper>>(&'_ self, id: ID) -> Option<Program<'_>> {
+        let id = id.into().0;
+        self.0
+            .borrow()
+            .actors
+            .get(&id)
+            .and_then(|(actor, _)| match actor {
+                Actor::Dormant => None,
+                _ => Some(Program {
+                    id,
+                    manager: &self.0,
+                }),
+            })
+    }
+
+    pub fn initialized_programs(&self) -> Vec<ProgramId> {
+        self.0
+            .borrow()
+            .actors
+            .iter()
+            .filter_map(|(&program_id, (actor, _))| match actor {
+                Actor::Initialized(_) => Some(program_id),
+                _ => None,
+            })
+            .collect()
     }
 
     /// Saves code to the storage and returns it's code hash

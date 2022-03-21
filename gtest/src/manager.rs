@@ -27,7 +27,7 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, MessageId},
     program::{CodeHash, Program as CoreProgram, ProgramId},
 };
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) type Balance = u128;
@@ -114,13 +114,6 @@ impl Program {
     pub(crate) fn new_mock(mock: impl WasmProgram + 'static) -> Self {
         Program::Mock(Some(Box::new(mock)))
     }
-
-    fn get_code_hash(&self) -> Option<CodeHash> {
-        match self {
-            Program::Genuine(p) => Some(CodeHash::generate(p.code())),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Default, Debug)]
@@ -146,9 +139,6 @@ pub(crate) struct ExtManager {
     pub(crate) log: Vec<Message>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
-
-    // Additional state
-    pub(crate) marked_destinations: BTreeSet<ProgramId>,
 }
 
 impl ExtManager {
@@ -275,24 +265,11 @@ impl ExtManager {
         }
 
         let log = self.log.clone();
-        let initialized_programs = self
-            .actors
-            .iter()
-            .filter_map(|(&program_id, (actor, _))| {
-                // todo [sab] change to be result of one run
-                if let Actor::Initialized(prog) = actor {
-                    Some((program_id, prog.get_code_hash()))
-                } else {
-                    None
-                }
-            })
-            .collect();
 
         RunResult {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
             log: log.into_iter().map(CoreLog::from_message).collect(),
-            initialized_programs,
         }
     }
 
@@ -501,9 +478,7 @@ impl JournalHandler for ExtManager {
         let Dispatch {
             ref mut message, ..
         } = dispatch;
-        if self.actors.contains_key(&message.dest())
-            || self.marked_destinations.contains(&message.dest())
-        {
+        if self.actors.contains_key(&message.dest()) {
             // imbuing gas-less messages with maximum gas!
             if message.gas_limit.is_none() {
                 message.gas_limit = Some(u64::max_value());
