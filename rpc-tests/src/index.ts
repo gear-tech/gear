@@ -6,17 +6,15 @@ import {
   ProgramDetails,
   GearMailbox,
   getWasmMetadata,
-  Metadata,
   DebugData,
 } from '@gear-js/api';
-import { xxhashAsHex, blake2AsHex, randomAsHex } from '@polkadot/util-crypto';
+import { xxhashAsHex, randomAsHex } from '@polkadot/util-crypto';
 import { Option } from '@polkadot/types';
 import { H256 } from '@polkadot/types/interfaces';
 import { Codec } from '@polkadot/types/types';
 import YAML from 'yaml';
 import * as fs from 'fs';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { WsTestProvider } from './ws-test';
 import { IExpected, IExpMessage, IFixtures, ITestData, ITestMetadata, ITestPrograms } from './interfaces';
 
 var metadata: ITestMetadata = {};
@@ -48,7 +46,7 @@ function replaceRegex(input: string) {
       }
     }
   }
-  console.log("input = ", input);
+  console.log('input = ', input);
   return { input, ids };
 }
 
@@ -72,9 +70,9 @@ function encodePayload(api: GearApi, expMessage: IExpMessage, source: string | H
     let pid = Object.keys(programs).find((key) => programs[key] === source);
     try {
       if (expMessage.init) {
-        payload = CreateType.encode(metadata[pid].init_output, expMessage.payload.value, metadata[pid]);
+        payload = CreateType.create(metadata[pid].init_output, expMessage.payload.value, metadata[pid]);
       } else {
-        payload = CreateType.encode(metadata[pid].handle_output, expMessage.payload.value, metadata[pid]);
+        payload = CreateType.create(metadata[pid].handle_output, expMessage.payload.value, metadata[pid]);
       }
     } catch (error) {
       console.log(error);
@@ -84,21 +82,12 @@ function encodePayload(api: GearApi, expMessage: IExpMessage, source: string | H
   return payload;
 }
 
-// Here snapshots must be "snapshots: DebugData[]", but as argument this function
-// gets DebugData[][] , I don't now how TS ignore this.
-// Also message type is changed.
-function findMessage(api: GearApi, expMessage: IExpMessage, snapshots: any, start: number) {
-  console.log("dest id = ", expMessage.destination);
-  console.log("expect dest = ", programs[expMessage.destination]);
+function findMessage(api: GearApi, expMessage: IExpMessage, snapshots: DebugData[], start: number) {
   for (let index = start; index < snapshots.length; index++) {
-    const snapshot = snapshots[index][0];
-    // console.log("snapshot = ", snapshot.toHuman());
-    // console.log("queue = ", snapshot.dispatchQueue);
+    const snapshot = snapshots[index];
+
     if (snapshot.dispatchQueue) {
-      // console.log("queue = ", snapshot.dispatchQueue.entries());
-      for (let message of snapshot.dispatchQueue) {
-        message = message.message;
-        console.log("message dest = ", message.dest.toHex());
+      for (let { message } of snapshot.dispatchQueue) {
         if (message.dest.eq(programs[expMessage.destination])) {
           let match = true;
 
@@ -106,12 +95,6 @@ function findMessage(api: GearApi, expMessage: IExpMessage, snapshots: any, star
             let payload = encodePayload(api, expMessage, message.source);
 
             if (payload && !payload.eq(message.payload)) {
-              match = false;
-            }
-          }
-
-          if (expMessage.gas_limit) {
-            if (!expMessage.gas_limit.eq(message.gas_limit)) {
               match = false;
             }
           }
@@ -195,7 +178,6 @@ async function checkLog(api: GearApi, exp: IExpected) {
   return errors;
 }
 
-// Here also DebugData
 async function checkMessages(api: GearApi, exp: IExpected, snapshots: DebugData[]) {
   const errors = [];
   let found = 0;
@@ -248,7 +230,6 @@ async function checkMemory(api: GearApi, exp: IExpected, snapshots: DebugData[],
   return errors;
 }
 
-// Here debug data
 async function processExpected(api: GearApi, sudoPair: KeyringPair, fixture: IFixtures, snapshots: DebugData[]) {
   const output = [];
   const errors = [];
@@ -300,7 +281,7 @@ async function processExpected(api: GearApi, sudoPair: KeyringPair, fixture: IFi
 
 async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: KeyringPair, fixture: IFixtures) {
   const txs = [];
-  const snapshots = [];
+  const snapshots: DebugData[] = [];
   let res = [];
 
   // Send messages
@@ -358,7 +339,7 @@ async function processFixture(api: GearApi, debugMode: DebugMode, sudoPair: Keyr
     );
   }
   let messagesProccessed = 0;
-  let s_promise_resolve = () => { };
+  let s_promise_resolve = () => {};
   let s_promise = new Promise<void>((resolve, reject) => {
     s_promise_resolve = resolve;
   });
@@ -408,7 +389,7 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
     for (const program of testData.programs) {
       salt[program.id] = randomAsHex(20);
       let bytes = api.createType('Bytes', Array.from(fs.readFileSync(program.path)));
-      let metaBytes = fs.readFileSync(program.path.replace('.opt.wasm', '.wasm').replace('.wasm', '.meta.wasm'));
+      let metaBytes = fs.readFileSync(program.path.replace('.opt.wasm', '.meta.wasm'));
       metadata[program.id] = await getWasmMetadata(metaBytes);
     }
 
@@ -418,7 +399,7 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
         if (handled_nums.has(program.id)) {
           continue;
         }
-        console.log("program number = ", program.id);
+        console.log('program number = ', program.id);
         if (typeof program.id === 'object') {
           console.log('Skipped');
 
@@ -453,7 +434,7 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
             meta,
           );
           programs[program.id] = res.programId;
-          console.log("program id = ", programs[program.id]);
+          console.log('program id = ', programs[program.id]);
         } else {
           const meta = { init_input: 'Bytes' };
           let res = api.program.submit(
@@ -467,7 +448,7 @@ async function processTest(testData: ITestData, api: GearApi, debugMode: DebugMo
             meta,
           );
           programs[program.id] = res.programId;
-          console.log("program id = ", programs[program.id]);
+          console.log('program id = ', programs[program.id]);
           // assert
         }
         handled_nums.add(program.id);
@@ -527,15 +508,12 @@ async function main() {
   const api = await GearApi.create();
   const rootKeys = await GearKeyring.fromSuri('//Alice', 'Alice default');
 
-  console.log("root key addr: ", rootKeys.address);
+  console.log('root key addr: ', rootKeys.address);
 
   const debugMode = new DebugMode(api);
 
   debugMode.enable();
-  const isEnabled = await debugMode.enabled.signAndSend(rootKeys, (events) => {
-    console.log(events.toHuman())
-  });
-  // console.log(isEnabled);
+  await debugMode.enabled.signAndSend(rootKeys);
 
   for (const test of tests) {
     if (test.skipRpcTest) continue;
