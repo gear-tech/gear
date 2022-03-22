@@ -66,24 +66,30 @@ where
             |key, _| Ok(H256::from_slice(key)),
         )
         .filter_map(|k| {
-            self.get_executable_actor(k)
-                .map(|actor| (actor.program.id(), actor))
+            common::get_program(k).map(|program_with_status| {
+                let program_id = ProgramId::from_origin(k);
+                let maybe_actor =
+                    program_with_status
+                        .try_into_native(k)
+                        .ok()
+                        .map(|program| ExecutableActor {
+                            program,
+                            balance: Self::get_actor_balance(k),
+                        });
+                (program_id, maybe_actor)
+            })
         })
-        .filter_map(|(id, mut actor)| {
-            let pages_data = {
-                let page_numbers = actor.program.get_pages().keys().map(|k| k.raw()).collect();
-                let data = common::get_program_pages(id.into_origin(), page_numbers)
-                    .expect("active program exists, therefore pages do");
-                data.into_iter().map(|(k, v)| (k.into(), v)).collect()
-            };
-            let _ = actor.program.set_pages(pages_data);
-            let program = common::get_program(id.into_origin());
-
-            match program {
-                Some(Program::Active(_)) => Some((id, Some(actor))),
-                Some(Program::Terminated) => Some((id, None)),
-                None => None,
+        .map(|(id, mut actor)| {
+            if let Some(actor) = &mut actor {
+                let pages_data = {
+                    let page_numbers = actor.program.get_pages().keys().map(|k| k.raw()).collect();
+                    let data = common::get_program_pages(id.into_origin(), page_numbers)
+                        .expect("active program exists, therefore pages do");
+                    data.into_iter().map(|(k, v)| (k.into(), v)).collect()
+                };
+                let _ = actor.program.set_pages(pages_data);
             }
+            (id, actor)
         })
         .collect();
 
@@ -120,15 +126,17 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
+    pub fn get_actor_balance(id: H256) -> u128 {
+        <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+            .unique_saturated_into()
+    }
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
         let program = common::get_program(id)
             .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
 
-        let balance =
-            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-                .unique_saturated_into();
+        let balance = Self::get_actor_balance(id);
 
         Some(ExecutableActor { program, balance })
     }

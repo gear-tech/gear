@@ -333,6 +333,7 @@ where
             core_processor::handle_journal(journal, journal_handler);
 
             state = journal_handler.collect();
+
             log::debug!("{:?}", state);
             results.push((state.clone(), Ok(())));
         }
