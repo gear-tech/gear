@@ -20,38 +20,35 @@
 
 use crate::checked_code::CheckedCode;
 use codec::{Decode, Encode};
+use core::convert::TryFrom;
+
+const HASH_LENGTH: usize = 32;
 
 /// Blake2b hash of the program code.
 #[derive(Clone, Copy, Debug, Decode, Encode, Ord, PartialOrd, Eq, PartialEq)]
-pub struct CodeHash([u8; 32]);
+pub struct CodeHash([u8; HASH_LENGTH]);
 
 impl CodeHash {
     /// Instantiates [`CodeHash`] by computing blake2b hash of the program `code`.
     pub fn generate(code: &[u8]) -> Self {
-        let blake2b_hash = blake2_rfc::blake2b::blake2b(32, &[], code);
-        Self::from_slice(blake2b_hash.as_bytes())
+        let blake2b_hash = blake2_rfc::blake2b::blake2b(HASH_LENGTH, &[], code);
+        Self::from_slice_unchecked(blake2b_hash.as_bytes())
+            .expect("Blake2bResult has the specified len")
     }
 
     /// Get inner (32 bytes) array representation
-    pub fn inner(&self) -> [u8; 32] {
+    pub fn inner(&self) -> [u8; HASH_LENGTH] {
         self.0
     }
 
-    /// Create new `CodeHash` bytes.
-    ///
-    /// Will panic if slice is not 32 bytes length.
-    pub fn from_slice(s: &[u8]) -> Self {
-        if s.len() != 32 {
-            panic!("Slice is not 32 bytes length")
-        };
-        let mut id = CodeHash([0u8; 32]);
-        id.0[..].copy_from_slice(s);
-        id
+    /// Create new `CodeHash` bytes. Returns `None` if the provided slice has wrong length.
+    pub fn from_slice_unchecked(s: &[u8]) -> Option<Self> {
+        <[u8; HASH_LENGTH]>::try_from(s).map(|a| a.into()).ok()
     }
 }
 
-impl From<[u8; 32]> for CodeHash {
-    fn from(data: [u8; 32]) -> Self {
+impl From<[u8; HASH_LENGTH]> for CodeHash {
+    fn from(data: [u8; HASH_LENGTH]) -> Self {
         CodeHash(data)
     }
 }
