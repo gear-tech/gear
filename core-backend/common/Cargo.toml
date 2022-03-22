@@ -7,4 +7,4 @@ license = "GPL-3.0"
 
 [dependencies]
 gear-core = { path = "../../core" }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4.16", default-features = false }
