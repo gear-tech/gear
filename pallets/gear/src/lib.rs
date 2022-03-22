@@ -497,8 +497,29 @@ pub mod pallet {
             while let Some(dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
 
-                let (gas_limit, origin) = T::GasHandler::get_limit(*dispatch.message_id())
-                    .expect("Should never fail if ValueNode works properly");
+                let (gas_limit, origin) =
+                    if let Some(limit) = T::GasHandler::get_limit(*dispatch.message_id()) {
+                        limit
+                    } else {
+                        log::debug!(
+                            target: "essential",
+                            "No gas handler for message: {:?} to {:?}",
+                            dispatch.message_id(),
+                            dispatch.message.dest
+                        );
+
+                        common::queue_dispatch(dispatch);
+
+                        Self::decrease_gas_allowance(
+                            T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1),
+                        );
+
+                        if Self::gas_allowance() == 0 {
+                            break;
+                        }
+
+                        continue;
+                    };
 
                 log::debug!(
                     "Processing message: {:?} to {:?} / gas_limit: {}",
