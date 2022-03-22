@@ -21,7 +21,7 @@ clap = { version = "3.1", features = ["derive"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 hex-literal = "0.3.4"
 page_size = "0.4.2"
-libc = { version = "0.2.120", default-features = false }
+libc = { version = "0.2.121", default-features = false }
 nix = "0.23.1"
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
