@@ -29,7 +29,7 @@ use gear_runtime::{Origin, Runtime};
 
 use gear_core::{
     message::Message as CoreMessage,
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
 };
 
 use gear_common::{DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
@@ -354,10 +354,15 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .iter()
                     .filter_map(|p| {
                         if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                            // gear_test::check::check_memory use CoreProgram just to retrieve its page data
+                            // so we simply construct some correct program
+                            let code =
+                                hex::decode("0061736d01000000020f0103656e76066d656d6f7279020001")
+                                    .unwrap();
+                            let code = CheckedCode::try_new(code).unwrap();
                             Some(CoreProgram::from_parts(
                                 *pid,
-                                vec![],
-                                p.static_pages,
+                                code,
                                 p.nonce,
                                 p.persistent_pages.keys().cloned().collect(),
                                 true,

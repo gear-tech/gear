@@ -32,7 +32,7 @@ use frame_support::{
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, ExitCode, MessageId},
-    program::{CodeHash, Program as NativeProgram, ProgramId},
+    program::{CheckedCodeHash, CodeHash, Program as NativeProgram, ProgramId},
 };
 use primitive_types::H256;
 use sp_runtime::{
@@ -130,18 +130,20 @@ where
         Some(ExecutableActor { program, balance })
     }
 
-    pub fn set_program(&self, program: NativeProgram, message_id: H256) {
-        assert!(
-            program.get_pages().is_empty(),
-            "Must has empty persistent pages, has {:?}",
-            program.get_pages()
-        );
-        let code_hash = CodeHash::generate(program.code()).into_origin();
+    pub fn set_program(
+        &self,
+        program_id: ProgramId,
+        checked_code_hash: CheckedCodeHash,
+        message_id: H256,
+    ) {
+        let (checked_code, code_hash) = checked_code_hash.into_code_hash();
+        let code_hash: H256 = code_hash.into_origin();
         assert!(
             common::code_exists(code_hash),
             "Program set must be called only when code exists",
         );
 
+        let program = NativeProgram::new(program_id, checked_code);
         let persistent_pages: BTreeMap<u32, Vec<u8>> = program
             .get_pages()
             .iter()
@@ -551,10 +553,8 @@ where
         if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    // Code hash for invalid code can't be added to the storage from extrinsics.
-                    let new_program = NativeProgram::new(candidate_id, code.clone())
-                        .expect("guaranteed to be valid");
-                    self.set_program(new_program, init_message.into_origin());
+                    let checked_code_hash = CheckedCodeHash::new(code.clone());
+                    self.set_program(candidate_id, checked_code_hash, init_message.into_origin());
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);
                 }

@@ -20,6 +20,7 @@ use codec::Encode;
 use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
+use gear_core::checked_code::CheckedCode;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 use tests_distributor::{Request, WASM_BINARY};
@@ -1135,7 +1136,7 @@ fn test_code_submission_pass() {
         ));
 
         let saved_code = common::get_code(code_hash);
-        assert_eq!(saved_code, Some(code));
+        assert_eq!(saved_code, Some(CheckedCode::try_new(code).unwrap()));
 
         let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
         let actual_meta = common::get_code_metadata(code_hash);

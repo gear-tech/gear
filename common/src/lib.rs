@@ -43,7 +43,7 @@ use sp_std::{
 
 use gear_core::{
     message::{DispatchKind, PayloadStore},
-    program::{CodeHash, Program as NativeProgram, ProgramId},
+    program::{CheckedCode, CodeHash, Program as NativeProgram, ProgramId},
 };
 
 pub use storage_queue::Iterator;
@@ -383,7 +383,6 @@ impl Program {
         let native_program = NativeProgram::from_parts(
             ProgramId::from_origin(id),
             code,
-            program.static_pages,
             program.nonce,
             program.persistent_pages,
             is_initialized,
@@ -524,12 +523,16 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     key
 }
 
-pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
+pub fn get_code(code_hash: H256) -> Option<CheckedCode> {
     sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
+        .map(|bytes| CheckedCode::decode(&mut &bytes[..]).expect("CheckedCode encoded correctly"))
 }
 
-pub fn set_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::RawCode), code)
+pub fn set_code(code_hash: H256, code: &CheckedCode) {
+    sp_io::storage::set(
+        &code_key(code_hash, CodeKeyPrefixKind::RawCode),
+        &code.encode(),
+    )
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
@@ -786,8 +789,11 @@ mod tests {
     #[test]
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
+            let code =
+                hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
             let code_hash: H256 = CodeHash::generate(&code).into_origin();
+            let code = CheckedCode::try_new(code.clone()).unwrap();
+
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
                 static_pages: 256,
@@ -796,6 +802,7 @@ mod tests {
                 nonce: 0,
                 state: ProgramState::Initialized,
             };
+
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
