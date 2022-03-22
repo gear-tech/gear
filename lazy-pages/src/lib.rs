@@ -22,6 +22,7 @@
 //! During execution data from storage is loaded for all pages, which has been accesed.
 //! See also `handle_sigsegv`.
 
+use sp_std::{result::Result, vec::Vec};
 use std::{cell::RefCell, collections::BTreeMap};
 
 #[cfg(unix)]
@@ -54,7 +55,7 @@ pub fn save_page_lazy_info(wasm_page: u32, key: &[u8]) {
 }
 
 /// Returns vec of not-accessed wasm lazy pages
-pub fn get_wasm_lazy_pages_numbers() -> sp_std::vec::Vec<u32> {
+pub fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
     LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow().iter().map(|x| *x.0).collect())
 }
 
@@ -71,13 +72,21 @@ pub fn reset_lazy_pages_info() {
 }
 
 /// Returns vec of lazy pages which has been accessed
-pub fn get_released_pages() -> sp_std::vec::Vec<u32> {
+pub fn get_released_pages() -> Vec<u32> {
     RELEASED_LAZY_PAGES.with(|x| x.borrow().iter().map(|x| *x.0).collect())
 }
 
+#[derive(Debug)]
+pub struct GetReleasedPageError;
+
 /// Returns page data which page has in storage before execution
-pub fn get_released_page_old_data(page: u32) -> sp_std::vec::Vec<u8> {
-    RELEASED_LAZY_PAGES.with(|x| x.borrow().get(&page).expect("Must have this page").to_vec())
+pub fn get_released_page_old_data(page: u32) -> Result<Vec<u8>, GetReleasedPageError> {
+    RELEASED_LAZY_PAGES.with(|x| {
+        x.borrow()
+            .get(&page)
+            .ok_or(GetReleasedPageError)
+            .map(|data| data.to_vec())
+    })
 }
 
 pub use sys::init_lazy_pages;
