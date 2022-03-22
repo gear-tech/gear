@@ -21,13 +21,12 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch, STORAGE_PROGRAM_PREFIX};
+use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch};
 use core_processor::common::{
-    CollectState, DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, State,
+    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
-use frame_support::{
-    storage::PrefixIterator,
-    traits::{BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency},
+use frame_support::traits::{
+    BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
 };
 use gear_core::{
     memory::PageNumber,
@@ -39,11 +38,7 @@ use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
-use sp_std::{
-    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
-    marker::PhantomData,
-    prelude::*,
-};
+use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
 
 pub struct ExtManager<T: Config> {
     // Messages with these destinations will be forcibly pushed to the queue.
@@ -56,49 +51,6 @@ pub enum HandleKind {
     Init(Vec<u8>),
     Handle(H256),
     Reply(H256, ExitCode),
-}
-
-impl<T: Config> CollectState for ExtManager<T>
-where
-    T::AccountId: Origin,
-{
-    fn collect(&self) -> State {
-        let actors: BTreeMap<ProgramId, ExecutableActor> = PrefixIterator::<H256>::new(
-            STORAGE_PROGRAM_PREFIX.to_vec(),
-            STORAGE_PROGRAM_PREFIX.to_vec(),
-            |key, _| Ok(H256::from_slice(key)),
-        )
-        .filter_map(|k| {
-            self.get_executable_actor(k)
-                .map(|actor| (actor.program.id(), actor))
-        })
-        .map(|(id, mut actor)| {
-            let pages_data = {
-                let page_numbers = actor.program.get_pages().keys().map(|k| k.raw()).collect();
-                let data = common::get_program_pages(id.into_origin(), page_numbers)
-                    .expect("active program exists, therefore pages do");
-                data.into_iter().map(|(k, v)| (k.into(), v)).collect()
-            };
-            let _ = actor.program.set_pages(pages_data);
-            (id, actor)
-        })
-        .collect();
-
-        let dispatch_queue = common::dispatch_iter()
-            .map(|dispatch| {
-                let gas = T::GasHandler::get_limit(dispatch.message.id)
-                    .map(|(gas, _id)| gas)
-                    .unwrap_or(0);
-                dispatch.into_dispatch(gas)
-            })
-            .collect();
-
-        State {
-            dispatch_queue,
-            actors,
-            ..Default::default()
-        }
-    }
 }
 
 impl<T: Config> Default for ExtManager<T>
@@ -144,23 +96,17 @@ where
         );
 
         let program = NativeProgram::new(program_id, checked_code);
-        let persistent_pages: BTreeMap<u32, Vec<u8>> = program
-            .get_pages()
-            .iter()
-            .map(|(k, v)| (k.raw(), v.as_ref().expect("Must have page data").to_vec()))
-            .collect();
 
-        let id = program.id().into_origin();
-
+        // An empty program has been just constructed: it contains no persistent pages.
         let program = common::ActiveProgram {
             static_pages: program.static_pages(),
             nonce: program.message_nonce(),
-            persistent_pages: persistent_pages.keys().copied().collect(),
+            persistent_pages: Default::default(),
             code_hash,
             state: common::ProgramState::Uninitialized { message_id },
         };
 
-        common::set_program(id, program, persistent_pages);
+        common::set_program(program_id.into_origin(), program, Default::default());
     }
 }
 
