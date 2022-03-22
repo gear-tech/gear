@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -227,6 +227,14 @@ pub struct Test {
     pub fixtures: Vec<Fixture>,
 }
 
+/// get path to meta wasm file.
+/// `wasm_path` is path to wasm file.
+pub fn get_meta_wasm_path(wasm_path: String) -> String {
+    wasm_path
+        .replace(".opt.wasm", ".wasm")
+        .replace(".wasm", ".meta.wasm")
+}
+
 #[test]
 fn check_sample() {
     let yaml = r#"
@@ -253,7 +261,18 @@ fn check_sample() {
     "#;
 
     let test: Test = serde_yaml::from_str(yaml).unwrap();
+    let path = test.programs.get(0).expect("Must have one").path.clone();
 
     assert_eq!(test.fixtures[0].messages.len(), 1);
     assert_eq!(test.fixtures[0].messages.len(), 1);
+    assert_eq!(
+        path,
+        "examples/target/wasm32-unknown-unknown/release/demo_ping.wasm"
+    );
+
+    let meta_wasm = get_meta_wasm_path(path);
+    assert_eq!(
+        meta_wasm,
+        "examples/target/wasm32-unknown-unknown/release/demo_ping.meta.wasm"
+    );
 }

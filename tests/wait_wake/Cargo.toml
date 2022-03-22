@@ -14,7 +14,7 @@ gear-wasm-builder = { path = "../../utils/wasm-builder" }
 
 [dev-dependencies]
 gear-core = { path = "../../core" }
-common = { package = "tests-common", path = "../common" }
+# common = { package = "tests-common", path = "../common" }
 
 [lib]
 

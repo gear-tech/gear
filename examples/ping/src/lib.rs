@@ -22,3 +22,8 @@ pub unsafe extern "C" fn handle() {
         debug!(log);
     }
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn init() {
+    debug!("Hello from ping init");
+}

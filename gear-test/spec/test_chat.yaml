@@ -2,17 +2,17 @@ title: basic
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/room.wasm
+    path: target/wasm32-unknown-unknown/release/room.opt.wasm
     init_message:
       kind: utf-8
       value: test
   - id: 2
-    path: target/wasm32-unknown-unknown/release/bot.wasm
+    path: target/wasm32-unknown-unknown/release/bot.opt.wasm
     init_message:
       kind: utf-8
       value: bob {1}
   - id: 3
-    path: target/wasm32-unknown-unknown/release/bot.wasm
+    path: target/wasm32-unknown-unknown/release/bot.opt.wasm
     init_message:
       kind: utf-8
       value: alice {1}

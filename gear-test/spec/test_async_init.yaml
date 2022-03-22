@@ -4,7 +4,7 @@ programs:
   - id:
       kind: account
       value: alice
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value:
@@ -17,7 +17,7 @@ programs:
   - id:
       kind: account
       value: bob
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value:
@@ -30,7 +30,7 @@ programs:
   - id:
       kind: account
       value: eve
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value:
@@ -41,7 +41,7 @@ programs:
               reply: "0x03"
 
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_async_init.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async_init.opt.wasm
     init_message: &init
       kind: custom
       value:

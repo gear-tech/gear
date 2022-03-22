@@ -163,7 +163,7 @@ where
 
                     let json = MetaData::Json(payload);
 
-                    let wasm = program_path.replace(".wasm", ".meta.wasm");
+                    let wasm = crate::sample::get_meta_wasm_path(program_path);
 
                     json.convert(&wasm, &meta_type)
                         .expect("Unable to get bytes")
@@ -213,16 +213,15 @@ where
 
                 let json = MetaData::Json(payload);
 
-                let wasm = test
-                    .programs
-                    .iter()
-                    .filter(|p| p.id == message.destination)
-                    .last()
-                    .expect("Program not found")
-                    .path
-                    .clone()
-                    .replace(".wasm", ".meta.wasm");
-
+                let wasm = crate::sample::get_meta_wasm_path(
+                    test.programs
+                        .iter()
+                        .filter(|p| p.id == message.destination)
+                        .last()
+                        .expect("Program not found")
+                        .path
+                        .clone(),
+                );
                 json.convert(&wasm, &meta_type)
                     .expect("Unable to get bytes")
                     .into_bytes()

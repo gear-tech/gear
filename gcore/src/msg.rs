@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -157,7 +157,7 @@ pub fn load(buffer: &mut [u8]) {
 /// program account to the reply message target account.
 ///
 /// Reply message transactions will be posted only after processing is finished,
-/// similar to the standard message [`send`].
+/// similar to the standard message [`send`](crate::msg::send).
 ///
 /// # Examples
 ///
@@ -190,7 +190,8 @@ pub fn reply(payload: &[u8], value: u128) -> MessageId {
 
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`] function.
+/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
+/// function.
 ///
 /// This function allows sending reply messages filled with payload parts sent
 /// via ['reply_push'] during the message handling. Finalization of the
@@ -230,7 +231,8 @@ pub fn reply_commit(value: u128) -> MessageId {
 ///
 /// Some programs can reply on their messages to other programs, i.e. check
 /// another program's state and use it as a parameter for its own business
-/// logic. Basic implementation is covered in [`reply`] function.
+/// logic. Basic implementation is covered in [`reply`](crate::msg::reply)
+/// function.
 ///
 /// This function allows filling the reply payload parts via ['reply_push']
 /// during the message `handling`. The payload can consist of several parts.
@@ -281,14 +283,14 @@ pub fn reply_to() -> MessageId {
 /// Send a new message to the program or user.
 ///
 /// Gear allows programs to communicate to each other and users via messages.
-/// [`send`] function allows sending such messages.
+/// [`send`](crate::msg::send) function allows sending such messages.
 ///
 /// First argument is the address of the target account.
 /// Second argument is message payload in bytes.
 /// Last argument is the value to be transferred from the current program
 /// account to the message target account.
 /// Send transaction will be posted only after the execution of processing is
-/// finished, similar to the reply message [`reply`].
+/// finished, similar to the reply message [`reply`](crate::msg::reply).
 ///
 /// # Examples
 ///
@@ -327,14 +329,14 @@ pub fn send(program: ActorId, payload: &[u8], value: u128) -> MessageId {
 /// Send a new message to the program or user, with gas limit.
 ///
 /// Gear allows programs to communicate to each other and users via messages.
-/// [`send`] function allows sending such messages.
+/// [`send`](crate::msg::send) function allows sending such messages.
 ///
 /// First argument is the address of the target account.
 /// Second argument is message payload in bytes.
 /// Last argument is the value to be transferred from the current program
 /// account to the message target account.
 /// Send transaction will be posted only after the execution of processing is
-/// finished, similar to the reply message [`reply`].
+/// finished, similar to the reply message [`reply`](crate::msg::reply).
 ///
 /// # Examples
 ///
@@ -401,7 +403,7 @@ pub fn send_with_gas(program: ActorId, payload: &[u8], gas_limit: u64, value: u1
 ///
 /// # See also
 ///
-/// [`send`] allows to send message in one step.
+/// [`send`](crate::msg::send) allows to send message in one step.
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
@@ -446,7 +448,7 @@ pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Mess
 ///
 /// # See also
 ///
-/// [`send`] allows to send message in one step.
+/// [`send`](crate::msg::send) allows to send message in one step.
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
@@ -489,7 +491,7 @@ pub fn send_commit_with_gas(
 /// ```
 ///
 /// # See also
-/// [`send`] allows to send message in one step.
+/// [`send`](crate::msg::send) allows to send message in one step.
 ///
 /// [`send_push`], [`send_commit`] functions allows to form a message to send in
 /// parts.
@@ -518,7 +520,7 @@ pub fn send_init() -> MessageHandle {
 ///
 /// # See also
 ///
-/// [`send`] allows to send a message in one step.
+/// [`send`](crate::msg::send) allows to send a message in one step.
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.

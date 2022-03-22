@@ -10,4 +10,5 @@ gstd = { path = "../../gstd", features = ["debug"] }
 gear-core = { path = "../../core" }
 codec = { package = "parity-scale-codec", version = "2", default-features = false }
 gear-backend-wasmtime = { path = "../../core-backend/wasmtime" }
+gear-backend-common = { path = "../../core-backend/common" }
 core-processor = { package = "gear-core-processor", path = "../../core-processor" }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -375,7 +375,7 @@ fn rent_charge_works() {
         assert_eq!(wl[9].1, 10);
 
         // Check that the collected rent adds up
-        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 6001);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 6101);
     });
 }
 
@@ -430,7 +430,7 @@ fn trap_reply_message_is_sent() {
             ],
         ));
 
-        // The first message still was charge the amount in excess
+        // The first message still was charged the amount in excess
         assert_eq!(Balances::reserved_balance(&1), 1_000);
 
         // The second message wasn't charged at all before emitting trap reply
@@ -516,6 +516,41 @@ fn external_submitter_gets_rewarded() {
         // Check that the collected rent adds up:
         // 10% goes to the external user, the rest - to a validator
         assert_eq!(Balances::free_balance(&10), 1_000_600);
-        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 5401);
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 5501);
+    });
+}
+
+#[test]
+fn dust_discarded_with_noop() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // Message sender has reserved just above `T::TrapReplyExistentialGasLimit`
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&1, 1_100));
+
+        run_to_block(10);
+
+        // Populate wait list with 2 messages
+        populate_wait_list(1, 10, 1, vec![1_100]);
+
+        let wl = wait_list_contents()
+            .into_iter()
+            .map(|(d, n)| (d.message().clone(), n))
+            .collect::<Vec<_>>();
+        assert_eq!(wl.len(), 1);
+
+        run_to_block(15);
+
+        // Calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::signed(11), // AccountId without any balance
+            vec![PayeeInfo {
+                program_id: 1.into_origin(),
+                message_id: 101.into_origin()
+            },],
+        ));
+
+        // The amount destined to the tx submitter is below `ExistentialDeposit`
+        // It should have been removed as dust, no change in the beneficiary free balance
+        assert_eq!(Balances::free_balance(&11), 0);
     });
 }

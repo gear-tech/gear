@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -135,7 +135,7 @@ fn init_fixture(
 
                     let json = MetaData::Json(payload);
 
-                    let wasm = program_path.replace(".wasm", ".meta.wasm");
+                    let wasm = gear_test::sample::get_meta_wasm_path(program_path);
 
                     json.convert(&wasm, &meta_type)
                         .expect("Unable to get bytes")
@@ -224,16 +224,15 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                         let json = MetaData::Json(payload);
 
-                        let wasm = test
-                            .programs
-                            .iter()
-                            .filter(|p| p.id == message.destination)
-                            .last()
-                            .expect("Program not found")
-                            .path
-                            .clone()
-                            .replace(".wasm", ".meta.wasm");
-
+                        let wasm = gear_test::sample::get_meta_wasm_path(
+                            test.programs
+                                .iter()
+                                .filter(|p| p.id == message.destination)
+                                .last()
+                                .expect("Program not found")
+                                .path
+                                .clone(),
+                        );
                         json.convert(&wasm, &meta_type)
                             .expect("Unable to get bytes")
                             .into_bytes()

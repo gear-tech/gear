@@ -9,7 +9,7 @@ programs:
     source:
       kind: id
       value: 101
-    path: target/wasm32-unknown-unknown/release/demo_create_program.wasm
+    path: target/wasm32-unknown-unknown/release/demo_create_program.opt.wasm
 
 fixtures:
   - title: Simple creation of program from program
@@ -28,9 +28,10 @@ fixtures:
           - kind: id
             value: 1
 
-          - kind: ss58
+          - &created_prog
+            kind: h256
             # computed manually new program address
-            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+            value: 9c1de0d1359e2a4bd3e474a21527afdb6eaeba3106a167705775af0acac11183
 
   - title: Try to re-init existing program
 
@@ -49,7 +50,7 @@ fixtures:
           value: 100
         payload:
           kind: utf-8
-          value: duplicate    
+          value: duplicate
 
     expected:
       - step: 1
@@ -61,53 +62,47 @@ fixtures:
             payload:
               kind: utf-8
               value: duplicate
-          - destination: &address
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *created_prog
             init: true
             payload:
               kind: utf-8
               value: unique
-          - destination: *address
+          - destination: *created_prog
             init: false
 
       - step: 2
         programs:
           - kind: id
             value: 1
-          - kind: ss58
-            # computed manually new program address
-            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - *created_prog
         messages:
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *created_prog
             init: true
             payload:
               kind: utf-8
               value: unique
-          - destination: *address
+          - destination: *created_prog
             init: false
-          - destination: *address
+          - destination: *created_prog
             init: true
             payload:
               kind: utf-8
               value: not_unique
-          - destination: *address
+          - destination: *created_prog
             init: false
 
       - step: 4
         messages:
-          - destination: *address
+          - destination: *created_prog
             init: true
             payload:
               kind: utf-8
               value: not_unique
-          - destination: *address
+          - destination: *created_prog
             init: false
       - step: 5
         messages:
-          - destination: *address
+          - destination: *created_prog
             init: false
           - destination: 1
             init: false

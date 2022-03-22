@@ -1,6 +1,6 @@
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Program as InnerProgram, ProgramState},
+    manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
 };
 use codec::Codec;
@@ -93,7 +93,7 @@ impl<'a> Program<'a> {
             .0
             .borrow_mut()
             .actors
-            .insert(program_id, (program, ProgramState::Uninitialized(None), 0))
+            .insert(program_id, (Actor::new(program), 0))
             .is_some()
         {
             panic!(
@@ -118,12 +118,11 @@ impl<'a> Program<'a> {
         system: &'a System,
         id: I,
     ) -> Self {
-        let path_file = env::var("OUT_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| env::current_dir().expect("Unable to get current dir"));
-        let path_file = path_file.join("wasm_binary_path.txt");
+        let current_dir = env::current_dir().expect("Unable to get current dir");
+        let path_file = current_dir.join(".binpath");
         let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
-        let path = String::from_utf8(path_bytes).expect("Invalid path");
+        let relative_path: PathBuf = String::from_utf8(path_bytes).expect("Invalid path").into();
+        let path = current_dir.join(relative_path);
 
         Self::from_file_with_id(system, id, path)
     }
@@ -139,7 +138,7 @@ impl<'a> Program<'a> {
         id: I,
         mock: T,
     ) -> Self {
-        Self::program_with_id(system, id, InnerProgram::Mock(Box::new(mock)))
+        Self::program_with_id(system, id, InnerProgram::new_mock(mock))
     }
 
     pub fn from_file<P: AsRef<Path>>(system: &'a System, path: P) -> Self {
@@ -165,7 +164,7 @@ impl<'a> Program<'a> {
         let program =
             CoreProgram::new(program_id, code).expect("Failed to create Program from code");
 
-        Self::program_with_id(system, id, InnerProgram::Core(program))
+        Self::program_with_id(system, id, InnerProgram::new(program))
     }
 
     pub fn send<ID: Into<ProgramIdWrapper>, C: Codec>(&self, from: ID, payload: C) -> RunResult {
@@ -210,14 +209,6 @@ impl<'a> Program<'a> {
             );
         }
 
-        let (_, state, _) = system.actors.get(&self.id).expect("Can't fail");
-
-        let kind = if matches!(state, ProgramState::Uninitialized(_)) {
-            DispatchKind::Init
-        } else {
-            DispatchKind::Handle
-        };
-
         let message = Message::new(
             MessageId::generate_from_user(
                 system.block_info.height,
@@ -231,6 +222,19 @@ impl<'a> Program<'a> {
             value,
             None,
         );
+
+        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+
+        let kind = if let Actor::Uninitialized(id, _) = actor {
+            if id.is_none() {
+                *id = Some(message.id());
+                DispatchKind::Init
+            } else {
+                DispatchKind::Handle
+            }
+        } else {
+            DispatchKind::Handle
+        };
 
         let dispatch = Dispatch::new(kind, message);
 
@@ -260,8 +264,8 @@ mod tests {
             "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
         );
 
-        let handle_msg_payload = String::from("payload");
-        let run_result = prog.send(user_id, handle_msg_payload);
+        let init_msg_payload = String::from("InvalidInput");
+        let run_result = prog.send(user_id, init_msg_payload);
         assert!(run_result.main_failed);
 
         let run_result = prog.send(user_id, String::from("should_be_skipped"));

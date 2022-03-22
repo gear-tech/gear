@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, MessageInfo,
-    Pallet,
+    pallet::Reason, Authorship, Config, DispatchOutcome, Event, ExecutionResult, GearProgramPallet,
+    MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
 use common::{DAGBasedLedger, GasPrice, Origin, Program, STORAGE_PROGRAM_PREFIX};
@@ -121,23 +121,15 @@ impl<T: Config> ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    pub fn executable_actor_from_code(&self, id: H256, code: Vec<u8>) -> Option<ExecutableActor> {
-        NativeProgram::new(ProgramId::from_origin(id), code)
-            .ok()
-            .map(|program| ExecutableActor {
-                program,
-                balance: 0,
-            })
-    }
-
     /// NOTE: By calling this function we can't differ whether `None` returned, because
     /// program with `id` doesn't exist or it's terminated
     pub fn get_executable_actor(&self, id: H256) -> Option<ExecutableActor> {
         let program = common::get_program(id)
             .and_then(|prog_with_status| prog_with_status.try_into_native(id).ok())?;
 
-        let balance = T::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
-            .unique_saturated_into();
+        let balance =
+            <T as Config>::Currency::free_balance(&<T::AccountId as Origin>::from_origin(id))
+                .unique_saturated_into();
 
         Some(ExecutableActor { program, balance })
     }
@@ -301,7 +293,7 @@ where
                 if let Some((_, origin)) = T::GasHandler::get_limit(message_id) {
                     let charge = T::GasPrice::gas_price(amount);
                     if let Some(author) = Authorship::<T>::author() {
-                        let _ = T::Currency::repatriate_reserved(
+                        let _ = <T as Config>::Currency::repatriate_reserved(
                             &<T::AccountId as Origin>::from_origin(origin),
                             &author,
                             charge,
@@ -338,9 +330,9 @@ where
         assert!(res.is_ok(), "`exit` can be called only from active program");
 
         let program_account = &<T::AccountId as Origin>::from_origin(program_id);
-        let balance = T::Currency::total_balance(program_account);
+        let balance = <T as Config>::Currency::total_balance(program_account);
         if !balance.is_zero() {
-            T::Currency::transfer(
+            <T as Config>::Currency::transfer(
                 program_account,
                 &<T::AccountId as Origin>::from_origin(value_destination.into_origin()),
                 balance,
@@ -359,8 +351,10 @@ where
 
             let refund = T::GasPrice::gas_price(gas_left);
 
-            let _ =
-                T::Currency::unreserve(&<T::AccountId as Origin>::from_origin(external), refund);
+            let _ = <T as Config>::Currency::unreserve(
+                &<T::AccountId as Origin>::from_origin(external),
+                refund,
+            );
         }
     }
 
@@ -370,7 +364,7 @@ where
         let dispatch = dispatch.into_stored();
 
         if dispatch.value() != 0
-            && T::Currency::reserve(
+            && <T as Config>::Currency::reserve(
                 &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
                 dispatch.value().unique_saturated_into(),
             )
@@ -390,7 +384,7 @@ where
             message_id
         );
 
-        if common::program_exists(dispatch.destination().into_origin())
+        if GearProgramPallet::<T>::program_exists(dispatch.destination().into_origin())
             || self.marked_destinations.contains(&dispatch.destination())
         {
             if let Some(gas_limit) = gas_limit {
@@ -447,7 +441,7 @@ where
                     if let Some((_, origin)) = T::GasHandler::get_limit(message_id.into_origin()) {
                         let charge = T::GasPrice::gas_price(chargeable_amount);
                         if let Some(author) = Authorship::<T>::author() {
-                            let _ = T::Currency::repatriate_reserved(
+                            let _ = <T as Config>::Currency::repatriate_reserved(
                                 &<T::AccountId as Origin>::from_origin(origin),
                                 &author,
                                 charge,
@@ -524,17 +518,18 @@ where
             );
             let from = <T::AccountId as Origin>::from_origin(from);
             let to = <T::AccountId as Origin>::from_origin(to);
-            if T::Currency::can_reserve(&to, T::Currency::minimum_balance()) {
+            if <T as Config>::Currency::can_reserve(&to, <T as Config>::Currency::minimum_balance())
+            {
                 // `to` account exists, so we can repatriate reserved value for it.
-                let _ = T::Currency::repatriate_reserved(
+                let _ = <T as Config>::Currency::repatriate_reserved(
                     &from,
                     &to,
                     value.unique_saturated_into(),
                     BalanceStatus::Free,
                 );
             } else {
-                T::Currency::unreserve(&from, value.unique_saturated_into());
-                let _ = T::Currency::transfer(
+                <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
+                let _ = <T as Config>::Currency::transfer(
                     &from,
                     &to,
                     value.unique_saturated_into(),
@@ -544,7 +539,7 @@ where
         } else {
             log::debug!("Value unreserve of amount {:?} from {:?}", value, from,);
             let from = <T::AccountId as Origin>::from_origin(from);
-            T::Currency::unreserve(&from, value.unique_saturated_into());
+            <T as Config>::Currency::unreserve(&from, value.unique_saturated_into());
         }
     }
 
@@ -554,7 +549,7 @@ where
 
         if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {
-                if !common::program_exists(candidate_id.into_origin()) {
+                if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
                     // Code hash for invalid code can't be added to the storage from extrinsics.
                     let new_program = NativeProgram::new(candidate_id, code.clone())
                         .expect("guaranteed to be valid");

@@ -2,7 +2,7 @@ title: Async-multisig (well known cases)
 
 programs:
   - id: 1
-    path: target/wasm32-unknown-unknown/release/demo_async_multisig.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async_multisig.opt.wasm
     init_message:
       kind: custom
       value:
@@ -14,7 +14,7 @@ programs:
           - "0x{bob}"
 
   - id: 2
-    path: target/wasm32-unknown-unknown/release/demo_async_multisig.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async_multisig.opt.wasm
     init_message:
       kind: custom
       value:
@@ -29,7 +29,7 @@ programs:
           - "0x{alice}"
 
   - id: 3
-    path: target/wasm32-unknown-unknown/release/demo_async_multisig.wasm
+    path: target/wasm32-unknown-unknown/release/demo_async_multisig.opt.wasm
     init_message:
       kind: custom
       value:
@@ -47,7 +47,7 @@ programs:
   - id:
       kind: account
       value: bob
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value:
@@ -78,7 +78,7 @@ programs:
   - id:
       kind: account
       value: eve
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value:
@@ -112,7 +112,7 @@ programs:
   - id:
       kind: account
       value: alice
-    path: target/wasm32-unknown-unknown/release/demo_bot.wasm
+    path: target/wasm32-unknown-unknown/release/demo_bot.opt.wasm
     init_message:
       kind: custom
       value:

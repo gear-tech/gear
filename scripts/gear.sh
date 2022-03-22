@@ -301,7 +301,7 @@ case "$COMMAND" in
         js_test "$ROOT_DIR"; ;;
 
       gtest)
-        header "Running gtest"
+        header "Running gear-test (spec testing)"
         gtest "$ROOT_DIR" "$@"; ;;
 
       rtest)

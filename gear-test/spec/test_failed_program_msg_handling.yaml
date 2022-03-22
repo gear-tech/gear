@@ -6,7 +6,7 @@ programs:
     source:
       kind: id
       value: 1000001
-    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm
+    path: target/wasm32-unknown-unknown/release/demo_futures_unordered.opt.wasm
     init_message:
       kind: utf-8
       value: "invalid input for init"

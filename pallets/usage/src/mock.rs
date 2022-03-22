@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 use crate as pallet_usage;
 use codec::Decode;
 use common::Origin as _;
-use frame_support::traits::{FindAuthor, OffchainWorker, OnInitialize};
+use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_core::{identifiers::CodeId, program::Program};
@@ -51,6 +51,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
@@ -75,7 +76,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
-    pub const ExistentialDeposit: u64 = 1;
+    pub const ExistentialDeposit: u64 = 100;
 }
 
 impl system::Config for Test {
@@ -110,6 +111,12 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
+}
+
 parameter_types! {
     pub const WaitListFeePerBlock: u64 = 100;
 }
@@ -131,7 +138,6 @@ parameter_types! {
     pub const WaitListTraversalInterval: u32 = 5;
     pub const MaxBatchSize: u32 = 10;
     pub const ExpirationDuration: u64 = 3000;
-    pub const TrapReplyExistentialGasLimit: u64 = 1000;
     pub const ExternalSubmitterRewardFraction: Perbill = Perbill::from_percent(10);
 }
 
@@ -142,7 +148,7 @@ impl pallet_usage::Config for Test {
     type WaitListTraversalInterval = WaitListTraversalInterval;
     type ExpirationDuration = ExpirationDuration;
     type MaxBatchSize = MaxBatchSize;
-    type TrapReplyExistentialGasLimit = TrapReplyExistentialGasLimit;
+    type TrapReplyExistentialGasLimit = ConstU64<1000>;
     type ExternalSubmitterRewardFraction = ExternalSubmitterRewardFraction;
 }
 
@@ -199,7 +205,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (8, 1_000_000_u128),
             (9, 1_000_000_u128),
             (10, 1_000_000_u128),
-            (BLOCK_AUTHOR, 1_u128),
+            (BLOCK_AUTHOR, 101_u128),
         ],
     }
     .assimilate_storage(&mut t)

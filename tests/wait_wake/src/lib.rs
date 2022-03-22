@@ -48,9 +48,6 @@ mod wasm {
             msg::load::<Request>().map(process_request);
         }
     }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle_reply() {}
 }
 
 // #[cfg(test)]

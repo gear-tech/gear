@@ -1,6 +1,6 @@
 // This file is part of Gear.
 
-// Copyright (C) 2021 Gear Technologies Inc.
+// Copyright (C) 2021-2022 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 //! Module with messaging functions (`load`, `reply`, `send`) for operating
 //! with messages arguments as with data structure instead of bytes array
-//! decoded/encoded via SCALE Codec (https://docs.substrate.io/v3/advanced/scale-codec/).
+//! decoded/encoded via SCALE Codec (<https://docs.substrate.io/v3/advanced/scale-codec/>).
 
 use crate::errors::{ContractError, Result};
 use crate::prelude::convert::AsRef;
@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 
 /// `load` returns Result, where Ok case contains a message payload decoded into
 /// the struct of specified type, or as a generic argument. In case of Err,
-/// contains a decoding error ContractError::Decode. For decode-related errors (https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html),
+/// contains a decoding error ContractError::Decode. For decode-related errors (<https://docs.rs/parity-scale-codec/2.3.1/parity_scale_codec/struct.Error.html>),
 /// Gear returns the native one after decode.
 ///
 /// Example:
