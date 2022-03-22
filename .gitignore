@@ -1,6 +1,7 @@
 node_modules/
 rpc-tests/dist
 target/
+.binpath
 .vscode
 .DS_Store
 .idea

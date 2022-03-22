@@ -17,14 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use frame_support::traits::{FindAuthor, OnFinalize, OnIdle, OnInitialize};
+use common::{Dispatch, Message, Origin as _};
+use core_processor::{
+    common::{DispatchOutcome, JournalNote},
+    configs::BlockInfo,
+};
+use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
+use gear_backend_sandbox::SandboxEnvironment;
+use gear_core::{message::DispatchKind, program::ProgramId};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
-    traits::{BlakeTwo256, IdentityLookup},
+    traits::{BlakeTwo256, IdentityLookup, UniqueSaturatedInto},
 };
+
+use crate::{ext::LazyPagesExt, manager::ExtManager};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -44,6 +53,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -100,6 +110,12 @@ impl system::Config for Test {
 pub struct GasConverter;
 impl common::GasPrice for GasConverter {
     type Balance = u128;
+}
+
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
 }
 
 parameter_types! {
@@ -184,4 +200,67 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
             remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
         Gear::on_idle(System::block_number(), remaining_weight);
     }
+}
+
+pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
+    let ext_manager: ExtManager<Test> = Default::default();
+
+    let root_message_id = common::next_message_id(&payload);
+    let initial_gas = <Test as pallet_gear::Config>::BlockGasLimit::get();
+
+    let message = Message {
+        id: root_message_id,
+        source,
+        dest,
+        gas_limit: initial_gas,
+        payload,
+        value: 0,
+        reply: None,
+    };
+
+    let actor = ext_manager
+        .get_executable_actor(dest)
+        .expect("Can't find a program");
+
+    let dispatch = Dispatch {
+        kind: DispatchKind::Handle,
+        message,
+        payload_store: None,
+    };
+
+    let block_info = BlockInfo {
+        height: System::block_number() as u32,
+        timestamp: Timestamp::get(),
+    };
+
+    let existential_deposit =
+        <Test as pallet_gear::Config>::Currency::minimum_balance().unique_saturated_into();
+
+    let journal = core_processor::process::<LazyPagesExt, SandboxEnvironment<LazyPagesExt>>(
+        Some(actor),
+        dispatch.into(),
+        block_info,
+        existential_deposit,
+        ProgramId::from_origin(source),
+    );
+
+    let mut gas_burned: u64 = 0;
+    let mut gas_to_send: u64 = 0;
+
+    for note in &journal {
+        match note {
+            JournalNote::GasBurned { amount, .. } => {
+                gas_burned = gas_burned.saturating_add(*amount);
+            }
+            JournalNote::SendDispatch { dispatch, .. } => {
+                gas_to_send = gas_to_send.saturating_add(dispatch.message.gas_limit().unwrap_or(0));
+            }
+            JournalNote::MessageDispatched(DispatchOutcome::MessageTrap { .. }) => {
+                panic!("Program terminated with a trap");
+            }
+            _ => (),
+        }
+    }
+
+    (gas_burned, gas_to_send)
 }

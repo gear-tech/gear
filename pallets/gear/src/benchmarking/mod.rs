@@ -228,7 +228,7 @@ benchmarks! {
         let c in MIN_CODE_LEN .. MAX_CODE_LEN;
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller: T::AccountId = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let code = generate_wasm3(vec![0u8; (c - MIN_CODE_LEN) as usize]).unwrap();
         let salt = vec![255u8; 32];
         let payload = vec![1_u8; p as usize];
@@ -242,7 +242,7 @@ benchmarks! {
     send_message {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
         let code = generate_wasm2(16_i32).unwrap();
         set_program(program_id, code, 1_u32, 0_u64);
@@ -255,7 +255,7 @@ benchmarks! {
     send_reply {
         let p in 0 .. MAX_PAYLOAD_LEN;
         let caller = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
+        <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
         let code = generate_wasm2(16_i32).unwrap();
         set_program(program_id, code, 1_u32, 0_u64);
@@ -280,7 +280,7 @@ benchmarks! {
     initial_allocation {
         let q in 1 .. MAX_PAGES;
         let caller: T::AccountId = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
+        <T as pallet::Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = generate_wasm(q).unwrap();
         let salt = vec![255u8; 32];
     }: {
@@ -294,7 +294,7 @@ benchmarks! {
     alloc_in_handle {
         let q in 0 .. MAX_PAGES;
         let caller: T::AccountId = account("caller", 0, 0);
-        T::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
+        <T as pallet::Config>::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = generate_wasm2(q as i32).unwrap();
         let salt = vec![255u8; 32];
     }: {

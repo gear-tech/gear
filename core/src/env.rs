@@ -18,6 +18,7 @@
 
 //! Environment for running a module.
 
+use crate::memory::Memory;
 use crate::{
     memory::PageNumber,
     message::{ExitCode, MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
@@ -44,7 +45,11 @@ pub trait Ext {
     /// Allocate number of pages.
     ///
     /// The resulting page number should point to `pages` consecutives memory pages.
-    fn alloc(&mut self, pages: PageNumber) -> Result<PageNumber, &'static str>;
+    fn alloc(
+        &mut self,
+        pages: PageNumber,
+        mem: &mut dyn Memory,
+    ) -> Result<PageNumber, &'static str>;
 
     /// Get the current block height.
     fn block_height(&self) -> u32;
@@ -101,9 +106,6 @@ pub trait Ext {
     /// Get the id of program itself
     fn program_id(&self) -> ProgramId;
 
-    /// Returns native addr of wasm memory buffer in wasm executor
-    fn get_wasm_memory_begin_addr(&self) -> usize;
-
     /// Free specific memory page.
     ///
     /// Unlike traditional allocator, if multiple pages allocated via `alloc`, all pages
@@ -114,12 +116,6 @@ pub trait Ext {
     ///
     /// This should be no-op in release builds.
     fn debug(&mut self, data: &str) -> Result<(), &'static str>;
-
-    /// Set memory region at specific pointer.
-    fn set_mem(&mut self, ptr: usize, val: &[u8]);
-
-    /// Reads memory contents at the given offset into a buffer.
-    fn get_mem(&self, ptr: usize, buffer: &mut [u8]);
 
     /// Interrupt the program, saving it's state.
     fn leave(&mut self) -> Result<(), &'static str>;
@@ -220,7 +216,11 @@ mod tests {
 
     /// Empty Ext implementation for test struct
     impl Ext for ExtImplementedStruct {
-        fn alloc(&mut self, _pages: PageNumber) -> Result<PageNumber, &'static str> {
+        fn alloc(
+            &mut self,
+            _pages: PageNumber,
+            _mem: &mut dyn Memory,
+        ) -> Result<PageNumber, &'static str> {
             Err("")
         }
         fn block_height(&self) -> u32 {
@@ -266,17 +266,12 @@ mod tests {
         fn program_id(&self) -> ProgramId {
             0.into()
         }
-        fn get_wasm_memory_begin_addr(&self) -> usize {
-            0usize
-        }
         fn free(&mut self, _ptr: PageNumber) -> Result<(), &'static str> {
             Ok(())
         }
         fn debug(&mut self, _data: &str) -> Result<(), &'static str> {
             Ok(())
         }
-        fn set_mem(&mut self, _ptr: usize, _val: &[u8]) {}
-        fn get_mem(&self, _ptr: usize, _buffer: &mut [u8]) {}
         fn msg(&mut self) -> &[u8] {
             &[]
         }

@@ -28,23 +28,21 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{BackendReport, Environment, ExtInfo, TerminationReason};
+use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{self, ChargeResult, GasCounter, ValueCounter},
-    memory::{MemoryContext, PageNumber, PAGE_SIZE},
+    memory::{AllocationsContext, PageNumber, PAGE_SIZE},
     message::{Dispatch, MessageContext},
 };
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Environment<A>>(
+pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: Dispatch,
     context: ExecutionContext,
     settings: ExecutionSettings,
 ) -> Result<DispatchResult, ExecutionError> {
-    let mut env: E = Default::default();
-
     let ExecutableActor {
         mut program,
         balance,
@@ -122,18 +120,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         program.static_pages()
     );
 
-    // Creating memory.
-    let memory = match env.create_memory(mem_size) {
-        Ok(mem) => mem,
-        Err(e) => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: e,
-            })
-        }
-    };
-
     let initial_pages = program.get_pages();
 
     // Getting allocations.
@@ -143,10 +129,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         (0..program.static_pages()).map(Into::into).collect()
     };
 
-    // Creating memory context.
-    let memory_context = MemoryContext::new(
-        program_id,
-        memory.clone(),
+    // Creating allocations context.
+    let allocations_context = AllocationsContext::new(
         allocations,
         program.static_pages().into(),
         settings.max_pages(),
@@ -168,7 +152,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
     let mut ext = A::new(
         gas_counter,
         value_counter,
-        memory_context,
+        allocations_context,
         message_context,
         settings.block_info,
         settings.config,
@@ -176,35 +160,59 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         None,
         None,
         context.origin,
+        program_id,
         Default::default(),
     );
 
-    let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
+    let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, initial_pages) {
+        Ok(enabled) => enabled,
+        Err(e) => {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: ext.into_gas_amount(),
+                reason: e,
+            })
+        }
+    };
 
-    if let Err(err) = env.setup(ext, &instrumented_code, initial_pages, &*memory) {
-        return Err(ExecutionError {
+    let mut env = E::new(ext, &instrumented_code, initial_pages, mem_size).map_err(|err| {
+        log::error!("Setup instance err = {:?}", err);
+        ExecutionError {
             program_id,
             gas_amount: err.gas_amount,
             reason: err.reason,
-        });
-    }
+        }
+    })?;
+
+    log::trace!(
+        "init memory pages = {:?}",
+        initial_pages
+            .iter()
+            .map(|(a, _b)| a.raw())
+            .collect::<Vec<u32>>()
+    );
 
     if lazy_pages_enabled {
-        A::protect_pages_and_init_info(
-            initial_pages,
-            program_id,
-            memory.get_wasm_memory_begin_addr(),
-        );
+        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr())
+            .map_err(|e| ExecutionError {
+                program_id,
+                gas_amount: env.drop_env(),
+                reason: e,
+            })?;
     }
 
     // Page which is right after stack last page
     let stack_end_page = env
         .get_stack_mem_end()
         .map(|addr| addr as u32 / PAGE_SIZE as u32);
-    log::debug!("Stack end = {:?}", stack_end_page);
+    log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Running backend.
-    let BackendReport { termination, info } = match env.execute(kind.into_entry()) {
+    let BackendReport {
+        termination,
+        wasm_memory_addr,
+        info,
+    } = match env.execute(kind.into_entry()) {
         Ok(report) => report,
         Err(e) => {
             return Err(ExecutionError {
@@ -217,7 +225,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
 
     if lazy_pages_enabled {
         // accessed lazy pages old data will be added to `initial_pages`
-        A::post_execution_actions(initial_pages, memory.get_wasm_memory_begin_addr());
+        A::post_execution_actions(initial_pages, wasm_memory_addr).map_err(|e| ExecutionError {
+            program_id,
+            gas_amount: info.gas_amount.clone(),
+            reason: e,
+        })?;
     }
 
     // Parsing outcome.
@@ -253,9 +265,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + Into<ExtInfo> + 'static, E: Envir
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
-            let old_data = initial_data
-                .as_ref()
-                .expect("Must have data for all accessed pages");
+            let old_data = initial_data.as_ref().ok_or_else(|| ExecutionError {
+                program_id,
+                gas_amount: info.gas_amount.clone(),
+                reason: "RUNTIME ERROR: changed page has no data in initial pages",
+            })?;
             if !new_data.eq(old_data.as_ref()) {
                 page_update.insert(page, Some(new_data));
                 log::trace!(
