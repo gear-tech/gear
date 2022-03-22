@@ -320,17 +320,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                 let mut message_queue: Vec<(StoredMessage, GasLimit)> = snapshot
                     .dispatch_queue
                     .iter()
-                    .map(|dispatch| {
-                        let id = dispatch.id();
-                        (
-                            dispatch.message().clone(),
-                            <Runtime as pallet_gear::Config>::GasHandler::get_limit(
-                                id.into_origin(),
-                            )
-                            .expect("Should never fail if ValueNode works properly")
-                            .0,
-                        )
-                    })
+                    .map(|dispatch| (dispatch.message().clone(), 0))
                     .collect();
 
                 if let Some(mut expected_messages) = exp.messages.clone() {
@@ -357,11 +347,12 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         )
                     });
 
+                    // For runtime tests gas check skipped due to absence of gas tree in snapshot.
                     if let Err(msg_errors) = gear_test::check::check_messages(
                         &progs_n_paths,
                         &message_queue,
                         &expected_messages,
-                        false,
+                        true,
                     ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
