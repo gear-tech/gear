@@ -308,7 +308,6 @@ where
         let mut counter = 0;
         while let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
             let actor = state.actors.get(&dispatch.destination()).cloned();
-
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
@@ -330,7 +329,7 @@ where
             );
             counter += 1;
 
-            core_processor::handle_journal(journal, journal_handler);
+                core_processor::handle_journal(journal, journal_handler);
 
             state = journal_handler.collect();
 
