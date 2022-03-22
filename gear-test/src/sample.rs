@@ -109,17 +109,7 @@ pub struct Expectation {
     /// Flag, which points that errors are allowed. Could be used to check traps.
     #[serde(rename = "allowError")]
     pub allow_error: Option<bool>,
-<<<<<<< HEAD
-    /// If this flag turned on, we check that only tested programs were executed
     pub exact_programs: Option<bool>,
-=======
-    /// If this flag turned on, we check that only tested programs was executed
-<<<<<<< HEAD
-    pub exact: Option<bool>,
->>>>>>> refactor + panic then message to user in dispatch queue
-=======
-    pub exact_programs: Option<bool>,
->>>>>>> Correct error messages
     /// Expected active programs (not failed in the init) ids
     pub programs: Option<Vec<ChainProgram>>,
 }
