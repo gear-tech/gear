@@ -207,8 +207,8 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         global.get(&mut self.store).i32()
     }
 
-    fn get_wasm_memory_begin_addr(&mut self) -> usize {
-        self.memory.data_ptr(&mut self.store) as usize
+    fn get_wasm_memory_begin_addr(&mut self) -> u64 {
+        self.memory.data_ptr(&mut self.store) as u64
     }
 
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
@@ -221,7 +221,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             // Entry function not found, so we mean this as empty function
             return Ok(BackendReport {
                 termination: TerminationReason::Success,
-                wasm_memory_addr: self.memory.data_ptr(&self.store) as usize,
+                wasm_memory_addr: self.get_wasm_memory_begin_addr(),
                 info: self
                     .ext
                     .unset()
@@ -269,11 +269,9 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             TerminationReason::Success
         };
 
-        let wasm_memory_addr = self.memory.data_ptr(&self.store) as usize;
-
         Ok(BackendReport {
             termination,
-            wasm_memory_addr,
+            wasm_memory_addr: self.get_wasm_memory_begin_addr(),
             info,
         })
     }

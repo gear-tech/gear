@@ -58,7 +58,7 @@ impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
         self.mem.data_size(&self.store)
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> usize {
-        self.mem.data_ptr(&self.store) as usize
+    fn get_wasm_memory_begin_addr(&self) -> u64 {
+        self.mem.data_ptr(&self.store) as u64
     }
 }

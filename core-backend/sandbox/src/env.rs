@@ -164,7 +164,7 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         global.as_i32()
     }
 
-    fn get_wasm_memory_begin_addr(&mut self) -> usize {
+    fn get_wasm_memory_begin_addr(&mut self) -> u64 {
         self.runtime.memory.get_wasm_memory_begin_addr()
     }
 
