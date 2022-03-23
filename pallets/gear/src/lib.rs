@@ -496,7 +496,9 @@ pub mod pallet {
             while let Some(dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
 
-                let (gas_limit, origin) = T::GasHandler::get_limit(*dispatch.message_id())
+                let msg_id = *dispatch.message_id();
+
+                let (gas_limit, _) = T::GasHandler::get_limit(msg_id)
                     .expect("Should never fail if ValueNode works properly");
 
                 log::debug!(
@@ -551,6 +553,9 @@ pub mod pallet {
                 } else {
                     None
                 };
+
+                let origin = <T as Config>::GasHandler::get_origin(msg_id)
+                    .expect("Gas node is guaranteed to exist for the key due to earlier checks");
 
                 let journal = core_processor::process::<
                     ext::LazyPagesExt,

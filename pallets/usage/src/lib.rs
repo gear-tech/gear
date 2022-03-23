@@ -173,11 +173,7 @@ pub mod pallet {
         fn offchain_worker(now: BlockNumberFor<T>) {
             // Only do something if we are a validator
             if !sp_io::offchain::is_validator() {
-                log::debug!(
-                    target: "runtime::usage",
-                    "Skipping offchain worker at {:?}: not a validator.",
-                    now,
-                );
+                log::debug!("Skipping offchain worker at {:?}: not a validator.", now,);
                 return;
             }
 
@@ -188,22 +184,14 @@ pub mod pallet {
                 match current_round_storage_ref.get::<BlockNumberFor<T>>() {
                     Ok(maybe_round_started_at) => maybe_round_started_at.unwrap_or_default(),
                     _ => {
-                        log::debug!(
-                            target: "runtime::usage",
-                            "Failed to get a value from storage at block {:?}",
-                            now,
-                        );
+                        log::debug!("Failed to get a value from storage at block {:?}", now,);
                         return;
                     }
                 };
             let (_, last_key) = match offchain::get_last_key_from_offchain_storage() {
                 Ok(x) => x,
                 _ => {
-                    log::debug!(
-                        target: "runtime::usage",
-                        "Failed to get a value from storage at block {:?}",
-                        now,
-                    );
+                    log::debug!("Failed to get a value from storage at block {:?}", now,);
                     return;
                 }
             };
@@ -214,7 +202,6 @@ pub mod pallet {
                 // We have either finished the previous round or never started one, and the number of
                 // elapsed blocks since last traversal is less than the expected minimum interval
                 log::debug!(
-                    target: "runtime::usage",
                     "Block {:?} offchain worker. Not starting next wait list traversal until block {:?}",
                     now,
                     current_round_started_at.saturating_add(T::WaitListTraversalInterval::get()),
@@ -264,14 +251,14 @@ pub mod pallet {
                             <T as pallet_gear::Config>::WaitListFeePerBlock::get().saturating_mul(duration.into());
 
                             match <T as pallet_gear::Config>::GasHandler::get_limit(dispatch.message.id) {
-                                Some((msg_gas_balance, origin)) => {
+                                Some((msg_gas_balance, _)) => {
                                     let usable_gas = msg_gas_balance
                                         .saturating_sub(T::TrapReplyExistentialGasLimit::get());
 
                                     let new_free_gas = usable_gas.saturating_sub(chargeable_amount);
 
                                     let actual_fee = usable_gas.saturating_sub(new_free_gas);
-                                    Some((actual_fee, origin, dispatch, msg_gas_balance))
+                                    Some((actual_fee, dispatch, msg_gas_balance))
                                 },
                                 _ => {
                                     log::debug!(
@@ -284,7 +271,7 @@ pub mod pallet {
                         })
                     },
                 )
-                .for_each(|(fee, origin, dispatch, msg_gas_balance)| {
+                .for_each(|(fee, dispatch, msg_gas_balance)| {
                     let msg_id = dispatch.message.id;
                     if let Err(e) = <T as pallet_gear::Config>::GasHandler::spend(msg_id, fee) {
                         log::debug!(
@@ -295,6 +282,8 @@ pub mod pallet {
                         return;
                     };
                     let total_reward = T::GasPrice::gas_price(fee);
+                    let origin = <T as pallet_gear::Config>::GasHandler::get_origin(msg_id)
+                        .expect("Gas node is guaranteed to exist for the key due to earlier checks");
 
                     // Counter-balance the created imbalance with a value transfer
                     match external_account {
