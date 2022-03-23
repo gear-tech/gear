@@ -19,17 +19,18 @@
 //! Wasmtime extensions for memory.
 
 use crate::env::StoreData;
+use gear_core::env::Ext;
 use gear_core::memory::{Error, Memory, PageNumber};
 use wasmtime::StoreContextMut;
 
 /// Wrapper for wasmtime memory.
-pub struct MemoryWrap<'a> {
+pub struct MemoryWrap<'a, E: Ext> {
     pub mem: wasmtime::Memory,
-    pub store: StoreContextMut<'a, StoreData>,
+    pub store: StoreContextMut<'a, StoreData<E>>,
 }
 
 /// Memory interface for the allocator.
-impl<'a> Memory for MemoryWrap<'a> {
+impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
     fn grow(&mut self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.mem
             .grow(&mut self.store, pages.raw() as u64)

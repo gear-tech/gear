@@ -132,32 +132,35 @@ impl ProcessorExt for LazyPagesExt {
         &mut self,
         program_id: ProgramId,
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool {
-        self.lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages(program_id, memory_pages);
-        self.lazy_pages_enabled
+    ) -> Result<bool, &'static str> {
+        self.lazy_pages_enabled = lazy_pages::try_to_enable_lazy_pages(program_id, memory_pages)?;
+        Ok(self.lazy_pages_enabled)
     }
 
     fn protect_pages_and_init_info(
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         prog_id: ProgramId,
         wasm_mem_begin_addr: usize,
-    ) {
-        lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr);
+    ) -> Result<(), &'static str> {
+        lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr)
     }
 
     fn post_execution_actions(
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         wasm_mem_begin_addr: usize,
-    ) {
-        lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr);
+    ) -> Result<(), &'static str> {
+        lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
     }
 
-    fn remove_lazy_pages_prot(mem_addr: usize) {
-        lazy_pages::remove_lazy_pages_prot(mem_addr);
+    fn remove_lazy_pages_prot(mem_addr: usize) -> Result<(), &'static str> {
+        lazy_pages::remove_lazy_pages_prot(mem_addr)
     }
 
-    fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_addr: usize) {
-        lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr);
+    fn protect_lazy_pages_and_update_wasm_mem_addr(
+        old_mem_addr: usize,
+        new_mem_addr: usize,
+    ) -> Result<(), &'static str> {
+        lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)
     }
 
     fn get_lazy_pages_numbers() -> Vec<u32> {
@@ -184,7 +187,7 @@ impl EnvExt for LazyPagesExt {
         // Also we correct lazy-pages info if need.
         let old_mem_addr = if self.lazy_pages_enabled {
             let mem_addr = mem.get_wasm_memory_begin_addr();
-            LazyPagesExt::remove_lazy_pages_prot(mem_addr);
+            LazyPagesExt::remove_lazy_pages_prot(mem_addr)?;
             mem_addr
         } else {
             0
@@ -200,7 +203,7 @@ impl EnvExt for LazyPagesExt {
 
         if self.lazy_pages_enabled {
             let new_mem_addr = mem.get_wasm_memory_begin_addr();
-            LazyPagesExt::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr);
+            LazyPagesExt::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)?;
         }
 
         // Returns back greedily used gas for grow
