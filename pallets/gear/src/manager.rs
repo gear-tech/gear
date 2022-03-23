@@ -287,7 +287,7 @@ where
 
         match T::GasHandler::spend(message_id, amount) {
             Ok(_) => {
-                if let Some((_, origin)) = T::GasHandler::get_limit(message_id) {
+                if let Some(origin) = T::GasHandler::get_origin(message_id) {
                     let charge = T::GasPrice::gas_price(amount);
                     if let Some(author) = Authorship::<T>::author() {
                         let _ = <T as Config>::Currency::repatriate_reserved(
@@ -436,7 +436,7 @@ where
 
             match T::GasHandler::spend(message_id.into_origin(), chargeable_amount) {
                 Ok(_) => {
-                    if let Some((_, origin)) = T::GasHandler::get_limit(message_id.into_origin()) {
+                    if let Some(origin) = T::GasHandler::get_origin(message_id.into_origin()) {
                         let charge = T::GasPrice::gas_price(chargeable_amount);
                         if let Some(author) = Authorship::<T>::author() {
                             let _ = <T as Config>::Currency::repatriate_reserved(
