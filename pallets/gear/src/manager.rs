@@ -88,7 +88,7 @@ where
         checked_code_hash: CheckedCodeHash,
         message_id: H256,
     ) {
-        let (checked_code, code_hash) = checked_code_hash.into_code_hash();
+        let (checked_code, code_hash) = checked_code_hash.into_parts();
         let code_hash: H256 = code_hash.into_origin();
         assert!(
             common::code_exists(code_hash),

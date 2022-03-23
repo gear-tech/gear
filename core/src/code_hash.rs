@@ -74,7 +74,7 @@ impl CheckedCodeHash {
     }
 
     /// Decomposes this instance.
-    pub fn into_code_hash(self) -> (CheckedCode, CodeHash) {
+    pub fn into_parts(self) -> (CheckedCode, CodeHash) {
         (self.0, self.1)
     }
 }
