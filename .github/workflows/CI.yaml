@@ -44,7 +44,7 @@ jobs:
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2022-03-22
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
 
@@ -106,7 +106,7 @@ jobs:
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2022-03-22
           target: wasm32-unknown-unknown
 
       - name: "Install: Node.js"
@@ -233,7 +233,7 @@ jobs:
       - name: "Install: Nightly toolchain"
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: nightly-2022-03-22
           target: wasm32-unknown-unknown
 
       - name: "Install: Node.js"
