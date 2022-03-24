@@ -1286,7 +1286,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            99_000_000u64,
+            90_000_000u64,
             0u128
         ));
 
@@ -2251,7 +2251,7 @@ fn resume_program_works() {
             code.clone(),
             vec![],
             Vec::new(),
-            100_000_000u64,
+            90_000_000u64,
             0u128
         ));
 

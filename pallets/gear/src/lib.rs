@@ -528,6 +528,11 @@ pub mod pallet {
 
                 // Check whether we have enough of gas allowed for message processing
                 if gas_limit > GasAllowance::<T>::get() {
+                    log::debug!(
+                        "Not enought gas for processing: gas_limit = {}, allowance = {}",
+                        gas_limit,
+                        GasAllowance::<T>::get(),
+                    );
                     common::queue_dispatch(dispatch);
                     break;
                 }
