@@ -82,8 +82,8 @@ use codec::{Decode, Encode};
 use frame_support::{traits::Get, RuntimeDebug};
 use frame_system::offchain::SubmitTransaction;
 use frame_system::pallet_prelude::*;
+use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::offchain::storage::StorageValueRef;
-// use sp_std::convert::TryInto;
 
 // Off-chain worker constants
 pub const STORAGE_LAST_KEY: &[u8] = b"g::ocw::last::key";
@@ -107,10 +107,21 @@ impl sp_std::fmt::Debug for OffchainError {
     }
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, scale_info::TypeInfo)]
+#[derive(Encode, Decode, Clone, PartialEq, scale_info::TypeInfo)]
 pub struct PayeeInfo {
     pub program_id: H256,
     pub message_id: H256,
+}
+
+impl core::fmt::Debug for PayeeInfo {
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+        write!(
+            f,
+            "PayeeInfo {{ program_id: 0x{}…, message_id: 0x{}… }}",
+            HexDisplay::from(&self.program_id[..4].to_vec()),
+            HexDisplay::from(&self.message_id[..4].to_vec())
+        )
+    }
 }
 
 #[derive(Encode, Decode, Default, Clone, PartialEq, RuntimeDebug, scale_info::TypeInfo)]
@@ -158,13 +169,16 @@ impl<T: Config> Pallet<T> {
             }
         }
 
+        let new_last_key = new_last_key.unwrap_or(prefix);
         log::debug!(
-            target: "runtime::usage",
-            "Sending {:?} invoices to {:?} at block {:?}. Last visited key is {:?}.",
-            counter, entries, now, new_last_key,
+            "Sending {} invoices to {:?} at block {:?}. Last visited key is 0x{}.",
+            counter,
+            entries,
+            now,
+            HexDisplay::from(&new_last_key),
         );
 
-        storage_value_ref.set(&new_last_key.unwrap_or(prefix));
+        storage_value_ref.set(&new_last_key);
 
         Self::send_transaction(entries)
     }
@@ -173,9 +187,7 @@ impl<T: Config> Pallet<T> {
         let call = Call::collect_waitlist_rent { payees_list: data };
 
         SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()).map_err(|_| {
-            log::debug!(
-                target: "runtime::usage",
-                "Failure sending unsigned transaction");
+            log::debug!("Failure sending unsigned transaction");
             OffchainError::SubmitTransaction
         })
     }

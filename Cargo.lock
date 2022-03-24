@@ -1321,7 +1321,7 @@ dependencies = [
 [[package]]
 name = "dlmalloc"
 version = "0.1.4"
-source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=703192a04d55a75899a69ca8c9f70810de421797#703192a04d55a75899a69ca8c9f70810de421797"
+source = "git+https://github.com/gear-tech/dlmalloc-rust.git?rev=e76ae98#e76ae9869ea4d386e758d7ed5d983ba2a25d7629"
 dependencies = [
  "libc",
  "libc_print",
@@ -3657,9 +3657,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.14"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
+checksum = "6389c490849ff5bc16be905ae24bc913a9c8892e19b2341dbc175e14c341c2b8"
 dependencies = [
  "cfg-if 1.0.0",
  "value-bag",
