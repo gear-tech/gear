@@ -90,6 +90,12 @@ pub struct ChainProgram {
     pub(crate) terminated: Option<bool>,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct Programs {
+    pub only: Option<bool>,
+    pub ids: Vec<ChainProgram>,
+}
+
 /// Expected data after running messages, defined in the fixture.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Expectation {
@@ -109,9 +115,8 @@ pub struct Expectation {
     /// Flag, which points that errors are allowed. Could be used to check traps.
     #[serde(rename = "allowError")]
     pub allow_error: Option<bool>,
-    pub exact_programs: Option<bool>,
     /// Expected active programs (not failed in the init) ids
-    pub programs: Option<Vec<ChainProgram>>,
+    pub programs: Option<Programs>,
 }
 
 /// Data describing program being tested.

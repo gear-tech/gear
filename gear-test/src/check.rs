@@ -442,11 +442,11 @@ pub fn check_memory(
 fn check_programs_state(
     expected_programs: &BTreeMap<ProgramId, bool>,
     actual_programs: &BTreeMap<ProgramId, bool>,
-    exact: bool,
+    only: bool,
 ) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
-    if exact {
+    if only {
         if actual_programs.len() != expected_programs.len() {
             errors.push(format!(
                 "Different lens of actual and expected programs: actual length={}, expected length={}",
@@ -569,6 +569,7 @@ where
                 }
                 if let Some(programs) = &exp.programs {
                     let expected_prog_ids = programs
+                        .ids
                         .iter()
                         .map(|program| {
                             (
@@ -587,7 +588,7 @@ where
                     if let Err(prog_id_errors) = check_programs_state(
                         &expected_prog_ids,
                         &actual_prog_ids,
-                        exp.exact_programs.unwrap_or_default(),
+                        programs.only.unwrap_or_default(),
                     ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(

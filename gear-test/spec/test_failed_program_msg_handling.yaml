@@ -24,13 +24,14 @@ fixtures:
           value: unknownspec_version correction v2
 
     expected:
-      - exact_program: true
 
       # no active programs in the state
       - programs:
-        - kind: id
-          value: 1
-          terminated: true
+        only: true
+        ids:
+          - kind: id
+            value: 1
+            terminated: true
 
         log:
           # Trap in init generates trap reply

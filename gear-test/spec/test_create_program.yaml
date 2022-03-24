@@ -25,6 +25,7 @@ fixtures:
 
     expected:
       - programs:
+        ids:
           - kind: id
             value: 1
 
