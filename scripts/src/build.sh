@@ -1,5 +1,7 @@
 #!/usr/bin/env sh
 
+export WASM_BUILD_TOOLCHAIN="nightly-2022-03-22"
+
 build_usage() {
   cat << EOF
 

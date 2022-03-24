@@ -25,6 +25,7 @@ use crate::builder_error::BuilderError;
 pub struct CargoCommand {
     path: String,
     manifest_path: PathBuf,
+    toolchain: &'static str,
     args: Vec<&'static str>,
     profile: String,
     rustc_flags: Vec<&'static str>,
@@ -36,7 +37,8 @@ impl CargoCommand {
         CargoCommand {
             path: "cargo".to_string(),
             manifest_path: "Cargo.toml".into(),
-            args: vec!["+nightly", "rustc", "--target=wasm32-unknown-unknown"],
+            toolchain: "nightly",
+            args: vec!["rustc", "--target=wasm32-unknown-unknown"],
             profile: "dev".to_string(),
             rustc_flags: vec!["-C", "link-arg=--import-memory"],
         }
@@ -57,7 +59,13 @@ impl CargoCommand {
     /// Execute the `cargo` command with invoking supplied arguments.
     pub fn run(&self) -> Result<()> {
         let mut cargo = Command::new(&self.path);
+        let toolchain = if let Ok(toolchain) = env::var("WASM_BUILD_TOOLCHAIN") {
+            toolchain
+        } else {
+            self.toolchain.to_string()
+        };
         cargo
+            .arg(format!("+{}", toolchain))
             .args(&self.args)
             .arg("--color=always")
             .arg(format!("--manifest-path={}", self.manifest_path.display()))
