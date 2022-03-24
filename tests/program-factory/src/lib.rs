@@ -85,7 +85,7 @@ mod tests {
         // Send `init` msg to factory
         let res = factory.send_bytes(10001, "EMPTY");
         assert!(!res.main_failed());
-        assert!(sys.get_program(100).is_some());
+        assert!(sys.is_active_program(100));
 
         factory
     }
@@ -114,7 +114,7 @@ mod tests {
         let res = factory.send_bytes(10001, CreateProgram::Default.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
-        assert!(sys.get_program(child_id_expected).is_some());
+        assert!(sys.is_active_program(child_id_expected));
     }
 
     #[test]
@@ -130,14 +130,16 @@ mod tests {
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
-        assert!(sys.get_program(child_id_expected).is_some());
+        assert!(sys.is_active_program(child_id_expected));
 
         // Send `handle` msg to create a duplicate
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         assert!(!res.others_failed());
-        // No new programs!
-        assert_eq!(sys.initialized_programs().len(), 2);
+        // Init message, which is not processed. Error reply for that init is generated.
+        // Dispatch message is processed, no error replies, because message is sent to
+        // the original program.
+        assert_eq!(res.total_processed(), 3 + 1); // +1 for the original message, initiated by user
     }
 
     #[test]
@@ -154,7 +156,7 @@ mod tests {
         let res = factory.send_bytes(10001, payload.encode());
         assert!(!res.main_failed());
         // No new program with fictional id
-        assert!(sys.get_program(fictional_program_id).is_none());
+        assert!(sys.is_active_program(fictional_program_id));
     }
 
     #[test]

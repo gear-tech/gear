@@ -236,6 +236,7 @@ impl ExtManager {
             }
         }
 
+        let mut total_processed = 0;
         while let Some(dispatch) = self.dispatch_queue.pop_front() {
             let message_id = dispatch.message.id();
             let dest = dispatch.message.dest();
@@ -262,6 +263,8 @@ impl ExtManager {
             } else {
                 self.process_dormant(dispatch);
             }
+
+            total_processed += 1;
         }
 
         let log = self.log.clone();
@@ -270,6 +273,7 @@ impl ExtManager {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
             log: log.into_iter().map(CoreLog::from_message).collect(),
+            total_processed,
         }
     }
 
