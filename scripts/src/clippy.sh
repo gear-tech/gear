@@ -20,13 +20,13 @@ EOF
 }
 
 gear_clippy() {
-  cargo +nightly clippy --workspace "$@" -- --no-deps -D warnings
+  cargo +nightly-2022-03-22 clippy --workspace "$@" -- --no-deps -D warnings
 }
 
 # $1 - ROOT DIR
 examples_clippy() {
   cd "$1"/examples
-  cargo +nightly hack clippy --workspace --release -- --no-deps \
+  cargo +nightly-2022-03-22 hack clippy --workspace --release -- --no-deps \
     -A clippy::missing_safety_doc \
 	  -A clippy::stable_sort_primitive \
     -D warnings
