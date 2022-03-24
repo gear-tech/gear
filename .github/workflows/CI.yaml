@@ -47,6 +47,7 @@ jobs:
           toolchain: nightly-2022-03-22
           components: clippy, rustfmt
           target: wasm32-unknown-unknown
+          override: true
 
       - name: "Install: Build deps"
         run: |
@@ -106,6 +107,7 @@ jobs:
         with:
           toolchain: nightly-2022-03-22
           target: wasm32-unknown-unknown
+          override: true
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
@@ -234,6 +236,7 @@ jobs:
         with:
           toolchain: nightly-2022-03-22
           target: wasm32-unknown-unknown
+          override: true
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v2
