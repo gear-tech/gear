@@ -73,7 +73,7 @@ examples_build() {
     cd "$ROOT_DIR"
     cargo +nightly build --release -p "demo-*"
     cd "$ROOT_DIR"/examples
-    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release --workspace "$@"
+    CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly-2022-03-22 hack build --release --workspace "$@"
     cd "$ROOT_DIR"
   else
     # If there is specified yaml list, then parses yaml files and build
@@ -88,7 +88,7 @@ examples_build() {
         path=$(echo "$path" | tail -1 )
         path=$(echo $path | perl -ne 'print $1 if /(.*)Cargo\.toml/s')
         cd $path
-        CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly hack build --release "$@"
+        CARGO_TARGET_DIR="$TARGET_DIR" cargo +nightly-2022-03-22 hack build --release "$@"
         cd -
       done
     done
