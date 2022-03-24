@@ -79,7 +79,7 @@ pub mod pallet {
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{
         message::DispatchKind,
-        program::{CheckedCode, CheckedCodeHash, ProgramId},
+        program::{CheckedCode, CheckedCodeWithHash, ProgramId},
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -350,7 +350,7 @@ pub mod pallet {
                         b"Unable to create a program for the code provided".to_vec()
                     })?;
                     common::set_code(id.into(), &code);
-                    let checked_code_hash = CheckedCodeHash::new(code);
+                    let checked_code_hash = CheckedCodeWithHash::new(code);
                     ext_manager.set_program(id.into(), checked_code_hash, root_message_id);
 
                     (DispatchKind::Init, id.into(), None)
@@ -620,7 +620,7 @@ pub mod pallet {
         /// # Note
         /// Code existence in storage means that metadata is there too.
         fn set_code_with_metadata(
-            code_hash: &CheckedCodeHash,
+            code_hash: &CheckedCodeWithHash,
             who: H256,
         ) -> Result<H256, Error<T>> {
             let hash: H256 = code_hash.hash().into_origin();
@@ -670,7 +670,7 @@ pub mod pallet {
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            let code_hash = CheckedCodeHash::new(code);
+            let code_hash = CheckedCodeWithHash::new(code);
 
             let code_hash = Self::set_code_with_metadata(&code_hash, who.into_origin())?;
 
@@ -741,7 +741,7 @@ pub mod pallet {
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            let checked_code_hash = CheckedCodeHash::new(code);
+            let checked_code_hash = CheckedCodeWithHash::new(code);
 
             let program_id = ProgramId::generate(*checked_code_hash.hash(), &salt);
             let id = program_id.into_origin();

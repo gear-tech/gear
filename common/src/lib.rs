@@ -527,8 +527,9 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
 }
 
 pub fn get_code(code_hash: H256) -> Option<CheckedCode> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
-        .map(|bytes| CheckedCode::decode(&mut &bytes[..]).expect("CheckedCode encoded correctly"))
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode)).map(|bytes| {
+        CheckedCode::decode(&mut &bytes[..]).expect("CheckedCode encoded correctly; qed")
+    })
 }
 
 pub fn set_code(code_hash: H256, code: &CheckedCode) {

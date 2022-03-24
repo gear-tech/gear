@@ -31,7 +31,7 @@ use frame_support::traits::{
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, ExitCode, MessageId},
-    program::{CheckedCodeHash, CodeHash, Program as NativeProgram, ProgramId},
+    program::{CheckedCodeWithHash, CodeHash, Program as NativeProgram, ProgramId},
 };
 use primitive_types::H256;
 use sp_runtime::{
@@ -85,7 +85,7 @@ where
     pub fn set_program(
         &self,
         program_id: ProgramId,
-        checked_code_hash: CheckedCodeHash,
+        checked_code_hash: CheckedCodeWithHash,
         message_id: H256,
     ) {
         let (checked_code, code_hash) = checked_code_hash.into_parts();
@@ -499,7 +499,7 @@ where
         if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    let checked_code_hash = CheckedCodeHash::new(code.clone());
+                    let checked_code_hash = CheckedCodeWithHash::new(code.clone());
                     self.set_program(candidate_id, checked_code_hash, init_message.into_origin());
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);

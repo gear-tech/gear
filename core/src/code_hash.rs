@@ -43,7 +43,7 @@ impl CodeHash {
 
     /// Create new `CodeHash` bytes. Returns `None` if the provided slice has wrong length.
     pub fn from_slice_unchecked(s: &[u8]) -> Option<Self> {
-        <[u8; HASH_LENGTH]>::try_from(s).map(|a| a.into()).ok()
+        <[u8; HASH_LENGTH]>::try_from(s).map(Into::into).ok()
     }
 }
 
@@ -54,9 +54,9 @@ impl From<[u8; HASH_LENGTH]> for CodeHash {
 }
 
 /// Contains checked code for a program and the hash for it.
-pub struct CheckedCodeHash(CheckedCode, CodeHash);
+pub struct CheckedCodeWithHash(CheckedCode, CodeHash);
 
-impl CheckedCodeHash {
+impl CheckedCodeWithHash {
     /// Creates new instance from the provided code.
     pub fn new(code: CheckedCode) -> Self {
         let hash = CodeHash::generate(code.code());

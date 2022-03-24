@@ -27,7 +27,7 @@ use core::{cmp, fmt};
 use scale_info::TypeInfo;
 
 pub use crate::checked_code::CheckedCode;
-pub use crate::code_hash::{CheckedCodeHash, CodeHash};
+pub use crate::code_hash::{CheckedCodeWithHash, CodeHash};
 use crate::memory::{PageBuf, PageNumber};
 
 /// Program identifier.
