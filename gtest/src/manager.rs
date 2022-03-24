@@ -27,10 +27,11 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, MessageId},
     program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
 };
-use std::collections::{BTreeMap, VecDeque};
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{
+    collections::{BTreeMap, HashMap, VecDeque},
+    fmt::Debug,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub(crate) type Balance = u128;
 
@@ -235,7 +236,7 @@ impl ExtManager {
                 self.actor_to_mailbox
                     .entry(message.dest())
                     .or_default()
-                    .insert(message.clone());
+                    .push(message.clone());
                 self.log.push(message)
             }
         }
@@ -498,7 +499,7 @@ impl JournalHandler for ExtManager {
             self.actor_to_mailbox
                 .entry(message.dest())
                 .or_default()
-                .insert(message.clone());
+                .push(message.clone());
             self.log.push(dispatch.message.clone());
         }
     }

@@ -1,10 +1,19 @@
-use crate::{log::RunResult, manager::{ExtManager, Mailbox}, program::{Program, ProgramIdWrapper}};
+use crate::{
+    log::RunResult,
+    manager::ExtManager,
+    program::{Program, ProgramIdWrapper},
+    CoreLog, Log,
+};
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{message::Message, program::CodeHash};
 use path_clean::PathClean;
 use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
+use gear_core::{
+    message::{Message, MessageId, Payload},
+    program::{ProgramId, CodeHash},
+};
 
+#[derive(Debug)]
 pub struct System(pub(crate) RefCell<ExtManager>);
 
 impl Default for System {
@@ -92,5 +101,72 @@ impl System {
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
         self.0.borrow_mut().store_new_code(&code)
+    }
+}
+
+#[derive(Debug)]
+pub struct Mailbox<'system_lifetime> {
+    mail: Vec<Message>,
+    system_reference: &'system_lifetime System,
+}
+
+impl<'system_lifetime> Mailbox<'system_lifetime> {
+    pub fn new(
+        messages: Vec<Message>,
+        system_reference: &'system_lifetime System,
+    ) -> Mailbox<'system_lifetime> {
+        Mailbox {
+            mail: messages,
+            system_reference,
+        }
+    }
+
+    pub fn take_message(&mut self, log: Log) -> Option<MessageReplier> {
+        for index in 0..self.mail.len() {
+            if log.eq(&self.mail[index]) {
+                let message = self.mail.remove(index);
+                return Some(MessageReplier::new(message, self.system_reference));
+            }
+        }
+        None
+    }
+}
+
+pub struct MessageReplier<'system_lifetime> {
+    log: CoreLog,
+    system_reference: &'system_lifetime System,
+}
+
+impl<'system_lifetime> MessageReplier<'system_lifetime> {
+    pub fn new(
+        message: Message,
+        system: &'system_lifetime System,
+    ) -> MessageReplier<'system_lifetime> {
+        MessageReplier {
+            log: CoreLog::from_message(message),
+            system_reference: system,
+        }
+    }
+
+    pub(crate) fn reply(&self, payload: Payload, value: u128) -> Option<RunResult> {
+        let message = self.log.generate_reply(
+            payload,
+            MessageId::from(self.system_reference.fetch_inc_message_nonce()),
+            value,
+        );
+        let old_payload = self.log.get_payload();
+        let old_message = self
+            .system_reference
+            .0
+            .borrow_mut()
+            .take_message(&message.source, &old_payload);
+        if old_message.is_some() {
+            return Some(self.system_reference.send_message(message));
+        }
+        None
+    }
+
+    pub fn reply_bytes(&self, raw_payload: &[u8], value: u128) -> Option<RunResult> {
+        self.reply(raw_payload.to_vec().into(), value)
     }
 }
