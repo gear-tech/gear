@@ -27,10 +27,11 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, MessageId, Payload},
     program::{CodeHash, Program as CoreProgram, ProgramId},
 };
-use std::collections::{BTreeMap, VecDeque};
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::collections::HashMap;
-use std::fmt::Debug;
+use std::{
+    collections::{BTreeMap, HashMap, VecDeque},
+    fmt::Debug,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub(crate) type Balance = u128;
 
@@ -214,7 +215,7 @@ impl ExtManager {
                 self.actor_to_mailbox
                     .entry(message.dest())
                     .or_default()
-                    .insert(message.clone());
+                    .push(message.clone());
                 self.log.push(message)
             }
         }
@@ -423,14 +424,30 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    pub(crate) fn get_mailbox(&self, program_id: &ProgramId) -> Option<&Mailbox>{
-        self.actor_to_mailbox.get(program_id)
+    pub(crate) fn get_mailbox(&self, program_id: &ProgramId) -> Vec<Message> {
+        match self.actor_to_mailbox.get(program_id) {
+            None => {
+                vec![]
+            }
+            Some(messages) => messages.clone(),
+        }
     }
 
-    pub(crate) fn remove_message(&mut self, program_id: &ProgramId, message_id: &MessageId) -> Result<Message, String>{
-        match  self.actor_to_mailbox.get_mut(program_id) {
-            None => {Err(String::from("No actor with such program id"))}
-            Some(mailbox) => { mailbox.remove_message(message_id)}
+    pub(crate) fn take_message(
+        &mut self,
+        program_id: &ProgramId,
+        payload: &Payload,
+    ) -> Option<Message> {
+        match self.actor_to_mailbox.get_mut(program_id) {
+            None => None,
+            Some(mailbox) => {
+                for i in 0..mailbox.len() {
+                    if mailbox[i].payload.eq(payload) {
+                        return Some(mailbox.remove(i));
+                    }
+                }
+                None
+            }
         }
     }
 }
@@ -483,7 +500,7 @@ impl JournalHandler for ExtManager {
             self.actor_to_mailbox
                 .entry(message.dest())
                 .or_default()
-                .insert(message.clone());
+                .push(message.clone());
             self.log.push(dispatch.message.clone());
         }
     }
@@ -560,44 +577,3 @@ impl JournalHandler for ExtManager {
         // todo!() #714
     }
 }
-
-#[derive(Debug)]
-pub struct Mailbox{
-    mail: HashMap<MessageId, Message>
-}
-
-impl Mailbox {
-    pub fn new(message: Message) -> Mailbox {
-        let mut mailbox = Mailbox{mail: HashMap::new()};
-        mailbox.insert(message);
-        mailbox
-    }
-
-    pub fn get(&self, payload: &Payload) -> Option<&Message> {
-        for message in self.mail.values(){
-            if message.payload.eq(payload){
-                return Option::Some(message);
-            }
-        }
-        None
-    }
-
-    pub fn insert(&mut self, message: Message) -> Option<Message> {
-        self.mail.insert(message.id.clone(), message)
-    }
-
-    pub fn remove_message(&mut self, message_id: &MessageId) -> Result<Message, String>{
-        match self.mail.remove(message_id) {
-            None => {Result::Err(String::from("No message with such message id"))}
-            Some(message) => {Result::Ok(message)}
-        }
-    }
-}
-
-impl Default for Mailbox{
-    fn default() -> Mailbox {
-        Mailbox{mail: HashMap::new()}
-    }
-}
-
-
