@@ -30,6 +30,6 @@ format() {
 }
 
 doc_format() {
-  cargo +nightly fmt -p gstd -p gcore -- "$@" \
+  cargo +nightly-2022-03-22 fmt -p gstd -p gcore -- "$@" \
     --config wrap_comments=true,format_code_in_doc_comments=true
 }

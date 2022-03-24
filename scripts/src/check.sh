@@ -27,7 +27,7 @@ gear_check() {
 # $1 = ROOT DIR, $2 = TARGET DIR
 examples_check() {
   cd "$1"/examples
-  CARGO_TARGET_DIR="$2" cargo +nightly hack check --release --workspace
+  CARGO_TARGET_DIR="$2" cargo +nightly-2022-03-22 hack check --release --workspace
   cd "$1"
 }
 
