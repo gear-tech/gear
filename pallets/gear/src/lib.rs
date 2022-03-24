@@ -510,6 +510,9 @@ pub mod pallet {
 
                     common::queue_dispatch(dispatch);
 
+                    // Since we requeue the message without GasHandler we have to take
+                    // into account that there can left only such messages in the queue.
+                    // So stop processing when there is not enough gas/weight.
                     let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
                     Self::decrease_gas_allowance(consumed);
                     if Self::gas_allowance() < consumed {

@@ -26,7 +26,10 @@ use codec::{Decode, Encode};
 ///
 /// This entity ensures the code has passed several checks.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
-pub struct CheckedCode(Vec<u8>, u32);
+pub struct CheckedCode {
+    code: Vec<u8>,
+    static_pages: u32,
+}
 
 impl CheckedCode {
     /// Checks provided code and creates new instance if the code is correct.
@@ -48,16 +51,16 @@ impl CheckedCode {
                 .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
         };
 
-        Ok(Self(code, static_pages))
+        Ok(Self { code, static_pages })
     }
 
     /// Returns reference to the raw binary code.
     pub fn code(&self) -> &[u8] {
-        &self.0
+        &self.code
     }
 
     /// Returns initial memory size from memory import.
     pub fn static_pages(&self) -> u32 {
-        self.1
+        self.static_pages
     }
 }
