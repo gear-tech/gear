@@ -6,7 +6,7 @@ use crate::{
 use codec::Codec;
 use gear_core::{
     message::{Message, MessageId},
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
 };
 use path_clean::PathClean;
 use std::{
@@ -114,12 +114,11 @@ impl<'a> Program<'a> {
         system: &'a System,
         id: I,
     ) -> Self {
-        let path_file = env::var("OUT_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| env::current_dir().expect("Unable to get current dir"));
-        let path_file = path_file.join("wasm_binary_path.txt");
+        let current_dir = env::current_dir().expect("Unable to get current dir");
+        let path_file = current_dir.join(".binpath");
         let path_bytes = fs::read(path_file).expect("Unable to read path bytes");
-        let path = String::from_utf8(path_bytes).expect("Invalid path");
+        let relative_path: PathBuf = String::from_utf8(path_bytes).expect("Invalid path").into();
+        let path = current_dir.join(relative_path);
 
         Self::from_file_with_id(system, id, path)
     }
@@ -157,9 +156,8 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-
-        let program =
-            CoreProgram::new(program_id, code).expect("Failed to create Program from code");
+        let code = CheckedCode::try_new(code).expect("Failed to create Program from code");
+        let program = CoreProgram::new(program_id, code);
 
         Self::program_with_id(system, id, InnerProgram::new(program))
     }

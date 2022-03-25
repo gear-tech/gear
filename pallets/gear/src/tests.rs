@@ -20,6 +20,7 @@ use codec::Encode;
 use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
+use gear_core::checked_code::CheckedCode;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 use tests_distributor::{Request, WASM_BINARY};
@@ -28,11 +29,11 @@ use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_B
 use super::{
     manager::HandleKind,
     mock::{
-        new_test_ext, run_to_block, Event as MockEvent, Gear, Origin, System, Test, BLOCK_AUTHOR,
-        LOW_BALANCE_USER, USER_1, USER_2, USER_3,
+        calc_handle_gas_spent, new_test_ext, run_to_block, Event as MockEvent, Gear, GearProgram,
+        Origin, System, Test, BLOCK_AUTHOR, LOW_BALANCE_USER, USER_1, USER_2, USER_3,
     },
-    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance, Mailbox,
-    MessageInfo, Pallet as GearPallet, Reason,
+    pallet, Config, DispatchOutcome, Error, Event, ExecutionResult, GasAllowance,
+    GearProgramPallet, Mailbox, MessageInfo, Pallet as GearPallet, Reason,
 };
 
 use utils::*;
@@ -493,23 +494,11 @@ fn block_gas_limit_works() {
         run_to_block(2, Some(remaining_weight));
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
 
-        // We send 10M of gas from inside the program (see `ProgramCodeKind::OutgoingWithValueInHandle` WAT code).
-        let gas_to_send = 10_000_000;
-
         // Count gas needed to process programs with default payload
-        let expected_gas_msg_to_pid1 = GearPallet::<Test>::get_gas_spent(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid1),
-            EMPTY_PAYLOAD.to_vec(),
-        )
-        .expect("internal error: get gas spent (pid1) failed")
-            - gas_to_send;
-        let expected_gas_msg_to_pid2 = GearPallet::<Test>::get_gas_spent(
-            USER_1.into_origin(),
-            HandleKind::Handle(pid2),
-            EMPTY_PAYLOAD.to_vec(),
-        )
-        .expect("internal error: get gas spent (pid2) failed");
+        let (expected_gas_msg_to_pid1, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), pid1, EMPTY_PAYLOAD.to_vec());
+        let (expected_gas_msg_to_pid2, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), pid2, EMPTY_PAYLOAD.to_vec());
 
         // TrapInHandle code kind is used because processing default payload in its
         // context requires such an amount of gas, that the following assertion can be passed.
@@ -1030,14 +1019,9 @@ fn claim_value_from_mailbox_works() {
             populate_mailbox_from_program(prog_id, USER_2, 2, 0, gas_sent, value_sent);
         assert!(Mailbox::<Test>::contains_key(USER_1));
 
-        let gas_burned = GasPrice::gas_price(
-            GearPallet::<Test>::get_gas_spent(
-                USER_1.into_origin(),
-                HandleKind::Handle(prog_id),
-                EMPTY_PAYLOAD.to_vec(),
-            )
-            .expect("program exists and not faulty"),
-        );
+        let (gas_burned, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
+        let gas_burned = GasPrice::gas_price(gas_burned);
 
         run_to_block(3, None);
 
@@ -1055,10 +1039,8 @@ fn claim_value_from_mailbox_works() {
             expected_claimer_balance
         );
 
-        // We send 10M of gas from inside the program (see `ProgramCodeKind::OutgoingWithValueInHandle` WAT code).
-        let gas_to_send = 10_000_000;
         // Gas left returns to sender from consuming of value tree while claiming.
-        let expected_sender_balance = sender_balance - value_sent - gas_burned + gas_to_send;
+        let expected_sender_balance = sender_balance - value_sent - gas_burned;
         assert_eq!(
             BalancesPallet::<Test>::free_balance(USER_2),
             expected_sender_balance
@@ -1154,7 +1136,7 @@ fn test_code_submission_pass() {
         ));
 
         let saved_code = common::get_code(code_hash);
-        assert_eq!(saved_code, Some(code));
+        assert_eq!(saved_code, Some(CheckedCode::try_new(code).unwrap()));
 
         let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
         let actual_meta = common::get_code_metadata(code_hash);
@@ -1267,18 +1249,7 @@ fn messages_to_uninitialized_program_wait() {
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_terminated(program_id));
@@ -1315,22 +1286,11 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            99_000_000u64,
+            90_000_000u64,
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         assert!(!Gear::is_initialized(program_id));
         assert!(!Gear::is_terminated(program_id));
@@ -1381,18 +1341,7 @@ fn defer_program_initialization() {
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         run_to_block(2, None);
 
@@ -1456,18 +1405,7 @@ fn wake_messages_after_program_inited() {
             0u128
         ));
 
-        let event = match SystemPallet::<Test>::events()
-            .last()
-            .map(|r| r.event.clone())
-        {
-            Some(MockEvent::Gear(e)) => e,
-            _ => unreachable!("Should be one Gear event"),
-        };
-
-        let MessageInfo { program_id, .. } = match event {
-            Event::InitMessageEnqueued(info) => info,
-            _ => unreachable!("expect Event::InitMessageEnqueued"),
-        };
+        let program_id = utils::get_last_program_id();
 
         run_to_block(2, None);
 
@@ -2107,6 +2045,394 @@ fn exit_handle() {
             Error::<Test>::ProgramAlreadyExists,
         );
     })
+}
+
+#[test]
+fn paused_program_keeps_id() {
+    use tests_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(GearProgram::pause_program(program_id));
+
+        assert_noop!(
+            GearPallet::<Test>::submit_program(
+                Origin::signed(USER_3).into(),
+                code.clone(),
+                vec![],
+                Vec::new(),
+                100_000_000u64,
+                0u128
+            ),
+            Error::<Test>::ProgramAlreadyExists
+        );
+
+        assert!(!Gear::is_initialized(program_id));
+        assert!(!Gear::is_terminated(program_id));
+    })
+}
+
+#[test]
+fn messages_to_paused_program_skipped() {
+    use tests_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(GearProgram::pause_program(program_id));
+
+        let before_balance = BalancesPallet::<Test>::free_balance(USER_3);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3).into(),
+            program_id,
+            vec![],
+            100_000_000u64,
+            1000u128
+        ));
+
+        run_to_block(3, None);
+
+        assert_eq!(before_balance, BalancesPallet::<Test>::free_balance(USER_3));
+    })
+}
+
+#[test]
+fn replies_to_paused_program_skipped() {
+    use tests_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(GearProgram::pause_program(program_id));
+
+        run_to_block(3, None);
+
+        let message_id = Gear::mailbox(USER_1).and_then(|t| {
+            let mut keys = t.keys();
+            keys.next().cloned()
+        });
+        assert!(message_id.is_some());
+
+        let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            message_id.unwrap(),
+            b"PONG".to_vec(),
+            50_000_000u64,
+            1000u128,
+        ));
+
+        run_to_block(4, None);
+
+        assert_eq!(before_balance, BalancesPallet::<Test>::free_balance(USER_1));
+    })
+}
+
+#[test]
+fn program_messages_to_paused_program_skipped() {
+    use tests_init_wait::WASM_BINARY;
+    use tests_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            100_000_000u64,
+            0u128
+        ));
+
+        let paused_program_id = utils::get_last_program_id();
+
+        let code = PROXY_WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_3).into(),
+            code.clone(),
+            vec![],
+            InputArgs {
+                destination: paused_program_id.into()
+            }
+            .encode(),
+            100_000_000u64,
+            1_000u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        assert_ok!(GearProgram::pause_program(paused_program_id));
+
+        run_to_block(3, None);
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3).into(),
+            program_id,
+            vec![],
+            100_000_000u64,
+            1_000u128
+        ));
+
+        run_to_block(4, None);
+
+        assert_eq!(
+            2_000u128,
+            BalancesPallet::<Test>::free_balance(
+                &<utils::AccountId as common::Origin>::from_origin(program_id)
+            )
+        );
+    })
+}
+
+#[test]
+fn resume_program_works() {
+    use tests_init_wait::WASM_BINARY;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        System::reset_events();
+
+        let code = WASM_BINARY.to_vec();
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            code.clone(),
+            vec![],
+            Vec::new(),
+            90_000_000u64,
+            0u128
+        ));
+
+        let program_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        let message_id = Gear::mailbox(USER_1).and_then(|t| {
+            let mut keys = t.keys();
+            keys.next().cloned()
+        });
+        assert!(message_id.is_some());
+
+        assert_ok!(GearPallet::<Test>::send_reply(
+            Origin::signed(USER_1).into(),
+            message_id.unwrap(),
+            b"PONG".to_vec(),
+            50_000_000u64,
+            1_000u128,
+        ));
+
+        run_to_block(3, None);
+
+        let program = match common::get_program(program_id).expect("program exists") {
+            common::Program::Active(p) => p,
+            _ => unreachable!(),
+        };
+        let memory_pages = common::get_program_pages(program_id, program.persistent_pages)
+            .expect("program exists, so do pages");
+
+        assert_ok!(GearProgram::pause_program(program_id));
+
+        run_to_block(4, None);
+
+        assert_ok!(GearProgramPallet::<Test>::resume_program(
+            Origin::signed(USER_3).into(),
+            program_id,
+            memory_pages,
+            Default::default(),
+            10_000u128
+        ));
+
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_3).into(),
+            program_id,
+            vec![],
+            25_000_000u64,
+            0u128
+        ));
+
+        run_to_block(5, None);
+
+        let actual_n = Gear::mailbox(USER_3)
+            .map(|t| {
+                t.into_values().fold(0usize, |i, m| {
+                    assert_eq!(m.payload, b"Hello, world!".encode());
+                    i + 1
+                })
+            })
+            .unwrap_or(0);
+
+        assert_eq!(actual_n, 1);
+    })
+}
+
+#[test]
+fn gas_spent_vs_balance() {
+    use tests_btree::{Request, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
+
+        assert_ok!(GearPallet::<Test>::submit_program(
+            Origin::signed(USER_1).into(),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            EMPTY_PAYLOAD.to_vec(),
+            10_000_000,
+            0,
+        ));
+
+        let prog_id = utils::get_last_program_id();
+
+        run_to_block(2, None);
+
+        let balance_after_init = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let request = Request::Clear.encode();
+        assert_ok!(GearPallet::<Test>::send_message(
+            Origin::signed(USER_1).into(),
+            prog_id,
+            request.clone(),
+            10_000_000,
+            0
+        ));
+
+        run_to_block(3, None);
+
+        let balance_after_handle = BalancesPallet::<Test>::free_balance(USER_1);
+
+        let init_gas_spent = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Init(WASM_BINARY.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+        )
+        .expect("Gas spent for init calculation error");
+
+        assert_eq!(
+            (initial_balance - balance_after_init) as u64,
+            init_gas_spent
+        );
+
+        let handle_gas_spent = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Handle(prog_id),
+            request,
+            0,
+        )
+        .expect("Gas spent for handle calculation error");
+
+        assert_eq!(
+            balance_after_init - balance_after_handle,
+            handle_gas_spent as u128
+        );
+    });
+}
+
+#[test]
+fn gas_spent_precalculated() {
+    let wat = r#"
+	(module
+		(import "env" "memory" (memory 1))
+		(export "handle" (func $handle))
+        (func $doWork (param $size i32)
+            (local $counter i32)
+            i32.const 0
+            set_local $counter
+            loop $while
+                get_local $counter
+                i32.const 1
+                i32.add
+                set_local $counter
+                get_local $counter
+                get_local $size
+                i32.lt_s
+                if
+                    br $while
+                end
+            end $while
+        )
+        (func $handle
+            i32.const 42
+            call $doWork
+		)
+	)"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let prog_id = submit_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("submit result was asserted");
+
+        run_to_block(2, None);
+
+        let gas_spent_1 = Gear::get_gas_spent(
+            USER_1.into_origin(),
+            HandleKind::Handle(prog_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+        )
+        .expect("Gas spent for handle calculation error");
+
+        // 42 times loop, 9 ops inside the loop, plus 7 ops outside the loop; 1000 gas per instruction
+        assert_eq!(gas_spent_1, (42 * 9 + 7) * 1000);
+
+        let (gas_spent_2, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
+
+        assert_eq!(gas_spent_1, gas_spent_2);
+    });
 }
 
 mod utils {

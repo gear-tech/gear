@@ -354,10 +354,11 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .iter()
                     .filter_map(|p| {
                         if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                            let code = gear_common::get_code(p.code_hash)
+                                .expect("code should be in the storage");
                             Some(CoreProgram::from_parts(
                                 *pid,
-                                vec![],
-                                p.static_pages,
+                                code,
                                 p.nonce,
                                 p.persistent_pages.keys().cloned().collect(),
                                 true,

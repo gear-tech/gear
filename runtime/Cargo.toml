@@ -17,7 +17,7 @@ sp-io = { version = "5.0.0", default-features = false, git = "https://github.com
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4.16", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
@@ -57,6 +57,7 @@ frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, g
 hex-literal = { version = "0.3.4", optional = true }
 
 # Internal deps
+pallet-gear-program = { version = "2.0.0", default-features = false, path = "../pallets/gear-program" }
 pallet-gear = { version = "2.0.0", default-features = false, path = "../pallets/gear" }
 pallet-gear-debug = { version = "2.0.0", default-features = false, path = "../pallets/gear-debug", optional = true }
 pallet-usage = { version = "2.0.0", default-features = false, path = "../pallets/usage" }
@@ -78,6 +79,7 @@ std = [
 	"pallet-aura/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
+	"pallet-gear-program/std",
 	"pallet-gear/std",
 	"pallet-gear-debug/std",
 	"pallet-usage/std",
@@ -115,6 +117,7 @@ runtime-benchmarks = [
 	"pallet-balances/runtime-benchmarks",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-gear/runtime-benchmarks",
+	"pallet-gear-program/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 ]
 debug-mode = [

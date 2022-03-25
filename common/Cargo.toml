@@ -9,7 +9,7 @@ license = "GPL-3.0"
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
-log = "0.4.14"
+log = "0.4.16"
 
 # Internal deps
 gear-core = { path = "../core" }
@@ -22,7 +22,13 @@ sp-runtime = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.
 sp-std = { version = "4.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-arithmetic = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 frame-support = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 gear-runtime-interface = { path = "../runtime-interface", default-features = false }
+parity-wasm = { version = "0.42.2", default-features = false, optional = true }
+
+[dev-dependencies]
+hex-literal = "0.3.3"
 
 [features]
 default = ["std"]
@@ -37,4 +43,10 @@ std = [
     "frame-support/std",
     "primitive-types/std",
     "gear-runtime-interface/std",
+]
+runtime-benchmarks = [
+    "frame-benchmarking",
+    "frame-system/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "parity-wasm",
 ]

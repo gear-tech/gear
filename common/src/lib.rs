@@ -22,6 +22,9 @@ pub mod lazy_pages;
 pub mod native;
 pub mod storage_queue;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 use codec::{Decode, Encode};
 use frame_support::{
     dispatch::{DispatchError, DispatchResult},
@@ -40,7 +43,7 @@ use sp_std::{
 
 use gear_core::{
     message::{DispatchKind, PayloadStore},
-    program::{CodeHash, Program as NativeProgram, ProgramId},
+    program::{CheckedCode, CodeHash, Program as NativeProgram, ProgramId},
 };
 
 pub use storage_queue::Iterator;
@@ -168,8 +171,11 @@ pub trait DAGBasedLedger {
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, DispatchError>;
 
-    /// Get value item by it's ID, if exists.
-    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::ExternalOrigin)>;
+    /// Get the external origin for a key, if the latter exists.
+    fn get_origin(key: Self::Key) -> Option<Self::ExternalOrigin>;
+
+    /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
+    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::Key)>;
 
     /// Consume underlying value.
     ///
@@ -380,7 +386,6 @@ impl Program {
         let native_program = NativeProgram::from_parts(
             ProgramId::from_origin(id),
             code,
-            program.static_pages,
             program.nonce,
             program.persistent_pages,
             is_initialized,
@@ -492,31 +497,46 @@ fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     key
 }
 
-fn page_key(id: H256, page: u32) -> Vec<u8> {
+pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    id.encode_to(&mut key);
+    program_id.encode_to(&mut key);
+
+    key
+}
+
+fn page_key(id: H256, page: u32) -> Vec<u8> {
+    let mut key = pages_prefix(id);
     key.extend(b"::");
     page.encode_to(&mut key);
     key
 }
 
-pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
     key.extend(b"::");
-    msg_id.encode_to(&mut key);
-
     key
 }
 
-pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
+    let mut key = wait_prefix(prog_id);
+    msg_id.encode_to(&mut key);
+    key
 }
 
-pub fn set_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::RawCode), code)
+pub fn get_code(code_hash: H256) -> Option<CheckedCode> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode)).map(|bytes| {
+        CheckedCode::decode(&mut &bytes[..]).expect("CheckedCode encoded correctly; qed")
+    })
+}
+
+pub fn set_code(code_hash: H256, code: &CheckedCode) {
+    sp_io::storage::set(
+        &code_key(code_hash, CodeKeyPrefixKind::RawCode),
+        &code.encode(),
+    )
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
@@ -545,9 +565,8 @@ pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
         if program.is_terminated() {
             return Err(ProgramError::IsTerminated);
         }
-        let mut pages_prefix = STORAGE_PROGRAM_PAGES_PREFIX.to_vec();
-        pages_prefix.extend(&program_key(id));
-        sp_io::storage::clear_prefix(&pages_prefix, None);
+
+        sp_io::storage::clear_prefix(&pages_prefix(id), None);
         sp_io::storage::set(&program_key(id), &Program::Terminated.encode());
 
         Ok(())
@@ -593,6 +612,10 @@ pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<
 
 pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
+}
+
+pub fn clear_dispatch_queue() {
+    sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
 }
 
 pub fn dequeue_dispatch() -> Option<QueuedDispatch> {
@@ -699,7 +722,7 @@ pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(Queue
     msg
 }
 
-fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
+pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
     prog_id.encode_to(&mut key);
@@ -770,8 +793,11 @@ mod tests {
     #[test]
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
+            let code =
+                hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
             let code_hash: H256 = CodeHash::generate(&code).into_origin();
+            let code = CheckedCode::try_new(code.clone()).unwrap();
+
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
                 static_pages: 256,
@@ -780,6 +806,7 @@ mod tests {
                 nonce: 0,
                 state: ProgramState::Initialized,
             };
+
             set_code(code_hash, &code);
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());

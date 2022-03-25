@@ -18,12 +18,15 @@
 
 use codec::{Decode, Encode, Error as CodecError};
 use core_processor::{
-    common::{DispatchOutcome, ExecutableActor, JournalHandler},
+    common::{DispatchOutcome, ExecutableActor, JournalHandler, JournalNote},
     configs::BlockInfo,
-    Ext,
+    Ext, ProcessorExt,
 };
+use gear_backend_common::{Environment, IntoExtInfo};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
+    checked_code::CheckedCode,
+    env::Ext as EnvExt,
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId},
     program::{Program, ProgramId},
@@ -388,7 +391,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn store_new_programs(
         &mut self,
-        _code_hash: gear_core::program::CodeHash,
+        _code_hash: gear_core::code_hash::CodeHash,
         _candidates: Vec<(ProgramId, MessageId)>,
     ) {
         // TODO next pr
@@ -424,8 +427,10 @@ impl RunnerContext {
             ..
         } = init_data.into().into_init_program_info(self);
 
+        let code = CheckedCode::try_new(code).expect("Failed to create program");
+
         // store program
-        let program = Program::new(new_program_id, code).expect("Failed to create program");
+        let program = Program::new(new_program_id, code);
         let actor = ExecutableActor {
             program,
             balance: 0,
@@ -604,7 +609,7 @@ impl RunnerContext {
                 let actors = self.actors.clone();
                 let origins = vec![messages[0].message.source(); messages.len()];
 
-                core_processor::process_many::<Ext, WasmtimeEnvironment<Ext>>(
+                process_many::<Ext, WasmtimeEnvironment<Ext>>(
                     actors,
                     messages,
                     BlockInfo {
@@ -644,4 +649,59 @@ impl Default for RunnerContext {
             gas_spent: BTreeMap::new(),
         }
     }
+}
+
+/// Process multiple dispatches into multiple programs and return journal notes for update.
+pub fn process_many<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+    mut actors: BTreeMap<ProgramId, Option<ExecutableActor>>,
+    dispatches: Vec<Dispatch>,
+    block_info: BlockInfo,
+    existential_deposit: u128,
+    // Will go away some time soon
+    origins: Vec<ProgramId>,
+) -> Vec<JournalNote> {
+    let mut journal = Vec::new();
+
+    assert_eq!(dispatches.len(), origins.len());
+
+    for (dispatch, origin) in dispatches.into_iter().zip(origins.into_iter()) {
+        let actor = actors
+            .get_mut(&dispatch.message.dest())
+            .expect("Program wasn't found in programs");
+
+        let current_journal = core_processor::process::<A, E>(
+            actor.clone(),
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+        );
+
+        for note in &current_journal {
+            if let Some(actor) = actor {
+                match note {
+                    JournalNote::UpdateNonce { nonce, .. } => {
+                        actor.program.set_message_nonce(*nonce)
+                    }
+                    JournalNote::UpdatePage {
+                        page_number, data, ..
+                    } => {
+                        if let Some(data) = data {
+                            actor
+                                .program
+                                .set_page(*page_number, data)
+                                .expect("Can't fail");
+                        } else {
+                            actor.program.remove_page(*page_number);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        journal.extend(current_journal);
+    }
+
+    journal
 }

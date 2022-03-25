@@ -49,6 +49,7 @@ construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        GearProgram: pallet_gear_program::{Pallet, Storage, Event<T>},
         Gear: pallet_gear::{Pallet, Call, Storage, Event<T>},
         Gas: pallet_gas::{Pallet, Storage},
         Usage: pallet_usage::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
@@ -108,6 +109,12 @@ impl common::GasPrice for GasConverter {
     type Balance = u128;
 }
 
+impl pallet_gear_program::Config for Test {
+    type Event = Event;
+    type WeightInfo = ();
+    type Currency = Balances;
+}
+
 parameter_types! {
     pub const WaitListFeePerBlock: u64 = 100;
 }
@@ -161,7 +168,7 @@ impl pallet_authorship::Config for Test {
     type EventHandler = ();
 }
 
-type Extrinsic = TestXt<Call, ()>;
+pub(crate) type Extrinsic = TestXt<Call, ()>;
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
 where
@@ -248,4 +255,16 @@ pub(crate) fn get_current_offchain_time() -> u64 {
 pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
     let storage_value_ref = StorageValueRef::persistent(key);
     storage_value_ref.get::<T>().ok().flatten()
+}
+
+pub(crate) fn decode_txs(pool: Arc<RwLock<PoolState>>) -> Vec<Extrinsic> {
+    pool.read()
+        .transactions
+        .iter()
+        .cloned()
+        .map(|bytes| {
+            let tx = Extrinsic::decode(&mut &bytes[..]).unwrap();
+            tx
+        })
+        .collect::<Vec<_>>()
 }

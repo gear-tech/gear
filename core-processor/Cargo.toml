@@ -11,7 +11,8 @@ gear-backend-common = { path = "../core-backend/common" }
 
 blake2-rfc = { version = "0.2.16", default-features = false }
 codec = { package = "parity-scale-codec", version = "2", features = ["derive"], default-features = false }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4.16", default-features = false }
+anyhow = { version = "1.0.55", default-features = false }
 
 [features]
 strict = []

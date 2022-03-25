@@ -22,7 +22,7 @@ use codec::Decode;
 use common::{self, DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
-use gear_core::message::DispatchKind;
+use gear_core::{checked_code::CheckedCode, message::DispatchKind};
 use hex_literal::hex;
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
@@ -216,7 +216,8 @@ fn ocw_interval_stretches_for_large_wait_list() {
         let num_batches = 7_u32;
 
         // Populate wait list with `Test::MaxBatchSize` x `num_bathces` messages
-        let num_entries = <Test as Config>::MaxBatchSize::get().saturating_mul(num_batches) as u64;
+        let batch_size = <Test as Config>::MaxBatchSize::get() as u64;
+        let num_entries = batch_size.saturating_mul(num_batches as u64);
         assert_eq!(num_entries, 70);
         populate_wait_list(num_entries, 10, 1, vec![10_000; num_entries as usize]);
 
@@ -236,11 +237,45 @@ fn ocw_interval_stretches_for_large_wait_list() {
         // From block 15 on we expect to have a new transaction every block
         run_to_block_with_ocw(15);
         assert_eq!(pool.read().transactions.len(), 3);
-        // New "invoicing" round has started, as well
+
+        // New "invoicing" round has started
         assert_eq!(
             get_offchain_storage_value(offchain::STORAGE_ROUND_STARTED_AT),
             Some(15_u32)
         );
+
+        // The last tx in the pool contains batch #1 of messages
+        let latest_tx = decode_txs(pool.clone())[..]
+            .last()
+            .expect("Checked above")
+            .clone();
+        assert!(matches!(
+            latest_tx.call,
+            mock::Call::Usage(pallet::Call::collect_waitlist_rent { .. })
+        ));
+        if let mock::Call::Usage(pallet::Call::collect_waitlist_rent { payees_list }) =
+            latest_tx.call
+        {
+            for (
+                i,
+                PayeeInfo {
+                    program_id,
+                    message_id,
+                },
+            ) in payees_list.into_iter().enumerate()
+            {
+                let i = i as u64;
+                assert_eq!(
+                    (program_id, message_id),
+                    (
+                        (i + 1).into_origin(),
+                        (100_u64 * (num_entries as u64) + i + 1).into_origin()
+                    )
+                );
+            }
+        } else {
+            unreachable!()
+        }
 
         // Last seen key in the wait list should be that of the 10th message
         assert_eq!(
@@ -253,6 +288,39 @@ fn ocw_interval_stretches_for_large_wait_list() {
 
         run_to_block_with_ocw(16);
         assert_eq!(pool.read().transactions.len(), 4);
+
+        // The last tx in the pool now contains batch #2 of messages
+        let latest_tx = decode_txs(pool.clone())[..]
+            .last()
+            .expect("Checked above")
+            .clone();
+        assert!(matches!(
+            latest_tx.call,
+            mock::Call::Usage(pallet::Call::collect_waitlist_rent { .. })
+        ));
+        if let mock::Call::Usage(pallet::Call::collect_waitlist_rent { payees_list }) =
+            latest_tx.call
+        {
+            for (
+                i,
+                PayeeInfo {
+                    program_id,
+                    message_id,
+                },
+            ) in payees_list.into_iter().enumerate()
+            {
+                let i = i as u64;
+                assert_eq!(
+                    (program_id, message_id),
+                    (
+                        (batch_size + i + 1).into_origin(),
+                        (100_u64 * (num_entries as u64) + batch_size + i + 1).into_origin()
+                    )
+                );
+            }
+        } else {
+            unreachable!()
+        }
 
         // Last seen key in the wait list should be that of the 20th message
         assert_eq!(
@@ -413,15 +481,20 @@ fn trap_reply_message_is_sent() {
         // Insert respective programs to the program storage
         let program_1 = gear_core::program::Program::new(
             1.into(),
-            hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
-        )
-        .unwrap();
+            CheckedCode::try_new(
+                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+            )
+            .unwrap(),
+        );
         common::native::set_program(program_1);
+
         let program_2 = gear_core::program::Program::new(
             2.into(),
-            hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
-        )
-        .unwrap();
+            CheckedCode::try_new(
+                hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
+            )
+            .unwrap(),
+        );
         common::native::set_program(program_2);
 
         run_to_block(15);

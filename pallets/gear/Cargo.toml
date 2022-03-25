@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
-log = { version = "0.4.14", default-features = false }
+log = { version = "0.4.16", default-features = false }
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
@@ -40,6 +40,7 @@ sp-arithmetic = { version = "4.0.0-dev", git = "https://github.com/gear-tech/sub
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+pallet-gear-program = { path = "../gear-program", default-features = false }
 
 [dev-dependencies]
 serde = "1.0.136"
@@ -47,11 +48,13 @@ env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
 hex-literal = "0.3.4"
+tests-btree = { path = "../../tests/btree" }
 tests-distributor = { path = "../../tests/distributor" }
 tests-init-wait = { path = "../../tests/init-wait" }
 tests-exit-init = { path = "../../tests/exit-init" }
 tests-exit-handle = { path = "../../tests/exit-handle" }
 tests-program-factory = { path = "../../tests/program-factory" }
+tests-proxy = { path = "../../tests/proxy" }
 
 [features]
 default = ['std']
@@ -70,6 +73,7 @@ std = [
 	"sp-runtime/std",
 	"pallet-balances/std",
 	"pallet-authorship/std",
+	"pallet-gear-program/std",
 	"primitive-types/std",
 	"serde/std",
 	"gear-runtime-interface/std",
@@ -79,4 +83,5 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"frame-support/runtime-benchmarks",
 	"parity-wasm",
+	"common/runtime-benchmarks"
 ]
