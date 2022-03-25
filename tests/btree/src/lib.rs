@@ -16,12 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
-#![cfg_attr(not(feature = "std"), no_std)]
-
-use codec::{Decode, Encode};
-#[cfg(not(feature = "std"))]
-use gstd::prelude::*;
+#![no_std]
+#![allow(clippy::missing_safety_doc)]
 
 #[cfg(feature = "std")]
 mod code {
@@ -30,6 +26,12 @@ mod code {
 
 #[cfg(feature = "std")]
 pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
+extern crate alloc;
+
+use alloc::collections::BTreeMap;
+use codec::{Decode, Encode};
+use gstd::{debug, msg, prelude::*};
 
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Request {
@@ -47,80 +49,79 @@ pub enum Reply {
     List(Vec<(u32, u32)>),
 }
 
-#[cfg(not(feature = "std"))]
-mod wasm {
-    extern crate alloc;
+static mut STATE: Option<BTreeMap<u32, u32>> = None;
 
-    use alloc::collections::BTreeMap;
-    use codec::{Decode, Encode};
-    use gstd::{debug, msg, prelude::*};
-
-    use super::{Reply, Request};
-
-    static mut STATE: Option<BTreeMap<u32, u32>> = None;
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle() {
-        let reply = match msg::load() {
-            Ok(request) => process(request),
-            Err(e) => {
-                debug!("Error processing request: {:?}", e);
-                Reply::Error
-            }
-        };
-
-        msg::reply(reply, 0);
-    }
-
-    fn state() -> &'static mut BTreeMap<u32, u32> {
-        unsafe { STATE.as_mut().unwrap() }
-    }
-
-    fn process(request: super::Request) -> Reply {
-        use super::Request::*;
-        match request {
-            Insert(key, value) => Reply::Value(state().insert(key, value)),
-            Remove(key) => Reply::Value(state().remove(&key)),
-            List => Reply::List(state().iter().map(|(k, v)| (*k, *v)).collect()),
-            Clear => {
-                state().clear();
-                Reply::None
-            }
+#[no_mangle]
+pub unsafe extern "C" fn handle() {
+    let reply = match msg::load() {
+        Ok(request) => process(request),
+        Err(e) => {
+            debug!("Error processing request: {:?}", e);
+            Reply::Error
         }
-    }
+    };
 
-    #[no_mangle]
-    pub unsafe extern "C" fn init() {
-        STATE = Some(BTreeMap::new());
-        msg::reply((), 0);
+    msg::reply(reply, 0);
+}
+
+fn state() -> &'static mut BTreeMap<u32, u32> {
+    unsafe { STATE.as_mut().unwrap() }
+}
+
+fn process(request: Request) -> Reply {
+    use Request::*;
+
+    match request {
+        Insert(key, value) => Reply::Value(state().insert(key, value)),
+        Remove(key) => Reply::Value(state().remove(&key)),
+        List => Reply::List(state().iter().map(|(k, v)| (*k, *v)).collect()),
+        Clear => {
+            state().clear();
+            Reply::None
+        }
     }
 }
 
-#[cfg(test)]
-#[cfg(feature = "std")]
-mod tests {
-    use super::{Reply, Request};
-    use common::{InitProgram, RunnerContext};
+#[no_mangle]
+pub unsafe extern "C" fn init() {
+    STATE = Some(BTreeMap::new());
+    msg::reply((), 0);
+}
 
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+#[cfg(test)]
+mod tests {
+    extern crate std;
+
+    use super::{Reply, Request};
+    use alloc::vec;
+    use gtest::{Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
-        let mut runner = RunnerContext::default();
+        let system = System::new();
+        system.init_logger();
 
-        // Assertions are performed when decoding reply
-        let _reply: () =
-            runner.init_program_with_reply(InitProgram::from(wasm_code()).message(b"init"));
+        let program = Program::current(&system);
+
+        let from = 42;
+
+        let res = program.send_bytes(from, b"init");
+        let log = Log::builder().source(1).dest(from);
+        assert!(res.contains(&log));
     }
 
     #[test]
     fn simple() {
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+        let system = System::new();
+        system.init_logger();
 
-        let reply: Vec<Reply> = runner.request_batch(&[
+        let program = Program::current(&system);
+
+        let from = 42;
+
+        let _res = program.send_bytes(from, b"init");
+
+        IntoIterator::into_iter([
             Request::Insert(0, 1),
             Request::Insert(0, 2),
             Request::Insert(1, 3),
@@ -129,19 +130,21 @@ mod tests {
             Request::List,
             Request::Clear,
             Request::List,
-        ]);
-        assert_eq!(
-            reply,
-            &[
-                Reply::Value(None),
-                Reply::Value(Some(1)),
-                Reply::Value(None),
-                Reply::Value(None),
-                Reply::Value(Some(3)),
-                Reply::List(vec![(0, 2), (2, 5)]),
-                Reply::None,
-                Reply::List(vec![]),
-            ],
-        );
+        ])
+        .map(|r| program.send(from, r))
+        .zip(IntoIterator::into_iter([
+            Reply::Value(None),
+            Reply::Value(Some(1)),
+            Reply::Value(None),
+            Reply::Value(None),
+            Reply::Value(Some(3)),
+            Reply::List(vec![(0, 2), (2, 5)]),
+            Reply::None,
+            Reply::List(vec![]),
+        ]))
+        .for_each(|(result, reply)| {
+            let log = Log::builder().source(1).dest(from).payload(reply);
+            assert!(result.contains(&log));
+        })
     }
 }
