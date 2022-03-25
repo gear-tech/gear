@@ -7728,11 +7728,10 @@ dependencies = [
 name = "tests-node"
 version = "0.1.0"
 dependencies = [
- "env_logger",
  "gear-wasm-builder",
  "gstd",
+ "gtest",
  "parity-scale-codec",
- "tests-common",
 ]
 
 [[package]]
