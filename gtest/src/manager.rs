@@ -25,7 +25,7 @@ use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -565,12 +565,13 @@ impl JournalHandler for ExtManager {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let candidate = CoreProgram::new(candidate_id, code.clone()).unwrap_or_else(|e|
+                    let checked_code = CheckedCode::try_new(code.clone()).unwrap_or_else(|e|
                         panic!(
                             "Program can't be constructed with provided code {:?}. An error occurred {:?}",
                             code, e
                         )
                     );
+                    let candidate = CoreProgram::new(candidate_id, checked_code);
                     self.store_new_actor(
                         candidate_id,
                         Program::new(candidate),
