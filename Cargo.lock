@@ -7739,12 +7739,10 @@ dependencies = [
 name = "tests-program-factory"
 version = "0.1.0"
 dependencies = [
- "gear-core",
  "gear-wasm-builder",
  "gstd",
  "hex-literal",
  "parity-scale-codec",
- "tests-common",
 ]
 
 [[package]]
