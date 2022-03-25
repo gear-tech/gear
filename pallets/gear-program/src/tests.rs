@@ -18,7 +18,8 @@
 
 use common::{ActiveProgram, Origin, ProgramState, QueuedDispatch, QueuedMessage};
 use frame_support::{assert_noop, assert_ok};
-use gear_core::program::CodeHash;
+use gear_core::program::{CheckedCode, CodeHash};
+use hex_literal::hex;
 use sp_std::collections::btree_map::BTreeMap;
 
 use super::*;
@@ -29,9 +30,9 @@ use utils::CreateProgramResult;
 #[test]
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
-        let code = b"pretended wasm code".to_vec();
+        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeHash::generate(&code).into_origin();
-        common::set_code(code_hash, &code);
+        common::set_code(code_hash, &CheckedCode::try_new(code.clone()).unwrap());
 
         let static_pages: u32 = 16;
         let memory_pages = {
@@ -111,9 +112,9 @@ fn pause_program_works() {
 #[test]
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
-        let code = b"pretended wasm code".to_vec();
+        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeHash::generate(&code).into_origin();
-        common::set_code(code_hash, &code);
+        common::set_code(code_hash, &CheckedCode::try_new(code.clone()).unwrap());
 
         let program_id = H256::from_low_u64_be(1);
         let static_pages = 256;
@@ -142,9 +143,9 @@ fn pause_program_twice_fails() {
 #[test]
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
-        let code = b"pretended wasm code".to_vec();
+        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeHash::generate(&code).into_origin();
-        common::set_code(code_hash, &code);
+        common::set_code(code_hash, &CheckedCode::try_new(code.clone()).unwrap());
 
         let program_id = H256::from_low_u64_be(1);
         let static_pages = 256;
@@ -382,9 +383,9 @@ mod utils {
     }
 
     pub fn create_uninitialized_program_messages(static_pages: u32) -> CreateProgramResult {
-        let code = b"pretended wasm code".to_vec();
+        let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
         let code_hash: H256 = CodeHash::generate(&code).into_origin();
-        common::set_code(code_hash, &code);
+        common::set_code(code_hash, &CheckedCode::try_new(code.clone()).unwrap());
 
         let memory_pages = {
             let mut pages = BTreeMap::<u32, Vec<u8>>::new();

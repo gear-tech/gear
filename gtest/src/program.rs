@@ -6,7 +6,7 @@ use crate::{
 use codec::Codec;
 use gear_core::{
     message::{Message, MessageId},
-    program::{Program as CoreProgram, ProgramId},
+    program::{CheckedCode, Program as CoreProgram, ProgramId},
 };
 use path_clean::PathClean;
 use std::{
@@ -157,9 +157,8 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-
-        let program =
-            CoreProgram::new(program_id, code).expect("Failed to create Program from code");
+        let code = CheckedCode::try_new(code).expect("Failed to create Program from code");
+        let program = CoreProgram::new(program_id, code);
 
         Self::program_with_id(system, id, InnerProgram::new(program))
     }

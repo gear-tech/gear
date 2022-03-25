@@ -79,7 +79,7 @@ pub mod pallet {
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{
         message::DispatchKind,
-        program::{CodeHash, Program as NativeProgram, ProgramId},
+        program::{CheckedCode, CheckedCodeWithHash, ProgramId},
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -346,11 +346,12 @@ pub mod pallet {
             let (kind, dest, reply) = match kind {
                 HandleKind::Init(code) => {
                     let id = sp_io::hashing::blake2_256(&code);
-                    common::set_code(id.into(), &code);
-                    let program = NativeProgram::new(id.into(), code).map_err(|_| {
+                    let code = CheckedCode::try_new(code).map_err(|_| {
                         b"Unable to create a program for the code provided".to_vec()
                     })?;
-                    ext_manager.set_program(program, root_message_id);
+                    common::set_code(id.into(), &code);
+                    let checked_code_hash = CheckedCodeWithHash::new(code);
+                    ext_manager.set_program(id.into(), checked_code_hash, root_message_id);
 
                     (DispatchKind::Init, id.into(), None)
                 }
@@ -497,9 +498,29 @@ pub mod pallet {
                 // Update message gas limit for it may have changed in the meantime
 
                 let msg_id = *dispatch.message_id();
+                let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
+                    limit
+                } else {
+                    log::debug!(
+                        target: "essential",
+                        "No gas handler for message: {:?} to {:?}",
+                        dispatch.message_id(),
+                        dispatch.message.dest
+                    );
 
-                let (gas_limit, _) = T::GasHandler::get_limit(msg_id)
-                    .expect("Should never fail if ValueNode works properly");
+                    common::queue_dispatch(dispatch);
+
+                    // Since we requeue the message without GasHandler we have to take
+                    // into account that there can left only such messages in the queue.
+                    // So stop processing when there is not enough gas/weight.
+                    let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
+                    Self::decrease_gas_allowance(consumed);
+                    if Self::gas_allowance() < consumed {
+                        break;
+                    }
+
+                    continue;
+                };
 
                 log::debug!(
                     "Processing message: {:?} to {:?} / gas_limit: {}",
@@ -601,23 +622,22 @@ pub mod pallet {
         ///
         /// # Note
         /// Code existence in storage means that metadata is there too.
-        fn set_code_with_metadata(code: &[u8], who: H256) -> Result<H256, Error<T>> {
-            let code_hash = CodeHash::generate(code).into_origin();
-            // *Important*: checks before storage mutations!
-            ensure!(
-                !common::code_exists(code_hash),
-                Error::<T>::CodeAlreadyExists
-            );
+        fn set_code_with_metadata(
+            code_hash: &CheckedCodeWithHash,
+            who: H256,
+        ) -> Result<H256, Error<T>> {
+            let hash: H256 = code_hash.hash().into_origin();
+            ensure!(!common::code_exists(hash), Error::<T>::CodeAlreadyExists);
 
             let metadata = {
                 let block_number =
                     <frame_system::Pallet<T>>::block_number().unique_saturated_into();
                 CodeMetadata::new(who, block_number)
             };
-            common::set_code_metadata(code_hash, metadata);
-            common::set_code(code_hash, code);
+            common::set_code_metadata(hash, metadata);
+            common::set_code(hash, code_hash.code());
 
-            Ok(code_hash)
+            Ok(hash)
         }
     }
 
@@ -648,12 +668,14 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            NativeProgram::new(Default::default(), code.clone()).map_err(|e| {
+            let code = CheckedCode::try_new(code).map_err(|e| {
                 log::debug!("Program failed to load: {}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            let code_hash = Self::set_code_with_metadata(&code, who.into_origin())?;
+            let code_hash = CheckedCodeWithHash::new(code);
+
+            let code_hash = Self::set_code_with_metadata(&code_hash, who.into_origin())?;
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 
@@ -717,18 +739,20 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let id = ProgramId::generate(CodeHash::generate(&code), &salt);
-
-            // Make sure there is no program with such id in program storage
-            ensure!(
-                !GearProgramPallet::<T>::program_exists(id.into_origin()),
-                Error::<T>::ProgramAlreadyExists
-            );
-
-            let program = NativeProgram::new(id, code.clone()).map_err(|e| {
+            let code = CheckedCode::try_new(code).map_err(|e| {
                 log::debug!("Program failed to load: {}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
+
+            let checked_code_hash = CheckedCodeWithHash::new(code);
+
+            let program_id = ProgramId::generate(*checked_code_hash.hash(), &salt);
+            let id = program_id.into_origin();
+            // Make sure there is no program with such id in program storage
+            ensure!(
+                !GearProgramPallet::<T>::program_exists(id),
+                Error::<T>::ProgramAlreadyExists
+            );
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
@@ -738,16 +762,15 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.into_origin();
-            let id = id.into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
+            if let Ok(code_hash) = Self::set_code_with_metadata(&checked_code_hash, origin) {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
             let init_message_id = common::next_message_id(&init_payload);
-            ExtManager::<T>::default().set_program(program, init_message_id);
+            ExtManager::<T>::default().set_program(program_id, checked_code_hash, init_message_id);
 
             let _ = T::GasHandler::create(origin, init_message_id, gas_limit);
 

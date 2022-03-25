@@ -22,7 +22,7 @@ use codec::Decode;
 use common::{self, DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
-use gear_core::message::DispatchKind;
+use gear_core::{checked_code::CheckedCode, message::DispatchKind};
 use hex_literal::hex;
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
@@ -481,15 +481,20 @@ fn trap_reply_message_is_sent() {
         // Insert respective programs to the program storage
         let program_1 = gear_core::program::Program::new(
             1.into(),
-            hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
-        )
-        .unwrap();
+            CheckedCode::try_new(
+                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+            )
+            .unwrap(),
+        );
         common::native::set_program(program_1);
+
         let program_2 = gear_core::program::Program::new(
             2.into(),
-            hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
-        )
-        .unwrap();
+            CheckedCode::try_new(
+                hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
+            )
+            .unwrap(),
+        );
         common::native::set_program(program_2);
 
         run_to_block(15);

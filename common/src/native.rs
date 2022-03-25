@@ -116,7 +116,7 @@ pub fn set_program(program: CoreProgram) {
     // This code is only used in tests and is redundant for
     // production.
     if !crate::code_exists(code_hash) {
-        crate::set_code(code_hash, program.code());
+        crate::set_code(code_hash, program.checked_code());
     }
     crate::set_program(
         H256::from_slice(program.id().as_slice()),
