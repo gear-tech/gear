@@ -1,223 +1,193 @@
-#![cfg_attr(not(feature = "std"), feature(alloc_error_handler))]
-#![cfg_attr(not(feature = "std"), feature(const_btree_new))]
+// This file is part of Gear.
+
+// Copyright (C) 2021-2022 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(const_btree_new)]
+#![allow(clippy::missing_safety_doc)]
+
+extern crate alloc;
 
 use codec::{Decode, Encode};
+use gstd::{exec, msg, prelude::*, MessageId};
 
 #[cfg(feature = "std")]
 mod code {
     include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 }
 
+#[cfg(feature = "std")]
+pub use code::WASM_BINARY_OPT as WASM_BINARY;
+
 #[derive(Encode, Debug, Decode, PartialEq)]
 pub enum Request {
     EchoWait(u32),
-    Wake([u8; 32]),
+    Wake(MessageId),
 }
 
-#[cfg(not(feature = "std"))]
-mod wasm {
-    extern crate alloc;
+static mut ECHOES: BTreeMap<MessageId, u32> = BTreeMap::new();
 
-    use super::Request;
-    use codec::{Decode, Encode};
-    use gstd::{exec, msg, prelude::*, ActorId, MessageId};
-
-    static mut ECHOES: BTreeMap<MessageId, u32> = BTreeMap::new();
-
-    fn process_request(request: Request) {
-        match request {
-            Request::EchoWait(n) => {
-                unsafe { ECHOES.insert(msg::id(), n) };
-                exec::wait();
-            }
-            Request::Wake(id) => exec::wake(MessageId::new(id)),
+fn process_request(request: Request) {
+    match request {
+        Request::EchoWait(n) => {
+            unsafe { ECHOES.insert(msg::id(), n) };
+            exec::wait();
         }
+        Request::Wake(id) => exec::wake(id),
     }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn init() {
-        msg::reply((), 0);
-    }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle() {
-        if let Some(reply) = unsafe { ECHOES.remove(&msg::id()) } {
-            msg::reply(reply, 0);
-        } else {
-            msg::load::<Request>().map(process_request);
-        }
-    }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle_reply() {}
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn init() {
+    msg::reply((), 0);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn handle() {
+    if let Some(reply) = ECHOES.remove(&msg::id()) {
+        msg::reply(reply, 0);
+    } else {
+        msg::load::<Request>().map(process_request).unwrap();
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn handle_reply() {}
 
 #[cfg(test)]
-#[cfg(feature = "std")]
 mod tests {
+    extern crate std;
+
     use super::Request;
-    use common::*;
-    use gear_core::message::MessageId;
     use std::convert::TryInto;
 
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+    use gstd::MessageId;
+    use gtest::{Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
-        let mut runner = RunnerContext::default();
+        let system = System::new();
+        system.init_logger();
 
-        // Assertions are performed when decoding reply
-        let _reply: () = runner.init_program_with_reply(InitProgram::from(wasm_code()));
+        let program = Program::current(&system);
+
+        let from = 42;
+
+        let res = program.send_bytes(from, b"init");
+        let log = Log::builder().source(program.id()).dest(from);
+        assert!(res.contains(&log));
     }
 
     #[test]
     fn wake_self() {
-        let prog_id_1 = 1;
+        let system = System::new();
+        system.init_logger();
 
-        let mut runner = RunnerContext::default();
-        runner.init_program(InitProgram::from(wasm_code()).id(prog_id_1));
+        let from = 42;
 
-        let msg_id_1 = MessageId::from(10);
-        let msg_id_2 = MessageId::from(20);
+        let program = Program::current(&system);
+        let _res = program.send_bytes(from, b"init");
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(100))
-                .id(msg_id_1)
-                .destination(prog_id_1),
+        let msg_1_echo_wait = 100;
+        let res = program.send(from, Request::EchoWait(msg_1_echo_wait));
+        let msg_id_1 = res.message_id();
+        assert!(res.log().is_empty());
+
+        let msg_2_echo_wait = 200;
+        let res = program.send(from, Request::EchoWait(msg_2_echo_wait));
+        let msg_id_2 = res.message_id();
+        assert!(res.log().is_empty());
+
+        let res = program.send(
+            from,
+            Request::Wake(MessageId::new(msg_id_1.as_slice().try_into().unwrap())),
         );
-        assert_eq!(reply, None);
+        let log = Log::builder()
+            .source(program.id())
+            .dest(from)
+            .payload(msg_1_echo_wait);
+        assert!(res.contains(&log));
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(200))
-                .id(msg_id_2)
-                .destination(prog_id_1),
+        let res = program.send(
+            from,
+            Request::Wake(MessageId::new(msg_id_2.as_slice().try_into().unwrap())),
         );
-        assert_eq!(reply, None);
-
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_1
-                    .as_slice()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
-
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_2
-                    .as_slice()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
-
-        let reply: u32 = runner
-            .get_response_to(msg_id_1)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 100);
-
-        let reply: u32 = runner
-            .get_response_to(msg_id_2)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 200);
+        let log = Log::builder()
+            .source(program.id())
+            .dest(from)
+            .payload(msg_2_echo_wait);
+        assert!(res.contains(&log));
     }
 
     #[test]
     fn wake_other() {
-        let prog_id_1 = 1;
-        let prog_id_2 = 2;
+        let system = System::new();
+        system.init_logger();
 
-        let mut runner = RunnerContext::default();
-        runner.init_program(InitProgram::from(wasm_code()).id(prog_id_1));
-        runner.init_program(InitProgram::from(wasm_code()).id(prog_id_2));
+        let from = 42;
 
-        let msg_id_1 = MessageId::from(10);
-        let msg_id_2 = MessageId::from(20);
+        let program_1 = Program::current(&system);
+        let _res = program_1.send_bytes(from, b"init");
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(100))
-                .id(msg_id_1)
-                .destination(prog_id_1),
+        let program_2 = Program::current(&system);
+        let _res = program_2.send_bytes(from, b"init");
+
+        let msg_1_echo_wait = 100;
+        let res = program_1.send(from, Request::EchoWait(msg_1_echo_wait));
+        let msg_id_1 = res.message_id();
+        assert!(res.log().is_empty());
+
+        let msg_2_echo_wait = 200;
+        let res = program_2.send(from, Request::EchoWait(msg_2_echo_wait));
+        let msg_id_2 = res.message_id();
+        assert!(res.log().is_empty());
+
+        // try to wake other messages
+        let res = program_2.send(
+            from,
+            Request::Wake(MessageId::new(msg_id_1.as_slice().try_into().unwrap())),
         );
-        assert_eq!(reply, None);
+        assert!(res.log().is_empty());
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::EchoWait(200))
-                .id(msg_id_2)
-                .destination(prog_id_2),
+        let res = program_1.send(
+            from,
+            Request::Wake(MessageId::new(msg_id_2.as_slice().try_into().unwrap())),
         );
-        assert_eq!(reply, None);
+        assert!(res.log().is_empty());
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_1
-                    .as_slice()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_2),
+        // wake msg_1 for program_1 and msg_2 for program_2
+        let res = program_1.send(
+            from,
+            Request::Wake(MessageId::new(msg_id_1.as_slice().try_into().unwrap())),
         );
-        assert_eq!(reply, None);
+        let log = Log::builder()
+            .source(program_1.id())
+            .dest(from)
+            .payload(msg_1_echo_wait);
+        assert!(res.contains(&log));
 
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_2
-                    .as_slice()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
+        let res = program_2.send(
+            from,
+            Request::Wake(MessageId::new(msg_id_2.as_slice().try_into().unwrap())),
         );
-        assert_eq!(reply, None);
-
-        let reply = runner.get_response_to::<_, u32>(msg_id_1);
-        assert_eq!(reply, None);
-
-        let reply = runner.get_response_to::<_, u32>(msg_id_2);
-        assert_eq!(reply, None);
-
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_2
-                    .as_slice()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_2),
-        );
-        assert_eq!(reply, None);
-
-        let reply = runner
-            .get_response_to::<_, u32>(msg_id_2)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 200);
-
-        let reply = runner.try_request::<_, ()>(
-            MessageBuilder::from(Request::Wake(
-                msg_id_1
-                    .as_slice()
-                    .try_into()
-                    .expect("MessageId inner array size is 32"),
-            ))
-            .destination(prog_id_1),
-        );
-        assert_eq!(reply, None);
-
-        let reply = runner
-            .get_response_to::<_, u32>(msg_id_1)
-            .expect("No response to original message")
-            .expect("Unable to parse response to original message");
-        assert_eq!(reply, 100);
+        let log = Log::builder()
+            .source(program_2.id())
+            .dest(from)
+            .payload(msg_2_echo_wait);
+        assert!(res.contains(&log));
     }
 }

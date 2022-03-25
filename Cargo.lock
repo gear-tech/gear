@@ -7759,11 +7759,10 @@ dependencies = [
 name = "tests-wait-wake"
 version = "0.1.0"
 dependencies = [
- "gear-core",
  "gear-wasm-builder",
  "gstd",
+ "gtest",
  "parity-scale-codec",
- "tests-common",
 ]
 
 [[package]]

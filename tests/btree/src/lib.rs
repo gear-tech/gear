@@ -143,7 +143,10 @@ mod tests {
             Reply::List(vec![]),
         ]))
         .for_each(|(result, reply)| {
-            let log = Log::builder().source(program.id()).dest(from).payload(reply);
+            let log = Log::builder()
+                .source(program.id())
+                .dest(from)
+                .payload(reply);
             assert!(result.contains(&log));
         })
     }
