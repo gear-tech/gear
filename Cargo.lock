@@ -7668,18 +7668,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tests-common"
-version = "0.1.0"
-dependencies = [
- "gear-backend-common",
- "gear-backend-wasmtime",
- "gear-core",
- "gear-core-processor",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "tests-distributor"
 version = "0.1.0"
 dependencies = [
