@@ -22,6 +22,7 @@ use crate::{
 };
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
+use gear_core::message::Payload;
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId, Payload},
