@@ -187,12 +187,17 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, mut get_page_data: F) -> ExtInfo {
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
+        self,
+        mut get_page_data: F,
+    ) -> Result<ExtInfo, (&'static str, GasAmount)> {
         let accessed_pages_numbers = self.allocations_context.allocations().clone();
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
-            get_page_data(page.offset(), &mut buf);
+            if let Err(err) = get_page_data(page.offset(), &mut buf) {
+                return Err((err, self.gas_counter.into()));
+            }
             accessed_pages.insert(page, buf);
         }
 
@@ -208,7 +213,7 @@ impl IntoExtInfo for Ext {
             store,
         ) = self.message_context.drain();
 
-        ExtInfo {
+        Ok(ExtInfo {
             gas_amount: self.gas_counter.into(),
             pages: self.allocations_context.allocations().clone(),
             accessed_pages,
@@ -221,7 +226,7 @@ impl IntoExtInfo for Ext {
             trap_explanation: self.error_explanation,
             exit_argument: self.exit_argument,
             program_candidates_data: self.program_candidates_data,
-        }
+        })
     }
 
     fn into_gas_amount(self: Ext) -> GasAmount {

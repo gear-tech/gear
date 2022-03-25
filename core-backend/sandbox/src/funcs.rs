@@ -89,9 +89,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .ext
             .clone()
             .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr).into();
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len);
-                let value = funcs::get_u128(&ctx.memory, value_ptr);
+                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
+                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id =
                     ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
                 wto(ctx, message_id_ptr, message_id.as_slice())
@@ -118,9 +118,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .ext
             .clone()
             .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr).into();
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len);
-                let value = funcs::get_u128(&ctx.memory, value_ptr);
+                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
+                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id = ext.send(OutgoingPacket::new(
                     dest,
                     payload.into(),
@@ -148,8 +148,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .clone()
             .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr).into();
-                let value = funcs::get_u128(&ctx.memory, value_ptr);
+                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id = ext.send_commit(
                     handle_ptr,
                     OutgoingPacket::new(dest, vec![].into(), None, value),
@@ -175,8 +175,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .clone()
             .with(|ext| {
-                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr).into();
-                let value = funcs::get_u128(&ctx.memory, value_ptr);
+                let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id = ext.send_commit(
                     handle_ptr,
                     OutgoingPacket::new(dest, vec![].into(), Some(gas_limit), value),
@@ -209,7 +209,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .with(|ext| {
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len);
+                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 ext.send_push(handle_ptr, &payload)
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -252,7 +252,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let _: Result<ReturnValue, HostError> = ctx
             .ext
             .with(|ext: &mut E| {
-                let value_dest: ProgramId = funcs::get_bytes32(&ctx.memory, value_dest_ptr).into();
+                let value_dest: ProgramId = funcs::get_bytes32(&ctx.memory, value_dest_ptr)?.into();
                 ext.exit(value_dest)
             })
             .map(|_| Ok(ReturnValue::Unit))
@@ -380,8 +380,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let result = ctx
             .ext
             .with(|ext| {
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len);
-                let value = funcs::get_u128(&ctx.memory, value_ptr);
+                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 ext.reply(ReplyPacket::new(0, payload.into(), value))
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -401,7 +401,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .clone()
             .with(|ext| {
-                let value = funcs::get_u128(&ctx.memory, value_ptr);
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
                 wto(ctx, message_id_ptr, message_id.as_slice())
             })
@@ -444,7 +444,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .with(|ext| {
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len);
+                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 ext.reply_push(&payload)
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
@@ -464,7 +464,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with_fallible(|ext| {
                 let mut data = vec![0u8; str_len];
-                ctx.memory.read(str_ptr, &mut data);
+                ctx.memory
+                    .read(str_ptr, &mut data)
+                    .map_err(|_| "Failed to tead memory")?;
                 match String::from_utf8(data) {
                     Ok(s) => ext.debug(&s),
                     Err(_) => Err("Failed to parse debug string"),
@@ -547,11 +549,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| {
-                funcs::set_u128(&mut ctx.memory, value_ptr, ext.value());
-                Ok(())
+            .with(|ext| funcs::set_u128(&mut ctx.memory, value_ptr, ext.value()))
+            .and_then(|res| {
+                res.map(|_| ReturnValue::Unit)
+                    .map_err(|_| "Cannot set u128")
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|err| {
                 ctx.trap = Some(err);
                 HostError
@@ -565,11 +567,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .clone()
-            .with(|ext| {
-                funcs::set_u128(&mut ctx.memory, value_ptr, ext.value_available());
-                Ok(())
+            .with(|ext| funcs::set_u128(&mut ctx.memory, value_ptr, ext.value_available()))
+            .and_then(|res| {
+                res.map(|_| ReturnValue::Unit)
+                    .map_err(|_| "Cannot set u128")
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|err| {
                 ctx.trap = Some(err);
                 HostError
@@ -609,7 +611,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         ctx.ext
             .with(|ext| {
-                let waker_id: MessageId = funcs::get_bytes32(&ctx.memory, waker_id_ptr).into();
+                let waker_id: MessageId = funcs::get_bytes32(&ctx.memory, waker_id_ptr)?.into();
                 ext.wake(waker_id)
             })
             .map(|_| return_none())
@@ -638,10 +640,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .ext
             .clone()
             .with(|ext: &mut E| -> Result<(), &'static str> {
-                let code_hash = funcs::get_bytes32(&ctx.memory, code_hash_ptr);
-                let salt = funcs::get_vec(&ctx.memory, salt_ptr, salt_len);
-                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len);
-                let value = funcs::get_u128(&ctx.memory, value_ptr);
+                let code_hash = funcs::get_bytes32(&ctx.memory, code_hash_ptr)?;
+                let salt = funcs::get_vec(&ctx.memory, salt_ptr, salt_len)?;
+                let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
+                let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let new_actor_id = ext.create_program(ProgramInitPacket::new(
                     code_hash.into(),
                     salt,

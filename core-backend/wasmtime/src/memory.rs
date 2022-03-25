@@ -48,10 +48,10 @@ impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn read(&self, offset: usize, buffer: &mut [u8]) {
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
         self.mem
             .read(&self.store, offset, buffer)
-            .expect("Memory out of bounds.")
+            .map_err(|_| Error::MemoryAccessError)
     }
 
     fn data_size(&self) -> usize {

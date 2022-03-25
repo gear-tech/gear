@@ -71,7 +71,10 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, get_page_data: F) -> ExtInfo;
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
+        self,
+        get_page_data: F,
+    ) -> Result<ExtInfo, (&'static str, GasAmount)>;
     fn into_gas_amount(self) -> GasAmount;
 }
 
