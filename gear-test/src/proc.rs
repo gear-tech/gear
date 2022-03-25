@@ -26,7 +26,6 @@ use gear_core::{
     program::{CheckedCode, Program, ProgramId},
 };
 use regex::Regex;
-use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
 use sp_keyring::sr25519::Keyring;
 use std::{
     io::Error as IoError,
@@ -40,7 +39,6 @@ pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
-    let ss58_regex = Regex::new(r"\{(?P<id>[A-Za-z0-9]+)\}").unwrap();
 
     // Insert ProgramId
     let mut s = payload;
@@ -55,17 +53,6 @@ pub fn parse_payload(payload: String) -> String {
             &caps[0],
             &hex::encode(
                 ProgramId::from_slice(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
-                    .as_slice(),
-            ),
-        );
-    }
-
-    while let Some(caps) = ss58_regex.captures(&s) {
-        let id = &caps["id"];
-        s = s.replace(
-            &caps[0],
-            &hex::encode(
-                ProgramId::from_slice(Public::from_ss58check(id).unwrap().as_bytes_ref())
                     .as_slice(),
             ),
         );

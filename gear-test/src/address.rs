@@ -18,7 +18,7 @@
 
 use gear_core::program::ProgramId;
 use serde::{Deserialize, Deserializer, Serialize};
-use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public, H256};
+use sp_core::H256;
 use sp_keyring::sr25519::Keyring;
 use std::str::FromStr;
 
@@ -29,8 +29,6 @@ pub enum Address {
     Account(String),
     #[serde(rename = "id")]
     ProgramId(u64),
-    #[serde(rename = "ss58")]
-    SS58(String),
     #[serde(rename = "h256")]
     H256(H256),
 }
@@ -51,11 +49,6 @@ impl Address {
                     .as_bytes(),
             ),
             Self::ProgramId(id) => ProgramId::from(*id),
-            Self::SS58(s) => ProgramId::from_slice(
-                Public::from_ss58check(s)
-                    .expect("Failed to decode ss58")
-                    .as_bytes_ref(),
-            ),
             Self::H256(id) => ProgramId::from(id.as_bytes()),
         }
     }
