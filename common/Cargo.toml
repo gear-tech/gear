@@ -8,7 +8,6 @@ license = "GPL-3.0"
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 log = "0.4.14"
 
 # Internal deps
@@ -26,6 +25,9 @@ frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/subs
 frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, optional = true }
 gear-runtime-interface = { path = "../runtime-interface", default-features = false }
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
+
+[dev-dependencies]
+primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
 [features]
 default = ["std"]

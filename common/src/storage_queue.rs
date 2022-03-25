@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use codec::{Codec, Decode, Encode};
-use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_std::borrow::Cow;
 use sp_std::marker::PhantomData;
@@ -28,20 +27,20 @@ fn key_with_prefix(prefix: &[u8], key: &[u8]) -> Vec<u8> {
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-struct Node<T: Codec> {
-    value: T,
-    next: Option<H256>,
+struct Node<K: Copy + From<[u8; 32]> + AsRef<[u8]> + Codec, V: Codec> {
+    value: V,
+    next: Option<K>,
 }
 
 #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
-pub struct StorageQueue<T: Codec> {
+pub struct StorageQueue<K: Copy + From<[u8; 32]> + AsRef<[u8]> + Codec, V: Codec> {
     prefix: Cow<'static, [u8]>,
-    head: Option<H256>,
-    tail: Option<H256>,
-    _marker: PhantomData<T>,
+    head: Option<K>,
+    tail: Option<K>,
+    _phantom: PhantomData<V>,
 }
 
-impl<T: Codec> StorageQueue<T> {
+impl<K: Copy + From<[u8; 32]> + AsRef<[u8]> + Codec, V: Codec> StorageQueue<K, V> {
     pub fn get(prefix: impl Into<Cow<'static, [u8]>>) -> Self {
         let prefix: Cow<'static, [u8]> = prefix.into();
 
@@ -49,21 +48,25 @@ impl<T: Codec> StorageQueue<T> {
         let tail_key = [prefix.as_ref(), b"tail"].concat();
 
         if let Some(head) = sp_io::storage::get(&head_key) {
-            let head = H256::from_slice(&head);
+            let mut arr = [0; 32];
+            arr.copy_from_slice(&head);
+            let head = arr.into();
             if let Some(tail) = sp_io::storage::get(&tail_key) {
-                let tail = H256::from_slice(&tail);
+                let mut arr = [0; 32];
+                arr.copy_from_slice(&tail);
+                let tail = arr.into();
                 Self {
                     prefix,
                     head: Some(head),
                     tail: Some(tail),
-                    _marker: Default::default(),
+                    _phantom: Default::default(),
                 }
             } else {
                 Self {
                     prefix,
                     head: Some(head),
                     tail: Some(head),
-                    _marker: Default::default(),
+                    _phantom: Default::default(),
                 }
             }
         } else {
@@ -71,28 +74,32 @@ impl<T: Codec> StorageQueue<T> {
                 prefix,
                 head: None,
                 tail: None,
-                _marker: Default::default(),
+                _phantom: Default::default(),
             }
         }
     }
 
-    pub fn queue(&mut self, value: T, id: H256) {
+    pub fn queue(&mut self, id: K, value: V) {
         // store value
         sp_io::storage::set(
-            &self.key_with_prefix(id.as_bytes()),
-            &Node { value, next: None }.encode(),
+            &self.key_with_prefix(id.as_ref()),
+            &Node {
+                value,
+                next: Option::<K>::None,
+            }
+            .encode(),
         );
 
         // update prev value
         if let Some(prev_node_key) = &self.tail {
             if let Some(prev_node) =
-                sp_io::storage::get(&self.key_with_prefix(prev_node_key.as_bytes()))
+                sp_io::storage::get(&self.key_with_prefix(prev_node_key.as_ref()))
             {
-                let mut prev_node: Node<T> =
-                    Node::<T>::decode(&mut &prev_node[..]).expect("Node<T> decode fail");
+                let mut prev_node: Node<K, V> =
+                    Node::<K, V>::decode(&mut &prev_node[..]).expect("Node<K, V> decode fail");
                 prev_node.next = Some(id);
                 sp_io::storage::set(
-                    &self.key_with_prefix(prev_node_key.as_bytes()),
+                    &self.key_with_prefix(prev_node_key.as_ref()),
                     &prev_node.encode(),
                 );
             }
@@ -107,13 +114,14 @@ impl<T: Codec> StorageQueue<T> {
         self.set_tail(id);
     }
 
-    pub fn dequeue(&mut self) -> Option<T> {
+    pub fn dequeue(&mut self) -> Option<V> {
         if self.is_empty() {
             None
         } else if let Some(value_key) = self.head {
-            if let Some(val) = sp_io::storage::get(&self.key_with_prefix(value_key.as_bytes())) {
-                let node: Node<T> = Node::<T>::decode(&mut &val[..]).expect("Node<T> decode fail");
-                sp_io::storage::clear(&self.key_with_prefix(value_key.as_bytes()));
+            if let Some(val) = sp_io::storage::get(&self.key_with_prefix(value_key.as_ref())) {
+                let node: Node<K, V> =
+                    Node::<K, V>::decode(&mut &val[..]).expect("Node<T> decode fail");
+                sp_io::storage::clear(&self.key_with_prefix(value_key.as_ref()));
                 if let Some(next) = node.next {
                     self.set_head(next);
                 } else {
@@ -135,14 +143,14 @@ impl<T: Codec> StorageQueue<T> {
         self.head.is_none() && self.tail.is_none()
     }
 
-    fn set_head(&mut self, id: H256) {
+    fn set_head(&mut self, id: K) {
         self.head = Some(id);
-        sp_io::storage::set(&self.key_with_prefix(b"head"), &id.to_fixed_bytes());
+        sp_io::storage::set(&self.key_with_prefix(b"head"), &id.encode());
     }
 
-    fn set_tail(&mut self, id: H256) {
+    fn set_tail(&mut self, id: K) {
         self.tail = Some(id);
-        sp_io::storage::set(&self.key_with_prefix(b"tail"), &id.to_fixed_bytes());
+        sp_io::storage::set(&self.key_with_prefix(b"tail"), &id.encode());
     }
 
     fn key_with_prefix(&self, key: &[u8]) -> Vec<u8> {
@@ -151,19 +159,26 @@ impl<T: Codec> StorageQueue<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Iterator<T: Codec>(Option<H256>, Cow<'static, [u8]>, PhantomData<T>);
+pub struct Iterator<K: Copy + From<[u8; 32]> + AsRef<[u8]> + Codec, V: Codec>(
+    Option<K>,
+    Cow<'static, [u8]>,
+    PhantomData<V>,
+);
 
-impl<T: Codec> sp_std::iter::Iterator for Iterator<T> {
-    type Item = T;
+impl<K: Copy + From<[u8; 32]> + AsRef<[u8]> + Codec, V: Codec> sp_std::iter::Iterator
+    for Iterator<K, V>
+{
+    type Item = V;
 
     fn next(&mut self) -> Option<Self::Item> {
         let Iterator(head, prefix, ..) = self;
 
         let (result, next_head) = head
             .and_then(|value_key| {
-                sp_io::storage::get(&key_with_prefix(prefix.as_ref(), value_key.as_bytes())).map(
+                sp_io::storage::get(&key_with_prefix(prefix.as_ref(), value_key.as_ref())).map(
                     |value| {
-                        let node = Node::<T>::decode(&mut &value[..]).expect("Node<T> decode fail");
+                        let node =
+                            Node::<K, V>::decode(&mut &value[..]).expect("Node<K, V> decode fail");
 
                         (Some(node.value), node.next)
                     },
@@ -177,9 +192,11 @@ impl<T: Codec> sp_std::iter::Iterator for Iterator<T> {
     }
 }
 
-impl<T: Codec> sp_std::iter::IntoIterator for StorageQueue<T> {
-    type Item = T;
-    type IntoIter = Iterator<T>;
+impl<K: Copy + From<[u8; 32]> + AsRef<[u8]> + Codec, V: Codec> sp_std::iter::IntoIterator
+    for StorageQueue<K, V>
+{
+    type Item = V;
+    type IntoIter = Iterator<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         Iterator(self.head, self.prefix, Default::default())
@@ -189,11 +206,12 @@ impl<T: Codec> sp_std::iter::IntoIterator for StorageQueue<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use primitive_types::H256;
 
     #[test]
     fn empty_queue() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+            let mut queue = StorageQueue::<H256, u8>::get(b"test::queue::".as_ref());
 
             assert!(queue.is_empty());
 
@@ -205,9 +223,9 @@ mod tests {
     #[test]
     fn last_element() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+            let mut queue = StorageQueue::<H256, u32>::get(b"test::queue::".as_ref());
 
-            queue.queue(0u32, H256::random());
+            queue.queue(H256::random(), 0u32);
             let value: Option<u32> = queue.dequeue();
 
             assert_eq!(value, Some(0u32));
@@ -217,9 +235,9 @@ mod tests {
     #[test]
     fn fifo() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let mut queue = StorageQueue::get(b"test::queue::".as_ref());
+            let mut queue = StorageQueue::<H256, u32>::get(b"test::queue::".as_ref());
 
-            (0..10u32).for_each(|x| queue.queue(x, H256::random()));
+            (0..10u32).for_each(|x| queue.queue(H256::random(), x));
 
             (0..10u32).for_each(|x| {
                 let value: Option<u32> = queue.dequeue();

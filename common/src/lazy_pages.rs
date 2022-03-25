@@ -18,7 +18,6 @@
 
 //! Lazy pages support runtime functions
 
-use crate::Origin;
 use core::convert::TryFrom;
 use gear_core::identifiers::ProgramId;
 use gear_core::memory::{PageBuf, PageNumber};
@@ -40,12 +39,11 @@ pub fn try_to_enable_lazy_pages(
         // but it can be fixed in future only.
 
         // In case we don't enable lazy-pages, then we loads data for all pages, which has no data, now.
-        let prog_id_hash = program_id.into_origin();
         memory_pages
             .iter_mut()
             .filter(|(_x, y)| y.is_none())
             .for_each(|(x, y)| {
-                let data = crate::get_program_page_data(prog_id_hash, x.raw())
+                let data = crate::get_program_page_data(program_id, x.raw())
                     .expect("Page data must be in storage");
                 y.replace(Box::from(PageBuf::try_from(data).expect(
                     "Must be able to convert vec to PageBuf, may be vec has wrong size",
@@ -70,14 +68,13 @@ pub fn protect_pages_and_init_info(
         .filter(|(_num, buf)| buf.is_none())
         .map(|(num, _buf)| num.raw())
         .collect::<Vec<u32>>();
-    let prog_id_hash = prog_id.into_origin();
 
     gear_ri::gear_ri::reset_lazy_pages_info();
 
     gear_ri::gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr as u64);
 
     lazy_pages.iter().for_each(|p| {
-        crate::save_page_lazy_info(prog_id_hash, *p);
+        crate::save_page_lazy_info(prog_id, *p);
     });
 
     gear_ri::gear_ri::mprotect_wasm_pages(
