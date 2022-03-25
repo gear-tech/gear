@@ -79,10 +79,6 @@ pub struct Program<'a> {
 }
 
 impl<'a> Program<'a> {
-    pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
-        ProgramId::generate(code_hash, salt)
-    }
-
     fn program_with_id<I: Into<ProgramIdWrapper> + Clone + Debug>(
         system: &'a System,
         id: I,
@@ -225,6 +221,10 @@ impl<'a> Program<'a> {
     pub fn id(&self) -> ProgramId {
         self.id
     }
+}
+
+pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
+    ProgramId::generate(code_hash, salt)
 }
 
 #[cfg(test)]
