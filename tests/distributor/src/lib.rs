@@ -17,8 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::missing_safety_doc)]
 
+extern crate alloc;
+
+use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
+use core::future::Future;
+use gstd::lock::mutex::Mutex;
+use gstd::{debug, msg, prelude::*, ActorId};
 
 #[cfg(feature = "std")]
 mod code {
@@ -43,283 +50,302 @@ pub enum Reply {
     Amount(u64),
 }
 
-#[cfg(not(feature = "std"))]
-mod wasm {
-    extern crate alloc;
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct Program {
+    handle: ActorId,
+}
 
-    use alloc::collections::BTreeSet;
-    use codec::{Decode, Encode};
-    use core::future::Future;
-    use gstd::lock::mutex::Mutex;
-    use gstd::{debug, exec, msg, prelude::*, ActorId};
+struct ProgramState {
+    nodes: Mutex<BTreeSet<Program>>,
+    amount: u64,
+}
 
-    use super::{Reply, Request};
-
-    #[derive(Eq, Ord, PartialEq, PartialOrd)]
-    struct Program {
-        handle: ActorId,
-    }
-
-    struct ProgramState {
-        nodes: Mutex<BTreeSet<Program>>,
-        amount: u64,
-    }
-
-    impl Default for ProgramState {
-        fn default() -> Self {
-            Self {
-                nodes: Mutex::new(BTreeSet::default()),
-                amount: 0,
-            }
+impl Default for ProgramState {
+    fn default() -> Self {
+        Self {
+            nodes: Mutex::new(BTreeSet::default()),
+            amount: 0,
         }
-    }
-
-    static mut STATE: Option<ProgramState> = None;
-
-    impl Program {
-        fn new(handle: impl Into<ActorId>) -> Self {
-            Self {
-                handle: handle.into(),
-            }
-        }
-
-        fn do_request<Req: Encode, Rep: Decode>(
-            &self,
-            request: Req,
-        ) -> impl Future<Output = Result<Rep, &'static str>> {
-            let encoded_request: Vec<u8> = request.encode();
-
-            let program_handle = self.handle;
-            async move {
-                let reply_bytes =
-                    msg::send_bytes_and_wait_for_reply(program_handle, &encoded_request[..], 0)
-                        .await
-                        .expect("Error in async message processing");
-
-                Rep::decode(&mut &reply_bytes[..]).map_err(|_| "Failed to decode reply")
-            }
-        }
-
-        async fn do_send(&self, amount: u64) -> Result<(), &'static str> {
-            match self.do_request(Request::Receive(amount)).await? {
-                Reply::Success => Ok(()),
-                _ => Err("Unexpected send reply"),
-            }
-        }
-
-        async fn do_report(&self) -> Result<u64, &'static str> {
-            match self.do_request(Request::Report).await? {
-                Reply::Amount(amount) => Ok(amount),
-                _ => Err("Unexpected send reply"),
-            }
-        }
-
-        fn nodes() -> &'static Mutex<BTreeSet<Program>> {
-            unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").nodes }
-        }
-
-        fn amount() -> &'static mut u64 {
-            unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").amount }
-        }
-
-        async fn handle_request() {
-            let reply = match msg::load::<Request>() {
-                Ok(request) => match request {
-                    Request::Receive(amount) => Self::handle_receive(amount).await,
-                    Request::Join(program_id) => Self::handle_join(program_id).await,
-                    Request::Report => Self::handle_report().await,
-                },
-                Err(e) => {
-                    debug!("Error processing request: {:?}", e);
-                    Reply::Failure
-                }
-            };
-
-            debug!("Handle request finished");
-            msg::reply(reply, 0);
-        }
-
-        async fn handle_receive(amount: u64) -> Reply {
-            debug!("Handling receive {}", amount);
-
-            let nodes = Program::nodes().lock().await;
-            let subnodes_count = nodes.as_ref().len() as u64;
-
-            if subnodes_count > 0 {
-                let distributed_per_node = amount / subnodes_count;
-                let distributed_total = distributed_per_node * subnodes_count;
-                let mut left_over = amount - distributed_total;
-
-                if distributed_per_node > 0 {
-                    for program in nodes.as_ref().iter() {
-                        if let Err(_) = program.do_send(distributed_per_node).await {
-                            // reclaiming amount from nodes that fail!
-                            left_over += distributed_per_node;
-                        }
-                    }
-                }
-
-                debug!("Set own amount to: {}", left_over);
-                *Self::amount() = *Self::amount() + left_over;
-            } else {
-                debug!("Set own amount to: {}", amount);
-                *Self::amount() = *Self::amount() + amount;
-            }
-
-            Reply::Success
-        }
-
-        async fn handle_join(program_id: u64) -> Reply {
-            let mut nodes = Self::nodes().lock().await;
-            debug!("Inserting into nodes");
-            nodes.as_mut().insert(Program::new(program_id));
-            Reply::Success
-        }
-
-        async fn handle_report() -> Reply {
-            let mut amount = *Program::amount();
-            debug!("Own amount: {}", amount);
-
-            let nodes = Program::nodes().lock().await;
-
-            for program in nodes.as_ref().iter() {
-                debug!("Querying next node");
-                amount += match program.do_report().await {
-                    Ok(amount) => {
-                        debug!("Sub-node result: {}", amount);
-                        amount
-                    }
-                    Err(_) => {
-                        // skipping erroneous sub-nodes!
-                        debug!("Skipping errorneous node");
-                        0
-                    }
-                }
-            }
-
-            Reply::Amount(amount)
-        }
-    }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle() {
-        debug!("Handling sequence started");
-        gstd::message_loop(Program::handle_request());
-        debug!("Handling sequence terminated");
-    }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn handle_reply() {
-        gstd::record_reply();
-    }
-
-    #[no_mangle]
-    pub unsafe extern "C" fn init() {
-        STATE = Some(ProgramState::default());
-        msg::reply((), 0);
-        debug!("Program initialized");
     }
 }
 
+static mut STATE: Option<ProgramState> = None;
+
+impl Program {
+    fn new(handle: impl Into<ActorId>) -> Self {
+        Self {
+            handle: handle.into(),
+        }
+    }
+
+    fn do_request<Req: Encode, Rep: Decode>(
+        &self,
+        request: Req,
+    ) -> impl Future<Output = Result<Rep, &'static str>> {
+        let encoded_request: Vec<u8> = request.encode();
+
+        let program_handle = self.handle;
+        async move {
+            let reply_bytes =
+                msg::send_bytes_and_wait_for_reply(program_handle, &encoded_request[..], 0)
+                    .await
+                    .expect("Error in async message processing");
+
+            Rep::decode(&mut &reply_bytes[..]).map_err(|_| "Failed to decode reply")
+        }
+    }
+
+    async fn do_send(&self, amount: u64) -> Result<(), &'static str> {
+        match self.do_request(Request::Receive(amount)).await? {
+            Reply::Success => Ok(()),
+            _ => Err("Unexpected send reply"),
+        }
+    }
+
+    async fn do_report(&self) -> Result<u64, &'static str> {
+        match self.do_request(Request::Report).await? {
+            Reply::Amount(amount) => Ok(amount),
+            _ => Err("Unexpected send reply"),
+        }
+    }
+
+    fn nodes() -> &'static Mutex<BTreeSet<Program>> {
+        unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").nodes }
+    }
+
+    fn amount() -> &'static mut u64 {
+        unsafe { &mut STATE.as_mut().expect("STATE UNITIALIZED!").amount }
+    }
+
+    async fn handle_request() {
+        let reply = match msg::load::<Request>() {
+            Ok(request) => match request {
+                Request::Receive(amount) => Self::handle_receive(amount).await,
+                Request::Join(program_id) => Self::handle_join(program_id).await,
+                Request::Report => Self::handle_report().await,
+            },
+            Err(e) => {
+                debug!("Error processing request: {:?}", e);
+                Reply::Failure
+            }
+        };
+
+        debug!("Handle request finished");
+        msg::reply(reply, 0);
+    }
+
+    async fn handle_receive(amount: u64) -> Reply {
+        debug!("Handling receive {}", amount);
+
+        let nodes = Program::nodes().lock().await;
+        let subnodes_count = nodes.as_ref().len() as u64;
+
+        if subnodes_count > 0 {
+            let distributed_per_node = amount / subnodes_count;
+            let distributed_total = distributed_per_node * subnodes_count;
+            let mut left_over = amount - distributed_total;
+
+            if distributed_per_node > 0 {
+                for program in nodes.as_ref().iter() {
+                    if program.do_send(distributed_per_node).await.is_err() {
+                        // reclaiming amount from nodes that fail!
+                        left_over += distributed_per_node;
+                    }
+                }
+            }
+
+            debug!("Set own amount to: {}", left_over);
+            *Self::amount() = *Self::amount() + left_over;
+        } else {
+            debug!("Set own amount to: {}", amount);
+            *Self::amount() = *Self::amount() + amount;
+        }
+
+        Reply::Success
+    }
+
+    async fn handle_join(program_id: u64) -> Reply {
+        let mut nodes = Self::nodes().lock().await;
+        debug!("Inserting into nodes");
+        nodes.as_mut().insert(Program::new(program_id));
+        Reply::Success
+    }
+
+    async fn handle_report() -> Reply {
+        let mut amount = *Program::amount();
+        debug!("Own amount: {}", amount);
+
+        let nodes = Program::nodes().lock().await;
+
+        for program in nodes.as_ref().iter() {
+            debug!("Querying next node");
+            amount += match program.do_report().await {
+                Ok(amount) => {
+                    debug!("Sub-node result: {}", amount);
+                    amount
+                }
+                Err(_) => {
+                    // skipping erroneous sub-nodes!
+                    debug!("Skipping errorneous node");
+                    0
+                }
+            }
+        }
+
+        Reply::Amount(amount)
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn handle() {
+    debug!("Handling sequence started");
+    gstd::message_loop(Program::handle_request());
+    debug!("Handling sequence terminated");
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn handle_reply() {
+    gstd::record_reply();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn init() {
+    STATE = Some(ProgramState::default());
+    msg::reply((), 0);
+    debug!("Program initialized");
+}
+
 #[cfg(test)]
-#[cfg(feature = "std")]
 mod tests {
     use super::{Reply, Request};
-    use common::*;
-
-    fn wasm_code() -> &'static [u8] {
-        super::code::WASM_BINARY_OPT
-    }
+    use gtest::{Log, Program, System};
 
     #[test]
     fn program_can_be_initialized() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+        let system = System::new();
+        system.init_logger();
 
-        let mut runner = RunnerContext::default();
+        let program = Program::current(&system);
 
-        // Assertions are performed when decoding reply
-        let _reply: () = runner.init_program_with_reply(wasm_code());
+        let from = 42;
+
+        let res = program.send_bytes(from, b"init");
+        let log = Log::builder().source(program.id()).dest(from);
+        assert!(res.contains(&log));
     }
 
     #[test]
     fn single_program() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+        let system = System::new();
+        system.init_logger();
 
-        let mut runner = RunnerContext::default();
-        runner.init_program(wasm_code());
+        let program = Program::current(&system);
 
-        let reply: Reply = runner.request(Request::Receive(10));
-        assert_eq!(reply, Reply::Success);
+        let from = 42;
 
-        let reply: Reply = runner.request(Request::Report);
-        assert_eq!(reply, Reply::Amount(10));
+        let _res = program.send_bytes(from, b"init");
+
+        let res = program.send(from, Request::Receive(10));
+        let log = Log::builder()
+            .source(program.id())
+            .dest(from)
+            .payload(Reply::Success);
+        assert!(res.contains(&log));
+
+        let res = program.send(from, Request::Report);
+        let log = Log::builder()
+            .source(program.id())
+            .dest(from)
+            .payload(Reply::Amount(10));
+        assert!(res.contains(&log));
     }
 
-    fn multi_program_setup(
-        program_id_1: u64,
-        program_id_2: u64,
-        program_id_3: u64,
-    ) -> RunnerContext {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+    fn multi_program_setup<'a>(
+        system: &'a System,
+        program_1_id: u64,
+        program_2_id: u64,
+        program_3_id: u64,
+    ) -> (Program<'a>, Program<'a>, Program<'a>) {
+        system.init_logger();
 
-        let mut runner = RunnerContext::default();
+        let from = 42;
 
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_1));
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_2));
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_3));
+        let program_1 = Program::current_with_id(&system, program_1_id);
+        let _res = program_1.send_bytes(from, b"init");
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Join(2)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+        let program_2 = Program::current_with_id(&system, program_2_id);
+        let _res = program_2.send_bytes(from, b"init");
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Join(3)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+        let program_3 = Program::current_with_id(&system, program_3_id);
+        let _res = program_3.send_bytes(from, b"init");
 
-        runner
+        let res = program_1.send(from, Request::Join(program_2_id));
+        let log = Log::builder()
+            .source(program_1.id())
+            .dest(from)
+            .payload(Reply::Success);
+        assert!(res.contains(&log));
+
+        let res = program_1.send(from, Request::Join(program_3_id));
+        let log = Log::builder()
+            .source(program_1.id())
+            .dest(from)
+            .payload(Reply::Success);
+        assert!(res.contains(&log));
+
+        (program_1, program_2, program_3)
     }
 
     #[test]
     fn composite_program() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+        let system = System::new();
+        let (program_1, program_2, _program_3) = multi_program_setup(&system, 1, 2, 3);
 
-        let program_id_1 = 1;
-        let program_id_2 = 2;
-        let program_id_3 = 3;
+        let from = 42;
 
-        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
+        let res = program_1.send(from, Request::Receive(11));
+        let log = Log::builder()
+            .source(program_1.id())
+            .dest(from)
+            .payload(Reply::Success);
+        assert!(res.contains(&log));
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Receive(11)).destination(program_id_1));
-        assert_eq!(reply, Reply::Success);
+        let res = program_2.send(from, Request::Report);
+        let log = Log::builder()
+            .source(program_2.id())
+            .dest(from)
+            .payload(Reply::Amount(5));
+        assert!(res.contains(&log));
 
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Report).destination(program_id_2));
-        assert_eq!(reply, Reply::Amount(5));
-
-        let reply: Reply =
-            runner.request(MessageBuilder::from(Request::Report).destination(program_id_1));
-        assert_eq!(reply, Reply::Amount(11));
+        let res = program_1.send(from, Request::Report);
+        let log = Log::builder()
+            .source(program_1.id())
+            .dest(from)
+            .payload(Reply::Amount(11));
+        assert!(res.contains(&log));
     }
 
     // This test show how RefCell will prevent to do conflicting changes (prevent multi-aliasing of the program state)
     #[test]
     fn conflicting_nodes() {
-        let _ = env_logger::Builder::from_env(env_logger::Env::default()).try_init();
+        let system = System::new();
+        let (program_1, _program_2, _program_3) = multi_program_setup(&system, 1, 2, 3);
 
-        let program_id_1 = 1;
-        let program_id_2 = 2;
-        let program_id_3 = 3;
-        let program_id_4 = 4;
+        let program_4_id = 4;
+        let from = 42;
 
-        let mut runner = multi_program_setup(program_id_1, program_id_2, program_id_3);
-        runner.init_program(InitProgram::from(wasm_code()).id(program_id_4));
+        let program_4 = Program::current_with_id(&system, program_4_id);
+        let _res = program_4.send_bytes(from, b"init");
 
-        let results: Vec<Reply> = runner.request_batch(vec![
-            MessageBuilder::from(Request::Receive(11)).destination(program_id_1),
-            MessageBuilder::from(Request::Join(4)).destination(program_id_1),
-        ]);
-
-        assert_eq!(results, vec![Reply::Success, Reply::Success])
+        IntoIterator::into_iter([Request::Receive(11), Request::Join(program_4_id)])
+            .map(|request| program_1.send(from, request))
+            .zip(IntoIterator::into_iter([Reply::Success, Reply::Success]))
+            .for_each(|(result, reply)| {
+                let log = Log::builder()
+                    .source(program_1.id())
+                    .dest(from)
+                    .payload(reply);
+                assert!(result.contains(&log));
+            });
     }
 }

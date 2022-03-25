@@ -13,8 +13,7 @@ codec = { package = "parity-scale-codec", version = "2", default-features = fals
 gear-wasm-builder = { path = "../../utils/wasm-builder" }
 
 [dev-dependencies]
-env_logger = "0.9"
-common = { package = "tests-common", path = "../common" }
+gtest = { path = "../../gtest" }
 
 [lib]
 
