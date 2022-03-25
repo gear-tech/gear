@@ -109,9 +109,7 @@ pub trait Memory {
     fn data_size(&self) -> usize;
 
     /// Returns native addr of wasm memory buffer in wasm executor
-    /// FIXME: pointer size in host and wasm32 can differ, so we must
-    /// returns type, which is not smaller then both pointer sizes.
-    fn get_wasm_memory_begin_addr(&self) -> usize;
+    fn get_wasm_memory_begin_addr(&self) -> u64;
 }
 
 /// Pages allocations context for the running program.
