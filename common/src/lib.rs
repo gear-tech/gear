@@ -56,6 +56,7 @@ pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
+pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::origcode::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
@@ -459,21 +460,25 @@ pub enum ProgramState {
 pub struct CodeMetadata {
     pub author: H256,
     pub block_number: u32,
+    pub instruction_weights_version: u32,
 }
 
 impl CodeMetadata {
-    pub fn new(author: H256, block_number: u32) -> Self {
+    pub fn new(author: H256, block_number: u32, instruction_weights_version: u32) -> Self {
         CodeMetadata {
             author,
             block_number,
+            instruction_weights_version,
         }
     }
 }
 
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
 enum CodeKeyPrefixKind {
+    // "g::origcode::"
+    OriginalCode,
     // "g::code::"
-    RawCode,
+    Code,
     // "g::code::metadata::"
     CodeMetadata,
 }
@@ -487,7 +492,8 @@ pub fn program_key(id: H256) -> Vec<u8> {
 
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
-        CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
+        CodeKeyPrefixKind::OriginalCode => STORAGE_ORIGINAL_CODE_PREFIX,
+        CodeKeyPrefixKind::Code => STORAGE_CODE_PREFIX,
         CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
     };
     // key's length is N bytes of code hash + M bytes of prefix
@@ -528,11 +534,19 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
 }
 
 pub fn get_code(code_hash: H256) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::Code))
 }
 
 pub fn set_code(code_hash: H256, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::RawCode), code)
+    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::Code), code)
+}
+
+pub fn get_original_code(code_hash: H256) -> Option<Vec<u8>> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode))
+}
+
+pub fn set_original_code(code_hash: H256, code: &[u8]) {
+    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode), code)
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
@@ -757,7 +771,7 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
 }
 
 pub fn code_exists(code_hash: H256) -> bool {
-    sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
+    sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::Code))
 }
 
 pub fn reset_storage() {
@@ -765,6 +779,7 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_ORIGINAL_CODE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
 }

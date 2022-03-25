@@ -209,6 +209,10 @@ pub mod pallet {
         FailedToConstructProgram,
         /// Value doesnt cover ExistenceDeposit
         ValueLessThanMinimal,
+        /// Unable to intrument program code
+        GasInstrumentationFailed,
+        /// No code could be found at the supplied code hash.
+        CodeNotFound,
     }
 
     #[derive(Debug, Encode, Decode, Clone, PartialEq, TypeInfo)]
@@ -541,6 +545,23 @@ pub mod pallet {
 
                     // Check whether message should be added to the wait list
                     if let Program::Active(ref prog) = maybe_active_program {
+                        let schedule = T::Schedule::get();
+                        if let Some(code_meta) = common::get_code_metadata(prog.code_hash) {
+                            if code_meta.instruction_weights_version
+                                < schedule.instruction_weights.version
+                            {
+                                // The instruction weights have changed.
+                                // We need to re-instrument the code with the new instruction weights.
+                                if let Ok(_code_size) =
+                                    Self::reinstrument_code(prog.code_hash, code_meta, &schedule)
+                                {
+                                    // todo: charge for code instrumenting
+                                } else {
+                                    // todo: mark code as unable for instrument to skip next time
+                                    continue;
+                                }
+                            }
+                        }
                         let is_for_wait_list = maybe_message_reply.is_none()
                             && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id);
                         if is_for_wait_list {
@@ -621,16 +642,55 @@ pub mod pallet {
                 !common::code_exists(code_hash),
                 Error::<T>::CodeAlreadyExists
             );
+            let schedule = T::Schedule::get();
+
+            let instrumented_code = Self::instrument_code(code.to_vec(), &schedule)
+                .map_err(|_| Error::<T>::GasInstrumentationFailed)?;
+
+            common::set_code(code_hash, &instrumented_code);
+
+            common::set_original_code(code_hash, code);
 
             let metadata = {
                 let block_number =
                     <frame_system::Pallet<T>>::block_number().unique_saturated_into();
-                CodeMetadata::new(who, block_number)
+                CodeMetadata::new(who, block_number, schedule.instruction_weights.version)
             };
             common::set_code_metadata(code_hash, metadata);
-            common::set_code(code_hash, code);
 
             Ok(code_hash)
+        }
+
+        fn instrument_code(
+            original_code: Vec<u8>,
+            schedule: &Schedule<T>,
+        ) -> Result<Vec<u8>, &'static str> {
+            let module = wasm_instrument::parity_wasm::deserialize_buffer(&original_code)
+                .unwrap_or_default();
+
+            let gas_rules = schedule.rules(&module);
+
+            let instrumented_module =
+                wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
+                    .map_err(|_| "error instrumenting code")?;
+
+            wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                .map_err(|_| "error serializing instrumented module")
+        }
+
+        fn reinstrument_code(
+            code_hash: H256,
+            mut code_meta: CodeMetadata,
+            schedule: &Schedule<T>,
+        ) -> Result<u32, DispatchError> {
+            let original_code = common::get_original_code(code_hash.clone())
+                .ok_or_else(|| Error::<T>::CodeNotFound)?;
+            let original_code_len = original_code.len();
+            let code = Self::instrument_code(original_code, schedule)?;
+            common::set_code(code_hash.clone(), &code);
+            code_meta.instruction_weights_version = schedule.instruction_weights.version;
+            common::set_code_metadata(code_hash, code_meta);
+            Ok(original_code_len as u32)
         }
     }
 

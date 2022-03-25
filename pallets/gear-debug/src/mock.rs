@@ -133,6 +133,7 @@ impl pallet_gear::Config for Test {
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = super::Pallet<Test>;
     type WaitListFeePerBlock = ();
+    type Schedule = ();
 }
 
 impl pallet_gas::Config for Test {}

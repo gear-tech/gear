@@ -23,7 +23,6 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use frame_support::{weights::Weight, DefaultNoBound};
-// use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -31,13 +30,7 @@ use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
 use wasm_instrument::{gas_metering, parity_wasm::elements};
 
-/// How many API calls are executed in a single batch. The reason for increasing the amount
-/// of API calls in batches (per benchmark component increase) is so that the linear regression
-/// has an easier time determining the contribution of that component.
-pub const API_BENCHMARK_BATCH_SIZE: u32 = 100;
-
-/// How many instructions are executed in a single batch. The reasoning is the same
-/// as for `API_BENCHMARK_BATCH_SIZE`.
+/// How many instructions are executed in a single batch.
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 
 /// Definition of the cost schedule and other parameterizations for the wasm vm.
@@ -248,169 +241,6 @@ pub struct InstructionWeights<T: Config> {
     pub _phantom: PhantomData<T>,
 }
 
-/// Describes the weight for each imported function that a contract is allowed to call.
-// #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-// #[derive(Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
-// #[scale_info(skip_type_params(T))]
-// pub struct HostFnWeights<T: Config> {
-// 	/// Weight of calling `seal_caller`.
-// 	pub caller: Weight,
-
-// 	/// Weight of calling `seal_is_contract`.
-// 	pub is_contract: Weight,
-
-// 	/// Weight of calling `seal_caller_is_origin`.
-// 	pub caller_is_origin: Weight,
-
-// 	/// Weight of calling `seal_address`.
-// 	pub address: Weight,
-
-// 	/// Weight of calling `seal_gas_left`.
-// 	pub gas_left: Weight,
-
-// 	/// Weight of calling `seal_balance`.
-// 	pub balance: Weight,
-
-// 	/// Weight of calling `seal_value_transferred`.
-// 	pub value_transferred: Weight,
-
-// 	/// Weight of calling `seal_minimum_balance`.
-// 	pub minimum_balance: Weight,
-
-// 	/// Weight of calling `seal_block_number`.
-// 	pub block_number: Weight,
-
-// 	/// Weight of calling `seal_now`.
-// 	pub now: Weight,
-
-// 	/// Weight of calling `seal_weight_to_fee`.
-// 	pub weight_to_fee: Weight,
-
-// 	/// Weight of calling `gas`.
-// 	pub gas: Weight,
-
-// 	/// Weight of calling `seal_input`.
-// 	pub input: Weight,
-
-// 	/// Weight per input byte copied to contract memory by `seal_input`.
-// 	pub input_per_byte: Weight,
-
-// 	/// Weight of calling `seal_return`.
-// 	pub r#return: Weight,
-
-// 	/// Weight per byte returned through `seal_return`.
-// 	pub return_per_byte: Weight,
-
-// 	/// Weight of calling `seal_terminate`.
-// 	pub terminate: Weight,
-
-// 	/// Weight of calling `seal_random`.
-// 	pub random: Weight,
-
-// 	/// Weight of calling `seal_reposit_event`.
-// 	pub deposit_event: Weight,
-
-// 	/// Weight per topic supplied to `seal_deposit_event`.
-// 	pub deposit_event_per_topic: Weight,
-
-// 	/// Weight per byte of an event deposited through `seal_deposit_event`.
-// 	pub deposit_event_per_byte: Weight,
-
-// 	/// Weight of calling `seal_debug_message`.
-// 	pub debug_message: Weight,
-
-// 	/// Weight of calling `seal_set_storage`.
-// 	pub set_storage: Weight,
-
-// 	/// Weight per written byten of an item stored with `seal_set_storage`.
-// 	pub set_storage_per_new_byte: Weight,
-
-// 	/// Weight per overwritten byte of an item stored with `seal_set_storage`.
-// 	pub set_storage_per_old_byte: Weight,
-
-// 	/// Weight of calling `seal_set_code_hash`.
-// 	pub set_code_hash: Weight,
-
-// 	/// Weight of calling `seal_clear_storage`.
-// 	pub clear_storage: Weight,
-
-// 	/// Weight of calling `seal_clear_storage` per byte of the stored item.
-// 	pub clear_storage_per_byte: Weight,
-
-// 	/// Weight of calling `seal_contains_storage`.
-// 	pub contains_storage: Weight,
-
-// 	/// Weight of calling `seal_contains_storage` per byte of the stored item.
-// 	pub contains_storage_per_byte: Weight,
-
-// 	/// Weight of calling `seal_get_storage`.
-// 	pub get_storage: Weight,
-
-// 	/// Weight per byte of an item received via `seal_get_storage`.
-// 	pub get_storage_per_byte: Weight,
-
-// 	/// Weight of calling `seal_take_storage`.
-// 	pub take_storage: Weight,
-
-// 	/// Weight per byte of an item received via `seal_take_storage`.
-// 	pub take_storage_per_byte: Weight,
-
-// 	/// Weight of calling `seal_transfer`.
-// 	pub transfer: Weight,
-
-// 	/// Weight of calling `seal_call`.
-// 	pub call: Weight,
-
-// 	/// Weight of calling `seal_delegate_call`.
-// 	pub delegate_call: Weight,
-
-// 	/// Weight surcharge that is claimed if `seal_call` does a balance transfer.
-// 	pub call_transfer_surcharge: Weight,
-
-// 	/// Weight per byte that is cloned by supplying the `CLONE_INPUT` flag.
-// 	pub call_per_cloned_byte: Weight,
-
-// 	/// Weight of calling `seal_instantiate`.
-// 	pub instantiate: Weight,
-
-// 	/// Weight surcharge that is claimed if `seal_instantiate` does a balance transfer.
-// 	pub instantiate_transfer_surcharge: Weight,
-
-// 	/// Weight per salt byte supplied to `seal_instantiate`.
-// 	pub instantiate_per_salt_byte: Weight,
-
-// 	/// Weight of calling `seal_hash_sha_256`.
-// 	pub hash_sha2_256: Weight,
-
-// 	/// Weight per byte hashed by `seal_hash_sha_256`.
-// 	pub hash_sha2_256_per_byte: Weight,
-
-// 	/// Weight of calling `seal_hash_keccak_256`.
-// 	pub hash_keccak_256: Weight,
-
-// 	/// Weight per byte hashed by `seal_hash_keccak_256`.
-// 	pub hash_keccak_256_per_byte: Weight,
-
-// 	/// Weight of calling `seal_hash_blake2_256`.
-// 	pub hash_blake2_256: Weight,
-
-// 	/// Weight per byte hashed by `seal_hash_blake2_256`.
-// 	pub hash_blake2_256_per_byte: Weight,
-
-// 	/// Weight of calling `seal_hash_blake2_128`.
-// 	pub hash_blake2_128: Weight,
-
-// 	/// Weight per byte hashed by `seal_hash_blake2_128`.
-// 	pub hash_blake2_128_per_byte: Weight,
-
-// 	/// Weight of calling `seal_ecdsa_recover`.
-// 	pub ecdsa_recover: Weight,
-
-// 	/// The type parameter is used in the default implementation.
-// 	#[codec(skip)]
-// 	pub _phantom: PhantomData<T>,
-// }
-
 macro_rules! replace_token {
     ($_in:tt $replacement:tt) => {
         $replacement
@@ -426,12 +256,6 @@ macro_rules! call_zero {
 macro_rules! cost_args {
 	($name:ident, $( $arg: expr ),+) => {
 		(<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
-	}
-}
-
-macro_rules! cost_batched_args {
-	($name:ident, $( $arg: expr ),+) => {
-		cost_args!($name, $( $arg ),+) / Weight::from(API_BENCHMARK_BATCH_SIZE)
 	}
 }
 
@@ -453,42 +277,6 @@ macro_rules! cost_instr_with_batch_size {
 macro_rules! cost_instr {
     ($name:ident, $num_params:expr) => {
         cost_instr_with_batch_size!($name, $num_params, INSTR_BENCHMARK_BATCH_SIZE)
-    };
-}
-
-macro_rules! cost_byte_args {
-	($name:ident, $( $arg: expr ),+) => {
-		cost_args!($name, $( $arg ),+) / 1024
-	}
-}
-
-macro_rules! cost_byte_batched_args {
-	($name:ident, $( $arg: expr ),+) => {
-		cost_batched_args!($name, $( $arg ),+) / 1024
-	}
-}
-
-macro_rules! cost {
-    ($name:ident) => {
-        cost_args!($name, 1)
-    };
-}
-
-macro_rules! cost_batched {
-    ($name:ident) => {
-        cost_batched_args!($name, 1)
-    };
-}
-
-macro_rules! cost_byte {
-    ($name:ident) => {
-        cost_byte_args!($name, 1)
-    };
-}
-
-macro_rules! cost_byte_batched {
-    ($name:ident) => {
-        cost_byte_batched_args!($name, 1)
     };
 }
 
@@ -572,14 +360,6 @@ impl<T: Config> Default for InstructionWeights<T> {
         }
     }
 }
-
-// impl<T: Config> Default for HostFnWeights<T> {
-// 	fn default() -> Self {
-// 		Self {
-// 			_phantom: PhantomData,
-// 		}
-// 	}
-// }
 
 struct ScheduleRules<'a, T: Config> {
     schedule: &'a Schedule<T>,
@@ -693,15 +473,3 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
         gas_metering::MemoryGrowCost::Free
     }
 }
-
-// #[cfg(test)]
-// mod test {
-// 	use super::*;
-// 	use crate::tests::Test;
-
-// 	#[test]
-// 	fn print_test_schedule() {
-// 		let schedule = Schedule::<Test>::default();
-// 		println!("{:#?}", schedule);
-// 	}
-// }
