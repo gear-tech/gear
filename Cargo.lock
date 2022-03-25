@@ -7743,6 +7743,7 @@ dependencies = [
  "gear-core",
  "gear-wasm-builder",
  "gstd",
+ "gtest",
  "hex-literal",
  "parity-scale-codec",
  "tests-common",

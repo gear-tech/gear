@@ -12,6 +12,9 @@ codec = { package = "parity-scale-codec", version = "2", default-features = fals
 common = { package = "tests-common", path = "../common", optional = true }
 hex-literal = "*"
 
+[dev-dependencies]
+gtest = { path = "../../gtest" }
+
 [build-dependencies]
 gear-wasm-builder = { path = "../../utils/wasm-builder" }
 

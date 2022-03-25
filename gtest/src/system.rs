@@ -5,8 +5,9 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::message::Message;
-use std::{cell::RefCell, io::Write, thread};
+use gear_core::{message::Message, program::CodeHash};
+use path_clean::PathClean;
+use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 
@@ -62,10 +63,38 @@ impl System {
         self.0.borrow_mut().block_info.timestamp += amount as u64;
     }
 
+    /// Returns a [`Program`] by `id`.
+    ///
+    /// The method doesn't check whether program exists or not.
+    /// So if provided `id` doesn't belong to program, message sent
+    /// to such "program" will cause panics.
     pub fn get_program<ID: Into<ProgramIdWrapper>>(&'_ self, id: ID) -> Program<'_> {
+        let id = id.into().0;
         Program {
+            id,
             manager: &self.0,
-            id: id.into().0,
         }
+    }
+
+    pub fn is_active_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> bool {
+        let program_id = id.into().0;
+        self.0.borrow().actors.contains_key(&program_id)
+    }
+
+    /// Saves code to the storage and returns it's code hash
+    ///
+    /// This method is mainly used for providing a proper program from program creation logic.
+    /// In order to successfully create a new program with `gstd::prog::create_program_with_gas`
+    /// function, developer should provide to the function "child's" code hash. Code for that
+    /// code hash must be in storage at the time of the function call. So this method stores
+    /// the code in storage.
+    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeHash {
+        let path = env::current_dir()
+            .expect("Unable to get root directory of the project")
+            .join(code_path)
+            .clean();
+
+        let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
+        self.0.borrow_mut().store_new_code(&code)
     }
 }
