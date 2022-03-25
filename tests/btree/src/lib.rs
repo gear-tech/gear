@@ -106,7 +106,7 @@ mod tests {
         let from = 42;
 
         let res = program.send_bytes(from, b"init");
-        let log = Log::builder().source(1).dest(from);
+        let log = Log::builder().source(program.id()).dest(from);
         assert!(res.contains(&log));
     }
 
@@ -143,7 +143,7 @@ mod tests {
             Reply::List(vec![]),
         ]))
         .for_each(|(result, reply)| {
-            let log = Log::builder().source(1).dest(from).payload(reply);
+            let log = Log::builder().source(program.id()).dest(from).payload(reply);
             assert!(result.contains(&log));
         })
     }
