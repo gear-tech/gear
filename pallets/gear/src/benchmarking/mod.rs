@@ -31,9 +31,7 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{
-    schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
-    // storage::Storage,
-    // wasm::CallFlags,
+    schedule::INSTR_BENCHMARK_BATCH_SIZE,
     Pallet as Contracts,
     *,
 };
