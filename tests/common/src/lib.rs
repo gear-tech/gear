@@ -25,6 +25,7 @@ use core_processor::{
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
+    checked_code::CheckedCode,
     env::Ext as EnvExt,
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId},
@@ -390,7 +391,7 @@ impl<'a> JournalHandler for Journal<'a> {
 
     fn store_new_programs(
         &mut self,
-        _code_hash: gear_core::program::CodeHash,
+        _code_hash: gear_core::code_hash::CodeHash,
         _candidates: Vec<(ProgramId, MessageId)>,
     ) {
         // TODO next pr
@@ -426,8 +427,10 @@ impl RunnerContext {
             ..
         } = init_data.into().into_init_program_info(self);
 
+        let code = CheckedCode::try_new(code).expect("Failed to create program");
+
         // store program
-        let program = Program::new(new_program_id, code).expect("Failed to create program");
+        let program = Program::new(new_program_id, code);
         let actor = ExecutableActor {
             program,
             balance: 0,

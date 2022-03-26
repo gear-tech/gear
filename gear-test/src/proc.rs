@@ -21,9 +21,10 @@ use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
+use gear_core::program::InstrumentedCode;
 use gear_core::{
     message::{Dispatch, DispatchKind, IncomingMessage, Message, MessageId},
-    program::{Program, ProgramId},
+    program::{CheckedCode, Program, ProgramId},
 };
 use regex::Regex;
 use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
@@ -103,7 +104,10 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let program = Program::new(message.id, message.code.clone())?;
+    let code = CheckedCode::try_new(message.code.clone())?;
+    let instumented_code =
+        InstrumentedCode::new(code.code().to_vec(), code.static_pages(), 1);
+    let program = Program::new(message.id, instumented_code);
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
         return Err(anyhow::anyhow!(

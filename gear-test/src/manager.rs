@@ -20,7 +20,7 @@ use core_processor::common::*;
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, DispatchKind, Message, MessageId},
-    program::{CodeHash, Program, ProgramId},
+    program::{CheckedCode, CodeHash, InstrumentedCode, Program, ProgramId},
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -220,8 +220,11 @@ impl JournalHandler for InMemoryExtManager {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let program = Program::new(candidate_id, code.clone())
+                    let code = CheckedCode::try_new(code.clone())
                         .expect("guaranteed to have constructable code");
+                    let instumented_code =
+                        InstrumentedCode::new(code.code().to_vec(), code.static_pages(), 1);
+                    let program = Program::new(candidate_id, instumented_code);
                     self.store_program(program, init_message_id);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);

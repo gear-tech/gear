@@ -1993,6 +1993,7 @@ dependencies = [
  "frame-system",
  "gear-core",
  "gear-runtime-interface",
+ "hex-literal",
  "log",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
@@ -4411,6 +4412,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "hex-literal",
  "log",
  "pallet-balances",
  "parity-scale-codec",
@@ -5454,8 +5456,7 @@ checksum = "51dd4445360338dab5116712bee1388dc727991d51969558a8882ab552e6db30"
 [[package]]
 name = "ring"
 version = "0.16.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3053cf52e236a3ed746dfc745aa9cacf1b791d846bdaf412f60a8d7d6e17c8fc"
+source = "git+https://github.com/gear-tech/ring.git?branch=v0.16.20-fix-nightly#8961406c848d240cacc1d38ee708c81b45655373"
 dependencies = [
  "cc",
  "libc",
@@ -8110,7 +8111,7 @@ version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "digest 0.10.2",
  "rand 0.8.5",
  "static_assertions",

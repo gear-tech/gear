@@ -23,9 +23,12 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
+use core::iter::Inspect;
 use core::{cmp, fmt};
 use scale_info::TypeInfo;
 
+pub use crate::checked_code::{CheckedCode, InstrumentedCode};
+pub use crate::code_hash::{CheckedCodeWithHash, CodeHash, InstrumentedCodeWithHash};
 use crate::memory::{PageBuf, PageNumber};
 
 /// Program identifier.
@@ -124,9 +127,7 @@ impl ProgramId {
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
-    code: Vec<u8>,
-    /// Initial memory export size.
-    static_pages: u32,
+    code: InstrumentedCode,
     /// Saved state of memory pages.
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Message nonce
@@ -137,39 +138,20 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: Vec<u8>) -> Result<Self> {
-        // get initial memory size from memory import.
-        let static_pages: u32 = {
-            parity_wasm::elements::Module::from_bytes(&code)
-                .map_err(|e| anyhow::anyhow!("Error loading program: {}", e))?
-                .import_section()
-                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find import section"))?
-                .entries()
-                .iter()
-                .find_map(|entry| match entry.external() {
-                    parity_wasm::elements::External::Memory(mem_ty) => {
-                        Some(mem_ty.limits().initial())
-                    }
-                    _ => None,
-                })
-                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
-        };
-
-        Ok(Program {
+    pub fn new(id: ProgramId, code: InstrumentedCode) -> Self {
+        Program {
             id,
             code,
-            static_pages,
             persistent_pages: Default::default(),
             message_nonce: 0,
             is_initialized: false,
-        })
+        }
     }
 
     /// New program from stored data
     pub fn from_parts(
         id: ProgramId,
-        code: Vec<u8>,
-        static_pages: u32,
+        code: InstrumentedCode,
         message_nonce: u64,
         persistent_pages_numbers: BTreeSet<u32>,
         is_initialized: bool,
@@ -177,7 +159,6 @@ impl Program {
         Self {
             id,
             code,
-            static_pages,
             persistent_pages: persistent_pages_numbers
                 .into_iter()
                 .map(|k| (k.into(), None))
@@ -187,9 +168,14 @@ impl Program {
         }
     }
 
-    /// Reference to code of this program.
+    /// Reference to checked binary code of this program.
+    pub fn instrumented_code(&self) -> &InstrumentedCode {
+        &self.code
+    }
+
+    /// Reference to raw binary code of this program.
     pub fn code(&self) -> &[u8] {
-        &self.code[..]
+        self.code.code()
     }
 
     /// Get the id of this program.
@@ -199,7 +185,7 @@ impl Program {
 
     /// Get initial memory size for this program.
     pub fn static_pages(&self) -> u32 {
-        self.static_pages
+        self.code.static_pages()
     }
 
     /// Get whether program is initialized
@@ -213,28 +199,6 @@ impl Program {
     /// Set program initialized
     pub fn set_initialized(&mut self) {
         self.is_initialized = true;
-    }
-
-    /// Set the code of this program.
-    pub fn set_code(&mut self, code: Vec<u8>) -> Result<()> {
-        self.static_pages = {
-            parity_wasm::elements::Module::from_bytes(&code)
-                .map_err(|e| anyhow::anyhow!("Error loading program: {}", e))?
-                .import_section()
-                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find import section"))?
-                .entries()
-                .iter()
-                .find_map(|entry| match entry.external() {
-                    parity_wasm::elements::External::Memory(mem_ty) => {
-                        Some(mem_ty.limits().initial())
-                    }
-                    _ => None,
-                })
-                .ok_or_else(|| anyhow::anyhow!("Error loading program: can't find memory export"))?
-        };
-        self.code = code;
-
-        Ok(())
     }
 
     /// Set memory from buffer.
@@ -317,50 +281,6 @@ impl Program {
         self.message_nonce += 1;
         nonce
     }
-
-    /// Reset the program.
-    pub fn reset(&mut self, code: Vec<u8>) -> Result<()> {
-        self.set_code(code)?;
-        self.clear_memory();
-        self.message_nonce = 0;
-
-        Ok(())
-    }
-}
-
-/// Blake2b hash of the program code.
-#[derive(Clone, Copy, Debug, Decode, Encode, Ord, PartialOrd, Eq, PartialEq)]
-pub struct CodeHash([u8; 32]);
-
-impl CodeHash {
-    /// Instantiates [`CodeHash`] by computing blake2b hash of the program `code`.
-    pub fn generate(code: &[u8]) -> Self {
-        let blake2b_hash = blake2_rfc::blake2b::blake2b(32, &[], code);
-        Self::from_slice(blake2b_hash.as_bytes())
-    }
-
-    /// Get inner (32 bytes) array representation
-    pub fn inner(&self) -> [u8; 32] {
-        self.0
-    }
-
-    /// Create new `CodeHash` bytes.
-    ///
-    /// Will panic if slice is not 32 bytes length.
-    pub fn from_slice(s: &[u8]) -> Self {
-        if s.len() != 32 {
-            panic!("Slice is not 32 bytes length")
-        };
-        let mut id = CodeHash([0u8; 32]);
-        id.0[..].copy_from_slice(s);
-        id
-    }
-}
-
-impl From<[u8; 32]> for CodeHash {
-    fn from(data: [u8; 32]) -> Self {
-        CodeHash(data)
-    }
 }
 
 #[cfg(test)]
@@ -368,7 +288,7 @@ impl From<[u8; 32]> for CodeHash {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::{Program, ProgramId};
-    use crate::util::encode_hex;
+    use crate::{checked_code::CheckedCode, util::encode_hex, program::InstrumentedCode};
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -422,7 +342,8 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let mut program = Program::new(ProgramId::from(1), binary).unwrap();
+        let code = InstrumentedCode::try_new(binary, 1).unwrap();
+        let mut program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2);
