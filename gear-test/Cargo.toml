@@ -18,7 +18,6 @@ serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 log = "0.4.16"
 sp-keyring = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 rayon = "1.5"
 primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
