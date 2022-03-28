@@ -1492,7 +1492,7 @@ fn test_message_processing_for_non_existing_destination() {
 
 #[test]
 fn exit_init() {
-    use tests_exit_init::WASM_BINARY;
+    use demo_exit_init::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
