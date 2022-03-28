@@ -52,26 +52,29 @@ pub trait ProcessorExt {
         &mut self,
         program_id: ProgramId,
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool;
+    ) -> Result<bool, &'static str>;
 
     /// Protect and save storage keys for pages which has no data
     fn protect_pages_and_init_info(
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         prog_id: ProgramId,
-        wasm_mem_begin_addr: usize,
-    );
+        wasm_mem_begin_addr: u64,
+    ) -> Result<(), &'static str>;
 
     /// Lazy pages contract post execution actions
     fn post_execution_actions(
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        wasm_mem_begin_addr: usize,
-    );
+        wasm_mem_begin_addr: u64,
+    ) -> Result<(), &'static str>;
 
     /// Remove lazy-pages protection, returns wasm memory begin addr
-    fn remove_lazy_pages_prot(mem_addr: usize);
+    fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), &'static str>;
 
     /// Protect lazy-pages and set new wasm mem addr if it has been changed
-    fn protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr: usize, new_mem_addr: usize);
+    fn protect_lazy_pages_and_update_wasm_mem_addr(
+        old_mem_addr: u64,
+        new_mem_addr: u64,
+    ) -> Result<(), &'static str>;
 
     /// Returns list of current lazy pages numbers
     fn get_lazy_pages_numbers() -> Vec<u32>;
@@ -142,26 +145,35 @@ impl ProcessorExt for Ext {
         &mut self,
         _program_id: ProgramId,
         _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-    ) -> bool {
-        false
+    ) -> Result<bool, &'static str> {
+        Ok(false)
     }
 
     fn protect_pages_and_init_info(
         _memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         _prog_id: ProgramId,
-        _wasm_mem_begin_addr: usize,
-    ) {
+        _wasm_mem_begin_addr: u64,
+    ) -> Result<(), &'static str> {
+        Ok(())
     }
 
     fn post_execution_actions(
         _memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        _wasm_mem_begin_addr: usize,
-    ) {
+        _wasm_mem_begin_addr: u64,
+    ) -> Result<(), &'static str> {
+        Ok(())
     }
 
-    fn remove_lazy_pages_prot(_mem_addr: usize) {}
+    fn remove_lazy_pages_prot(_mem_addr: u64) -> Result<(), &'static str> {
+        Ok(())
+    }
 
-    fn protect_lazy_pages_and_update_wasm_mem_addr(_old_mem_addr: usize, _new_mem_addr: usize) {}
+    fn protect_lazy_pages_and_update_wasm_mem_addr(
+        _old_mem_addr: u64,
+        _new_mem_addr: u64,
+    ) -> Result<(), &'static str> {
+        Ok(())
+    }
 
     fn get_lazy_pages_numbers() -> Vec<u32> {
         Vec::default()
@@ -169,19 +181,24 @@ impl ProcessorExt for Ext {
 }
 
 impl IntoExtInfo for Ext {
-    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, mut get_page_data: F) -> ExtInfo {
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
+        self,
+        mut get_page_data: F,
+    ) -> Result<ExtInfo, (&'static str, GasAmount)> {
         let accessed_pages_numbers = self.allocations_context.allocations().clone();
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
-            get_page_data(page.offset(), &mut buf);
+            if let Err(err) = get_page_data(page.offset(), &mut buf) {
+                return Err((err, self.gas_counter.into()));
+            }
             accessed_pages.insert(page, buf);
         }
 
         let (outcome, context_store) = self.message_context.drain();
         let (generated_dispatches, awakening) = outcome.drain();
 
-        ExtInfo {
+        Ok(ExtInfo {
             gas_amount: self.gas_counter.into(),
             pages: self.allocations_context.allocations().clone(),
             accessed_pages,
@@ -191,7 +208,7 @@ impl IntoExtInfo for Ext {
             trap_explanation: self.error_explanation,
             exit_argument: self.exit_argument,
             program_candidates_data: self.program_candidates_data,
-        }
+        })
     }
 
     fn into_gas_amount(self: Ext) -> GasAmount {

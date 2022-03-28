@@ -5,7 +5,8 @@ use crate::{
 };
 use codec::Codec;
 use gear_core::{
-    identifiers::{MessageId, ProgramId},
+    code::CheckedCode,
+    identifiers::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
 };
@@ -92,8 +93,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .actors
-            .insert(program_id, (Actor::new(program), 0))
+            .store_new_actor(program_id, program, None)
             .is_some()
         {
             panic!(
@@ -160,9 +160,8 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-
-        let program =
-            CoreProgram::new(program_id, code).expect("Failed to create Program from code");
+        let code = CheckedCode::try_new(code).expect("Failed to create Program from code");
+        let program = CoreProgram::new(program_id, code);
 
         Self::program_with_id(system, id, InnerProgram::new(program))
     }
@@ -244,6 +243,10 @@ impl<'a> Program<'a> {
     pub fn id(&self) -> ProgramId {
         self.id
     }
+}
+
+pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
+    ProgramId::generate(code_hash, salt)
 }
 
 #[cfg(test)]

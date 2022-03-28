@@ -16,12 +16,10 @@ serde_yaml = "0.8.23"
 hex = "0.4.2"
 serde = { version = "*", features = ["derive"] }
 serde_json = "*"
-log = "0.4.14"
-parity-scale-codec = { version = "2.3.1", features = ["derive"], default-features = false }
-sp-keyring = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
+log = "0.4.16"
 rayon = "1.5"
+primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
+once_cell = "1.10.0"
 
 # Internal deps
 gear-core = { path = "../core" }
@@ -29,6 +27,9 @@ common = { package = "gear-common", path = "../common" }
 core-processor = { package = "gear-core-processor", path = "../core-processor", default-features = false }
 gear-backend-common = { path = "../core-backend/common" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
+
+[dev-dependencies]
+parity-scale-codec = { version = "2.3.1", features = ["derive"], default-features = false }
 
 [[bin]]
 name = "gear-test"

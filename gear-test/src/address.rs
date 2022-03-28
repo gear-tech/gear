@@ -17,10 +17,31 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::identifiers::ProgramId;
+use once_cell::sync::Lazy;
+use primitive_types::H256;
 use serde::{Deserialize, Deserializer, Serialize};
-use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public, H256};
-use sp_keyring::sr25519::Keyring;
-use std::str::FromStr;
+use std::collections::HashMap;
+
+static ACCOUNTS: Lazy<HashMap<&'static str, H256>> = Lazy::new(|| {
+    fn public_key(s: &'static str) -> H256 {
+        H256::from_slice(hex::decode(s).unwrap().as_slice())
+    }
+
+    let mut accounts = HashMap::new();
+    accounts.insert(
+        "alice",
+        public_key("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"),
+    );
+    accounts.insert(
+        "bob",
+        public_key("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48"),
+    );
+    accounts.insert(
+        "eve",
+        public_key("e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e"),
+    );
+    accounts
+});
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "kind", content = "value")]
@@ -29,8 +50,6 @@ pub enum Address {
     Account(String),
     #[serde(rename = "id")]
     ProgramId(u64),
-    #[serde(rename = "ss58")]
-    SS58(String),
     #[serde(rename = "h256")]
     H256(H256),
 }
@@ -44,18 +63,8 @@ impl Default for Address {
 impl Address {
     pub fn to_program_id(&self) -> ProgramId {
         match self {
-            Self::Account(s) => ProgramId::from(
-                Keyring::from_str(s)
-                    .expect("No account in Keyring")
-                    .to_h256_public()
-                    .as_bytes(),
-            ),
+            Self::Account(s) => ProgramId::from(ACCOUNTS.get(s.as_str()).unwrap().as_bytes()),
             Self::ProgramId(id) => ProgramId::from(*id),
-            Self::SS58(s) => ProgramId::from(
-                Public::from_ss58check(s)
-                    .expect("Failed to decode ss58")
-                    .as_bytes_ref(),
-            ),
             Self::H256(id) => ProgramId::from(id.as_bytes()),
         }
     }

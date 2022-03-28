@@ -19,6 +19,7 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
+    code::CheckedCode,
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
@@ -223,8 +224,9 @@ impl JournalHandler for InMemoryExtManager {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let program = Program::new(candidate_id, code.clone())
+                    let code = CheckedCode::try_new(code.clone())
                         .expect("guaranteed to have constructable code");
+                    let program = Program::new(candidate_id, code);
                     self.store_program(program, init_message_id);
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);

@@ -23,6 +23,7 @@ use crate::{
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
+    code::CheckedCode,
     identifiers::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{
@@ -44,8 +45,8 @@ pub(crate) enum Actor {
 }
 
 impl Actor {
-    pub(crate) fn new(prog: Program) -> Self {
-        Actor::Uninitialized(None, Some(prog))
+    fn new(init_message_id: Option<MessageId>, program: Program) -> Self {
+        Actor::Uninitialized(init_message_id, Some(program))
     }
 
     // # Panics
@@ -130,6 +131,7 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
+    pub(crate) codes: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
     pub(crate) mailbox: BTreeMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
@@ -160,6 +162,25 @@ impl ExtManager {
         }
     }
 
+    pub(crate) fn store_new_actor(
+        &mut self,
+        program_id: ProgramId,
+        program: Program,
+        init_message_id: Option<MessageId>,
+    ) -> Option<(Actor, Balance)> {
+        if let Program::Genuine(program) = &program {
+            self.store_new_code(program.code());
+        }
+        self.actors
+            .insert(program_id, (Actor::new(init_message_id, program), 0))
+    }
+
+    pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
+        let code_hash = CodeId::generate(code);
+        self.codes.insert(code_hash, code.to_vec());
+        code_hash
+    }
+
     pub(crate) fn fetch_inc_message_nonce(&mut self) -> u64 {
         let nonce = self.msg_nonce;
         self.msg_nonce += 1;
@@ -179,6 +200,8 @@ impl ExtManager {
         self.gas_limits.insert(message.id(), message.gas_limit());
         let message = message.into_stored();
 
+        let message_id = message.id();
+
         let maybe_actor = self.actors.get_mut(&message.destination());
         if maybe_actor.is_some() {
             self.dispatches.push_back(message);
@@ -189,6 +212,7 @@ impl ExtManager {
                 .push(message.message().clone());
         }
 
+        let mut total_processed = 0;
         while let Some(dispatch) = self.dispatches.pop_front() {
             let message_id = dispatch.id();
             let dest = dispatch.destination();
@@ -217,6 +241,8 @@ impl ExtManager {
             } else {
                 unreachable!();
             }
+
+            total_processed += 1;
         }
 
         let log = self.log.clone();
@@ -225,6 +251,8 @@ impl ExtManager {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
             log: log.into_iter().map(CoreLog::from_message).collect(),
+            message_id,
+            total_processed,
         }
     }
 
@@ -492,7 +520,35 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(&mut self, _code_hash: CodeId, _candidates: Vec<(ProgramId, MessageId)>) {
-        // todo!() #714
+    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+        if let Some(code) = self.codes.get(&code_hash).cloned() {
+            for (candidate_id, init_message_id) in candidates {
+                if !self.actors.contains_key(&candidate_id) {
+                    let checked_code = CheckedCode::try_new(code.clone()).unwrap_or_else(|e|
+                        panic!(
+                            "Program can't be constructed with provided code {:?}. An error occurred {:?}",
+                            code, e
+                        )
+                    );
+                    let candidate = CoreProgram::new(candidate_id, checked_code);
+                    self.store_new_actor(
+                        candidate_id,
+                        Program::new(candidate),
+                        Some(init_message_id),
+                    );
+                } else {
+                    logger::debug!("Program with id {:?} already exists", candidate_id);
+                }
+            }
+        } else {
+            logger::debug!(
+                "No referencing code with code hash {:?} for candidate programs",
+                code_hash
+            );
+            for (invalid_candidate_id, _) in candidates {
+                self.actors
+                    .insert(invalid_candidate_id, (Actor::Dormant, 0));
+            }
+        }
     }
 }

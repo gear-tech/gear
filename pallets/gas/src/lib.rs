@@ -250,15 +250,17 @@ where
         Ok(PositiveImbalance::new(amount))
     }
 
-    fn get_limit(key: H256) -> Option<(u64, H256)> {
-        Self::value_view(key).map(|node| {
-            let value = node.inner_value().unwrap_or_else(|| {
-                Self::get_limit(node.parent().expect("Either value or parent present"))
-                    .expect("Value should exist if tree exists")
-                    .0
-            });
+    fn get_origin(key: H256) -> Option<H256> {
+        Self::value_view(key).map(|node| Self::node_root_origin(&node))
+    }
 
-            (value, Self::node_root_origin(&node))
+    fn get_limit(key: H256) -> Option<(u64, H256)> {
+        Self::value_view(key).and_then(|node| {
+            if let Some(value) = node.inner_value() {
+                Some((value, key))
+            } else {
+                node.parent().and_then(Self::get_limit)
+            }
         })
     }
 

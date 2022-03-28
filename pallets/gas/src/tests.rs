@@ -256,4 +256,51 @@ mod tests {
             assert_eq!(payee, origin);
         });
     }
+
+    #[test]
+    fn limit_vs_origin() {
+        sp_io::TestExternalities::new_empty().execute_with(|| {
+            let origin = H256::random();
+            let root_node = H256::random();
+            let split_1 = H256::random();
+            let split_2 = H256::random();
+            let split_1_1 = H256::random();
+            let split_1_2 = H256::random();
+            let split_1_1_1 = H256::random();
+
+            assert_ok!(Gas::create(origin, root_node, 1000));
+
+            assert_ok!(Gas::split(root_node, split_1));
+            assert_ok!(Gas::split(root_node, split_2));
+            assert_ok!(Gas::split_with_value(split_1, split_1_1, 600));
+            assert_ok!(Gas::split(split_1, split_1_2));
+            assert_ok!(Gas::split(split_1_1, split_1_1_1));
+
+            // Original 1000 less 600 that were `split_with_value`
+            assert_eq!(Gas::get_limit(root_node), Some((400, root_node)));
+
+            // Parent's 400
+            assert_eq!(Gas::get_limit(split_1), Some((400, root_node)));
+
+            // Parent's 400
+            assert_eq!(Gas::get_limit(split_2), Some((400, root_node)));
+
+            // Propriatery 600
+            assert_eq!(Gas::get_limit(split_1_1), Some((600, split_1_1)));
+
+            // Grand-parent's 400
+            assert_eq!(Gas::get_limit(split_1_2), Some((400, root_node)));
+
+            // Parent's 600
+            assert_eq!(Gas::get_limit(split_1_1_1), Some((600, split_1_1)));
+
+            // All nodes origin is `origin`
+            assert_eq!(Gas::get_origin(root_node), Some(origin));
+            assert_eq!(Gas::get_origin(split_1), Some(origin));
+            assert_eq!(Gas::get_origin(split_2), Some(origin));
+            assert_eq!(Gas::get_origin(split_1_1), Some(origin));
+            assert_eq!(Gas::get_origin(split_1_2), Some(origin));
+            assert_eq!(Gas::get_origin(split_1_1_1), Some(origin));
+        });
+    }
 }

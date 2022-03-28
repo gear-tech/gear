@@ -18,12 +18,13 @@
 
 use codec::Encode;
 use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
+use demo_distributor::{Request, WASM_BINARY};
+use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
+use gear_core::code::CheckedCode;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
-use tests_distributor::{Request, WASM_BINARY};
-use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
 use super::{
     manager::HandleKind,
@@ -1127,7 +1128,7 @@ fn test_code_submission_pass() {
         ));
 
         let saved_code = common::get_code(code_hash);
-        assert_eq!(saved_code, Some(code));
+        assert_eq!(saved_code, Some(CheckedCode::try_new(code).unwrap()));
 
         let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
         let actual_meta = common::get_code_metadata(code_hash);
@@ -1225,7 +1226,7 @@ fn test_code_is_not_resetted_within_program_submission() {
 
 #[test]
 fn messages_to_uninitialized_program_wait() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1266,7 +1267,7 @@ fn messages_to_uninitialized_program_wait() {
 
 #[test]
 fn uninitialized_program_should_accept_replies() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1277,7 +1278,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            99_000_000u64,
+            90_000_000u64,
             0u128
         ));
 
@@ -1317,7 +1318,7 @@ fn uninitialized_program_should_accept_replies() {
 
 #[test]
 fn defer_program_initialization() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1387,7 +1388,7 @@ fn defer_program_initialization() {
 
 #[test]
 fn wake_messages_after_program_inited() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1489,7 +1490,7 @@ fn test_message_processing_for_non_existing_destination() {
 
 #[test]
 fn exit_init() {
-    use tests_exit_init::WASM_BINARY;
+    use demo_exit_init::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1983,7 +1984,7 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use tests_exit_handle::WASM_BINARY;
+    use demo_exit_handle::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2046,7 +2047,7 @@ fn exit_handle() {
 
 #[test]
 fn paused_program_keeps_id() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2087,7 +2088,7 @@ fn paused_program_keeps_id() {
 
 #[test]
 fn messages_to_paused_program_skipped() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2127,7 +2128,7 @@ fn messages_to_paused_program_skipped() {
 
 #[test]
 fn replies_to_paused_program_skipped() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2175,8 +2176,8 @@ fn replies_to_paused_program_skipped() {
 
 #[test]
 fn program_messages_to_paused_program_skipped() {
-    use tests_init_wait::WASM_BINARY;
-    use tests_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
+    use demo_init_wait::WASM_BINARY;
+    use demo_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2236,7 +2237,7 @@ fn program_messages_to_paused_program_skipped() {
 
 #[test]
 fn resume_program_works() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2248,7 +2249,7 @@ fn resume_program_works() {
             code.clone(),
             vec![],
             Vec::new(),
-            100_000_000u64,
+            90_000_000u64,
             0u128
         ));
 
@@ -2316,7 +2317,7 @@ fn resume_program_works() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use tests_btree::{Request, WASM_BINARY};
+    use demo_btree::{Request, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {

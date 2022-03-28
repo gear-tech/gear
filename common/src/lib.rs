@@ -30,20 +30,25 @@ use frame_support::{
     traits::Imbalance,
     weights::{IdentityFee, WeightToFeePolynomial},
 };
-use gear_core::{
-    identifiers::{CodeId, MessageId, ProgramId},
-    message::StoredDispatch,
-    program::Program as NativeProgram,
-};
 use gear_runtime_interface as gear_ri;
+use primitive_types::H256;
 use scale_info::TypeInfo;
 use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
+use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     prelude::*,
 };
 
-pub use storage_queue::{Iterator, StorageQueue};
+use gear_core::{
+    code::CheckedCode,
+    identifiers::{CodeId, MessageId, ProgramId},
+    message::StoredDispatch,
+    program::Program as NativeProgram,
+};
+
+pub use storage_queue::Iterator;
+pub use storage_queue::StorageQueue;
 
 pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
@@ -53,21 +58,78 @@ pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
+
 pub const GAS_VALUE_PREFIX: &[u8] = b"g::gas_tree";
 
-pub trait NativeAddress: Sized {
-    fn into_native(self) -> ProgramId;
-    fn from_native(val: ProgramId) -> Self;
+pub type ExitCode = i32;
+
+pub trait Origin: Sized {
+    fn into_origin(self) -> H256;
+    fn from_origin(val: H256) -> Self;
 }
 
-impl NativeAddress for sp_runtime::AccountId32 {
-    fn into_native(self) -> ProgramId {
-        let bytes: [u8; 32] = self.into();
-        bytes.into()
+impl Origin for u64 {
+    fn into_origin(self) -> H256 {
+        let mut result = H256::zero();
+        result[0..8].copy_from_slice(&self.to_le_bytes());
+        result
     }
 
-    fn from_native(v: ProgramId) -> Self {
-        sp_runtime::AccountId32::new(v.into())
+    fn from_origin(v: H256) -> Self {
+        // h256 -> u64 should not be used anywhere other than in tests!
+        let mut val = [0u8; 8];
+        val.copy_from_slice(&v[0..8]);
+        Self::from_le_bytes(val)
+    }
+}
+
+impl Origin for sp_runtime::AccountId32 {
+    fn into_origin(self) -> H256 {
+        H256::from(self.as_ref())
+    }
+
+    fn from_origin(v: H256) -> Self {
+        sp_runtime::AccountId32::unchecked_from(v)
+    }
+}
+
+impl Origin for H256 {
+    fn into_origin(self) -> H256 {
+        self
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val
+    }
+}
+
+impl Origin for MessageId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for ProgramId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for CodeId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
     }
 }
 
@@ -85,7 +147,7 @@ pub trait PaymentProvider<AccountId> {
     type Balance;
 
     fn withhold_reserved(
-        source: ProgramId,
+        source: H256,
         dest: &AccountId,
         amount: Self::Balance,
     ) -> Result<(), DispatchError>;
@@ -129,8 +191,11 @@ pub trait DAGBasedLedger {
         amount: Self::Balance,
     ) -> Result<Self::PositiveImbalance, DispatchError>;
 
-    /// Get value item by it's ID, if exists.
-    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::ExternalOrigin)>;
+    /// Get the external origin for a key, if the latter exists.
+    fn get_origin(key: Self::Key) -> Option<Self::ExternalOrigin>;
+
+    /// Get value item by it's ID, if exists, and the key of an ancestor that sets this limit.
+    fn get_limit(key: Self::Key) -> Option<(Self::Balance, Self::Key)>;
 
     /// Consume underlying value.
     ///
@@ -181,14 +246,13 @@ pub enum ProgramError {
 }
 
 impl Program {
-    pub fn try_into_native(self, id: ProgramId) -> Result<NativeProgram, ProgramError> {
+    pub fn try_into_native(self, id: H256) -> Result<NativeProgram, ProgramError> {
         let is_initialized = self.is_initialized();
         let program: ActiveProgram = self.try_into()?;
-        let code = crate::get_code(program.code_id).ok_or(ProgramError::CodeHashNotFound)?;
+        let code = crate::get_code(program.code_hash).ok_or(ProgramError::CodeHashNotFound)?;
         let native_program = NativeProgram::from_parts(
-            id,
+            ProgramId::from_origin(id),
             code,
-            program.static_pages,
             program.persistent_pages,
             is_initialized,
         );
@@ -239,7 +303,7 @@ impl TryFrom<Program> for ActiveProgram {
 pub struct ActiveProgram {
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
-    pub code_id: CodeId,
+    pub code_hash: H256,
     pub state: ProgramState,
 }
 
@@ -250,19 +314,19 @@ pub enum ProgramState {
     /// the program is not considered as initialized. All messages to such a
     /// program go to the wait list.
     /// `message_id` contains identifier of the initialization message.
-    Uninitialized { message_id: MessageId },
+    Uninitialized { message_id: H256 },
     /// Program has been successfully initialized and can process messages.
     Initialized,
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct CodeMetadata {
-    pub author: ProgramId,
+    pub author: H256,
     pub block_number: u32,
 }
 
 impl CodeMetadata {
-    pub fn new(author: ProgramId, block_number: u32) -> Self {
+    pub fn new(author: H256, block_number: u32) -> Self {
         CodeMetadata {
             author,
             block_number,
@@ -278,77 +342,81 @@ enum CodeKeyPrefixKind {
     CodeMetadata,
 }
 
-pub fn program_key(id: ProgramId) -> Vec<u8> {
+pub fn program_key(id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PREFIX);
-    key.extend_from_slice(id.as_ref());
+    id.encode_to(&mut key);
     key
 }
 
-fn code_key(code_id: CodeId, kind: CodeKeyPrefixKind) -> Vec<u8> {
+fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
         CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
         CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
     };
     // key's length is N bytes of code hash + M bytes of prefix
     // currently code hash is 32 bytes
-    let mut key = Vec::with_capacity(prefix.len() + code_id.as_ref().len());
+    let mut key = Vec::with_capacity(prefix.len() + code_hash.as_bytes().len());
     key.extend(prefix);
-    code_id.encode_to(&mut key);
+    code_hash.encode_to(&mut key);
     key
 }
 
-pub fn pages_prefix(program_id: ProgramId) -> Vec<u8> {
+pub fn pages_prefix(program_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_PAGES_PREFIX);
-    key.extend_from_slice(program_id.as_ref());
+    program_id.encode_to(&mut key);
 
     key
 }
 
-fn page_key(id: ProgramId, page: u32) -> Vec<u8> {
+fn page_key(id: H256, page: u32) -> Vec<u8> {
     let mut key = pages_prefix(id);
     key.extend(b"::");
-    key.extend_from_slice(&page.to_le_bytes());
-
+    page.encode_to(&mut key);
     key
 }
 
-pub fn wait_prefix(prog_id: ProgramId) -> Vec<u8> {
+pub fn wait_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
-    key.extend_from_slice(prog_id.as_ref());
+    prog_id.encode_to(&mut key);
     key.extend(b"::");
     key
 }
 
-pub fn wait_key(prog_id: ProgramId, msg_id: MessageId) -> Vec<u8> {
+pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     let mut key = wait_prefix(prog_id);
-    key.extend_from_slice(msg_id.as_ref());
+    msg_id.encode_to(&mut key);
     key
 }
 
-pub fn get_code(code_id: CodeId) -> Option<Vec<u8>> {
-    sp_io::storage::get(&code_key(code_id, CodeKeyPrefixKind::RawCode))
+pub fn get_code(code_hash: H256) -> Option<CheckedCode> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode)).map(|bytes| {
+        CheckedCode::decode(&mut &bytes[..]).expect("CheckedCode encoded correctly; qed")
+    })
 }
 
-pub fn set_code(code_id: CodeId, code: &[u8]) {
-    sp_io::storage::set(&code_key(code_id, CodeKeyPrefixKind::RawCode), code)
-}
-
-pub fn set_code_metadata(code_id: CodeId, metadata: CodeMetadata) {
+pub fn set_code(code_hash: H256, code: &CheckedCode) {
     sp_io::storage::set(
-        &code_key(code_id, CodeKeyPrefixKind::CodeMetadata),
+        &code_key(code_hash, CodeKeyPrefixKind::RawCode),
+        &code.encode(),
+    )
+}
+
+pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
+    sp_io::storage::set(
+        &code_key(code_hash, CodeKeyPrefixKind::CodeMetadata),
         &metadata.encode(),
     )
 }
 
-pub fn get_code_metadata(code_id: CodeId) -> Option<CodeMetadata> {
-    sp_io::storage::get(&code_key(code_id, CodeKeyPrefixKind::CodeMetadata))
+pub fn get_code_metadata(code_hash: H256) -> Option<CodeMetadata> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::CodeMetadata))
         .map(|data| CodeMetadata::decode(&mut &data[..]).expect("data encoded correctly"))
 }
 
-pub fn set_program_initialized(id: ProgramId) {
+pub fn set_program_initialized(id: H256) {
     if let Some(Program::Active(mut p)) = get_program(id) {
         if !matches!(p.state, ProgramState::Initialized) {
             p.state = ProgramState::Initialized;
@@ -357,7 +425,7 @@ pub fn set_program_initialized(id: ProgramId) {
     }
 }
 
-pub fn set_program_terminated_status(id: ProgramId) -> Result<(), ProgramError> {
+pub fn set_program_terminated_status(id: H256) -> Result<(), ProgramError> {
     if let Some(program) = get_program(id) {
         if program.is_terminated() {
             return Err(ProgramError::IsTerminated);
@@ -372,24 +440,24 @@ pub fn set_program_terminated_status(id: ProgramId) -> Result<(), ProgramError> 
     }
 }
 
-pub fn get_program(id: ProgramId) -> Option<Program> {
+pub fn get_program(id: H256) -> Option<Program> {
     sp_io::storage::get(&program_key(id))
         .map(|val| Program::decode(&mut &val[..]).expect("values encoded correctly"))
 }
 
 /// Returns mem page data from storage for program `id` and `page_idx`
-pub fn get_program_page_data(id: ProgramId, page_idx: u32) -> Option<Vec<u8>> {
+pub fn get_program_page_data(id: H256, page_idx: u32) -> Option<Vec<u8>> {
     let key = page_key(id, page_idx);
     sp_io::storage::get(&key)
 }
 
 /// Save page data key in storage
-pub fn save_page_lazy_info(id: ProgramId, page_num: u32) {
+pub fn save_page_lazy_info(id: H256, page_num: u32) {
     let key = page_key(id, page_num);
     gear_ri::gear_ri::save_page_lazy_info(page_num, &key);
 }
 
-pub fn get_program_pages(id: ProgramId, pages: BTreeSet<u32>) -> Option<BTreeMap<u32, Vec<u8>>> {
+pub fn get_program_pages(id: H256, pages: BTreeSet<u32>) -> Option<BTreeMap<u32, Vec<u8>>> {
     let mut persistent_pages = BTreeMap::new();
     for page_num in pages {
         let key = page_key(id, page_num);
@@ -399,11 +467,7 @@ pub fn get_program_pages(id: ProgramId, pages: BTreeSet<u32>) -> Option<BTreeMap
     Some(persistent_pages)
 }
 
-pub fn set_program(
-    id: ProgramId,
-    program: ActiveProgram,
-    persistent_pages: BTreeMap<u32, Vec<u8>>,
-) {
+pub fn set_program(id: H256, program: ActiveProgram, persistent_pages: BTreeMap<u32, Vec<u8>>) {
     for (page_num, page_buf) in persistent_pages {
         let key = page_key(id, page_num);
         sp_io::storage::set(&key, &page_buf);
@@ -411,7 +475,7 @@ pub fn set_program(
     sp_io::storage::set(&program_key(id), &Program::Active(program).encode())
 }
 
-pub fn program_exists(id: ProgramId) -> bool {
+pub fn program_exists(id: H256) -> bool {
     sp_io::storage::exists(&program_key(id))
 }
 
@@ -420,52 +484,45 @@ pub fn clear_dispatch_queue() {
 }
 
 pub fn dequeue_dispatch() -> Option<StoredDispatch> {
-    let mut dispatch_queue = StorageQueue::<MessageId, StoredDispatch>::get(STORAGE_MESSAGE_PREFIX);
+    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     dispatch_queue.dequeue()
 }
 
 pub fn queue_dispatch(dispatch: StoredDispatch) {
-    let mut dispatch_queue = StorageQueue::<MessageId, StoredDispatch>::get(STORAGE_MESSAGE_PREFIX);
-    dispatch_queue.queue(dispatch.id(), dispatch);
+    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
+    let id = dispatch.id();
+    dispatch_queue.queue(dispatch, id.into_origin());
 }
 
-pub fn dispatch_iter() -> Iterator<MessageId, StoredDispatch> {
-    StorageQueue::<MessageId, StoredDispatch>::get(STORAGE_MESSAGE_PREFIX).into_iter()
+pub fn dispatch_iter() -> Iterator<StoredDispatch> {
+    StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
 
-pub fn set_program_persistent_pages(id: ProgramId, persistent_pages: BTreeSet<u32>) {
+pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>) {
     if let Some(Program::Active(mut prog)) = get_program(id) {
         prog.persistent_pages = persistent_pages;
         sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
     }
 }
 
-pub fn set_program_page(program_id: ProgramId, page_num: u32, page_buf: Vec<u8>) {
+pub fn set_program_page(program_id: H256, page_num: u32, page_buf: Vec<u8>) {
     let page_key = page_key(program_id, page_num);
 
     sp_io::storage::set(&page_key, &page_buf);
 }
 
-pub fn remove_program_page(program_id: ProgramId, page_num: u32) {
+pub fn remove_program_page(program_id: H256, page_num: u32) {
     let page_key = page_key(program_id, page_num);
 
     sp_io::storage::clear(&page_key);
 }
 
-pub fn insert_waiting_message(
-    dest_prog_id: ProgramId,
-    msg_id: MessageId,
-    dispatch: StoredDispatch,
-    bn: u32,
-) {
+pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: StoredDispatch, bn: u32) {
     let payload = (dispatch, bn);
     sp_io::storage::set(&wait_key(dest_prog_id, msg_id), &payload.encode());
 }
 
-pub fn remove_waiting_message(
-    dest_prog_id: ProgramId,
-    msg_id: MessageId,
-) -> Option<(StoredDispatch, u32)> {
+pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(StoredDispatch, u32)> {
     let id = wait_key(dest_prog_id, msg_id);
     let msg = sp_io::storage::get(&id)
         .and_then(|val| <(StoredDispatch, u32)>::decode(&mut &val[..]).ok());
@@ -476,7 +533,7 @@ pub fn remove_waiting_message(
     msg
 }
 
-pub fn waiting_init_prefix(prog_id: ProgramId) -> Vec<u8> {
+pub fn waiting_init_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_PROGRAM_STATE_WAIT_PREFIX);
     prog_id.encode_to(&mut key);
@@ -484,7 +541,7 @@ pub fn waiting_init_prefix(prog_id: ProgramId) -> Vec<u8> {
     key
 }
 
-fn program_waitlist_prefix(prog_id: ProgramId) -> Vec<u8> {
+fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
     let mut key = Vec::new();
     key.extend(STORAGE_WAITLIST_PREFIX);
     prog_id.encode_to(&mut key);
@@ -492,7 +549,7 @@ fn program_waitlist_prefix(prog_id: ProgramId) -> Vec<u8> {
     key
 }
 
-pub fn remove_program_waitlist(prog_id: ProgramId) -> Vec<StoredDispatch> {
+pub fn remove_program_waitlist(prog_id: H256) -> Vec<StoredDispatch> {
     let key = program_waitlist_prefix(prog_id);
     let messages =
         sp_io::storage::get(&key).and_then(|v| Vec::<StoredDispatch>::decode(&mut &v[..]).ok());
@@ -501,22 +558,21 @@ pub fn remove_program_waitlist(prog_id: ProgramId) -> Vec<StoredDispatch> {
     messages.unwrap_or_default()
 }
 
-pub fn waiting_init_append_message_id(dest_prog_id: ProgramId, message_id: MessageId) {
+pub fn waiting_init_append_message_id(dest_prog_id: H256, message_id: H256) {
     let key = waiting_init_prefix(dest_prog_id);
     sp_io::storage::append(&key, message_id.encode());
 }
 
-pub fn waiting_init_take_messages(dest_prog_id: ProgramId) -> Vec<MessageId> {
+pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
     let key = waiting_init_prefix(dest_prog_id);
-    let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<MessageId>::decode(&mut &v[..]).ok());
+    let messages = sp_io::storage::get(&key).and_then(|v| Vec::<H256>::decode(&mut &v[..]).ok());
     sp_io::storage::clear(&key);
 
     messages.unwrap_or_default()
 }
 
-pub fn code_exists(code_id: CodeId) -> bool {
-    sp_io::storage::exists(&code_key(code_id, CodeKeyPrefixKind::RawCode))
+pub fn code_exists(code_hash: H256) -> bool {
+    sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
 }
 
 pub fn reset_storage() {
@@ -532,27 +588,30 @@ pub fn reset_storage() {
 mod tests {
     use super::*;
 
-    fn get_active_program(id: ProgramId) -> Option<ActiveProgram> {
+    fn get_active_program(id: H256) -> Option<ActiveProgram> {
         get_program(id).and_then(|p| p.try_into().ok())
     }
 
     #[test]
     fn program_decoded() {
         sp_io::TestExternalities::new_empty().execute_with(|| {
-            let code = b"pretended wasm code".to_vec();
-            let code_id = CodeId::generate(&code);
-            let program_id: ProgramId = 1.into();
+            let code =
+                hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
+            let code_id = CodeId::generate(&code).into_origin();
+            let code = CheckedCode::try_new(code.clone()).unwrap();
+
+            let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
                 static_pages: 256,
                 persistent_pages: Default::default(),
-                code_id,
+                code_hash: code_id,
                 state: ProgramState::Initialized,
             };
             set_code(code_id, &code);
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_active_program(program_id).unwrap(), program);
-            assert_eq!(get_code(program.code_id).unwrap(), code);
+            assert_eq!(get_code(program.code_hash).unwrap(), code);
         });
     }
 }

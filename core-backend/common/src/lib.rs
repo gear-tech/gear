@@ -66,13 +66,16 @@ pub struct ExtInfo {
 }
 
 pub trait IntoExtInfo {
-    fn into_ext_info<F: FnMut(usize, &mut [u8])>(self, get_page_data: F) -> ExtInfo;
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
+        self,
+        get_page_data: F,
+    ) -> Result<ExtInfo, (&'static str, GasAmount)>;
     fn into_gas_amount(self) -> GasAmount;
 }
 
 pub struct BackendReport<'a> {
     pub termination: TerminationReason<'a>,
-    pub wasm_memory_addr: usize,
+    pub wasm_memory_addr: u64,
     pub info: ExtInfo,
 }
 
@@ -99,9 +102,12 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn get_stack_mem_end(&mut self) -> Option<i32>;
 
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
-    fn get_wasm_memory_begin_addr(&mut self) -> usize;
+    fn get_wasm_memory_begin_addr(&mut self) -> u64;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// - IMPORTANT: env is in inconsistent state after execution.
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
+
+    /// Unset env ext and returns gas amount.
+    fn drop_env(&mut self) -> GasAmount;
 }

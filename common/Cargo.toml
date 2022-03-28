@@ -8,7 +8,8 @@ license = "GPL-3.0"
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
-log = "0.4.14"
+log = "0.4.16"
+primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
 
 # Internal deps
 gear-core = { path = "../core" }
@@ -27,7 +28,7 @@ gear-runtime-interface = { path = "../runtime-interface", default-features = fal
 parity-wasm = { version = "0.42.2", default-features = false, optional = true }
 
 [dev-dependencies]
-primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
+hex-literal = "0.3.3"
 
 [features]
 default = ["std"]
@@ -49,3 +50,4 @@ runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "parity-wasm",
 ]
+disable_lazy_pages = []

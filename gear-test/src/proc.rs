@@ -16,23 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::address::Address;
 use crate::check::ExecutionContext;
 use crate::js::{MetaData, MetaType};
 use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
+    code::CheckedCode,
     identifiers::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
     program::Program,
 };
 use regex::Regex;
-use sp_core::{crypto::Ss58Codec, hexdisplay::AsBytesRef, sr25519::Public};
-use sp_keyring::sr25519::Keyring;
 use std::{
     io::Error as IoError,
     io::ErrorKind as IoErrorKind,
-    str::FromStr,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -41,7 +40,6 @@ pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
-    let ss58_regex = Regex::new(r"\{(?P<id>[A-Za-z0-9]+)\}").unwrap();
 
     // Insert ProgramId
     let mut s = payload;
@@ -54,20 +52,7 @@ pub fn parse_payload(payload: String) -> String {
         let id = &caps["id"];
         s = s.replace(
             &caps[0],
-            &hex::encode(
-                ProgramId::from(Keyring::from_str(id).unwrap().to_h256_public().as_bytes())
-                    .as_ref(),
-            ),
-        );
-    }
-
-    while let Some(caps) = ss58_regex.captures(&s) {
-        let id = &caps["id"];
-        s = s.replace(
-            &caps[0],
-            &hex::encode(
-                ProgramId::from(Public::from_ss58check(id).unwrap().as_bytes_ref()).as_ref(),
-            ),
+            &hex::encode(Address::Account(id.to_string()).to_program_id().as_ref()),
         );
     }
 
@@ -99,7 +84,8 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let program = Program::new(message.id, message.code.clone())?;
+    let code = CheckedCode::try_new(message.code.clone())?;
+    let program = Program::new(message.id, code);
     let program_id = program.id();
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {

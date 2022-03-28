@@ -19,17 +19,18 @@
 //! Wasmtime extensions for memory.
 
 use crate::env::StoreData;
+use gear_core::env::Ext;
 use gear_core::memory::{Error, Memory, PageNumber};
 use wasmtime::StoreContextMut;
 
 /// Wrapper for wasmtime memory.
-pub struct MemoryWrap<'a> {
+pub struct MemoryWrap<'a, E: Ext> {
     pub mem: wasmtime::Memory,
-    pub store: StoreContextMut<'a, StoreData>,
+    pub store: StoreContextMut<'a, StoreData<E>>,
 }
 
 /// Memory interface for the allocator.
-impl<'a> Memory for MemoryWrap<'a> {
+impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
     fn grow(&mut self, pages: PageNumber) -> Result<PageNumber, Error> {
         self.mem
             .grow(&mut self.store, pages.raw() as u64)
@@ -47,17 +48,17 @@ impl<'a> Memory for MemoryWrap<'a> {
             .map_err(|_| Error::MemoryAccessError)
     }
 
-    fn read(&self, offset: usize, buffer: &mut [u8]) {
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error> {
         self.mem
             .read(&self.store, offset, buffer)
-            .expect("Memory out of bounds.")
+            .map_err(|_| Error::MemoryAccessError)
     }
 
     fn data_size(&self) -> usize {
         self.mem.data_size(&self.store)
     }
 
-    fn get_wasm_memory_begin_addr(&self) -> usize {
-        self.mem.data_ptr(&self.store) as usize
+    fn get_wasm_memory_begin_addr(&self) -> u64 {
+        self.mem.data_ptr(&self.store) as u64
     }
 }

@@ -170,7 +170,7 @@ impl pallet_authorship::Config for Test {
     type EventHandler = ();
 }
 
-type Extrinsic = TestXt<Call, ()>;
+pub(crate) type Extrinsic = TestXt<Call, ()>;
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
 where
@@ -262,7 +262,7 @@ pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
 pub(crate) fn set_program(program: Program) {
     let code_hash = CodeId::generate(program.code()).into_origin();
     if !common::code_exists(code_hash) {
-        common::set_code(code_hash, program.code());
+        common::set_code(code_hash, program.checked_code());
     }
     common::set_program(
         H256::from_slice(program.id().as_ref()),
@@ -287,4 +287,16 @@ pub(crate) fn set_program(program: Program) {
             })
             .collect(),
     );
+}
+
+pub(crate) fn decode_txs(pool: Arc<RwLock<PoolState>>) -> Vec<Extrinsic> {
+    pool.read()
+        .transactions
+        .iter()
+        .cloned()
+        .map(|bytes| {
+            let tx = Extrinsic::decode(&mut &bytes[..]).unwrap();
+            tx
+        })
+        .collect::<Vec<_>>()
 }

@@ -56,6 +56,5 @@ pub fn main() -> anyhow::Result<()> {
         opts.skip_memory,
         print_logs,
         InMemoryExtManager::default,
-        None,
     )
 }

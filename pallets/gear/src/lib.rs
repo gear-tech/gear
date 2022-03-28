@@ -75,9 +75,9 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{
+        code::{CheckedCode, CheckedCodeWithHash},
         identifiers::{CodeId, MessageId, ProgramId},
         message::*,
-        program::Program as NativeProgram,
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -355,12 +355,18 @@ pub mod pallet {
             let dispatch = match kind {
                 HandleKind::Init(ref code) => {
                     let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
-                    let program = NativeProgram::new(program_id, code.clone())
-                        .map_err(|_| b"Failed to construct the program".to_vec())?;
+                    let code = CheckedCode::try_new(code.clone())
+                        .map_err(|_| b"Program failed to load: {}".to_vec())?;
 
-                    let _ = Self::set_code_with_metadata(code, source);
+                    let checked_code_hash = CheckedCodeWithHash::new(code);
 
-                    ExtManager::<T>::default().set_program(program, root_message_id);
+                    let _ = Self::set_code_with_metadata(&checked_code_hash, source);
+
+                    ExtManager::<T>::default().set_program(
+                        program_id,
+                        checked_code_hash,
+                        root_message_id,
+                    );
 
                     Dispatch::new(
                         DispatchKind::Init,
@@ -533,8 +539,31 @@ pub mod pallet {
             }
             while let Some(dispatch) = common::dequeue_dispatch() {
                 // Update message gas limit for it may have changed in the meantime
-                let (gas_limit, origin) = T::GasHandler::get_limit(dispatch.id().into_origin())
-                    .expect("Should never fail if ValueNode works properly");
+
+                let msg_id = dispatch.id().into_origin();
+                let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
+                    limit
+                } else {
+                    log::debug!(
+                        target: "essential",
+                        "No gas handler for message: {:?} to {:?}",
+                        dispatch.id(),
+                        dispatch.destination(),
+                    );
+
+                    common::queue_dispatch(dispatch);
+
+                    // Since we requeue the message without GasHandler we have to take
+                    // into account that there can left only such messages in the queue.
+                    // So stop processing when there is not enough gas/weight.
+                    let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
+                    Self::decrease_gas_allowance(consumed);
+                    if Self::gas_allowance() < consumed {
+                        break;
+                    }
+
+                    continue;
+                };
 
                 log::debug!(
                     "Processing message: {:?} to {:?} / gas_limit: {}",
@@ -545,6 +574,11 @@ pub mod pallet {
 
                 // Check whether we have enough of gas allowed for message processing
                 if gas_limit > GasAllowance::<T>::get() {
+                    log::debug!(
+                        "Not enought gas for processing: gas_limit = {}, allowance = {}",
+                        gas_limit,
+                        GasAllowance::<T>::get(),
+                    );
                     common::queue_dispatch(dispatch);
                     break;
                 }
@@ -593,6 +627,8 @@ pub mod pallet {
                 };
 
                 let program_id = dispatch.destination();
+                let origin = <T as Config>::GasHandler::get_origin(msg_id)
+                    .expect("Gas node is guaranteed to exist for the key due to earlier checks");
 
                 let journal = core_processor::process::<
                     ext::LazyPagesExt,
@@ -634,23 +670,22 @@ pub mod pallet {
         ///
         /// # Note
         /// Code existence in storage means that metadata is there too.
-        fn set_code_with_metadata(code: &[u8], who: H256) -> Result<H256, Error<T>> {
-            let code_hash = CodeId::generate(code).into_origin();
-            // *Important*: checks before storage mutations!
-            ensure!(
-                !common::code_exists(code_hash),
-                Error::<T>::CodeAlreadyExists
-            );
+        fn set_code_with_metadata(
+            code_hash: &CheckedCodeWithHash,
+            who: H256,
+        ) -> Result<H256, Error<T>> {
+            let hash: H256 = code_hash.hash().into_origin();
+            ensure!(!common::code_exists(hash), Error::<T>::CodeAlreadyExists);
 
             let metadata = {
                 let block_number =
                     <frame_system::Pallet<T>>::block_number().unique_saturated_into();
                 CodeMetadata::new(who, block_number)
             };
-            common::set_code_metadata(code_hash, metadata);
-            common::set_code(code_hash, code);
+            common::set_code_metadata(hash, metadata);
+            common::set_code(hash, code_hash.code());
 
-            Ok(code_hash)
+            Ok(hash)
         }
     }
 
@@ -681,12 +716,14 @@ pub mod pallet {
         pub fn submit_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
 
-            NativeProgram::new(Default::default(), code.clone()).map_err(|e| {
+            let code = CheckedCode::try_new(code).map_err(|e| {
                 log::debug!("Program failed to load: {}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            let code_hash = Self::set_code_with_metadata(&code, who.into_origin())?;
+            let code_hash = CheckedCodeWithHash::new(code);
+
+            let code_hash = Self::set_code_with_metadata(&code_hash, who.into_origin())?;
 
             Self::deposit_event(Event::CodeSaved(code_hash));
 
@@ -757,18 +794,21 @@ pub mod pallet {
                 gas_limit,
                 value.unique_saturated_into(),
             );
-            let program_id = packet.destination();
 
-            // Make sure there is no program with such id in program storage
-            ensure!(
-                !GearProgramPallet::<T>::program_exists(program_id.into_origin()),
-                Error::<T>::ProgramAlreadyExists
-            );
-
-            let program = NativeProgram::new(program_id, code.clone()).map_err(|e| {
+            let code = CheckedCode::try_new(code).map_err(|e| {
                 log::debug!("Program failed to load: {}", e);
                 Error::<T>::FailedToConstructProgram
             })?;
+
+            let checked_code_hash = CheckedCodeWithHash::new(code);
+
+            let program_id = ProgramId::generate(checked_code_hash.hash(), packet.salt());
+            let id = program_id.into_origin();
+            // Make sure there is no program with such id in program storage
+            ensure!(
+                !GearProgramPallet::<T>::program_exists(id),
+                Error::<T>::ProgramAlreadyExists
+            );
 
             let reserve_fee = T::GasPrice::gas_price(gas_limit);
 
@@ -782,12 +822,12 @@ pub mod pallet {
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.
-            if let Ok(code_hash) = Self::set_code_with_metadata(&code, origin) {
+            if let Ok(code_hash) = Self::set_code_with_metadata(&checked_code_hash, origin) {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
             let message_id = Self::next_message_id(origin).into_origin();
-            ExtManager::<T>::default().set_program(program, message_id);
+            ExtManager::<T>::default().set_program(program_id, checked_code_hash, message_id);
 
             let _ =
                 T::GasHandler::create(origin, message_id, packet.gas_limit().expect("Can't fail"));

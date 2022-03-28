@@ -620,7 +620,6 @@ pub fn check_main<JH, E, F>(
     skip_memory: bool,
     print_logs: bool,
     storage_factory: F,
-    ext: Option<Box<dyn Fn() -> sp_io::TestExternalities + Send + Sync + 'static>>,
 ) -> anyhow::Result<()>
 where
     JH: JournalHandler + CollectState + ExecutionContext,
@@ -662,33 +661,17 @@ where
                     .unwrap()
                     .insert(thread::current().id(), Vec::new());
 
-                let output = if let Some(test_ext) = &ext {
-                    test_ext().execute_with(|| {
-                        let storage = storage_factory();
-                        run_fixture::<JH, E>(
-                            storage,
-                            test,
-                            fixture_no,
-                            &progs_n_paths,
-                            &total_failed,
-                            skip_messages,
-                            skip_allocations,
-                            skip_memory,
-                        )
-                    })
-                } else {
-                    let storage = storage_factory();
-                    run_fixture::<JH, E>(
-                        storage,
-                        test,
-                        fixture_no,
-                        &progs_n_paths,
-                        &total_failed,
-                        skip_messages,
-                        skip_allocations,
-                        skip_memory,
-                    )
-                };
+                let storage = storage_factory();
+                let output = run_fixture::<JH, E>(
+                    storage,
+                    test,
+                    fixture_no,
+                    &progs_n_paths,
+                    &total_failed,
+                    skip_messages,
+                    skip_allocations,
+                    skip_memory,
+                );
                 if output != "Ok".bright_green() {
                     map.read()
                         .unwrap()

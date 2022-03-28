@@ -157,7 +157,16 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Default::default(),
     );
 
-    let lazy_pages_enabled = ext.try_to_enable_lazy_pages(program_id, initial_pages);
+    let lazy_pages_enabled = match ext.try_to_enable_lazy_pages(program_id, initial_pages) {
+        Ok(enabled) => enabled,
+        Err(e) => {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: ext.into_gas_amount(),
+                reason: e,
+            })
+        }
+    };
 
     let mut env = E::new(ext, &instrumented_code, initial_pages, mem_size).map_err(|err| {
         log::error!("Setup instance err = {:?}", err);
@@ -177,7 +186,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     );
 
     if lazy_pages_enabled {
-        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr());
+        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr())
+            .map_err(|e| ExecutionError {
+                program_id,
+                gas_amount: env.drop_env(),
+                reason: e,
+            })?;
     }
 
     // Page which is right after stack last page
@@ -204,7 +218,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     if lazy_pages_enabled {
         // accessed lazy pages old data will be added to `initial_pages`
-        A::post_execution_actions(initial_pages, wasm_memory_addr);
+        A::post_execution_actions(initial_pages, wasm_memory_addr).map_err(|e| ExecutionError {
+            program_id,
+            gas_amount: info.gas_amount.clone(),
+            reason: e,
+        })?;
     }
 
     // Parsing outcome.
@@ -240,10 +258,11 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
-            log::debug!("page = {}", page.raw());
-            let old_data = initial_data
-                .as_ref()
-                .expect("Must have data for all accessed pages");
+            let old_data = initial_data.as_ref().ok_or_else(|| ExecutionError {
+                program_id,
+                gas_amount: info.gas_amount.clone(),
+                reason: "RUNTIME ERROR: changed page has no data in initial pages",
+            })?;
             if !new_data.eq(old_data.as_ref()) {
                 page_update.insert(page, Some(new_data));
                 log::trace!(
