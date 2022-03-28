@@ -1234,7 +1234,7 @@ fn test_code_is_not_resetted_within_program_submission() {
 
 #[test]
 fn messages_to_uninitialized_program_wait() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1275,7 +1275,7 @@ fn messages_to_uninitialized_program_wait() {
 
 #[test]
 fn uninitialized_program_should_accept_replies() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1326,7 +1326,7 @@ fn uninitialized_program_should_accept_replies() {
 
 #[test]
 fn defer_program_initialization() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -1390,7 +1390,7 @@ fn defer_program_initialization() {
 
 #[test]
 fn wake_messages_after_program_inited() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2049,7 +2049,7 @@ fn exit_handle() {
 
 #[test]
 fn paused_program_keeps_id() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2090,7 +2090,7 @@ fn paused_program_keeps_id() {
 
 #[test]
 fn messages_to_paused_program_skipped() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2130,7 +2130,7 @@ fn messages_to_paused_program_skipped() {
 
 #[test]
 fn replies_to_paused_program_skipped() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
@@ -2178,7 +2178,7 @@ fn replies_to_paused_program_skipped() {
 
 #[test]
 fn program_messages_to_paused_program_skipped() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
     use tests_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
 
     init_logger();
@@ -2239,7 +2239,7 @@ fn program_messages_to_paused_program_skipped() {
 
 #[test]
 fn resume_program_works() {
-    use tests_init_wait::WASM_BINARY;
+    use demo_init_wait::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
