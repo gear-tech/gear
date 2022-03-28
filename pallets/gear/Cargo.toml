@@ -49,7 +49,7 @@ wabt = "0.10"
 gear-core = { path = "../../core" }
 hex-literal = "0.3.4"
 demo-btree = { path = "../../examples/binaries/btree" }
-tests-distributor = { path = "../../tests/distributor" }
+demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
 tests-exit-init = { path = "../../tests/exit-init" }
 tests-exit-handle = { path = "../../tests/exit-handle" }

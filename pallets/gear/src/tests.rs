@@ -23,7 +23,7 @@ use frame_system::Pallet as SystemPallet;
 use gear_core::checked_code::CheckedCode;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
-use tests_distributor::{Request, WASM_BINARY};
+use demo_distributor::{Request, WASM_BINARY};
 use tests_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
 use super::{
