@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::program::ProgramId;
+use primitive_types::H256;
 use serde::{Deserialize, Deserializer, Serialize};
-use sp_core::H256;
 use sp_keyring::sr25519::Keyring;
 use std::str::FromStr;
 
