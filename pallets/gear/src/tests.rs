@@ -2179,7 +2179,7 @@ fn replies_to_paused_program_skipped() {
 #[test]
 fn program_messages_to_paused_program_skipped() {
     use demo_init_wait::WASM_BINARY;
-    use tests_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
+    use demo_proxy::{InputArgs, WASM_BINARY as PROXY_WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {

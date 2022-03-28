@@ -1300,6 +1300,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-proxy"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4399,6 +4409,7 @@ dependencies = [
  "demo-exit-init",
  "demo-init-wait",
  "demo-program-factory",
+ "demo-proxy",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
@@ -4426,7 +4437,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tests-proxy",
  "wabt",
 ]
 
@@ -7719,16 +7729,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dfed899f0eb03f32ee8c6a0aabdb8a7949659e3466561fc0adf54e26d88c5f4"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "tests-proxy"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
