@@ -53,7 +53,7 @@ demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
 demo-exit-init = { path = "../../examples/binaries/exit-init" }
 demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
-tests-program-factory = { path = "../../tests/program-factory" }
+demo-program-factory = { path = "../../examples/binaries/program-factory" }
 tests-proxy = { path = "../../tests/proxy" }
 
 [features]
