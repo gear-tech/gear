@@ -20,8 +20,7 @@
 
 use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
-    TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -228,21 +227,31 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                         self.memory
                             .read(&mut self.store, offset, buffer)
-                            .expect("Must can be read");
-                    }),
+                            .map_err(|_| "Cannot read wasmtime memory")
+                    })
+                    .map_err(|(reason, gas_amount)| BackendError {
+                        reason,
+                        description: None,
+                        gas_amount,
+                    })?,
             });
         };
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let info: ExtInfo = self
+        let info = self
             .ext
             .unset()
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                 self.memory
                     .read(&mut self.store, offset, buffer)
-                    .expect("Must can be read");
-            });
+                    .map_err(|_| "Cannot read wasmtime memory")
+            })
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason,
+                description: None,
+                gas_amount,
+            })?;
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(trap) = e.downcast_ref::<Trap>() {

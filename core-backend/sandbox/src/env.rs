@@ -21,8 +21,7 @@
 use crate::memory::MemoryWrap;
 use alloc::{boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
-    TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -177,9 +176,21 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
 
         log::debug!("execution res = {:?}", res);
 
-        let info: ExtInfo = self.runtime.ext.unset().into_ext_info(|ptr, buff| {
-            self.runtime.memory.read(ptr, buff);
-        });
+        let info = self
+            .runtime
+            .ext
+            .unset()
+            .into_ext_info(|ptr, buff| {
+                self.runtime
+                    .memory
+                    .read(ptr, buff)
+                    .map_err(|_err| "Cannot read sandbox mem")
+            })
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason,
+                description: None,
+                gas_amount,
+            })?;
 
         let termination = if res.is_err() {
             let reason = if let Some(trap) = self.runtime.trap {

@@ -103,7 +103,7 @@ pub trait Memory {
     fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
 
     /// Reads memory contents at the given offset into a buffer.
-    fn read(&self, offset: usize, buffer: &mut [u8]);
+    fn read(&self, offset: usize, buffer: &mut [u8]) -> Result<(), Error>;
 
     /// Returns the byte length of this memory.
     fn data_size(&self) -> usize;
