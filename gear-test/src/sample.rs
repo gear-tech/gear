@@ -76,13 +76,6 @@ pub struct Code {
     pub path: String,
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-
->>>>>>> Added track of terminated programs into state. Update gear-test active or terminated check
-=======
->>>>>>> pre-commit corrections
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ChainProgram {
     #[serde(flatten)]

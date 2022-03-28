@@ -21,12 +21,13 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program};
+use common::{DAGBasedLedger, GasPrice, Origin, Program, STORAGE_PROGRAM_PREFIX};
 use core_processor::common::{
-    DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
+    CollectState, DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler, State,
 };
-use frame_support::traits::{
-    BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
+use frame_support::{
+    storage::PrefixIterator,
+    traits::{BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency},
 };
 use gear_core::{
     code::Code,
@@ -40,7 +41,11 @@ use sp_runtime::{
     traits::{UniqueSaturatedInto, Zero},
     SaturatedConversion,
 };
-use sp_std::{collections::btree_set::BTreeSet, marker::PhantomData, prelude::*};
+use sp_std::{
+    collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    marker::PhantomData,
+    prelude::*,
+};
 
 pub struct ExtManager<T: Config> {
     // Messages with these destinations will be forcibly pushed to the queue.
