@@ -37,4 +37,4 @@ members = [
 ]
 
 [patch.crates-io]
-ring = { git = "https://github.com/gear-tech/ring.git", branch = "v0.16.20-fix-nightly" }
+ring = { git = "https://github.com/gear-tech/ring.git", branch = "v0.16.20-fix-nightly-pregenerated" }
