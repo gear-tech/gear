@@ -1280,6 +1280,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-node"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7702,16 +7712,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tests-node"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
-]
-
-[[package]]
 name = "tests-program-factory"
 version = "0.1.0"
 dependencies = [
@@ -7729,16 +7729,6 @@ dependencies = [
  "gstd",
  "parity-scale-codec",
  "scale-info",
-]
-
-[[package]]
-name = "tests-wait-wake"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "parity-scale-codec",
 ]
 
 [[package]]
