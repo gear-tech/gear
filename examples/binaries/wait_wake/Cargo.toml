@@ -1,19 +1,20 @@
 [package]
-name = "tests-wait-wake"
+name = "demo-wait-wake"
 version = "0.1.0"
 authors = ["Gear Technologies"]
 edition = "2018"
 license = "GPL-3.0"
+workspace = "../../../"
 
 [dependencies]
-gstd = { path = "../../gstd", features = ["debug"] }
+gstd = { path = "../../../gstd", features = ["debug"] }
 codec = { package = "parity-scale-codec", version = "2", default-features = false, features = ["derive"] }
 
 [build-dependencies]
-gear-wasm-builder = { path = "../../utils/wasm-builder" }
+gear-wasm-builder = { path = "../../../utils/wasm-builder" }
 
 [dev-dependencies]
-gtest = { path = "../../gtest" }
+gtest = { path = "../../../gtest" }
 
 [lib]
 
