@@ -5442,7 +5442,7 @@ checksum = "51dd4445360338dab5116712bee1388dc727991d51969558a8882ab552e6db30"
 [[package]]
 name = "ring"
 version = "0.16.20"
-source = "git+https://github.com/gear-tech/ring.git?branch=v0.16.20-fix-nightly#8961406c848d240cacc1d38ee708c81b45655373"
+source = "git+https://github.com/gear-tech/ring.git?branch=v0.16.20-fix-nightly-pregenerated#44e94bb8ba66666992cae013f99341d25df5ba4b"
 dependencies = [
  "cc",
  "libc",
