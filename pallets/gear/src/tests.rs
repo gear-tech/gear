@@ -18,13 +18,13 @@
 
 use codec::Encode;
 use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
+use demo_distributor::{Request, WASM_BINARY};
+use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
 use gear_core::checked_code::CheckedCode;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
-use demo_distributor::{Request, WASM_BINARY};
-use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
 use super::{
     manager::HandleKind,
