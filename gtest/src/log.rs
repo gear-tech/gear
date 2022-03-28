@@ -199,7 +199,7 @@ impl RunResult {
         self.others_failed
     }
 
-    pub fn message_id(&self) -> MessageId {
+    pub fn sent_message_id(&self) -> MessageId {
         self.message_id
     }
 

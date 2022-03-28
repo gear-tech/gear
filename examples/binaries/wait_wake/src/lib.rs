@@ -104,12 +104,12 @@ mod tests {
 
         let msg_1_echo_wait = 100;
         let res = program.send(from, Request::EchoWait(msg_1_echo_wait));
-        let msg_id_1 = res.message_id();
+        let msg_id_1 = res.sent_message_id();
         assert!(res.log().is_empty());
 
         let msg_2_echo_wait = 200;
         let res = program.send(from, Request::EchoWait(msg_2_echo_wait));
-        let msg_id_2 = res.message_id();
+        let msg_id_2 = res.sent_message_id();
         assert!(res.log().is_empty());
 
         let res = program.send(
@@ -148,12 +148,12 @@ mod tests {
 
         let msg_1_echo_wait = 100;
         let res = program_1.send(from, Request::EchoWait(msg_1_echo_wait));
-        let msg_id_1 = res.message_id();
+        let msg_id_1 = res.sent_message_id();
         assert!(res.log().is_empty());
 
         let msg_2_echo_wait = 200;
         let res = program_2.send(from, Request::EchoWait(msg_2_echo_wait));
-        let msg_id_2 = res.message_id();
+        let msg_id_2 = res.sent_message_id();
         assert!(res.log().is_empty());
 
         // try to wake other messages
