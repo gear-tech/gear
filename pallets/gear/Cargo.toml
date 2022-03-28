@@ -52,7 +52,7 @@ demo-btree = { path = "../../examples/binaries/btree" }
 demo-distributor = { path = "../../examples/binaries/distributor" }
 demo-init-wait = { path = "../../examples/binaries/init-wait" }
 tests-exit-init = { path = "../../tests/exit-init" }
-tests-exit-handle = { path = "../../tests/exit-handle" }
+demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
 tests-program-factory = { path = "../../tests/program-factory" }
 tests-proxy = { path = "../../tests/proxy" }
 

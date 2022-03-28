@@ -1986,7 +1986,7 @@ fn test_create_program_miscellaneous() {
 
 #[test]
 fn exit_handle() {
-    use tests_exit_handle::WASM_BINARY;
+    use demo_exit_handle::WASM_BINARY;
 
     init_logger();
     new_test_ext().execute_with(|| {
