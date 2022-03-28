@@ -1,12 +1,12 @@
 use crate::{
     log::RunResult,
-    manager::{Actor, ExtManager, Program as InnerProgram},
+    manager::{ExtManager, Program as InnerProgram},
     system::System,
 };
 use codec::Codec;
 use gear_core::{
     message::{Message, MessageId},
-    program::{CheckedCode, Program as CoreProgram, ProgramId},
+    program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
 };
 use path_clean::PathClean;
 use std::{
@@ -89,8 +89,7 @@ impl<'a> Program<'a> {
         if system
             .0
             .borrow_mut()
-            .actors
-            .insert(program_id, (Actor::new(program), 0))
+            .store_new_actor(program_id, program, None)
             .is_some()
         {
             panic!(
@@ -220,6 +219,10 @@ impl<'a> Program<'a> {
     pub fn id(&self) -> ProgramId {
         self.id
     }
+}
+
+pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
+    ProgramId::generate(code_hash, salt)
 }
 
 #[cfg(test)]

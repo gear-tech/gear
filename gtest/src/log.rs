@@ -177,6 +177,7 @@ pub struct RunResult {
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
     pub(crate) message_id: MessageId,
+    pub(crate) total_processed: u32,
 }
 
 impl RunResult {
@@ -200,6 +201,10 @@ impl RunResult {
 
     pub fn message_id(&self) -> MessageId {
         self.message_id
+    }
+
+    pub fn total_processed(&self) -> u32 {
+        self.total_processed
     }
 
     pub fn decoded_log<T: Codec + Debug>(&self) -> Vec<DecodedCoreLog<T>> {

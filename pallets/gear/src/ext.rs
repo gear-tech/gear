@@ -140,25 +140,25 @@ impl ProcessorExt for LazyPagesExt {
     fn protect_pages_and_init_info(
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         prog_id: ProgramId,
-        wasm_mem_begin_addr: usize,
+        wasm_mem_begin_addr: u64,
     ) -> Result<(), &'static str> {
         lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr)
     }
 
     fn post_execution_actions(
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        wasm_mem_begin_addr: usize,
+        wasm_mem_begin_addr: u64,
     ) -> Result<(), &'static str> {
         lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
     }
 
-    fn remove_lazy_pages_prot(mem_addr: usize) -> Result<(), &'static str> {
+    fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), &'static str> {
         lazy_pages::remove_lazy_pages_prot(mem_addr)
     }
 
     fn protect_lazy_pages_and_update_wasm_mem_addr(
-        old_mem_addr: usize,
-        new_mem_addr: usize,
+        old_mem_addr: u64,
+        new_mem_addr: u64,
     ) -> Result<(), &'static str> {
         lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)
     }

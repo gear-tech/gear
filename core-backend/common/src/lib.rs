@@ -77,7 +77,7 @@ pub trait IntoExtInfo {
 
 pub struct BackendReport<'a> {
     pub termination: TerminationReason<'a>,
-    pub wasm_memory_addr: usize,
+    pub wasm_memory_addr: u64,
     pub info: ExtInfo,
 }
 
@@ -104,7 +104,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     fn get_stack_mem_end(&mut self) -> Option<i32>;
 
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
-    fn get_wasm_memory_begin_addr(&mut self) -> usize;
+    fn get_wasm_memory_begin_addr(&mut self) -> u64;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// - IMPORTANT: env is in inconsistent state after execution.
