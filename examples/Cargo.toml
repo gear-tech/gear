@@ -41,6 +41,10 @@ members = [
     "token-vendor/workshop-example",
 ]
 
+exclude = [
+    "binaries/*"
+]
+
 [profile.release]
 lto = true
 opt-level = 's'

@@ -28,9 +28,9 @@ fixtures:
           - kind: id
             value: 1
 
-          - kind: ss58
-            # computed manually new program address
-            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - &address
+            kind: h256
+            value: ad3871c402b2b86cd0d85a1e077de016a69d6b92d5d03c04974dec4a3aeb6b9d
 
   - title: Try to re-init existing program
 
@@ -61,9 +61,7 @@ fixtures:
             payload:
               kind: utf-8
               value: duplicate
-          - destination: &address
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination: *address
             init: true
             payload:
               kind: utf-8
@@ -75,13 +73,9 @@ fixtures:
         programs:
           - kind: id
             value: 1
-          - kind: ss58
-            # computed manually new program address
-            value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - *address
         messages:
-          - destination: 
-              kind: ss58
-              value: 5Fypuf8SCGzqtJy91VJqb17WgUbgVTC6k3Vb4yfj3VBj2at1
+          - destination:  *address
             init: true
             payload:
               kind: utf-8

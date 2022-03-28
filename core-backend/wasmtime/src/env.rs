@@ -20,8 +20,7 @@
 
 use alloc::{boxed::Box, collections::BTreeMap, format, string::ToString, vec::Vec};
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, ExtInfo, IntoExtInfo,
-    TerminationReason,
+    funcs as common_funcs, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -207,8 +206,8 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         global.get(&mut self.store).i32()
     }
 
-    fn get_wasm_memory_begin_addr(&mut self) -> usize {
-        self.memory.data_ptr(&mut self.store) as usize
+    fn get_wasm_memory_begin_addr(&mut self) -> u64 {
+        self.memory.data_ptr(&mut self.store) as u64
     }
 
     fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
@@ -221,28 +220,38 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             // Entry function not found, so we mean this as empty function
             return Ok(BackendReport {
                 termination: TerminationReason::Success,
-                wasm_memory_addr: self.memory.data_ptr(&self.store) as usize,
+                wasm_memory_addr: self.get_wasm_memory_begin_addr(),
                 info: self
                     .ext
                     .unset()
                     .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                         self.memory
                             .read(&mut self.store, offset, buffer)
-                            .expect("Must can be read");
-                    }),
+                            .map_err(|_| "Cannot read wasmtime memory")
+                    })
+                    .map_err(|(reason, gas_amount)| BackendError {
+                        reason,
+                        description: None,
+                        gas_amount,
+                    })?,
             });
         };
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let info: ExtInfo = self
+        let info = self
             .ext
             .unset()
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
                 self.memory
                     .read(&mut self.store, offset, buffer)
-                    .expect("Must can be read");
-            });
+                    .map_err(|_| "Cannot read wasmtime memory")
+            })
+            .map_err(|(reason, gas_amount)| BackendError {
+                reason,
+                description: None,
+                gas_amount,
+            })?;
 
         let termination = if let Err(e) = &res {
             let reason = if let Some(trap) = e.downcast_ref::<Trap>() {
@@ -269,11 +278,9 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             TerminationReason::Success
         };
 
-        let wasm_memory_addr = self.memory.data_ptr(&self.store) as usize;
-
         Ok(BackendReport {
             termination,
-            wasm_memory_addr,
+            wasm_memory_addr: self.get_wasm_memory_begin_addr(),
             info,
         })
     }

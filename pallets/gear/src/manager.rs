@@ -497,8 +497,6 @@ where
     }
 
     fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
-        // let code_hash = code_hash.inner().into();
-
         if let Some(code) = common::get_code(code_hash.inner().into()) {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {

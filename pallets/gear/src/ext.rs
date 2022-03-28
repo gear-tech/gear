@@ -24,7 +24,7 @@ use core_processor::{
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{GasCounter, ValueCounter},
+    gas::{GasAmount, GasCounter, ValueCounter},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::{MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
     program::{CodeHash, ProgramId},
@@ -38,10 +38,10 @@ pub struct LazyPagesExt {
 }
 
 impl IntoExtInfo for LazyPagesExt {
-    fn into_ext_info<F: FnMut(usize, &mut [u8])>(
+    fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
         self,
         mut get_page_data: F,
-    ) -> gear_backend_common::ExtInfo {
+    ) -> Result<ExtInfo, (&'static str, GasAmount)> {
         let mut accessed_pages_numbers = self.inner.allocations_context.allocations().clone();
 
         // accessed pages are all pages except current lazy pages
@@ -57,7 +57,9 @@ impl IntoExtInfo for LazyPagesExt {
         let mut accessed_pages = BTreeMap::new();
         for page in accessed_pages_numbers {
             let mut buf = vec![0u8; PageNumber::size()];
-            get_page_data(page.offset(), &mut buf);
+            if let Err(err) = get_page_data(page.offset(), &mut buf) {
+                return Err((err, self.into_gas_amount()));
+            }
             accessed_pages.insert(page, buf);
         }
 
@@ -73,7 +75,7 @@ impl IntoExtInfo for LazyPagesExt {
             store,
         ) = self.inner.message_context.drain();
 
-        ExtInfo {
+        Ok(ExtInfo {
             gas_amount: self.inner.gas_counter.into(),
             pages: self.inner.allocations_context.allocations().clone(),
             accessed_pages,
@@ -86,7 +88,7 @@ impl IntoExtInfo for LazyPagesExt {
             exit_argument: self.inner.exit_argument,
             init_messages,
             program_candidates_data: self.inner.program_candidates_data,
-        }
+        })
     }
 
     fn into_gas_amount(self) -> gear_core::gas::GasAmount {
@@ -140,25 +142,25 @@ impl ProcessorExt for LazyPagesExt {
     fn protect_pages_and_init_info(
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         prog_id: ProgramId,
-        wasm_mem_begin_addr: usize,
+        wasm_mem_begin_addr: u64,
     ) -> Result<(), &'static str> {
         lazy_pages::protect_pages_and_init_info(memory_pages, prog_id, wasm_mem_begin_addr)
     }
 
     fn post_execution_actions(
         memory_pages: &mut BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        wasm_mem_begin_addr: usize,
+        wasm_mem_begin_addr: u64,
     ) -> Result<(), &'static str> {
         lazy_pages::post_execution_actions(memory_pages, wasm_mem_begin_addr)
     }
 
-    fn remove_lazy_pages_prot(mem_addr: usize) -> Result<(), &'static str> {
+    fn remove_lazy_pages_prot(mem_addr: u64) -> Result<(), &'static str> {
         lazy_pages::remove_lazy_pages_prot(mem_addr)
     }
 
     fn protect_lazy_pages_and_update_wasm_mem_addr(
-        old_mem_addr: usize,
-        new_mem_addr: usize,
+        old_mem_addr: u64,
+        new_mem_addr: u64,
     ) -> Result<(), &'static str> {
         lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)
     }

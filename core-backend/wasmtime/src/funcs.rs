@@ -128,7 +128,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             ext.with_fallible(|ext: &mut E| -> Result<(), &'static str> {
                 let mut data = vec![0u8; str_len];
                 let mem = get_caller_memory(&mut caller, &mem);
-                mem.read(str_ptr, &mut data);
+                mem.read(str_ptr, &mut data)
+                    .map_err(|_| "Cannot read memory")?;
                 match String::from_utf8(data) {
                     Ok(s) => ext.debug(&s),
                     Err(_) => Err("Failed to parse debug string"),
@@ -166,7 +167,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                     let value_dest: ProgramId = get_bytes32(
                         &get_caller_memory(&mut caller, &mem),
                         program_id_ptr as u32 as _,
-                    )
+                    )?
                     .into();
                     ext.exit(value_dest)
                 })
@@ -234,8 +235,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize);
-                let value = get_u128(&mem_wrap, value_ptr as usize);
+                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
+                let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let message_id = ext.reply(ReplyPacket::new(0, payload.into(), value))?;
                 write_to_caller_memory(
                     &mut caller,
@@ -257,7 +258,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let ext = caller.data().ext.clone();
                 ext.with(|ext: &mut E| -> Result<(), String> {
                     let mem_wrap = get_caller_memory(&mut caller, &mem);
-                    let value = get_u128(&mem_wrap, value_ptr as usize);
+                    let value = get_u128(&mem_wrap, value_ptr as usize)?;
                     let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
                     write_to_caller_memory(
                         &mut caller,
@@ -279,7 +280,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let ext = caller.data().ext.clone();
                 ext.with(|ext: &mut E| {
                     let mem_wrap = get_caller_memory(&mut caller, &mem);
-                    let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize);
+                    let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                     ext.reply_push(&payload)
                 })
                 .map_err(Trap::new)?
@@ -312,9 +313,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize).into();
-                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize);
-                let value = get_u128(&mem_wrap, value_ptr as usize);
+                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
+                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
+                let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let message_id =
                     ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
                 write_to_caller_memory(
@@ -342,9 +343,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize).into();
-                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize);
-                let value = get_u128(&mem_wrap, value_ptr as usize);
+                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
+                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
+                let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let message_id = ext.send(OutgoingPacket::new(
                     dest,
                     payload.into(),
@@ -374,8 +375,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize).into();
-                let value = get_u128(&mem_wrap, value_ptr as usize);
+                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
+                let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let message_id = ext.send_commit(
                     handle_ptr as _,
                     OutgoingPacket::new(dest, vec![].into(), None, value),
@@ -404,8 +405,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize).into();
-                let value = get_u128(&mem_wrap, value_ptr as usize);
+                let dest: ProgramId = get_bytes32(&mem_wrap, program_id_ptr as usize)?.into();
+                let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let message_id = ext.send_commit(
                     handle_ptr as _,
                     OutgoingPacket::new(dest, vec![].into(), Some(gas_limit as _), value),
@@ -444,7 +445,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize);
+                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 ext.send_push(handle_ptr as _, &payload)
             })
             .map_err(Trap::new)?
@@ -467,10 +468,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let code_hash = get_bytes32(&mem_wrap, code_hash_ptr as usize);
-                let salt = get_vec(&mem_wrap, salt_ptr as usize, salt_len as usize);
-                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize);
-                let value = get_u128(&mem_wrap, value_ptr as usize);
+                let code_hash = get_bytes32(&mem_wrap, code_hash_ptr as usize)?;
+                let salt = get_vec(&mem_wrap, salt_ptr as usize, salt_len as usize)?;
+                let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
+                let value = get_u128(&mem_wrap, value_ptr as usize)?;
                 let new_actor_id = ext.create_program(ProgramInitPacket::new(
                     code_hash.into(),
                     salt,
@@ -531,8 +532,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);
-                set_u128(&mut mem_wrap, value_ptr as usize, ext.value());
-                Ok(())
+                set_u128(&mut mem_wrap, value_ptr as usize, ext.value())
+                    .map_err(|e| format!("Cannot set u128: {:?}", e))
             })
             .map_err(Trap::new)?
             .map_err(Trap::new)
@@ -545,8 +546,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| -> Result<(), String> {
                 let mut mem_wrap = get_caller_memory(&mut caller, &mem);
-                set_u128(&mut mem_wrap, value_ptr as usize, ext.value_available());
-                Ok(())
+                set_u128(&mut mem_wrap, value_ptr as usize, ext.value_available())
+                    .map_err(|e| format!("Cannot set u128: {:?}", e))
             })
             .map_err(Trap::new)?
             .map_err(Trap::new)
@@ -579,7 +580,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             ext.with(|ext: &mut E| {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let waker_id: MessageId = get_bytes32(&mem_wrap, waker_id_ptr as usize).into();
+                let waker_id: MessageId = get_bytes32(&mem_wrap, waker_id_ptr as usize)?.into();
                 ext.wake(waker_id)
             })
             .map_err(Trap::new)?
