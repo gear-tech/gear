@@ -25,7 +25,7 @@ use core::{cell::RefCell, fmt};
 use scale_info::TypeInfo;
 
 /// Message payload.
-#[derive(Clone, Debug, Decode, Default, TypeInfo, derive_more::From, PartialEq, Eq)]
+#[derive(Clone, Debug, Decode, Encode, Default, TypeInfo, derive_more::From, PartialEq, Eq)]
 pub struct Payload(Vec<u8>);
 
 impl Payload {
@@ -39,12 +39,6 @@ impl core::convert::AsRef<[u8]> for Payload {
     /// Raw bytes as reference.
     fn as_ref(&self) -> &[u8] {
         &self.0[..]
-    }
-}
-
-impl Encode for Payload {
-    fn encode(&self) -> Vec<u8> {
-        self.0.clone()
     }
 }
 

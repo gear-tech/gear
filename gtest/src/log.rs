@@ -156,25 +156,17 @@ impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
 
 impl PartialEq<Message> for Log {
     fn eq(&self, other: &Message) -> bool {
-        if let Some(reply) = other.reply {
-            if reply.1 != self.exit_code {
-                return false;
-            }
+        if matches!(other.reply, Some(reply) if reply.1 != self.exit_code) {
+            return false;
         }
-        if let Some(source) = self.source {
-            if source != other.source {
-                return false;
-            }
+        if matches!(self.source, Some(source) if source != other.source) {
+            return false;
         }
-        if let Some(dest) = self.dest {
-            if dest != other.dest {
-                return false;
-            }
+        if matches!( self.dest, Some(dest) if dest != other.dest) {
+            return false;
         }
-        if let Some(payload) = &self.payload {
-            if payload.to_vec() != other.payload.clone().into_raw() {
-                return false;
-            }
+        if matches!(&self.payload, Some(payload) if payload != other.payload.as_ref()) {
+            return false;
         }
         true
     }

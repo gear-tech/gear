@@ -227,6 +227,7 @@ pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
 
 #[cfg(test)]
 mod tests {
+    use codec::Encode;
     use gear_core::message::{Message, MessageId, Payload};
     use crate::{CoreLog, manager, program, System, Log};
     use super::{Program, ProgramIdWrapper};
@@ -272,15 +273,15 @@ mod tests {
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
         let message_payload: Payload = vec![1, 2, 3].into();
+        let encoded_message_payload: Payload = message_payload.encode().into();
         let reply_payload: Payload = vec![3, 2, 1].into();
-        let new_payload = message_payload.clone();
-        let log = Log::builder().payload(new_payload);
+        let log = Log::builder().payload(message_payload.clone());
 
         let message = Message::new(
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload.clone(),
+            encoded_message_payload.clone(),
             Default::default(),
             2,
         );
@@ -291,13 +292,10 @@ mod tests {
             .last()
             .expect("No message log in run result");
 
-        let mut destination_user_mailbox = system.get_mailbox(&destination_user_id);
-        let message_replier = destination_user_mailbox
-            .take_message(log)
-            .expect("No message with such payload");
-        let reply_result = message_replier.reply(reply_payload.clone(), 1);
+        let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
+        let message_replier = destination_user_mailbox.take_message(log);
+        let reply_log = message_replier.reply(reply_payload.clone(), 1).log;
 
-        let reply_log = reply_result.expect("No message to reply to").log;
         let last_reply_log = reply_log.last().expect("No message log in run result");
 
         let second_message_result = system.send_message(message);
@@ -312,12 +310,13 @@ mod tests {
         assert!(!second_message_result.main_failed);
         assert!(!second_message_result.others_failed);
         assert_eq!(reply_log.len(), 1);
-        assert_eq!(last_reply_log.get_payload(), reply_payload);
-        assert_eq!(message_log.get_payload(), message_payload);
-        assert_eq!(second_message_log.get_payload(), message_payload);
+        assert_eq!(last_reply_log.get_payload(), reply_payload.encode().into());
+        assert_eq!(message_log.get_payload(), encoded_message_payload);
+        assert_eq!(second_message_log.get_payload(), encoded_message_payload);
     }
 
     #[test]
+    #[should_panic = "No message that satisfies log"]
     fn mailbox_mock_deletes_message_after_reply() {
         let system = System::new();
         let message_id: MessageId = Default::default();
@@ -325,29 +324,25 @@ mod tests {
         let destination_user_id = ProgramIdWrapper::from(200).0;
         let message_payload: Payload = vec![1, 2, 3].into();
         let reply_payload: Payload = vec![3, 2, 1].into();
-        let log = Log::builder().payload(message_payload.clone());
+        let message_log = Log::builder().payload(message_payload.clone());
 
         let message = Message::new(
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload,
+            message_payload.encode().into(),
             Default::default(),
             2,
         );
 
         system.send_message(message);
 
-        let mut destination_user_mailbox = system.get_mailbox(&destination_user_id);
-        let message_replier = destination_user_mailbox
-            .take_message(log.clone())
-            .expect("No message with such payload");
+        let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
+        let message_replier = destination_user_mailbox.take_message(message_log.clone());
         message_replier.reply(reply_payload, 1);
 
-        destination_user_mailbox = system.get_mailbox(&destination_user_id);
-        let message_replier = destination_user_mailbox.take_message(log);
-
-        assert!(message_replier.is_none())
+        destination_user_mailbox = system.get_mailbox(destination_user_id);
+        destination_user_mailbox.take_message(message_log);
     }
 
     #[test]
@@ -364,20 +359,18 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload,
+            message_payload.encode().into(),
             Default::default(),
             2,
         );
 
         system.send_message(message);
 
-        let mut destination_user_mailbox = system.get_mailbox(&destination_user_id);
-        let message_replier = destination_user_mailbox
-            .take_message(log)
-            .expect("No message with such payload");
+        let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
+        let message_replier = destination_user_mailbox.take_message(log);
 
         let result = message_replier.reply_bytes(&reply_payload, 1);
-        let result_log = result.expect("No message to reply to").log;
+        let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
 
         assert_eq!(
@@ -387,6 +380,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic = "No message that satisfies log"]
     fn mailbox_mock_deletes_message_after_taking() {
         let system = System::new();
         let message_id: MessageId = Default::default();
@@ -399,20 +393,16 @@ mod tests {
             message_id,
             source_user_id,
             destination_user_id,
-            message_payload,
+            message_payload.encode().into(),
             Default::default(),
             2,
         );
 
         system.send_message(message);
 
-        let mut destination_user_mailbox = system.get_mailbox(&destination_user_id);
-        destination_user_mailbox
-            .take_message(log.clone())
-            .expect("No message with such payload");
-        let empty_replier = destination_user_mailbox.take_message(log);
+        let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
+        destination_user_mailbox.take_message(log.clone());
 
-        assert!(empty_replier.is_none());
+        destination_user_mailbox.take_message(log);
     }
-
 }
