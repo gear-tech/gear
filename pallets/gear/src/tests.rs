@@ -2319,7 +2319,7 @@ fn resume_program_works() {
 
 #[test]
 fn gas_spent_vs_balance() {
-    use tests_btree::{Request, WASM_BINARY};
+    use demo_btree::{Request, WASM_BINARY};
 
     init_logger();
     new_test_ext().execute_with(|| {
