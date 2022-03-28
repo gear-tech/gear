@@ -367,7 +367,7 @@ struct ScheduleRules<'a, T: Config> {
 }
 
 impl<T: Config> Schedule<T> {
-    pub(crate) fn rules(&self, module: &elements::Module) -> impl gas_metering::Rules + '_ {
+    pub fn rules(&self, module: &elements::Module) -> impl gas_metering::Rules + '_ {
         ScheduleRules {
             schedule: self,
             params: module

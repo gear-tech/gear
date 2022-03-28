@@ -38,6 +38,21 @@ use std::{
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
+use frame_support::traits::{OnFinalize, OnIdle, OnInitialize};
+use frame_system as system;
+use gear_runtime::{Gear, Runtime, System};
+
+// Build genesis storage according to the mock runtime.
+pub fn new_test_ext() -> sp_io::TestExternalities {
+    let t = system::GenesisConfig::default()
+        .build_storage::<Runtime>()
+        .unwrap();
+
+    let mut ext = sp_io::TestExternalities::new(t);
+    ext.execute_with(|| System::set_block_number(1));
+    ext
+}
+
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
     let account_regex = Regex::new(r"\{(?P<id>[a-z]+)\}").unwrap();
@@ -105,8 +120,7 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
 {
     let code = CheckedCode::try_new(message.code.clone())?;
-    let instumented_code =
-        InstrumentedCode::new(code.code().to_vec(), code.static_pages(), 1);
+    let instumented_code = InstrumentedCode::new(code.code().to_vec(), code.static_pages(), 1);
     let program = Program::new(message.id, instumented_code);
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
@@ -148,7 +162,24 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            journal_handler.store_code(&code_bytes);
+            let instrumented_code: Vec<u8> = new_test_ext().execute_with(|| {
+                let schedule = <Runtime as pallet_gear::pallet::Config>::Schedule::get();
+
+                let module = wasm_instrument::parity_wasm::deserialize_buffer(&code_bytes)
+                    .unwrap_or_default();
+
+                let gas_rules = schedule.rules(&module);
+
+                let instrumented_module = wasm_instrument::gas_metering::inject(
+                    module, &gas_rules, "env",
+                )
+                .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))?;
+
+                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                    .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))
+            })?;
+
+            journal_handler.store_code(&instrumented_code);
         }
     }
 

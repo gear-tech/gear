@@ -74,6 +74,7 @@ pub struct InstrumentedCode {
 }
 
 impl InstrumentedCode {
+    /// Creates new instance with specified static pages and version of instruction weights.
     pub fn new(code: Vec<u8>, static_pages: u32, instruction_weights_version: u32) -> Self {
         Self {
             code,

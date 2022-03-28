@@ -88,7 +88,9 @@ pub mod pallet {
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{
         message::DispatchKind,
-        program::{CheckedCode, CheckedCodeWithHash, InstrumentedCode, InstrumentedCodeWithHash, ProgramId},
+        program::{
+            CheckedCode, CheckedCodeWithHash, InstrumentedCode, InstrumentedCodeWithHash, ProgramId,
+        },
     };
     use primitive_types::H256;
     use scale_info::TypeInfo;
@@ -368,12 +370,16 @@ pub mod pallet {
                     })?;
                     common::set_original_code(id.into(), &code);
                     let schedule = T::Schedule::get();
-                    let instrumented_code = Self::instrument_code(code.code().to_vec(), &schedule).map_err(|_| {
-                        b"Unable to instrument the code".to_vec()
-                    })?;
-                    let instrumented_code = InstrumentedCode::new(instrumented_code, code.static_pages(), schedule.instruction_weights.version);
+                    let instrumented_code = Self::instrument_code(code.code().to_vec(), &schedule)
+                        .map_err(|_| b"Unable to instrument the code".to_vec())?;
+                    let instrumented_code = InstrumentedCode::new(
+                        instrumented_code,
+                        code.static_pages(),
+                        schedule.instruction_weights.version,
+                    );
                     common::set_code(id.into(), &instrumented_code);
-                    let instrumented_code_hash = InstrumentedCodeWithHash::new(instrumented_code, id.into());
+                    let instrumented_code_hash =
+                        InstrumentedCodeWithHash::new(instrumented_code, id.into());
                     ext_manager.set_program(id.into(), instrumented_code_hash, root_message_id);
 
                     (DispatchKind::Init, id.into(), None)
@@ -674,7 +680,11 @@ pub mod pallet {
                 Self::instrument_code(code_hash.code().code().to_vec(), &schedule)
                     .map_err(|_| Error::<T>::GasInstrumentationFailed)?;
 
-            let instrumented_code = InstrumentedCode::new(instrumented_code, code_hash.code().static_pages(), schedule.instruction_weights.version);
+            let instrumented_code = InstrumentedCode::new(
+                instrumented_code,
+                code_hash.code().static_pages(),
+                schedule.instruction_weights.version,
+            );
 
             common::set_code(hash, &instrumented_code);
 
@@ -715,8 +725,11 @@ pub mod pallet {
                 .ok_or_else(|| Error::<T>::CodeNotFound)?;
             let original_code_len = original_code.code().len();
             let code = Self::instrument_code(original_code.code().to_vec(), schedule)?;
-            let instrumented_code =
-                InstrumentedCode::new(code, original_code.static_pages(), schedule.instruction_weights.version);
+            let instrumented_code = InstrumentedCode::new(
+                code,
+                original_code.static_pages(),
+                schedule.instruction_weights.version,
+            );
             common::set_code(code_hash.clone(), &instrumented_code);
             Ok(original_code_len as u32)
         }
@@ -850,12 +863,18 @@ pub mod pallet {
                 Self::deposit_event(Event::CodeSaved(code_hash));
             }
 
-            let instrumented_code = common::get_code(checked_code_hash.hash().into_origin()).unwrap();
-            let instrumented_code_hash = InstrumentedCodeWithHash::new(instrumented_code, checked_code_hash.hash().clone());
+            let instrumented_code =
+                common::get_code(checked_code_hash.hash().into_origin()).unwrap();
+            let instrumented_code_hash =
+                InstrumentedCodeWithHash::new(instrumented_code, checked_code_hash.hash().clone());
 
             let init_message_id = common::next_message_id(&init_payload);
 
-            ExtManager::<T>::default().set_program(program_id, instrumented_code_hash, init_message_id);
+            ExtManager::<T>::default().set_program(
+                program_id,
+                instrumented_code_hash,
+                init_message_id,
+            );
 
             let _ = T::GasHandler::create(origin, init_message_id, gas_limit);
 

@@ -22,6 +22,7 @@ sp-keyring = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.
 sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 rayon = "1.5"
+wasm-instrument = { version = "0.1" }
 
 # Internal deps
 gear-core = { path = "../core" }
@@ -29,6 +30,10 @@ common = { package = "gear-common", path = "../common" }
 core-processor = { package = "gear-core-processor", path = "../core-processor", default-features = false }
 gear-backend-common = { path = "../core-backend/common" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
+pallet-gear = { path = "../pallets/gear" }
+gear-runtime = { path = "../runtime" }
+
+frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [[bin]]
 name = "gear-test"

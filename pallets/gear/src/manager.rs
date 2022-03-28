@@ -31,7 +31,10 @@ use frame_support::traits::{
 use gear_core::{
     memory::PageNumber,
     message::{Dispatch, ExitCode, MessageId},
-    program::{CheckedCodeWithHash, CodeHash, InstrumentedCodeWithHash, Program as NativeProgram, ProgramId},
+    program::{
+        CheckedCodeWithHash, CodeHash, InstrumentedCodeWithHash, Program as NativeProgram,
+        ProgramId,
+    },
 };
 use primitive_types::H256;
 use sp_runtime::{

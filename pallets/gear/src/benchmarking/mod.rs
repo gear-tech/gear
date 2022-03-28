@@ -30,11 +30,7 @@ use self::{
     },
     sandbox::Sandbox,
 };
-use crate::{
-    schedule::INSTR_BENCHMARK_BATCH_SIZE,
-    Pallet as Contracts,
-    *,
-};
+use crate::{schedule::INSTR_BENCHMARK_BATCH_SIZE, Pallet as Contracts, *};
 use codec::{Encode, HasCompact, MaxEncodedLen};
 use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::Get;

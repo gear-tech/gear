@@ -2213,13 +2213,16 @@ dependencies = [
  "colored",
  "derive_more",
  "env_logger",
+ "frame-system",
  "gear-backend-common",
  "gear-backend-wasmtime",
  "gear-common",
  "gear-core",
  "gear-core-processor",
+ "gear-runtime",
  "hex",
  "log",
+ "pallet-gear",
  "parity-scale-codec",
  "rayon",
  "regex",
@@ -2229,6 +2232,7 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-keyring",
+ "wasm-instrument",
 ]
 
 [[package]]

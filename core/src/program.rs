@@ -23,7 +23,6 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use anyhow::Result;
 use codec::{Decode, Encode};
 use core::convert::TryFrom;
-use core::iter::Inspect;
 use core::{cmp, fmt};
 use scale_info::TypeInfo;
 
@@ -288,7 +287,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::{Program, ProgramId};
-    use crate::{checked_code::CheckedCode, util::encode_hex, program::InstrumentedCode};
+    use crate::{checked_code::CheckedCode, program::InstrumentedCode, util::encode_hex};
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {

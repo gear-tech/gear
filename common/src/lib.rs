@@ -43,7 +43,7 @@ use sp_std::{
 
 use gear_core::{
     message::{DispatchKind, PayloadStore},
-    program::{CheckedCode, InstrumentedCode, CodeHash, Program as NativeProgram, ProgramId},
+    program::{CheckedCode, CodeHash, InstrumentedCode, Program as NativeProgram, ProgramId},
 };
 
 pub use storage_queue::Iterator;
@@ -539,7 +539,10 @@ pub fn get_code(code_hash: H256) -> Option<InstrumentedCode> {
 }
 
 pub fn set_code(code_hash: H256, code: &InstrumentedCode) {
-    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::Code), &code.encode())
+    sp_io::storage::set(
+        &code_key(code_hash, CodeKeyPrefixKind::Code),
+        &code.encode(),
+    )
 }
 
 pub fn get_original_code(code_hash: H256) -> Option<CheckedCode> {
@@ -549,7 +552,10 @@ pub fn get_original_code(code_hash: H256) -> Option<CheckedCode> {
 }
 
 pub fn set_original_code(code_hash: H256, code: &CheckedCode) {
-    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode), &code.encode())
+    sp_io::storage::set(
+        &code_key(code_hash, CodeKeyPrefixKind::OriginalCode),
+        &code.encode(),
+    )
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
