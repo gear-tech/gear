@@ -48,13 +48,13 @@ env_logger = "0.9"
 wabt = "0.10"
 gear-core = { path = "../../core" }
 hex-literal = "0.3.4"
-tests-btree = { path = "../../tests/btree" }
-tests-distributor = { path = "../../tests/distributor" }
-tests-init-wait = { path = "../../tests/init-wait" }
-tests-exit-init = { path = "../../tests/exit-init" }
-tests-exit-handle = { path = "../../tests/exit-handle" }
-tests-program-factory = { path = "../../tests/program-factory" }
-tests-proxy = { path = "../../tests/proxy" }
+demo-btree = { path = "../../examples/binaries/btree" }
+demo-distributor = { path = "../../examples/binaries/distributor" }
+demo-init-wait = { path = "../../examples/binaries/init-wait" }
+demo-exit-init = { path = "../../examples/binaries/exit-init" }
+demo-exit-handle = { path = "../../examples/binaries/exit-handle" }
+demo-program-factory = { path = "../../examples/binaries/program-factory" }
+demo-proxy = { path = "../../examples/binaries/proxy" }
 
 [features]
 default = ['std']

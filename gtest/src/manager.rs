@@ -208,7 +208,8 @@ impl ExtManager {
     }
 
     pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
-        self.prepare_for(message.id(), message.source());
+        let message_id = message.id();
+        self.prepare_for(message_id, message.source());
 
         {
             let maybe_actor = self.actors.get_mut(&message.dest());
@@ -273,6 +274,7 @@ impl ExtManager {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
             log: log.into_iter().map(CoreLog::from_message).collect(),
+            message_id,
             total_processed,
         }
     }

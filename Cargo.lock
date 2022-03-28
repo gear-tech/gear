@@ -1236,6 +1236,91 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-btree"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-distributor"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-exit-handle"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-exit-init"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-init-wait"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-node"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-program-factory"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "hex-literal",
+ "parity-scale-codec",
+]
+
+[[package]]
+name = "demo-proxy"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "parity-scale-codec",
+ "scale-info",
+]
+
+[[package]]
+name = "demo-wait-wake"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+ "gtest",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4328,6 +4413,13 @@ dependencies = [
 name = "pallet-gear"
 version = "2.0.0"
 dependencies = [
+ "demo-btree",
+ "demo-distributor",
+ "demo-exit-handle",
+ "demo-exit-init",
+ "demo-init-wait",
+ "demo-program-factory",
+ "demo-proxy",
  "env_logger",
  "frame-benchmarking",
  "frame-support",
@@ -4355,13 +4447,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "tests-btree",
- "tests-distributor",
- "tests-exit-handle",
- "tests-exit-init",
- "tests-init-wait",
- "tests-program-factory",
- "tests-proxy",
  "wabt",
 ]
 
@@ -7654,119 +7739,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dfed899f0eb03f32ee8c6a0aabdb8a7949659e3466561fc0adf54e26d88c5f4"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "tests-btree"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-common"
-version = "0.1.0"
-dependencies = [
- "gear-backend-common",
- "gear-backend-wasmtime",
- "gear-core",
- "gear-core-processor",
- "gstd",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "tests-distributor"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-exit-handle"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
-name = "tests-exit-init"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
-name = "tests-init-wait"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
-]
-
-[[package]]
-name = "tests-messages"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-node"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-program-factory"
-version = "0.1.0"
-dependencies = [
- "gear-core",
- "gear-wasm-builder",
- "gstd",
- "gtest",
- "hex-literal",
- "parity-scale-codec",
- "tests-common",
-]
-
-[[package]]
-name = "tests-proxy"
-version = "0.1.0"
-dependencies = [
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "tests-wait-wake"
-version = "0.1.0"
-dependencies = [
- "gear-core",
- "gear-wasm-builder",
- "gstd",
- "parity-scale-codec",
- "tests-common",
 ]
 
 [[package]]

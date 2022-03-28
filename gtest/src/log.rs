@@ -1,6 +1,9 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::{message::Message, program::ProgramId};
+use gear_core::{
+    message::{Message, MessageId},
+    program::ProgramId,
+};
 use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -173,6 +176,7 @@ pub struct RunResult {
     pub(crate) log: Vec<CoreLog>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
+    pub(crate) message_id: MessageId,
     pub(crate) total_processed: u32,
 }
 
@@ -193,6 +197,10 @@ impl RunResult {
 
     pub fn others_failed(&self) -> bool {
         self.others_failed
+    }
+
+    pub fn sent_message_id(&self) -> MessageId {
+        self.message_id
     }
 
     pub fn total_processed(&self) -> u32 {
