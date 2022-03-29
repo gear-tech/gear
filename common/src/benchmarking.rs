@@ -132,13 +132,13 @@ pub fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 }
 
 pub fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32) {
-    let code_hash = CodeId::generate(&code).into_origin();
+    let code_id = CodeId::generate(&code).into_origin();
     super::set_program(
         program_id,
         ActiveProgram {
             static_pages,
             persistent_pages: (0..static_pages).collect(),
-            code_hash,
+            code_id,
             state: ProgramState::Initialized,
         },
         (0..static_pages).map(|i| (i, vec![0u8; 65536])).collect(),

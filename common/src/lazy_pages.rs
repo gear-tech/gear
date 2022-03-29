@@ -66,15 +66,14 @@ pub fn protect_pages_and_init_info(
         .filter(|(_num, buf)| buf.is_none())
         .map(|(num, _buf)| num.raw())
         .collect::<Vec<u32>>();
+    let prog_id_hash = prog_id.into_origin();
 
     gear_ri::reset_lazy_pages_info();
 
     gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr);
 
-    let prog_id = prog_id.into_origin();
-
     lazy_pages.iter().for_each(|p| {
-        crate::save_page_lazy_info(prog_id, *p);
+        crate::save_page_lazy_info(prog_id_hash, *p);
     });
 
     gear_ri::mprotect_wasm_pages(wasm_mem_begin_addr, &lazy_pages, false, false, false)
