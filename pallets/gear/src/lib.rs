@@ -787,14 +787,6 @@ pub mod pallet {
                 Error::<T>::GasLimitTooHigh
             );
 
-            let packet = InitPacket::new_with_gas(
-                CodeId::generate(&code),
-                salt,
-                init_payload,
-                gas_limit,
-                value.unique_saturated_into(),
-            );
-
             let code = CheckedCode::try_new(code).map_err(|e| {
                 log::debug!("Program failed to load: {}", e);
                 Error::<T>::FailedToConstructProgram
@@ -802,7 +794,15 @@ pub mod pallet {
 
             let checked_code_hash = CheckedCodeWithHash::new(code);
 
-            let program_id = ProgramId::generate(checked_code_hash.hash(), packet.salt());
+            let packet = InitPacket::new_with_gas(
+                checked_code_hash.hash(),
+                salt,
+                init_payload,
+                gas_limit,
+                value.unique_saturated_into(),
+            );
+
+            let program_id = packet.destination();
             let id = program_id.into_origin();
             // Make sure there is no program with such id in program storage
             ensure!(
@@ -818,7 +818,6 @@ pub mod pallet {
                 .map_err(|_| Error::<T>::NotEnoughBalanceForReserve)?;
 
             let origin = who.into_origin();
-            let id = program_id.into_origin();
 
             // By that call we follow the guarantee that we have in `Self::submit_code` -
             // if there's code in storage, there's also metadata for it.

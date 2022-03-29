@@ -490,8 +490,7 @@ where
     }
 
     fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        let code_hash: [u8; 32] = code_hash.into();
-        let code_hash = code_hash.into();
+        let code_hash = <[u8; 32]>::from(code_hash).into();
 
         if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {

@@ -22,11 +22,14 @@ use crate::message::ExitCode;
 use alloc::vec::Vec;
 use blake2_rfc::blake2b;
 
-/// Creates a unique identifier by passing given argument to blake2b hash-function.
-fn hash(argument: &[u8]) -> [u8; 32] {
-    let mut arr = [0; 32];
+const HASH_LENGTH: usize = 32;
+type Hash = [u8; HASH_LENGTH];
 
-    let blake2b_hash = blake2b::blake2b(32, &[], argument);
+/// Creates a unique identifier by passing given argument to blake2b hash-function.
+fn hash(argument: &[u8]) -> Hash {
+    let mut arr: Hash = Default::default();
+
+    let blake2b_hash = blake2b::blake2b(HASH_LENGTH, &[], argument);
     arr[..].copy_from_slice(blake2b_hash.as_bytes());
 
     arr
@@ -52,17 +55,17 @@ macro_rules! declare_id {
             derive_more::From,
             scale_info::TypeInfo,
         )]
-        pub struct $name([u8; 32]);
+        pub struct $name(Hash);
 
-        impl From<$name> for [u8; 32] {
-            fn from(val: $name) -> [u8; 32] {
+        impl From<$name> for Hash {
+            fn from(val: $name) -> Hash {
                 val.0
             }
         }
 
         impl From<u64> for $name {
             fn from(v: u64) -> Self {
-                let mut id = Self([0u8; 32]);
+                let mut id = Self(Default::default());
                 id.0[0..8].copy_from_slice(&v.to_le_bytes()[..]);
                 id
             }
@@ -82,11 +85,11 @@ macro_rules! declare_id {
 
         impl From<&[u8]> for $name {
             fn from(slice: &[u8]) -> Self {
-                if slice.len() != 32 {
+                if slice.len() != HASH_LENGTH {
                     panic!("Identifier must be 32 length");
                 }
 
-                let mut arr = [0; 32];
+                let mut arr: Hash = Default::default();
                 arr[..].copy_from_slice(slice);
 
                 Self(arr)
