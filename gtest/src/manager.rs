@@ -27,8 +27,10 @@ use gear_core::{
     message::{Dispatch, DispatchKind, Message, MessageId},
     program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
 };
-use std::collections::{BTreeMap, VecDeque};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::{BTreeMap, HashMap, VecDeque},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub(crate) type Balance = u128;
 
@@ -129,7 +131,7 @@ pub(crate) struct ExtManager {
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
     pub(crate) codes: BTreeMap<CodeHash, Vec<u8>>,
     pub(crate) dispatch_queue: VecDeque<Dispatch>,
-    pub(crate) mailbox: BTreeMap<ProgramId, Vec<Message>>,
+    pub(crate) actor_to_mailbox: HashMap<ProgramId, Vec<Message>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
 
@@ -230,10 +232,11 @@ impl ExtManager {
                 };
                 self.dispatch_queue.push_back(dispatch);
             } else {
-                self.mailbox
+                self.actor_to_mailbox
                     .entry(message.dest())
                     .or_default()
-                    .push(message);
+                    .push(message.clone());
+                self.log.push(message);
             }
         }
 
@@ -445,6 +448,13 @@ impl ExtManager {
 
         core_processor::handle_journal(journal, self);
     }
+
+    pub(crate) fn take_message(&mut self, program_id: &ProgramId, index: usize) -> Message {
+        self.actor_to_mailbox
+            .get_mut(program_id)
+            .expect("No mailbox with such program id")
+            .remove(index)
+    }
 }
 
 impl JournalHandler for ExtManager {
@@ -491,7 +501,7 @@ impl JournalHandler for ExtManager {
             }
             self.dispatch_queue.push_back(dispatch);
         } else {
-            self.mailbox
+            self.actor_to_mailbox
                 .entry(message.dest())
                 .or_default()
                 .push(message.clone());

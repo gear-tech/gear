@@ -227,9 +227,10 @@ pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
 
 #[cfg(test)]
 mod tests {
-    use gear_core::message::Message;
+    use codec::Encode;
+    use gear_core::message::{Message, MessageId, Payload};
 
-    use crate::{CoreLog, System};
+    use crate::{CoreLog, Log, System};
 
     use super::{Program, ProgramIdWrapper};
 
@@ -265,5 +266,140 @@ mod tests {
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
         assert!(!run_result.main_failed());
         assert!(run_result.log.contains(&expected_log));
+    }
+
+    #[test]
+    fn mailbox_mock_walkthrough_test() {
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let message_payload: Payload = vec![1, 2, 3].into();
+        let encoded_message_payload: Payload = message_payload.encode().into();
+        let reply_payload: Payload = vec![3, 2, 1].into();
+        let log = Log::builder().payload(message_payload.clone());
+
+        let message = Message::new(
+            message_id,
+            source_user_id,
+            destination_user_id,
+            encoded_message_payload.clone(),
+            Default::default(),
+            2,
+        );
+
+        let message_result = system.send_message(message.clone());
+        let message_log = message_result
+            .log
+            .last()
+            .expect("No message log in run result");
+
+        let destination_user_mailbox = system.get_mailbox(destination_user_id);
+        let message_replier = destination_user_mailbox.take_message(log);
+        let reply_log = message_replier.reply(reply_payload.clone(), 1).log;
+
+        let last_reply_log = reply_log.last().expect("No message log in run result");
+
+        let second_message_result = system.send_message(message);
+
+        let second_message_log = message_result
+            .log
+            .last()
+            .expect("No message log in run result");
+
+        assert!(!message_result.main_failed);
+        assert!(!message_result.others_failed);
+        assert!(!second_message_result.main_failed);
+        assert!(!second_message_result.others_failed);
+        assert_eq!(reply_log.len(), 1);
+        assert_eq!(last_reply_log.get_payload(), reply_payload.encode().into());
+        assert_eq!(message_log.get_payload(), encoded_message_payload);
+        assert_eq!(second_message_log.get_payload(), encoded_message_payload);
+    }
+
+    #[test]
+    fn mailbox_mock_deletes_message_after_reply() {
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let message_payload: Payload = vec![1, 2, 3].into();
+        let reply_payload: Payload = vec![3, 2, 1].into();
+        let message_log = Log::builder().payload(message_payload.clone());
+
+        let message = Message::new(
+            message_id,
+            source_user_id,
+            destination_user_id,
+            message_payload.encode().into(),
+            Default::default(),
+            2,
+        );
+
+        system.send_message(message);
+
+        let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
+        let message_replier = destination_user_mailbox.take_message(message_log.clone());
+        message_replier.reply(reply_payload, 1);
+
+        destination_user_mailbox = system.get_mailbox(destination_user_id);
+        assert!(!destination_user_mailbox.contains(message_log))
+    }
+
+    #[test]
+    fn mailbox_mock_reply_bytes_test() {
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let message_payload: Payload = vec![1, 2, 3].into();
+        let reply_payload_array: [u8; 3] = [3, 2, 1];
+        let reply_payload: Payload = reply_payload_array.to_vec().into();
+        let log = Log::builder().payload(message_payload.clone());
+
+        let message = Message::new(
+            message_id,
+            source_user_id,
+            destination_user_id,
+            message_payload.encode().into(),
+            Default::default(),
+            2,
+        );
+
+        system.send_message(message);
+
+        let destination_user_mailbox = system.get_mailbox(destination_user_id);
+        let message_replier = destination_user_mailbox.take_message(log);
+
+        let result = message_replier.reply_bytes(&reply_payload_array, 1);
+        let result_log = result.log;
+        let last_result_log = result_log.last().expect("No message log in run result");
+        assert_eq!(last_result_log.get_payload(), reply_payload.encode().into());
+    }
+
+    #[test]
+    fn mailbox_mock_deletes_message_after_taking() {
+        let system = System::new();
+        let message_id: MessageId = Default::default();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let message_payload: Payload = vec![1, 2, 3].into();
+        let log = Log::builder().payload(message_payload.clone());
+
+        let message = Message::new(
+            message_id,
+            source_user_id,
+            destination_user_id,
+            message_payload.encode().into(),
+            Default::default(),
+            2,
+        );
+
+        system.send_message(message);
+
+        let destination_user_mailbox = system.get_mailbox(destination_user_id);
+        destination_user_mailbox.take_message(log.clone());
+
+        assert!(!destination_user_mailbox.contains(log))
     }
 }

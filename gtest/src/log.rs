@@ -1,5 +1,6 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
+use gear_core::message::Payload;
 use gear_core::{
     message::{Message, MessageId},
     program::ProgramId,
@@ -12,6 +13,7 @@ pub struct CoreLog {
     dest: ProgramId,
     payload: Vec<u8>,
     exit_code: Option<i32>,
+    id: MessageId,
 }
 
 impl CoreLog {
@@ -21,7 +23,29 @@ impl CoreLog {
             dest: other.dest,
             payload: other.payload.into_raw(),
             exit_code: other.reply.map(|(_, code)| Some(code)).unwrap_or_default(),
+            id: other.id,
         }
+    }
+
+    pub(crate) fn generate_reply(
+        &self,
+        payload: Payload,
+        message_id: MessageId,
+        value: u128,
+    ) -> Message {
+        Message {
+            source: self.dest,
+            dest: self.source,
+            payload,
+            gas_limit: None,
+            value,
+            id: message_id,
+            reply: self.exit_code.map(|exit_code| (self.id, exit_code)),
+        }
+    }
+
+    pub fn get_payload(&self) -> Payload {
+        self.payload.clone().into()
     }
 }
 
@@ -31,6 +55,7 @@ pub struct DecodedCoreLog<T: Codec + Debug> {
     dest: ProgramId,
     payload: T,
     exit_code: Option<i32>,
+    id: MessageId,
 }
 
 impl<T: Codec + Debug> DecodedCoreLog<T> {
@@ -42,6 +67,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
             dest: log.dest,
             payload,
             exit_code: log.exit_code,
+            id: log.id,
         })
     }
 }
@@ -117,6 +143,24 @@ impl Log {
     }
 }
 
+impl PartialEq<Message> for Log {
+    fn eq(&self, other: &Message) -> bool {
+        if matches!(other.reply, Some(reply) if reply.1 != self.exit_code) {
+            return false;
+        }
+        if matches!(self.source, Some(source) if source != other.source) {
+            return false;
+        }
+        if matches!( self.dest, Some(dest) if dest != other.dest) {
+            return false;
+        }
+        if matches!(&self.payload, Some(payload) if payload != other.payload.as_ref()) {
+            return false;
+        }
+        true
+    }
+}
+
 impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
     fn eq(&self, other: &DecodedCoreLog<T>) -> bool {
         let core_log = CoreLog {
@@ -124,6 +168,7 @@ impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
             dest: other.dest,
             payload: other.payload.encode(),
             exit_code: other.exit_code,
+            id: other.id,
         };
 
         core_log.eq(self)
