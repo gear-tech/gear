@@ -158,14 +158,12 @@ impl<'a> Mailbox<'a> {
         MessageReplier::new(taken_message, self.manager_reference)
     }
 
-    pub(crate) fn reply(&self, log: Log, payload: Payload, value: u128) -> RunResult {
-        let replier = self.take_message(log);
-        replier.reply(payload, value)
+    pub(crate) fn reply(&self, log: Log, payload: impl Encode, value: u128) -> RunResult {
+        self.take_message(log).reply(payload,value)
     }
 
-    pub(crate) fn reply_bytes(&self, log: Log, raw_payload: &[u8], value: u128) -> RunResult {
-        let replier = self.take_message(log);
-        replier.reply_bytes(raw_payload, value)
+    pub(crate) fn reply_bytes(&self, log: Log, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
+        self.take_message(log).reply_bytes(raw_payload, value)
     }
 }
 
@@ -185,7 +183,7 @@ impl<'a> MessageReplier<'a> {
         }
     }
 
-    pub(crate) fn reply(&self, payload: Payload, value: u128) -> RunResult {
+    pub(crate) fn reply(&self, payload: impl Encode, value: u128) -> RunResult {
         let message = self.log.generate_reply(
             payload.encode().into(),
             MessageId::from(
@@ -198,7 +196,8 @@ impl<'a> MessageReplier<'a> {
         self.manager_reference.borrow_mut().run_message(message)
     }
 
-    pub(crate) fn reply_bytes(&self, raw_payload: &[u8], value: u128) -> RunResult {
-        self.reply(raw_payload.to_vec().into(), value)
+    pub(crate) fn reply_bytes(&self, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
+        let payload: Payload = raw_payload.as_ref().to_vec().into();
+        self.reply( payload, value)
     }
 }
