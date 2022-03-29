@@ -31,7 +31,7 @@ use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationRe
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{AllocationsContext, PageNumber, PAGE_SIZE},
+    memory::{AllocationsContext, PageNumber},
     message::{IncomingDispatch, MessageContext},
 };
 
@@ -226,7 +226,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Page which is right after stack last page
     let stack_end_page = env
         .get_stack_mem_end()
-        .map(|addr| addr as u32 / PAGE_SIZE as u32);
+        .map(|addr| addr as u32 / PageNumber::size() as u32);
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Running backend.

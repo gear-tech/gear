@@ -21,8 +21,11 @@
 use alloc::collections::BTreeSet;
 use codec::{Decode, Encode};
 
-/// A WebAssembly page has a constant size of 65,536 bytes, i.e., 64KiB.
-pub const PAGE_SIZE: usize = 65536;
+/// A WebAssembly page has a constant size of 64KiB.
+pub const WASM_PAGE_SIZE: usize = 0x10000;
+
+/// A gear page size - part of wasm page size.
+const GEAR_PAGE_SIZE: usize = 0x10000;
 
 /// Memory error.
 #[derive(Clone, Debug)]
@@ -50,7 +53,7 @@ pub enum Error {
 }
 
 /// Page buffer.
-pub type PageBuf = [u8; PAGE_SIZE];
+pub type PageBuf = [u8; GEAR_PAGE_SIZE];
 
 /// Page number.
 #[derive(
@@ -66,12 +69,12 @@ impl PageNumber {
 
     /// Return page offset.
     pub fn offset(&self) -> usize {
-        (self.0 as usize) * PAGE_SIZE
+        (self.0 as usize) * PageNumber::size()
     }
 
     /// Return page size in bytes.
     pub fn size() -> usize {
-        PAGE_SIZE
+        GEAR_PAGE_SIZE
     }
 }
 

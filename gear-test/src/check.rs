@@ -30,9 +30,9 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::code::Code;
 use gear_core::ids::CodeId;
+use gear_core::memory::PageNumber;
 use gear_core::{
     ids::{MessageId, ProgramId},
-    memory::PAGE_SIZE,
     message::*,
     program::Program,
 };
@@ -418,12 +418,11 @@ pub fn check_memory(
     for case in expected_memory {
         for p in &mut *program_storage {
             if p.id() == case.id.to_program_id() {
-                let page = case.address / PAGE_SIZE;
+                let page = case.address / PageNumber::size();
                 if let Some(page_buf) = p.get_page_data((page as u32).into()) {
-                    if page_buf[case.address - page * PAGE_SIZE
-                        ..(case.address - page * PAGE_SIZE) + case.bytes.len()]
-                        != case.bytes
-                    {
+                    let begin_byte = case.address - page * PageNumber::size();
+                    let end_byte = begin_byte + case.bytes.len();
+                    if page_buf[begin_byte..end_byte] != case.bytes {
                         errors.push("Expectation error (Static memory doesn't match)".to_string());
                     }
                 } else {

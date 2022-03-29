@@ -18,7 +18,7 @@
 
 //! Lazy pages support in unix.
 
-use gear_core::memory::{PageNumber, PAGE_SIZE};
+use gear_core::memory::PageNumber;
 use libc::{c_void, siginfo_t};
 use nix::sys::signal;
 
@@ -47,7 +47,8 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
         assert!(wasm_mem_begin != 0, "Wasm memory begin addr is not set");
         // TODO: we need to do something here. May be throw it to old sig handler.
         assert!(wasm_mem_begin <= native_page, "Unknown sisegv/sigbus");
-        let wasm_page: PageNumber = (((native_page - wasm_mem_begin) / PAGE_SIZE) as u32).into();
+        let wasm_page: PageNumber =
+            (((native_page - wasm_mem_begin) / PageNumber::size()) as u32).into();
         let wasm_page_native_addr = wasm_mem_begin + wasm_page.offset();
         log::debug!(target: "gear_node::sig_handler", "mem={:#x} native_page={:#x} wasm_page={} wasm_page_addr={:#x}", mem as usize, native_page, wasm_page.raw(), wasm_page_native_addr);
         (wasm_page, wasm_page_native_addr)
@@ -62,7 +63,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
     let res = unsafe {
         libc::mprotect(
             wasm_page_native_addr as *mut libc::c_void,
-            PAGE_SIZE,
+            PageNumber::size(),
             libc::PROT_READ | libc::PROT_WRITE,
         )
     };
@@ -72,15 +73,16 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
         errno::errno()
     );
 
-    let page_as_slice =
-        unsafe { std::slice::from_raw_parts_mut(wasm_page_native_addr as *mut u8, PAGE_SIZE) };
+    let page_as_slice = unsafe {
+        std::slice::from_raw_parts_mut(wasm_page_native_addr as *mut u8, PageNumber::size())
+    };
     let hash_key_in_storage = page_info.unwrap();
     let res = sp_io::storage::read(&hash_key_in_storage, page_as_slice, 0);
     assert!(res.is_some(), "Wasm page must have data in storage");
     assert!(
-        res.unwrap() as usize == PAGE_SIZE,
+        res.unwrap() as usize == PageNumber::size(),
         "Page data must contain {} bytes, actually has {}",
-        PAGE_SIZE,
+        PageNumber::size(),
         res.unwrap()
     );
 
@@ -119,7 +121,7 @@ pub unsafe fn init_lazy_pages() -> bool {
         return false;
     }
 
-    if page_size::get() > PAGE_SIZE || PAGE_SIZE % page_size::get() != 0 {
+    if page_size::get() > PageNumber::size() || PageNumber::size() % page_size::get() != 0 {
         log::debug!("Unsupported native pages size: {:#x}", page_size::get());
         return false;
     }
