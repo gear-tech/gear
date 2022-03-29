@@ -44,7 +44,7 @@ pub mod pallet {
     };
     use frame_system::pallet_prelude::*;
     use gear_core::{
-        identifiers::ProgramId,
+        ids::ProgramId,
         message::{StoredDispatch, StoredMessage},
     };
     use primitive_types::H256;

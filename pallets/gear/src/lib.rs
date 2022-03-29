@@ -76,7 +76,7 @@ pub mod pallet {
     use gear_backend_sandbox::SandboxEnvironment;
     use gear_core::{
         code::{CheckedCode, CheckedCodeWithHash},
-        identifiers::{CodeId, MessageId, ProgramId},
+        ids::{CodeId, MessageId, ProgramId},
         message::*,
     };
     use primitive_types::H256;

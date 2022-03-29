@@ -49,7 +49,7 @@ pub mod pallet {
     };
     use frame_system::{offchain::SendTransactionTypes, pallet_prelude::*, RawOrigin};
     use gear_core::{
-        identifiers::MessageId,
+        ids::MessageId,
         message::{ReplyMessage, ReplyPacket},
     };
     use sp_core::offchain::Duration;

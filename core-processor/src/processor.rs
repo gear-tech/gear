@@ -29,7 +29,7 @@ use alloc::vec::Vec;
 use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
-    identifiers::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId},
     message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, ReplyPacket},
 };
 

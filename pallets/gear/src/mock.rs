@@ -28,7 +28,7 @@ use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
 use gear_core::{
-    identifiers::ProgramId,
+    ids::ProgramId,
     message::{Dispatch, DispatchKind, Message},
 };
 use sp_core::H256;

@@ -20,7 +20,7 @@
 
 use super::*;
 use common::{benchmarking, Origin};
-use gear_core::identifiers::{CodeId, MessageId, ProgramId};
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::prelude::*;

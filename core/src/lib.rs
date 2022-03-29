@@ -30,7 +30,7 @@ extern crate alloc;
 pub mod code;
 pub mod env;
 pub mod gas;
-pub mod identifiers;
+pub mod ids;
 pub mod memory;
 pub mod message;
 pub mod program;

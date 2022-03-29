@@ -28,7 +28,7 @@ use colored::{ColoredString, Colorize};
 use gear_runtime::{Origin, Runtime};
 
 use gear_core::{
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };

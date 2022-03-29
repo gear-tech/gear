@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::identifiers::ProgramId;
+use gear_core::ids::ProgramId;
 use once_cell::sync::Lazy;
 use primitive_types::H256;
 use serde::{Deserialize, Deserializer, Serialize};

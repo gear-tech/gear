@@ -20,7 +20,7 @@
 
 use crate::{
     code::CheckedCode,
-    identifiers::ProgramId,
+    ids::ProgramId,
     memory::{PageBuf, PageNumber},
 };
 use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, vec::Vec};
@@ -172,7 +172,7 @@ impl Program {
 mod tests {
     use super::Program;
     use crate::code::CheckedCode;
-    use crate::identifiers::ProgramId;
+    use crate::ids::ProgramId;
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {

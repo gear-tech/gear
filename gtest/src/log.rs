@@ -1,7 +1,7 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
 use gear_core::{
-    identifiers::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId},
     message::{ExitCode, Message},
 };
 use std::fmt::Debug;

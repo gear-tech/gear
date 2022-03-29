@@ -20,7 +20,7 @@ use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
     code::CheckedCode,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
     program::Program,

@@ -20,7 +20,7 @@ use common::{ActiveProgram, Origin as _, ProgramState};
 use frame_support::{assert_noop, assert_ok};
 use gear_core::{
     code::CheckedCode,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use hex_literal::hex;

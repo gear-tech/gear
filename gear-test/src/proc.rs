@@ -24,7 +24,7 @@ use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
     code::CheckedCode,
-    identifiers::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
     program::Program,
 };

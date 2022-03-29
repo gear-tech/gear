@@ -30,7 +30,7 @@ use frame_support::traits::{
 };
 use gear_core::{
     code::CheckedCodeWithHash,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, ExitCode, StoredDispatch},
     program::Program as NativeProgram,

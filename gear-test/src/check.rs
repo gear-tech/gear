@@ -29,7 +29,7 @@ use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::{
-    identifiers::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId},
     memory::PAGE_SIZE,
     message::*,
     program::Program,

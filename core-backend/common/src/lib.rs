@@ -33,7 +33,7 @@ use alloc::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
     message::{ContextStore, Dispatch},
 };

@@ -20,7 +20,7 @@
 
 use crate::memory::Memory;
 use crate::{
-    identifiers::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId},
     memory::PageNumber,
     message::{ExitCode, HandlePacket, InitPacket, ReplyPacket},
 };

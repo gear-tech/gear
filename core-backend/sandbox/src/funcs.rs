@@ -26,7 +26,7 @@ use core::{
 use gear_backend_common::{funcs, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
-    identifiers::{MessageId, ProgramId},
+    ids::{MessageId, ProgramId},
     memory::Memory,
     message::{HandlePacket, InitPacket, ReplyPacket},
 };

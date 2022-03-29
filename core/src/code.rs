@@ -18,7 +18,7 @@
 
 //! Module for checked code.
 
-use crate::identifiers::CodeId;
+use crate::ids::CodeId;
 use alloc::vec::Vec;
 use anyhow::Result;
 use codec::{Decode, Encode};

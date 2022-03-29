@@ -2435,7 +2435,7 @@ fn gas_spent_precalculated() {
 
 mod utils {
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
-    use gear_core::identifiers::{CodeId, MessageId, ProgramId};
+    use gear_core::ids::{CodeId, MessageId, ProgramId};
     use sp_core::H256;
     use sp_std::convert::TryFrom;
 

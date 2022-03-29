@@ -42,7 +42,7 @@ use sp_std::{
 
 use gear_core::{
     code::CheckedCode,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     message::StoredDispatch,
     program::Program as NativeProgram,
 };

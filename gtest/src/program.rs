@@ -6,7 +6,7 @@ use crate::{
 use codec::Codec;
 use gear_core::{
     code::CheckedCode,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
 };

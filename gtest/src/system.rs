@@ -5,7 +5,7 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{identifiers::CodeId, message::Dispatch};
+use gear_core::{ids::CodeId, message::Dispatch};
 use path_clean::PathClean;
 use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 

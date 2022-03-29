@@ -22,7 +22,7 @@ use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::{ExitCode, HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };

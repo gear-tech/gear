@@ -23,7 +23,7 @@ use crate::mock::*;
 use common::{self, Origin as _};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::DebugInfo;

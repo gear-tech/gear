@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::identifiers::{CodeId, MessageId, ProgramId};
+use crate::ids::{CodeId, MessageId, ProgramId};
 use crate::message::{
     Dispatch, DispatchKind, GasLimit, Message, Payload, Salt, StoredDispatch, StoredMessage, Value,
 };

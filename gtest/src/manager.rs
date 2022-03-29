@@ -24,7 +24,7 @@ use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
     code::CheckedCode,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{
         Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,

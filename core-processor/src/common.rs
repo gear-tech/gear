@@ -26,7 +26,7 @@ use alloc::{
 use codec::{Decode, Encode};
 use gear_core::{
     gas::GasAmount,
-    identifiers::{CodeId, MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{ContextStore, Dispatch, GasLimit, IncomingDispatch, StoredDispatch, StoredMessage},
     program::Program,
