@@ -1,8 +1,10 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::{message::{MessageId, Payload, Message}, program::ProgramId};
+use gear_core::{
+    message::{Message, MessageId, Payload},
+    program::ProgramId,
+};
 use std::fmt::Debug;
-use crate::System;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {

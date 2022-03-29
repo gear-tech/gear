@@ -227,10 +227,10 @@ pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
 
 #[cfg(test)]
 mod tests {
+    use super::{Program, ProgramIdWrapper};
+    use crate::{manager, program, CoreLog, Log, System};
     use codec::Encode;
     use gear_core::message::{Message, MessageId, Payload};
-    use crate::{CoreLog, manager, program, System, Log};
-    use super::{Program, ProgramIdWrapper};
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -352,7 +352,8 @@ mod tests {
         let source_user_id = ProgramIdWrapper::from(100).0;
         let destination_user_id = ProgramIdWrapper::from(200).0;
         let message_payload: Payload = vec![1, 2, 3].into();
-        let reply_payload: [u8; 3] = [3, 2, 1];
+        let reply_payload_array: [u8; 3] = [3, 2, 1];
+        let reply_payload: Payload = reply_payload_array.to_vec().into();
         let log = Log::builder().payload(message_payload.clone());
 
         let message = Message::new(
@@ -369,14 +370,10 @@ mod tests {
         let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
         let message_replier = destination_user_mailbox.take_message(log);
 
-        let result = message_replier.reply_bytes(&reply_payload, 1);
+        let result = message_replier.reply_bytes(&reply_payload_array, 1);
         let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
-
-        assert_eq!(
-            last_result_log.get_payload().into_raw(),
-            reply_payload.to_vec()
-        );
+        assert_eq!(last_result_log.get_payload(), reply_payload.encode().into());
     }
 
     #[test]

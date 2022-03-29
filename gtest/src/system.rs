@@ -1,19 +1,18 @@
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Mailbox},
+    manager::ExtManager,
     program::{Program, ProgramIdWrapper},
     CoreLog, Log,
 };
+use codec::Encode;
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use path_clean::PathClean;
-use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 use gear_core::{
     message::{Message, MessageId, Payload},
-    program::{ProgramId, CodeHash},
+    program::{CodeHash, ProgramId},
 };
-
-
+use path_clean::PathClean;
+use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
 #[derive(Debug)]
 pub struct System(pub(crate) RefCell<ExtManager>);
@@ -104,71 +103,102 @@ impl System {
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
         self.0.borrow_mut().store_new_code(&code)
     }
+
+    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&'_ self, id: ID) -> Mailbox<'_> {
+        let program_id = id.into().0;
+        if self.0.borrow_mut().actors.contains_key(&program_id) {
+            panic!("Such program id is already in actors list");
+        }
+        Mailbox::new(program_id, &self.0)
+    }
 }
 
-#[derive(Debug)]
-pub struct Mailbox<'system_lifetime> {
-    mail: Vec<Message>,
-    system_reference: &'system_lifetime System,
+pub struct Mailbox<'a> {
+    manager_reference: &'a RefCell<ExtManager>,
+    program_id: ProgramId,
 }
 
-impl<'system_lifetime> Mailbox<'system_lifetime> {
-    pub fn new(
-        messages: Vec<Message>,
-        system_reference: &'system_lifetime System,
-    ) -> Mailbox<'system_lifetime> {
+impl<'a> Mailbox<'a> {
+    pub(crate) fn new(
+        program_id: ProgramId,
+        manager_reference: &'a RefCell<ExtManager>,
+    ) -> Mailbox<'a> {
         Mailbox {
-            mail: messages,
-            system_reference,
+            program_id,
+            manager_reference,
         }
     }
 
-    pub fn take_message(&mut self, log: Log) -> Option<MessageReplier> {
-        for index in 0..self.mail.len() {
-            if log.eq(&self.mail[index]) {
-                let message = self.mail.remove(index);
-                return Some(MessageReplier::new(message, self.system_reference));
-            }
-        }
-        None
+    pub(crate) fn contains(&mut self, log: Log) -> bool {
+        self.manager_reference
+            .borrow_mut()
+            .actor_to_mailbox
+            .get(&self.program_id)
+            .expect("No mailbox with such program id")
+            .iter()
+            .any(|message| log.eq(message))
+    }
+
+    pub(crate) fn take_message(&self, log: Log) -> MessageReplier {
+        let index = self
+            .manager_reference
+            .borrow_mut()
+            .actor_to_mailbox
+            .get(&self.program_id)
+            .expect("No mailbox with such program id")
+            .iter()
+            .position(|message| log.eq(message))
+            .expect("No message that satisfies log");
+
+        let taken_message = self
+            .manager_reference
+            .borrow_mut()
+            .take_message(&self.program_id, index);
+
+        MessageReplier::new(taken_message, self.manager_reference)
+    }
+
+    pub(crate) fn reply(&self, log: Log, payload: Payload, value: u128) -> RunResult {
+        let replier = self.take_message(log);
+        replier.reply(payload, value)
+    }
+
+    pub(crate) fn reply_bytes(&self, log: Log, raw_payload: &[u8], value: u128) -> RunResult {
+        let replier = self.take_message(log);
+        replier.reply_bytes(raw_payload, value)
     }
 }
 
-pub struct MessageReplier<'system_lifetime> {
+pub struct MessageReplier<'a> {
     log: CoreLog,
-    system_reference: &'system_lifetime System,
+    manager_reference: &'a RefCell<ExtManager>,
 }
 
-impl<'system_lifetime> MessageReplier<'system_lifetime> {
-    pub fn new(
+impl<'a> MessageReplier<'a> {
+    pub(crate) fn new(
         message: Message,
-        system: &'system_lifetime System,
-    ) -> MessageReplier<'system_lifetime> {
+        manager_reference: &'a RefCell<ExtManager>,
+    ) -> MessageReplier<'a> {
         MessageReplier {
             log: CoreLog::from_message(message),
-            system_reference: system,
+            manager_reference,
         }
     }
 
-    pub(crate) fn reply(&self, payload: Payload, value: u128) -> Option<RunResult> {
+    pub(crate) fn reply(&self, payload: Payload, value: u128) -> RunResult {
         let message = self.log.generate_reply(
-            payload,
-            MessageId::from(self.system_reference.fetch_inc_message_nonce()),
+            payload.encode().into(),
+            MessageId::from(
+                self.manager_reference
+                    .borrow_mut()
+                    .fetch_inc_message_nonce(),
+            ),
             value,
         );
-        let old_payload = self.log.get_payload();
-        let old_message = self
-            .system_reference
-            .0
-            .borrow_mut()
-            .take_message(&message.source, &old_payload);
-        if old_message.is_some() {
-            return Some(self.system_reference.send_message(message));
-        }
-        None
+        self.manager_reference.borrow_mut().run_message(message)
     }
 
-    pub fn reply_bytes(&self, raw_payload: &[u8], value: u128) -> Option<RunResult> {
+    pub(crate) fn reply_bytes(&self, raw_payload: &[u8], value: u128) -> RunResult {
         self.reply(raw_payload.to_vec().into(), value)
     }
 }

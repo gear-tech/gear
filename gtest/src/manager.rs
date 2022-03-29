@@ -31,10 +31,7 @@ use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     fmt::Debug,
     time::{SystemTime, UNIX_EPOCH},
-    message::{Dispatch, DispatchKind, Message, MessageId, Payload},
-    program::{CodeHash, Program as CoreProgram, ProgramId},
 };
-
 
 pub(crate) type Balance = u128;
 
@@ -450,6 +447,13 @@ impl ExtManager {
         );
 
         core_processor::handle_journal(journal, self);
+    }
+
+    pub(crate) fn take_message(&mut self, program_id: &ProgramId, index: usize) -> Message {
+        self.actor_to_mailbox
+            .get_mut(program_id)
+            .expect("No mailbox with such program id")
+            .remove(index)
     }
 }
 
