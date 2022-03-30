@@ -22,7 +22,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::checked_code::CheckedCode;
+use gear_core::program::InstrumentedCode;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
@@ -477,7 +477,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 100_000;
+        let remaining_weight = 500_000;
 
         // Submit programs and get their ids
         let pid1 = {
@@ -1136,7 +1136,21 @@ fn test_code_submission_pass() {
         ));
 
         let saved_code = common::get_code(code_hash);
-        assert_eq!(saved_code, Some(CheckedCode::try_new(code).unwrap()));
+
+        let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).unwrap_or_default();
+        let schedule = <Test as Config>::Schedule::get();
+        let gas_rules = schedule.rules(&module);
+
+        let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
+            .expect("error instrumenting code");
+
+        let instrumented_code =
+            wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                .expect("error serializing instrumented module");
+        assert_eq!(
+            saved_code,
+            Some(InstrumentedCode::new(instrumented_code, 1, 1))
+        );
 
         let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
         let actual_meta = common::get_code_metadata(code_hash);
@@ -1245,7 +1259,7 @@ fn messages_to_uninitialized_program_wait() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            50_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -1286,7 +1300,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            90_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -1314,7 +1328,7 @@ fn uninitialized_program_should_accept_replies() {
             Origin::signed(USER_1).into(),
             *message_id,
             b"PONG".to_vec(),
-            50_000_000u64,
+            200_000_000u64,
             0,
         ));
 
@@ -1337,7 +1351,7 @@ fn defer_program_initialization() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            99_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -1354,7 +1368,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1).into(),
             *message_id,
             b"PONG".to_vec(),
-            50_000_000u64,
+            200_000_000u64,
             0,
         ));
 
@@ -1364,7 +1378,7 @@ fn defer_program_initialization() {
             Origin::signed(USER_1).into(),
             program_id,
             vec![],
-            30_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -1401,7 +1415,7 @@ fn wake_messages_after_program_inited() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            99_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -1417,7 +1431,7 @@ fn wake_messages_after_program_inited() {
                 Origin::signed(USER_3).into(),
                 program_id,
                 vec![],
-                25_000_000u64,
+                100_000_000u64,
                 0u128
             ));
         }
@@ -1434,7 +1448,7 @@ fn wake_messages_after_program_inited() {
             Origin::signed(USER_1).into(),
             message_id.unwrap(),
             b"PONG".to_vec(),
-            50_000_000u64,
+            100_000_000u64,
             0,
         ));
 
@@ -1468,7 +1482,7 @@ fn test_message_processing_for_non_existing_destination() {
             Origin::signed(USER_1).into(),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
-            10_000,
+            500_000,
             100
         ));
         assert!(!Mailbox::<Test>::contains_key(USER_1));
@@ -2251,7 +2265,7 @@ fn resume_program_works() {
             code.clone(),
             vec![],
             Vec::new(),
-            90_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -2269,7 +2283,7 @@ fn resume_program_works() {
             Origin::signed(USER_1).into(),
             message_id.unwrap(),
             b"PONG".to_vec(),
-            50_000_000u64,
+            150_000_000u64,
             1_000u128,
         ));
 
@@ -2291,7 +2305,7 @@ fn resume_program_works() {
             program_id,
             memory_pages,
             Default::default(),
-            10_000u128
+            50_000u128
         ));
 
         assert_ok!(GearPallet::<Test>::send_message(
@@ -2385,28 +2399,20 @@ fn gas_spent_vs_balance() {
 fn gas_spent_precalculated() {
     let wat = r#"
 	(module
-		(import "env" "memory" (memory 1))
+		(import "env" "memory" (memory 0))
 		(export "handle" (func $handle))
-        (func $doWork (param $size i32)
-            (local $counter i32)
-            i32.const 0
-            set_local $counter
-            loop $while
-                get_local $counter
-                i32.const 1
-                i32.add
-                set_local $counter
-                get_local $counter
-                get_local $size
-                i32.lt_s
-                if
-                    br $while
-                end
-            end $while
+        (func $add (; 0 ;) (param $0 i32) (param $1 i32)
+            (local $2 i32)
+            get_local $0
+            get_local $1
+            i32.add
+            set_local $2
         )
         (func $handle
-            i32.const 42
-            call $doWork
+            (call $add
+                (i32.const 2)
+                (i32.const 2)
+            )
 		)
 	)"#;
 
@@ -2425,8 +2431,18 @@ fn gas_spent_precalculated() {
         )
         .expect("Gas spent for handle calculation error");
 
-        // 42 times loop, 9 ops inside the loop, plus 7 ops outside the loop; 1000 gas per instruction
-        assert_eq!(gas_spent_1, (42 * 9 + 7) * 1000);
+        let schedule = <Test as Config>::Schedule::get();
+
+        let const_i64_cost = schedule.instruction_weights.i64const;
+        let call_cost = schedule.instruction_weights.call;
+        let set_local_cost = schedule.instruction_weights.local_set;
+        let get_local_cost = schedule.instruction_weights.local_get;
+        let add_cost = schedule.instruction_weights.i64add;
+
+        let total_cost =
+            call_cost + const_i64_cost * 2 + set_local_cost + get_local_cost * 2 + add_cost;
+
+        assert_eq!(gas_spent_1, total_cost as u64);
 
         let (gas_spent_2, _) =
             calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
@@ -2449,7 +2465,7 @@ mod utils {
     };
     use common::Origin as _;
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 5_000;
     pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &'static [u8; 0] = b"";
 

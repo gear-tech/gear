@@ -35,7 +35,7 @@ use std::{
 };
 
 use frame_system as system;
-use gear_runtime::{Gear, Runtime, System};
+use gear_runtime::{Runtime, System};
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 

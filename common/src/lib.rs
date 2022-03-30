@@ -816,7 +816,7 @@ mod tests {
             let code =
                 hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
             let code_hash: H256 = CodeHash::generate(&code).into_origin();
-            let code = CheckedCode::try_new(code.clone()).unwrap();
+            let code = InstrumentedCode::new(code.clone(), 1, 1);
 
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {

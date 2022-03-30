@@ -287,7 +287,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::{Program, ProgramId};
-    use crate::{checked_code::CheckedCode, program::InstrumentedCode, util::encode_hex};
+    use crate::{program::InstrumentedCode, util::encode_hex};
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -341,7 +341,7 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = InstrumentedCode::try_new(binary, 1).unwrap();
+        let code = InstrumentedCode::new(binary, 2, 1);
         let mut program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages

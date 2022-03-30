@@ -721,8 +721,8 @@ pub mod pallet {
             code_hash: H256,
             schedule: &Schedule<T>,
         ) -> Result<u32, DispatchError> {
-            let original_code = common::get_original_code(code_hash.clone())
-                .ok_or_else(|| Error::<T>::CodeNotFound)?;
+            let original_code =
+                common::get_original_code(code_hash).ok_or(Error::<T>::CodeNotFound)?;
             let original_code_len = original_code.code().len();
             let code = Self::instrument_code(original_code.code().to_vec(), schedule)?;
             let instrumented_code = InstrumentedCode::new(
@@ -730,7 +730,7 @@ pub mod pallet {
                 original_code.static_pages(),
                 schedule.instruction_weights.version,
             );
-            common::set_code(code_hash.clone(), &instrumented_code);
+            common::set_code(code_hash, &instrumented_code);
             Ok(original_code_len as u32)
         }
     }
@@ -866,7 +866,7 @@ pub mod pallet {
             let instrumented_code =
                 common::get_code(checked_code_hash.hash().into_origin()).unwrap();
             let instrumented_code_hash =
-                InstrumentedCodeWithHash::new(instrumented_code, checked_code_hash.hash().clone());
+                InstrumentedCodeWithHash::new(instrumented_code, *checked_code_hash.hash());
 
             let init_message_id = common::next_message_id(&init_payload);
 

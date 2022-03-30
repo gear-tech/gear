@@ -19,6 +19,8 @@
 //! This module contains the cost schedule and supporting code that constructs a
 //! sane default schedule from a `WeightInfo` implementation.
 
+#![allow(unused_parens)]
+
 use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
@@ -45,18 +47,18 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 /// fn create_schedule<T: Config>() -> Schedule<T> {
 ///     Schedule {
 ///         limits: Limits {
-/// 		        globals: 3,
-/// 		        parameters: 3,
-/// 		        memory_pages: 16,
-/// 		        table_size: 3,
-/// 		        br_table_size: 3,
-/// 		        .. Default::default()
-/// 	        },
+///                 globals: 3,
+///                 parameters: 3,
+///                 memory_pages: 16,
+///                 table_size: 3,
+///                 br_table_size: 3,
+///                 .. Default::default()
+///             },
 ///         instruction_weights: InstructionWeights {
-/// 	            version: 5,
+///                 version: 5,
 ///             .. Default::default()
 ///         },
-/// 	        .. Default::default()
+///             .. Default::default()
 ///     }
 /// }
 /// ```
@@ -248,15 +250,15 @@ macro_rules! replace_token {
 }
 
 macro_rules! call_zero {
-	($name:ident, $( $arg:expr ),*) => {
-		<T as super::pallet::Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
-	};
+    ($name:ident, $( $arg:expr ),*) => {
+        <T as super::pallet::Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
+    };
 }
 
 macro_rules! cost_args {
-	($name:ident, $( $arg: expr ),+) => {
-		(<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
-	}
+    ($name:ident, $( $arg: expr ),+) => {
+        (<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
+    }
 }
 
 macro_rules! cost_instr_no_params_with_batch_size {
@@ -468,8 +470,6 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
     }
 
     fn memory_grow_cost(&self) -> gas_metering::MemoryGrowCost {
-        // We benchmarked the memory.grow instruction with the maximum allowed pages.
-        // The cost for growing is therefore already included in the instruction cost.
         gas_metering::MemoryGrowCost::Free
     }
 }
