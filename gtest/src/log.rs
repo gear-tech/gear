@@ -1,15 +1,15 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
 use gear_core::{
-    message::{Message, MessageId},
-    program::ProgramId,
+    ids::{MessageId, ProgramId},
+    message::{ExitCode, Message},
 };
 use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
     source: ProgramId,
-    dest: ProgramId,
+    destination: ProgramId,
     payload: Vec<u8>,
     exit_code: Option<i32>,
 }
@@ -17,10 +17,10 @@ pub struct CoreLog {
 impl CoreLog {
     pub(crate) fn from_message(other: Message) -> Self {
         Self {
-            source: other.source,
-            dest: other.dest,
-            payload: other.payload.into_raw(),
-            exit_code: other.reply.map(|(_, code)| Some(code)).unwrap_or_default(),
+            source: other.source(),
+            destination: other.destination(),
+            payload: other.payload().to_vec(),
+            exit_code: other.exit_code(),
         }
     }
 }
@@ -28,7 +28,7 @@ impl CoreLog {
 #[derive(Debug)]
 pub struct DecodedCoreLog<T: Codec + Debug> {
     source: ProgramId,
-    dest: ProgramId,
+    destination: ProgramId,
     payload: T,
     exit_code: Option<i32>,
 }
@@ -39,7 +39,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 
         Some(Self {
             source: log.source,
-            dest: log.dest,
+            destination: log.destination,
             payload,
             exit_code: log.exit_code,
         })
@@ -49,7 +49,7 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Log {
     source: Option<ProgramId>,
-    dest: Option<ProgramId>,
+    destination: Option<ProgramId>,
     payload: Option<Vec<u8>>,
     exit_code: i32,
 }
@@ -74,9 +74,9 @@ impl Log {
         Default::default()
     }
 
-    pub fn error_builder() -> Self {
+    pub fn error_builder(exit_code: ExitCode) -> Self {
         let mut log = Self::builder();
-        log.exit_code = 1;
+        log.exit_code = exit_code;
         log.payload = Some(Vec::new());
 
         log
@@ -107,11 +107,11 @@ impl Log {
     }
 
     pub fn dest<T: Into<ProgramIdWrapper>>(mut self, dest: T) -> Self {
-        if self.dest.is_some() {
+        if self.destination.is_some() {
             panic!("Destination was already set for this log");
         }
 
-        self.dest = Some(dest.into().0);
+        self.destination = Some(dest.into().0);
 
         self
     }
@@ -121,7 +121,7 @@ impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
     fn eq(&self, other: &DecodedCoreLog<T>) -> bool {
         let core_log = CoreLog {
             source: other.source,
-            dest: other.dest,
+            destination: other.destination,
             payload: other.payload.encode(),
             exit_code: other.exit_code,
         };
@@ -150,8 +150,8 @@ impl PartialEq<CoreLog> for Log {
             }
         }
 
-        if let Some(dest) = self.dest {
-            if dest != other.dest {
+        if let Some(destination) = self.destination {
+            if destination != other.destination {
                 return false;
             }
         }

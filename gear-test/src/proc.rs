@@ -23,8 +23,10 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    message::{Dispatch, DispatchKind, IncomingMessage, Message, MessageId},
-    program::{CheckedCode, Program, ProgramId},
+    code::CheckedCode,
+    ids::{MessageId, ProgramId},
+    message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
+    program::Program,
 };
 use regex::Regex;
 use std::{
@@ -43,14 +45,14 @@ pub fn parse_payload(payload: String) -> String {
     let mut s = payload;
     while let Some(caps) = program_id_regex.captures(&s) {
         let id = caps["id"].parse::<u64>().unwrap();
-        s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_slice()));
+        s = s.replace(&caps[0], &hex::encode(ProgramId::from(id).as_ref()));
     }
 
     while let Some(caps) = account_regex.captures(&s) {
         let id = &caps["id"];
         s = s.replace(
             &caps[0],
-            &hex::encode(Address::Account(id.to_string()).to_program_id().as_slice()),
+            &hex::encode(Address::Account(id.to_string()).to_program_id().as_ref()),
         );
     }
 
@@ -67,13 +69,9 @@ pub struct InitMessage {
     pub message: IncomingMessage,
 }
 
-impl From<InitMessage> for Dispatch {
+impl From<InitMessage> for IncomingDispatch {
     fn from(other: InitMessage) -> Self {
-        Self {
-            kind: DispatchKind::Init,
-            message: other.message.into_message(other.id),
-            payload_store: None,
-        }
+        IncomingDispatch::new(DispatchKind::Init, other.message, None)
     }
 }
 
@@ -88,6 +86,7 @@ where
 {
     let code = CheckedCode::try_new(message.code.clone())?;
     let program = Program::new(message.id, code);
+    let program_id = program.id();
 
     if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
         return Err(anyhow::anyhow!(
@@ -96,6 +95,7 @@ where
     }
 
     journal_handler.store_program(program.clone(), message.message.id());
+    journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
     let journal = core_processor::process::<Ext, E>(
         Some(ExecutableActor {
@@ -106,6 +106,7 @@ where
         block_info,
         EXISTENTIAL_DEPOSIT,
         Default::default(),
+        program_id,
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -172,9 +173,10 @@ where
                 message: IncomingMessage::new(
                     message_id,
                     init_source,
-                    init_message.into(),
+                    init_message,
                     program.init_gas_limit.unwrap_or(GAS_LIMIT),
                     program.init_value.unwrap_or(0) as u128,
+                    None,
                 ),
             },
             Default::default(),
@@ -225,16 +227,18 @@ where
             message_source = source.to_program_id();
         }
 
-        let message = Message {
-            id: message_id,
-            source: message_source,
-            dest: message.destination.to_program_id(),
-            payload: payload.into(),
-            gas_limit: Some(gas_limit),
-            value: message.value.unwrap_or_default() as _,
-            reply: None,
-        };
-        journal_handler.send_dispatch(Default::default(), Dispatch::new_handle(message));
+        let message = Message::new(
+            message_id,
+            message_source,
+            message.destination.to_program_id(),
+            payload,
+            Some(gas_limit),
+            message.value.unwrap_or_default() as _,
+            None,
+        );
+        let dispatch = Dispatch::new(DispatchKind::Handle, message);
+
+        journal_handler.send_dispatch(Default::default(), dispatch);
 
         nonce += 1;
     }
@@ -262,15 +266,18 @@ where
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            if let Some(dispatch) = state.dispatch_queue.pop_front() {
-                let actor = state.actors.get(&dispatch.message.dest()).cloned();
+            if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
+                let actor = state.actors.get(&dispatch.destination()).cloned();
+
+                let program_id = dispatch.destination();
 
                 let journal = core_processor::process::<Ext, E>(
                     actor,
-                    dispatch,
+                    dispatch.into_incoming(gas_limit),
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
                     Default::default(),
+                    program_id,
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -284,23 +291,26 @@ where
         }
     } else {
         let mut counter = 0;
-        while let Some(dispatch) = state.dispatch_queue.pop_front() {
-            let actor = state.actors.get(&dispatch.message.dest()).cloned();
+        while let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
+            let actor = state.actors.get(&dispatch.destination()).cloned();
 
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
+            let program_id = dispatch.destination();
+
             let journal = core_processor::process::<Ext, E>(
                 actor,
-                dispatch,
+                dispatch.into_incoming(gas_limit),
                 BlockInfo {
                     height: counter,
                     timestamp,
                 },
                 EXISTENTIAL_DEPOSIT,
                 Default::default(),
+                program_id,
             );
             counter += 1;
 

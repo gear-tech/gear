@@ -20,7 +20,7 @@
 
 use super::*;
 use common::{benchmarking, Origin};
-use gear_core::program::CodeHash;
+use gear_core::ids::{CodeId, MessageId, ProgramId};
 use sp_core::H256;
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::prelude::*;
@@ -45,7 +45,7 @@ benchmarks! {
         let c in MIN_CODE_LEN .. MAX_CODE_LEN;
         let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         let code = benchmarking::generate_wasm3(vec![0u8; (c - MIN_CODE_LEN) as usize]).unwrap();
-        let code_hash: H256 = CodeHash::generate(&code).into_origin();
+        let code_hash: H256 = CodeId::generate(&code).into_origin();
     }: _(RawOrigin::Signed(caller), code)
     verify {
         assert!(common::code_exists(code_hash));
@@ -72,7 +72,7 @@ benchmarks! {
         <T as Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
         let code = benchmarking::generate_wasm2(16_i32).unwrap();
-        benchmarking::set_program(program_id, code, 1_u32, 0_u64);
+        benchmarking::set_program(program_id, code, 1_u32);
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), program_id, payload, 100_000_000_u64, 10_000_u32.into())
     verify {
@@ -85,18 +85,18 @@ benchmarks! {
         <T as Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
         let code = benchmarking::generate_wasm2(16_i32).unwrap();
-        benchmarking::set_program(program_id, code, 1_u32, 0_u64);
+        benchmarking::set_program(program_id, code, 1_u32);
         let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).into_origin();
         Gear::<T>::insert_to_mailbox(
             caller.clone().into_origin(),
-            common::QueuedMessage {
-                id: original_message_id,
-                source: program_id,
-                dest: caller.clone().into_origin(),
-                payload: vec![],
-                value: 0_u128,
-                reply: None,
-            },
+            gear_core::message::StoredMessage::new(
+                MessageId::from_origin(original_message_id),
+                ProgramId::from_origin(program_id),
+                ProgramId::from_origin(caller.clone().into_origin()),
+                Default::default(),
+                0,
+                None,
+            )
         );
         let payload = vec![0_u8; p as usize];
     }: _(RawOrigin::Signed(caller), original_message_id, payload, 100_000_000_u64, 10_000_u32.into())

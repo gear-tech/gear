@@ -19,7 +19,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod lazy_pages;
-pub mod native;
 pub mod storage_queue;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -42,8 +41,10 @@ use sp_std::{
 };
 
 use gear_core::{
-    message::{DispatchKind, PayloadStore},
-    program::{CheckedCode, CodeHash, Program as NativeProgram, ProgramId},
+    code::CheckedCode,
+    ids::{CodeId, MessageId, ProgramId},
+    message::StoredDispatch,
+    program::Program as NativeProgram,
 };
 
 pub use storage_queue::Iterator;
@@ -53,7 +54,6 @@ pub const STORAGE_PROGRAM_PREFIX: &[u8] = b"g::prog::";
 pub const STORAGE_PROGRAM_PAGES_PREFIX: &[u8] = b"g::pages::";
 pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
-pub const STORAGE_MESSAGE_NONCE_KEY: &[u8] = b"g::msg::nonce";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
@@ -103,9 +103,29 @@ impl Origin for H256 {
     }
 }
 
-impl Origin for CodeHash {
+impl Origin for MessageId {
     fn into_origin(self) -> H256 {
-        self.inner().into()
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for ProgramId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
+    }
+
+    fn from_origin(val: H256) -> Self {
+        val.to_fixed_bytes().into()
+    }
+}
+
+impl Origin for CodeId {
+    fn into_origin(self) -> H256 {
+        H256(self.into())
     }
 
     fn from_origin(val: H256) -> Self {
@@ -213,159 +233,6 @@ pub trait DAGBasedLedger {
 }
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct Dispatch {
-    pub kind: DispatchKind,
-    pub message: Message,
-    pub payload_store: Option<PayloadStore>,
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct QueuedDispatch {
-    pub kind: DispatchKind,
-    pub message: QueuedMessage,
-    pub payload_store: Option<PayloadStore>,
-}
-
-impl Dispatch {
-    pub fn new_init(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Init,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_handle(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Handle,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_reply(message: Message) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::HandleReply,
-            payload_store: None,
-        }
-    }
-}
-
-impl QueuedDispatch {
-    pub fn new_init(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Init,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_handle(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::Handle,
-            payload_store: None,
-        }
-    }
-
-    pub fn new_reply(message: QueuedMessage) -> Self {
-        Self {
-            message,
-            kind: DispatchKind::HandleReply,
-            payload_store: None,
-        }
-    }
-
-    pub fn into_dispatch(self, gas_limit: u64) -> gear_core::message::Dispatch {
-        gear_core::message::Dispatch {
-            message: self.message.into_message(gas_limit),
-            kind: self.kind,
-            payload_store: self.payload_store,
-        }
-    }
-
-    pub fn without_gas_limit(dispatch: gear_core::message::Dispatch) -> (Option<u64>, Self) {
-        let (gas_limit, message) = QueuedMessage::without_gas_limit(dispatch.message);
-
-        let dispatch = Self {
-            message,
-            kind: dispatch.kind,
-            payload_store: dispatch.payload_store,
-        };
-
-        (gas_limit, dispatch)
-    }
-
-    pub fn message_id(&self) -> &H256 {
-        &self.message.id
-    }
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct Message {
-    pub id: H256,
-    pub source: H256,
-    pub dest: H256,
-    pub payload: Vec<u8>,
-    pub gas_limit: u64,
-    pub value: u128,
-    pub reply: Option<(H256, ExitCode)>,
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
-pub struct QueuedMessage {
-    pub id: H256,
-    pub source: H256,
-    pub dest: H256,
-    pub payload: Vec<u8>,
-    pub value: u128,
-    pub reply: Option<(H256, ExitCode)>,
-}
-
-impl QueuedMessage {
-    pub fn into_message(self, gas_limit: u64) -> gear_core::message::Message {
-        gear_core::message::Message {
-            id: gear_core::message::MessageId::from_origin(self.id),
-            source: gear_core::program::ProgramId::from_origin(self.source),
-            dest: gear_core::program::ProgramId::from_origin(self.dest),
-            payload: self.payload.into(),
-            gas_limit: Some(gas_limit),
-            value: self.value,
-            reply: self.reply.map(|(message_id, exit_code)| {
-                (
-                    gear_core::message::MessageId::from_origin(message_id),
-                    exit_code,
-                )
-            }),
-        }
-    }
-
-    pub fn without_gas_limit(message: gear_core::message::Message) -> (Option<u64>, Self) {
-        let gear_core::message::Message {
-            id,
-            source,
-            dest,
-            payload,
-            gas_limit,
-            value,
-            reply,
-        } = message;
-
-        let new_message = Self {
-            id: id.into_origin(),
-            source: source.into_origin(),
-            dest: dest.into_origin(),
-            payload: payload.into_raw(),
-            value,
-            reply: reply.map(|(message_id, exit_code)| (message_id.into_origin(), exit_code)),
-        };
-
-        (gas_limit, new_message)
-    }
-}
-
-#[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub enum Program {
     Active(ActiveProgram),
     Terminated,
@@ -386,7 +253,6 @@ impl Program {
         let native_program = NativeProgram::from_parts(
             ProgramId::from_origin(id),
             code,
-            program.nonce,
             program.persistent_pages,
             is_initialized,
         );
@@ -438,7 +304,6 @@ pub struct ActiveProgram {
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
-    pub nonce: u64,
     pub state: ProgramState,
 }
 
@@ -618,73 +483,19 @@ pub fn clear_dispatch_queue() {
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
 }
 
-pub fn dequeue_dispatch() -> Option<QueuedDispatch> {
+pub fn dequeue_dispatch() -> Option<StoredDispatch> {
     let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
     dispatch_queue.dequeue()
 }
 
-pub fn queue_dispatch(dispatch: QueuedDispatch) {
+pub fn queue_dispatch(dispatch: StoredDispatch) {
     let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
-    let id = dispatch.message.id;
-    dispatch_queue.queue(dispatch, id);
+    let id = dispatch.id();
+    dispatch_queue.queue(dispatch, id.into_origin());
 }
 
-pub fn dispatch_iter() -> Iterator<QueuedDispatch> {
+pub fn dispatch_iter() -> Iterator<StoredDispatch> {
     StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
-}
-
-pub fn nonce_fetch_inc() -> u128 {
-    let original_nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
-
-    let new_nonce = original_nonce.wrapping_add(1);
-
-    sp_io::storage::set(STORAGE_MESSAGE_NONCE_KEY, &new_nonce.encode());
-
-    original_nonce
-}
-
-pub fn peek_last_message_id(payload: &[u8]) -> H256 {
-    let nonce = sp_io::storage::get(STORAGE_MESSAGE_NONCE_KEY)
-        .map(|val| u128::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0u128);
-
-    let mut data = payload.encode();
-    data.extend_from_slice(&(nonce.wrapping_sub(1)).to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
-    message_id
-}
-
-// WARN: Never call that in threads
-pub fn next_message_id(payload: &[u8]) -> H256 {
-    let nonce = nonce_fetch_inc();
-    let mut data = payload.encode();
-    data.extend_from_slice(&nonce.to_le_bytes());
-    let message_id: H256 = sp_io::hashing::blake2_256(&data).into();
-    message_id
-}
-
-pub fn caller_nonce_fetch_inc(caller_id: H256) -> u64 {
-    let mut key_id = STORAGE_MESSAGE_USER_NONCE_KEY.to_vec();
-    key_id.extend(&caller_id[..]);
-
-    let original_nonce = sp_io::storage::get(&key_id)
-        .map(|val| u64::decode(&mut &val[..]).expect("nonce decode fail"))
-        .unwrap_or(0);
-
-    let new_nonce = original_nonce.wrapping_add(1);
-
-    sp_io::storage::set(&key_id, &new_nonce.encode());
-
-    original_nonce
-}
-
-pub fn set_program_nonce(id: H256, nonce: u64) {
-    if let Some(Program::Active(mut prog)) = get_program(id) {
-        prog.nonce = nonce;
-        sp_io::storage::set(&program_key(id), &Program::Active(prog).encode())
-    }
 }
 
 pub fn set_program_persistent_pages(id: H256, persistent_pages: BTreeSet<u32>) {
@@ -706,15 +517,15 @@ pub fn remove_program_page(program_id: H256, page_num: u32) {
     sp_io::storage::clear(&page_key);
 }
 
-pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: QueuedDispatch, bn: u32) {
+pub fn insert_waiting_message(dest_prog_id: H256, msg_id: H256, dispatch: StoredDispatch, bn: u32) {
     let payload = (dispatch, bn);
     sp_io::storage::set(&wait_key(dest_prog_id, msg_id), &payload.encode());
 }
 
-pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(QueuedDispatch, u32)> {
+pub fn remove_waiting_message(dest_prog_id: H256, msg_id: H256) -> Option<(StoredDispatch, u32)> {
     let id = wait_key(dest_prog_id, msg_id);
     let msg = sp_io::storage::get(&id)
-        .and_then(|val| <(QueuedDispatch, u32)>::decode(&mut &val[..]).ok());
+        .and_then(|val| <(StoredDispatch, u32)>::decode(&mut &val[..]).ok());
 
     if msg.is_some() {
         sp_io::storage::clear(&id);
@@ -738,10 +549,10 @@ fn program_waitlist_prefix(prog_id: H256) -> Vec<u8> {
     key
 }
 
-pub fn remove_program_waitlist(prog_id: H256) -> Vec<QueuedDispatch> {
+pub fn remove_program_waitlist(prog_id: H256) -> Vec<StoredDispatch> {
     let key = program_waitlist_prefix(prog_id);
     let messages =
-        sp_io::storage::get(&key).and_then(|v| Vec::<QueuedDispatch>::decode(&mut &v[..]).ok());
+        sp_io::storage::get(&key).and_then(|v| Vec::<StoredDispatch>::decode(&mut &v[..]).ok());
     sp_io::storage::clear(&key);
 
     messages.unwrap_or_default()
@@ -777,15 +588,6 @@ pub fn reset_storage() {
 mod tests {
     use super::*;
 
-    #[test]
-    fn nonce_incremented() {
-        sp_io::TestExternalities::new_empty().execute_with(|| {
-            assert_eq!(nonce_fetch_inc(), 0_u128);
-            assert_eq!(nonce_fetch_inc(), 1_u128);
-            assert_eq!(nonce_fetch_inc(), 2_u128);
-        });
-    }
-
     fn get_active_program(id: H256) -> Option<ActiveProgram> {
         get_program(id).and_then(|p| p.try_into().ok())
     }
@@ -795,19 +597,17 @@ mod tests {
         sp_io::TestExternalities::new_empty().execute_with(|| {
             let code =
                 hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-            let code_hash: H256 = CodeHash::generate(&code).into_origin();
+            let code_id = CodeId::generate(&code).into_origin();
             let code = CheckedCode::try_new(code.clone()).unwrap();
 
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
                 static_pages: 256,
                 persistent_pages: Default::default(),
-                code_hash,
-                nonce: 0,
+                code_hash: code_id,
                 state: ProgramState::Initialized,
             };
-
-            set_code(code_hash, &code);
+            set_code(code_id, &code);
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_active_program(program_id).unwrap(), program);

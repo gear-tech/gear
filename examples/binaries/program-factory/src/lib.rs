@@ -95,7 +95,7 @@ mod tests {
     fn prepare_factory<'a>(sys: &'a System) -> Program<'a> {
         // Store child
         let code_hash_stored = sys.submit_code("./child_contract.wasm");
-        assert_eq!(code_hash_stored.inner(), CHILD_CODE_HASH);
+        assert_eq!(code_hash_stored, CHILD_CODE_HASH.into());
 
         // Instantiate factory
         let factory = Program::current_with_id(sys, 100);
@@ -186,7 +186,7 @@ mod tests {
         let invalid_wasm_code_hash = sys.submit_code(invalid_wasm_path_buf);
 
         let payload = CreateProgram::Custom(vec![(
-            invalid_wasm_code_hash.inner(),
+            invalid_wasm_code_hash.into(),
             b"some_salt".to_vec(),
             100_000,
         )]);

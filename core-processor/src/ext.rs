@@ -16,21 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    configs::{AllocationsConfig, BlockInfo},
-    id::BlakeMessageIdGenerator,
-};
+use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber},
-    message::{
-        ExitCode, MessageContext, MessageId, MessageState, OutgoingPacket, ProgramInitPacket,
-        ReplyPacket,
-    },
-    program::{CodeHash, ProgramId},
+    message::{ExitCode, HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
 
 /// Trait to which ext must have to work in processor wasm executor.
@@ -42,7 +36,7 @@ pub trait ProcessorExt {
         gas_counter: GasCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
-        message_context: MessageContext<BlakeMessageIdGenerator>,
+        message_context: MessageContext,
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
@@ -50,7 +44,7 @@ pub trait ProcessorExt {
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
-        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+        program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     ) -> Self;
 
     /// Try to enable and initialize lazy pages env
@@ -95,7 +89,7 @@ pub struct Ext {
     /// Allocations context.
     pub allocations_context: AllocationsContext,
     /// Message context.
-    pub message_context: MessageContext<BlakeMessageIdGenerator>,
+    pub message_context: MessageContext,
     /// Block info.
     pub block_info: BlockInfo,
     /// Allocations config.
@@ -112,7 +106,7 @@ pub struct Ext {
     pub program_id: ProgramId,
     /// Map of code hashes to program ids of future programs, which are planned to be
     /// initialized with the corresponding code (with the same code hash).
-    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
 }
 
 /// Empty implementation for non-substrate (and non-lazy-pages) using
@@ -121,7 +115,7 @@ impl ProcessorExt for Ext {
         gas_counter: GasCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
-        message_context: MessageContext<BlakeMessageIdGenerator>,
+        message_context: MessageContext,
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
@@ -129,7 +123,7 @@ impl ProcessorExt for Ext {
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
-        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+        program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             gas_counter,
@@ -201,28 +195,16 @@ impl IntoExtInfo for Ext {
             accessed_pages.insert(page, buf);
         }
 
-        let nonce = self.message_context.nonce();
-
-        let (
-            MessageState {
-                init_messages,
-                outgoing,
-                reply,
-                awakening,
-            },
-            store,
-        ) = self.message_context.drain();
+        let (outcome, context_store) = self.message_context.drain();
+        let (generated_dispatches, awakening) = outcome.drain();
 
         Ok(ExtInfo {
             gas_amount: self.gas_counter.into(),
             pages: self.allocations_context.allocations().clone(),
             accessed_pages,
-            init_messages,
-            outgoing,
-            reply,
+            generated_dispatches,
             awakening,
-            nonce,
-            payload_store: Some(store),
+            context_store,
             trap_explanation: self.error_explanation,
             exit_argument: self.exit_argument,
             program_candidates_data: self.program_candidates_data,
@@ -308,13 +290,13 @@ impl EnvExt for Ext {
             .send_init()
             .map_err(|_e| "Message init error");
 
-        self.return_and_store_err(result)
+        self.return_and_store_err(result.map(|v| v as usize))
     }
 
     fn send_push(&mut self, handle: usize, buffer: &[u8]) -> Result<(), &'static str> {
         let result = self
             .message_context
-            .send_push(handle, buffer)
+            .send_push(handle as u32, buffer)
             .map_err(|_e| "Payload push error");
 
         self.return_and_store_err(result)
@@ -329,11 +311,7 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn send_commit(
-        &mut self,
-        handle: usize,
-        msg: OutgoingPacket,
-    ) -> Result<MessageId, &'static str> {
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str> {
         if 0 < msg.value() && msg.value() < self.existential_deposit {
             return self.return_and_store_err(Err(
                 "Value of the message is less than existance deposit, but greater than 0",
@@ -351,7 +329,7 @@ impl EnvExt for Ext {
 
         let result = self
             .message_context
-            .send_commit(handle, msg)
+            .send_commit(handle as u32, msg)
             .map_err(|_e| "Message commit error");
 
         self.return_and_store_err(result)
@@ -470,13 +448,13 @@ impl EnvExt for Ext {
         self.return_and_store_err(result)
     }
 
-    fn create_program(&mut self, packet: ProgramInitPacket) -> Result<ProgramId, &'static str> {
-        let code_hash = packet.code_hash;
+    fn create_program(&mut self, packet: InitPacket) -> Result<ProgramId, &'static str> {
+        let code_hash = packet.code_id();
 
         // Send a message for program creation
         let result = self
             .message_context
-            .send_init_program(packet)
+            .init_program(packet)
             .map(|(new_prog_id, init_msg_id)| {
                 // Save a program candidate for this run
                 let entry = self.program_candidates_data.entry(code_hash).or_default();

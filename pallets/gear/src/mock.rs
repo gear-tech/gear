@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate as pallet_gear;
-use common::{Dispatch, Message, Origin as _};
+use crate::{ext::LazyPagesExt, manager::ExtManager};
+use common::Origin as _;
 use core_processor::{
     common::{DispatchOutcome, JournalNote},
     configs::BlockInfo,
@@ -26,14 +27,15 @@ use frame_support::traits::{Currency, FindAuthor, OnFinalize, OnIdle, OnInitiali
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_backend_sandbox::SandboxEnvironment;
-use gear_core::{message::DispatchKind, program::ProgramId};
+use gear_core::{
+    ids::ProgramId,
+    message::{Dispatch, DispatchKind, Message},
+};
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentityLookup, UniqueSaturatedInto},
 };
-
-use crate::{ext::LazyPagesExt, manager::ExtManager};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -203,28 +205,23 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
 pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64, u64) {
     let ext_manager: ExtManager<Test> = Default::default();
 
-    let root_message_id = common::next_message_id(&payload);
     let initial_gas = <Test as pallet_gear::Config>::BlockGasLimit::get();
 
-    let message = Message {
-        id: root_message_id,
-        source,
-        dest,
-        gas_limit: initial_gas,
+    let message = Message::new(
+        Default::default(),
+        ProgramId::from_origin(source),
+        ProgramId::from_origin(dest),
         payload,
-        value: 0,
-        reply: None,
-    };
+        Some(initial_gas),
+        0,
+        None,
+    );
 
     let actor = ext_manager
         .get_executable_actor(dest)
         .expect("Can't find a program");
 
-    let dispatch = Dispatch {
-        kind: DispatchKind::Handle,
-        message,
-        payload_store: None,
-    };
+    let dispatch = Dispatch::new(DispatchKind::Handle, message);
 
     let block_info = BlockInfo {
         height: System::block_number() as u32,
@@ -236,10 +233,11 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
 
     let journal = core_processor::process::<LazyPagesExt, SandboxEnvironment<LazyPagesExt>>(
         Some(actor),
-        dispatch.into(),
+        dispatch.into_stored().into_incoming(initial_gas),
         block_info,
         existential_deposit,
         ProgramId::from_origin(source),
+        ProgramId::from_origin(dest),
     );
 
     let mut gas_burned: u64 = 0;
@@ -251,7 +249,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
                 gas_burned = gas_burned.saturating_add(*amount);
             }
             JournalNote::SendDispatch { dispatch, .. } => {
-                gas_to_send = gas_to_send.saturating_add(dispatch.message.gas_limit().unwrap_or(0));
+                gas_to_send = gas_to_send.saturating_add(dispatch.gas_limit().unwrap_or(0));
             }
             JournalNote::MessageDispatched(DispatchOutcome::MessageTrap { .. }) => {
                 panic!("Program terminated with a trap");

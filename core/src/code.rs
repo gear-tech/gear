@@ -18,6 +18,7 @@
 
 //! Module for checked code.
 
+use crate::ids::CodeId;
 use alloc::vec::Vec;
 use anyhow::Result;
 use codec::{Decode, Encode};
@@ -62,5 +63,31 @@ impl CheckedCode {
     /// Returns initial memory size from memory import.
     pub fn static_pages(&self) -> u32 {
         self.static_pages
+    }
+}
+
+/// Contains checked code for a program and the hash for it.
+pub struct CheckedCodeWithHash(CheckedCode, CodeId);
+
+impl CheckedCodeWithHash {
+    /// Creates new instance from the provided code.
+    pub fn new(code: CheckedCode) -> Self {
+        let hash = CodeId::generate(code.code());
+        Self(code, hash)
+    }
+
+    /// Returns reference to the checked code.
+    pub fn code(&self) -> &CheckedCode {
+        &self.0
+    }
+
+    /// Returns reference to the code hash.
+    pub fn hash(&self) -> CodeId {
+        self.1
+    }
+
+    /// Decomposes this instance.
+    pub fn into_parts(self) -> (CheckedCode, CodeId) {
+        (self.0, self.1)
     }
 }

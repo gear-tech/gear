@@ -38,7 +38,7 @@ benchmarks! {
         let code = benchmarking::generate_wasm(q).unwrap();
 
         let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
-        benchmarking::set_program(program_id, code, q, 0u64);
+        benchmarking::set_program(program_id, code, q);
 
         let memory_pages = common::get_program_pages(program_id, (0..q).collect()).unwrap();
 

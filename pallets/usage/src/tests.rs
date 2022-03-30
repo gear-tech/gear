@@ -19,10 +19,13 @@
 use super::*;
 use crate::{mock::*, offchain::PayeeInfo};
 use codec::Decode;
-use common::{self, DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
+use common::{self, DAGBasedLedger, Origin as _};
 use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
-use gear_core::{checked_code::CheckedCode, message::DispatchKind};
+use gear_core::{
+    code::CheckedCode,
+    message::{DispatchKind, StoredDispatch, StoredMessage},
+};
 use hex_literal::hex;
 use sp_runtime::offchain::{
     storage_lock::{StorageLock, Time},
@@ -38,43 +41,32 @@ pub(crate) fn init_logger() {
 
 fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
     for i in 0_u64..n {
-        let prog_id = (i + 1).into_origin();
-        let msg_id = (100_u64 * n + i + 1).into_origin();
+        let prog_id = (i + 1).into();
+        let msg_id = (100_u64 * n + i + 1).into();
         let blk_num = i % (bn as u64) + 1;
-        let user_id = i % num_users + 1;
+        let user_id = (i % num_users + 1).into();
         let gas_limit = gas_limits[i as usize];
-        let message = QueuedMessage {
-            id: msg_id,
-            source: user_id.into_origin(),
-            dest: prog_id,
-            payload: vec![],
-            value: 0_u128,
-            reply: None,
-        };
+        let message = StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None);
         common::insert_waiting_message(
-            prog_id.clone(),
-            msg_id.clone(),
-            QueuedDispatch {
-                kind: DispatchKind::Handle,
-                message,
-                payload_store: None,
-            },
+            prog_id.into_origin(),
+            msg_id.into_origin(),
+            StoredDispatch::new(DispatchKind::Handle, message, None),
             blk_num.try_into().unwrap(),
         );
         let _ = <Test as pallet_gear::Config>::GasHandler::create(
             user_id.into_origin(),
-            msg_id,
+            msg_id.into_origin(),
             gas_limit,
         );
     }
 }
 
-fn wait_list_contents() -> Vec<(QueuedDispatch, u32)> {
-    frame_support::storage::PrefixIterator::<(QueuedDispatch, u32)>::new(
+fn wait_list_contents() -> Vec<(StoredDispatch, u32)> {
+    frame_support::storage::PrefixIterator::<(StoredDispatch, u32)>::new(
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         common::STORAGE_WAITLIST_PREFIX.to_vec(),
         |_, mut value| {
-            let decoded = <(QueuedDispatch, u32)>::decode(&mut value)?;
+            let decoded = <(StoredDispatch, u32)>::decode(&mut value)?;
             Ok(decoded)
         },
     )
@@ -396,11 +388,11 @@ fn rent_charge_works() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message, n))
+            .map(|(d, n)| (d.message().clone(), n))
             .collect::<Vec<_>>();
         assert_eq!(wl.len(), 10);
-        assert_eq!(wl[0].0.id, 1001.into_origin());
-        assert_eq!(wl[9].0.id, 1010.into_origin());
+        assert_eq!(wl[0].0.id(), 1001.into());
+        assert_eq!(wl[9].0.id(), 1010.into());
 
         run_to_block(15);
 
@@ -444,7 +436,7 @@ fn rent_charge_works() {
         // The insertion block number has been reset for the first 5 messages
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message, n))
+            .map(|(d, n)| (d.message().clone(), n))
             .collect::<Vec<_>>();
         // current block number
         assert_eq!(wl[0].1, 15);
@@ -474,7 +466,7 @@ fn trap_reply_message_is_sent() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message, n))
+            .map(|(d, n)| (d.message().clone(), n))
             .collect::<Vec<_>>();
         assert_eq!(wl.len(), 2);
 
@@ -486,7 +478,7 @@ fn trap_reply_message_is_sent() {
             )
             .unwrap(),
         );
-        common::native::set_program(program_1);
+        crate::mock::set_program(program_1);
 
         let program_2 = gear_core::program::Program::new(
             2.into(),
@@ -495,7 +487,7 @@ fn trap_reply_message_is_sent() {
             )
             .unwrap(),
         );
-        common::native::set_program(program_2);
+        crate::mock::set_program(program_2);
 
         run_to_block(15);
 
@@ -521,32 +513,32 @@ fn trap_reply_message_is_sent() {
         assert_eq!(Balances::reserved_balance(&2), 500);
 
         // Ensure there are two trap reply messages in the message queue
-        let QueuedDispatch { message, .. } = common::dequeue_dispatch().unwrap();
-        assert_eq!(message.source, 1.into_origin());
-        assert_eq!(message.dest, 1.into_origin());
+        let message = common::dequeue_dispatch().unwrap();
+        assert_eq!(message.source(), 1.into());
+        assert_eq!(message.destination(), 1.into());
         assert_eq!(
-            message.reply,
-            Some((201.into_origin(), core_processor::ERR_EXIT_CODE))
+            message.reply(),
+            Some((201.into(), core_processor::ERR_EXIT_CODE))
         );
         // Check that respective `ValueNode` have been created by splitting the parent node
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id)
+            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
                 .0,
             1000
         );
 
         // Second trap reply message
-        let QueuedDispatch { message, .. } = common::dequeue_dispatch().unwrap();
-        assert_eq!(message.source, 2.into_origin());
-        assert_eq!(message.dest, 2.into_origin());
+        let message = common::dequeue_dispatch().unwrap();
+        assert_eq!(message.source(), 2.into());
+        assert_eq!(message.destination(), 2.into());
         assert_eq!(
-            message.reply,
-            Some((202.into_origin(), core_processor::ERR_EXIT_CODE))
+            message.reply(),
+            Some((202.into(), core_processor::ERR_EXIT_CODE))
         );
 
         assert_eq!(
-            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id)
+            <Test as pallet_gear::Config>::GasHandler::get_limit(message.id().into_origin())
                 .unwrap()
                 .0,
             500
@@ -618,7 +610,7 @@ fn dust_discarded_with_noop() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message, n))
+            .map(|(d, n)| (d.message().clone(), n))
             .collect::<Vec<_>>();
         assert_eq!(wl.len(), 1);
 
