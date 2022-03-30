@@ -31,7 +31,7 @@ use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationRe
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{pages_set_to_wasm_pages_set, AllocationsContext, PageNumber, WasmPageNumber},
+    memory::{pages_set_to_wasm_pages_set, AllocationsContext, WasmPageNumber},
     message::{IncomingDispatch, MessageContext},
 };
 
@@ -162,6 +162,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 allowance_exceed: false,
             });
         }
+        // cannot panic
         res.unwrap()
     } else {
         (0..program.static_pages().0)
@@ -243,9 +244,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     }
 
     // Page which is right after stack last page
-    let stack_end_page = env
-        .get_stack_mem_end()
-        .map(|addr| addr as u32 / PageNumber::size() as u32);
+    let stack_end_page = env.get_stack_mem_end();
     log::trace!("Stack end page = {:?}", stack_end_page);
 
     // Running backend.
@@ -296,6 +295,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         TerminationReason::GasAllowanceExceed => DispatchResultKind::GasAllowanceExceed,
     };
 
+    log::trace!("pages after execution: {:?}", info.pages);
+
     // changed and new pages will be updated in storage
     let mut page_update = BTreeMap::new();
     for (page, new_data) in info.pages_data {
@@ -303,7 +304,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         // we ignore stack pages update, because they are unused after execution is ended,
         // and for next program execution old data in stack it's just garbage.
         if let Some(stack_end_page) = stack_end_page {
-            if page.raw() < stack_end_page {
+            if page.raw() < stack_end_page.to_gear_pages().raw() {
                 continue;
             }
         }
@@ -330,6 +331,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             );
         };
     }
+
+    // log::trace!("pages to update: {:?}", page_update);
 
     // freed pages will be removed from storage
     let current_pages = &info.pages;

@@ -30,7 +30,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::code::Code;
 use gear_core::ids::CodeId;
-use gear_core::memory::PageNumber;
+use gear_core::memory::{PageNumber, pages_set_to_wasm_pages_set};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::*,
@@ -38,7 +38,7 @@ use gear_core::{
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::{
     collections::HashMap,
     fmt, fs,
@@ -67,7 +67,7 @@ impl FixtureLogger {
     fn new(map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>) -> FixtureLogger {
         let mut builder = Builder::from_env(FILTER_ENV);
         builder.parse(
-            "gear_test=debug,gear_core=debug,gear_backend_common=debug,gear_backend_wasmtime=debug,gear_backend_sandbox=debug,gear_core_processor=debug,gwasm=debug",
+            "gear_test=debug,gear_core=debug,gear_backend_common=debug,gwasm=debug",
         );
 
         FixtureLogger {
@@ -347,7 +347,10 @@ pub fn check_allocations(
                     Some(AllocationFilter::Dynamic) => **page >= program.static_pages().to_gear_pages(),
                     None => true,
                 })
-                .collect::<Vec<_>>();
+                .map(|(page, _buf)| *page)
+                .collect::<BTreeSet<_>>();
+
+            let actual_pages = pages_set_to_wasm_pages_set(&actual_pages).expect("unexpected pages");
 
             match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {
@@ -363,7 +366,7 @@ pub fn check_allocations(
                 AllocationExpectationKind::ExactPages(ref expected_pages) => {
                     let mut actual_pages = actual_pages
                         .iter()
-                        .map(|(page, _buf)| page.raw())
+                        .map(|page| page.0)
                         .collect::<Vec<_>>();
                     let mut expected_pages = expected_pages.clone();
 
@@ -383,7 +386,7 @@ pub fn check_allocations(
                     for &expected_page in expected_pages {
                         if !actual_pages
                             .iter()
-                            .map(|(page, _buf)| page.raw())
+                            .map(|page| page.0)
                             .any(|actual_page| actual_page == expected_page)
                         {
                             errors.push(format!(

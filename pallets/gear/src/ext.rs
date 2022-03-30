@@ -27,7 +27,6 @@ use gear_core::{
     gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber, wasm_pages_to_pages_set, WasmPageNumber},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};

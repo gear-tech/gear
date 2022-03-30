@@ -26,7 +26,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Error, Memory, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Error, Memory, PageBuf, PageNumber, WasmPageNumber, WASM_PAGE_SIZE},
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -157,10 +157,16 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         })
     }
 
-    fn get_stack_mem_end(&mut self) -> Option<i32> {
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber> {
         // '__gear_stack_end' export is inserted in wasm-proc or wasm-builder
         let global = self.instance.get_global_val("__gear_stack_end")?;
-        global.as_i32()
+        global.as_i32().and_then(|addr| {
+            if addr < 0 {
+                None
+            } else {
+                Some(WasmPageNumber((addr as usize / WASM_PAGE_SIZE) as u32))
+            }
+        })
     }
 
     fn get_wasm_memory_begin_addr(&mut self) -> u64 {

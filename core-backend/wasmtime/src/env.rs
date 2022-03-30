@@ -25,7 +25,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Error, PageBuf, PageNumber, WasmPageNumber},
+    memory::{Error, PageBuf, PageNumber, WasmPageNumber, WASM_PAGE_SIZE},
 };
 use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
@@ -198,12 +198,12 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         })
     }
 
-    fn get_stack_mem_end(&mut self) -> Option<i32> {
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber> {
         // `__gear_stack_end` export is inserted in wasm-proc or wasm-builder
         let global = self
             .instance
             .get_global(&mut self.store, "__gear_stack_end")?;
-        global.get(&mut self.store).i32()
+        global.get(&mut self.store).i32().and_then(|addr| if addr < 0 { None } else { Some(WasmPageNumber((addr as usize / WASM_PAGE_SIZE) as u32)) })
     }
 
     fn get_wasm_memory_begin_addr(&mut self) -> u64 {

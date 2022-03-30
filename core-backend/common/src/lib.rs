@@ -101,7 +101,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
     ) -> Result<Self, BackendError<'static>>;
 
     /// Returns addr to the stack end if it can be identified
-    fn get_stack_mem_end(&mut self) -> Option<i32>;
+    fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
     fn get_wasm_memory_begin_addr(&mut self) -> u64;

@@ -152,7 +152,8 @@ pub fn pages_set_to_wasm_pages_set(pages: &BTreeSet<PageNumber>) -> Result<BTree
 pub fn wasm_pages_to_pages_set(wasm_pages: &BTreeSet<WasmPageNumber>) -> BTreeSet<PageNumber> {
     let mut pages = BTreeSet::<PageNumber>::new();
     for page in wasm_pages {
-        pages.extend((page.0..page.0 + GEAR_PAGES_IN_ONE_WASM).map(|p| PageNumber::from(p)));
+        let gear_page = page.to_gear_pages().0;
+        pages.extend((gear_page..gear_page + GEAR_PAGES_IN_ONE_WASM).map(|p| PageNumber::from(p)));
     }
     pages
 }
