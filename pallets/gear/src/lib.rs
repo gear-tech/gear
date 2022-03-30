@@ -350,7 +350,7 @@ pub mod pallet {
         ) -> Result<u64, Vec<u8>> {
             let mut ext_manager = ExtManager::<T>::default();
 
-            let root_message_id = Self::next_message_id(source);
+            let root_message_id = Default::default();
 
             let dispatch = match kind {
                 HandleKind::Init(ref code) => {
