@@ -1,3 +1,4 @@
+use crate::mailbox::Mailbox;
 use crate::{
     log::RunResult,
     manager::ExtManager,
@@ -5,13 +6,9 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{
-    message::Message,
-    program::CodeHash,
-};
+use gear_core::{message::Message, program::CodeHash};
 use path_clean::PathClean;
 use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
-use crate::mailbox::Mailbox;
 
 pub struct System(pub(crate) RefCell<ExtManager>);
 

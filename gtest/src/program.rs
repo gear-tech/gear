@@ -256,7 +256,11 @@ mod tests {
         let expected_log = {
             // id, payload, gas limit, value and reply id aren't important
             let msg = Message::new_reply(
-                run_result.log.last().expect("No log after saved after sending").get_id(),
+                run_result
+                    .log
+                    .last()
+                    .expect("No log after saved after sending")
+                    .get_id(),
                 prog.id(),
                 ProgramIdWrapper::from(user_id).0,
                 Default::default(),

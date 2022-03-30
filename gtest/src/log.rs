@@ -49,7 +49,7 @@ impl CoreLog {
     }
 
     pub fn get_id(&self) -> MessageId {
-        self.id.clone()
+        self.id
     }
 }
 

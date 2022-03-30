@@ -185,7 +185,9 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while self.actors.contains_key(&self.id_nonce.into()) || self.actor_to_mailbox.contains_key(&self.id_nonce.into()) {
+        while self.actors.contains_key(&self.id_nonce.into())
+            || self.actor_to_mailbox.contains_key(&self.id_nonce.into())
+        {
             self.id_nonce += 1;
         }
         self.id_nonce

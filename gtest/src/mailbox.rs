@@ -1,10 +1,10 @@
-use std::cell::RefCell;
+use crate::{manager::ExtManager, CoreLog, Log, RunResult};
 use codec::Encode;
 use gear_core::{
     message::{Message, MessageId, Payload},
-    program::ProgramId
+    program::ProgramId,
 };
-use crate::{CoreLog, Log, RunResult, manager::ExtManager};
+use std::cell::RefCell;
 
 pub struct Mailbox<'a> {
     manager_reference: &'a RefCell<ExtManager>,
