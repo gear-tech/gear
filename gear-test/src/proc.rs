@@ -24,9 +24,8 @@ use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
     code::{CheckedCode, InstrumentedCode},
-    ids::{MessageId, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
-    program::Program,
 };
 use regex::Regex;
 use std::{
@@ -99,17 +98,15 @@ where
     JH: JournalHandler + CollectState + ExecutionContext,
 {
     let code = CheckedCode::try_new(message.code.clone())?;
-    let instumented_code = InstrumentedCode::new(code.code().to_vec(), code.static_pages(), 1);
-    let program = Program::new(message.id, instumented_code);
-    let program_id = program.id();
 
-    if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
+    if code.static_pages() > AllocationsConfig::default().max_pages.raw() {
         return Err(anyhow::anyhow!(
             "Error initialisation: memory limit exceeded"
         ));
     }
 
-    journal_handler.store_program(program.clone(), message.message.id());
+    let program = journal_handler.store_program(message.id, code, message.message.id());
+    let program_id = program.id();
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
     let journal = core_processor::process::<Ext, E>(
@@ -144,24 +141,30 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            let instrumented_code: Vec<u8> = new_test_ext().execute_with(|| {
-                let schedule = <Runtime as pallet_gear::pallet::Config>::Schedule::get();
+            if let Ok(code) = CheckedCode::try_new(code_bytes) {
+                let code_hash = CodeId::generate(code.code());
+                journal_handler.store_original_code(code.clone());
+                let instrumented_code: Vec<u8> = new_test_ext().execute_with(|| {
+                    let schedule = <Runtime as pallet_gear::pallet::Config>::Schedule::get();
 
-                let module = wasm_instrument::parity_wasm::deserialize_buffer(&code_bytes)
-                    .unwrap_or_default();
+                    let module = wasm_instrument::parity_wasm::deserialize_buffer(code.code())
+                        .unwrap_or_default();
 
-                let gas_rules = schedule.rules(&module);
+                    let gas_rules = schedule.rules(&module);
 
-                let instrumented_module = wasm_instrument::gas_metering::inject(
-                    module, &gas_rules, "env",
-                )
-                .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))?;
+                    let instrumented_module = wasm_instrument::gas_metering::inject(
+                        module, &gas_rules, "env",
+                    )
+                    .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))?;
 
-                wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                    .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))
-            })?;
-
-            journal_handler.store_code(&instrumented_code);
+                    wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
+                        .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))
+                })?;
+                journal_handler.store_code(
+                    code_hash,
+                    InstrumentedCode::new(instrumented_code, code.static_pages(), 1),
+                );
+            }
         }
     }
 

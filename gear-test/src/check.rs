@@ -28,6 +28,8 @@ use core_processor::{
 use derive_more::Display;
 use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
+use gear_core::code::{CheckedCode, InstrumentedCode};
+use gear_core::ids::CodeId;
 use gear_core::{
     ids::{MessageId, ProgramId},
     memory::PAGE_SIZE,
@@ -49,8 +51,14 @@ use std::{
 const FILTER_ENV: &str = "RUST_LOG";
 
 pub trait ExecutionContext {
-    fn store_code(&mut self, code: &[u8]);
-    fn store_program(&mut self, program: gear_core::program::Program, init_message_id: MessageId);
+    fn store_code(&mut self, code_hash: CodeId, code: InstrumentedCode);
+    fn store_original_code(&mut self, code: CheckedCode);
+    fn store_program(
+        &mut self,
+        id: ProgramId,
+        code: CheckedCode,
+        init_message_id: MessageId,
+    ) -> Program;
     fn write_gas(&mut self, message_id: MessageId, gas_limit: u64);
 }
 
