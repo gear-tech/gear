@@ -46,7 +46,7 @@ use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
 
 use common::Origin;
-use gear_core::program::CodeHash;
+use gear_core::code::CodeId;
 use parity_wasm::elements::*;
 use sp_core::H256;
 use sp_io::hashing::blake2_256;
@@ -182,7 +182,7 @@ fn generate_wasm3(payload: Vec<u8>) -> Result<Vec<u8>, &'static str> {
 }
 
 fn set_program(program_id: H256, code: Vec<u8>, static_pages: u32, nonce: u64) {
-    let code_hash = CodeHash::generate(&code).into_origin();
+    let code_hash = CodeId::generate(&code).into_origin();
     common::set_program(
         program_id,
         common::ActiveProgram {
@@ -212,7 +212,7 @@ benchmarks! {
         let c in 0 .. MAX_CODE_LEN;
         let caller: T::AccountId = account("caller", 0, 0);
         let code = generate_wasm3(vec![0u8; c as usize]).unwrap();
-        let code_hash: H256 = CodeHash::generate(&code).into_origin();
+        let code_hash: H256 =     CodeId::generate(&code).into_origin();
     }: _(RawOrigin::Signed(caller), code)
     verify {
         assert!(common::code_exists(code_hash));

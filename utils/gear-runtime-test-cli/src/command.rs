@@ -28,11 +28,12 @@ use colored::{ColoredString, Colorize};
 use gear_runtime::{Origin, Runtime};
 
 use gear_core::{
-    message::Message as CoreMessage,
-    program::{CodeHash, Program as CoreProgram, ProgramId},
+    ids::{CodeId, MessageId, ProgramId},
+    message::{DispatchKind, GasLimit, StoredDispatch, StoredMessage},
+    program::Program as CoreProgram,
 };
 
-use gear_common::{DAGBasedLedger, Origin as _, QueuedDispatch, QueuedMessage};
+use gear_common::{DAGBasedLedger, Origin as _};
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -98,7 +99,7 @@ impl CliConfiguration for GearRuntimeTestCmd {
 fn init_fixture(
     test: &'_ sample::Test,
     snapshots: &mut Vec<DebugData>,
-    mailbox: &mut Vec<QueuedMessage>,
+    mailbox: &mut Vec<StoredMessage>,
 ) -> anyhow::Result<()> {
     if let Some(codes) = &test.codes {
         for code in codes {
@@ -147,7 +148,7 @@ fn init_fixture(
         if let Err(e) = GearPallet::<Runtime>::submit_program(
             Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
             code.clone(),
-            program.id.to_program_id().as_slice().to_vec(),
+            program.id.to_program_id().as_ref().to_vec(),
             init_message,
             program.init_gas_limit.unwrap_or(5_000_000_000),
             program.init_value.unwrap_or(0) as u128,
@@ -174,9 +175,9 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
         .map(|program| {
             let program_path = program.path.clone();
             let code = std::fs::read(&program_path).unwrap();
-            let salt = program.id.to_program_id().as_slice().to_vec();
+            let salt = program.id.to_program_id().as_ref().to_vec();
 
-            let id = ProgramId::generate(CodeHash::generate(&code), &salt);
+            let id = ProgramId::generate(CodeId::generate(&code), &salt);
 
             progs_n_paths.push((program.path.as_ref(), id));
 
@@ -186,14 +187,13 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
     let programs_map: BTreeMap<H256, H256> = programs
         .iter()
-        .map(|(k, v)| (H256::from_slice(k.as_slice()), *v))
+        .map(|(k, v)| (H256::from_slice(k.as_ref()), *v))
         .collect();
 
     // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
     for id in programs_map.keys() {
         let program = gear_common::ActiveProgram {
             static_pages: 0,
-            nonce: 0,
             persistent_pages: Default::default(),
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,
@@ -204,7 +204,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     // Enable remapping of the source and destination of messages
     pallet_gear_debug::ProgramsMap::<Runtime>::put(programs_map);
     pallet_gear_debug::RemapId::<Runtime>::put(true);
-    let mut mailbox: Vec<QueuedMessage> = vec![];
+    let mut mailbox: Vec<StoredMessage> = vec![];
 
     match init_fixture(test, &mut snapshots, &mut mailbox) {
         Ok(()) => {
@@ -254,21 +254,25 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 // Force push to MQ if msg.source.is_some()
                 if let Some(source) = &message.source {
-                    let source = H256::from_slice(source.to_program_id().as_slice());
-                    let id = gear_common::next_message_id(&payload);
+                    let source = H256::from_slice(source.to_program_id().as_ref());
+                    let id = GearPallet::<Runtime>::next_message_id(source);
 
                     let _ =
                         <Runtime as pallet_gear::Config>::GasHandler::create(source, id, gas_limit);
 
-                    let msg = QueuedMessage {
-                        id,
-                        source,
-                        dest,
+                    let msg = StoredMessage::new(
+                        MessageId::from_origin(id),
+                        ProgramId::from_origin(source),
+                        ProgramId::from_origin(dest),
                         payload,
                         value,
-                        reply: None,
-                    };
-                    gear_common::queue_dispatch(QueuedDispatch::new_handle(msg))
+                        None,
+                    );
+                    gear_common::queue_dispatch(StoredDispatch::new(
+                        DispatchKind::Handle,
+                        msg,
+                        None,
+                    ));
                 } else {
                     GearPallet::<Runtime>::send_message(
                         Origin::from(Some(AccountId32::unchecked_from(1000001.into_origin()))),
@@ -313,10 +317,10 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     snapshots.last().unwrap().clone()
                 };
 
-                let mut message_queue: Vec<CoreMessage> = snapshot
+                let mut message_queue: Vec<(StoredMessage, GasLimit)> = snapshot
                     .dispatch_queue
                     .iter()
-                    .map(|dispatch| dispatch.message.clone().into_message(0))
+                    .map(|dispatch| (dispatch.message().clone(), 0))
                     .collect();
 
                 if let Some(mut expected_messages) = exp.messages.clone() {
@@ -324,9 +328,16 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         break;
                     }
 
-                    message_queue.iter_mut().for_each(|msg| {
-                        if let Some(id) = programs.get(&msg.dest) {
-                            msg.dest = ProgramId::from(id.as_bytes());
+                    message_queue.iter_mut().for_each(|(msg, _gas)| {
+                        if let Some(id) = programs.get(&msg.destination()) {
+                            *msg = StoredMessage::new(
+                                msg.id(),
+                                msg.source(),
+                                ProgramId::from(id.as_bytes()),
+                                msg.payload().to_vec(),
+                                msg.value(),
+                                msg.reply(),
+                            );
                         }
                     });
 
@@ -336,10 +347,12 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                         )
                     });
 
+                    // For runtime tests gas check skipped due to absence of gas tree in snapshot.
                     if let Err(msg_errors) = gear_test::check::check_messages(
                         &progs_n_paths,
                         &message_queue,
                         &expected_messages,
+                        true,
                     ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
@@ -359,7 +372,6 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                             Some(CoreProgram::from_parts(
                                 *pid,
                                 code,
-                                p.nonce,
                                 p.persistent_pages.keys().cloned().collect(),
                                 true,
                             ))
@@ -392,19 +404,17 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
             if !expected_log.is_empty() {
                 log::trace!("mailbox: {:?}", &mailbox);
 
-                let messages: Vec<CoreMessage> = mailbox
-                    .iter_mut()
-                    .map(|msg| msg.clone().into_message(0))
-                    .collect();
+                let messages: Vec<(StoredMessage, GasLimit)> =
+                    mailbox.into_iter().map(|msg| (msg, 0)).collect();
 
-                for message in &messages {
+                for (message, _) in &messages {
                     if let Ok(utf8) = core::str::from_utf8(message.payload()) {
                         log::trace!("log({})", utf8)
                     }
                 }
 
                 if let Err(log_errors) =
-                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log)
+                    gear_test::check::check_messages(&progs_n_paths, &messages, &expected_log, true)
                 {
                     errors.extend(
                         log_errors

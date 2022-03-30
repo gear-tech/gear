@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![feature(const_btree_new)]
 #![allow(clippy::missing_safety_doc)]
 
 extern crate alloc;
@@ -39,12 +38,16 @@ pub enum Request {
     Wake(MessageId),
 }
 
-static mut ECHOES: BTreeMap<MessageId, u32> = BTreeMap::new();
+static mut ECHOES: Option<BTreeMap<MessageId, u32>> = None;
 
 fn process_request(request: Request) {
     match request {
         Request::EchoWait(n) => {
-            unsafe { ECHOES.insert(msg::id(), n) };
+            unsafe {
+                ECHOES
+                    .get_or_insert_with(BTreeMap::new)
+                    .insert(msg::id(), n)
+            };
             exec::wait();
         }
         Request::Wake(id) => exec::wake(id),
@@ -58,7 +61,7 @@ pub unsafe extern "C" fn init() {
 
 #[no_mangle]
 pub unsafe extern "C" fn handle() {
-    if let Some(reply) = ECHOES.remove(&msg::id()) {
+    if let Some(reply) = ECHOES.get_or_insert_with(BTreeMap::new).remove(&msg::id()) {
         msg::reply(reply, 0);
     } else {
         msg::load::<Request>().map(process_request).unwrap();
@@ -114,7 +117,7 @@ mod tests {
 
         let res = program.send(
             from,
-            Request::Wake(MessageId::new(msg_id_1.as_slice().try_into().unwrap())),
+            Request::Wake(MessageId::new(msg_id_1.as_ref().try_into().unwrap())),
         );
         let log = Log::builder()
             .source(program.id())
@@ -124,7 +127,7 @@ mod tests {
 
         let res = program.send(
             from,
-            Request::Wake(MessageId::new(msg_id_2.as_slice().try_into().unwrap())),
+            Request::Wake(MessageId::new(msg_id_2.as_ref().try_into().unwrap())),
         );
         let log = Log::builder()
             .source(program.id())
@@ -159,20 +162,20 @@ mod tests {
         // try to wake other messages
         let res = program_2.send(
             from,
-            Request::Wake(MessageId::new(msg_id_1.as_slice().try_into().unwrap())),
+            Request::Wake(MessageId::new(msg_id_1.as_ref().try_into().unwrap())),
         );
         assert!(res.log().is_empty());
 
         let res = program_1.send(
             from,
-            Request::Wake(MessageId::new(msg_id_2.as_slice().try_into().unwrap())),
+            Request::Wake(MessageId::new(msg_id_2.as_ref().try_into().unwrap())),
         );
         assert!(res.log().is_empty());
 
         // wake msg_1 for program_1 and msg_2 for program_2
         let res = program_1.send(
             from,
-            Request::Wake(MessageId::new(msg_id_1.as_slice().try_into().unwrap())),
+            Request::Wake(MessageId::new(msg_id_1.as_ref().try_into().unwrap())),
         );
         let log = Log::builder()
             .source(program_1.id())
@@ -182,7 +185,7 @@ mod tests {
 
         let res = program_2.send(
             from,
-            Request::Wake(MessageId::new(msg_id_2.as_slice().try_into().unwrap())),
+            Request::Wake(MessageId::new(msg_id_2.as_ref().try_into().unwrap())),
         );
         let log = Log::builder()
             .source(program_2.id())

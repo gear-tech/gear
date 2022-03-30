@@ -21,7 +21,7 @@ use crate::{
     MessageInfo, Pallet,
 };
 use codec::{Decode, Encode};
-use common::{DAGBasedLedger, GasPrice, Origin, Program, QueuedDispatch};
+use common::{DAGBasedLedger, GasPrice, Origin, Program};
 use core_processor::common::{
     DispatchOutcome as CoreDispatchOutcome, ExecutableActor, JournalHandler,
 };
@@ -29,9 +29,11 @@ use frame_support::traits::{
     BalanceStatus, Currency, ExistenceRequirement, Get, Imbalance, ReservableCurrency,
 };
 use gear_core::{
+    code::InstrumentedCodeWithHash,
+    ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, ExitCode, MessageId},
-    program::{CodeHash, InstrumentedCodeWithHash, Program as NativeProgram, ProgramId},
+    message::{Dispatch, ExitCode, StoredDispatch},
+    program::Program as NativeProgram,
 };
 use primitive_types::H256;
 use sp_runtime::{
@@ -100,7 +102,6 @@ where
         // An empty program has been just constructed: it contains no persistent pages.
         let program = common::ActiveProgram {
             static_pages: program.static_pages(),
-            nonce: program.message_nonce(),
             persistent_pages: Default::default(),
             code_hash,
             state: common::ProgramState::Uninitialized { message_id },
@@ -305,65 +306,64 @@ where
 
     fn send_dispatch(&mut self, message_id: MessageId, dispatch: Dispatch) {
         let message_id = message_id.into_origin();
-        let (gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
+        let gas_limit = dispatch.gas_limit();
+        let dispatch = dispatch.into_stored();
 
-        if dispatch.message.value != 0
+        if dispatch.value() != 0
             && <T as Config>::Currency::reserve(
-                &<T::AccountId as Origin>::from_origin(dispatch.message.source),
-                dispatch.message.value.unique_saturated_into(),
+                &<T::AccountId as Origin>::from_origin(dispatch.source().into_origin()),
+                dispatch.value().unique_saturated_into(),
             )
             .is_err()
         {
             log::debug!(
                 "Message (from: {:?}) {:?} will be skipped",
                 message_id,
-                dispatch.message
+                dispatch.message()
             );
             return;
         }
 
         log::debug!(
             "Sending message {:?} from {:?}",
-            dispatch.message,
+            dispatch.message(),
             message_id
         );
 
-        let destination = dispatch.message.dest;
-        if GearProgramPallet::<T>::program_exists(destination)
-            || self
-                .marked_destinations
-                .contains(&ProgramId::from_origin(destination))
+        if GearProgramPallet::<T>::program_exists(dispatch.destination().into_origin())
+            || self.marked_destinations.contains(&dispatch.destination())
         {
             if let Some(gas_limit) = gas_limit {
-                let _ =
-                    T::GasHandler::split_with_value(message_id, *dispatch.message_id(), gas_limit);
+                let _ = T::GasHandler::split_with_value(
+                    message_id,
+                    dispatch.id().into_origin(),
+                    gas_limit,
+                );
             } else {
-                let _ = T::GasHandler::split(message_id, *dispatch.message_id());
+                let _ = T::GasHandler::split(message_id, dispatch.id().into_origin());
             }
             common::queue_dispatch(dispatch);
         } else {
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            Pallet::<T>::insert_to_mailbox(destination, dispatch.message.clone());
-            Pallet::<T>::deposit_event(Event::Log(dispatch.message));
+            Pallet::<T>::insert_to_mailbox(
+                dispatch.destination().into_origin(),
+                dispatch.message().clone(),
+            );
+            Pallet::<T>::deposit_event(Event::Log(dispatch.message().clone()));
         }
     }
 
-    fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        let (_gas_limit, dispatch) = QueuedDispatch::without_gas_limit(dispatch);
-
-        let dest = dispatch.message.dest;
-        let message_id = dispatch.message.id;
-
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
         common::insert_waiting_message(
-            dest,
-            message_id,
+            dispatch.destination().into_origin(),
+            dispatch.id().into_origin(),
             dispatch.clone(),
             <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
         );
 
-        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch.message));
+        Pallet::<T>::deposit_event(Event::AddedToWaitList(dispatch));
     }
 
     fn wake_message(
@@ -423,10 +423,6 @@ where
                 message_id.into_origin()
             );
         }
-    }
-
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        common::set_program_nonce(program_id.into_origin(), nonce);
     }
 
     fn update_page(
@@ -493,11 +489,13 @@ where
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = common::get_code(code_hash.inner().into()) {
+    fn store_new_programs(&mut self, code_id: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
+        let code_hash = <[u8; 32]>::from(code_id).into();
+
+        if let Some(code) = common::get_code(code_hash) {
             for (candidate_id, init_message) in candidates {
                 if !GearProgramPallet::<T>::program_exists(candidate_id.into_origin()) {
-                    let checked_code_hash = InstrumentedCodeWithHash::new(code.clone(), code_hash);
+                    let checked_code_hash = InstrumentedCodeWithHash::new(code.clone(), code_id);
                     self.set_program(candidate_id, checked_code_hash, init_message.into_origin());
                 } else {
                     log::debug!("Program with id {:?} already exists", candidate_id);

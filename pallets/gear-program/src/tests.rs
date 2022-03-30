@@ -16,9 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::{ActiveProgram, Origin, ProgramState, QueuedDispatch, QueuedMessage};
+use common::{ActiveProgram, Origin as _, ProgramState};
 use frame_support::{assert_noop, assert_ok};
-use gear_core::program::{CodeHash, InstrumentedCode};
+use gear_core::{
+    code::InstrumentedCode,
+    ids::{CodeId, MessageId, ProgramId},
+    message::{DispatchKind, StoredDispatch, StoredMessage},
+};
 use hex_literal::hex;
 use sp_std::collections::btree_map::BTreeMap;
 
@@ -31,7 +35,7 @@ use utils::CreateProgramResult;
 fn pause_program_works() {
     new_test_ext().execute_with(|| {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeHash::generate(&code).into_origin();
+        let code_hash: H256 = CodeId::generate(&code).into_origin();
         common::set_code(code_hash, &InstrumentedCode::new(code.clone(), 1, 1));
 
         let static_pages: u32 = 16;
@@ -54,7 +58,6 @@ fn pause_program_works() {
                 static_pages,
                 persistent_pages: memory_pages.clone().into_keys().collect(),
                 code_hash,
-                nonce: 0,
                 state: ProgramState::Initialized,
             },
             memory_pages.clone(),
@@ -64,14 +67,18 @@ fn pause_program_works() {
         common::insert_waiting_message(
             program_id,
             msg_id_1,
-            QueuedDispatch::new_handle(QueuedMessage {
-                id: msg_id_1,
-                source: H256::from_low_u64_be(3),
-                dest: program_id,
-                payload: Default::default(),
-                value: 0,
-                reply: None,
-            }),
+            StoredDispatch::new(
+                DispatchKind::Handle,
+                StoredMessage::new(
+                    MessageId::from_origin(msg_id_1),
+                    3.into(),
+                    ProgramId::from_origin(program_id),
+                    Default::default(),
+                    0,
+                    None,
+                ),
+                None,
+            ),
             0,
         );
 
@@ -79,14 +86,18 @@ fn pause_program_works() {
         common::insert_waiting_message(
             program_id,
             msg_id_2,
-            QueuedDispatch::new_handle(QueuedMessage {
-                id: msg_id_2,
-                source: H256::from_low_u64_be(4),
-                dest: program_id,
-                payload: Default::default(),
-                value: 0,
-                reply: None,
-            }),
+            StoredDispatch::new(
+                DispatchKind::Handle,
+                StoredMessage::new(
+                    MessageId::from_origin(msg_id_2),
+                    4.into(),
+                    ProgramId::from_origin(program_id),
+                    Default::default(),
+                    0,
+                    None,
+                ),
+                None,
+            ),
             0,
         );
 
@@ -113,7 +124,7 @@ fn pause_program_works() {
 fn pause_program_twice_fails() {
     new_test_ext().execute_with(|| {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeHash::generate(&code).into_origin();
+        let code_hash: H256 = CodeId::generate(&code).into_origin();
         common::set_code(code_hash, &InstrumentedCode::new(code.clone(), 1, 1));
 
         let program_id = H256::from_low_u64_be(1);
@@ -124,7 +135,6 @@ fn pause_program_twice_fails() {
                 static_pages,
                 persistent_pages: Default::default(),
                 code_hash,
-                nonce: 0,
                 state: ProgramState::Initialized,
             },
             Default::default(),
@@ -144,7 +154,7 @@ fn pause_program_twice_fails() {
 fn pause_terminated_program_fails() {
     new_test_ext().execute_with(|| {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeHash::generate(&code).into_origin();
+        let code_hash: H256 = CodeId::generate(&code).into_origin();
         common::set_code(code_hash, &InstrumentedCode::new(code.clone(), 1, 1));
 
         let program_id = H256::from_low_u64_be(1);
@@ -155,7 +165,6 @@ fn pause_terminated_program_fails() {
                 static_pages,
                 persistent_pages: Default::default(),
                 code_hash,
-                nonce: 0,
                 state: ProgramState::Initialized,
             },
             Default::default(),
@@ -200,9 +209,9 @@ fn pause_uninitialized_program_works() {
             None
         );
 
-        assert!(common::remove_waiting_message(program_id, msg_1.message.id).is_none());
-        assert!(common::remove_waiting_message(program_id, msg_2.message.id).is_none());
-        assert!(common::remove_waiting_message(program_id, init_msg.message.id).is_none());
+        assert!(common::remove_waiting_message(program_id, msg_1.id().into_origin()).is_none());
+        assert!(common::remove_waiting_message(program_id, msg_2.id().into_origin()).is_none());
+        assert!(common::remove_waiting_message(program_id, init_msg.id().into_origin()).is_none());
 
         assert!(common::waiting_init_take_messages(program_id).is_empty());
     });
@@ -226,7 +235,7 @@ fn resume_uninitialized_program_works() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let wait_list = IntoIterator::into_iter([&init_msg, &msg_1, &msg_2])
-            .map(|d| (d.message.id, d.clone()))
+            .map(|d| (d.id().into_origin(), d.clone()))
             .collect::<BTreeMap<_, _>>();
 
         let block_number = 100;
@@ -245,24 +254,24 @@ fn resume_uninitialized_program_works() {
 
         let waiting_init = common::waiting_init_take_messages(program_id);
         assert_eq!(waiting_init.len(), 2);
-        assert!(waiting_init.contains(&msg_1.message.id));
-        assert!(waiting_init.contains(&msg_2.message.id));
+        assert!(waiting_init.contains(&msg_1.id().into_origin()));
+        assert!(waiting_init.contains(&msg_2.id().into_origin()));
 
         assert_eq!(
             block_number,
-            common::remove_waiting_message(program_id, init_msg.message.id)
+            common::remove_waiting_message(program_id, init_msg.id().into_origin())
                 .map(|(_, bn)| bn)
                 .unwrap()
         );
         assert_eq!(
             block_number,
-            common::remove_waiting_message(program_id, msg_1.message.id)
+            common::remove_waiting_message(program_id, msg_1.id().into_origin())
                 .map(|(_, bn)| bn)
                 .unwrap()
         );
         assert_eq!(
             block_number,
-            common::remove_waiting_message(program_id, msg_2.message.id)
+            common::remove_waiting_message(program_id, msg_2.id().into_origin())
                 .map(|(_, bn)| bn)
                 .unwrap()
         );
@@ -287,7 +296,7 @@ fn resume_program_twice_fails() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let wait_list = IntoIterator::into_iter([init_msg, msg_1, msg_2])
-            .map(|d| (d.message.id, d))
+            .map(|d| (d.id().into_origin(), d))
             .collect::<BTreeMap<_, _>>();
 
         let block_number = 100;
@@ -328,7 +337,7 @@ fn resume_program_wrong_memory_fails() {
                 program_id,
                 memory_pages,
                 IntoIterator::into_iter([init_msg, msg_1, msg_2])
-                    .map(|d| (d.message.id, d))
+                    .map(|d| (d.id().into_origin(), d))
                     .collect(),
                 block_number
             ),
@@ -346,7 +355,7 @@ fn resume_program_wrong_list_fails() {
             memory_pages,
             init_msg,
             msg_1,
-            mut msg_2,
+            msg_2,
             ..
         } = utils::create_uninitialized_program_messages(static_pages);
 
@@ -355,13 +364,25 @@ fn resume_program_wrong_list_fails() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let block_number = 100;
-        msg_2.message.payload = [0, 1, 2, 3, 4, 5].into();
+        let msg_2 = StoredDispatch::new(
+            msg_2.kind(),
+            StoredMessage::new(
+                msg_2.id(),
+                msg_2.source(),
+                msg_2.destination(),
+                vec![0, 1, 2, 3, 4, 5],
+                msg_2.value(),
+                msg_2.reply(),
+            ),
+            msg_2.context().clone(),
+        );
+
         assert_noop!(
             GearProgram::resume_program_impl(
                 program_id,
                 memory_pages,
                 IntoIterator::into_iter([init_msg, msg_1, msg_2])
-                    .map(|d| (d.message.id, d))
+                    .map(|d| (d.id().into_origin(), d))
                     .collect(),
                 block_number
             ),
@@ -376,15 +397,15 @@ mod utils {
     pub struct CreateProgramResult {
         pub program_id: H256,
         pub code_hash: H256,
-        pub init_msg: QueuedDispatch,
-        pub msg_1: QueuedDispatch,
-        pub msg_2: QueuedDispatch,
+        pub init_msg: StoredDispatch,
+        pub msg_1: StoredDispatch,
+        pub msg_2: StoredDispatch,
         pub memory_pages: BTreeMap<u32, Vec<u8>>,
     }
 
     pub fn create_uninitialized_program_messages(static_pages: u32) -> CreateProgramResult {
         let code = hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
-        let code_hash: H256 = CodeHash::generate(&code).into_origin();
+        let code_hash: H256 = CodeId::generate(&code).into_origin();
         common::set_code(code_hash, &InstrumentedCode::new(code.clone(), 1, 1));
 
         let memory_pages = {
@@ -406,7 +427,6 @@ mod utils {
                 static_pages,
                 persistent_pages: memory_pages.clone().into_keys().collect(),
                 code_hash,
-                nonce: 0,
                 state: ProgramState::Uninitialized {
                     message_id: init_msg_id,
                 },
@@ -415,39 +435,51 @@ mod utils {
         );
 
         // init message
-        let init_msg = QueuedDispatch::new_handle(QueuedMessage {
-            id: init_msg_id,
-            source: H256::from_low_u64_be(3),
-            dest: program_id,
-            payload: Default::default(),
-            value: 0,
-            reply: None,
-        });
+        let init_msg = StoredDispatch::new(
+            DispatchKind::Handle,
+            StoredMessage::new(
+                MessageId::from_origin(init_msg_id),
+                3.into(),
+                ProgramId::from_origin(program_id),
+                Default::default(),
+                0,
+                None,
+            ),
+            None,
+        );
         common::insert_waiting_message(program_id, init_msg_id, init_msg.clone(), 0);
 
         let msg_id_1 = H256::from_low_u64_be(1);
-        let msg_1 = QueuedDispatch::new_handle(QueuedMessage {
-            id: msg_id_1,
-            source: H256::from_low_u64_be(3),
-            dest: program_id,
-            payload: Default::default(),
-            value: 0,
-            reply: None,
-        });
+        let msg_1 = StoredDispatch::new(
+            DispatchKind::Handle,
+            StoredMessage::new(
+                MessageId::from_origin(msg_id_1),
+                3.into(),
+                ProgramId::from_origin(program_id),
+                Default::default(),
+                0,
+                None,
+            ),
+            None,
+        );
         common::insert_waiting_message(program_id, msg_id_1, msg_1.clone(), 0);
         common::waiting_init_append_message_id(program_id, msg_id_1);
 
-        let msg_id_2 = H256::from_low_u64_be(2);
-        let msg_2 = QueuedDispatch::new_handle(QueuedMessage {
-            id: msg_id_2,
-            source: H256::from_low_u64_be(4),
-            dest: program_id,
-            payload: Default::default(),
-            value: 0,
-            reply: None,
-        });
-        common::insert_waiting_message(program_id, msg_id_2, msg_2.clone(), 0);
-        common::waiting_init_append_message_id(program_id, msg_id_2);
+        let msg_id_2 = 2.into();
+        let msg_2 = StoredDispatch::new(
+            DispatchKind::Handle,
+            StoredMessage::new(
+                msg_id_2,
+                4.into(),
+                ProgramId::from_origin(program_id),
+                Default::default(),
+                0,
+                None,
+            ),
+            None,
+        );
+        common::insert_waiting_message(program_id, msg_id_2.into_origin(), msg_2.clone(), 0);
+        common::waiting_init_append_message_id(program_id, msg_id_2.into_origin());
 
         CreateProgramResult {
             program_id,

@@ -1,12 +1,14 @@
 use crate::{
     log::RunResult,
-    manager::{ExtManager, Program as InnerProgram},
+    manager::{Actor, ExtManager, Program as InnerProgram},
     system::System,
 };
 use codec::Codec;
 use gear_core::{
-    message::{Message, MessageId},
-    program::{CheckedCode, CodeHash, InstrumentedCode, Program as CoreProgram, ProgramId},
+    code::{CheckedCode, InstrumentedCode},
+    ids::{CodeId, MessageId, ProgramId},
+    message::{Dispatch, DispatchKind, Message},
+    program::Program as CoreProgram,
 };
 use path_clean::PathClean;
 use std::{
@@ -43,7 +45,9 @@ impl From<ProgramId> for ProgramIdWrapper {
 
 impl From<u64> for ProgramIdWrapper {
     fn from(other: u64) -> Self {
-        Self(other.into())
+        let mut id = [0; 32];
+        id[0..8].copy_from_slice(&other.to_le_bytes()[..]);
+        Self(id.into())
     }
 }
 
@@ -206,15 +210,35 @@ impl<'a> Program<'a> {
         }
 
         let message = Message::new(
-            MessageId::from(system.fetch_inc_message_nonce()),
+            MessageId::generate_from_user(
+                system.block_info.height,
+                source,
+                system.fetch_inc_message_nonce() as u128,
+            ),
             source,
             self.id,
-            payload.as_ref().to_vec().into(),
+            payload.as_ref().to_vec(),
             Some(u64::MAX),
             value,
+            None,
         );
 
-        system.run_message(message)
+        let (actor, _) = system.actors.get_mut(&self.id).expect("Can't fail");
+
+        let kind = if let Actor::Uninitialized(id, _) = actor {
+            if id.is_none() {
+                *id = Some(message.id());
+                DispatchKind::Init
+            } else {
+                DispatchKind::Handle
+            }
+        } else {
+            DispatchKind::Handle
+        };
+
+        let dispatch = Dispatch::new(kind, message);
+
+        system.run_dispatch(dispatch)
     }
 
     pub fn id(&self) -> ProgramId {
@@ -222,17 +246,15 @@ impl<'a> Program<'a> {
     }
 }
 
-pub fn calculate_program_id(code_hash: CodeHash, salt: &[u8]) -> ProgramId {
+pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
     ProgramId::generate(code_hash, salt)
 }
 
 #[cfg(test)]
 mod tests {
-    use gear_core::message::Message;
+    use crate::{Log, System};
 
-    use crate::{CoreLog, System};
-
-    use super::{Program, ProgramIdWrapper};
+    use super::Program;
 
     #[test]
     fn test_handle_messages_to_failing_program() {
@@ -250,21 +272,11 @@ mod tests {
         let run_result = prog.send(user_id, init_msg_payload);
         assert!(run_result.main_failed);
 
-        let expected_log = {
-            // id, payload, gas limit, value and reply id aren't important
-            let msg = Message::new_reply(
-                Default::default(),
-                prog.id(),
-                ProgramIdWrapper::from(user_id).0,
-                Default::default(),
-                0,
-                Default::default(),
-                2,
-            );
-            CoreLog::from_message(msg)
-        };
         let run_result = prog.send(user_id, String::from("should_be_skipped"));
+
+        let expected_log = Log::error_builder(2).source(prog.id()).dest(user_id);
+
         assert!(!run_result.main_failed());
-        assert!(run_result.log.contains(&expected_log));
+        assert!(run_result.contains(&expected_log));
     }
 }

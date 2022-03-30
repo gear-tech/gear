@@ -118,7 +118,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             program_id: H256,
             memory_pages: BTreeMap<u32, Vec<u8>>,
-            wait_list: BTreeMap<H256, common::QueuedDispatch>,
+            wait_list: BTreeMap<H256, gear_core::message::StoredDispatch>,
             value: BalanceOf<T>,
         ) -> DispatchResultWithPostInfo {
             let account = ensure_signed(origin)?;

@@ -22,7 +22,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::program::InstrumentedCode;
+use gear_core::code::InstrumentedCode;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
@@ -134,6 +134,7 @@ fn send_message_works() {
             DEFAULT_GAS_LIMIT,
             mail_value,
         ));
+        let message_id = get_last_message_id();
 
         // Transfer of `mail_value` completed.
         // Gas limit is ignored for messages headed to a mailbox - no funds have been reserved.
@@ -147,7 +148,6 @@ fn send_message_works() {
             user2_initial_balance
         );
 
-        let message_id = compute_user_message_id(EMPTY_PAYLOAD, 2);
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
             Origin::signed(USER_2).into(),
             message_id
@@ -615,10 +615,10 @@ fn mailbox_works() {
             res.expect("was asserted previously")
         };
 
-        assert_eq!(mailbox_message.id, reply_to_id,);
+        assert_eq!(mailbox_message.id().into_origin(), reply_to_id);
 
         // Gas limit should have been ignored by the code that puts a message into a mailbox
-        assert_eq!(mailbox_message.value, 1000);
+        assert_eq!(mailbox_message.value(), 1000);
 
         // Gas is not passed to mailboxed messages and should have been all spent by now
         assert_eq!(<Test as Config>::GasHandler::total_supply(), 0);
@@ -734,7 +734,6 @@ fn events_logging_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let mut nonce = 0;
         let mut next_block = 2;
         let tests = [
             // Code, init failure reason, handle succeed flag
@@ -753,19 +752,19 @@ fn events_logging_works() {
         ];
         for (code_kind, init_failure_reason, handle_succeed) in tests {
             SystemPallet::<Test>::reset_events();
-
             let program_id = {
                 let res = submit_program_default(USER_1, code_kind);
                 assert_ok!(res);
                 res.expect("submit result was asserted")
             };
 
+            let message_id = get_last_message_id();
+
             let init_msg_info = MessageInfo {
                 program_id,
-                message_id: compute_user_message_id(EMPTY_PAYLOAD, nonce),
+                message_id,
                 origin: USER_1.into_origin(),
             };
-            nonce += 1;
 
             SystemPallet::<Test>::assert_last_event(
                 Event::InitMessageEnqueued(init_msg_info.clone()).into(),
@@ -789,13 +788,17 @@ fn events_logging_works() {
 
             SystemPallet::<Test>::assert_has_event(Event::InitSuccess(init_msg_info).into());
 
-            let dispatch_msg_info = MessageInfo {
-                program_id,
-                message_id: compute_user_message_id(EMPTY_PAYLOAD, nonce),
-                origin: USER_1.into_origin(),
-            };
             // Messages to fully-initialized programs are accepted
             assert_ok!(send_default_message(USER_1, program_id));
+
+            let message_id = get_last_message_id();
+
+            let dispatch_msg_info = MessageInfo {
+                program_id,
+                message_id,
+                origin: USER_1.into_origin(),
+            };
+
             SystemPallet::<Test>::assert_last_event(
                 Event::DispatchMessageEnqueued(dispatch_msg_info.clone()).into(),
             );
@@ -814,7 +817,6 @@ fn events_logging_works() {
                 .into(),
             );
 
-            nonce += 1;
             next_block += 1;
         }
     })
@@ -849,10 +851,11 @@ fn send_reply_works() {
             10_000_000,
             1000, // `prog_id` sent message with value of 1000 (see program code)
         ));
+        let message_id = get_last_message_id();
 
         // global nonce is 2 before sending reply message
         // `submit_program` and `send_message` messages were sent before in `setup_mailbox_test_state`
-        let expected_reply_message_id = compute_user_message_id(EMPTY_PAYLOAD, 2);
+        let expected_reply_message_id = message_id;
 
         let event = match SystemPallet::<Test>::events()
             .last()
@@ -896,15 +899,13 @@ fn send_reply_failure_to_claim_from_mailbox() {
             res.expect("submit result was asserted")
         };
 
-        let error_reply_id = if let common::Program::Active(prog) =
+        if let common::Program::Terminated =
             common::get_program(prog_id).expect("Failed to get program from storage")
         {
-            compute_program_message_id(prog_id.as_bytes(), prog.nonce)
-        } else {
             panic!("Program is terminated!");
         };
 
-        populate_mailbox_from_program(prog_id, USER_1, 2, 0, 20_000_000, 0);
+        populate_mailbox_from_program(prog_id, USER_1, 2, 20_000_000, 0);
 
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
@@ -913,10 +914,9 @@ fn send_reply_failure_to_claim_from_mailbox() {
         let mailbox = Mailbox::<Test>::get(USER_1).expect("Checked above").clone();
 
         assert_eq!(mailbox.len(), 1);
-        assert!(mailbox.contains_key(&error_reply_id));
 
-        let message = mailbox.get(&error_reply_id).expect("Checked above");
-        assert!(matches!(message.reply, Some((_, 1))));
+        let message = mailbox.iter().next().expect("Checked above").1;
+        assert!(matches!(message.reply(), Some((_, 1))));
     })
 }
 
@@ -947,7 +947,6 @@ fn send_reply_value_claiming_works() {
         );
 
         let mut next_block = 2;
-        let mut program_nonce = 0u64;
 
         let user_messages_data = [
             // gas limit, value
@@ -955,15 +954,9 @@ fn send_reply_value_claiming_works() {
             (20_000_000, 2000),
         ];
         for (gas_limit_to_reply, value_to_reply) in user_messages_data {
-            let reply_to_id = populate_mailbox_from_program(
-                prog_id,
-                USER_1,
-                next_block,
-                program_nonce,
-                20_000_000,
-                0,
-            );
-            program_nonce += 1;
+            let reply_to_id =
+                populate_mailbox_from_program(prog_id, USER_1, next_block, 20_000_000, 0);
+
             next_block += 1;
 
             assert!(Mailbox::<Test>::contains_key(USER_1));
@@ -1015,8 +1008,7 @@ fn claim_value_from_mailbox_works() {
             res.expect("submit result was asserted")
         };
         increase_prog_balance_for_mailbox_test(USER_3, prog_id);
-        let reply_to_id =
-            populate_mailbox_from_program(prog_id, USER_2, 2, 0, gas_sent, value_sent);
+        let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
         assert!(Mailbox::<Test>::contains_key(USER_1));
 
         let (gas_burned, _) =
@@ -1396,9 +1388,15 @@ fn defer_program_initialization() {
             .expect("should be one reply for the program author")
             .into_values()
             .next();
+
         assert!(message.is_some());
 
-        assert_eq!(message.unwrap().payload, b"Hello, world!".encode());
+        println!("{:?}", message);
+
+        assert_eq!(
+            message.unwrap().payload().to_vec(),
+            b"Hello, world!".encode()
+        );
     })
 }
 
@@ -1457,7 +1455,7 @@ fn wake_messages_after_program_inited() {
         let actual_n = Gear::mailbox(USER_3)
             .map(|t| {
                 t.into_values().fold(0usize, |i, m| {
-                    assert_eq!(m.payload, b"Hello, world!".encode());
+                    assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
                     i + 1
                 })
             })
@@ -1485,6 +1483,7 @@ fn test_message_processing_for_non_existing_destination() {
             500_000,
             100
         ));
+        let skipped_message_id = get_last_message_id();
         assert!(!Mailbox::<Test>::contains_key(USER_1));
 
         run_to_block(2, None);
@@ -1494,7 +1493,6 @@ fn test_message_processing_for_non_existing_destination() {
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);
 
-        let skipped_message_id = compute_user_message_id(EMPTY_PAYLOAD, 1);
         SystemPallet::<Test>::assert_has_event(
             Event::MessageNotExecuted(skipped_message_id).into(),
         );
@@ -2321,7 +2319,7 @@ fn resume_program_works() {
         let actual_n = Gear::mailbox(USER_3)
             .map(|t| {
                 t.into_values().fold(0usize, |i, m| {
-                    assert_eq!(m.payload, b"Hello, world!".encode());
+                    assert_eq!(m.payload(), b"Hello, world!".encode());
                     i + 1
                 })
             })
@@ -2373,7 +2371,7 @@ fn gas_spent_vs_balance() {
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("Gas spent for init calculation error");
+        .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
         assert_eq!(
             (initial_balance - balance_after_init) as u64,
@@ -2386,7 +2384,7 @@ fn gas_spent_vs_balance() {
             request,
             0,
         )
-        .expect("Gas spent for handle calculation error");
+        .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
         assert_eq!(
             balance_after_init - balance_after_handle,
@@ -2429,7 +2427,7 @@ fn gas_spent_precalculated() {
             EMPTY_PAYLOAD.to_vec(),
             0,
         )
-        .expect("Gas spent for handle calculation error");
+        .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
         let schedule = <Test as Config>::Schedule::get();
 
@@ -2452,12 +2450,10 @@ fn gas_spent_precalculated() {
 }
 
 mod utils {
-    use codec::Encode;
     use frame_support::dispatch::{DispatchErrorWithPostInfo, DispatchResultWithPostInfo};
+    use gear_core::ids::{CodeId, MessageId, ProgramId};
     use sp_core::H256;
     use sp_std::convert::TryFrom;
-
-    use gear_core::program::{CodeHash, ProgramId};
 
     use super::{
         assert_ok, pallet, run_to_block, BalancesPallet, Event, GearPallet, MessageInfo, MockEvent,
@@ -2533,7 +2529,7 @@ mod utils {
         };
 
         increase_prog_balance_for_mailbox_test(user, prog_id);
-        populate_mailbox_from_program(prog_id, user, 2, 0, 20_000_000, 0)
+        populate_mailbox_from_program(prog_id, user, 2, 20_000_000, 0)
     }
 
     // Puts message from `prog_id` for the `user` in mailbox and returns its id
@@ -2541,7 +2537,6 @@ mod utils {
         prog_id: H256,
         sender: AccountId,
         block_num: BlockNumber,
-        program_nonce: u64,
         gas_limit: u64,
         value: u128,
     ) -> H256 {
@@ -2552,6 +2547,8 @@ mod utils {
             gas_limit, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
             value,
         ));
+
+        let message_id = get_last_message_id();
         run_to_block(block_num, None);
 
         {
@@ -2566,7 +2563,7 @@ mod utils {
             );
         }
 
-        compute_program_message_id(prog_id.as_bytes(), program_nonce)
+        MessageId::generate_outgoing(MessageId::from_origin(message_id), 0).into_origin()
     }
 
     pub(super) fn increase_prog_balance_for_mailbox_test(sender: AccountId, program_id: H256) {
@@ -2607,8 +2604,7 @@ mod utils {
     ) -> DispatchCustomResult<H256> {
         let code = code_kind.to_bytes();
         let salt = DEFAULT_SALT.to_vec();
-        // alternatively, get from last event
-        let prog_id = generate_program_id(&code, &salt);
+
         GearPallet::<Test>::submit_program(
             Origin::signed(user).into(),
             code,
@@ -2617,15 +2613,15 @@ mod utils {
             DEFAULT_GAS_LIMIT,
             0,
         )
-        .map(|_| prog_id)
+        .map(|_| get_last_program_id())
     }
 
     pub(super) fn generate_program_id(code: &[u8], salt: &[u8]) -> H256 {
-        ProgramId::generate(CodeHash::generate(code), salt).into_origin()
+        ProgramId::generate(CodeId::generate(code), salt).into_origin()
     }
 
     pub(super) fn generate_code_hash(code: &[u8]) -> [u8; 32] {
-        CodeHash::generate(code).inner()
+        CodeId::generate(code).into()
     }
 
     pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {
@@ -2636,18 +2632,6 @@ mod utils {
             DEFAULT_GAS_LIMIT,
             0,
         )
-    }
-
-    pub(super) fn compute_user_message_id(payload: &[u8], global_nonce: u128) -> H256 {
-        let mut id = payload.encode();
-        id.extend_from_slice(&global_nonce.to_le_bytes());
-        sp_io::hashing::blake2_256(&id).into()
-    }
-
-    pub(super) fn compute_program_message_id(program_id: &[u8], program_nonce: u64) -> H256 {
-        let mut id = program_id.to_vec();
-        id.extend_from_slice(&program_nonce.to_le_bytes());
-        sp_io::hashing::blake2_256(&id).into()
     }
 
     pub(super) fn get_last_program_id() -> H256 {
@@ -2665,6 +2649,23 @@ mod utils {
         };
 
         program_id
+    }
+
+    pub(super) fn get_last_message_id() -> H256 {
+        let event = match SystemPallet::<Test>::events()
+            .last()
+            .map(|r| r.event.clone())
+        {
+            Some(MockEvent::Gear(e)) => e,
+            _ => unreachable!("Should be one Gear event"),
+        };
+
+        match event {
+            Event::InitMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+            Event::Log(msg) => msg.id().into_origin(),
+            Event::DispatchMessageEnqueued(MessageInfo { message_id, .. }) => message_id,
+            _ => unreachable!("expect sending"),
+        }
     }
 
     #[derive(Debug, Copy, Clone)]
@@ -2757,6 +2758,19 @@ mod utils {
                 .expect("failed to parse module")
                 .as_ref()
                 .to_vec()
+        }
+    }
+
+    #[allow(unused)]
+    pub(super) fn print_gear_events<T: crate::Config>() {
+        let v = SystemPallet::<T>::events()
+            .into_iter()
+            .map(|r| r.event)
+            .collect::<Vec<_>>();
+
+        println!("Gear events");
+        for (pos, line) in v.iter().enumerate() {
+            println!("{}). {:?}", pos, line);
         }
     }
 }

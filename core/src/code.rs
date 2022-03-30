@@ -18,6 +18,7 @@
 
 //! Module for checked code.
 
+use crate::ids::CodeId;
 use alloc::vec::Vec;
 use anyhow::Result;
 use codec::{Decode, Encode};
@@ -65,6 +66,32 @@ impl CheckedCode {
     }
 }
 
+/// Contains checked code for a program and the hash for it.
+pub struct CheckedCodeWithHash(CheckedCode, CodeId);
+
+impl CheckedCodeWithHash {
+    /// Creates new instance from the provided code.
+    pub fn new(code: CheckedCode) -> Self {
+        let hash = CodeId::generate(code.code());
+        Self(code, hash)
+    }
+
+    /// Returns reference to the checked code.
+    pub fn code(&self) -> &CheckedCode {
+        &self.0
+    }
+
+    /// Returns reference to the code hash.
+    pub fn hash(&self) -> CodeId {
+        self.1
+    }
+
+    /// Decomposes this instance.
+    pub fn into_parts(self) -> (CheckedCode, CodeId) {
+        (self.0, self.1)
+    }
+}
+
 /// Contains instrumented binary code of a program and initial memory size from memory import.
 #[derive(Clone, Debug, Decode, Encode, PartialEq, Eq)]
 pub struct InstrumentedCode {
@@ -96,5 +123,30 @@ impl InstrumentedCode {
     /// Returns instruction weights version.
     pub fn instruction_weights_version(&self) -> u32 {
         self.instruction_weights_version
+    }
+}
+
+/// Contains instumented code for a program and the hash for it.
+pub struct InstrumentedCodeWithHash(InstrumentedCode, CodeId);
+
+impl InstrumentedCodeWithHash {
+    /// Creates new instance from the provided code.
+    pub fn new(code: InstrumentedCode, hash: CodeId) -> Self {
+        Self(code, hash)
+    }
+
+    /// Returns reference to the checked code.
+    pub fn code(&self) -> &InstrumentedCode {
+        &self.0
+    }
+
+    /// Returns reference to the code hash.
+    pub fn hash(&self) -> CodeId {
+        self.1
+    }
+
+    /// Decomposes this instance.
+    pub fn into_parts(self) -> (InstrumentedCode, CodeId) {
+        (self.0, self.1)
     }
 }

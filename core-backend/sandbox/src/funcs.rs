@@ -26,9 +26,9 @@ use core::{
 use gear_backend_common::{funcs, EXIT_TRAP_STR, LEAVE_TRAP_STR, WAIT_TRAP_STR};
 use gear_core::{
     env::Ext,
+    ids::{MessageId, ProgramId},
     memory::Memory,
-    message::{MessageId, OutgoingPacket, ProgramInitPacket, ReplyPacket},
-    program::ProgramId,
+    message::{HandlePacket, InitPacket, ReplyPacket},
 };
 use sp_sandbox::{HostError, ReturnValue, Value};
 
@@ -92,9 +92,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id =
-                    ext.send(OutgoingPacket::new(dest, payload.into(), None, value))?;
-                wto(ctx, message_id_ptr, message_id.as_slice())
+                let message_id = ext.send(HandlePacket::new(dest, payload, value))?;
+                wto(ctx, message_id_ptr, message_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_err| {
@@ -121,13 +120,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let dest: ProgramId = funcs::get_bytes32(&ctx.memory, program_id_ptr)?.into();
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id = ext.send(OutgoingPacket::new(
-                    dest,
-                    payload.into(),
-                    Some(gas_limit),
-                    value,
-                ))?;
-                wto(ctx, message_id_ptr, message_id.as_slice())
+                let message_id =
+                    ext.send(HandlePacket::new_with_gas(dest, payload, gas_limit, value))?;
+                wto(ctx, message_id_ptr, message_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -152,9 +147,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id = ext.send_commit(
                     handle_ptr,
-                    OutgoingPacket::new(dest, vec![].into(), None, value),
+                    HandlePacket::new(dest, Default::default(), value),
                 )?;
-                wto(ctx, message_id_ptr, message_id.as_slice())
+                wto(ctx, message_id_ptr, message_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_err| {
@@ -179,9 +174,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 let message_id = ext.send_commit(
                     handle_ptr,
-                    OutgoingPacket::new(dest, vec![].into(), Some(gas_limit), value),
+                    HandlePacket::new_with_gas(dest, Default::default(), gas_limit, value),
                 )?;
-                wto(ctx, message_id_ptr, message_id.as_slice())
+                wto(ctx, message_id_ptr, message_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -361,7 +356,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with(|ext| {
                 let origin = ext.origin();
-                wto(ctx, origin_ptr, origin.as_slice())
+                wto(ctx, origin_ptr, origin.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -382,7 +377,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                ext.reply(ReplyPacket::new(0, payload.into(), value))
+                ext.reply(ReplyPacket::new(payload, value))
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -402,8 +397,8 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with(|ext| {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id = ext.reply_commit(ReplyPacket::new(0, vec![].into(), value))?;
-                wto(ctx, message_id_ptr, message_id.as_slice())
+                let message_id = ext.reply_commit(ReplyPacket::new(Default::default(), value))?;
+                wto(ctx, message_id_ptr, message_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -423,7 +418,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         })?;
 
         match maybe_message_id {
-            Some((message_id, _)) => wto(ctx, dest, message_id.as_slice()).map_err(|err| {
+            Some((message_id, _)) => wto(ctx, dest, message_id.as_ref()).map_err(|err| {
                 ctx.trap = Some(err);
                 HostError
             })?,
@@ -497,7 +492,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with(|ext| {
                 let message_id = ext.message_id();
-                wto(ctx, msg_id_ptr, message_id.as_slice())
+                wto(ctx, msg_id_ptr, message_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_| {
@@ -515,7 +510,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with(|ext| {
                 let source = ext.program_id();
-                wto(ctx, source_ptr, source.as_slice())
+                wto(ctx, source_ptr, source.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|err| {
@@ -533,7 +528,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with(|ext| {
                 let source = ext.source();
-                wto(ctx, source_ptr, source.as_slice())
+                wto(ctx, source_ptr, source.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|err| {
@@ -644,14 +639,14 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let salt = funcs::get_vec(&ctx.memory, salt_ptr, salt_len)?;
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let new_actor_id = ext.create_program(ProgramInitPacket::new(
+                let new_actor_id = ext.create_program(InitPacket::new_with_gas(
                     code_hash.into(),
                     salt,
-                    payload.into(),
+                    payload,
                     gas_limit,
                     value,
                 ))?;
-                wto(ctx, program_id_ptr, new_actor_id.as_slice())
+                wto(ctx, program_id_ptr, new_actor_id.as_ref())
             })
             .and_then(|res| res.map(|_| ReturnValue::Unit))
             .map_err(|_err| {
