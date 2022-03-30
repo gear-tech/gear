@@ -2364,6 +2364,8 @@ fn gas_spent_vs_balance() {
             init_gas_spent
         );
 
+        run_to_block(4, None);
+
         let handle_gas_spent = Gear::get_gas_spent(
             USER_1.into_origin(),
             HandleKind::Handle(prog_id),
