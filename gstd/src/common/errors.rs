@@ -22,6 +22,7 @@
 //! errors.
 
 use core::fmt;
+use gcore::msg::SendError;
 
 pub type Result<T> = core::result::Result<T, ContractError>;
 
@@ -31,6 +32,7 @@ pub enum ContractError {
     Decode(codec::Error),
     ExitCode(i32),
     Internal(&'static str),
+    Send(SendError),
 }
 
 impl fmt::Display for ContractError {
@@ -40,6 +42,14 @@ impl fmt::Display for ContractError {
             ContractError::Decode(e) => write!(f, "Decoding codec bytes error: {}", e),
             ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
             ContractError::Internal(e) => write!(f, "Internal error: {:?}", e),
+            // TODO: print error when it will contain actual information
+            ContractError::Send(_) => write!(f, "Send error"),
         }
+    }
+}
+
+impl From<SendError> for ContractError {
+    fn from(err: SendError) -> Self {
+        Self::Send(err)
     }
 }

@@ -18,6 +18,7 @@
 
 //! Module with basic messaging functions wrapped from `gcore` to `gstd`.
 
+use crate::errors::Result;
 use crate::prelude::{convert::AsRef, vec, Vec};
 use crate::{ActorId, MessageId};
 use codec::Output;
@@ -63,12 +64,12 @@ use codec::Output;
 pub struct MessageHandle(gcore::MessageHandle);
 
 impl MessageHandle {
-    pub fn init() -> Self {
+    pub fn init() -> Result<Self> {
         send_init()
     }
 
-    pub fn push<T: AsRef<[u8]>>(&self, payload: T) {
-        send_push(self, payload);
+    pub fn push<T: AsRef<[u8]>>(&self, payload: T) -> Result<()> {
+        send_push(self, payload)
     }
 
     pub fn commit(self, program: ActorId, value: u128) -> MessageId {
@@ -82,7 +83,7 @@ impl MessageHandle {
 
 impl Output for MessageHandle {
     fn write(&mut self, bytes: &[u8]) {
-        self.push(bytes);
+        self.push(bytes).unwrap();
     }
 }
 
@@ -311,8 +312,10 @@ pub fn reply_to() -> MessageId {
 ///
 /// [`send_init`],[`send_push`], [`send_commit`] functions allows to form a
 /// message to send in parts.
-pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> MessageId {
-    gcore::msg::send(program.into(), payload.as_ref(), value).into()
+pub fn send_bytes<T: AsRef<[u8]>>(program: ActorId, payload: T, value: u128) -> Result<MessageId> {
+    gcore::msg::send(program.into(), payload.as_ref(), value)
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 /// Send a new message to the program or user.
@@ -352,8 +355,10 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
     payload: T,
     gas_limit: u64,
     value: u128,
-) -> MessageId {
-    gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value).into()
+) -> Result<MessageId> {
+    gcore::msg::send_with_gas(program.into(), payload.as_ref(), gas_limit, value)
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 /// Finalize and send message formed in parts.
@@ -459,8 +464,8 @@ pub fn send_commit_with_gas(
 ///
 /// [`send_push`], [`send_commit`] functions allows to form a message to send in
 /// parts.
-pub fn send_init() -> MessageHandle {
-    gcore::msg::send_init().into()
+pub fn send_init() -> Result<MessageHandle> {
+    gcore::msg::send_init().map(Into::into).map_err(Into::into)
 }
 
 /// Push a payload part of the message to be sent in parts.
@@ -488,8 +493,8 @@ pub fn send_init() -> MessageHandle {
 ///
 /// [`send_init`], [`send_commit`] functions allows to form and send a message
 /// to send in parts.
-pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) {
-    gcore::msg::send_push(handle.as_ref(), payload.as_ref())
+pub fn send_push<T: AsRef<[u8]>>(handle: &MessageHandle, payload: T) -> Result<()> {
+    gcore::msg::send_push(handle.as_ref(), payload.as_ref()).map_err(Into::into)
 }
 
 /// Get the payload size of the message being processed.

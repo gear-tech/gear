@@ -24,6 +24,7 @@ extern crate alloc;
 
 pub mod funcs;
 
+use alloc::string::String;
 use alloc::{
     borrow::Cow,
     boxed::Box,
@@ -110,4 +111,41 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
 
     /// Unset env ext and returns gas amount.
     fn drop_env(&mut self) -> GasAmount;
+}
+
+pub trait OnSuccessCode<T, E> {
+    fn on_success_code<F>(self, f: F) -> Result<i32, String>
+    where
+        F: FnMut(T) -> Result<(), E>;
+}
+
+impl<T, E, E2> OnSuccessCode<T, E2> for Result<T, E>
+where
+    E2: Into<String>,
+{
+    fn on_success_code<F>(self, mut f: F) -> Result<i32, String>
+    where
+        F: FnMut(T) -> Result<(), E2>,
+    {
+        match self {
+            Ok(t) => {
+                f(t).map_err(Into::into)?;
+                Ok(0)
+            }
+            Err(_) => Ok(1),
+        }
+    }
+}
+
+pub trait IntoErrorCode {
+    fn into_error_code(self) -> Result<i32, &'static str>;
+}
+
+impl IntoErrorCode for Result<(), &str> {
+    fn into_error_code(self) -> Result<i32, &'static str> {
+        match self {
+            Ok(()) => Ok(0),
+            Err(_) => Ok(1),
+        }
+    }
 }

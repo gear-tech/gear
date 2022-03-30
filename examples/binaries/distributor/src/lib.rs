@@ -88,6 +88,7 @@ impl Program {
         async move {
             let reply_bytes =
                 msg::send_bytes_and_wait_for_reply(program_handle, &encoded_request[..], 0)
+                    .expect("Error in message sending")
                     .await
                     .expect("Error in async message processing");
 

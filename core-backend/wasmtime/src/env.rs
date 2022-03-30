@@ -119,7 +119,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             funcs::send_commit_wgas(&mut store, memory),
         );
         funcs.insert("gr_send_commit", funcs::send_commit(&mut store, memory));
-        funcs.insert("gr_send_init", funcs::send_init(&mut store));
+        funcs.insert("gr_send_init", funcs::send_init(&mut store, memory));
         funcs.insert("gr_send_push", funcs::send_push(&mut store, memory));
         funcs.insert("gr_size", funcs::size(&mut store));
         funcs.insert("gr_source", funcs::source(&mut store, memory));
