@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-/// ! For instruction benchmarking we do no instantiate a full contract but merely the
+/// ! For instruction benchmarking we do no instantiate a full program but merely the
 /// ! sandbox to execute the wasm code. This is because we do not need the full
 /// ! environment that provides the seal interface as imported functions.
 use super::{code::WasmModule, Config};
@@ -33,9 +33,9 @@ pub struct Sandbox {
 }
 
 impl Sandbox {
-    /// Invoke the `call` function of a contract code and panic on any execution error.
+    /// Invoke the `handle` function of a contract code and panic on any execution error.
     pub fn invoke(&mut self) {
-        self.instance.invoke("call", &[], &mut ()).unwrap();
+        self.instance.invoke("handle", &[], &mut ()).unwrap();
     }
 }
 

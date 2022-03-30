@@ -1292,7 +1292,7 @@ fn uninitialized_program_should_accept_replies() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            200_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -1343,7 +1343,7 @@ fn defer_program_initialization() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            200_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -1413,7 +1413,7 @@ fn wake_messages_after_program_inited() {
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            200_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -1446,7 +1446,7 @@ fn wake_messages_after_program_inited() {
             Origin::signed(USER_1),
             message_id.unwrap(),
             b"PONG".to_vec(),
-            100_000_000u64,
+            500_000_000u64,
             0,
         ));
 
@@ -2263,7 +2263,7 @@ fn resume_program_works() {
             code,
             vec![],
             Vec::new(),
-            200_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -2479,36 +2479,33 @@ mod utils {
 
     pub(super) fn check_init_success(expected: u32) {
         let mut actual_children_amount = 0;
-        SystemPallet::<Test>::events()
-            .iter()
-            .for_each(|e| match e.event {
-                MockEvent::Gear(Event::InitSuccess(_)) => actual_children_amount += 1,
-                _ => {}
-            });
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::InitSuccess(_)) = e.event {
+                actual_children_amount += 1
+            }
+        });
 
         assert_eq!(expected, actual_children_amount);
     }
 
     pub(super) fn check_dequeued(expected: u32) {
         let mut actual_dequeued = 0;
-        SystemPallet::<Test>::events()
-            .iter()
-            .for_each(|e| match e.event {
-                MockEvent::Gear(Event::MessagesDequeued(num)) => actual_dequeued += num,
-                _ => {}
-            });
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::MessagesDequeued(num)) = e.event {
+                actual_dequeued += num
+            }
+        });
 
         assert_eq!(expected, actual_dequeued);
     }
 
     pub(super) fn check_dispatched(expected: u32) {
         let mut actual_dispatched = 0;
-        SystemPallet::<Test>::events()
-            .iter()
-            .for_each(|e| match e.event {
-                MockEvent::Gear(Event::MessageDispatched(_)) => actual_dispatched += 1,
-                _ => {}
-            });
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::MessageDispatched(_)) = e.event {
+                actual_dispatched += 1
+            }
+        });
 
         assert_eq!(expected, actual_dispatched);
     }

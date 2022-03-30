@@ -55,21 +55,12 @@ const MAX_CODE_LEN: u32 = 128 * 1024;
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
 
-/// How many batches we do per API benchmark.
-const API_BENCHMARK_BATCHES: u32 = 20;
-
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
 pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
     let entropy = (name, index, seed).using_encoded(blake2_256);
     AccountId::from_origin(H256::from_slice(&entropy[..]))
-}
-
-/// An instantiated and deployed contract.
-struct Contract<T: Config> {
-    caller: T::AccountId,
-    account_id: T::AccountId,
 }
 
 benchmarks! {
@@ -182,7 +173,7 @@ benchmarks! {
     instr_i64const {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(1),
                 Regular(Instruction::Drop),
             ])),
@@ -197,7 +188,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomUnaligned(0, code::max_pages::<T>() * 64 * 1024 - 8),
                 Regular(Instruction::I64Load(3, 0)),
                 Regular(Instruction::Drop),
@@ -213,7 +204,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomUnaligned(0, code::max_pages::<T>() * 64 * 1024 - 8),
                 RandomI64Repeated(1),
                 Regular(Instruction::I64Store(3, 0)),
@@ -228,7 +219,7 @@ benchmarks! {
     instr_select {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(1),
                 RandomI64Repeated(1),
                 RandomI32(0, 2),
@@ -245,7 +236,7 @@ benchmarks! {
     instr_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32(0, 2),
                 Regular(Instruction::If(BlockType::Value(ValueType::I64))),
                 RandomI64Repeated(1),
@@ -265,7 +256,7 @@ benchmarks! {
     instr_br {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
@@ -291,7 +282,7 @@ benchmarks! {
     instr_br_if {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
@@ -322,7 +313,7 @@ benchmarks! {
             default: 1,
         });
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
@@ -356,7 +347,7 @@ benchmarks! {
             default: 0,
         });
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
                 Regular(Instruction::Block(BlockType::NoResult)),
@@ -389,7 +380,7 @@ benchmarks! {
                 Instruction::Drop,
                 Instruction::End,
             ])),
-            call_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::Call(2), // call aux
             ])),
             inject_stack_metering: true,
@@ -412,7 +403,7 @@ benchmarks! {
                 Instruction::Drop,
                 Instruction::End,
             ])),
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(0, 0)), // we only have one sig: 0
             ])),
@@ -444,7 +435,7 @@ benchmarks! {
                 Instruction::End,
             ])),
             aux_arg_num: p,
-            call_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(p as usize),
                 RandomI32(0, num_elements as i32),
                 Regular(Instruction::CallIndirect(p.min(1), 0)), // aux signature: 1 or 0
@@ -464,13 +455,13 @@ benchmarks! {
     instr_local_get {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.stack_height;
-        let mut call_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomGetLocal(0, max_locals),
             Regular(Instruction::Drop),
         ]);
-        body::inject_locals(&mut call_body, max_locals);
+        body::inject_locals(&mut handle_body, max_locals);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(call_body),
+            handle_body: Some(handle_body),
             .. Default::default()
         }));
     }: {
@@ -481,13 +472,13 @@ benchmarks! {
     instr_local_set {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.stack_height;
-        let mut call_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomI64Repeated(1),
             RandomSetLocal(0, max_locals),
         ]);
-        body::inject_locals(&mut call_body, max_locals);
+        body::inject_locals(&mut handle_body, max_locals);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(call_body),
+            handle_body: Some(handle_body),
             .. Default::default()
         }));
     }: {
@@ -498,14 +489,14 @@ benchmarks! {
     instr_local_tee {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_locals = T::Schedule::get().limits.stack_height;
-        let mut call_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+        let mut handle_body = body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
             RandomI64Repeated(1),
             RandomTeeLocal(0, max_locals),
             Regular(Instruction::Drop),
         ]);
-        body::inject_locals(&mut call_body, max_locals);
+        body::inject_locals(&mut handle_body, max_locals);
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(call_body),
+            handle_body: Some(handle_body),
             .. Default::default()
         }));
     }: {
@@ -517,7 +508,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_globals = T::Schedule::get().limits.globals;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomGetGlobal(0, max_globals),
                 Regular(Instruction::Drop),
             ])),
@@ -533,7 +524,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let max_globals = T::Schedule::get().limits.globals;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI64Repeated(1),
                 RandomSetGlobal(0, max_globals),
             ])),
@@ -549,7 +540,7 @@ benchmarks! {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
             memory: Some(ImportedMemory::max::<T>()),
-            call_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
+            handle_body: Some(body::repeated(r * INSTR_BENCHMARK_BATCH_SIZE, &[
                 Instruction::CurrentMemory(0),
                 Instruction::Drop
             ])),
@@ -572,7 +563,7 @@ benchmarks! {
                 min_pages: 0,
                 max_pages,
             }),
-            call_body: Some(body::repeated(r * max_pages, &[
+            handle_body: Some(body::repeated(r * max_pages, &[
                 Instruction::I32Const(1),
                 Instruction::GrowMemory(0),
                 Instruction::Drop,
@@ -629,7 +620,7 @@ benchmarks! {
     instr_i64extendsi32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32Repeated(1),
                 Regular(Instruction::I64ExtendSI32),
                 Regular(Instruction::Drop),
@@ -643,7 +634,7 @@ benchmarks! {
     instr_i64extendui32 {
         let r in 0 .. INSTR_BENCHMARK_BATCHES;
         let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            call_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
+            handle_body: Some(body::repeated_dyn(r * INSTR_BENCHMARK_BATCH_SIZE, vec![
                 RandomI32Repeated(1),
                 Regular(Instruction::I64ExtendUI32),
                 Regular(Instruction::Drop),
