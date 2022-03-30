@@ -37,8 +37,8 @@ use sp_std::{borrow::ToOwned, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,
     elements::{
-        self, CustomSection, External, FuncBody, Instruction, Instructions, Module,
-        Section, ValueType,
+        self, CustomSection, External, FuncBody, Instruction, Instructions, Module, Section,
+        ValueType,
     },
 };
 
