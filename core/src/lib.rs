@@ -27,12 +27,10 @@
 
 extern crate alloc;
 
-pub mod checked_code;
-pub mod code_hash;
+pub mod code;
 pub mod env;
 pub mod gas;
+pub mod ids;
 pub mod memory;
 pub mod message;
 pub mod program;
-
-mod util;

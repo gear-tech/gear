@@ -30,7 +30,7 @@ fixtures:
 
           - &address
             kind: h256
-            value: ad3871c402b2b86cd0d85a1e077de016a69d6b92d5d03c04974dec4a3aeb6b9d
+            value: 9c1de0d1359e2a4bd3e474a21527afdb6eaeba3106a167705775af0acac11183
 
   - title: Try to re-init existing program
 
@@ -49,7 +49,7 @@ fixtures:
           value: 100
         payload:
           kind: utf-8
-          value: duplicate    
+          value: duplicate
 
     expected:
       - step: 1

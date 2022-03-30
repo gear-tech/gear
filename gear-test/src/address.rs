@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::program::ProgramId;
+use gear_core::ids::ProgramId;
 use once_cell::sync::Lazy;
 use primitive_types::H256;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -63,7 +63,7 @@ impl Default for Address {
 impl Address {
     pub fn to_program_id(&self) -> ProgramId {
         match self {
-            Self::Account(s) => ProgramId::from_slice(ACCOUNTS.get(s.as_str()).unwrap().as_bytes()),
+            Self::Account(s) => ProgramId::from(ACCOUNTS.get(s.as_str()).unwrap().as_bytes()),
             Self::ProgramId(id) => ProgramId::from(*id),
             Self::H256(id) => ProgramId::from(id.as_bytes()),
         }

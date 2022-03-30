@@ -6,7 +6,7 @@ use crate::{
 };
 use colored::Colorize;
 use env_logger::{Builder, Env};
-use gear_core::{message::Message, program::CodeHash};
+use gear_core::{ids::CodeId, message::Dispatch};
 use path_clean::PathClean;
 use std::{cell::RefCell, env, fs, io::Write, path::Path, thread};
 
@@ -55,8 +55,8 @@ impl System {
             .try_init();
     }
 
-    pub fn send_message(&self, message: Message) -> RunResult {
-        self.0.borrow_mut().run_message(message)
+    pub fn send_dispatch(&self, dispatch: Dispatch) -> RunResult {
+        self.0.borrow_mut().run_dispatch(dispatch)
     }
 
     pub fn spend_blocks(&self, amount: u32) {
@@ -89,7 +89,7 @@ impl System {
     /// function, developer should provide to the function "child's" code hash. Code for that
     /// code hash must be in storage at the time of the function call. So this method stores
     /// the code in storage.
-    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeHash {
+    pub fn submit_code<P: AsRef<Path>>(&self, code_path: P) -> CodeId {
         let path = env::current_dir()
             .expect("Unable to get root directory of the project")
             .join(code_path)

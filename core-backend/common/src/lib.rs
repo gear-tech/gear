@@ -33,9 +33,9 @@ use alloc::{
 use gear_core::{
     env::Ext,
     gas::GasAmount,
+    ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber},
-    message::{MessageId, OutgoingMessage, PayloadStore, ProgramInitMessage, ReplyMessage},
-    program::{CodeHash, ProgramId},
+    message::{ContextStore, Dispatch},
 };
 
 pub const EXIT_TRAP_STR: &str = "exit";
@@ -57,16 +57,11 @@ pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub pages: BTreeSet<PageNumber>,
     pub accessed_pages: BTreeMap<PageNumber, Vec<u8>>,
-    pub outgoing: Vec<OutgoingMessage>,
-    pub init_messages: Vec<ProgramInitMessage>,
-    pub reply: Option<ReplyMessage>,
+    pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
-    pub nonce: u64,
-    pub program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
-    pub payload_store: Option<PayloadStore>,
-
+    pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
+    pub context_store: ContextStore,
     pub trap_explanation: Option<&'static str>,
-
     pub exit_argument: Option<ProgramId>,
 }
 

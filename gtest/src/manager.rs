@@ -23,8 +23,10 @@ use crate::{
 use core_processor::{common::*, configs::BlockInfo, Ext};
 use gear_backend_wasmtime::WasmtimeEnvironment;
 use gear_core::{
+    code::CheckedCode,
+    ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message, MessageId},
+    message::{Dispatch, DispatchKind, Message, MessageId, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,},
     program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
 };
 use std::{
@@ -129,11 +131,12 @@ pub(crate) struct ExtManager {
 
     // State
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
-    pub(crate) codes: BTreeMap<CodeHash, Vec<u8>>,
-    pub(crate) dispatch_queue: VecDeque<Dispatch>,
-    pub(crate) actor_to_mailbox: HashMap<ProgramId, Vec<Message>>,
-    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), Dispatch>,
+    pub(crate) codes: BTreeMap<CodeId, Vec<u8>>,
+    pub(crate) dispatches: VecDeque<StoredDispatch>,
+    pub(crate) actor_to_mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
+    pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
+    pub(crate) gas_limits: BTreeMap<MessageId, Option<u64>>,
 
     // Last run info
     pub(crate) origin: ProgramId,
@@ -172,8 +175,8 @@ impl ExtManager {
             .insert(program_id, (Actor::new(init_message_id, program), 0))
     }
 
-    pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeHash {
-        let code_hash = CodeHash::generate(code);
+    pub(crate) fn store_new_code(&mut self, code: &[u8]) -> CodeId {
+        let code_hash = CodeId::generate(code);
         self.codes.insert(code_hash, code.to_vec());
         code_hash
     }
@@ -193,59 +196,28 @@ impl ExtManager {
         self.id_nonce
     }
 
-    fn get_entry_point(message: &Message, actor: &Actor) -> DispatchKind {
-        message
-            .reply()
-            .map(|_| DispatchKind::HandleReply)
-            .unwrap_or_else(|| {
-                // Init message id should be set before dispatches addressed to the actor are stored.
-                assert!(
-                    !matches!(actor, Actor::Uninitialized(None, _)),
-                    "internal error: uninitialized actor hasn't got init msg id"
-                );
-                if matches!(actor, Actor::Uninitialized(Some(id), _) if *id == message.id()) {
-                    DispatchKind::Init
-                } else {
-                    DispatchKind::Handle
-                }
-            })
-    }
+    pub(crate) fn run_dispatch(&mut self, message: Dispatch) -> RunResult {
+        self.prepare_for(&message);
 
-    pub(crate) fn run_message(&mut self, message: Message) -> RunResult {
+        self.gas_limits.insert(message.id(), message.gas_limit());
+        let message = message.into_stored();
+
         let message_id = message.id();
-        self.prepare_for(message_id, message.source());
 
-        {
-            let maybe_actor = self.actors.get_mut(&message.dest());
-            if let Some((actor, _)) = maybe_actor {
-                let kind = if actor.is_dormant() {
-                    DispatchKind::Handle
-                } else {
-                    if let Actor::Uninitialized(maybe_message_id, _) = actor {
-                        maybe_message_id.get_or_insert(message.id());
-                    }
-                    Self::get_entry_point(&message, &*actor)
-                };
-
-                let dispatch = Dispatch {
-                    kind,
-                    message,
-                    payload_store: None,
-                };
-                self.dispatch_queue.push_back(dispatch);
-            } else {
-                self.actor_to_mailbox
-                    .entry(message.dest())
-                    .or_default()
-                    .push(message.clone());
-                self.log.push(message);
-            }
+        let maybe_actor = self.actors.get_mut(&message.destination());
+        if maybe_actor.is_some() {
+            self.dispatches.push_back(message);
+        } else {
+            self.mailbox
+                .entry(message.destination())
+                .or_default()
+                .push(message.message().clone());
         }
 
         let mut total_processed = 0;
-        while let Some(dispatch) = self.dispatch_queue.pop_front() {
-            let message_id = dispatch.message.id();
-            let dest = dispatch.message.dest();
+        while let Some(dispatch) = self.dispatches.pop_front() {
+            let message_id = dispatch.id();
+            let dest = dispatch.destination();
 
             if self.check_is_for_wait_list(&dispatch) {
                 self.wait_init_list
@@ -262,12 +234,14 @@ impl ExtManager {
                 .get_mut(&dest)
                 .expect("Somehow message queue contains message for user");
 
-            if let Some(executable_actor) = actor.get_executable_actor(*balance) {
+            if actor.is_dormant() {
+                self.process_dormant(dispatch);
+            } else if let Some(executable_actor) = actor.get_executable_actor(*balance) {
                 self.process_normal(executable_actor, dispatch);
             } else if let Some(mock) = actor.take_mock() {
                 self.process_mock(mock, dispatch);
             } else {
-                self.process_dormant(dispatch);
+                unreachable!();
             }
 
             total_processed += 1;
@@ -284,14 +258,15 @@ impl ExtManager {
         }
     }
 
-    fn prepare_for(&mut self, msg_id: MessageId, origin: ProgramId) {
-        self.msg_id = msg_id;
-        self.origin = origin;
+    fn prepare_for(&mut self, dispatch: &Dispatch) {
+        self.msg_id = dispatch.id();
+        self.origin = dispatch.source();
         self.log.clear();
         self.main_failed = false;
         self.others_failed = false;
 
-        if !self.dispatch_queue.is_empty() {
+        // TODO: Remove this check after #349.
+        if !self.dispatches.is_empty() {
             panic!("Message queue isn't empty");
         }
     }
@@ -336,67 +311,59 @@ impl ExtManager {
     }
 
     // When called for the `dispatch`, it must be in queue.
-    fn check_is_for_wait_list(&self, dispatch: &Dispatch) -> bool {
-        let Dispatch { message, .. } = dispatch;
-
+    fn check_is_for_wait_list(&self, dispatch: &StoredDispatch) -> bool {
         let (actor, _) = self
             .actors
-            .get(&message.dest())
+            .get(&dispatch.destination())
             .expect("method called for unknown destination");
         if let Actor::Uninitialized(maybe_message_id, _) = actor {
             let id = maybe_message_id.expect("message in dispatch queue has id");
-            message.reply().is_none() && id != message.id()
+            dispatch.reply().is_none() && id != dispatch.id()
         } else {
             false
         }
     }
 
-    fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: Dispatch) {
-        let Dispatch { message, kind, .. } = dispatch;
+    fn process_mock(&mut self, mut mock: Box<dyn WasmProgram>, dispatch: StoredDispatch) {
+        let message_id = dispatch.id();
+        let program_id = dispatch.destination();
+        let payload = dispatch.payload().to_vec();
 
-        let message_id = message.id();
-        let program_id = message.dest();
-        let payload = message.payload().to_vec();
-
-        let response = match kind {
+        let response = match dispatch.kind() {
             DispatchKind::Init => mock.init(payload),
             DispatchKind::Handle => mock.handle(payload),
-            DispatchKind::HandleReply => mock.handle_reply(payload),
+            DispatchKind::Reply => mock.handle_reply(payload),
         };
 
         match response {
             Ok(reply) => {
-                if let DispatchKind::Init = kind {
+                if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(DispatchOutcome::InitSuccess {
                         message_id,
                         program_id,
-                        origin: message.source(),
+                        origin: dispatch.source(),
                     });
                 }
 
                 if let Some(payload) = reply {
-                    let nonce = self.fetch_inc_message_nonce();
+                    let id = MessageId::generate_reply(message_id, 0);
+                    let packet = ReplyPacket::new(payload, 0);
+                    let reply_message = ReplyMessage::from_packet(id, packet);
 
-                    let reply_message = Message::new_reply(
-                        nonce.into(),
-                        program_id,
-                        message.source(),
-                        payload.into(),
-                        0,
+                    self.send_dispatch(
                         message_id,
-                        0,
+                        reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                     );
-                    self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
                 }
             }
             Err(expl) => {
                 mock.debug(expl);
 
-                if let DispatchKind::Init = kind {
+                if let DispatchKind::Init = dispatch.kind() {
                     self.message_dispatched(DispatchOutcome::InitFailure {
                         message_id,
                         program_id,
-                        origin: message.source(),
+                        origin: dispatch.source(),
                         reason: expl,
                     });
                 } else {
@@ -407,18 +374,14 @@ impl ExtManager {
                     })
                 }
 
-                let nonce = self.fetch_inc_message_nonce();
+                let id = MessageId::generate_reply(message_id, 1);
+                let packet = ReplyPacket::new(Default::default(), 1);
+                let reply_message = ReplyMessage::from_packet(id, packet);
 
-                let reply_message = Message::new_reply(
-                    nonce.into(),
-                    program_id,
-                    message.source(),
-                    Default::default(),
-                    0,
+                self.send_dispatch(
                     message_id,
-                    1,
+                    reply_message.into_dispatch(program_id, dispatch.source(), message_id),
                 );
-                self.send_dispatch(message_id, Dispatch::new_reply(reply_message));
             }
         }
 
@@ -431,21 +394,32 @@ impl ExtManager {
         });
     }
 
-    fn process_normal(&mut self, executable_actor: ExecutableActor, dispatch: Dispatch) {
+    fn process_normal(&mut self, executable_actor: ExecutableActor, dispatch: StoredDispatch) {
         self.process_dispatch(Some(executable_actor), dispatch);
     }
 
-    fn process_dormant(&mut self, dispatch: Dispatch) {
+    fn process_dormant(&mut self, dispatch: StoredDispatch) {
         self.process_dispatch(None, dispatch);
     }
 
-    fn process_dispatch(&mut self, executable_actor: Option<ExecutableActor>, dispatch: Dispatch) {
+    fn process_dispatch(
+        &mut self,
+        executable_actor: Option<ExecutableActor>,
+        dispatch: StoredDispatch,
+    ) {
+        let dest = dispatch.destination();
+        let gas_limit = self
+            .gas_limits
+            .get(&dispatch.id())
+            .expect("Unable to find gas limit for message")
+            .unwrap_or(u64::MAX);
         let journal = core_processor::process::<Ext, WasmtimeEnvironment<Ext>>(
             executable_actor,
-            dispatch,
+            dispatch.into_incoming(gas_limit),
             self.block_info,
             crate::EXISTENTIAL_DEPOSIT,
             self.origin,
+            dest,
         );
 
         core_processor::handle_journal(journal, self);
@@ -484,37 +458,27 @@ impl JournalHandler for ExtManager {
     }
 
     fn message_consumed(&mut self, message_id: MessageId) {
-        if let Some(index) = self
-            .dispatch_queue
-            .iter()
-            .position(|d| d.message.id() == message_id)
-        {
-            self.dispatch_queue.remove(index);
+        if let Some(index) = self.dispatches.iter().position(|d| d.id() == message_id) {
+            self.dispatches.remove(index);
         }
     }
-    fn send_dispatch(&mut self, _message_id: MessageId, mut dispatch: Dispatch) {
-        let Dispatch {
-            ref mut message, ..
-        } = dispatch;
-        if self.actors.contains_key(&message.dest()) {
-            // imbuing gas-less messages with maximum gas!
-            if message.gas_limit.is_none() {
-                message.gas_limit = Some(u64::max_value());
-            }
-            self.dispatch_queue.push_back(dispatch);
+    fn send_dispatch(&mut self, _message_id: MessageId, dispatch: Dispatch) {
+        self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
+
+        if self.actors.contains_key(&dispatch.destination()) {
+            self.dispatches.push_back(dispatch.into_stored());
         } else {
             self.actor_to_mailbox
-                .entry(message.dest())
+                .entry(dispatch.destination())
                 .or_default()
-                .push(message.clone());
-            self.log.push(dispatch.message);
+                .push(dispatch.message().clone().into_stored());
+            self.log.push(dispatch.message().clone());
         }
     }
-
-    fn wait_dispatch(&mut self, dispatch: Dispatch) {
-        self.message_consumed(dispatch.message.id());
+    fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+        self.message_consumed(dispatch.id());
         self.wait_list
-            .insert((dispatch.message.dest(), dispatch.message.id()), dispatch);
+            .insert((dispatch.destination(), dispatch.id()), dispatch);
     }
 
     fn wake_message(
@@ -523,18 +487,8 @@ impl JournalHandler for ExtManager {
         program_id: ProgramId,
         awakening_id: MessageId,
     ) {
-        if let Some(dispatch) = self.wait_list.remove(&(program_id, awakening_id)) {
-            self.dispatch_queue.push_back(dispatch);
-        }
-    }
-
-    fn update_nonce(&mut self, program_id: ProgramId, nonce: u64) {
-        let (actor, _) = self
-            .actors
-            .get_mut(&program_id)
-            .expect("Can't find existing program");
-        if let Some(prog) = actor.as_mut_core_prog() {
-            prog.set_message_nonce(nonce);
+        if let Some(msg) = self.wait_list.remove(&(program_id, awakening_id)) {
+            self.dispatches.push_back(msg);
         }
     }
 
@@ -575,7 +529,7 @@ impl JournalHandler for ExtManager {
         }
     }
 
-    fn store_new_programs(&mut self, code_hash: CodeHash, candidates: Vec<(ProgramId, MessageId)>) {
+    fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
         if let Some(code) = self.codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {

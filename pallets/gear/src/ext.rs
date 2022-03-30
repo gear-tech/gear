@@ -19,15 +19,15 @@
 use common::{lazy_pages, ExitCode};
 use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
-    BlakeMessageIdGenerator, Ext, ProcessorExt,
+    Ext, ProcessorExt,
 };
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAmount, GasCounter, ValueCounter},
+    ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber},
-    message::{MessageContext, MessageId, MessageState, OutgoingPacket, ReplyPacket},
-    program::{CodeHash, ProgramId},
+    message::{HandlePacket, MessageContext, ReplyPacket},
 };
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
 
@@ -63,30 +63,18 @@ impl IntoExtInfo for LazyPagesExt {
             accessed_pages.insert(page, buf);
         }
 
-        let nonce = self.inner.message_context.nonce();
-
-        let (
-            MessageState {
-                init_messages,
-                outgoing,
-                reply,
-                awakening,
-            },
-            store,
-        ) = self.inner.message_context.drain();
+        let (outcome, context_store) = self.inner.message_context.drain();
+        let (generated_dispatches, awakening) = outcome.drain();
 
         Ok(ExtInfo {
             gas_amount: self.inner.gas_counter.into(),
             pages: self.inner.allocations_context.allocations().clone(),
             accessed_pages,
-            outgoing,
-            reply,
+            generated_dispatches,
             awakening,
-            nonce,
-            payload_store: Some(store),
+            context_store,
             trap_explanation: self.inner.error_explanation,
             exit_argument: self.inner.exit_argument,
-            init_messages,
             program_candidates_data: self.inner.program_candidates_data,
         })
     }
@@ -101,7 +89,7 @@ impl ProcessorExt for LazyPagesExt {
         gas_counter: GasCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
-        message_context: MessageContext<BlakeMessageIdGenerator>,
+        message_context: MessageContext,
         block_info: BlockInfo,
         config: AllocationsConfig,
         existential_deposit: u128,
@@ -109,7 +97,7 @@ impl ProcessorExt for LazyPagesExt {
         exit_argument: Option<ProgramId>,
         origin: ProgramId,
         program_id: ProgramId,
-        program_candidates_data: BTreeMap<CodeHash, Vec<(ProgramId, MessageId)>>,
+        program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
     ) -> Self {
         Self {
             inner: Ext {
@@ -255,11 +243,7 @@ impl EnvExt for LazyPagesExt {
         self.inner.reply_push(buffer)
     }
 
-    fn send_commit(
-        &mut self,
-        handle: usize,
-        msg: OutgoingPacket,
-    ) -> Result<MessageId, &'static str> {
+    fn send_commit(&mut self, handle: usize, msg: HandlePacket) -> Result<MessageId, &'static str> {
         self.inner.send_commit(handle, msg)
     }
 
@@ -333,7 +317,7 @@ impl EnvExt for LazyPagesExt {
 
     fn create_program(
         &mut self,
-        packet: gear_core::message::ProgramInitPacket,
+        packet: gear_core::message::InitPacket,
     ) -> Result<ProgramId, &'static str> {
         self.inner.create_program(packet)
     }
