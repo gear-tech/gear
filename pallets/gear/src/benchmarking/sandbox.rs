@@ -20,7 +20,7 @@
 /// ! sandbox to execute the wasm code. This is because we do not need the full
 /// ! environment that provides the seal interface as imported functions.
 use super::{code::WasmModule, Config};
-use sp_core::crypto::UncheckedFrom;
+
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory},
     SandboxEnvironmentBuilder, SandboxInstance,

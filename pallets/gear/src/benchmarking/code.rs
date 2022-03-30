@@ -27,7 +27,7 @@
 
 use crate::Config;
 use frame_support::traits::Get;
-use sp_core::crypto::UncheckedFrom;
+
 use sp_runtime::traits::Hash;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
@@ -285,7 +285,7 @@ where
             }
             module
         };
-        let limits = module
+        let limits = *module
             .import_section()
             .unwrap()
             .entries()
@@ -298,8 +298,7 @@ where
                 }
             })
             .unwrap()
-            .limits()
-            .clone();
+            .limits();
         let code = module.to_bytes().unwrap();
         let hash = T::Hashing::hash(&code);
         let memory = ImportedMemory {
@@ -549,12 +548,12 @@ pub mod body {
                 DynInstr::RandomI32Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
                     .take(*num)
-                    .map(|val| Instruction::I32Const(val))
+                    .map(Instruction::I32Const)
                     .collect(),
                 DynInstr::RandomI64Repeated(num) => (&mut rng)
                     .sample_iter(Standard)
                     .take(*num)
-                    .map(|val| Instruction::I64Const(val))
+                    .map(Instruction::I64Const)
                     .collect(),
                 DynInstr::RandomGetLocal(low, high) => {
                     vec![Instruction::GetLocal(rng.gen_range(*low..*high))]
