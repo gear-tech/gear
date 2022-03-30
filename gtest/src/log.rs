@@ -47,6 +47,10 @@ impl CoreLog {
     pub fn get_payload(&self) -> Payload {
         self.payload.clone().into()
     }
+
+    pub fn get_id(&self) -> MessageId {
+        self.id.clone()
+    }
 }
 
 #[derive(Debug)]

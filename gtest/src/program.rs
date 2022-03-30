@@ -250,10 +250,13 @@ mod tests {
         let run_result = prog.send(user_id, init_msg_payload);
         assert!(run_result.main_failed);
 
+        let run_result = prog.send(user_id, String::from("should_be_skipped"));
+
+        //let encoded_payload = init_msg_payload.encode();
         let expected_log = {
             // id, payload, gas limit, value and reply id aren't important
             let msg = Message::new_reply(
-                Default::default(),
+                run_result.log.last().expect("No log after saved after sending").get_id(),
                 prog.id(),
                 ProgramIdWrapper::from(user_id).0,
                 Default::default(),
@@ -263,7 +266,7 @@ mod tests {
             );
             CoreLog::from_message(msg)
         };
-        let run_result = prog.send(user_id, String::from("should_be_skipped"));
+
         assert!(!run_result.main_failed());
         assert!(run_result.log.contains(&expected_log));
     }
