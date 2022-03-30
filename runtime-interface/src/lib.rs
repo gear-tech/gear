@@ -81,13 +81,14 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_write: bool,
     prot_exec: bool,
 ) -> Result<(), MprotectError> {
-    log::error!("unsupported OS for pages protectections");
+    log::error!("unsupported OS for pages protectection");
     Err(MprotectError::OsError)
 }
 
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
+    /// old interface
     fn mprotect_wasm_pages(
         from_ptr: u64,
         pages_nums: &[u32],
@@ -112,12 +113,17 @@ pub trait GearRI {
         unsafe { sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec) }
     }
 
-    fn save_page_lazy_info(wasm_page: u32, key: &[u8]) {
-        gear_lazy_pages::save_page_lazy_info(wasm_page, key);
+    fn save_page_lazy_info(page: u32, key: &[u8]) {
+        gear_lazy_pages::save_page_lazy_info(page, key);
     }
 
+    /// old interface
     fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
-        gear_lazy_pages::get_wasm_lazy_pages_numbers()
+        gear_lazy_pages::get_lazy_pages_numbers()
+    }
+
+    fn get_lazy_pages_numbers() -> Vec<u32> {
+        gear_lazy_pages::get_lazy_pages_numbers()
     }
 
     fn init_lazy_pages() -> bool {

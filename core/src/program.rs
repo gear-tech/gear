@@ -21,7 +21,7 @@
 use crate::{
     code::Code,
     ids::ProgramId,
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
 };
 use alloc::{boxed::Box, collections::BTreeMap, collections::BTreeSet, vec::Vec};
 use anyhow::Result;
@@ -84,7 +84,7 @@ impl Program {
     }
 
     /// Get initial memory size for this program.
-    pub fn static_pages(&self) -> u32 {
+    pub fn static_pages(&self) -> WasmPageNumber {
         self.code.static_pages()
     }
 
@@ -227,7 +227,7 @@ mod tests {
         let mut program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
-        assert_eq!(program.static_pages(), 2);
+        assert_eq!(program.static_pages(), 2.into());
 
         assert!(program.set_page(1.into(), &[0; 123]).is_err());
 

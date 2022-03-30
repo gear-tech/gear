@@ -34,7 +34,7 @@ use gear_core::{
     env::Ext,
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
-    memory::{PageBuf, PageNumber},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
     message::{ContextStore, Dispatch},
 };
 
@@ -58,7 +58,7 @@ pub enum TerminationReason<'a> {
 pub struct ExtInfo {
     pub gas_amount: GasAmount,
     pub pages: BTreeSet<PageNumber>,
-    pub accessed_pages: BTreeMap<PageNumber, Vec<u8>>,
+    pub pages_data: BTreeMap<PageNumber, Vec<u8>>,
     pub generated_dispatches: Vec<Dispatch>,
     pub awakening: Vec<MessageId>,
     pub program_candidates_data: BTreeMap<CodeId, Vec<(ProgramId, MessageId)>>,
@@ -97,7 +97,7 @@ pub trait Environment<E: Ext + IntoExtInfo + 'static>: Sized {
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        mem_size: u32,
+        mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>>;
 
     /// Returns addr to the stack end if it can be identified

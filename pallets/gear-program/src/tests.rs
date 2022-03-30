@@ -64,7 +64,7 @@ fn pause_program_works() {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: static_pages.into(),
                 persistent_pages: memory_pages.clone().into_keys().collect(),
                 code_hash,
                 state: ProgramState::Initialized,
@@ -149,7 +149,7 @@ fn pause_program_twice_fails() {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: static_pages.into(),
                 persistent_pages: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
@@ -188,7 +188,7 @@ fn pause_terminated_program_fails() {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: static_pages.into(),
                 persistent_pages: Default::default(),
                 code_hash,
                 state: ProgramState::Initialized,
@@ -462,7 +462,7 @@ mod utils {
         common::set_program(
             program_id,
             ActiveProgram {
-                static_pages,
+                static_pages: static_pages.into(),
                 persistent_pages: memory_pages.clone().into_keys().collect(),
                 code_hash,
                 state: ProgramState::Uninitialized {

@@ -194,7 +194,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
     // Fill the key in the storage with a fake Program ID so that messages to this program get into the message queue
     for id in programs_map.keys() {
         let program = gear_common::ActiveProgram {
-            static_pages: 0,
+            static_pages: 0.into(),
             persistent_pages: Default::default(),
             code_hash: H256::default(),
             state: gear_common::ProgramState::Initialized,

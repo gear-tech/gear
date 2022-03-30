@@ -46,6 +46,7 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::StoredDispatch,
     program::Program as NativeProgram,
+    memory::WasmPageNumber,
 };
 
 pub use storage_queue::Iterator;
@@ -303,8 +304,7 @@ impl core::convert::TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct ActiveProgram {
-    #[codec(compact)]
-    pub static_pages: u32,
+    pub static_pages: WasmPageNumber,
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
     pub state: ProgramState,
@@ -629,7 +629,7 @@ mod tests {
 
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
-                static_pages: 256,
+                static_pages: 256.into(),
                 persistent_pages: Default::default(),
                 code_hash: code_id,
                 state: ProgramState::Initialized,

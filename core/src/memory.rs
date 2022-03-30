@@ -19,13 +19,17 @@
 //! Module for memory and allocations context.
 
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, HasCompact};
+use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.
 pub const WASM_PAGE_SIZE: usize = 0x10000;
 
-/// A gear page size - part of wasm page size.
-const GEAR_PAGE_SIZE: usize = 0x10000;
+/// A gear page size.
+/// TODO: comment
+const GEAR_PAGE_SIZE: usize = 0x1000;
+
+const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
 /// Memory error.
 #[derive(Clone, Debug)]
@@ -40,13 +44,10 @@ pub enum Error {
     /// This is probably mis-use of the api (like dropping `Allocations` struct when some code is still runnig).
     AllocationsInUse,
 
-    /// Specified page is occupied.
-    PageOccupied(PageNumber),
-
     /// Specified page cannot be freed by the current program.
     ///
     /// It was allocated by another program.
-    InvalidFree(PageNumber),
+    InvalidFree(WasmPageNumber),
 
     /// Out of bounds memory access
     MemoryAccessError,
@@ -57,7 +58,7 @@ pub type PageBuf = [u8; GEAR_PAGE_SIZE];
 
 /// Page number.
 #[derive(
-    Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash,
+    Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash
 )]
 pub struct PageNumber(u32);
 
@@ -94,13 +95,75 @@ impl core::ops::Sub for PageNumber {
     }
 }
 
+/// Wasm page nuber
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, derive_more::From, TypeInfo)]
+pub struct WasmPageNumber(pub u32);
+
+impl WasmPageNumber {
+    /// Return page offset.
+    pub fn offset(&self) -> usize {
+        (self.0 as usize) * WasmPageNumber::size()
+    }
+
+    /// TODO
+    pub fn to_gear_pages(&self) -> PageNumber {
+        PageNumber::from(self.0 * (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32)
+    }
+
+    /// Return page size in bytes.
+    pub const fn size() -> usize {
+        WASM_PAGE_SIZE
+    }
+}
+
+impl core::ops::Add for WasmPageNumber {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+
+impl core::ops::Sub for WasmPageNumber {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+
+/// TODO
+pub fn pages_set_to_wasm_pages_set(pages: &BTreeSet<PageNumber>) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
+    let mut wasm_pages = BTreeSet::<WasmPageNumber>::new();
+    for page in pages {
+        let wasm_page_num = WasmPageNumber(page.raw() / GEAR_PAGES_IN_ONE_WASM);
+        if page.raw() % GEAR_PAGES_IN_ONE_WASM == 0 {
+            wasm_pages.insert(wasm_page_num);
+        } else {
+            if !wasm_pages.contains(&wasm_page_num) {
+                return Err("Has small page which is part of wasm page, but not all small pages from the wasm page");
+            }
+        }
+    }
+    Ok(wasm_pages)
+}
+
+/// TODO
+pub fn wasm_pages_to_pages_set(wasm_pages: &BTreeSet<WasmPageNumber>) -> BTreeSet<PageNumber> {
+    let mut pages = BTreeSet::<PageNumber>::new();
+    for page in wasm_pages {
+        pages.extend((page.0..page.0 + GEAR_PAGES_IN_ONE_WASM).map(|p| PageNumber::from(p)));
+    }
+    pages
+}
+
 /// Memory interface for the allocator.
 pub trait Memory {
     /// Grow memory by number of pages.
-    fn grow(&mut self, pages: PageNumber) -> Result<PageNumber, Error>;
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error>;
 
     /// Return current size of the memory.
-    fn size(&self) -> PageNumber;
+    fn size(&self) -> WasmPageNumber;
 
     /// Set memory region at specific pointer.
     fn write(&mut self, offset: usize, buffer: &[u8]) -> Result<(), Error>;
@@ -118,10 +181,10 @@ pub trait Memory {
 /// Pages allocations context for the running program.
 pub struct AllocationsContext {
     /// Pages which has been in storage before execution
-    init_allocations: BTreeSet<PageNumber>,
-    allocations: BTreeSet<PageNumber>,
-    max_pages: PageNumber,
-    static_pages: PageNumber,
+    init_allocations: BTreeSet<WasmPageNumber>,
+    allocations: BTreeSet<WasmPageNumber>,
+    max_pages: WasmPageNumber,
+    static_pages: WasmPageNumber,
 }
 
 impl Clone for AllocationsContext {
@@ -142,9 +205,9 @@ impl AllocationsContext {
     /// and allocation manager. Also configurable `static_pages` and `max_pages`
     /// are set.
     pub fn new(
-        allocations: BTreeSet<PageNumber>,
-        static_pages: PageNumber,
-        max_pages: PageNumber,
+        allocations: BTreeSet<WasmPageNumber>,
+        static_pages: WasmPageNumber,
+        max_pages: WasmPageNumber,
     ) -> Self {
         Self {
             init_allocations: allocations.clone(),
@@ -156,52 +219,52 @@ impl AllocationsContext {
 
     /// Return `true` if the page is the initial page,
     /// it means that the page was already in the storage.
-    pub fn is_init_page(&self, page: PageNumber) -> bool {
+    pub fn is_init_page(&self, page: WasmPageNumber) -> bool {
         self.init_allocations.contains(&page)
     }
 
     /// Alloc specific number of pages for the currently running program.
-    pub fn alloc(&mut self, pages: PageNumber, mem: &mut dyn Memory) -> Result<PageNumber, Error> {
+    pub fn alloc(&mut self, pages: WasmPageNumber, mem: &mut dyn Memory) -> Result<WasmPageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
-        let mut candidate = self.static_pages.raw();
-        let mut found = 0u32;
+        let mut candidate = self.static_pages;
+        let mut found = WasmPageNumber(0);
 
-        while found < pages.raw() {
-            if candidate + pages.raw() > self.max_pages.raw() {
+        while found < pages {
+            if candidate + pages > self.max_pages {
                 log::debug!(
-                    "candidate: {}, pages: {}, max_pages: {}",
+                    "candidate: {:?}, pages: {:?}, max_pages: {:?}",
                     candidate,
-                    pages.raw(),
-                    self.max_pages.raw()
+                    pages,
+                    self.max_pages
                 );
                 return Err(Error::OutOfMemory);
             }
 
             if self.allocations.contains(&(candidate + found).into()) {
-                candidate += 1;
-                found = 0;
+                candidate = candidate + WasmPageNumber(1);
+                found = WasmPageNumber(0);
                 continue;
             }
 
-            found += 1;
+            found = found + WasmPageNumber(1);
         }
 
-        if candidate + found > mem.size().raw() {
-            let extra_grow = candidate + found - mem.size().raw();
+        if candidate + found > mem.size() {
+            let extra_grow = candidate + found - mem.size();
             mem.grow(extra_grow.into())?;
         }
 
-        for page_num in candidate..candidate + found {
-            self.allocations.insert(page_num.into());
+        for page_num in candidate.0..(candidate + found).0 {
+            self.allocations.insert(WasmPageNumber(page_num));
         }
 
-        Ok(candidate.into())
+        Ok(candidate)
     }
 
     /// Free specific page.
     ///
     /// Currently running program should own this page.
-    pub fn free(&mut self, page: PageNumber) -> Result<(), Error> {
+    pub fn free(&mut self, page: WasmPageNumber) -> Result<(), Error> {
         if page < self.static_pages || page > self.max_pages {
             return Err(Error::InvalidFree(page));
         }
@@ -211,7 +274,7 @@ impl AllocationsContext {
     }
 
     /// Return reference to the allocation manager.
-    pub fn allocations(&self) -> &BTreeSet<PageNumber> {
+    pub fn allocations(&self) -> &BTreeSet<WasmPageNumber> {
         &self.allocations
     }
 }

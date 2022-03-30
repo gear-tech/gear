@@ -31,7 +31,7 @@ use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationRe
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{AllocationsContext, PageNumber},
+    memory::{pages_set_to_wasm_pages_set, AllocationsContext, PageNumber, WasmPageNumber},
     message::{IncomingDispatch, MessageContext},
 };
 
@@ -88,7 +88,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
         // Charging gas for mem size
         let amount =
-            settings.mem_grow_cost() * (max_page as u64 + 1 - program.static_pages() as u64);
+            settings.mem_grow_cost() * (max_page as u64 + 1 - program.static_pages().0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
@@ -109,10 +109,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         // +1 because pages numeration begins from 0
-        max_page + 1
+        WasmPageNumber(max_page + 1)
     } else {
         // Charging gas for initial pages
-        let amount = settings.init_cost() * program.static_pages() as u64;
+        let amount = settings.init_cost() * program.static_pages().0 as u64;
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
@@ -134,20 +134,39 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
         program.static_pages()
     };
-    assert!(
-        mem_size >= program.static_pages(),
-        "mem_size = {}, static_pages = {}",
-        mem_size,
-        program.static_pages()
-    );
+
+    if mem_size < program.static_pages() {
+        log::error!(
+            "Mem size less then static pages num: mem_size = {:?}, static_pages = {:?}",
+            mem_size,
+            program.static_pages()
+        );
+        return Err(ExecutionError {
+            program_id,
+            gas_amount: gas_counter.into(),
+            reason: "Mem size less then static pages num",
+            allowance_exceed: false,
+        });
+    }
 
     let initial_pages = program.get_pages();
 
-    // Getting allocations.
-    let allocations: BTreeSet<PageNumber> = if !initial_pages.is_empty() {
-        initial_pages.keys().cloned().collect()
+    // Getting wasm pages allocations.
+    let allocations: BTreeSet<WasmPageNumber> = if !initial_pages.is_empty() {
+        let res = pages_set_to_wasm_pages_set(&initial_pages.keys().cloned().collect());
+        if let Err(e) = res {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: e,
+                allowance_exceed: false,
+            });
+        }
+        res.unwrap()
     } else {
-        (0..program.static_pages()).map(Into::into).collect()
+        (0..program.static_pages().0)
+            .map(|p| WasmPageNumber(p))
+            .collect()
     };
 
     // Creating allocations context.
@@ -279,7 +298,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // changed and new pages will be updated in storage
     let mut page_update = BTreeMap::new();
-    for (page, new_data) in info.accessed_pages {
+    for (page, new_data) in info.pages_data {
         // exception is stack memory pages - if there are some
         // we ignore stack pages update, because they are unused after execution is ended,
         // and for next program execution old data in stack it's just garbage.

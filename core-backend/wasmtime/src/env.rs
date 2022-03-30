@@ -25,7 +25,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Error, PageBuf, PageNumber},
+    memory::{Error, PageBuf, PageNumber, WasmPageNumber},
 };
 use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
@@ -67,7 +67,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        mem_size: u32,
+        mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
@@ -80,7 +80,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
         // Creates new wasm memory
         let mut memory =
-            WasmtimeMemory::new(&mut store, MemoryType::new(mem_size, None)).map_err(|e| {
+            WasmtimeMemory::new(&mut store, MemoryType::new(mem_size.0, None)).map_err(|e| {
                 BackendError {
                     reason: "Create env memory failed",
                     description: Some(e.to_string().into()),

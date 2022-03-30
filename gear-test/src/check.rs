@@ -343,8 +343,8 @@ pub fn check_allocations(
                 .get_pages()
                 .iter()
                 .filter(|(page, _buf)| match exp.filter {
-                    Some(AllocationFilter::Static) => page.raw() < program.static_pages(),
-                    Some(AllocationFilter::Dynamic) => page.raw() >= program.static_pages(),
+                    Some(AllocationFilter::Static) => **page < program.static_pages().to_gear_pages(),
+                    Some(AllocationFilter::Dynamic) => **page >= program.static_pages().to_gear_pages(),
                     None => true,
                 })
                 .collect::<Vec<_>>();

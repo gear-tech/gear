@@ -300,10 +300,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .clone()
             .with_fallible(|ext| ext.alloc(pages.into(), &mut ctx.memory))
-            .map(|v| {
-                let ptr = v.raw();
-                log::debug!("ALLOC: {} pages at {}", pages, ptr);
-                ReturnValue::Value(Value::I32(ptr as i32))
+            .map(|page| {
+                log::debug!("ALLOC: {} pages at {:?}", pages, page);
+                ReturnValue::Value(Value::I32(page.0 as i32))
             })
             .map_err(|e| {
                 ctx.trap = Some(e);

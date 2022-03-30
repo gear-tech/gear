@@ -26,7 +26,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Error, Memory, PageBuf, PageNumber},
+    memory::{Error, Memory, PageBuf, PageNumber, WasmPageNumber},
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -76,13 +76,13 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-        mem_size: u32,
+        mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
         let mut later_ext = LaterExt::default();
         later_ext.set(ext);
 
         let mem: DefaultExecutorMemory =
-            SandboxMemory::new(mem_size, None).map_err(|e| BackendError {
+            SandboxMemory::new(mem_size.0, None).map_err(|e| BackendError {
                 reason: "Create env memory fail",
                 description: Some(format!("{:?}", e).into()),
                 gas_amount: later_ext.unset().into_gas_amount(),
