@@ -39,7 +39,6 @@ mod mock;
 mod tests;
 
 pub use crate::{
-    // exec::Frame,
     pallet::*,
     schedule::{InstructionWeights, Limits, Schedule},
 };

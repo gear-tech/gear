@@ -31,7 +31,6 @@ use self::{
     sandbox::Sandbox,
 };
 use crate::{schedule::INSTR_BENCHMARK_BATCH_SIZE, *};
-use codec::Encode;
 use frame_benchmarking::benchmarks;
 use frame_support::traits::Get;
 use frame_system::RawOrigin;
@@ -43,7 +42,6 @@ use common::{benchmarking, Origin};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 
 use sp_core::H256;
-use sp_io::hashing::blake2_256;
 use sp_runtime::traits::UniqueSaturatedInto;
 
 #[allow(unused)]
@@ -58,11 +56,6 @@ const MAX_PAGES: u32 = 512;
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
 
-pub fn account<AccountId: Origin>(name: &'static str, index: u32, seed: u32) -> AccountId {
-    let entropy = (name, index, seed).using_encoded(blake2_256);
-    AccountId::from_origin(H256::from_slice(&entropy[..]))
-}
-
 benchmarks! {
 
     where_clause { where
@@ -71,7 +64,7 @@ benchmarks! {
 
     submit_code {
         let c in 0 .. MAX_CODE_LEN;
-        let caller: T::AccountId = account("caller", 0, 0);
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         let code = benchmarking::generate_wasm3(vec![0u8; c as usize]).unwrap();
         let code_hash: H256 =     CodeId::generate(&code).into_origin();
     }: _(RawOrigin::Signed(caller), code)
@@ -82,7 +75,7 @@ benchmarks! {
     submit_program {
         let c in MIN_CODE_LEN .. MAX_CODE_LEN;
         let p in 0 .. MAX_PAYLOAD_LEN;
-        let caller: T::AccountId = account("caller", 0, 0);
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
         let code = benchmarking::generate_wasm3(vec![0u8; (c - MIN_CODE_LEN) as usize]).unwrap();
         let salt = vec![255u8; 32];
@@ -96,9 +89,9 @@ benchmarks! {
 
     send_message {
         let p in 0 .. MAX_PAYLOAD_LEN;
-        let caller = account("caller", 0, 0);
+        let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
         let code = benchmarking::generate_wasm2(16_i32).unwrap();
         benchmarking::set_program(program_id, code, 1_u32);
         let payload = vec![0_u8; p as usize];
@@ -109,12 +102,12 @@ benchmarks! {
 
     send_reply {
         let p in 0 .. MAX_PAYLOAD_LEN;
-        let caller = account("caller", 0, 0);
+        let caller = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, 100_000_000_000_000_u128.unique_saturated_into());
-        let program_id = account::<T::AccountId>("program", 0, 100).into_origin();
+        let program_id = benchmarking::account::<T::AccountId>("program", 0, 100).into_origin();
         let code = benchmarking::generate_wasm2(16_i32).unwrap();
         benchmarking::set_program(program_id, code, 1_u32);
-        let original_message_id = account::<T::AccountId>("message", 0, 100).into_origin();
+        let original_message_id = benchmarking::account::<T::AccountId>("message", 0, 100).into_origin();
         Gear::<T>::insert_to_mailbox(
             caller.clone().into_origin(),
             gear_core::message::StoredMessage::new(
@@ -134,7 +127,7 @@ benchmarks! {
 
     initial_allocation {
         let q in 1 .. MAX_PAGES;
-        let caller: T::AccountId = account("caller", 0, 0);
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm(q).unwrap();
         let salt = vec![255u8; 32];
@@ -148,7 +141,7 @@ benchmarks! {
 
     alloc_in_handle {
         let q in 0 .. MAX_PAGES;
-        let caller: T::AccountId = account("caller", 0, 0);
+        let caller: T::AccountId = benchmarking::account("caller", 0, 0);
         <T as pallet::Config>::Currency::deposit_creating(&caller, (1_u128 << 60).unique_saturated_into());
         let code = benchmarking::generate_wasm2(q as i32).unwrap();
         let salt = vec![255u8; 32];

@@ -56,7 +56,7 @@ pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
-pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::origcode::";
+pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
@@ -324,7 +324,6 @@ pub enum ProgramState {
 pub struct CodeMetadata {
     pub author: H256,
     pub block_number: u32,
-    // pub instruction_weights_version: u32,
 }
 
 impl CodeMetadata {
@@ -332,14 +331,13 @@ impl CodeMetadata {
         CodeMetadata {
             author,
             block_number,
-            // instruction_weights_version,
         }
     }
 }
 
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
 enum CodeKeyPrefixKind {
-    // "g::origcode::"
+    // "g::code::orig"
     OriginalCode,
     // "g::code::"
     Code,
