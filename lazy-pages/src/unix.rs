@@ -73,10 +73,6 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
 
     let unprot_size = gear_pages_num * gear_ps;
 
-    let hash_key_in_storage = LAZY_PAGES_INFO
-        .with(|info| info.borrow_mut().remove(&gear_page.raw()))
-        .expect("sigsegv/sigbus from unknown memory");
-
     let res = unsafe {
         libc::mprotect(
             unprot_addr as *mut libc::c_void,
@@ -90,28 +86,34 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
         errno::errno()
     );
 
-    let buffer_as_slice = unsafe {
-        std::slice::from_raw_parts_mut(unprot_addr as *mut u8, PageNumber::size())
-    };
-    let res = sp_io::storage::read(&hash_key_in_storage, buffer_as_slice, 0);
-    assert!(res.is_some(), "Wasm page must have data in storage");
-    assert!(
-        res.unwrap() as usize == PageNumber::size(),
-        "Page data must contain {} bytes, actually has {}",
-        PageNumber::size(),
-        res.unwrap()
-    );
+    for idx in 0..gear_pages_num as u32 {
+        let page = gear_page.raw() + idx;
 
-    RELEASED_LAZY_PAGES.with(|rpages| {
-        for page in gear_page.raw()..gear_page.raw() + gear_pages_num as u32 {
-            let first_byte = page as usize * gear_ps;
-            let last_byte = first_byte + gear_ps;
+        let hash_key_in_storage = LAZY_PAGES_INFO
+            .with(|info| info.borrow_mut().remove(&page))
+            .expect("sigsegv/sigbus from unknown memory");
+
+        let buffer_as_slice = unsafe {
+            let ptr = (unprot_addr as *mut u8).add(idx as usize * gear_ps);
+            std::slice::from_raw_parts_mut(ptr, gear_ps)
+        };
+
+        let res = sp_io::storage::read(&hash_key_in_storage, buffer_as_slice, 0);
+        assert!(res.is_some(), "Wasm page must have data in storage");
+        assert!(
+            res.unwrap() as usize == PageNumber::size(),
+            "Page data must contain {} bytes, actually has {}",
+            PageNumber::size(),
+            res.unwrap()
+        );
+
+        RELEASED_LAZY_PAGES.with(|rpages| {
             let res = rpages
                 .borrow_mut()
-                .insert(page, buffer_as_slice[first_byte..last_byte].to_vec());
+                .insert(page, buffer_as_slice.to_vec());
             assert!(res.is_none(), "Any page cannot be released twice");
-        }
-    });
+        });
+    }
 
     log::debug!(target: "gear_node::sig_handler", "Finish signal handling");
 }

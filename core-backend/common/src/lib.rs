@@ -43,6 +43,7 @@ pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
 pub const GAS_ALLOWANCE_STR: &str = "allowance";
 
+#[derive(Debug)]
 pub enum TerminationReason<'a> {
     Exit(ProgramId),
     Leave,

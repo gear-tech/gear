@@ -43,7 +43,8 @@ impl IntoExtInfo for LazyPagesExt {
         mut get_page_data: F,
     ) -> Result<ExtInfo, (&'static str, GasAmount)> {
         // accessed pages are all pages except current lazy pages
-        let mut accessed_pages = wasm_pages_to_pages_set(self.inner.allocations_context.allocations());
+        let pages = wasm_pages_to_pages_set(self.inner.allocations_context.allocations());
+        let mut accessed_pages = pages.clone();
         if self.lazy_pages_enabled {
             let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
             lazy_pages_numbers.into_iter().for_each(|p| {
@@ -54,12 +55,12 @@ impl IntoExtInfo for LazyPagesExt {
         log::trace!("accessed pages numbers = {:?}", accessed_pages);
 
         let mut accessed_pages_data = BTreeMap::new();
-        for page in accessed_pages.iter() {
+        for page in accessed_pages {
             let mut buf = vec![0u8; PageNumber::size()];
             if let Err(err) = get_page_data(page.offset(), &mut buf) {
                 return Err((err, self.into_gas_amount()));
             }
-            accessed_pages_data.insert(*page, buf);
+            accessed_pages_data.insert(page, buf);
         }
 
         let (outcome, context_store) = self.inner.message_context.drain();
@@ -67,7 +68,7 @@ impl IntoExtInfo for LazyPagesExt {
 
         Ok(ExtInfo {
             gas_amount: self.inner.gas_counter.into(),
-            pages: accessed_pages,
+            pages,
             pages_data: accessed_pages_data,
             generated_dispatches,
             awakening,

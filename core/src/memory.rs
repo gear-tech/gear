@@ -135,14 +135,15 @@ impl core::ops::Sub for WasmPageNumber {
 /// TODO
 pub fn pages_set_to_wasm_pages_set(pages: &BTreeSet<PageNumber>) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
     let mut wasm_pages = BTreeSet::<WasmPageNumber>::new();
-    for page in pages {
+    let mut iter = pages.iter();
+    while let Some(page) = iter.next() {
+        if page.raw() % GEAR_PAGES_IN_ONE_WASM != 0 {
+            return Err("There is wasm page, which has not all gear pages in the begin");
+        }
         let wasm_page_num = WasmPageNumber(page.raw() / GEAR_PAGES_IN_ONE_WASM);
-        if page.raw() % GEAR_PAGES_IN_ONE_WASM == 0 {
-            wasm_pages.insert(wasm_page_num);
-        } else {
-            if !wasm_pages.contains(&wasm_page_num) {
-                return Err("Has small page which is part of wasm page, but not all small pages from the wasm page");
-            }
+        wasm_pages.insert(wasm_page_num);
+        for _ in 0..(WASM_PAGE_SIZE / PageNumber::size() - 1) {
+            iter.next().expect("There is wasm page, which has not all gear pages in the end");
         }
     }
     Ok(wasm_pages)

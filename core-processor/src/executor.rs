@@ -263,6 +263,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             })
         }
     };
+    log::debug!("trem reason = {:?}", termination);
 
     if lazy_pages_enabled {
         // accessed lazy pages old data will be added to `initial_pages`
@@ -331,8 +332,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             );
         };
     }
-
-    // log::trace!("pages to update: {:?}", page_update);
 
     // freed pages will be removed from storage
     let current_pages = &info.pages;

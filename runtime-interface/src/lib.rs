@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
-use gear_core::memory::WASM_PAGE_SIZE;
+use gear_core::memory::{WASM_PAGE_SIZE, PageNumber};
 
 pub use sp_std::{result::Result, vec::Vec};
 
@@ -85,6 +85,54 @@ unsafe fn sys_mprotect_wasm_pages(
     Err(MprotectError::OsError)
 }
 
+#[cfg(feature = "std")]
+#[cfg(unix)]
+unsafe fn sys_mprotect_interval(
+    addr: u64,
+    size: usize,
+    prot_read: bool,
+    prot_write: bool,
+    prot_exec: bool,
+) -> Result<(), MprotectError> {
+    if size == 0 || size % page_size::get() != 0 {
+        return Err(MprotectError::PageError);
+    }
+    let mut prot_mask = libc::PROT_NONE;
+    if prot_read {
+        prot_mask |= libc::PROT_READ;
+    }
+    if prot_write {
+        prot_mask |= libc::PROT_WRITE;
+    }
+    if prot_exec {
+        prot_mask |= libc::PROT_EXEC;
+    }
+    let res = libc::mprotect(addr as *mut libc::c_void, size, prot_mask);
+    if res != 0 {
+        log::error!(
+            "Cannot set page protection for {:#x}: {}",
+            addr,
+            errno::errno()
+        );
+        return Err(MprotectError::PageError);
+    }
+    log::trace!("mprotect native page: {:#x}, mask {:#x}", addr, prot_mask);
+    Ok(())
+}
+
+#[cfg(feature = "std")]
+#[cfg(not(unix))]
+unsafe fn sys_mprotect_interval(
+    addr: u64,
+    size: usize,
+    prot_read: bool,
+    prot_write: bool,
+    prot_exec: bool,
+) -> Result<(), MprotectError> {
+    log::error!("unsupported OS for pages protectection");
+    Err(MprotectError::OsError)
+}
+
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
@@ -111,6 +159,34 @@ pub trait GearRI {
         prot_exec: bool,
     ) -> Result<(), MprotectError> {
         unsafe { sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec) }
+    }
+
+    fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
+        let mut prev_page = 0u32;
+        let mut size_in_pages = 0u32;
+        let mut lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
+
+        // TODO
+        lazy_pages.push(u32::MAX);
+
+        for page in lazy_pages {
+            if prev_page + 1 == page {
+                size_in_pages += 1;
+            } else {
+                if size_in_pages != 0 {
+                    let addr = wasm_mem_addr + ((prev_page + 1 - size_in_pages) as usize * PageNumber::size()) as u64;
+                    let size = size_in_pages as usize * PageNumber::size();
+                    if protect {
+                        unsafe { sys_mprotect_interval(addr, size, false, false, false)? };
+                    } else {
+                        unsafe { sys_mprotect_interval(addr, size, true, true, false)? };
+                    }
+                }
+                size_in_pages = 1;
+            }
+            prev_page = page;
+        }
+        Ok(())
     }
 
     fn save_page_lazy_info(page: u32, key: &[u8]) {
