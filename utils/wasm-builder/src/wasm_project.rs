@@ -202,9 +202,9 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");
 #[allow(unused)]
 pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
 "#,
-                to_path.display(),
-                to_opt_path.display(),
-                to_meta_path.display(),
+                display_path(to_path),
+                display_path(to_opt_path),
+                display_path(to_meta_path),
             ),
         )
         .context("unable to write `wasm_binary.rs`")?;
@@ -244,4 +244,9 @@ pub const WASM_BINARY_META: &[u8] = include_bytes!("{}");
             .map_err(|_| BuilderError::UnableToGenerateMeta(from.to_path_buf()))?;
         parity_wasm::serialize_to_file(to, module).context("unable to write the metadata WASM")
     }
+}
+
+// Windows has path like `path\to\somewhere` which is incorrect for `include_*` Rust's macros
+fn display_path(path: PathBuf) -> String {
+    path.display().to_string().replace('\\', "/")
 }
