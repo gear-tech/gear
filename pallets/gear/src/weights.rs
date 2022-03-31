@@ -23,18 +23,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("local"), DB CACHE: 1024
 
 // Executed Command:
-// ./target/release/gear-node
-// benchmark
-// --chain=local
-// --steps=50
-// --repeat=20
-// --pallet=pallet_gear
-// --extrinsic=*
-// --execution=wasm
-// --wasm-execution=compiled
-// --heap-pages=4096
-// --output=./pallets/gear/src/weights.rs
-// --template=./.maintain/gear-weight-template.hbs
+// ./target/release/gear-node benchmark  --chain=local  --steps=50  --repeat=20  --pallet=pallet_gear  --extrinsic="*"  --execution=wasm  --wasm-execution=compiled  --heap-pages=4096  --output=./pallets/gear/src/weights.rs  --template=./.maintain/gear-weight-template.hbs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
