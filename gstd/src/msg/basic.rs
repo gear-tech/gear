@@ -72,7 +72,7 @@ impl MessageHandle {
         send_push(self, payload)
     }
 
-    pub fn commit(self, program: ActorId, value: u128) -> MessageId {
+    pub fn commit(self, program: ActorId, value: u128) -> Result<MessageId> {
         send_commit(self, program, value)
     }
 
@@ -393,8 +393,10 @@ pub fn send_bytes_with_gas<T: AsRef<[u8]>>(
 ///
 /// [`send_push`], [`send_init`] functions allows to form a message to send in
 /// parts.
-pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> MessageId {
-    gcore::msg::send_commit(handle.into(), program.into(), value).into()
+pub fn send_commit(handle: MessageHandle, program: ActorId, value: u128) -> Result<MessageId> {
+    gcore::msg::send_commit(handle.into(), program.into(), value)
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 /// Finalize and send message formed in parts, with gas_limit.
