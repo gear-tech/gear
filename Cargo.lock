@@ -5527,7 +5527,8 @@ checksum = "51dd4445360338dab5116712bee1388dc727991d51969558a8882ab552e6db30"
 [[package]]
 name = "ring"
 version = "0.16.20"
-source = "git+https://github.com/gear-tech/ring.git?branch=v0.16.20-fix-nightly-pregenerated#44e94bb8ba66666992cae013f99341d25df5ba4b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3053cf52e236a3ed746dfc745aa9cacf1b791d846bdaf412f60a8d7d6e17c8fc"
 dependencies = [
  "cc",
  "libc",
