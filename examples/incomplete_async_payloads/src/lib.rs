@@ -13,18 +13,19 @@ async fn main() {
         "handle store" => {
             debug!("stored common processing");
 
-            let handle = msg::send_init();
-            handle.push(b"STORED ");
+            let handle = msg::send_init().unwrap();
+            handle.push(b"STORED ").unwrap();
 
             let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
+                .unwrap()
                 .await
                 .expect("Error in async message processing");
 
             debug!("stored common processing awaken");
 
-            handle.push("COMMON");
+            handle.push("COMMON").unwrap();
 
-            handle.commit(msg::source(), 0);
+            handle.commit(msg::source(), 0).unwrap();
         }
         "reply store" => {
             debug!("stored reply processing");
@@ -32,6 +33,7 @@ async fn main() {
             msg::reply_push(b"STORED ");
 
             let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
+                .unwrap()
                 .await
                 .expect("Error in async message processing");
 
@@ -43,9 +45,9 @@ async fn main() {
         }
         "handle" => {
             debug!("ok common processing");
-            let handle = msg::send_init();
-            handle.push(b"OK PING");
-            handle.commit(msg::source(), 0);
+            let handle = msg::send_init().unwrap();
+            handle.push(b"OK PING").unwrap();
+            handle.commit(msg::source(), 0).unwrap();
         }
         "reply" => {
             debug!("ok reply processing");
@@ -58,6 +60,7 @@ async fn main() {
             msg::reply_bytes("FIRST", 0);
 
             let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
+                .unwrap()
                 .await
                 .expect("Error in async message processing");
 

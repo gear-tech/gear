@@ -44,7 +44,8 @@ async fn init() {
     let mut requests: Vec<_> = [APPROVER_FIRST, APPROVER_SECOND, APPROVER_THIRD]
         .iter()
         .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", 0))
-        .collect();
+        .collect::<Result<_, _>>()
+        .unwrap();
 
     let mut threshold = 0usize;
     while !requests.is_empty() {
@@ -73,7 +74,8 @@ async fn main() {
     ]
     .iter()
     .map(|s| msg::send_bytes_and_wait_for_reply(*s, b"", 0))
-    .collect();
+    .collect::<Result<_, _>>()
+    .unwrap();
 
     let _ = future::select_all(requests).await;
 

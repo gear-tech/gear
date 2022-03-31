@@ -162,6 +162,7 @@ async fn main() {
 
             let response =
                 msg::send_bytes_and_wait_for_reply(id, &String::from("ping").encode(), 0)
+                    .unwrap()
                     .await
                     .expect("Error in async message processing");
 
@@ -173,6 +174,7 @@ async fn main() {
             if ping.to_lowercase() == "pong" {
                 let response =
                     msg::send_bytes_and_wait_for_reply(id, &String::from("success").encode(), 0)
+                        .unwrap()
                         .await
                         .expect("Error in async message processing");
 

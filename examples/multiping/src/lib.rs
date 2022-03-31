@@ -17,11 +17,11 @@ pub unsafe extern "C" fn handle() {
     }
 
     if new_msg == "PING PING PING" && COUNTER > 0 {
-        let handle = msg::send_init();
-        msg::send_push(&handle, b"PONG1");
-        msg::send_push(&handle, b"PONG2");
-        msg::send_push(&handle, b"PONG3");
-        msg::send_commit(handle, msg::source(), 0);
+        let handle = msg::send_init().unwrap();
+        msg::send_push(&handle, b"PONG1").unwrap();
+        msg::send_push(&handle, b"PONG2").unwrap();
+        msg::send_push(&handle, b"PONG3").unwrap();
+        msg::send_commit(handle, msg::source(), 0).unwrap();
     }
 
     COUNTER += 1;

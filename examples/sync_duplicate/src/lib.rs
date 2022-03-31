@@ -19,6 +19,7 @@ async fn main() {
         unsafe { COUNTER += 1 };
 
         let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEST }, "PING", 0)
+            .unwrap()
             .await
             .expect("Error in async message processing");
 
