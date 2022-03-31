@@ -19,7 +19,7 @@
 use crate as pallet_usage;
 use codec::Decode;
 use common::Origin as _;
-use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnInitialize};
+use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_core::{ids::CodeId, program::Program};
@@ -231,8 +231,10 @@ pub fn with_offchain_ext() -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>)
 pub(crate) fn run_to_block(n: u64) {
     let now = System::block_number();
     for i in now + 1..=n {
+        log::debug!("📦 Processing block {}", i);
         System::set_block_number(i);
         Usage::on_initialize(i);
+        Gear::on_idle(i, 1_000_000_000);
     }
 }
 
