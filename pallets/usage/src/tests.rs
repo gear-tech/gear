@@ -721,7 +721,7 @@ fn gas_properly_handled_for_trap_replies() {
         // Both messages should have been removed from wait list
         assert_eq!(wait_list_contents().len(), 0);
 
-        // 100 gas spent for rent payment by 1st message => total_issuance = 1000 + 500
+        // 100 gas spent for rent payment by 1st message => total_issuance = 1000
         assert_eq!(
             <Test as pallet_gear::Config>::GasHandler::total_issuance(),
             1000

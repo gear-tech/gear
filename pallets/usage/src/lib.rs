@@ -349,10 +349,9 @@ pub mod pallet {
                             let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
                             // Enqueue the trap reply message
-                            let _ = <T as pallet_gear::Config>::GasHandler::split_with_value(
+                            let _ = <T as pallet_gear::Config>::GasHandler::split(
                                 msg_id.into_origin(),
                                 trap_message_id.into_origin(),
-                                new_msg_gas_balance
                             );
                             common::queue_dispatch(dispatch);
 
