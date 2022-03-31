@@ -1,8 +1,9 @@
 use crate::{manager::ExtManager, CoreLog, Log, RunResult};
 use codec::Encode;
+use gear_core::message::{Dispatch, DispatchKind, StoredMessage};
 use gear_core::{
-    message::{Message, MessageId, Payload},
-    program::ProgramId,
+    ids::{MessageId, ProgramId},
+    message::Payload,
 };
 use std::cell::RefCell;
 
@@ -67,18 +68,18 @@ pub struct MessageReplier<'a> {
 
 impl<'a> MessageReplier<'a> {
     pub(crate) fn new(
-        message: Message,
+        message: StoredMessage,
         manager_reference: &'a RefCell<ExtManager>,
     ) -> MessageReplier<'a> {
         MessageReplier {
-            log: CoreLog::from_message(message),
+            log: CoreLog::from_stored_message(message),
             manager_reference,
         }
     }
 
     pub fn reply(&self, payload: impl Encode, value: u128) -> RunResult {
         let message = self.log.generate_reply(
-            payload.encode().into(),
+            payload.encode(),
             MessageId::from(
                 self.manager_reference
                     .borrow_mut()
@@ -86,11 +87,13 @@ impl<'a> MessageReplier<'a> {
             ),
             value,
         );
-        self.manager_reference.borrow_mut().run_message(message)
+        self.manager_reference
+            .borrow_mut()
+            .run_dispatch(Dispatch::new(DispatchKind::Reply, message))
     }
 
     pub fn reply_bytes(&self, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
-        let payload: Payload = raw_payload.as_ref().to_vec().into();
+        let payload: Payload = raw_payload.as_ref().to_vec();
         self.reply(payload, value)
     }
 }

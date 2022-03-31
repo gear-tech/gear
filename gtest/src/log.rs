@@ -1,10 +1,9 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::message::Payload;
+use gear_core::message::{Payload, StoredMessage};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{ExitCode, Message},
-    program::ProgramId,
 };
 use std::fmt::Debug;
 
@@ -24,7 +23,17 @@ impl CoreLog {
             destination: other.destination(),
             payload: other.payload().to_vec(),
             exit_code: other.exit_code(),
-            id: other.id,
+            id: other.id(),
+        }
+    }
+
+    pub(crate) fn from_stored_message(other: StoredMessage) -> Self {
+        Self {
+            source: other.source(),
+            destination: other.destination(),
+            payload: other.payload().to_vec(),
+            exit_code: other.exit_code(),
+            id: other.id(),
         }
     }
 
@@ -34,22 +43,22 @@ impl CoreLog {
         message_id: MessageId,
         value: u128,
     ) -> Message {
-        Message {
-            source: self.dest,
-            dest: self.source,
+        Message::new(
+            message_id,
+            self.destination,
+            self.source,
             payload,
-            gas_limit: None,
+            None,
             value,
-            id: message_id,
-            reply: self.exit_code.map(|exit_code| (self.id, exit_code)),
-        }
+            self.exit_code.map(|exit_code| (self.id, exit_code)),
+        )
     }
 
-    pub fn get_payload(&self) -> Payload {
-        self.payload.clone().into()
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_slice()
     }
 
-    pub fn get_id(&self) -> MessageId {
+    pub fn id(&self) -> MessageId {
         self.id
     }
 }
@@ -141,25 +150,24 @@ impl Log {
         if self.destination.is_some() {
             panic!("Destination was already set for this log");
         }
-
         self.destination = Some(dest.into().0);
 
         self
     }
 }
 
-impl PartialEq<Message> for Log {
-    fn eq(&self, other: &Message) -> bool {
-        if matches!(other.reply, Some(reply) if reply.1 != self.exit_code) {
+impl PartialEq<StoredMessage> for Log {
+    fn eq(&self, other: &StoredMessage) -> bool {
+        if matches!(other.reply(), Some(reply) if reply.1 != self.exit_code) {
             return false;
         }
-        if matches!(self.source, Some(source) if source != other.source) {
+        if matches!(self.source, Some(source) if source != other.source()) {
             return false;
         }
-        if matches!( self.dest, Some(dest) if dest != other.dest) {
+        if matches!(self.destination, Some(dest) if dest != other.destination()) {
             return false;
         }
-        if matches!(&self.payload, Some(payload) if payload != other.payload.as_ref()) {
+        if matches!(&self.payload, Some(payload) if payload != other.payload()) {
             return false;
         }
         true

@@ -26,8 +26,10 @@ use gear_core::{
     code::CheckedCode,
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{Dispatch, DispatchKind, Message, MessageId, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,},
-    program::{CheckedCode, CodeHash, Program as CoreProgram, ProgramId},
+    message::{
+        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
+    },
+    program::Program as CoreProgram,
 };
 use std::{
     collections::{BTreeMap, HashMap, VecDeque},
@@ -208,10 +210,11 @@ impl ExtManager {
         if maybe_actor.is_some() {
             self.dispatches.push_back(message);
         } else {
-            self.mailbox
+            self.actor_to_mailbox
                 .entry(message.destination())
                 .or_default()
                 .push(message.message().clone());
+            self.log.push(message.into_message())
         }
 
         let mut total_processed = 0;
@@ -425,7 +428,7 @@ impl ExtManager {
         core_processor::handle_journal(journal, self);
     }
 
-    pub(crate) fn take_message(&mut self, program_id: &ProgramId, index: usize) -> Message {
+    pub(crate) fn take_message(&mut self, program_id: &ProgramId, index: usize) -> StoredMessage {
         self.actor_to_mailbox
             .get_mut(program_id)
             .expect("No mailbox with such program id")

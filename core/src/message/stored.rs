@@ -18,8 +18,8 @@
 
 use crate::ids::{MessageId, ProgramId};
 use crate::message::{
-    ContextStore, DispatchKind, ExitCode, GasLimit, IncomingDispatch, IncomingMessage, Payload,
-    Value,
+    ContextStore, DispatchKind, ExitCode, GasLimit, IncomingDispatch, IncomingMessage, Message,
+    Payload, Value,
 };
 use codec::{Decode, Encode};
 use core::ops::Deref;
@@ -71,6 +71,19 @@ impl StoredMessage {
             self.source,
             self.payload,
             gas_limit,
+            self.value,
+            self.reply,
+        )
+    }
+
+    /// Convert Stored Message into Message.
+    pub fn into_message(&self) -> Message {
+        Message::new(
+            self.id,
+            self.source,
+            self.destination,
+            self.payload.clone(),
+            None,
             self.value,
             self.reply,
         )

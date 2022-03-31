@@ -9,7 +9,6 @@ use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
-    CodeHash,
 };
 use path_clean::PathClean;
 use std::{
@@ -19,7 +18,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use gear_core::program::ProgramId;
 
 pub trait WasmProgram: Debug {
     fn init(&mut self, payload: Vec<u8>) -> Result<Option<Vec<u8>>, &'static str>;
@@ -254,9 +252,12 @@ pub fn calculate_program_id(code_hash: CodeId, salt: &[u8]) -> ProgramId {
 #[cfg(test)]
 mod tests {
     use codec::Encode;
-    use gear_core::message::{Message, MessageId, Payload};
+    use gear_core::{
+        ids::MessageId,
+        message::{Dispatch, DispatchKind, Message, Payload},
+    };
 
-    use crate::{CoreLog, Log, System};
+    use crate::{Log, System};
 
     use super::{Program, ProgramIdWrapper};
 
@@ -294,6 +295,7 @@ mod tests {
         let encoded_message_payload: Payload = message_payload.encode().into();
         let reply_payload: Payload = vec![3, 2, 1].into();
         let log = Log::builder().payload(message_payload.clone());
+        let encoded_reply_payload: Payload = reply_payload.encode().into();
 
         let message = Message::new(
             message_id,
@@ -302,9 +304,11 @@ mod tests {
             encoded_message_payload.clone(),
             Default::default(),
             2,
+            None,
         );
 
-        let message_result = system.send_message(message.clone());
+        let message_result =
+            system.send_dispatch(Dispatch::new(DispatchKind::Handle, message.clone()));
         let message_log = message_result
             .log
             .last()
@@ -316,7 +320,8 @@ mod tests {
 
         let last_reply_log = reply_log.last().expect("No message log in run result");
 
-        let second_message_result = system.send_message(message);
+        let second_message_result =
+            system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
         let second_message_log = message_result
             .log
@@ -328,9 +333,9 @@ mod tests {
         assert!(!second_message_result.main_failed);
         assert!(!second_message_result.others_failed);
         assert_eq!(reply_log.len(), 1);
-        assert_eq!(last_reply_log.get_payload(), reply_payload.encode().into());
-        assert_eq!(message_log.get_payload(), encoded_message_payload);
-        assert_eq!(second_message_log.get_payload(), encoded_message_payload);
+        assert_eq!(last_reply_log.payload(), encoded_reply_payload);
+        assert_eq!(message_log.payload(), encoded_message_payload);
+        assert_eq!(second_message_log.payload(), encoded_message_payload);
     }
 
     #[test]
@@ -350,9 +355,10 @@ mod tests {
             message_payload.encode().into(),
             Default::default(),
             2,
+            None,
         );
 
-        system.send_message(message);
+        system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
         let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
         let message_replier = destination_user_mailbox.take_message(message_log.clone());
@@ -371,6 +377,7 @@ mod tests {
         let message_payload: Payload = vec![1, 2, 3].into();
         let reply_payload_array: [u8; 3] = [3, 2, 1];
         let reply_payload: Payload = reply_payload_array.to_vec().into();
+        let encoded_reply_payload: Payload = reply_payload.encode().into();
         let log = Log::builder().payload(message_payload.clone());
 
         let message = Message::new(
@@ -380,9 +387,10 @@ mod tests {
             message_payload.encode().into(),
             Default::default(),
             2,
+            None,
         );
 
-        system.send_message(message);
+        system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
         let destination_user_mailbox = system.get_mailbox(destination_user_id);
         let message_replier = destination_user_mailbox.take_message(log);
@@ -390,7 +398,7 @@ mod tests {
         let result = message_replier.reply_bytes(&reply_payload_array, 1);
         let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
-        assert_eq!(last_result_log.get_payload(), reply_payload.encode().into());
+        assert_eq!(last_result_log.payload(), encoded_reply_payload);
     }
 
     #[test]
@@ -409,9 +417,10 @@ mod tests {
             message_payload.encode().into(),
             Default::default(),
             2,
+            None,
         );
 
-        system.send_message(message);
+        system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
         let destination_user_mailbox = system.get_mailbox(destination_user_id);
         destination_user_mailbox.take_message(log.clone());
