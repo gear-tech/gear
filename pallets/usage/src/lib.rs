@@ -340,30 +340,34 @@ pub mod pallet {
                     let new_msg_gas_balance = msg_gas_balance.saturating_sub(fee);
                     if new_msg_gas_balance <= T::TrapReplyExistentialGasLimit::get() {
                         if common::get_program(program_id.into_origin()).is_some() {
-                                // TODO: generate system signal for program (#647)
+                            // TODO: generate system signal for program (#647)
 
-                                // Generate trap reply
-                                let trap_message_id = MessageId::generate_reply(msg_id, core_processor::ERR_EXIT_CODE);
-                                let packet = ReplyPacket::system(core_processor::ERR_EXIT_CODE);
-                                let message = ReplyMessage::from_packet(trap_message_id, packet);
-                                let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
+                            // Generate trap reply
+                            let trap_message_id = MessageId::generate_reply(msg_id, core_processor::ERR_EXIT_CODE);
+                            let packet = ReplyPacket::system(core_processor::ERR_EXIT_CODE);
+                            let message = ReplyMessage::from_packet(trap_message_id, packet);
+                            let dispatch = message.into_stored_dispatch(program_id, dispatch.source(), msg_id);
 
-                                // Enqueue the trap reply message
-                                let _ = <T as pallet_gear::Config>::GasHandler::split_with_value(
-                                    msg_id.into_origin(),
-                                    trap_message_id.into_origin(),
-                                    new_msg_gas_balance
-                                );
-                                common::queue_dispatch(dispatch);
+                            // Enqueue the trap reply message
+                            let _ = <T as pallet_gear::Config>::GasHandler::split(
+                                msg_id.into_origin(),
+                                trap_message_id.into_origin(),
+                            );
+                            common::queue_dispatch(dispatch);
+
+                            // Consume the corresponding node
+                            let _ = <T as pallet_gear::Config>::GasHandler::consume(
+                                msg_id.into_origin(),
+                            );
                         } else {
-                                // Wait init messages can't reach that, because if program init failed,
-                                // then all waiting messages are moved to queue deleted.
-                                log::debug!(
-                                    target: "essential",
-                                    "Program {:?} isn't in storage, but message with that dest is in WL",
-                                    program_id,
-                                )
-                            }
+                            // Wait init messages can't reach that, because if program init failed,
+                            // then all waiting messages are moved to queue deleted.
+                            log::debug!(
+                                target: "essential",
+                                "Program {:?} isn't in storage, but message with that dest is in WL",
+                                program_id,
+                            )
+                        }
                     } else {
                         // Message still got enough gas limit and may keep waiting.
                         // Updating gas limit value and re-inserting the message into wait list.
