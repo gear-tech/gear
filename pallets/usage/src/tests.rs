@@ -24,7 +24,7 @@ use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use gear_core::{
     code::CheckedCode,
-    ids::MessageId,
+    ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use hex_literal::hex;
@@ -62,13 +62,18 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
     }
 }
 
-fn populate_wait_list_with_split(n: u64, bn: u32, num_users: u64, gas_limit: u64) {
+fn populate_wait_list_with_split(
+    n: u64,
+    bn: u32,
+    user_id: impl Into<ProgramId> + Copy,
+    gas_limit: u64,
+) {
     let mut last_msg_id: Option<MessageId> = None;
+    let user_id = user_id.into();
     for i in 0_u64..n {
         let prog_id = (i + 1).into();
         let msg_id = (100_u64 * n + i + 1).into();
         let blk_num = i % (bn as u64) + 1;
-        let user_id = (i % num_users + 1).into();
         let message = StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None);
         common::insert_waiting_message(
             prog_id.into_origin(),
@@ -514,7 +519,7 @@ fn trap_reply_message_is_sent() {
         let program_2 = gear_core::program::Program::new(
             2.into(),
             CheckedCode::try_new(
-                hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
+                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
             )
             .unwrap(),
         );
@@ -674,7 +679,7 @@ fn gas_properly_handled_for_trap_replies() {
         run_to_block(10);
 
         // Populate wait list with 2 messages
-        populate_wait_list_with_split(2, 10, 2, 1_100);
+        populate_wait_list_with_split(2, 10, 1, 1_100);
 
         let wl = wait_list_contents()
             .into_iter()
@@ -695,7 +700,7 @@ fn gas_properly_handled_for_trap_replies() {
         let program_2 = gear_core::program::Program::new(
             2.into(),
             CheckedCode::try_new(
-                hex!["0061736d01000000020f0103656e76066d656d6f7279020001"].to_vec(),
+                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
             )
             .unwrap(),
         );
@@ -733,5 +738,10 @@ fn gas_properly_handled_for_trap_replies() {
             <Test as pallet_gear::Config>::GasHandler::total_issuance(),
             0
         );
+
+        // Ensure the message sender has the funds unreserved
+        assert_eq!(Balances::reserved_balance(&1), 0);
+        assert_eq!(Balances::free_balance(&1), 999_900); // Initital 1_000_000 less 100 paid for rent
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 201); // Initial 101 + 100 charged for rent
     });
 }
