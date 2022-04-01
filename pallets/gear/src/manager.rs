@@ -432,7 +432,6 @@ where
         data: Option<Vec<u8>>,
     ) {
         let program_id = program_id.into_origin();
-        let page_number = page_number.raw();
 
         let program = common::get_program(program_id)
             .expect("page update guaranteed to be called only for existing and active program");

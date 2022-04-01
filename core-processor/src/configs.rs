@@ -25,7 +25,7 @@ const MAX_WASM_PAGES: u32 = 512;
 const INIT_COST: u64 = 5000;
 const ALLOC_COST: u64 = 10000;
 const MEM_GROW_COST: u64 = 10000;
-const LOAD_PAGE_COST: u64 = 3000;
+const LOAD_PAGE_COST: u64 = 200;
 
 /// Contextual block information.
 #[derive(Clone, Copy, Debug, Encode, Decode, Default)]
@@ -103,7 +103,7 @@ impl ExecutionSettings {
         self.config.mem_grow_cost
     }
 
-    /// Load page cost.
+    /// Load gear page cost.
     pub fn load_page_cost(&self) -> u64 {
         self.config.load_page_cost
     }

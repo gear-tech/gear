@@ -50,8 +50,7 @@ thread_local! {
 
 /// Save page key in storage
 pub fn save_page_lazy_info(page: u32, key: &[u8]) {
-    LAZY_PAGES_INFO
-        .with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(page, key.to_vec()));
+    LAZY_PAGES_INFO.with(|lazy_pages_info| lazy_pages_info.borrow_mut().insert(page, key.to_vec()));
 }
 
 /// Returns vec of not-accessed wasm lazy pages

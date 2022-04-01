@@ -62,7 +62,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     let code = program.raw_code().to_vec();
 
-    let mem_size = if let Some(max_page) = program.get_pages().iter().next_back() {
+    let mem_size = if let Some((max_page, _)) = program.get_pages().iter().next_back() {
+        if (max_page.raw() + 1) % GEAR_PAGES_IN_ONE_WASM != 0 {
+            log::error!(
+                "Program's max page is not last page in wasm page: {}",
+                max_page.raw()
+            );
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: "Program's max page is not last page in wasm page.",
+                allowance_exceed: false,
+            });
+        }
+
+        let max_wasm_page = max_page.to_wasm_page();
+
         // Charging gas for loaded pages
         let amount = settings.load_page_cost() * program.get_pages().len() as u64;
 
@@ -79,16 +94,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas for loading memory.",
+                reason: "Not enough gas to load memory.",
                 allowance_exceed: false,
             });
         };
 
-        let max_page = max_page.0.raw();
-
         // Charging gas for mem size
         let amount =
-            settings.mem_grow_cost() * (max_page as u64 + 1 - program.static_pages().0 as u64);
+            settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - program.static_pages().0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
@@ -103,13 +116,13 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
-                reason: "Not enough gas for grow memory size.",
+                reason: "Not enough gas to grow memory size.",
                 allowance_exceed: false,
             });
         }
 
         // +1 because pages numeration begins from 0
-        WasmPageNumber(max_page + 1)
+        max_wasm_page + 1.into()
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost() * program.static_pages().0 as u64;
@@ -165,17 +178,12 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         // cannot panic
         res.unwrap()
     } else {
-        (0..program.static_pages().0)
-            .map(|p| WasmPageNumber(p))
-            .collect()
+        (0..program.static_pages().0).map(WasmPageNumber).collect()
     };
 
     // Creating allocations context.
-    let allocations_context = AllocationsContext::new(
-        allocations,
-        program.static_pages().into(),
-        settings.max_pages(),
-    );
+    let allocations_context =
+        AllocationsContext::new(allocations, program.static_pages(), settings.max_pages());
 
     // Creating message context.
     let message_context = MessageContext::new(

@@ -23,7 +23,9 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber, wasm_pages_to_pages_set},
+    memory::{
+        wasm_pages_to_pages_set, AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber,
+    },
     message::{ExitCode, HandlePacket, InitPacket, MessageContext, ReplyPacket},
 };
 
@@ -76,9 +78,6 @@ pub trait ProcessorExt {
         old_mem_addr: u64,
         new_mem_addr: u64,
     ) -> Result<(), &'static str>;
-
-    /// Returns list of current lazy pages numbers
-    fn get_lazy_pages_numbers() -> Vec<u32>;
 }
 
 /// Structure providing externalities for running host functions.
@@ -179,10 +178,6 @@ impl ProcessorExt for Ext {
     ) -> Result<(), &'static str> {
         Ok(())
     }
-
-    fn get_lazy_pages_numbers() -> Vec<u32> {
-        Vec::default()
-    }
 }
 
 impl IntoExtInfo for Ext {
@@ -191,7 +186,11 @@ impl IntoExtInfo for Ext {
         mut get_page_data: F,
     ) -> Result<ExtInfo, (&'static str, GasAmount)> {
         let pages = wasm_pages_to_pages_set(self.allocations_context.allocations());
-        log::trace!("allocations = {:?}, pages = {:?}", self.allocations_context.allocations(), pages);
+        log::trace!(
+            "allocations = {:?}, pages = {:?}",
+            self.allocations_context.allocations(),
+            pages
+        );
         let mut pages_data = BTreeMap::new();
         for page in pages.iter() {
             let mut buf = alloc::vec![0u8; PageNumber::size()];
@@ -270,8 +269,7 @@ impl EnvExt for Ext {
                 new_alloced_pages_num += 1;
             }
         }
-        gas_to_return_back +=
-            self.config.alloc_cost * (pages_num.0 - new_alloced_pages_num) as u64;
+        gas_to_return_back += self.config.alloc_cost * (pages_num.0 - new_alloced_pages_num) as u64;
 
         self.refund_gas(gas_to_return_back as u32)?;
 

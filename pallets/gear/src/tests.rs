@@ -16,13 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::BTreeSet;
+
 use codec::Encode;
 use common::{self, DAGBasedLedger, GasPrice as _, Origin as _};
 use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::code::Code;
+use gear_core::{
+    code::Code,
+    memory::{wasm_pages_to_pages_set, PageNumber, WasmPageNumber},
+};
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
@@ -459,13 +464,42 @@ fn lazy_pages() {
         // Dirty hack: lazy pages info is stored in thread local static variables,
         // so after contract execution lazy-pages information
         // remains correct and we can use it here.
-        let released_pages = gear_ri::gear_ri::get_released_pages();
-        let lazy_pages = gear_ri::gear_ri::get_wasm_lazy_pages_numbers();
+        let lazy_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_wasm_lazy_pages_numbers()
+            .iter()
+            .map(|p| PageNumber(*p))
+            .collect();
+        let released_pages: BTreeSet<PageNumber> = gear_ri::gear_ri::get_released_pages()
+            .iter()
+            .map(|p| PageNumber(*p))
+            .collect();
 
         // checks not accessed pages
-        assert_eq!(lazy_pages, [1, 3, 4, 6, 7]);
+        [1, 3, 4, 6, 7].iter().for_each(|p| {
+            let wasm_page = WasmPageNumber(*p);
+            let expected = wasm_pages_to_pages_set(&[wasm_page].iter().map(|p| *p).collect());
+            assert!(
+                lazy_pages.is_superset(&expected),
+                "Must contains all gear pages from wasm page which has not been accessed"
+            );
+            assert!(
+                released_pages.intersection(&expected).count() == 0,
+                "Released gear pages must not be in lazy pages"
+            );
+        });
+
         // checks accessed pages
-        assert_eq!(released_pages, [0, 2, 5, 8, 9]);
+        [0, 2, 5, 8, 9].iter().for_each(|p| {
+            let wasm_page = WasmPageNumber(*p);
+            let expected = wasm_pages_to_pages_set(&[wasm_page].iter().map(|p| *p).collect());
+            assert!(
+                !lazy_pages.is_superset(&expected),
+                "Some gear pages from wasm released page must be not lazy now"
+            );
+            assert!(
+                released_pages.intersection(&expected).count() != 0,
+                "Released gear pages must be from wasm released page"
+            );
+        });
     });
 }
 

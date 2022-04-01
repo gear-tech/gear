@@ -29,7 +29,8 @@ pub const WASM_PAGE_SIZE: usize = 0x10000;
 /// TODO: comment
 const GEAR_PAGE_SIZE: usize = 0x1000;
 
-const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
+/// Number of gear pages in one wasm page
+pub const GEAR_PAGES_IN_ONE_WASM: u32 = (WASM_PAGE_SIZE / GEAR_PAGE_SIZE) as u32;
 
 /// Memory error.
 #[derive(Clone, Debug)]
@@ -58,9 +59,21 @@ pub type PageBuf = [u8; GEAR_PAGE_SIZE];
 
 /// Page number.
 #[derive(
-    Clone, Copy, Debug, Decode, Encode, derive_more::From, PartialEq, Eq, PartialOrd, Ord, Hash
+    Clone,
+    Copy,
+    Debug,
+    Decode,
+    Encode,
+    derive_more::From,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    TypeInfo,
+    Default,
 )]
-pub struct PageNumber(u32);
+pub struct PageNumber(pub u32);
 
 impl PageNumber {
     /// Return raw 32-bit page address.
@@ -73,30 +86,51 @@ impl PageNumber {
         (self.0 as usize) * PageNumber::size()
     }
 
+    /// Returns wasm page number which contains this gear page.
+    pub fn to_wasm_page(&self) -> WasmPageNumber {
+        (self.0 / GEAR_PAGES_IN_ONE_WASM).into()
+    }
+
     /// Return page size in bytes.
-    pub fn size() -> usize {
+    pub const fn size() -> usize {
         GEAR_PAGE_SIZE
+    }
+
+    /// Number of gear pages in one wasm page
+    pub const fn num_in_one_wasm_page() -> u32 {
+        GEAR_PAGES_IN_ONE_WASM
     }
 }
 
-impl core::ops::Add for PageNumber {
+impl core::ops::Add<PageNumber> for PageNumber {
     type Output = Self;
-
     fn add(self, other: Self) -> Self {
         Self(self.0 + other.0)
     }
 }
 
-impl core::ops::Sub for PageNumber {
+impl core::ops::Sub<PageNumber> for PageNumber {
     type Output = Self;
-
     fn sub(self, other: Self) -> Self {
         Self(self.0 - other.0)
     }
 }
 
 /// Wasm page nuber
-#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq, Eq, PartialOrd, Ord, derive_more::From, TypeInfo)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Decode,
+    Encode,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    derive_more::From,
+    TypeInfo,
+    Default,
+)]
 pub struct WasmPageNumber(pub u32);
 
 impl WasmPageNumber {
@@ -133,7 +167,9 @@ impl core::ops::Sub for WasmPageNumber {
 }
 
 /// TODO
-pub fn pages_set_to_wasm_pages_set(pages: &BTreeSet<PageNumber>) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
+pub fn pages_set_to_wasm_pages_set(
+    pages: &BTreeSet<PageNumber>,
+) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
     let mut wasm_pages = BTreeSet::<WasmPageNumber>::new();
     let mut iter = pages.iter();
     while let Some(page) = iter.next() {
@@ -143,7 +179,8 @@ pub fn pages_set_to_wasm_pages_set(pages: &BTreeSet<PageNumber>) -> Result<BTree
         let wasm_page_num = WasmPageNumber(page.raw() / GEAR_PAGES_IN_ONE_WASM);
         wasm_pages.insert(wasm_page_num);
         for _ in 0..(WASM_PAGE_SIZE / PageNumber::size() - 1) {
-            iter.next().expect("There is wasm page, which has not all gear pages in the end");
+            iter.next()
+                .expect("There is wasm page, which has not all gear pages in the end");
         }
     }
     Ok(wasm_pages)
@@ -154,7 +191,7 @@ pub fn wasm_pages_to_pages_set(wasm_pages: &BTreeSet<WasmPageNumber>) -> BTreeSe
     let mut pages = BTreeSet::<PageNumber>::new();
     for page in wasm_pages {
         let gear_page = page.to_gear_pages().0;
-        pages.extend((gear_page..gear_page + GEAR_PAGES_IN_ONE_WASM).map(|p| PageNumber::from(p)));
+        pages.extend((gear_page..gear_page + GEAR_PAGES_IN_ONE_WASM).map(PageNumber));
     }
     pages
 }
@@ -226,7 +263,11 @@ impl AllocationsContext {
     }
 
     /// Alloc specific number of pages for the currently running program.
-    pub fn alloc(&mut self, pages: WasmPageNumber, mem: &mut dyn Memory) -> Result<WasmPageNumber, Error> {
+    pub fn alloc(
+        &mut self,
+        pages: WasmPageNumber,
+        mem: &mut dyn Memory,
+    ) -> Result<WasmPageNumber, Error> {
         // silly allocator, brute-forces fist continuous sector
         let mut candidate = self.static_pages;
         let mut found = WasmPageNumber(0);
@@ -242,7 +283,7 @@ impl AllocationsContext {
                 return Err(Error::OutOfMemory);
             }
 
-            if self.allocations.contains(&(candidate + found).into()) {
+            if self.allocations.contains(&(candidate + found)) {
                 candidate = candidate + WasmPageNumber(1);
                 found = WasmPageNumber(0);
                 continue;
@@ -253,7 +294,7 @@ impl AllocationsContext {
 
         if candidate + found > mem.size() {
             let extra_grow = candidate + found - mem.size();
-            mem.grow(extra_grow.into())?;
+            mem.grow(extra_grow)?;
         }
 
         for page_num in candidate.0..(candidate + found).0 {

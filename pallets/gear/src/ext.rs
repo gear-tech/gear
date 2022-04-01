@@ -26,7 +26,9 @@ use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
-    memory::{AllocationsContext, Memory, PageBuf, PageNumber, wasm_pages_to_pages_set, WasmPageNumber},
+    memory::{
+        wasm_pages_to_pages_set, AllocationsContext, Memory, PageBuf, PageNumber, WasmPageNumber,
+    },
     message::{HandlePacket, MessageContext, ReplyPacket},
 };
 use sp_std::{boxed::Box, collections::btree_map::BTreeMap, vec, vec::Vec};
@@ -48,7 +50,7 @@ impl IntoExtInfo for LazyPagesExt {
         if self.lazy_pages_enabled {
             let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();
             lazy_pages_numbers.into_iter().for_each(|p| {
-                accessed_pages.remove(&p.into());
+                accessed_pages.remove(&p);
             });
         }
 
@@ -153,10 +155,6 @@ impl ProcessorExt for LazyPagesExt {
         new_mem_addr: u64,
     ) -> Result<(), &'static str> {
         lazy_pages::protect_lazy_pages_and_update_wasm_mem_addr(old_mem_addr, new_mem_addr)
-    }
-
-    fn get_lazy_pages_numbers() -> Vec<u32> {
-        lazy_pages::get_lazy_pages_numbers()
     }
 }
 

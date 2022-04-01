@@ -108,9 +108,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
         );
 
         RELEASED_LAZY_PAGES.with(|rpages| {
-            let res = rpages
-                .borrow_mut()
-                .insert(page, buffer_as_slice.to_vec());
+            let res = rpages.borrow_mut().insert(page, buffer_as_slice.to_vec());
             assert!(res.is_none(), "Any page cannot be released twice");
         });
     }

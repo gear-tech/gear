@@ -54,7 +54,7 @@ impl Program {
     pub fn from_parts(
         id: ProgramId,
         code: Code,
-        persistent_pages_numbers: BTreeSet<u32>,
+        persistent_pages_numbers: BTreeSet<PageNumber>,
         is_initialized: bool,
     ) -> Self {
         Self {
@@ -62,7 +62,7 @@ impl Program {
             code,
             persistent_pages: persistent_pages_numbers
                 .into_iter()
-                .map(|k| (k.into(), None))
+                .map(|k| (k, None))
                 .collect(),
             is_initialized,
         }
@@ -173,6 +173,7 @@ mod tests {
     use super::Program;
     use crate::code::Code;
     use crate::ids::ProgramId;
+    use crate::memory::PageNumber;
     use alloc::{vec, vec::Vec};
 
     fn parse_wat(source: &str) -> Vec<u8> {
@@ -231,7 +232,9 @@ mod tests {
 
         assert!(program.set_page(1.into(), &[0; 123]).is_err());
 
-        assert!(program.set_page(1.into(), &vec![0; 65536]).is_ok());
+        assert!(program
+            .set_page(1.into(), &vec![0; PageNumber::size()])
+            .is_ok());
         assert_eq!(program.get_pages().len(), 1);
     }
 }

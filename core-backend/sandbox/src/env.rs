@@ -26,7 +26,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Error, Memory, PageBuf, PageNumber, WasmPageNumber, WASM_PAGE_SIZE},
+    memory::{Memory, PageBuf, PageNumber, WasmPageNumber, WASM_PAGE_SIZE},
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -60,12 +60,12 @@ fn get_module_exports(binary: &[u8]) -> Result<Vec<String>, String> {
 fn set_pages(
     memory: &mut dyn Memory,
     pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
-) -> Result<(), Error> {
+) -> Result<(), String> {
     for (num, buf) in pages {
         if let Some(buf) = buf {
             memory
                 .write(num.offset(), &buf[..])
-                .map_err(|_| Error::MemoryAccessError)?;
+                .map_err(|e| format!("Cannot write mem to {:?}: {:?}", num, e))?;
         }
     }
     Ok(())

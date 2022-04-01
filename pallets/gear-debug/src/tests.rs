@@ -24,6 +24,7 @@ use common::{self, Origin as _};
 use frame_system::Pallet as SystemPallet;
 use gear_core::{
     ids::{CodeId, MessageId, ProgramId},
+    memory::{PageNumber, WasmPageNumber},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use pallet_gear::DebugInfo;
@@ -103,14 +104,17 @@ fn debug_mode_works() {
 
         Pallet::<Test>::do_snapshot();
 
+        let static_pages = WasmPageNumber(16);
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
                     state: crate::ProgramState::Active(crate::ProgramInfo {
-                        static_pages: 16,
-                        persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                        static_pages,
+                        persistent_pages: (0..static_pages.to_gear_pages().0)
+                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                            .collect(),
                         code_hash: generate_code_hash(&code_1),
                     }),
                 }],
@@ -139,16 +143,20 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages: 16,
-                            persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                            static_pages,
+                            persistent_pages: (0..static_pages.to_gear_pages().0)
+                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                            .collect(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages: 16,
-                            persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                            static_pages,
+                            persistent_pages: (0..static_pages.to_gear_pages().0)
+                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                            .collect(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -215,16 +223,20 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages: 16,
-                            persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                            static_pages,
+                            persistent_pages: (0..static_pages.to_gear_pages().0)
+                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                            .collect(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages: 16,
-                            persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                            static_pages,
+                            persistent_pages: (0..static_pages.to_gear_pages().0)
+                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                            .collect(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -244,16 +256,20 @@ fn debug_mode_works() {
                     crate::ProgramDetails {
                         id: program_id_2,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages: 16,
-                            persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
+                            static_pages,
+                            persistent_pages: (0..WasmPageNumber(20).to_gear_pages().0)
+                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                                .collect(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
                         state: crate::ProgramState::Active(crate::ProgramInfo {
-                            static_pages: 16,
-                            persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
+                            static_pages,
+                            persistent_pages: (0..static_pages.to_gear_pages().0)
+                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                                .collect(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },

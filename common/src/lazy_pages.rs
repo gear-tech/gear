@@ -45,7 +45,7 @@ pub fn try_to_enable_lazy_pages(
         // In case we cannot enable lazy-pages, then we loads now data for all pages, which has no data.
         let prog_id_hash = program_id.into_origin();
         for (page, buff) in memory_pages.iter_mut().filter(|(_x, y)| y.is_none()) {
-            let data = crate::get_program_page_data(prog_id_hash, page.raw())
+            let data = crate::get_program_page_data(prog_id_hash, *page)
                 .ok_or("Cannot find page data in storage")?;
             let page_data =
                 PageBuf::try_from(data).map_err(|_| "Cannot convert vec to page data")?;
@@ -68,8 +68,8 @@ pub fn protect_pages_and_init_info(
     let lazy_pages = memory_pages
         .iter()
         .filter(|(_num, buf)| buf.is_none())
-        .map(|(num, _buf)| num.raw())
-        .collect::<Vec<u32>>();
+        .map(|(num, _buf)| num)
+        .collect::<Vec<_>>();
     let prog_id_hash = prog_id.into_origin();
 
     gear_ri::reset_lazy_pages_info();
@@ -77,7 +77,7 @@ pub fn protect_pages_and_init_info(
     gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr);
 
     lazy_pages.iter().for_each(|p| {
-        crate::save_page_lazy_info(prog_id_hash, *p);
+        crate::save_page_lazy_info(prog_id_hash, **p);
     });
 
     mprotect_lazy_pages(wasm_mem_begin_addr, true)
@@ -126,6 +126,9 @@ pub fn protect_lazy_pages_and_update_wasm_mem_addr(
 }
 
 /// Returns list of current lazy pages numbers
-pub fn get_lazy_pages_numbers() -> Vec<u32> {
+pub fn get_lazy_pages_numbers() -> Vec<PageNumber> {
     gear_ri::get_wasm_lazy_pages_numbers()
+        .iter()
+        .map(|p| PageNumber(*p))
+        .collect()
 }

@@ -30,7 +30,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::code::Code;
 use gear_core::ids::CodeId;
-use gear_core::memory::{PageNumber, pages_set_to_wasm_pages_set};
+use gear_core::memory::{pages_set_to_wasm_pages_set, PageNumber};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::*,
@@ -66,9 +66,7 @@ pub struct FixtureLogger {
 impl FixtureLogger {
     fn new(map: Arc<RwLock<HashMap<ThreadId, Vec<String>>>>) -> FixtureLogger {
         let mut builder = Builder::from_env(FILTER_ENV);
-        builder.parse(
-            "gear_test=debug,gear_core=debug,gear_backend_common=debug,gwasm=debug",
-        );
+        builder.parse("gear_test=debug,gear_core=debug,gear_backend_common=debug,gwasm=debug");
 
         FixtureLogger {
             inner: builder.build(),
@@ -343,14 +341,19 @@ pub fn check_allocations(
                 .get_pages()
                 .iter()
                 .filter(|(page, _buf)| match exp.filter {
-                    Some(AllocationFilter::Static) => **page < program.static_pages().to_gear_pages(),
-                    Some(AllocationFilter::Dynamic) => **page >= program.static_pages().to_gear_pages(),
+                    Some(AllocationFilter::Static) => {
+                        **page < program.static_pages().to_gear_pages()
+                    }
+                    Some(AllocationFilter::Dynamic) => {
+                        **page >= program.static_pages().to_gear_pages()
+                    }
                     None => true,
                 })
                 .map(|(page, _buf)| *page)
                 .collect::<BTreeSet<_>>();
 
-            let actual_pages = pages_set_to_wasm_pages_set(&actual_pages).expect("unexpected pages");
+            let actual_pages =
+                pages_set_to_wasm_pages_set(&actual_pages).expect("unexpected pages");
 
             match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {
@@ -364,10 +367,8 @@ pub fn check_allocations(
                     }
                 }
                 AllocationExpectationKind::ExactPages(ref expected_pages) => {
-                    let mut actual_pages = actual_pages
-                        .iter()
-                        .map(|page| page.0)
-                        .collect::<Vec<_>>();
+                    let mut actual_pages =
+                        actual_pages.iter().map(|page| page.0).collect::<Vec<_>>();
                     let mut expected_pages = expected_pages.clone();
 
                     actual_pages.sort_unstable();

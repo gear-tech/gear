@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
-use gear_core::memory::{WASM_PAGE_SIZE, PageNumber};
+use gear_core::memory::{PageNumber, WASM_PAGE_SIZE};
 
 pub use sp_std::{result::Result, vec::Vec};
 
@@ -174,7 +174,8 @@ pub trait GearRI {
                 size_in_pages += 1;
             } else {
                 if size_in_pages != 0 {
-                    let addr = wasm_mem_addr + ((prev_page + 1 - size_in_pages) as usize * PageNumber::size()) as u64;
+                    let addr = wasm_mem_addr
+                        + ((prev_page + 1 - size_in_pages) as usize * PageNumber::size()) as u64;
                     let size = size_in_pages as usize * PageNumber::size();
                     if protect {
                         unsafe { sys_mprotect_interval(addr, size, false, false, false)? };

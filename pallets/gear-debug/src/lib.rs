@@ -45,6 +45,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use gear_core::{
         ids::ProgramId,
+        memory::{PageNumber, WasmPageNumber},
         message::{StoredDispatch, StoredMessage},
     };
     use primitive_types::H256;
@@ -81,8 +82,8 @@ pub mod pallet {
 
     #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
     pub struct ProgramInfo {
-        pub static_pages: u32,
-        pub persistent_pages: BTreeMap<u32, Vec<u8>>,
+        pub static_pages: WasmPageNumber,
+        pub persistent_pages: BTreeMap<PageNumber, Vec<u8>>,
         pub code_hash: H256,
     }
 
@@ -92,7 +93,7 @@ pub mod pallet {
                 .field("static_pages", &self.static_pages)
                 .field(
                     "persistent_pages",
-                    &self.persistent_pages.keys().cloned().collect::<Vec<u32>>(),
+                    &self.persistent_pages.keys().cloned().collect::<Vec<_>>(),
                 )
                 .field("code_hash", &self.code_hash)
                 .finish()

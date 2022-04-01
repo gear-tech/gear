@@ -57,7 +57,7 @@ impl Memory for MemoryWrap {
     }
 
     fn data_size(&self) -> usize {
-        (self.0.size() * 65536) as usize
+        self.0.size() as usize * WasmPageNumber::size()
     }
 
     fn get_wasm_memory_begin_addr(&self) -> u64 {
