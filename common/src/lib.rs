@@ -302,6 +302,7 @@ impl TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct ActiveProgram {
+    #[codec(compact)]
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
@@ -323,6 +324,7 @@ pub enum ProgramState {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct CodeMetadata {
     pub author: H256,
+    #[codec(compact)]
     pub block_number: u32,
 }
 

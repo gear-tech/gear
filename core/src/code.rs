@@ -63,7 +63,7 @@ pub struct Code {
     /// The code hash of the stored code which is defined as the hash over the `original_code`.
     ///
     /// As the map key there is no need to store the hash in the value, too. It is set manually
-    /// when loading the module from storage.
+    /// when loading the code from storage.
     #[codec(skip)]
     code_hash: CodeId,
     #[codec(compact)]
