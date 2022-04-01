@@ -2089,6 +2089,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "wasm-instrument",
 ]
 
 [[package]]
@@ -2106,6 +2107,7 @@ dependencies = [
  "pwasm-utils",
  "scale-info",
  "wabt",
+ "wasm-instrument",
 ]
 
 [[package]]
@@ -2471,6 +2473,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "path-clean",
+ "wasm-instrument",
 ]
 
 [[package]]
@@ -4512,6 +4515,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "wasm-instrument",
 ]
 
 [[package]]
@@ -4706,6 +4710,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "wabt",
+ "wasm-instrument",
 ]
 
 [[package]]

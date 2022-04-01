@@ -46,6 +46,7 @@ pallet-gas = { path = "../gas" }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 hex-literal = "0.3.3"
 pallet-gear-program = { path = "../gear-program", default-features = false }
+wasm-instrument = { version = "0.1", default-features = false }
 
 [features]
 default = ['std']

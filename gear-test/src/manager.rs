@@ -19,7 +19,7 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
-    code::{CheckedCode, InstrumentedCode},
+    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
@@ -29,8 +29,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
-    original_codes: BTreeMap<CodeId, CheckedCode>,
-    codes: BTreeMap<CodeId, InstrumentedCode>,
+    original_codes: BTreeMap<CodeId, Vec<u8>>,
+    codes: BTreeMap<CodeId, Code>,
     marked_destinations: BTreeSet<ProgramId>,
     dispatch_queue: VecDeque<StoredDispatch>,
     log: Vec<StoredMessage>,
@@ -53,27 +53,19 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
-    fn store_code(&mut self, code_hash: CodeId, code: InstrumentedCode) {
+    fn store_code(&mut self, code_hash: CodeId, code: Code) {
         self.codes.insert(code_hash, code);
     }
-    fn store_original_code(&mut self, code: CheckedCode) {
+    fn store_original_code(&mut self, code: &[u8]) {
         self.original_codes
-            .insert(CodeId::generate(code.code()), code);
+            .insert(CodeId::generate(code), code.to_vec());
     }
-    fn store_program(
-        &mut self,
-        id: ProgramId,
-        code: CheckedCode,
-        _init_message_id: MessageId,
-    ) -> Program {
-        let instumented_code = InstrumentedCode::new(code.code().to_vec(), code.static_pages(), 1);
+    fn store_program(&mut self, id: ProgramId, code: Code, _init_message_id: MessageId) -> Program {
+        let code_hash = code.code_hash();
 
-        let code_hash = CodeId::generate(code.code());
+        self.store_code(code_hash, code.clone());
 
-        self.store_code(code_hash, instumented_code.clone());
-        self.store_original_code(code);
-
-        let program = Program::new(id, instumented_code);
+        let program = Program::new(id, code);
 
         self.waiting_init.insert(program.id(), vec![]);
         self.actors.insert(
@@ -243,7 +235,15 @@ impl JournalHandler for InMemoryExtManager {
         if let Some(code) = self.original_codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    self.store_program(candidate_id, code.clone(), init_message_id);
+                    let code = Code::try_new(
+                        code.clone(),
+                        1,
+                        None,
+                        wasm_instrument::gas_metering::ConstantCostRules::default(),
+                    )
+                    .unwrap();
+
+                    self.store_program(candidate_id, code, init_message_id);
                 } else {
                     log::debug!("Program with id {} already exists", candidate_id);
                 }

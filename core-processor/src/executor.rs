@@ -59,7 +59,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
 
-    let code = program.code().to_vec();
+    let code = program.raw_code().to_vec();
 
     let mem_size = if let Some(max_page) = program.get_pages().iter().next_back() {
         // Charging gas for loaded pages

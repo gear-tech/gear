@@ -23,8 +23,8 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    code::{CheckedCode, InstrumentedCode},
-    ids::{CodeId, MessageId, ProgramId},
+    code::Code,
+    ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
 };
 use regex::Regex;
@@ -34,21 +34,21 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use frame_system as system;
-use gear_runtime::{Runtime, System};
+// use frame_system as system;
+// use gear_runtime::{Runtime, System};
 
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
 
-// Build genesis storage according to the mock runtime.
-pub fn new_test_ext() -> sp_io::TestExternalities {
-    let t = system::GenesisConfig::default()
-        .build_storage::<Runtime>()
-        .unwrap();
+// // Build genesis storage according to the mock runtime.
+// pub fn new_test_ext() -> sp_io::TestExternalities {
+//     let t = system::GenesisConfig::default()
+//         .build_storage::<Runtime>()
+//         .unwrap();
 
-    let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| System::set_block_number(1));
-    ext
-}
+//     let mut ext = sp_io::TestExternalities::new(t);
+//     ext.execute_with(|| System::set_block_number(1));
+//     ext
+// }
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
@@ -97,7 +97,13 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let code = CheckedCode::try_new(message.code.clone())?;
+    let code = Code::try_new(
+        message.code.clone(),
+        1,
+        None,
+        wasm_instrument::gas_metering::ConstantCostRules::default(),
+    )
+    .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
     if code.static_pages() > AllocationsConfig::default().max_pages.raw() {
         return Err(anyhow::anyhow!(
@@ -141,30 +147,16 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            if let Ok(code) = CheckedCode::try_new(code_bytes) {
-                let code_hash = CodeId::generate(code.code());
-                journal_handler.store_original_code(code.clone());
-                let instrumented_code: Vec<u8> = new_test_ext().execute_with(|| {
-                    let schedule = <Runtime as pallet_gear::pallet::Config>::Schedule::get();
+            let code = Code::try_new(
+                code_bytes.clone(),
+                1,
+                None,
+                wasm_instrument::gas_metering::ConstantCostRules::default(),
+            )
+            .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
-                    let module = wasm_instrument::parity_wasm::deserialize_buffer(code.code())
-                        .unwrap_or_default();
-
-                    let gas_rules = schedule.rules(&module);
-
-                    let instrumented_module = wasm_instrument::gas_metering::inject(
-                        module, &gas_rules, "env",
-                    )
-                    .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))?;
-
-                    wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                        .map_err(|_| anyhow::anyhow!("Error initialisation: memory limit exceeded"))
-                })?;
-                journal_handler.store_code(
-                    code_hash,
-                    InstrumentedCode::new(instrumented_code, code.static_pages(), 1),
-                );
-            }
+            journal_handler.store_code(code.code_hash(), code);
+            journal_handler.store_original_code(&code_bytes);
         }
     }
 

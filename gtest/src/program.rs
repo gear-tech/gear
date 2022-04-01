@@ -5,7 +5,7 @@ use crate::{
 };
 use codec::Codec;
 use gear_core::{
-    code::{CheckedCode, InstrumentedCode},
+    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     message::{Dispatch, DispatchKind, Message},
     program::Program as CoreProgram,
@@ -160,9 +160,15 @@ impl<'a> Program<'a> {
         let program_id = id.clone().into().0;
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
-        let code = CheckedCode::try_new(code).expect("Failed to create Program from code");
-        let instumented_code = InstrumentedCode::new(code.code().to_vec(), code.static_pages(), 1);
-        let program = CoreProgram::new(program_id, instumented_code);
+        let code = Code::try_new(
+            code,
+            1,
+            None,
+            wasm_instrument::gas_metering::ConstantCostRules::default(),
+        )
+        .expect("Failed to create Program from code");
+
+        let program = CoreProgram::new(program_id, code);
 
         Self::program_with_id(system, id, InnerProgram::new(program))
     }

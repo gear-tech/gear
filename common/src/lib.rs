@@ -41,7 +41,7 @@ use sp_std::{
 };
 
 use gear_core::{
-    code::{CheckedCode, InstrumentedCode},
+    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     message::StoredDispatch,
     program::Program as NativeProgram,
@@ -395,30 +395,24 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     key
 }
 
-pub fn get_code(code_hash: H256) -> Option<InstrumentedCode> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::Code)).map(|bytes| {
-        InstrumentedCode::decode(&mut &bytes[..]).expect("InstrumentedCode encoded correctly; qed")
-    })
+pub fn get_code(code_hash: H256) -> Option<Code> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::Code))
+        .map(|bytes| Code::decode(&mut &bytes[..]).expect("Code encoded correctly; qed"))
 }
 
-pub fn set_code(code_hash: H256, code: &InstrumentedCode) {
+pub fn set_code(code_hash: H256, code: &Code) {
     sp_io::storage::set(
         &code_key(code_hash, CodeKeyPrefixKind::Code),
         &code.encode(),
     )
 }
 
-pub fn get_original_code(code_hash: H256) -> Option<CheckedCode> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode)).map(|bytes| {
-        CheckedCode::decode(&mut &bytes[..]).expect("CheckedCode encoded correctly; qed")
-    })
+pub fn get_original_code(code_hash: H256) -> Option<Vec<u8>> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode))
 }
 
-pub fn set_original_code(code_hash: H256, code: &CheckedCode) {
-    sp_io::storage::set(
-        &code_key(code_hash, CodeKeyPrefixKind::OriginalCode),
-        &code.encode(),
-    )
+pub fn set_original_code(code_hash: H256, code: &[u8]) {
+    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode), code)
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
@@ -616,7 +610,13 @@ mod tests {
             let code =
                 hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
             let code_id = CodeId::generate(&code).into_origin();
-            let code = InstrumentedCode::new(code.clone(), 1, 1);
+            let code = Code::try_new(
+                code,
+                1,
+                None,
+                wasm_instrument::gas_metering::ConstantCostRules::default(),
+            )
+            .unwrap();
 
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
@@ -629,7 +629,9 @@ mod tests {
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_active_program(program_id).unwrap(), program);
-            assert_eq!(get_code(program.code_hash).unwrap(), code);
+
+            // Structs can't be equal because original_code is skipped. So we asserting binary code.
+            assert_eq!(get_code(program.code_hash).unwrap().code(), code.code());
         });
     }
 }

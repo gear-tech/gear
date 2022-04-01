@@ -261,9 +261,9 @@ pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
 }
 
 pub(crate) fn set_program(program: Program) {
-    let code_hash = CodeId::generate(program.code()).into_origin();
+    let code_hash = CodeId::generate(program.raw_code()).into_origin();
     if !common::code_exists(code_hash) {
-        common::set_code(code_hash, program.instrumented_code());
+        common::set_code(code_hash, program.code());
     }
     common::set_program(
         H256::from_slice(program.id().as_ref()),

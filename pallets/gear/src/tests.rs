@@ -22,7 +22,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::code::InstrumentedCode;
+use gear_core::code::Code;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
@@ -1133,16 +1133,14 @@ fn test_code_submission_pass() {
         let schedule = <Test as Config>::Schedule::get();
         let gas_rules = schedule.rules(&module);
 
-        let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
-            .expect("error instrumenting code");
-
-        let instrumented_code =
-            wasm_instrument::parity_wasm::elements::serialize(instrumented_module)
-                .expect("error serializing instrumented module");
-        assert_eq!(
-            saved_code,
-            Some(InstrumentedCode::new(instrumented_code, 1, 1))
-        );
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            Some(module),
+            gas_rules,
+        )
+        .expect("Error creating Code");
+        assert_eq!(saved_code.unwrap().code(), code.code());
 
         let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
         let actual_meta = common::get_code_metadata(code_hash);
