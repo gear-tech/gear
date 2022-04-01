@@ -24,6 +24,7 @@ use core::convert::TryInto;
 use frame_support::{assert_ok, traits::ReservableCurrency};
 use gear_core::{
     code::Code,
+    ids::{MessageId, ProgramId},
     message::{DispatchKind, StoredDispatch, StoredMessage},
 };
 use hex_literal::hex;
@@ -58,6 +59,41 @@ fn populate_wait_list(n: u64, bn: u32, num_users: u64, gas_limits: Vec<u64>) {
             msg_id.into_origin(),
             gas_limit,
         );
+    }
+}
+
+fn populate_wait_list_with_split(
+    n: u64,
+    bn: u32,
+    user_id: impl Into<ProgramId> + Copy,
+    gas_limit: u64,
+) {
+    let mut last_msg_id: Option<MessageId> = None;
+    let user_id = user_id.into();
+    for i in 0_u64..n {
+        let prog_id = (i + 1).into();
+        let msg_id = (100_u64 * n + i + 1).into();
+        let blk_num = i % (bn as u64) + 1;
+        let message = StoredMessage::new(msg_id, user_id, prog_id, Default::default(), 0, None);
+        common::insert_waiting_message(
+            prog_id.into_origin(),
+            msg_id.into_origin(),
+            StoredDispatch::new(DispatchKind::Handle, message, None),
+            blk_num.try_into().unwrap(),
+        );
+        if last_msg_id.is_none() {
+            let _ = <Test as pallet_gear::Config>::GasHandler::create(
+                user_id.into_origin(),
+                msg_id.into_origin(),
+                gas_limit,
+            );
+        } else {
+            let _ = <Test as pallet_gear::Config>::GasHandler::split(
+                last_msg_id.expect("Guaranteed to have value").into_origin(),
+                msg_id.into_origin(),
+            );
+        }
+        last_msg_id = Some(msg_id);
     }
 }
 
@@ -634,5 +670,84 @@ fn dust_discarded_with_noop() {
         // The amount destined to the tx submitter is below `ExistentialDeposit`
         // It should have been removed as dust, no change in the beneficiary free balance
         assert_eq!(Balances::free_balance(&11), 0);
+    });
+}
+
+#[test]
+fn gas_properly_handled_for_trap_replies() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        // 1st user has just above `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&1, 1_100));
+        // 2nd user already has less than `T::TrapReplyExistentialGasLimit` reserved
+        assert_ok!(<Balances as ReservableCurrency<_>>::reserve(&2, 500));
+
+        run_to_block(10);
+
+        // Populate wait list with 2 messages
+        populate_wait_list_with_split(2, 10, 1, 1_100);
+
+        let wl = wait_list_contents()
+            .into_iter()
+            .map(|(d, n)| (d.message().clone(), n))
+            .collect::<Vec<_>>();
+        assert_eq!(wl.len(), 2);
+
+        // Insert respective programs to the program storage
+        let program_1 = gear_core::program::Program::new(
+            1.into(),
+            CheckedCode::try_new(
+                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+            )
+            .unwrap(),
+        );
+        crate::mock::set_program(program_1);
+
+        let program_2 = gear_core::program::Program::new(
+            2.into(),
+            CheckedCode::try_new(
+                hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec(),
+            )
+            .unwrap(),
+        );
+        crate::mock::set_program(program_2);
+
+        run_to_block(15);
+
+        // Calling the unsigned version of the extrinsic
+        assert_ok!(Usage::collect_waitlist_rent(
+            Origin::none(),
+            vec![
+                PayeeInfo {
+                    program_id: 1.into_origin(),
+                    message_id: 201.into_origin()
+                },
+                PayeeInfo {
+                    program_id: 2.into_origin(),
+                    message_id: 202.into_origin()
+                },
+            ],
+        ));
+
+        // Both messages should have been removed from wait list
+        assert_eq!(wait_list_contents().len(), 0);
+
+        // 100 gas spent for rent payment by 1st message => total_issuance = 1000
+        assert_eq!(
+            <Test as pallet_gear::Config>::GasHandler::total_issuance(),
+            1000
+        );
+
+        // Upon queue processing in the following block all the gas must be consumed or spent
+        run_to_block(16);
+        assert_eq!(
+            <Test as pallet_gear::Config>::GasHandler::total_issuance(),
+            0
+        );
+
+        // Ensure the message sender has the funds unreserved
+        assert_eq!(Balances::reserved_balance(&1), 0);
+        assert_eq!(Balances::free_balance(&1), 999_900); // Initital 1_000_000 less 100 paid for rent
+        assert_eq!(Balances::free_balance(&BLOCK_AUTHOR), 201); // Initial 101 + 100 charged for rent
     });
 }
