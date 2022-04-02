@@ -476,7 +476,7 @@ fn lazy_pages() {
         // checks not accessed pages
         [1, 3, 4, 6, 7].iter().for_each(|p| {
             let wasm_page = WasmPageNumber(*p);
-            let expected = wasm_pages_to_pages_set(&[wasm_page].iter().map(|p| *p).collect());
+            let expected = wasm_pages_to_pages_set([wasm_page].iter());
             assert!(
                 lazy_pages.is_superset(&expected),
                 "Must contains all gear pages from wasm page which has not been accessed"
@@ -490,7 +490,7 @@ fn lazy_pages() {
         // checks accessed pages
         [0, 2, 5, 8, 9].iter().for_each(|p| {
             let wasm_page = WasmPageNumber(*p);
-            let expected = wasm_pages_to_pages_set(&[wasm_page].iter().map(|p| *p).collect());
+            let expected = wasm_pages_to_pages_set([wasm_page].iter());
             assert!(
                 !lazy_pages.is_superset(&expected),
                 "Some gear pages from wasm released page must be not lazy now"

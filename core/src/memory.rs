@@ -167,19 +167,19 @@ impl core::ops::Sub for WasmPageNumber {
 }
 
 /// TODO
-pub fn pages_set_to_wasm_pages_set(
-    pages: &BTreeSet<PageNumber>,
+pub fn pages_to_wasm_pages_set<'a>(
+    mut pages_iter: impl Iterator<Item = &'a PageNumber>,
 ) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
     let mut wasm_pages = BTreeSet::<WasmPageNumber>::new();
-    let mut iter = pages.iter();
-    while let Some(page) = iter.next() {
+    while let Some(page) = pages_iter.next() {
         if page.raw() % GEAR_PAGES_IN_ONE_WASM != 0 {
             return Err("There is wasm page, which has not all gear pages in the begin");
         }
         let wasm_page_num = WasmPageNumber(page.raw() / GEAR_PAGES_IN_ONE_WASM);
         wasm_pages.insert(wasm_page_num);
         for _ in 0..(WASM_PAGE_SIZE / PageNumber::size() - 1) {
-            iter.next()
+            pages_iter
+                .next()
                 .expect("There is wasm page, which has not all gear pages in the end");
         }
     }
@@ -187,9 +187,11 @@ pub fn pages_set_to_wasm_pages_set(
 }
 
 /// TODO
-pub fn wasm_pages_to_pages_set(wasm_pages: &BTreeSet<WasmPageNumber>) -> BTreeSet<PageNumber> {
+pub fn wasm_pages_to_pages_set<'a>(
+    wasm_pages_iter: impl Iterator<Item = &'a WasmPageNumber>,
+) -> BTreeSet<PageNumber> {
     let mut pages = BTreeSet::<PageNumber>::new();
-    for page in wasm_pages {
+    for page in wasm_pages_iter {
         let gear_page = page.to_gear_pages().0;
         pages.extend((gear_page..gear_page + GEAR_PAGES_IN_ONE_WASM).map(PageNumber));
     }

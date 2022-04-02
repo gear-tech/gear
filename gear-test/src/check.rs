@@ -30,7 +30,7 @@ use env_logger::filter::{Builder, Filter};
 use gear_backend_common::Environment;
 use gear_core::code::Code;
 use gear_core::ids::CodeId;
-use gear_core::memory::{pages_set_to_wasm_pages_set, PageNumber};
+use gear_core::memory::{pages_to_wasm_pages_set, PageNumber};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::*,
@@ -353,7 +353,7 @@ pub fn check_allocations(
                 .collect::<BTreeSet<_>>();
 
             let actual_pages =
-                pages_set_to_wasm_pages_set(&actual_pages).expect("unexpected pages");
+                pages_to_wasm_pages_set(actual_pages.iter()).expect("unexpected pages");
 
             match exp.kind {
                 AllocationExpectationKind::PageCount(expected_page_count) => {

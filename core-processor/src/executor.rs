@@ -166,7 +166,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Getting wasm pages allocations.
     let allocations: BTreeSet<WasmPageNumber> = if !initial_pages.is_empty() {
-        let res = pages_set_to_wasm_pages_set(&initial_pages.keys().cloned().collect());
+        let res = pages_to_wasm_pages_set(initial_pages.keys());
         if let Err(e) = res {
             return Err(ExecutionError {
                 program_id,

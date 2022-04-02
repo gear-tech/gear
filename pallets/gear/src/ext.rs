@@ -45,7 +45,7 @@ impl IntoExtInfo for LazyPagesExt {
         mut get_page_data: F,
     ) -> Result<ExtInfo, (&'static str, GasAmount)> {
         // accessed pages are all pages except current lazy pages
-        let pages = wasm_pages_to_pages_set(self.inner.allocations_context.allocations());
+        let pages = wasm_pages_to_pages_set(self.inner.allocations_context.allocations().iter());
         let mut accessed_pages = pages.clone();
         if self.lazy_pages_enabled {
             let lazy_pages_numbers = lazy_pages::get_lazy_pages_numbers();

@@ -185,7 +185,7 @@ impl IntoExtInfo for Ext {
         self,
         mut get_page_data: F,
     ) -> Result<ExtInfo, (&'static str, GasAmount)> {
-        let pages = wasm_pages_to_pages_set(self.allocations_context.allocations());
+        let pages = wasm_pages_to_pages_set(self.allocations_context.allocations().iter());
         log::trace!(
             "allocations = {:?}, pages = {:?}",
             self.allocations_context.allocations(),
