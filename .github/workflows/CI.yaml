@@ -250,6 +250,7 @@ jobs:
           sudo apt install -y git clang curl libssl-dev llvm libudev-dev cmake
 
       - name: "Cache: Unpack"
+        if: github.event.pull_request.merged == false
         continue-on-error: true
         run: |
           cp /root/cache/gear-test* /tmp/
@@ -273,7 +274,7 @@ jobs:
         run: ./scripts/gear.sh test gtest
 
       - name: "Cache: Pack"
-        if: github.event_name == 'push'
+        if: github.event.pull_request.merged == true
         continue-on-error: true
         run: |
           tar -cf /tmp/gear-test_target.tar ./target
