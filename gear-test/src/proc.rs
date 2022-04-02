@@ -329,7 +329,7 @@ where
             );
             counter += 1;
 
-                core_processor::handle_journal(journal, journal_handler);
+            core_processor::handle_journal(journal, journal_handler);
 
             state = journal_handler.collect();
 

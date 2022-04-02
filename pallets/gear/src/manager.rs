@@ -107,8 +107,6 @@ where
             })
             .collect();
 
-            
-
         State {
             dispatch_queue,
             actors,
