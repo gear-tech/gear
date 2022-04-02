@@ -543,30 +543,6 @@ benchmarks! {
         sbox.invoke();
     }
 
-    // w_memory_grow = w_bench - 2 * w_param
-    // We can only allow allocate as much memory as it is allowed in a a contract.
-    // Therefore the repeat count is limited by the maximum memory any contract can have.
-    // Using a contract with more memory will skew the benchmark because the runtime of grow
-    // depends on how much memory is already allocated.
-    instr_memory_grow {
-        let r in 0 .. 1;
-        let max_pages = ImportedMemory::max::<T>().max_pages;
-        let mut sbox = Sandbox::from(&WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory {
-                min_pages: 0,
-                max_pages,
-            }),
-            handle_body: Some(body::repeated(r * max_pages, &[
-                Instruction::I32Const(1),
-                Instruction::GrowMemory(0),
-                Instruction::Drop,
-            ])),
-            .. Default::default()
-        }));
-    }: {
-        sbox.invoke();
-    }
-
     // Unary numeric instructions.
     // All use w = w_bench - 2 * w_param.
 

@@ -205,7 +205,6 @@ pub struct InstructionWeights<T: Config> {
     pub global_get: u32,
     pub global_set: u32,
     pub memory_current: u32,
-    pub memory_grow: u32,
     pub i64clz: u32,
     pub i64ctz: u32,
     pub i64popcnt: u32,
@@ -304,7 +303,6 @@ impl Default for Limits {
 
 impl<T: Config> Default for InstructionWeights<T> {
     fn default() -> Self {
-        let max_pages = Limits::default().memory_pages;
         Self {
             version: 1,
             i64const: cost_instr!(instr_i64const, 1),
@@ -325,7 +323,6 @@ impl<T: Config> Default for InstructionWeights<T> {
             global_get: cost_instr!(instr_global_get, 1),
             global_set: cost_instr!(instr_global_set, 1),
             memory_current: cost_instr!(instr_memory_current, 1),
-            memory_grow: cost_instr_with_batch_size!(instr_memory_grow, 1, max_pages),
             i64clz: cost_instr!(instr_i64clz, 2),
             i64ctz: cost_instr!(instr_i64ctz, 2),
             i64popcnt: cost_instr!(instr_i64popcnt, 2),
@@ -424,7 +421,6 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
             GetGlobal(_) => w.global_get,
             SetGlobal(_) => w.global_set,
             CurrentMemory(_) => w.memory_current,
-            GrowMemory(_) => w.memory_grow,
             CallIndirect(idx, _) => *self.params.get(idx as usize).unwrap_or(&max_params),
             BrTable(ref data) => w
                 .br_table
