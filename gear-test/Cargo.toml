@@ -28,11 +28,6 @@ common = { package = "gear-common", path = "../common" }
 core-processor = { package = "gear-core-processor", path = "../core-processor", default-features = false }
 gear-backend-common = { path = "../core-backend/common" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
-pallet-gear = { path = "../pallets/gear" }
-gear-runtime = { path = "../runtime" }
-
-frame-system = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-io = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 
 [dev-dependencies]
 parity-scale-codec = { version = "2.3.1", features = ["derive"], default-features = false }

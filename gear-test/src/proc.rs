@@ -34,21 +34,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-// use frame_system as system;
-// use gear_runtime::{Runtime, System};
-
 pub const EXISTENTIAL_DEPOSIT: u128 = 500;
-
-// // Build genesis storage according to the mock runtime.
-// pub fn new_test_ext() -> sp_io::TestExternalities {
-//     let t = system::GenesisConfig::default()
-//         .build_storage::<Runtime>()
-//         .unwrap();
-
-//     let mut ext = sp_io::TestExternalities::new(t);
-//     ext.execute_with(|| System::set_block_number(1));
-//     ext
-// }
 
 pub fn parse_payload(payload: String) -> String {
     let program_id_regex = Regex::new(r"\{(?P<id>[0-9]+)\}").unwrap();
