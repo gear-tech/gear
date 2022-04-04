@@ -173,12 +173,19 @@ pub trait GearRI {
         let mut size_in_pages = 0u32;
         let mut lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
 
+        if let Some(page) = lazy_pages.last() {
+            // This case is impossible in real live, so just returns err and does nothing.
+            if *page == u32::MAX || *page == u32::MAX - 1 {
+                return Err(MprotectError::PageError);
+            }
+        }
+
         // We add this page num to lazy pages in order to be able correctly
-        // break loop execution.
+        // finish lazy pages handling in loop. This last page won't be
+        // handled.
         lazy_pages.push(u32::MAX);
 
         // Collects continuous intervals of memory from lazy pages to protect them.
-        // TODO: make more simple and safe solution
         for page in lazy_pages {
             if prev_page + 1 == page {
                 size_in_pages += 1;
