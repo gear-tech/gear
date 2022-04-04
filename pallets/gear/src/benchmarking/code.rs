@@ -33,7 +33,7 @@ use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,
 };
-use sp_std::{borrow::ToOwned, prelude::*, convert::TryFrom};
+use sp_std::{borrow::ToOwned, convert::TryFrom, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,
     elements::{
