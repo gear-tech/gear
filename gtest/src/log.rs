@@ -1,6 +1,6 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::message::StoredMessage;
+use gear_core::message::{Payload, StoredMessage};
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{ExitCode, Message},
@@ -12,8 +12,8 @@ pub struct CoreLog {
     id: MessageId,
     source: ProgramId,
     destination: ProgramId,
-    payload: Vec<u8>,
-    exit_code: Option<i32>,
+    payload: Payload,
+    exit_code: Option<ExitCode>,
 }
 
 impl CoreLog {

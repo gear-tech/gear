@@ -1,6 +1,6 @@
-use crate::mailbox::Mailbox;
 use crate::{
     log::RunResult,
+    mailbox::Mailbox,
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
 };

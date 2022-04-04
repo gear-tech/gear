@@ -8,53 +8,44 @@ use std::cell::RefCell;
 
 pub struct Mailbox<'a> {
     manager: &'a RefCell<ExtManager>,
-    program_id: ProgramId,
+    user_id: ProgramId,
 }
 
 impl<'a> Mailbox<'a> {
-    pub(crate) fn new(program_id: ProgramId, manager: &'a RefCell<ExtManager>) -> Mailbox<'a> {
-        Mailbox {
-            program_id,
-            manager,
-        }
+    pub(crate) fn new(user_id: ProgramId, manager: &'a RefCell<ExtManager>) -> Mailbox<'a> {
+        Mailbox { user_id, manager }
     }
 
     pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
         let log: Log = log.clone().into();
-        match self.manager.borrow().mailbox.get(&self.program_id) {
-            None => {
-                self.manager
-                    .borrow_mut()
-                    .mailbox
-                    .insert(self.program_id, Vec::default());
-                false
-            }
-            Some(mailbox) => mailbox.iter().any(|message| log.eq(message)),
+        if let Some(mailbox) = self.manager.borrow().mailbox.get(&self.user_id) {
+            return mailbox.iter().any(|message| log.eq(message));
         }
-    }
-
-    pub fn take_message<T: Into<Log> + Clone>(&self, log: T) -> MessageReplier {
-        let log: Log = log.into();
-        let index = match self.manager.borrow().mailbox.get(&self.program_id) {
-            None => {
-                self.manager
-                    .borrow_mut()
-                    .mailbox
-                    .insert(self.program_id, Vec::default());
-                panic!("No message that satisfies log");
-            }
-            Some(mailbox) => mailbox
-                .iter()
-                .position(|message| log.eq(message))
-                .expect("No message that satisfies log"),
-        };
-
-        let taken_message = self
-            .manager
+        self.manager
             .borrow_mut()
             .mailbox
-            .get_mut(&self.program_id)
-            .unwrap()
+            .insert(self.user_id, Vec::default());
+        false
+    }
+
+    pub fn take_message<T: Into<Log>>(&self, log: T) -> MessageReplier {
+        let log: Log = log.into();
+        let mut manager = self.manager.borrow_mut();
+        let index = if let Some(mailbox) = manager.mailbox.get(&self.user_id) {
+            mailbox
+                .iter()
+                .position(|message| log.eq(message))
+                .expect("No message that satisfies log")
+        } else {
+            panic!("No mailbox associated with this program id");
+        };
+
+        let taken_message = manager
+            .mailbox
+            .get_mut(&self.user_id)
+            .expect(
+                "Infallible exception- we've just worked with element that we are trying to get",
+            )
             .remove(index);
 
         MessageReplier::new(taken_message, self.manager)
@@ -111,7 +102,7 @@ impl<'a> MessageReplier<'a> {
 #[cfg(test)]
 mod tests {
     use crate::program::ProgramIdWrapper;
-    use crate::{Log, System};
+    use crate::{Log, Program, System};
     use codec::Encode;
     use gear_core::{
         ids::MessageId,
@@ -119,7 +110,8 @@ mod tests {
     };
 
     #[test]
-    fn mailbox_mock_walkthrough_test() {
+    fn mailbox_walkthrough_test() {
+        //Arranging data for future messages
         let system = System::new();
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
@@ -127,9 +119,10 @@ mod tests {
         let message_payload: Payload = vec![1, 2, 3].into();
         let encoded_message_payload: Payload = message_payload.encode().into();
         let reply_payload: Payload = vec![3, 2, 1].into();
-        let log = Log::builder().payload(message_payload.clone());
         let encoded_reply_payload: Payload = reply_payload.encode().into();
+        let log = Log::builder().payload(message_payload.clone());
 
+        //Building message based on arranged data
         let message = Message::new(
             message_id,
             source_user_id,
@@ -140,6 +133,7 @@ mod tests {
             None,
         );
 
+        //Sending created message and extracting its log
         let message_result =
             system.send_dispatch(Dispatch::new(DispatchKind::Handle, message.clone()));
         let message_log = message_result
@@ -147,20 +141,23 @@ mod tests {
             .last()
             .expect("No message log in run result");
 
+        //Getting mailbox of destination user and extracting message
         let destination_user_mailbox = system.get_mailbox(destination_user_id);
         let message_replier = destination_user_mailbox.take_message(log);
-        let reply_log = message_replier.reply(reply_payload.clone(), 1).log;
 
+        //Replying on sended message and extracting log
+        let reply_log = message_replier.reply(reply_payload.clone(), 1).log;
         let last_reply_log = reply_log.last().expect("No message log in run result");
 
+        //Sending one more message to be sure that no critical move semantic didn't occur
         let second_message_result =
             system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
-
         let second_message_log = message_result
             .log
             .last()
             .expect("No message log in run result");
 
+        //Asserting results
         assert!(!message_result.main_failed);
         assert!(!message_result.others_failed);
         assert!(!second_message_result.main_failed);
@@ -172,7 +169,8 @@ mod tests {
     }
 
     #[test]
-    fn mailbox_mock_deletes_message_after_reply() {
+    fn mailbox_deletes_message_after_reply() {
+        //Arranging data for future messages
         let system = System::new();
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
@@ -181,6 +179,7 @@ mod tests {
         let reply_payload: Payload = vec![3, 2, 1].into();
         let message_log = Log::builder().payload(message_payload.clone());
 
+        //Building message based on arranged data
         let message = Message::new(
             message_id,
             source_user_id,
@@ -191,18 +190,21 @@ mod tests {
             None,
         );
 
+        //Sending created message
         system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
+        //Getting mailbox of destination user and replying on it
         let mut destination_user_mailbox = system.get_mailbox(destination_user_id);
-        let message_replier = destination_user_mailbox.take_message(message_log.clone());
-        message_replier.reply(reply_payload, 1);
+        destination_user_mailbox.reply(message_log.clone(), reply_payload, 1);
 
+        //Making sure that original message deletes after reply
         destination_user_mailbox = system.get_mailbox(destination_user_id);
         assert!(!destination_user_mailbox.contains(&message_log))
     }
 
     #[test]
-    fn mailbox_mock_reply_bytes_test() {
+    fn mailbox_reply_bytes_test() {
+        //Arranging data for future messages
         let system = System::new();
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
@@ -212,6 +214,7 @@ mod tests {
         let reply_payload: Payload = reply_payload_array.to_vec().into();
         let log = Log::builder().payload(message_payload.clone());
 
+        //Building message based on arranged data
         let message = Message::new(
             message_id,
             source_user_id,
@@ -222,19 +225,24 @@ mod tests {
             None,
         );
 
+        //Sending created message
         system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
+        //Getting mailbox of destination user and extracting message
         let destination_user_mailbox = system.get_mailbox(destination_user_id);
         let message_replier = destination_user_mailbox.take_message(log);
 
+        //Replying by bytes and extracting result log
         let result = message_replier.reply_bytes(&reply_payload_array, 1);
         let result_log = result.log;
         let last_result_log = result_log.last().expect("No message log in run result");
+
         assert_eq!(last_result_log.payload(), reply_payload);
     }
 
     #[test]
-    fn mailbox_mock_deletes_message_after_taking() {
+    fn mailbox_deletes_message_after_taking() {
+        //Arranging data for future messages
         let system = System::new();
         let message_id: MessageId = Default::default();
         let source_user_id = ProgramIdWrapper::from(100).0;
@@ -242,6 +250,7 @@ mod tests {
         let message_payload: Payload = vec![1, 2, 3].into();
         let log = Log::builder().payload(message_payload.clone());
 
+        //Building message based on arranged data
         let message = Message::new(
             message_id,
             source_user_id,
@@ -252,11 +261,60 @@ mod tests {
             None,
         );
 
+        //Sending created message
         system.send_dispatch(Dispatch::new(DispatchKind::Handle, message));
 
+        //Getting mailbox of destination user and extracting message
         let destination_user_mailbox = system.get_mailbox(destination_user_id);
         destination_user_mailbox.take_message(log.clone());
 
+        //Making sure that taken message is deleted
         assert!(!destination_user_mailbox.contains(&log))
+    }
+
+    #[test]
+    #[should_panic(expected = "No message that satisfies log")]
+    fn take_unknown_log_message() {
+        //Arranging data for future messages
+        let system = System::new();
+        let source_user_id = ProgramIdWrapper::from(100).0;
+        let destination_user_id = ProgramIdWrapper::from(200).0;
+        let log = Log::builder().source(source_user_id);
+
+        //Taking mailbox and message that doesn't exists
+        let mailbox = system.get_mailbox(destination_user_id);
+        mailbox.take_message(log);
+    }
+
+    #[test]
+    #[should_panic(expected = "Such program id is already in actors list")]
+    fn take_programs_mailbox() {
+        //Setting up variables for test
+        let system = System::new();
+        let restricted_user_id = ProgramIdWrapper::from(1).0;
+        Program::from_file(
+            &system,
+            "../target/wasm32-unknown-unknown/release/demo_futures_unordered.wasm",
+        );
+
+        //Getting user id that is already registered as a program
+        system.get_mailbox(restricted_user_id);
+    }
+
+    #[test]
+    #[should_panic(expected = "No mailbox associated with this program id")]
+    fn take_deleted_user_mailbox() {
+        //Setting up variables for test
+        let system = System::new();
+        let user_id = ProgramIdWrapper::from(100).0;
+        let another_user_id = ProgramIdWrapper::from(200).0;
+        let mailbox = system.get_mailbox(user_id);
+        let log = Log::builder().source(another_user_id);
+
+        //Deleting user while his mailbox variable exists
+        system.0.borrow_mut().mailbox.remove(&user_id);
+
+        //Trying to get message by deleted user mailbox
+        mailbox.take_message(log);
     }
 }
