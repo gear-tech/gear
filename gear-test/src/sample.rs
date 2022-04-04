@@ -79,8 +79,8 @@ pub struct Code {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ChainProgram {
     #[serde(flatten)]
-    pub(crate) address: ChainAddress,
-    pub(crate) terminated: Option<bool>,
+    pub address: ChainAddress,
+    pub terminated: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

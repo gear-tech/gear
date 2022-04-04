@@ -439,7 +439,7 @@ pub fn check_memory(
     }
 }
 
-fn check_programs_state(
+pub fn check_programs_state(
     expected_programs: &BTreeMap<ProgramId, bool>,
     actual_programs: &BTreeMap<ProgramId, bool>,
     only: bool,

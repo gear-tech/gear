@@ -34,6 +34,7 @@ use gear_core::{
 };
 
 use gear_common::{DAGBasedLedger, Origin as _};
+use gear_test::sample::ChainProgram;
 use gear_test::{
     check::read_test_from_file,
     js::{MetaData, MetaType},
@@ -393,6 +394,36 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     if let Err(alloc_errors) = gear_test::check::check_allocations(&progs, alloc) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(alloc_errors);
+                    }
+                }
+
+                let actual_programs = programs
+                    .iter()
+                    .filter_map(|(program_id, h256)| {
+                        gear_common::get_program(*h256)
+                            .map(|program| (*program_id, program.is_active()))
+                    })
+                    .collect();
+
+                if let Some(programs_struct) = &exp.programs {
+                    let expected_programs = programs_struct
+                        .ids
+                        .iter()
+                        .map(|program: &ChainProgram| {
+                            (
+                                program.address.to_program_id(),
+                                program.terminated.unwrap_or_default(),
+                            )
+                        })
+                        .collect();
+
+                    if let Err(state_errors) = gear_test::check::check_programs_state(
+                        &expected_programs,
+                        &actual_programs,
+                        programs_struct.only.unwrap_or_default(),
+                    ) {
+                        errors.push(format!("step: {:?}", exp.step));
+                        errors.extend(state_errors);
                     }
                 }
 
