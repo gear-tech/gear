@@ -121,8 +121,9 @@ impl pallet_gear_program::Config for Test {
 }
 
 parameter_types! {
-    pub const BlockGasLimit: u64 = 100_000_000;
+    pub const BlockGasLimit: u64 = 500_000_000;
     pub const WaitListFeePerBlock: u64 = 1_000;
+    pub MySchedule: pallet_gear::Schedule<Test> = <pallet_gear::Schedule<Test>>::default();
 }
 
 impl pallet_gear::Config for Test {
@@ -131,6 +132,7 @@ impl pallet_gear::Config for Test {
     type GasPrice = GasConverter;
     type GasHandler = Gas;
     type WeightInfo = ();
+    type Schedule = MySchedule;
     type BlockGasLimit = BlockGasLimit;
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
@@ -175,9 +177,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (USER_1, 200_000_000_u128),
-            (USER_2, 150_000_000_u128),
-            (USER_3, 300_000_000_u128),
+            (USER_1, 1_000_000_000_u128),
+            (USER_2, 500_000_000_u128),
+            (USER_3, 1_000_000_000_u128),
             (LOW_BALANCE_USER, 2_u128),
             (BLOCK_AUTHOR, 1_u128),
         ],

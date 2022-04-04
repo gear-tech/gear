@@ -36,6 +36,7 @@ pallet-balances = { version = "4.0.0-dev", default-features = false, git = "http
 env_logger = "0.9"
 hex-literal = "0.3.3"
 gear-core = { path = "../../core" }
+wasm-instrument = { version = "0.1", default-features = false }
 
 [features]
 default = ['std']

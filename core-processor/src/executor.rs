@@ -30,7 +30,7 @@ use alloc::{
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{self, ChargeResult, GasCounter, ValueCounter},
+    gas::{ChargeResult, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageNumber, PAGE_SIZE},
     message::{IncomingDispatch, MessageContext},
 };
@@ -59,16 +59,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
 
-    let instrumented_code = match gas::instrument(program.code()) {
-        Ok(code) => code,
-        _ => {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: "Cannot instrument code with gas-counting instructions.",
-            })
-        }
-    };
+    let code = program.raw_code().to_vec();
 
     let mem_size = if let Some(max_page) = program.get_pages().iter().next_back() {
         // Charging gas for loaded pages
@@ -168,7 +159,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
     };
 
-    let mut env = E::new(ext, &instrumented_code, initial_pages, mem_size).map_err(|err| {
+    let mut env = E::new(ext, &code, initial_pages, mem_size).map_err(|err| {
         log::error!("Setup instance err = {:?}", err);
         ExecutionError {
             program_id,

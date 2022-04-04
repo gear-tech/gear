@@ -41,7 +41,7 @@ use sp_std::{
 };
 
 use gear_core::{
-    code::CheckedCode,
+    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     message::StoredDispatch,
     program::Program as NativeProgram,
@@ -56,6 +56,7 @@ pub const STORAGE_PROGRAM_STATE_WAIT_PREFIX: &[u8] = b"g::prog_wait::";
 pub const STORAGE_MESSAGE_PREFIX: &[u8] = b"g::msg::";
 pub const STORAGE_MESSAGE_USER_NONCE_KEY: &[u8] = b"g::msg::user_nonce";
 pub const STORAGE_CODE_PREFIX: &[u8] = b"g::code::";
+pub const STORAGE_ORIGINAL_CODE_PREFIX: &[u8] = b"g::code::orig";
 pub const STORAGE_CODE_METADATA_PREFIX: &[u8] = b"g::code::metadata::";
 pub const STORAGE_WAITLIST_PREFIX: &[u8] = b"g::wait::";
 
@@ -301,6 +302,7 @@ impl TryFrom<Program> for ActiveProgram {
 
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct ActiveProgram {
+    #[codec(compact)]
     pub static_pages: u32,
     pub persistent_pages: BTreeSet<u32>,
     pub code_hash: H256,
@@ -322,6 +324,7 @@ pub enum ProgramState {
 #[derive(Clone, Debug, Decode, Encode, PartialEq, TypeInfo)]
 pub struct CodeMetadata {
     pub author: H256,
+    #[codec(compact)]
     pub block_number: u32,
 }
 
@@ -336,8 +339,10 @@ impl CodeMetadata {
 
 // Inner enum used to "generalise" get/set of data under "g::code::*" prefixes
 enum CodeKeyPrefixKind {
+    // "g::code::orig"
+    OriginalCode,
     // "g::code::"
-    RawCode,
+    Code,
     // "g::code::metadata::"
     CodeMetadata,
 }
@@ -351,7 +356,8 @@ pub fn program_key(id: H256) -> Vec<u8> {
 
 fn code_key(code_hash: H256, kind: CodeKeyPrefixKind) -> Vec<u8> {
     let prefix = match kind {
-        CodeKeyPrefixKind::RawCode => STORAGE_CODE_PREFIX,
+        CodeKeyPrefixKind::OriginalCode => STORAGE_ORIGINAL_CODE_PREFIX,
+        CodeKeyPrefixKind::Code => STORAGE_CODE_PREFIX,
         CodeKeyPrefixKind::CodeMetadata => STORAGE_CODE_METADATA_PREFIX,
     };
     // key's length is N bytes of code hash + M bytes of prefix
@@ -391,17 +397,24 @@ pub fn wait_key(prog_id: H256, msg_id: H256) -> Vec<u8> {
     key
 }
 
-pub fn get_code(code_hash: H256) -> Option<CheckedCode> {
-    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::RawCode)).map(|bytes| {
-        CheckedCode::decode(&mut &bytes[..]).expect("CheckedCode encoded correctly; qed")
-    })
+pub fn get_code(code_hash: H256) -> Option<Code> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::Code))
+        .map(|bytes| Code::decode(&mut &bytes[..]).expect("Code encoded correctly; qed"))
 }
 
-pub fn set_code(code_hash: H256, code: &CheckedCode) {
+pub fn set_code(code_hash: H256, code: &Code) {
     sp_io::storage::set(
-        &code_key(code_hash, CodeKeyPrefixKind::RawCode),
+        &code_key(code_hash, CodeKeyPrefixKind::Code),
         &code.encode(),
     )
+}
+
+pub fn get_original_code(code_hash: H256) -> Option<Vec<u8>> {
+    sp_io::storage::get(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode))
+}
+
+pub fn set_original_code(code_hash: H256, code: &[u8]) {
+    sp_io::storage::set(&code_key(code_hash, CodeKeyPrefixKind::OriginalCode), code)
 }
 
 pub fn set_code_metadata(code_hash: H256, metadata: CodeMetadata) {
@@ -572,7 +585,7 @@ pub fn waiting_init_take_messages(dest_prog_id: H256) -> Vec<H256> {
 }
 
 pub fn code_exists(code_hash: H256) -> bool {
-    sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::RawCode))
+    sp_io::storage::exists(&code_key(code_hash, CodeKeyPrefixKind::Code))
 }
 
 pub fn reset_storage() {
@@ -580,6 +593,7 @@ pub fn reset_storage() {
     sp_io::storage::clear_prefix(STORAGE_PROGRAM_PAGES_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_MESSAGE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_CODE_PREFIX, None);
+    sp_io::storage::clear_prefix(STORAGE_ORIGINAL_CODE_PREFIX, None);
     sp_io::storage::clear_prefix(STORAGE_WAITLIST_PREFIX, None);
     sp_io::storage::clear_prefix(GAS_VALUE_PREFIX, None);
 }
@@ -598,7 +612,13 @@ mod tests {
             let code =
                 hex_literal::hex!("0061736d01000000020f0103656e76066d656d6f7279020001").to_vec();
             let code_id = CodeId::generate(&code).into_origin();
-            let code = CheckedCode::try_new(code.clone()).unwrap();
+            let code = Code::try_new(
+                code,
+                1,
+                None,
+                wasm_instrument::gas_metering::ConstantCostRules::default(),
+            )
+            .unwrap();
 
             let program_id = H256::from_low_u64_be(1);
             let program = ActiveProgram {
@@ -611,7 +631,9 @@ mod tests {
             assert!(get_program(program_id).is_none());
             set_program(program_id, program.clone(), Default::default());
             assert_eq!(get_active_program(program_id).unwrap(), program);
-            assert_eq!(get_code(program.code_hash).unwrap(), code);
+
+            // Structs can't be equal because original_code is skipped. So we asserting binary code.
+            assert_eq!(get_code(program.code_hash).unwrap().code(), code.code());
         });
     }
 }
