@@ -1,7 +1,7 @@
 // This file is part of Gear.
 
 // Copyright (C) 2021-2022 Gear Technologies Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+// SPDX-License-Identifier: GPL-3.0-or-l&&ater WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -281,12 +281,14 @@ where
                 .unwrap_or(0) as u64;
 
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
-                let actor = state.actors.get(&dispatch.destination()).cloned();
-
                 let program_id = dispatch.destination();
 
+                let actor = state.actors.get(&program_id).cloned();
+
                 let journal = core_processor::process::<Ext, E>(
-                    actor.unwrap_or_default(),
+                    actor.unwrap_or_else(|| {
+                        panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+                    }),
                     dispatch.into_incoming(gas_limit),
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
@@ -307,16 +309,18 @@ where
     } else {
         let mut counter = 0;
         while let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
-            let actor = state.actors.get(&dispatch.destination()).cloned();
+            let program_id = dispatch.destination();
+
+            let actor = state.actors.get(&program_id).cloned();
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let program_id = dispatch.destination();
-
             let journal = core_processor::process::<Ext, E>(
-                actor.unwrap_or_default(),
+                actor.unwrap_or_else(|| {
+                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+                }),
                 dispatch.into_incoming(gas_limit),
                 BlockInfo {
                     height: counter,

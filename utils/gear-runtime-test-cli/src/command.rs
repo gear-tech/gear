@@ -43,7 +43,7 @@ use gear_test::{
     sample::PayloadVariant,
 };
 use pallet_gear::Pallet as GearPallet;
-use pallet_gear_debug::DebugData;
+use pallet_gear_debug::{DebugData, Terminatable};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
@@ -367,15 +367,19 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .programs
                     .iter()
                     .filter_map(|p| {
-                        if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
-                            let code = gear_common::get_code(p.code_hash)
-                                .expect("code should be in the storage");
-                            Some(CoreProgram::from_parts(
-                                *pid,
-                                code,
-                                p.persistent_pages.keys().cloned().collect(),
-                                true,
-                            ))
+                        if let Terminatable::Active(info) = &p.info {
+                            if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                                let code = gear_common::get_code(info.code_hash)
+                                    .expect("code should be in the storage");
+                                Some(CoreProgram::from_parts(
+                                    *pid,
+                                    code,
+                                    info.persistent_pages.keys().cloned().collect(),
+                                    true,
+                                ))
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
@@ -397,11 +401,15 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     }
                 }
 
-                let actual_programs = programs
+                let actual_programs = snapshot
+                    .programs
                     .iter()
-                    .filter_map(|(program_id, h256)| {
-                        gear_common::get_program(*h256)
-                            .map(|program| (*program_id, program.is_active()))
+                    .filter_map(|p| {
+                        if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
+                            Some((*pid, p.info == Terminatable::Terminated))
+                        } else {
+                            None
+                        }
                     })
                     .collect();
 

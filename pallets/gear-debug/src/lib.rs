@@ -80,17 +80,15 @@ pub mod pallet {
     pub enum Error<T> {}
 
     #[derive(Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
-    pub struct ProgramDetails {
-        pub id: H256,
+    pub struct ProgramInfo {
         pub static_pages: u32,
         pub persistent_pages: BTreeMap<u32, Vec<u8>>,
         pub code_hash: H256,
     }
 
-    impl fmt::Debug for ProgramDetails {
+    impl fmt::Debug for ProgramInfo {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.debug_struct("ProgramDetails")
-                .field("id", &self.id)
                 .field("static_pages", &self.static_pages)
                 .field(
                     "persistent_pages",
@@ -99,6 +97,18 @@ pub mod pallet {
                 .field("code_hash", &self.code_hash)
                 .finish()
         }
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    pub enum Terminatable {
+        Active(ProgramInfo),
+        Terminated,
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
+    pub struct ProgramDetails {
+        pub id: H256,
+        pub info: Terminatable,
     }
 
     #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
@@ -167,13 +177,18 @@ pub mod pallet {
                     Ok((program_id, program))
                 },
             )
-            .filter_map(|(id, prog)| prog.try_into().ok().map(|p| (id, p)))
-            .map(|(id, p): (H256, common::ActiveProgram)| ProgramDetails {
+            .map(|(id, p)| ProgramDetails {
                 id,
-                static_pages: p.static_pages,
-                persistent_pages: common::get_program_pages(id, p.persistent_pages)
-                    .expect("active program exists, therefore pages do"),
-                code_hash: p.code_hash,
+                info: if let Program::Active(active) = p {
+                    Terminatable::Active(ProgramInfo {
+                        static_pages: active.static_pages,
+                        persistent_pages: common::get_program_pages(id, active.persistent_pages)
+                            .expect("active program exists, therefore pages do"),
+                        code_hash: active.code_hash,
+                    })
+                } else {
+                    Terminatable::Terminated
+                },
             })
             .collect();
 

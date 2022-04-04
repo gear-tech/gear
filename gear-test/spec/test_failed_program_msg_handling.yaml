@@ -21,7 +21,7 @@ fixtures:
           value: 100
         payload:
           kind: utf-8
-          value: unknownspec_version correction v2
+          value: unknown
 
     expected:
 
