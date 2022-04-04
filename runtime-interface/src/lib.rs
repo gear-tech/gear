@@ -37,6 +37,7 @@ pub enum MprotectError {
 #[derive(Debug, Encode, Decode)]
 pub struct GetReleasedPageError;
 
+/// TODO: deprecated remove before release
 #[cfg(feature = "std")]
 #[cfg(unix)]
 unsafe fn sys_mprotect_wasm_pages(
@@ -85,6 +86,8 @@ unsafe fn sys_mprotect_wasm_pages(
     Err(MprotectError::OsError)
 }
 
+/// Mprotect native memory interval [`addr`, `addr` + `size`].
+/// Protection mask is set according to protection argumetns.
 #[cfg(feature = "std")]
 #[cfg(unix)]
 unsafe fn sys_mprotect_interval(
@@ -136,7 +139,7 @@ unsafe fn sys_mprotect_interval(
 /// !!! Note: Will be expanded as gear_ri
 #[runtime_interface]
 pub trait GearRI {
-    /// old interface
+    /// TODO: deprecated remove before release
     fn mprotect_wasm_pages(
         from_ptr: u64,
         pages_nums: &[u32],
@@ -149,6 +152,7 @@ pub trait GearRI {
         }
     }
 
+    /// TODO: deprecated remove before release
     /// Apply mprotect syscall for given list of wasm pages.
     #[version(2)]
     fn mprotect_wasm_pages(
@@ -161,14 +165,20 @@ pub trait GearRI {
         unsafe { sys_mprotect_wasm_pages(from_ptr, pages_nums, prot_read, prot_write, prot_exec) }
     }
 
+    /// Mprotect all lazy pages.
+    /// If `protect` argument is true then restrict all accesses to page,
+    /// else allows read and write accesses.
     fn mprotect_lazy_pages(wasm_mem_addr: u64, protect: bool) -> Result<(), MprotectError> {
         let mut prev_page = 0u32;
         let mut size_in_pages = 0u32;
         let mut lazy_pages = gear_lazy_pages::get_lazy_pages_numbers();
 
-        // TODO
+        // We add this page num to lazy pages in order to be able correctly
+        // break loop execution.
         lazy_pages.push(u32::MAX);
 
+        // Collects continuous intervals of memory from lazy pages to protect them.
+        // TODO: make more simple and safe solution
         for page in lazy_pages {
             if prev_page + 1 == page {
                 size_in_pages += 1;
@@ -194,7 +204,7 @@ pub trait GearRI {
         gear_lazy_pages::save_page_lazy_info(page, key);
     }
 
-    /// old interface
+    /// TODO: deprecated remove before release
     fn get_wasm_lazy_pages_numbers() -> Vec<u32> {
         gear_lazy_pages::get_lazy_pages_numbers()
     }

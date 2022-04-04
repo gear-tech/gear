@@ -186,11 +186,6 @@ impl IntoExtInfo for Ext {
         mut get_page_data: F,
     ) -> Result<ExtInfo, (&'static str, GasAmount)> {
         let pages = wasm_pages_to_pages_set(self.allocations_context.allocations().iter());
-        log::trace!(
-            "allocations = {:?}, pages = {:?}",
-            self.allocations_context.allocations(),
-            pages
-        );
         let mut pages_data = BTreeMap::new();
         for page in pages.iter() {
             let mut buf = alloc::vec![0u8; PageNumber::size()];

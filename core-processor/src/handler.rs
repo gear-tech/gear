@@ -28,7 +28,6 @@ pub fn handle_journal(
     let mut exit_list = vec![];
 
     for note in journal.into_iter() {
-        log::debug!("note = {:?}", note);
         match note {
             JournalNote::MessageDispatched(outcome) => handler.message_dispatched(outcome),
             JournalNote::GasBurned { message_id, amount } => handler.gas_burned(message_id, amount),

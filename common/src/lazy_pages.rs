@@ -68,7 +68,7 @@ pub fn protect_pages_and_init_info(
     let lazy_pages = memory_pages
         .iter()
         .filter(|(_num, buf)| buf.is_none())
-        .map(|(num, _buf)| num)
+        .map(|(num, _buf)| *num)
         .collect::<Vec<_>>();
     let prog_id_hash = prog_id.into_origin();
 
@@ -77,7 +77,7 @@ pub fn protect_pages_and_init_info(
     gear_ri::set_wasm_mem_begin_addr(wasm_mem_begin_addr);
 
     lazy_pages.iter().for_each(|p| {
-        crate::save_page_lazy_info(prog_id_hash, **p);
+        crate::save_page_lazy_info(prog_id_hash, *p);
     });
 
     mprotect_lazy_pages(wasm_mem_begin_addr, true)
@@ -99,8 +99,6 @@ pub fn post_execution_actions(
     }
 
     // Removes protections from lazy pages
-    let lazy_pages = gear_ri::get_wasm_lazy_pages_numbers();
-    log::debug!("lazy pages after = {:?}", lazy_pages);
     mprotect_lazy_pages(wasm_mem_begin_addr, false)
 }
 

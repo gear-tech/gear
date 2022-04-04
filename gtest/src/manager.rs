@@ -272,7 +272,6 @@ impl ExtManager {
     }
 
     fn mark_failed(&mut self, msg_id: MessageId) {
-        // panic!("LOL");
         if self.msg_id == msg_id {
             self.main_failed = true;
         } else {

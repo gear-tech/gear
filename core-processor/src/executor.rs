@@ -166,17 +166,17 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Getting wasm pages allocations.
     let allocations: BTreeSet<WasmPageNumber> = if !initial_pages.is_empty() {
-        let res = pages_to_wasm_pages_set(initial_pages.keys());
-        if let Err(e) = res {
-            return Err(ExecutionError {
-                program_id,
-                gas_amount: gas_counter.into(),
-                reason: e,
-                allowance_exceed: false,
-            });
+        match pages_to_wasm_pages_set(initial_pages.keys()) {
+            Err(e) => {
+                return Err(ExecutionError {
+                    program_id,
+                    gas_amount: gas_counter.into(),
+                    reason: e,
+                    allowance_exceed: false,
+                })
+            }
+            Ok(res) => res,
         }
-        // cannot panic
-        res.unwrap()
     } else {
         (0..program.static_pages().0).map(WasmPageNumber).collect()
     };
@@ -271,10 +271,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             })
         }
     };
-    log::debug!("trem reason = {:?}", termination);
+
+    log::trace!("trem reason = {:?}", termination);
 
     if lazy_pages_enabled {
         // accessed lazy pages old data will be added to `initial_pages`
+        // TODO: if post execution actions err is connected, with removing pages protections,
+        // then we should panic here, because protected pages may cause UB later, during err handling,
+        // if somebody will try to access this pages.
         A::post_execution_actions(initial_pages, wasm_memory_addr).map_err(|e| ExecutionError {
             program_id,
             gas_amount: info.gas_amount.clone(),
@@ -303,8 +307,6 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         TerminationReason::Wait => DispatchResultKind::Wait,
         TerminationReason::GasAllowanceExceed => DispatchResultKind::GasAllowanceExceed,
     };
-
-    log::trace!("pages after execution: {:?}", info.pages);
 
     // changed and new pages will be updated in storage
     let mut page_update = BTreeMap::new();
