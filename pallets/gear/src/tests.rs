@@ -384,6 +384,7 @@ fn unused_gas_released_back_works() {
     })
 }
 
+#[cfg(unix)]
 #[test]
 fn lazy_pages() {
     // This test access different pages in linear wasm memory
@@ -403,23 +404,24 @@ fn lazy_pages() {
             i32.store
         )
         (func $handle
-            ;; write access page 0
+            ;; write access wasm page 0
             i32.const 0x0
             i32.const 0x42
             i32.store
 
-            ;; write access page 2
-            i32.const 0x20000
+            ;; write access wasm page 2
+            ;; but here we access two native pages, if native page is less then 16kiB
+            i32.const 0x23ffe
             i32.const 0x42
             i32.store
 
-            ;; read access page 5
+            ;; read access wasm page 5
             i32.const 0x0
             i32.const 0x50000
             i32.load
             i32.store
 
-            ;; write access page 8 and 9 by one store
+            ;; write access wasm pages 8 and 9 by one store
             i32.const 0x8fffc
             i64.const 0xffffffffffffffff
             i64.store
@@ -473,33 +475,51 @@ fn lazy_pages() {
             .map(|p| PageNumber(*p))
             .collect();
 
-        // checks not accessed pages
-        [1, 3, 4, 6, 7].iter().for_each(|p| {
-            let wasm_page = WasmPageNumber(*p);
-            let expected = wasm_pages_to_pages_set([wasm_page].iter());
-            assert!(
-                lazy_pages.is_superset(&expected),
-                "Must contains all gear pages from wasm page which has not been accessed"
-            );
-            assert!(
-                released_pages.intersection(&expected).count() == 0,
-                "Released gear pages must not be in lazy pages"
-            );
-        });
+        // Checks that released pages + lazy pages == all pages
+        let all_pages = {
+            let all_wasm_pages: BTreeSet<WasmPageNumber> = (0..10u32).map(WasmPageNumber).collect();
+            wasm_pages_to_pages_set(all_wasm_pages.iter())
+        };
+        let mut res_pages = lazy_pages.clone();
+        res_pages.extend(released_pages.iter());
 
-        // checks accessed pages
-        [0, 2, 5, 8, 9].iter().for_each(|p| {
-            let wasm_page = WasmPageNumber(*p);
-            let expected = wasm_pages_to_pages_set([wasm_page].iter());
-            assert!(
-                !lazy_pages.is_superset(&expected),
-                "Some gear pages from wasm released page must be not lazy now"
-            );
-            assert!(
-                released_pages.intersection(&expected).count() != 0,
-                "Released gear pages must be from wasm released page"
-            );
-        });
+        assert_eq!(res_pages, all_pages);
+
+        // checks accessed pages set
+        let native_size = page_size::get();
+        let mut expected_accessed = BTreeSet::new();
+
+        let page_to_accessed = |p: u32| {
+            if native_size > PageNumber::size() {
+                let x = (native_size / PageNumber::size()) as u32;
+                (p / x) * x..=(p / x) * x + x - 1
+            } else {
+                p..=p
+            }
+        };
+
+        // accessed from 0 wasm page:
+        expected_accessed.extend(page_to_accessed(0));
+
+        // accessed from 2 wasm page, can be seweral gear and native pages:
+        let first_page = (0x23ffe / PageNumber::size()) as u32;
+        let second_page = (0x24001 / PageNumber::size()) as u32;
+        expected_accessed.extend(page_to_accessed(first_page));
+        expected_accessed.extend(page_to_accessed(second_page));
+
+        // accessed from 5 wasm page:
+        expected_accessed.extend(page_to_accessed((0x50000 / PageNumber::size()) as u32));
+
+        // accessed from 8 and 9 wasm pages, must be seweral gear pages:
+        let first_page = (0x8fffc / PageNumber::size()) as u32;
+        let second_page = (0x90003 / PageNumber::size()) as u32;
+        expected_accessed.extend(page_to_accessed(first_page));
+        expected_accessed.extend(page_to_accessed(second_page));
+
+        assert_eq!(
+            released_pages,
+            expected_accessed.into_iter().map(PageNumber).collect()
+        );
     });
 }
 
