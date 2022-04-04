@@ -76,11 +76,6 @@ pub type PageBuf = [u8; GEAR_PAGE_SIZE];
 pub struct PageNumber(pub u32);
 
 impl PageNumber {
-    /// Return raw 32-bit page address.
-    pub fn raw(&self) -> u32 {
-        self.0
-    }
-
     /// Return page offset.
     pub fn offset(&self) -> usize {
         (self.0 as usize) * PageNumber::size()
@@ -172,10 +167,10 @@ pub fn pages_to_wasm_pages_set<'a>(
 ) -> Result<BTreeSet<WasmPageNumber>, &'static str> {
     let mut wasm_pages = BTreeSet::<WasmPageNumber>::new();
     while let Some(page) = pages_iter.next() {
-        if page.raw() % GEAR_PAGES_IN_ONE_WASM != 0 {
+        if page.0 % GEAR_PAGES_IN_ONE_WASM != 0 {
             return Err("There is wasm page, which has not all gear pages in the begin");
         }
-        let wasm_page_num = WasmPageNumber(page.raw() / GEAR_PAGES_IN_ONE_WASM);
+        let wasm_page_num = WasmPageNumber(page.0 / GEAR_PAGES_IN_ONE_WASM);
         wasm_pages.insert(wasm_page_num);
         for _ in 0..(WASM_PAGE_SIZE / PageNumber::size() - 1) {
             pages_iter

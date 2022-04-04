@@ -63,10 +63,10 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let code = program.raw_code().to_vec();
 
     let mem_size = if let Some((max_page, _)) = program.get_pages().iter().next_back() {
-        if (max_page.raw() + 1) % GEAR_PAGES_IN_ONE_WASM != 0 {
+        if (max_page.0 + 1) % GEAR_PAGES_IN_ONE_WASM != 0 {
             log::error!(
                 "Program's max page is not last page in wasm page: {}",
-                max_page.raw()
+                max_page.0
             );
             return Err(ExecutionError {
                 program_id,
@@ -237,7 +237,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         "init memory pages = {:?}",
         initial_pages
             .iter()
-            .map(|(a, _b)| a.raw())
+            .map(|(a, _b)| a.0)
             .collect::<Vec<u32>>()
     );
 
@@ -313,7 +313,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         // we ignore stack pages update, because they are unused after execution is ended,
         // and for next program execution old data in stack it's just garbage.
         if let Some(stack_end_page) = stack_end_page {
-            if page.raw() < stack_end_page.to_gear_pages().raw() {
+            if page.0 < stack_end_page.to_gear_pages().0 {
                 continue;
             }
         }
@@ -329,14 +329,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 page_update.insert(page, Some(new_data));
                 log::trace!(
                     "Page {} has been changed - will be updated in storage",
-                    page.raw()
+                    page.0
                 );
             }
         } else {
             page_update.insert(page, Some(new_data));
             log::trace!(
                 "Page {} is a new page - will be upload to storage",
-                page.raw()
+                page.0
             );
         };
     }

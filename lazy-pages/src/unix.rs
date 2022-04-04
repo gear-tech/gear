@@ -66,7 +66,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
             (gear_page, 1usize, wasm_mem_begin + gear_page.offset())
         };
 
-        log::debug!(target: "gear_node::sig_handler", "mem={:?} gear_page={} pages_num={} page_addr={:#x}", mem, res.0.raw(), res.1, res.2);
+        log::debug!(target: "gear_node::sig_handler", "mem={:?} gear_page={} pages_num={} page_addr={:#x}", mem, res.0.0, res.1, res.2);
 
         res
     };
@@ -87,7 +87,7 @@ extern "C" fn handle_sigsegv(_x: i32, info: *mut siginfo_t, _z: *mut c_void) {
     );
 
     for idx in 0..gear_pages_num as u32 {
-        let page = gear_page.raw() + idx;
+        let page = gear_page.0 + idx;
 
         let hash_key_in_storage = LAZY_PAGES_INFO
             .with(|info| info.borrow_mut().remove(&page))

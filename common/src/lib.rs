@@ -380,7 +380,7 @@ pub fn pages_prefix(program_id: H256) -> Vec<u8> {
 fn page_key(id: H256, page: PageNumber) -> Vec<u8> {
     let mut key = pages_prefix(id);
     key.extend(b"::");
-    page.raw().encode_to(&mut key);
+    page.0.encode_to(&mut key);
     key
 }
 
@@ -468,7 +468,7 @@ pub fn get_program_page_data(id: H256, page_idx: PageNumber) -> Option<Vec<u8>> 
 /// Save page data key in storage
 pub fn save_page_lazy_info(id: H256, page_num: PageNumber) {
     let key = page_key(id, page_num);
-    gear_ri::gear_ri::save_page_lazy_info(page_num.raw(), &key);
+    gear_ri::gear_ri::save_page_lazy_info(page_num.0, &key);
 }
 
 pub fn get_program_pages(
