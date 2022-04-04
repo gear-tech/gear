@@ -19,7 +19,7 @@
 use crate as pallet_usage;
 use codec::Decode;
 use common::Origin as _;
-use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnInitialize};
+use frame_support::traits::{ConstU64, FindAuthor, OffchainWorker, OnIdle, OnInitialize};
 use frame_support::{construct_runtime, parameter_types};
 use frame_system as system;
 use gear_core::{ids::CodeId, program::Program};
@@ -130,6 +130,7 @@ impl pallet_gear::Config for Test {
     type BlockGasLimit = ();
     type DebugInfo = ();
     type WaitListFeePerBlock = WaitListFeePerBlock;
+    type Schedule = ();
 }
 
 impl pallet_gas::Config for Test {}
@@ -231,8 +232,10 @@ pub fn with_offchain_ext() -> (sp_io::TestExternalities, Arc<RwLock<PoolState>>)
 pub(crate) fn run_to_block(n: u64) {
     let now = System::block_number();
     for i in now + 1..=n {
+        log::debug!("📦 Processing block {}", i);
         System::set_block_number(i);
         Usage::on_initialize(i);
+        Gear::on_idle(i, 1_000_000_000);
     }
 }
 
@@ -260,9 +263,9 @@ pub(crate) fn get_offchain_storage_value<T: Decode>(key: &[u8]) -> Option<T> {
 }
 
 pub(crate) fn set_program(program: Program) {
-    let code_hash = CodeId::generate(program.code()).into_origin();
+    let code_hash = CodeId::generate(program.raw_code()).into_origin();
     if !common::code_exists(code_hash) {
-        common::set_code(code_hash, program.checked_code());
+        common::set_code(code_hash, program.code());
     }
     common::set_program(
         H256::from_slice(program.id().as_ref()),

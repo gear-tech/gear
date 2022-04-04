@@ -19,7 +19,7 @@
 use crate::check::ExecutionContext;
 use core_processor::common::*;
 use gear_core::{
-    code::CheckedCode,
+    code::Code,
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
     message::{Dispatch, DispatchKind, StoredDispatch, StoredMessage},
@@ -29,7 +29,8 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Clone, Default)]
 pub struct InMemoryExtManager {
-    codes: BTreeMap<CodeId, Vec<u8>>,
+    original_codes: BTreeMap<CodeId, Vec<u8>>,
+    codes: BTreeMap<CodeId, Code>,
     marked_destinations: BTreeSet<ProgramId>,
     dispatch_queue: VecDeque<StoredDispatch>,
     log: Vec<StoredMessage>,
@@ -52,19 +53,29 @@ impl InMemoryExtManager {
 }
 
 impl ExecutionContext for InMemoryExtManager {
-    fn store_code(&mut self, code: &[u8]) {
-        self.codes.insert(CodeId::generate(code), code.to_vec());
+    fn store_code(&mut self, code_hash: CodeId, code: Code) {
+        self.codes.insert(code_hash, code);
     }
-    fn store_program(&mut self, program: gear_core::program::Program, _init_message_id: MessageId) {
+    fn store_original_code(&mut self, code: &[u8]) {
+        self.original_codes
+            .insert(CodeId::generate(code), code.to_vec());
+    }
+    fn store_program(&mut self, id: ProgramId, code: Code, _init_message_id: MessageId) -> Program {
+        let code_hash = code.code_hash();
+
+        self.store_code(code_hash, code.clone());
+
+        let program = Program::new(id, code);
+
         self.waiting_init.insert(program.id(), vec![]);
-        self.store_code(program.code());
         self.actors.insert(
             program.id(),
             Some(ExecutableActor {
-                program,
+                program: program.clone(),
                 balance: 0,
             }),
         );
+        program
     }
     fn write_gas(&mut self, message_id: MessageId, gas_limit: u64) {
         self.gas_limits.insert(message_id, gas_limit);
@@ -221,20 +232,25 @@ impl JournalHandler for InMemoryExtManager {
     }
 
     fn store_new_programs(&mut self, code_hash: CodeId, candidates: Vec<(ProgramId, MessageId)>) {
-        if let Some(code) = self.codes.get(&code_hash).cloned() {
+        if let Some(code) = self.original_codes.get(&code_hash).cloned() {
             for (candidate_id, init_message_id) in candidates {
                 if !self.actors.contains_key(&candidate_id) {
-                    let code = CheckedCode::try_new(code.clone())
-                        .expect("guaranteed to have constructable code");
-                    let program = Program::new(candidate_id, code);
-                    self.store_program(program, init_message_id);
+                    let code = Code::try_new(
+                        code.clone(),
+                        1,
+                        None,
+                        wasm_instrument::gas_metering::ConstantCostRules::default(),
+                    )
+                    .unwrap();
+
+                    self.store_program(candidate_id, code, init_message_id);
                 } else {
-                    log::debug!("Program with id {:?} already exists", candidate_id);
+                    log::debug!("Program with id {} already exists", candidate_id);
                 }
             }
         } else {
             log::debug!(
-                "No referencing code with code hash {:?} for candidate programs",
+                "No referencing code with code hash {} for candidate programs",
                 code_hash
             );
             for (invalid_candidate, _) in candidates {

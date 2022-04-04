@@ -23,10 +23,9 @@ use crate::sample::{PayloadVariant, Test};
 use core_processor::{common::*, configs::*, Ext};
 use gear_backend_common::Environment;
 use gear_core::{
-    code::CheckedCode,
+    code::Code,
     ids::{MessageId, ProgramId},
     message::{Dispatch, DispatchKind, IncomingDispatch, IncomingMessage, Message},
-    program::Program,
 };
 use regex::Regex;
 use std::{
@@ -84,17 +83,22 @@ where
     E: Environment<Ext>,
     JH: JournalHandler + CollectState + ExecutionContext,
 {
-    let code = CheckedCode::try_new(message.code.clone())?;
-    let program = Program::new(message.id, code);
-    let program_id = program.id();
+    let code = Code::try_new(
+        message.code.clone(),
+        1,
+        None,
+        wasm_instrument::gas_metering::ConstantCostRules::default(),
+    )
+    .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
 
-    if program.static_pages() > AllocationsConfig::default().max_pages.raw() {
+    if code.static_pages() > AllocationsConfig::default().max_pages.raw() {
         return Err(anyhow::anyhow!(
             "Error initialisation: memory limit exceeded"
         ));
     }
 
-    journal_handler.store_program(program.clone(), message.message.id());
+    let program = journal_handler.store_program(message.id, code, message.message.id());
+    let program_id = program.id();
     journal_handler.write_gas(message.message.id(), message.message.gas_limit());
 
     let journal = core_processor::process::<Ext, E>(
@@ -129,7 +133,16 @@ where
         for code in codes {
             let code_bytes = std::fs::read(&code.path)
                 .map_err(|e| IoError::new(IoErrorKind::Other, format!("`{}': {}", code.path, e)))?;
-            journal_handler.store_code(&code_bytes);
+            let code = Code::try_new(
+                code_bytes.clone(),
+                1,
+                None,
+                wasm_instrument::gas_metering::ConstantCostRules::default(),
+            )
+            .map_err(|e| anyhow::anyhow!("Error initialisation: {:?}", &e))?;
+
+            journal_handler.store_code(code.code_hash(), code);
+            journal_handler.store_original_code(&code_bytes);
         }
     }
 

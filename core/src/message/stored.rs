@@ -39,6 +39,7 @@ pub struct StoredMessage {
     /// Message payload.
     payload: Payload,
     /// Message value.
+    #[codec(compact)]
     value: Value,
     /// Message id replied on with exit code.
     reply: Option<(MessageId, ExitCode)>,

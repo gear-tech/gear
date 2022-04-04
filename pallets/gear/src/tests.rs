@@ -22,7 +22,7 @@ use demo_distributor::{Request, WASM_BINARY};
 use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 use frame_support::{assert_noop, assert_ok};
 use frame_system::Pallet as SystemPallet;
-use gear_core::code::CheckedCode;
+use gear_core::code::Code;
 use gear_runtime_interface as gear_ri;
 use pallet_balances::{self, Pallet as BalancesPallet};
 
@@ -45,7 +45,7 @@ fn submit_program_expected_failure() {
         let balance = BalancesPallet::<Test>::free_balance(USER_1);
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
@@ -64,7 +64,7 @@ fn submit_program_expected_failure() {
         let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 ProgramCodeKind::Default.to_bytes(),
                 DEFAULT_SALT.to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
@@ -128,7 +128,7 @@ fn send_message_works() {
         let user1_initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             USER_2.into_origin(),
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,
@@ -149,7 +149,7 @@ fn send_message_works() {
         );
 
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             message_id
         ));
 
@@ -207,7 +207,7 @@ fn send_message_expected_failure() {
             sp_io::KillStorageResult::AllRemoved(_)
         ));
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(LOW_BALANCE_USER).into(),
+            Origin::signed(LOW_BALANCE_USER),
             USER_1.into_origin(),
             EMPTY_PAYLOAD.to_vec(),
             1000,
@@ -219,7 +219,7 @@ fn send_message_expected_failure() {
         let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
         assert_noop!(
             GearPallet::<Test>::send_message(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 program_id,
                 EMPTY_PAYLOAD.to_vec(),
                 block_gas_limit + 1,
@@ -294,7 +294,7 @@ fn unused_gas_released_back_works() {
         };
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
             huge_send_message_gas_limit,
@@ -376,7 +376,7 @@ fn lazy_pages() {
             let salt = DEFAULT_SALT.to_vec();
             let prog_id = generate_program_id(&code, &salt);
             let res = GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 code,
                 salt,
                 EMPTY_PAYLOAD.to_vec(),
@@ -393,7 +393,7 @@ fn lazy_pages() {
         SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
 
         let res = GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             pid,
             EMPTY_PAYLOAD.to_vec(),
             1_000_000,
@@ -477,7 +477,7 @@ fn block_gas_limit_works() {
 
     init_logger();
     new_test_ext().execute_with(|| {
-        let remaining_weight = 100_000;
+        let remaining_weight = 500_000;
 
         // Submit programs and get their ids
         let pid1 = {
@@ -505,14 +505,14 @@ fn block_gas_limit_works() {
         assert!(expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2 > remaining_weight);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
             100
         ));
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
@@ -529,21 +529,21 @@ fn block_gas_limit_works() {
         // Total `gas_limit` of three messages (2 to pid1 and 1 to pid2) exceeds the block gas limit
         assert!(remaining_weight < 2 * expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2);
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
             200
         ));
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             pid2,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid2,
             100
         ));
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             pid1,
             EMPTY_PAYLOAD.to_vec(),
             expected_gas_msg_to_pid1,
@@ -831,7 +831,7 @@ fn send_reply_works() {
 
         let prog_id = generate_program_id(
             &ProgramCodeKind::OutgoingWithValueInHandle.to_bytes(),
-            &DEFAULT_SALT.to_vec(),
+            DEFAULT_SALT.as_ref(),
         );
 
         // Top up program's account balance by 2000 to allow user claim 1000 from mailbox
@@ -845,7 +845,7 @@ fn send_reply_works() {
         );
 
         assert_ok!(GearPallet::<Test>::send_reply(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             reply_to_id,
             EMPTY_PAYLOAD.to_vec(),
             10_000_000,
@@ -884,7 +884,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
         // Expecting error as long as the user doesn't have messages in mailbox
         assert_noop!(
             GearPallet::<Test>::send_reply(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 5.into_origin(), // non existent `reply_to_id`
                 EMPTY_PAYLOAD.to_vec(),
                 DEFAULT_GAS_LIMIT,
@@ -911,7 +911,7 @@ fn send_reply_failure_to_claim_from_mailbox() {
         // (and following system reply with error to USER_1 mailbox)
         assert!(Mailbox::<Test>::contains_key(USER_1));
 
-        let mailbox = Mailbox::<Test>::get(USER_1).expect("Checked above").clone();
+        let mailbox = Mailbox::<Test>::get(USER_1).expect("Checked above");
 
         assert_eq!(mailbox.len(), 1);
 
@@ -965,7 +965,7 @@ fn send_reply_value_claiming_works() {
             assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
 
             assert_ok!(GearPallet::<Test>::send_reply(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 reply_to_id,
                 EMPTY_PAYLOAD.to_vec(),
                 gas_limit_to_reply,
@@ -1018,7 +1018,7 @@ fn claim_value_from_mailbox_works() {
         run_to_block(3, None);
 
         assert_ok!(GearPallet::<Test>::claim_value_from_mailbox(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             reply_to_id,
         ));
 
@@ -1050,7 +1050,7 @@ fn distributor_initialize() {
             + BalancesPallet::<Test>::free_balance(BLOCK_AUTHOR);
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1083,7 +1083,7 @@ fn distributor_distribute() {
         let program_id = generate_program_id(WASM_BINARY, DEFAULT_SALT);
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1094,7 +1094,7 @@ fn distributor_distribute() {
         run_to_block(2, None);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             program_id,
             Request::Receive(10).encode(),
             20_000_000,
@@ -1128,7 +1128,19 @@ fn test_code_submission_pass() {
         ));
 
         let saved_code = common::get_code(code_hash);
-        assert_eq!(saved_code, Some(CheckedCode::try_new(code).unwrap()));
+
+        let module = wasm_instrument::parity_wasm::deserialize_buffer(&code).unwrap_or_default();
+        let schedule = <Test as Config>::Schedule::get();
+        let gas_rules = schedule.rules(&module);
+
+        let code = Code::try_new(
+            code,
+            schedule.instruction_weights.version,
+            Some(module),
+            gas_rules,
+        )
+        .expect("Error creating Code");
+        assert_eq!(saved_code.unwrap().code(), code.code());
 
         let expected_meta = Some(common::CodeMetadata::new(USER_1.into_origin(), 1));
         let actual_meta = common::get_code_metadata(code_hash);
@@ -1155,7 +1167,7 @@ fn test_same_code_submission_fails() {
         );
         // Trying the same from another origin
         assert_noop!(
-            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code.clone()),
+            GearPallet::<Test>::submit_code(Origin::signed(USER_2), code),
             Error::<Test>::CodeAlreadyExists,
         );
     })
@@ -1170,7 +1182,7 @@ fn test_code_is_not_submitted_twice_after_program_submission() {
 
         // First submit program, which will set code and metadata
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             code.clone(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1206,7 +1218,7 @@ fn test_code_is_not_resetted_within_program_submission() {
 
         // Submit program from another origin. Should not change meta or code.
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             code,
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1233,11 +1245,11 @@ fn messages_to_uninitialized_program_wait() {
         System::reset_events();
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            50_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -1252,7 +1264,7 @@ fn messages_to_uninitialized_program_wait() {
         assert!(!Gear::is_terminated(program_id));
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(1).into(),
+            Origin::signed(1),
             program_id,
             vec![],
             10_000u64,
@@ -1274,11 +1286,11 @@ fn uninitialized_program_should_accept_replies() {
         System::reset_events();
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            90_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -1303,10 +1315,10 @@ fn uninitialized_program_should_accept_replies() {
         assert!(keys.next().is_none());
 
         assert_ok!(GearPallet::<Test>::send_reply(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             *message_id,
             b"PONG".to_vec(),
-            50_000_000u64,
+            200_000_000u64,
             0,
         ));
 
@@ -1325,11 +1337,11 @@ fn defer_program_initialization() {
         System::reset_events();
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            99_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -1343,20 +1355,20 @@ fn defer_program_initialization() {
         let message_id = keys.next().expect("message keys cannot be empty");
 
         assert_ok!(GearPallet::<Test>::send_reply(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             *message_id,
             b"PONG".to_vec(),
-            50_000_000u64,
+            200_000_000u64,
             0,
         ));
 
         run_to_block(3, None);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             program_id,
             vec![],
-            30_000_000u64,
+            200_000_000u64,
             0u128
         ));
 
@@ -1395,11 +1407,11 @@ fn wake_messages_after_program_inited() {
         System::reset_events();
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             vec![],
             Vec::new(),
-            99_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -1412,10 +1424,10 @@ fn wake_messages_after_program_inited() {
         let n = 10;
         for _ in 0..n {
             assert_ok!(GearPallet::<Test>::send_message(
-                Origin::signed(USER_3).into(),
+                Origin::signed(USER_3),
                 program_id,
                 vec![],
-                25_000_000u64,
+                100_000_000u64,
                 0u128
             ));
         }
@@ -1429,10 +1441,10 @@ fn wake_messages_after_program_inited() {
         assert!(message_id.is_some());
 
         assert_ok!(GearPallet::<Test>::send_reply(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             message_id.unwrap(),
             b"PONG".to_vec(),
-            50_000_000u64,
+            500_000_000u64,
             0,
         ));
 
@@ -1463,10 +1475,10 @@ fn test_message_processing_for_non_existing_destination() {
         // After running, first message will end up with init failure, so destination address won't exist.
         // However, message to that non existing address will be in message queue. So, we test that this message is not executed.
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             program_id,
             EMPTY_PAYLOAD.to_vec(),
-            10_000,
+            500_000,
             100
         ));
         let skipped_message_id = get_last_message_id();
@@ -1498,7 +1510,7 @@ fn exit_init() {
 
         let code = WASM_BINARY.to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             code.clone(),
             vec![],
             Vec::new(),
@@ -1522,7 +1534,7 @@ fn exit_init() {
         // Program is not removed and can't be submitted again
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 code,
                 vec![],
                 Vec::new(),
@@ -1543,7 +1555,7 @@ fn test_create_program_no_code_hash() {
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
-        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+        let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
 
         let valid_code_hash = generate_code_hash(ProgramCodeKind::Default.to_bytes().as_slice());
         let invalid_prog_code_kind = ProgramCodeKind::Custom(non_constructable_wat);
@@ -1552,7 +1564,7 @@ fn test_create_program_no_code_hash() {
 
         // Creating factory
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1562,7 +1574,7 @@ fn test_create_program_no_code_hash() {
 
         // Try to create a program with non existing code hash
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
             70_000_000,
@@ -1580,7 +1592,7 @@ fn test_create_program_no_code_hash() {
 
         // Try to create multiple programs with non existing code hash
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
                 (valid_code_hash, b"salt1".to_vec(), 10_000),
@@ -1600,7 +1612,7 @@ fn test_create_program_no_code_hash() {
 
         assert_noop!(
             GearPallet::<Test>::submit_code(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 invalid_prog_code_kind.to_bytes(),
             ),
             Error::<Test>::FailedToConstructProgram,
@@ -1610,7 +1622,7 @@ fn test_create_program_no_code_hash() {
 
         // Try to create with invalid code hash
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
                 (invalid_prog_code_hash, b"salt1".to_vec(), 10_000),
@@ -1636,19 +1648,19 @@ fn test_create_program_simple() {
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
-        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+        let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
         assert_ok!(GearPallet::<Test>::submit_code(
-            Origin::signed(USER_1).into(),
-            child_code.clone(),
+            Origin::signed(USER_1),
+            child_code,
         ));
 
         // Creating factory
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1659,7 +1671,7 @@ fn test_create_program_simple() {
 
         // Test create one successful in init program
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Default.encode(),
             99_000_000,
@@ -1669,7 +1681,7 @@ fn test_create_program_simple() {
 
         // Test create one failing in init program
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(
                 vec![(child_code_hash, b"some_data".to_vec(), 3000)] // too little gas
@@ -1690,7 +1702,7 @@ fn test_create_program_simple() {
 
         // Create multiple successful init programs
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
                 (child_code_hash, b"salt1".to_vec(), 10_000),
@@ -1704,7 +1716,7 @@ fn test_create_program_simple() {
 
         // Create multiple successful init programs
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
                 (child_code_hash, b"salt3".to_vec(), 3000), // too little gas
@@ -1727,19 +1739,19 @@ fn test_create_program_duplicate() {
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
-        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+        let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
 
         // Submit the code
         assert_ok!(GearPallet::<Test>::submit_code(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             child_code.clone(),
         ));
 
         // Creating factory
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1754,7 +1766,7 @@ fn test_create_program_duplicate() {
 
         // Program tries to create the same
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![(child_code_hash, DEFAULT_SALT.to_vec(), 100_000),])
                 .encode(),
@@ -1773,7 +1785,7 @@ fn test_create_program_duplicate() {
 
         // Create a new program from program
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
             99_000_000,
@@ -1783,7 +1795,7 @@ fn test_create_program_duplicate() {
 
         // Try to create the same
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
             99_000_000,
@@ -1800,7 +1812,7 @@ fn test_create_program_duplicate() {
 
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 child_code,
                 b"salt1".to_vec(),
                 EMPTY_PAYLOAD.to_vec(),
@@ -1817,7 +1829,7 @@ fn test_create_program_duplicate_in_one_execution() {
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
-        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+        let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
 
         let child_code = ProgramCodeKind::Default.to_bytes();
         let child_code_hash = generate_code_hash(&child_code);
@@ -1829,7 +1841,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
         // Creating factory
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1840,7 +1852,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
         // Try to create duplicate during one execution
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
                 (child_code_hash, b"salt1".to_vec(), 10_000), // could be successful init
@@ -1866,7 +1878,7 @@ fn test_create_program_duplicate_in_one_execution() {
 
         // Successful child creation
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![(child_code_hash, b"salt1".to_vec(), 100_000),]).encode(),
             99_000_000,
@@ -1897,7 +1909,7 @@ fn test_create_program_miscellaneous() {
     init_logger();
     new_test_ext().execute_with(|| {
         let factory_code = PROGRAM_FACTORY_WASM_BINARY;
-        let factory_id = generate_program_id(&factory_code, DEFAULT_SALT);
+        let factory_id = generate_program_id(factory_code, DEFAULT_SALT);
 
         let child1_code = ProgramCodeKind::Default.to_bytes();
         let child2_code = ProgramCodeKind::Custom(child2_wat).to_bytes();
@@ -1916,7 +1928,7 @@ fn test_create_program_miscellaneous() {
 
         // Creating factory
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             factory_code.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -1927,7 +1939,7 @@ fn test_create_program_miscellaneous() {
         run_to_block(2, None);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
                 // one successful init with one handle message (+2 dequeued, +1 dispatched, +1 successful init)
@@ -1944,7 +1956,7 @@ fn test_create_program_miscellaneous() {
         run_to_block(3, None);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             factory_id,
             CreateProgram::Custom(vec![
                 // init fail (not enough gas) and reply generated (+2 dequeued, +1 dispatched),
@@ -1961,7 +1973,7 @@ fn test_create_program_miscellaneous() {
         run_to_block(4, None);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_2).into(),
+            Origin::signed(USER_2),
             factory_id,
             CreateProgram::Custom(vec![
                 // duplicate in the next block: init not executed, nor the handle (because destination is terminated), replies are generated (+4 dequeue, +2 dispatched)
@@ -1993,7 +2005,7 @@ fn exit_handle() {
         let code = WASM_BINARY.to_vec();
         let code_hash = generate_code_hash(&code).into();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             code.clone(),
             vec![],
             Vec::new(),
@@ -2008,7 +2020,7 @@ fn exit_handle() {
         assert!(Gear::is_initialized(program_id));
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             program_id,
             vec![],
             10_000_000u64,
@@ -2033,7 +2045,7 @@ fn exit_handle() {
         // Program is not removed and can't be submitted again
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(USER_1).into(),
+                Origin::signed(USER_1),
                 code,
                 vec![],
                 Vec::new(),
@@ -2055,7 +2067,7 @@ fn paused_program_keeps_id() {
 
         let code = WASM_BINARY.to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             code.clone(),
             vec![],
             Vec::new(),
@@ -2071,8 +2083,8 @@ fn paused_program_keeps_id() {
 
         assert_noop!(
             GearPallet::<Test>::submit_program(
-                Origin::signed(USER_3).into(),
-                code.clone(),
+                Origin::signed(USER_3),
+                code,
                 vec![],
                 Vec::new(),
                 100_000_000u64,
@@ -2096,8 +2108,8 @@ fn messages_to_paused_program_skipped() {
 
         let code = WASM_BINARY.to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code.clone(),
+            Origin::signed(USER_1),
+            code,
             vec![],
             Vec::new(),
             100_000_000u64,
@@ -2113,7 +2125,7 @@ fn messages_to_paused_program_skipped() {
         let before_balance = BalancesPallet::<Test>::free_balance(USER_3);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_3).into(),
+            Origin::signed(USER_3),
             program_id,
             vec![],
             100_000_000u64,
@@ -2136,8 +2148,8 @@ fn replies_to_paused_program_skipped() {
 
         let code = WASM_BINARY.to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code.clone(),
+            Origin::signed(USER_1),
+            code,
             vec![],
             Vec::new(),
             100_000_000u64,
@@ -2161,7 +2173,7 @@ fn replies_to_paused_program_skipped() {
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             message_id.unwrap(),
             b"PONG".to_vec(),
             50_000_000u64,
@@ -2185,8 +2197,8 @@ fn program_messages_to_paused_program_skipped() {
 
         let code = WASM_BINARY.to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code.clone(),
+            Origin::signed(USER_1),
+            code,
             vec![],
             Vec::new(),
             100_000_000u64,
@@ -2197,8 +2209,8 @@ fn program_messages_to_paused_program_skipped() {
 
         let code = PROXY_WASM_BINARY.to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_3).into(),
-            code.clone(),
+            Origin::signed(USER_3),
+            code,
             vec![],
             InputArgs {
                 destination: paused_program_id.into()
@@ -2217,7 +2229,7 @@ fn program_messages_to_paused_program_skipped() {
         run_to_block(3, None);
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_3).into(),
+            Origin::signed(USER_3),
             program_id,
             vec![],
             100_000_000u64,
@@ -2245,11 +2257,11 @@ fn resume_program_works() {
 
         let code = WASM_BINARY.to_vec();
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
-            code.clone(),
+            Origin::signed(USER_1),
+            code,
             vec![],
             Vec::new(),
-            90_000_000u64,
+            400_000_000u64,
             0u128
         ));
 
@@ -2264,10 +2276,10 @@ fn resume_program_works() {
         assert!(message_id.is_some());
 
         assert_ok!(GearPallet::<Test>::send_reply(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             message_id.unwrap(),
             b"PONG".to_vec(),
-            50_000_000u64,
+            150_000_000u64,
             1_000u128,
         ));
 
@@ -2285,15 +2297,15 @@ fn resume_program_works() {
         run_to_block(4, None);
 
         assert_ok!(GearProgramPallet::<Test>::resume_program(
-            Origin::signed(USER_3).into(),
+            Origin::signed(USER_3),
             program_id,
             memory_pages,
             Default::default(),
-            10_000u128
+            50_000u128
         ));
 
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_3).into(),
+            Origin::signed(USER_3),
             program_id,
             vec![],
             25_000_000u64,
@@ -2324,7 +2336,7 @@ fn gas_spent_vs_balance() {
         let initial_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
         assert_ok!(GearPallet::<Test>::submit_program(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             WASM_BINARY.to_vec(),
             DEFAULT_SALT.to_vec(),
             EMPTY_PAYLOAD.to_vec(),
@@ -2340,7 +2352,7 @@ fn gas_spent_vs_balance() {
 
         let request = Request::Clear.encode();
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(USER_1).into(),
+            Origin::signed(USER_1),
             prog_id,
             request.clone(),
             10_000_000,
@@ -2385,28 +2397,20 @@ fn gas_spent_vs_balance() {
 fn gas_spent_precalculated() {
     let wat = r#"
 	(module
-		(import "env" "memory" (memory 1))
+		(import "env" "memory" (memory 0))
 		(export "handle" (func $handle))
-        (func $doWork (param $size i32)
-            (local $counter i32)
-            i32.const 0
-            set_local $counter
-            loop $while
-                get_local $counter
-                i32.const 1
-                i32.add
-                set_local $counter
-                get_local $counter
-                get_local $size
-                i32.lt_s
-                if
-                    br $while
-                end
-            end $while
+        (func $add (; 0 ;) (param $0 i32) (param $1 i32)
+            (local $2 i32)
+            get_local $0
+            get_local $1
+            i32.add
+            set_local $2
         )
         (func $handle
-            i32.const 42
-            call $doWork
+            (call $add
+                (i32.const 2)
+                (i32.const 2)
+            )
 		)
 	)"#;
 
@@ -2425,8 +2429,18 @@ fn gas_spent_precalculated() {
         )
         .unwrap_or_else(|e| panic!("{}", String::from_utf8(e).expect("Unable to form string")));
 
-        // 42 times loop, 9 ops inside the loop, plus 7 ops outside the loop; 1000 gas per instruction
-        assert_eq!(gas_spent_1, (42 * 9 + 7) * 1000);
+        let schedule = <Test as Config>::Schedule::get();
+
+        let const_i64_cost = schedule.instruction_weights.i64const;
+        let call_cost = schedule.instruction_weights.call;
+        let set_local_cost = schedule.instruction_weights.local_set;
+        let get_local_cost = schedule.instruction_weights.local_get;
+        let add_cost = schedule.instruction_weights.i64add;
+
+        let total_cost =
+            call_cost + const_i64_cost * 2 + set_local_cost + get_local_cost * 2 + add_cost;
+
+        assert_eq!(gas_spent_1, total_cost as u64);
 
         let (gas_spent_2, _) =
             calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
@@ -2447,9 +2461,9 @@ mod utils {
     };
     use common::Origin as _;
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 10_000;
-    pub(super) const DEFAULT_SALT: &'static [u8; 4] = b"salt";
-    pub(super) const EMPTY_PAYLOAD: &'static [u8; 0] = b"";
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 5_000;
+    pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
+    pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
 
     pub(super) type DispatchCustomResult<T> = Result<T, DispatchErrorWithPostInfo>;
     pub(super) type AccountId = <Test as frame_system::Config>::AccountId;
@@ -2465,36 +2479,33 @@ mod utils {
 
     pub(super) fn check_init_success(expected: u32) {
         let mut actual_children_amount = 0;
-        SystemPallet::<Test>::events()
-            .iter()
-            .for_each(|e| match e.event {
-                MockEvent::Gear(Event::InitSuccess(_)) => actual_children_amount += 1,
-                _ => {}
-            });
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::InitSuccess(_)) = e.event {
+                actual_children_amount += 1
+            }
+        });
 
         assert_eq!(expected, actual_children_amount);
     }
 
     pub(super) fn check_dequeued(expected: u32) {
         let mut actual_dequeued = 0;
-        SystemPallet::<Test>::events()
-            .iter()
-            .for_each(|e| match e.event {
-                MockEvent::Gear(Event::MessagesDequeued(num)) => actual_dequeued += num,
-                _ => {}
-            });
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::MessagesDequeued(num)) = e.event {
+                actual_dequeued += num
+            }
+        });
 
         assert_eq!(expected, actual_dequeued);
     }
 
     pub(super) fn check_dispatched(expected: u32) {
         let mut actual_dispatched = 0;
-        SystemPallet::<Test>::events()
-            .iter()
-            .for_each(|e| match e.event {
-                MockEvent::Gear(Event::MessageDispatched(_)) => actual_dispatched += 1,
-                _ => {}
-            });
+        SystemPallet::<Test>::events().iter().for_each(|e| {
+            if let MockEvent::Gear(Event::MessageDispatched(_)) = e.event {
+                actual_dispatched += 1
+            }
+        });
 
         assert_eq!(expected, actual_dispatched);
     }
@@ -2527,7 +2538,7 @@ mod utils {
         value: u128,
     ) -> H256 {
         assert_ok!(GearPallet::<Test>::send_message(
-            Origin::signed(sender).into(),
+            Origin::signed(sender),
             prog_id,
             Vec::new(),
             gas_limit, // `prog_id` program sends message in handle which sets gas limit to 10_000_000.
@@ -2592,7 +2603,7 @@ mod utils {
         let salt = DEFAULT_SALT.to_vec();
 
         GearPallet::<Test>::submit_program(
-            Origin::signed(user).into(),
+            Origin::signed(user),
             code,
             salt,
             EMPTY_PAYLOAD.to_vec(),
@@ -2612,7 +2623,7 @@ mod utils {
 
     pub(super) fn send_default_message(from: AccountId, to: H256) -> DispatchResultWithPostInfo {
         GearPallet::<Test>::send_message(
-            Origin::signed(from).into(),
+            Origin::signed(from),
             to,
             EMPTY_PAYLOAD.to_vec(),
             DEFAULT_GAS_LIMIT,

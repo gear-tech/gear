@@ -19,7 +19,7 @@
 //! Module for programs.
 
 use crate::{
-    code::CheckedCode,
+    code::Code,
     ids::ProgramId,
     memory::{PageBuf, PageNumber},
 };
@@ -32,7 +32,7 @@ use core::convert::TryFrom;
 #[derive(Clone, Debug, Decode, Encode)]
 pub struct Program {
     id: ProgramId,
-    code: CheckedCode,
+    code: Code,
     /// Saved state of memory pages.
     persistent_pages: BTreeMap<PageNumber, Option<Box<PageBuf>>>,
     /// Program is initialized.
@@ -41,7 +41,7 @@ pub struct Program {
 
 impl Program {
     /// New program with specific `id`, `code` and `persistent_memory`.
-    pub fn new(id: ProgramId, code: CheckedCode) -> Self {
+    pub fn new(id: ProgramId, code: Code) -> Self {
         Program {
             id,
             code,
@@ -53,7 +53,7 @@ impl Program {
     /// New program from stored data
     pub fn from_parts(
         id: ProgramId,
-        code: CheckedCode,
+        code: Code,
         persistent_pages_numbers: BTreeSet<u32>,
         is_initialized: bool,
     ) -> Self {
@@ -68,17 +68,17 @@ impl Program {
         }
     }
 
-    /// Reference to checked binary code of this program.
-    pub fn checked_code(&self) -> &CheckedCode {
+    /// Reference to [`Code`] of this program.
+    pub fn code(&self) -> &Code {
         &self.code
     }
 
     /// Reference to raw binary code of this program.
-    pub fn code(&self) -> &[u8] {
+    pub fn raw_code(&self) -> &[u8] {
         self.code.code()
     }
 
-    /// Get the id of this program.
+    /// Get the [`ProgramId`] of this program.
     pub fn id(&self) -> ProgramId {
         self.id
     }
@@ -171,7 +171,7 @@ impl Program {
 /// and ProgramId's `fn from_slice(s: &[u8]) -> Self` constructor
 mod tests {
     use super::Program;
-    use crate::code::CheckedCode;
+    use crate::code::Code;
     use crate::ids::ProgramId;
     use alloc::{vec, vec::Vec};
 
@@ -217,13 +217,19 @@ mod tests {
 
         let binary: Vec<u8> = parse_wat(wat);
 
-        let code = CheckedCode::try_new(binary).unwrap();
+        let code = Code::try_new(
+            binary,
+            1,
+            None,
+            wasm_instrument::gas_metering::ConstantCostRules::default(),
+        )
+        .unwrap();
         let mut program = Program::new(ProgramId::from(1), code);
 
         // 2 static pages
         assert_eq!(program.static_pages(), 2);
 
-        assert!(program.set_page(1.into(), &vec![0; 123]).is_err());
+        assert!(program.set_page(1.into(), &[0; 123]).is_err());
 
         assert!(program.set_page(1.into(), &vec![0; 65536]).is_ok());
         assert_eq!(program.get_pages().len(), 1);
