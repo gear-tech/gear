@@ -24,7 +24,7 @@ use codec::{Decode, Encode};
 use sp_runtime_interface::runtime_interface;
 
 #[cfg(feature = "std")]
-use gear_core::memory::{PageNumber, WASM_PAGE_SIZE};
+use gear_core::memory::{PageNumber, WasmPageNumber};
 
 pub use sp_std::{result::Result, vec::Vec};
 
@@ -57,8 +57,8 @@ unsafe fn sys_mprotect_wasm_pages(
         prot_mask |= libc::PROT_EXEC;
     }
     for page in pages_nums {
-        let addr = from_ptr as usize + *page as usize * WASM_PAGE_SIZE;
-        let res = libc::mprotect(addr as *mut libc::c_void, WASM_PAGE_SIZE, prot_mask);
+        let addr = from_ptr as usize + *page as usize * WasmPageNumber::size();
+        let res = libc::mprotect(addr as *mut libc::c_void, WasmPageNumber::size(), prot_mask);
         if res != 0 {
             log::error!(
                 "Cannot set page protection for {:#x}: {}",

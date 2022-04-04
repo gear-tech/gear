@@ -31,7 +31,7 @@ use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationRe
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
-    memory::{pages_set_to_wasm_pages_set, AllocationsContext, WasmPageNumber},
+    memory::{pages_to_wasm_pages_set, AllocationsContext, PageNumber, WasmPageNumber},
     message::{IncomingDispatch, MessageContext},
 };
 
@@ -63,7 +63,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let code = program.raw_code().to_vec();
 
     let mem_size = if let Some((max_page, _)) = program.get_pages().iter().next_back() {
-        if (max_page.0 + 1) % GEAR_PAGES_IN_ONE_WASM != 0 {
+        if (max_page.0 + 1) % PageNumber::num_in_one_wasm_page() != 0 {
             log::error!(
                 "Program's max page is not last page in wasm page: {}",
                 max_page.0
@@ -334,10 +334,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             }
         } else {
             page_update.insert(page, Some(new_data));
-            log::trace!(
-                "Page {} is a new page - will be upload to storage",
-                page.0
-            );
+            log::trace!("Page {} is a new page - will be upload to storage", page.0);
         };
     }
 

@@ -26,7 +26,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{Memory, PageBuf, PageNumber, WasmPageNumber, WASM_PAGE_SIZE},
+    memory::{Memory, PageBuf, PageNumber, WasmPageNumber},
 };
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Instance, Memory as DefaultExecutorMemory},
@@ -164,7 +164,9 @@ impl<E: Ext + IntoExtInfo + 'static> Environment<E> for SandboxEnvironment<E> {
             if addr < 0 {
                 None
             } else {
-                Some(WasmPageNumber((addr as usize / WASM_PAGE_SIZE) as u32))
+                Some(WasmPageNumber(
+                    (addr as usize / WasmPageNumber::size()) as u32,
+                ))
             }
         })
     }

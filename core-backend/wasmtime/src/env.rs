@@ -31,7 +31,7 @@ use gear_backend_common::{
 use gear_core::{
     env::{Ext, LaterExt},
     gas::GasAmount,
-    memory::{PageBuf, PageNumber, WasmPageNumber, WASM_PAGE_SIZE},
+    memory::{PageBuf, PageNumber, WasmPageNumber},
 };
 use wasmtime::{
     Engine, Extern, Func, Instance, Memory as WasmtimeMemory, MemoryType, Module, Store, Trap,
@@ -212,7 +212,9 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
             if addr < 0 {
                 None
             } else {
-                Some(WasmPageNumber((addr as usize / WASM_PAGE_SIZE) as u32))
+                Some(WasmPageNumber(
+                    (addr as usize / WasmPageNumber::size()) as u32,
+                ))
             }
         })
     }

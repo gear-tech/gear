@@ -18,7 +18,7 @@
 
 //! Lazy pages support in unix.
 
-use gear_core::memory::{PageNumber, WASM_PAGE_SIZE};
+use gear_core::memory::{PageNumber, WasmPageNumber};
 use libc::{c_void, siginfo_t};
 use nix::sys::signal;
 
@@ -142,8 +142,8 @@ pub unsafe fn init_lazy_pages() -> bool {
     }
 
     let ps = page_size::get();
-    if ps > WASM_PAGE_SIZE
-        || WASM_PAGE_SIZE % ps != 0
+    if ps > WasmPageNumber::size()
+        || WasmPageNumber::size() % ps != 0
         || (ps > PageNumber::size() && ps % PageNumber::size() != 0)
         || (ps < PageNumber::size() && PageNumber::size() % ps != 0)
     {
