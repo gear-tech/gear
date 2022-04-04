@@ -43,7 +43,6 @@ macro_rules! declare_id {
         #[derive(
             Clone,
             Copy,
-            Debug,
             Default,
             Eq,
             Hash,
@@ -108,7 +107,13 @@ macro_rules! declare_id {
                     end = precision;
                 };
 
-                write!(f, "{}", hex::encode(&self.0[..end]))
+                write!(f, "0x{}", hex::encode(&self.0[..end]))
+            }
+        }
+
+        impl core::fmt::Debug for $name {
+            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+                core::fmt::Display::fmt(self, f)
             }
         }
     };
