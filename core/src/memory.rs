@@ -19,7 +19,7 @@
 //! Module for memory and allocations context.
 
 use alloc::collections::BTreeSet;
-use codec::{Decode, Encode, HasCompact};
+use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 /// A WebAssembly page has a constant size of 64KiB.

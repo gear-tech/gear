@@ -99,7 +99,7 @@ impl Code {
                     }
                     _ => None,
                 })
-                .ok_or(CodeError::CheckError)?
+                .ok_or(CodeError::CheckError)?,
         );
 
         let instrumented_module = wasm_instrument::gas_metering::inject(module, &gas_rules, "env")
