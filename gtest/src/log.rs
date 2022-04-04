@@ -29,21 +29,21 @@ impl CoreLog {
         self.destination
     }
 
-    pub fn exit_code(&self) -> Option<i32> {
-        self.exit_code
-    }
-
     pub fn payload(&self) -> &[u8] {
         self.payload.as_slice()
     }
 
+    pub fn exit_code(&self) -> Option<i32> {
+        self.exit_code
+    }
+
     pub(crate) fn from_message(other: Message) -> Self {
         Self {
+            id: other.id(),
             source: other.source(),
             destination: other.destination(),
             payload: other.payload().to_vec(),
             exit_code: other.exit_code(),
-            id: other.id(),
         }
     }
 }
@@ -51,11 +51,11 @@ impl CoreLog {
 impl From<StoredMessage> for CoreLog {
     fn from(other: StoredMessage) -> Self {
         Self {
+            id: other.id(),
             source: other.source(),
             destination: other.destination(),
             payload: other.payload().to_vec(),
             exit_code: other.exit_code(),
-            id: other.id(),
         }
     }
 }
@@ -74,11 +74,11 @@ impl<T: Codec + Debug> DecodedCoreLog<T> {
         let payload = T::decode(&mut log.payload.as_ref()).ok()?;
 
         Some(Self {
+            id: log.id,
             source: log.source,
             destination: log.destination,
             payload,
             exit_code: log.exit_code,
-            id: log.id,
         })
     }
 }
@@ -174,11 +174,11 @@ impl PartialEq<StoredMessage> for Log {
 impl<T: Codec + Debug> PartialEq<DecodedCoreLog<T>> for Log {
     fn eq(&self, other: &DecodedCoreLog<T>) -> bool {
         let core_log = CoreLog {
+            id: other.id,
             source: other.source,
             destination: other.destination,
             payload: other.payload.encode(),
             exit_code: other.exit_code,
-            id: other.id,
         };
 
         core_log.eq(self)

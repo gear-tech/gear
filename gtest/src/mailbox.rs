@@ -7,31 +7,23 @@ use gear_core::{
 use std::cell::RefCell;
 
 pub struct Mailbox<'a> {
-    manager_reference: &'a RefCell<ExtManager>,
+    manager: &'a RefCell<ExtManager>,
     program_id: ProgramId,
 }
 
 impl<'a> Mailbox<'a> {
-    pub(crate) fn new(
-        program_id: ProgramId,
-        manager_reference: &'a RefCell<ExtManager>,
-    ) -> Mailbox<'a> {
+    pub(crate) fn new(program_id: ProgramId, manager: &'a RefCell<ExtManager>) -> Mailbox<'a> {
         Mailbox {
             program_id,
-            manager_reference,
+            manager,
         }
     }
 
     pub fn contains<T: Into<Log> + Clone>(&self, log: &T) -> bool {
         let log: Log = log.clone().into();
-        match self
-            .manager_reference
-            .borrow()
-            .mailbox
-            .get(&self.program_id)
-        {
+        match self.manager.borrow().mailbox.get(&self.program_id) {
             None => {
-                self.manager_reference
+                self.manager
                     .borrow_mut()
                     .mailbox
                     .insert(self.program_id, Vec::default());
@@ -43,14 +35,9 @@ impl<'a> Mailbox<'a> {
 
     pub fn take_message<T: Into<Log> + Clone>(&self, log: T) -> MessageReplier {
         let log: Log = log.into();
-        let index = match self
-            .manager_reference
-            .borrow()
-            .mailbox
-            .get(&self.program_id)
-        {
+        let index = match self.manager.borrow().mailbox.get(&self.program_id) {
             None => {
-                self.manager_reference
+                self.manager
                     .borrow_mut()
                     .mailbox
                     .insert(self.program_id, Vec::default());
@@ -63,14 +50,14 @@ impl<'a> Mailbox<'a> {
         };
 
         let taken_message = self
-            .manager_reference
+            .manager
             .borrow_mut()
             .mailbox
             .get_mut(&self.program_id)
             .unwrap()
             .remove(index);
 
-        MessageReplier::new(taken_message, self.manager_reference)
+        MessageReplier::new(taken_message, self.manager)
     }
 
     pub fn reply(&self, log: Log, payload: impl Encode, value: u128) -> RunResult {
