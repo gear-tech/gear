@@ -1,6 +1,6 @@
 use crate::program::ProgramIdWrapper;
 use codec::{Codec, Encode};
-use gear_core::message::{Payload, StoredMessage};
+use gear_core::message::StoredMessage;
 use gear_core::{
     ids::{MessageId, ProgramId},
     message::{ExitCode, Message},
@@ -9,14 +9,34 @@ use std::fmt::Debug;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CoreLog {
+    id: MessageId,
     source: ProgramId,
     destination: ProgramId,
     payload: Vec<u8>,
     exit_code: Option<i32>,
-    id: MessageId,
 }
 
 impl CoreLog {
+    pub fn id(&self) -> MessageId {
+        self.id
+    }
+
+    pub fn source(&self) -> ProgramId {
+        self.source
+    }
+
+    pub fn destination(&self) -> ProgramId {
+        self.destination
+    }
+
+    pub fn exit_code(&self) -> Option<i32> {
+        self.exit_code
+    }
+
+    pub fn payload(&self) -> &[u8] {
+        self.payload.as_slice()
+    }
+
     pub(crate) fn from_message(other: Message) -> Self {
         Self {
             source: other.source(),
@@ -26,8 +46,10 @@ impl CoreLog {
             id: other.id(),
         }
     }
+}
 
-    pub(crate) fn from_stored_message(other: StoredMessage) -> Self {
+impl From<StoredMessage> for CoreLog {
+    fn from(other: StoredMessage) -> Self {
         Self {
             source: other.source(),
             destination: other.destination(),
@@ -36,40 +58,15 @@ impl CoreLog {
             id: other.id(),
         }
     }
-
-    pub(crate) fn generate_reply(
-        &self,
-        payload: Payload,
-        message_id: MessageId,
-        value: u128,
-    ) -> Message {
-        Message::new(
-            message_id,
-            self.destination,
-            self.source,
-            payload,
-            None,
-            value,
-            self.exit_code.map(|exit_code| (self.id, exit_code)),
-        )
-    }
-
-    pub fn payload(&self) -> &[u8] {
-        self.payload.as_slice()
-    }
-
-    pub fn id(&self) -> MessageId {
-        self.id
-    }
 }
 
 #[derive(Debug)]
 pub struct DecodedCoreLog<T: Codec + Debug> {
+    id: MessageId,
     source: ProgramId,
     destination: ProgramId,
     payload: T,
     exit_code: Option<i32>,
-    id: MessageId,
 }
 
 impl<T: Codec + Debug> DecodedCoreLog<T> {

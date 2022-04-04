@@ -135,7 +135,7 @@ pub(crate) struct ExtManager {
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
     pub(crate) codes: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
-    pub(crate) actor_to_mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
+    pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
     pub(crate) gas_limits: BTreeMap<MessageId, Option<u64>>,
@@ -191,7 +191,7 @@ impl ExtManager {
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
         while self.actors.contains_key(&self.id_nonce.into())
-            || self.actor_to_mailbox.contains_key(&self.id_nonce.into())
+            || self.mailbox.contains_key(&self.id_nonce.into())
         {
             self.id_nonce += 1;
         }
@@ -210,11 +210,19 @@ impl ExtManager {
         if maybe_actor.is_some() {
             self.dispatches.push_back(message);
         } else {
-            self.actor_to_mailbox
+            self.mailbox
                 .entry(message.destination())
                 .or_default()
                 .push(message.message().clone());
-            self.log.push(message.into_message())
+            self.log.push(Message::new(
+                message.id(),
+                message.source(),
+                message.destination(),
+                message.payload().into(),
+                None,
+                message.value(),
+                message.reply(),
+            ))
         }
 
         let mut total_processed = 0;
@@ -427,13 +435,6 @@ impl ExtManager {
 
         core_processor::handle_journal(journal, self);
     }
-
-    pub(crate) fn take_message(&mut self, program_id: &ProgramId, index: usize) -> StoredMessage {
-        self.actor_to_mailbox
-            .get_mut(program_id)
-            .expect("No mailbox with such program id")
-            .remove(index)
-    }
 }
 
 impl JournalHandler for ExtManager {
@@ -471,7 +472,7 @@ impl JournalHandler for ExtManager {
         if self.actors.contains_key(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
-            self.actor_to_mailbox
+            self.mailbox
                 .entry(dispatch.destination())
                 .or_default()
                 .push(dispatch.message().clone().into_stored());
