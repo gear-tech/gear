@@ -24,11 +24,11 @@ extern crate alloc;
 
 pub mod funcs;
 
-use alloc::string::String;
 use alloc::{
     borrow::Cow,
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
+    string::String,
     vec::Vec,
 };
 use gear_core::{
