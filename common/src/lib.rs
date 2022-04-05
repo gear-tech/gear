@@ -507,6 +507,12 @@ pub fn queue_dispatch(dispatch: StoredDispatch) {
     dispatch_queue.queue(dispatch, id.into_origin());
 }
 
+pub fn queue_dispatch_first(dispatch: StoredDispatch) {
+    let mut dispatch_queue = StorageQueue::get(STORAGE_MESSAGE_PREFIX);
+    let id = dispatch.id();
+    dispatch_queue.queue_first(dispatch, id.into_origin());
+}
+
 pub fn dispatch_iter() -> Iterator<StoredDispatch> {
     StorageQueue::get(STORAGE_MESSAGE_PREFIX).into_iter()
 }
