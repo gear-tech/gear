@@ -29,7 +29,7 @@ impl<'a> Mailbox<'a> {
     }
 
     pub fn take_message<T: Into<Log>>(&self, log: T) -> MessageReplier {
-        let log: Log = log.into();
+        let log = log.into();
         let mut manager = self.manager.borrow_mut();
         let index = if let Some(mailbox) = manager.mailbox.get(&self.user_id) {
             mailbox
@@ -37,7 +37,7 @@ impl<'a> Mailbox<'a> {
                 .position(|message| log.eq(message))
                 .expect("No message that satisfies log")
         } else {
-            panic!("No mailbox associated with this program id");
+            panic!("Infallible. No mailbox associated with this user id");
         };
 
         let taken_message = manager
@@ -52,7 +52,7 @@ impl<'a> Mailbox<'a> {
     }
 
     pub fn reply(&self, log: Log, payload: impl Encode, value: u128) -> RunResult {
-        self.take_message(log).reply(payload, value)
+        self.reply_bytes(log, payload.encode(), value)
     }
 
     pub fn reply_bytes(&self, log: Log, raw_payload: impl AsRef<[u8]>, value: u128) -> RunResult {
@@ -302,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "No mailbox associated with this program id")]
+    #[should_panic(expected = "Infallible. No mailbox associated with this user id")]
     fn take_deleted_user_mailbox() {
         //Setting up variables for test
         let system = System::new();

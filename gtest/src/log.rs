@@ -33,7 +33,7 @@ impl CoreLog {
         self.payload.as_slice()
     }
 
-    pub fn exit_code(&self) -> Option<i32> {
+    pub fn exit_code(&self) -> Option<ExitCode> {
         self.exit_code
     }
 }

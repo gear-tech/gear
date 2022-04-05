@@ -26,9 +26,7 @@ use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
-    },
+    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
 use std::{
@@ -468,8 +466,7 @@ impl JournalHandler for ExtManager {
                 .entry(dispatch.destination())
                 .or_default()
                 .push(dispatch.message().clone().into_stored());
-            self.log
-                .push(Message::into_stored(dispatch.message().clone()));
+            self.log.push(dispatch.message().clone().into_stored());
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
