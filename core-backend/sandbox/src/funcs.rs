@@ -280,10 +280,14 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let val = pop_i32(&mut args)?;
 
         ctx.ext
-            .with(|ext| ext.charge_gas(val))
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
-            .map_err(|_err| {
-                ctx.trap = Some("Trapping: unable to report about gas used");
+            .with_fallible(|ext| ext.charge_gas(val))
+            .map(|_| ReturnValue::Unit)
+            .map_err(|e| {
+                if gear_backend_common::funcs::is_gas_allowance_trap(e) {
+                    ctx.trap = Some(e)
+                } else {
+                    ctx.trap = Some("Trapping: unable to report about gas used");
+                }
                 HostError
             })
     }
@@ -293,21 +297,16 @@ impl<E: Ext + 'static> FuncsHandler<E> {
 
         let pages: u32 = pop_i32(&mut args)?;
 
-        let ptr = ctx
-            .ext
+        ctx.ext
             .clone()
-            .with(|ext| ext.alloc(pages.into(), &mut ctx.memory))
-            .and_then(|v| {
-                v.map(|v| {
-                    let ptr = v.raw();
-                    log::debug!("ALLOC: {} pages at {}", pages, ptr);
-                    ptr
-                })
-            });
-
-        ptr.map(|res| ReturnValue::Value(Value::I32(res as i32)))
-            .map_err(|err| {
-                ctx.trap = Some(err);
+            .with_fallible(|ext| ext.alloc(pages.into(), &mut ctx.memory))
+            .map(|v| {
+                let ptr = v.raw();
+                log::debug!("ALLOC: {} pages at {}", pages, ptr);
+                ReturnValue::Value(Value::I32(ptr as i32))
+            })
+            .map_err(|e| {
+                ctx.trap = Some(e);
                 HostError
             })
     }

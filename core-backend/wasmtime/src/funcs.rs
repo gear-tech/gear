@@ -62,8 +62,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             let ext = caller.data().ext.clone();
             let pages = pages as u32;
             let ptr = ext
-                .with(|ext| ext.alloc(pages.into(), &mut get_caller_memory(&mut caller, &mem)))
-                .map_err(Trap::new)?
+                .with_fallible(|ext| {
+                    ext.alloc(pages.into(), &mut get_caller_memory(&mut caller, &mem))
+                })
                 .map_err(Trap::new)?;
             log::debug!("ALLOC PAGES: {} pages at {}", pages, ptr.raw());
             Ok(ptr.raw())
@@ -143,10 +144,14 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     pub fn gas(store: &mut Store<StoreData<E>>) -> Func {
         let func = move |caller: Caller<'_, StoreData<E>>, val: i32| {
             let ext = &caller.data().ext;
-            ext.with(|ext: &mut E| ext.charge_gas(val as _))
-                .map_err(Trap::new)?
-                .map_err(|_| "Trapping: unable to report about gas used")
-                .map_err(Trap::new)
+            ext.with_fallible(|ext| ext.charge_gas(val as _))
+                .map_err(|e| {
+                    if gear_backend_common::funcs::is_gas_allowance_trap(e) {
+                        Trap::new(e)
+                    } else {
+                        Trap::new("Trapping: unable to report about gas used")
+                    }
+                })
         };
         Func::wrap(store, func)
     }

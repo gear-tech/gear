@@ -505,4 +505,8 @@ where
             }
         }
     }
+
+    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
+        todo!("Implement it!")
+    }
 }

@@ -258,4 +258,8 @@ impl JournalHandler for InMemoryExtManager {
             }
         }
     }
+
+    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
+        panic!("Processing stopped. Used for on-chain logic only.");
+    }
 }

@@ -418,6 +418,7 @@ impl ExtManager {
             crate::EXISTENTIAL_DEPOSIT,
             self.origin,
             dest,
+            u64::MAX,
         );
 
         core_processor::handle_journal(journal, self);
@@ -552,5 +553,9 @@ impl JournalHandler for ExtManager {
                     .insert(invalid_candidate_id, (Actor::Dormant, 0));
             }
         }
+    }
+
+    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
+        panic!("Processing stopped. Used for on-chain logic only.")
     }
 }

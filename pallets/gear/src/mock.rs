@@ -240,6 +240,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         existential_deposit,
         ProgramId::from_origin(source),
         ProgramId::from_origin(dest),
+        u64::MAX,
     );
 
     let mut gas_burned: u64 = 0;

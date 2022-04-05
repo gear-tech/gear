@@ -170,6 +170,35 @@ impl ValueCounter {
     }
 }
 
+/// Gas allowance counter with some predefined maximum value.
+#[derive(Debug)]
+pub struct GasAllowanceCounter(u128);
+
+impl GasAllowanceCounter {
+    /// New limited gas allowance counter with initial value to spend.
+    pub fn new(initial_amount: u64) -> Self {
+        Self(initial_amount as u128)
+    }
+
+    /// Charge `amount` of gas.
+    pub fn charge(&mut self, amount: u64) -> ChargeResult {
+        let amount = amount as u128;
+
+        if self.0 < amount {
+            return ChargeResult::NotEnough;
+        }
+
+        self.0 -= amount;
+
+        ChargeResult::Enough
+    }
+
+    /// Refund `amount` of gas.
+    pub fn refund(&mut self, amount: u64) {
+        self.0 += amount as u128
+    }
+}
+
 /// Instrument code with gas-counting instructions.
 pub fn instrument(code: &[u8]) -> Result<Vec<u8>, InstrumentError> {
     use pwasm_utils::rules::{InstructionType, Metering};

@@ -59,6 +59,10 @@ pub fn handle_journal(
                 code_hash,
                 candidates,
             } => handler.store_new_programs(code_hash, candidates),
+            JournalNote::StopProcessing {
+                dispatch,
+                gas_burned,
+            } => handler.stop_processing(dispatch, gas_burned),
         }
     }
 

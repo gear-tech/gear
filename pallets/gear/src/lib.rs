@@ -477,6 +477,7 @@ pub mod pallet {
                     existential_deposit,
                     ProgramId::from_origin(source),
                     actor_id,
+                    u64::MAX,
                 );
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
@@ -687,6 +688,8 @@ pub mod pallet {
                     existential_deposit,
                     ProgramId::from_origin(origin),
                     program_id,
+                    // TODO: Replace it with `Self::gas_allowance()`
+                    u64::MAX,
                 );
 
                 core_processor::handle_journal(journal, &mut ext_manager);

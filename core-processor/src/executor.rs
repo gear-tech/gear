@@ -30,7 +30,7 @@ use alloc::{
 use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasCounter, ValueCounter},
+    gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
     memory::{AllocationsContext, PageNumber, PAGE_SIZE},
     message::{IncomingDispatch, MessageContext},
 };
@@ -135,6 +135,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating externalities.
     let mut ext = A::new(
         gas_counter,
+        GasAllowanceCounter::new(context.gas_allowance),
         value_counter,
         allocations_context,
         message_context,
@@ -234,6 +235,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             DispatchResultKind::Trap(explanation)
         }
         TerminationReason::Wait => DispatchResultKind::Wait,
+        TerminationReason::GasAllowanceExceed => DispatchResultKind::GasAllowanceExceed,
     };
 
     // changed and new pages will be updated in storage

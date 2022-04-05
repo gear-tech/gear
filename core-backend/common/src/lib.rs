@@ -41,6 +41,7 @@ use gear_core::{
 pub const EXIT_TRAP_STR: &str = "exit";
 pub const LEAVE_TRAP_STR: &str = "leave";
 pub const WAIT_TRAP_STR: &str = "wait";
+pub const GAS_ALLOWANCE_STR: &str = "allowance";
 
 pub enum TerminationReason<'a> {
     Exit(ProgramId),
@@ -51,6 +52,7 @@ pub enum TerminationReason<'a> {
         description: Option<Cow<'a, str>>,
     },
     Wait,
+    GasAllowanceExceed,
 }
 
 pub struct ExtInfo {
