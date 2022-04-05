@@ -1,4 +1,5 @@
 mod log;
+mod mailbox;
 mod manager;
 mod program;
 mod system;
