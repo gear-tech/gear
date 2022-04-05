@@ -2089,7 +2089,6 @@ name = "gear-backend-sandbox"
 version = "0.1.0"
 dependencies = [
  "gear-backend-common",
- "gear-common",
  "gear-core",
  "log",
  "parity-wasm 0.42.2",
@@ -2136,7 +2135,6 @@ dependencies = [
  "anyhow",
  "blake2-rfc",
  "derive_more",
- "hashbrown 0.12.0",
  "hex",
  "log",
  "parity-scale-codec",
@@ -2227,7 +2225,6 @@ dependencies = [
 name = "gear-runtime"
 version = "0.1.0"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-executive",
  "frame-support",
@@ -2256,13 +2253,11 @@ dependencies = [
  "pallet-utility",
  "parity-scale-codec",
  "scale-info",
- "serde",
  "sp-api",
  "sp-block-builder",
  "sp-consensus-aura",
  "sp-core",
  "sp-inherents",
- "sp-io",
  "sp-offchain",
  "sp-runtime",
  "sp-session",
@@ -2270,7 +2265,6 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
- "wabt",
 ]
 
 [[package]]
@@ -2304,7 +2298,6 @@ dependencies = [
  "gear-core-processor",
  "gear-runtime",
  "gear-test",
- "hex",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -2312,20 +2305,14 @@ dependencies = [
  "pallet-gear-debug",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
- "rand 0.8.5",
  "rayon",
- "regex",
  "sc-cli",
  "sc-service",
- "scale-info",
- "serde",
  "serde_json",
  "sp-arithmetic",
  "sp-core",
  "sp-inherents",
  "sp-io",
- "sp-keyring",
  "sp-runtime",
  "sp-std",
 ]
@@ -4598,9 +4585,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "hex-literal",
  "log",
- "pallet-authorship",
  "pallet-balances",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -4635,8 +4620,6 @@ dependencies = [
  "gear-core",
  "gear-core-processor",
  "gear-runtime-interface",
- "hex-literal",
- "libsecp256k1",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -4644,13 +4627,11 @@ dependencies = [
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
- "parity-wasm 0.42.2",
  "primitive-types",
  "rand 0.8.5",
  "rand_pcg 0.3.1",
  "scale-info",
  "serde",
- "sp-arithmetic",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4672,7 +4653,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "hex-literal",
- "log",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gas",
@@ -4680,7 +4660,6 @@ dependencies = [
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
- "parity-wasm 0.42.2",
  "primitive-types",
  "scale-info",
  "serde",
@@ -4695,14 +4674,12 @@ dependencies = [
 name = "pallet-gear-program"
 version = "2.0.0"
 dependencies = [
- "env_logger",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
  "hex-literal",
- "log",
  "pallet-balances",
  "parity-scale-codec",
  "primitive-types",
@@ -4722,7 +4699,6 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "pallet-gear-rpc-runtime-api",
- "parity-scale-codec",
  "sp-api",
  "sp-blockchain",
  "sp-core",
@@ -4735,7 +4711,6 @@ name = "pallet-gear-rpc-runtime-api"
 version = "2.0.0"
 dependencies = [
  "pallet-gear",
- "parity-scale-codec",
  "sp-api",
  "sp-core",
  "sp-std",
@@ -4896,16 +4871,13 @@ dependencies = [
  "pallet-gear-program",
  "pallet-timestamp",
  "parity-scale-codec",
- "parity-wasm 0.42.2",
  "parking_lot 0.12.0",
  "primitive-types",
  "scale-info",
- "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "wabt",
  "wasm-instrument",
 ]
 
@@ -8462,9 +8434,9 @@ version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "digest 0.10.3",
- "rand 0.7.3",
+ "rand 0.8.5",
  "static_assertions",
 ]
 
