@@ -198,8 +198,16 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
+
         let remaining_weight =
             remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+
+        log::debug!(
+            "🧱 Running on_idle block #{} with weight {}",
+            System::block_number(),
+            remaining_weight
+        );
+
         Gear::on_idle(System::block_number(), remaining_weight);
     }
 }
