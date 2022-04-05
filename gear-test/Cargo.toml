@@ -30,7 +30,7 @@ gear-backend-common = { path = "../core-backend/common" }
 gear-backend-wasmtime = { path = "../core-backend/wasmtime" }
 
 [dev-dependencies]
-parity-scale-codec = { version = "3", features = ["derive"], default-features = false }
+parity-scale-codec = { version = "3.1.2", features = ["derive"], default-features = false }
 
 [[bin]]
 name = "gear-test"

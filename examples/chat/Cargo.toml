@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 gstd = { path = "../../gstd", features = ["debug"] }
-codec = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 
 [[bin]]
 name = "encoder"
