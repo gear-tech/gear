@@ -3,7 +3,7 @@ use codec::{Codec, Encode};
 use gear_core::message::{Payload, StoredMessage};
 use gear_core::{
     ids::{MessageId, ProgramId},
-    message::{ExitCode, Message},
+    message::ExitCode,
 };
 use std::fmt::Debug;
 
@@ -35,16 +35,6 @@ impl CoreLog {
 
     pub fn exit_code(&self) -> Option<i32> {
         self.exit_code
-    }
-
-    pub(crate) fn from_message(other: Message) -> Self {
-        Self {
-            id: other.id(),
-            source: other.source(),
-            destination: other.destination(),
-            payload: other.payload().to_vec(),
-            exit_code: other.exit_code(),
-        }
     }
 }
 

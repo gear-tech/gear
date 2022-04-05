@@ -143,7 +143,7 @@ pub(crate) struct ExtManager {
     // Last run info
     pub(crate) origin: ProgramId,
     pub(crate) msg_id: MessageId,
-    pub(crate) log: Vec<Message>,
+    pub(crate) log: Vec<StoredMessage>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
 }
@@ -214,15 +214,7 @@ impl ExtManager {
                 .entry(message.destination())
                 .or_default()
                 .push(message.message().clone());
-            self.log.push(Message::new(
-                message.id(),
-                message.source(),
-                message.destination(),
-                message.payload().into(),
-                None,
-                message.value(),
-                message.reply(),
-            ))
+            self.log.push(message.message().clone())
         }
 
         let mut total_processed = 0;
@@ -263,7 +255,7 @@ impl ExtManager {
         RunResult {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
-            log: log.into_iter().map(CoreLog::from_message).collect(),
+            log: log.into_iter().map(CoreLog::from).collect(),
             message_id,
             total_processed,
         }
@@ -476,7 +468,8 @@ impl JournalHandler for ExtManager {
                 .entry(dispatch.destination())
                 .or_default()
                 .push(dispatch.message().clone().into_stored());
-            self.log.push(dispatch.message().clone());
+            self.log
+                .push(Message::into_stored(dispatch.message().clone()));
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
