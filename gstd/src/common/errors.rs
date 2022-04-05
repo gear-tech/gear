@@ -22,7 +22,7 @@
 //! errors.
 
 use core::fmt;
-use gcore::msg::SendError;
+use gcore::msg::{ReplyError, SendError};
 
 pub type Result<T> = core::result::Result<T, ContractError>;
 
@@ -33,6 +33,7 @@ pub enum ContractError {
     ExitCode(i32),
     Internal(&'static str),
     Send(SendError),
+    Reply(ReplyError),
 }
 
 impl fmt::Display for ContractError {
@@ -44,6 +45,8 @@ impl fmt::Display for ContractError {
             ContractError::Internal(e) => write!(f, "Internal error: {:?}", e),
             // TODO: print error when it will contain actual information
             ContractError::Send(_) => write!(f, "Send error"),
+            // TODO: print error when it will contain actual information
+            ContractError::Reply(_) => write!(f, "Reply error"),
         }
     }
 }
@@ -51,5 +54,11 @@ impl fmt::Display for ContractError {
 impl From<SendError> for ContractError {
     fn from(err: SendError) -> Self {
         Self::Send(err)
+    }
+}
+
+impl From<ReplyError> for ContractError {
+    fn from(err: ReplyError) -> Self {
+        Self::Reply(err)
     }
 }

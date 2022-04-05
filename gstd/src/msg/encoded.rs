@@ -40,7 +40,7 @@ pub fn load<D: Decode>() -> Result<D> {
     D::decode(&mut super::load_bytes().as_ref()).map_err(ContractError::Decode)
 }
 
-pub fn reply<E: Encode>(payload: E, value: u128) -> MessageId {
+pub fn reply<E: Encode>(payload: E, value: u128) -> Result<MessageId> {
     super::reply_bytes(payload.encode(), value)
 }
 

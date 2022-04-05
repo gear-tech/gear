@@ -186,15 +186,17 @@ pub fn load_bytes() -> Vec<u8> {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_bytes(b"PONG", 0);
+///     msg::reply_bytes(b"PONG", 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> MessageId {
-    gcore::msg::reply(payload.as_ref(), value).into()
+pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> Result<MessageId> {
+    gcore::msg::reply(payload.as_ref(), value)
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 /// Finalize and send a current reply message.
@@ -216,19 +218,21 @@ pub fn reply_bytes<T: AsRef<[u8]>>(payload: T, value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 ///     // ...
-///     msg::reply_commit(42);
+///     msg::reply_commit(42).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(value: u128) -> MessageId {
-    gcore::msg::reply_commit(value).into()
+pub fn reply_commit(value: u128) -> Result<MessageId> {
+    gcore::msg::reply_commit(value)
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 /// Push a payload part to the current reply message.
@@ -248,13 +252,13 @@ pub fn reply_commit(value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 /// }
 /// ```
-pub fn reply_push<T: AsRef<[u8]>>(payload: T) {
-    gcore::msg::reply_push(payload.as_ref());
+pub fn reply_push<T: AsRef<[u8]>>(payload: T) -> Result<()> {
+    gcore::msg::reply_push(payload.as_ref()).map_err(Into::into)
 }
 
 /// Get an identifier of the initial message which the current handle_reply

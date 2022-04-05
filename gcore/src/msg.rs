@@ -41,9 +41,9 @@ mod sys {
             data_len: u32,
             value_ptr: *const u8,
             message_id_ptr: *mut u8,
-        );
-        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8);
-        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32);
+        ) -> ErrorCode;
+        pub fn gr_reply_commit(message_id_ptr: *mut u8, value_ptr: *const u8) -> ErrorCode;
+        pub fn gr_reply_push(data_ptr: *const u8, data_len: u32) -> ErrorCode;
         pub fn gr_reply_to(dest: *mut u8);
         pub fn gr_send(
             program: *const u8,
@@ -93,11 +93,23 @@ impl ErrorCode {
             Err(SendError(()))
         }
     }
+
+    fn into_reply_error(self) -> Result<(), ReplyError> {
+        if self.0 == 0 {
+            Ok(())
+        } else {
+            Err(ReplyError(()))
+        }
+    }
 }
 
 /// An error occurred during sending a message
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SendError(());
+
+/// An error occurred during replying to a message
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplyError(());
 
 /// Get the exit code of the message being processed.
 ///
@@ -187,14 +199,14 @@ pub fn load(buffer: &mut [u8]) {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply(b"PING", 0);
+///     msg::reply(b"PING", 0).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply(payload: &[u8], value: u128) -> MessageId {
+pub fn reply(payload: &[u8], value: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply(
@@ -202,8 +214,9 @@ pub fn reply(payload: &[u8], value: u128) -> MessageId {
             payload.len() as _,
             value.to_le_bytes().as_ptr(),
             message_id.as_mut_slice().as_mut_ptr(),
-        );
-        message_id
+        )
+        .into_reply_error()?;
+        Ok(message_id)
     }
 }
 
@@ -226,25 +239,26 @@ pub fn reply(payload: &[u8], value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 ///     // ...
-///     msg::reply_commit(42);
+///     msg::reply_commit(42).unwrap();
 /// }
 /// ```
 ///
 /// # See also
 ///
 /// [`reply_push`] function allows to form a reply message in parts.
-pub fn reply_commit(value: u128) -> MessageId {
+pub fn reply_commit(value: u128) -> Result<MessageId, ReplyError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_reply_commit(
             message_id.as_mut_slice().as_mut_ptr(),
             value.to_le_bytes().as_ptr(),
-        );
-        message_id
+        )
+        .into_reply_error()?;
+        Ok(message_id)
     }
 }
 
@@ -265,13 +279,13 @@ pub fn reply_commit(value: u128) -> MessageId {
 ///
 /// pub unsafe extern "C" fn handle() {
 ///     // ...
-///     msg::reply_push(b"Part 1");
+///     msg::reply_push(b"Part 1").unwrap();
 ///     // ...
-///     msg::reply_push(b"Part 2");
+///     msg::reply_push(b"Part 2").unwrap();
 /// }
 /// ```
-pub fn reply_push(payload: &[u8]) {
-    unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _) }
+pub fn reply_push(payload: &[u8]) -> Result<(), ReplyError> {
+    unsafe { sys::gr_reply_push(payload.as_ptr(), payload.len() as _).into_reply_error() }
 }
 
 /// Get an identifier of the initial message which the current handle_reply

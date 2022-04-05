@@ -23,7 +23,7 @@ async fn main() {
             .await
             .expect("Error in async message processing");
 
-        msg::reply(unsafe { COUNTER } as i32, 0);
+        msg::reply(unsafe { COUNTER } as i32, 0).unwrap();
 
         unsafe {
             COUNTER = 0;

@@ -150,7 +150,7 @@ async fn main() {
                 panic!("Failed to update State: {}", e);
             }
 
-            msg::reply("Config updated", 0);
+            msg::reply("Config updated", 0).unwrap();
         }
         Action::ActorId(hex) => {
             if unsafe { !STATE.members.contains(&source) } {
@@ -192,7 +192,7 @@ async fn main() {
                         member_id, source
                     );
 
-                    msg::reply("Success", unsafe { STATE.reward });
+                    msg::reply("Success", unsafe { STATE.reward }).unwrap();
 
                     unsafe { STATE.members.remove(&member_id) };
                 }
@@ -212,5 +212,5 @@ pub unsafe extern "C" fn init() {
     }
 
     debug!("Initialized");
-    msg::reply("Initialized", 0);
+    msg::reply("Initialized", 0).unwrap();
 }

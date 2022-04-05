@@ -234,17 +234,19 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                          value_ptr: i32,
                          message_id_ptr: i32| {
             let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
+            ext.with(|ext: &mut E| -> Result<i32, String> {
                 let mem_wrap = get_caller_memory(&mut caller, &mem);
                 let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
                 let value = get_u128(&mem_wrap, value_ptr as usize)?;
-                let message_id = ext.reply(ReplyPacket::new(payload, value))?;
-                write_to_caller_memory(
-                    &mut caller,
-                    &mem,
-                    message_id_ptr as isize as _,
-                    message_id.as_ref(),
-                )
+                ext.reply(ReplyPacket::new(payload, value))
+                    .on_success_code(|message_id| {
+                        write_to_caller_memory(
+                            &mut caller,
+                            &mem,
+                            message_id_ptr as isize as _,
+                            message_id.as_ref(),
+                        )
+                    })
             })
             .map_err(Trap::new)?
             .map_err(|_| "Trapping: unable to send reply message")
@@ -254,25 +256,26 @@ impl<E: Ext + 'static> FuncsHandler<E> {
     }
 
     pub fn reply_commit(store: &mut Store<StoreData<E>>, mem: WasmtimeMemory) -> Func {
-        let func = move |mut caller: Caller<'_, StoreData<E>>,
-                         message_id_ptr: i32,
-                         value_ptr: i32| {
-            let ext = caller.data().ext.clone();
-            ext.with(|ext: &mut E| -> Result<(), String> {
-                let mem_wrap = get_caller_memory(&mut caller, &mem);
-                let value = get_u128(&mem_wrap, value_ptr as usize)?;
-                let message_id = ext.reply_commit(ReplyPacket::new(Default::default(), value))?;
-                write_to_caller_memory(
-                    &mut caller,
-                    &mem,
-                    message_id_ptr as isize as _,
-                    message_id.as_ref(),
-                )
-            })
-            .map_err(Trap::new)?
-            .map_err(|_| "Trapping: unable to send message")
-            .map_err(Trap::new)
-        };
+        let func =
+            move |mut caller: Caller<'_, StoreData<E>>, message_id_ptr: i32, value_ptr: i32| {
+                let ext = caller.data().ext.clone();
+                ext.with(|ext: &mut E| -> Result<i32, String> {
+                    let mem_wrap = get_caller_memory(&mut caller, &mem);
+                    let value = get_u128(&mem_wrap, value_ptr as usize)?;
+                    ext.reply_commit(ReplyPacket::new(Default::default(), value))
+                        .on_success_code(|message_id| {
+                            write_to_caller_memory(
+                                &mut caller,
+                                &mem,
+                                message_id_ptr as isize as _,
+                                message_id.as_ref(),
+                            )
+                        })
+                })
+                .map_err(Trap::new)?
+                .map_err(|_| "Trapping: unable to send message")
+                .map_err(Trap::new)
+            };
         Func::wrap(store, func)
     }
 
@@ -283,7 +286,7 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 ext.with(|ext: &mut E| {
                     let mem_wrap = get_caller_memory(&mut caller, &mem);
                     let payload = get_vec(&mem_wrap, payload_ptr as usize, payload_len as usize)?;
-                    ext.reply_push(&payload)
+                    ext.reply_push(&payload).into_error_code()
                 })
                 .map_err(Trap::new)?
                 .map_err(|_| "Trapping: unable to push payload into reply")

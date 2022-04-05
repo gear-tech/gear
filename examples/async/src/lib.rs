@@ -63,9 +63,9 @@ async fn main() {
             .expect("Error in async message processing");
 
         if reply1 == b"PONG" && reply2 == b"PONG" && reply3 == b"PONG" {
-            msg::reply(b"SUCCESS", 0);
+            msg::reply(b"SUCCESS", 0).unwrap();
         } else {
-            msg::reply(b"FAIL", 0);
+            msg::reply(b"FAIL", 0).unwrap();
         }
     }
 }

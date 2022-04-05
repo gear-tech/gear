@@ -62,7 +62,7 @@ async fn main() {
             .unwrap();
             debug!("Second (from demo_async) done");
 
-            msg::reply_bytes("DONE", 0);
+            msg::reply_bytes("DONE", 0).unwrap();
         }
         // using select! macro to wait for first future done
         "select" => {
@@ -81,7 +81,7 @@ async fn main() {
 
             debug!("Finish after select");
 
-            msg::reply_bytes("DONE", 0);
+            msg::reply_bytes("DONE", 0).unwrap();
         }
         // using join! macros to wait all features done
         "join" => {
@@ -106,7 +106,7 @@ async fn main() {
             );
 
             msg::send_bytes(source, result, 0).unwrap();
-            msg::reply_bytes("DONE", 0);
+            msg::reply_bytes("DONE", 0).unwrap();
         }
         _ => {
             panic!("Unknown option");

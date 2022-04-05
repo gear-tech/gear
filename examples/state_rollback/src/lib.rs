@@ -17,7 +17,7 @@ pub unsafe extern "C" fn handle() {
         MESSAGE = Some(message.clone());
 
         // new value
-        msg::reply_bytes(value(), 0);
+        msg::reply_bytes(value(), 0).unwrap();
 
         if message == "panic" {
             panic!();

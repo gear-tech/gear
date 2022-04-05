@@ -61,7 +61,7 @@ pub unsafe extern "C" fn handle() {
         }
     };
 
-    msg::reply(reply, 0);
+    msg::reply(reply, 0).unwrap();
 }
 
 fn state() -> &'static mut BTreeMap<u32, u32> {
@@ -85,7 +85,7 @@ fn process(request: Request) -> Reply {
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     STATE = Some(BTreeMap::new());
-    msg::reply((), 0);
+    msg::reply((), 0).unwrap();
 }
 
 #[cfg(test)]

@@ -391,8 +391,10 @@ impl<E: Ext + 'static> FuncsHandler<E> {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
                 ext.reply(ReplyPacket::new(payload, value))
+                    .map(|_| ())
+                    .into_error_code()
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send reply message");
                 HostError
@@ -410,10 +412,11 @@ impl<E: Ext + 'static> FuncsHandler<E> {
             .clone()
             .with(|ext| {
                 let value = funcs::get_u128(&ctx.memory, value_ptr)?;
-                let message_id = ext.reply_commit(ReplyPacket::new(Default::default(), value))?;
-                wto(ctx, message_id_ptr, message_id.as_ref())
+                ext.reply_commit(ReplyPacket::new(Default::default(), value))
+                    .on_success_code(|message_id| wto(ctx, message_id_ptr, message_id.as_ref()))
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .map_err(Into::into)
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to send message");
                 HostError
@@ -453,9 +456,9 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         ctx.ext
             .with(|ext| {
                 let payload = funcs::get_vec(&ctx.memory, payload_ptr, payload_len)?;
-                ext.reply_push(&payload)
+                ext.reply_push(&payload).into_error_code()
             })
-            .and_then(|res| res.map(|_| ReturnValue::Unit))
+            .and_then(|res| res.map(Value::I32).map(ReturnValue::Value))
             .map_err(|_| {
                 ctx.trap = Some("Trapping: unable to push payload into reply");
                 HostError

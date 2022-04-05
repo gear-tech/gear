@@ -30,7 +30,7 @@ async fn main() {
         "reply store" => {
             debug!("stored reply processing");
 
-            msg::reply_push(b"STORED ");
+            msg::reply_push(b"STORED ").unwrap();
 
             let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .unwrap()
@@ -39,9 +39,9 @@ async fn main() {
 
             debug!("stored reply processing awaken");
 
-            msg::reply_push(b"REPLY");
+            msg::reply_push(b"REPLY").unwrap();
 
-            msg::reply_commit(0);
+            msg::reply_commit(0).unwrap();
         }
         "handle" => {
             debug!("ok common processing");
@@ -51,13 +51,13 @@ async fn main() {
         }
         "reply" => {
             debug!("ok reply processing");
-            msg::reply_push(b"OK REPLY");
-            msg::reply_commit(0);
+            msg::reply_push(b"OK REPLY").unwrap();
+            msg::reply_commit(0).unwrap();
         }
         "reply twice" => {
             debug!("reply twice processing");
 
-            msg::reply_bytes("FIRST", 0);
+            msg::reply_bytes("FIRST", 0).unwrap();
 
             let _ = msg::send_bytes_and_wait_for_reply(unsafe { DEMO_PING }, b"PING", 0)
                 .unwrap()
@@ -68,7 +68,7 @@ async fn main() {
 
             // Won't be sent, because one
             // execution allows only one reply
-            msg::reply_bytes("SECOND", 0);
+            msg::reply_bytes("SECOND", 0).unwrap();
         }
         _ => {}
     }

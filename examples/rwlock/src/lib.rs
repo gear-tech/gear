@@ -25,7 +25,7 @@ async fn main() {
 
     match message.as_ref() {
         "get" => {
-            msg::reply(*RWLOCK.read().await, 0);
+            msg::reply(*RWLOCK.read().await, 0).unwrap();
         }
         "inc" => {
             let mut val = RWLOCK.write().await;
@@ -36,7 +36,7 @@ async fn main() {
                 .unwrap()
                 .await
                 .expect("Error in async message processing");
-            msg::reply(*RWLOCK.read().await, 0);
+            msg::reply(*RWLOCK.read().await, 0).unwrap();
         }
         "inc&ping" => {
             let mut val = RWLOCK.write().await;
@@ -52,7 +52,7 @@ async fn main() {
                 .unwrap()
                 .await
                 .expect("Error in async message processing");
-            msg::reply(*val, 0);
+            msg::reply(*val, 0).unwrap();
         }
         "check readers" => {
             let mut storage = Vec::new();
@@ -96,7 +96,7 @@ async fn main() {
 
             let val = another_future.await;
 
-            msg::reply(*val, 0);
+            msg::reply(*val, 0).unwrap();
         }
         _ => {
             let _write = RWLOCK.write().await;

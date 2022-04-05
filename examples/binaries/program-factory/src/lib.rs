@@ -114,7 +114,7 @@ mod tests {
 
         let mut file =
             std::fs::File::create(dir.as_path()).expect("internal error: can't create tmp file");
-        file.write(data)
+        file.write_all(data)
             .expect("internal error: can't write to tmp");
 
         dir

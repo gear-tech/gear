@@ -94,7 +94,7 @@ pub unsafe extern "C" fn handle() {
         }
     };
 
-    msg::reply(reply, 0);
+    msg::reply(reply, 0).unwrap();
 }
 
 fn state() -> &'static mut NodeState {
@@ -281,7 +281,7 @@ pub unsafe extern "C" fn init() {
         transition: None,
     });
 
-    msg::reply((), 0);
+    msg::reply((), 0).unwrap();
 }
 
 #[cfg(test)]

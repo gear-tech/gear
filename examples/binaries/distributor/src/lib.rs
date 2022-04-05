@@ -132,7 +132,7 @@ impl Program {
         };
 
         debug!("Handle request finished");
-        msg::reply(reply, 0);
+        msg::reply(reply, 0).unwrap();
     }
 
     async fn handle_receive(amount: u64) -> Reply {
@@ -212,7 +212,7 @@ pub unsafe extern "C" fn handle_reply() {
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     STATE = Some(ProgramState::default());
-    msg::reply((), 0);
+    msg::reply((), 0).unwrap();
     debug!("Program initialized");
 }
 

@@ -79,5 +79,5 @@ async fn main() {
 
     let _ = future::select_all(requests).await;
 
-    msg::reply(b"PONG", 0);
+    msg::reply(b"PONG", 0).unwrap();
 }
