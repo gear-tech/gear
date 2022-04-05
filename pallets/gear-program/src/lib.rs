@@ -21,6 +21,7 @@
 pub use pallet::*;
 use primitive_types::H256;
 use sp_std::collections::btree_map::BTreeMap;
+use sp_std::convert::TryInto;
 use sp_std::prelude::*;
 
 mod pause;
