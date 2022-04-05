@@ -104,11 +104,11 @@ impl ErrorCode {
 }
 
 /// An error occurred during sending a message
-#[derive(Debug, Clone, PartialEq, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SendError(());
 
 /// An error occurred during replying to a message
-#[derive(Debug, Clone, PartialEq, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ReplyError(());
 
 /// Get the exit code of the message being processed.
