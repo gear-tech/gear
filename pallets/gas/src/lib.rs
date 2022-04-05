@@ -24,6 +24,7 @@ use frame_support::{dispatch::DispatchError, pallet_prelude::*, traits::Imbalanc
 pub use pallet::*;
 pub use primitive_types::H256;
 use scale_info::TypeInfo;
+use sp_std::convert::TryInto;
 
 #[cfg(test)]
 mod mock;

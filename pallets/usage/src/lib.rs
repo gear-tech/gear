@@ -61,6 +61,7 @@ pub mod pallet {
         traits::{SaturatedConversion, Saturating},
         Perbill,
     };
+    use sp_std::convert::TryInto;
     use sp_std::prelude::*;
 
     #[pallet::config]
