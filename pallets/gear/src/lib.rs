@@ -248,13 +248,31 @@ pub mod pallet {
     pub type GasAllowance<T> = StorageValue<_, u64, ValueQuery, DefaultForGasLimit<T>>;
 
     #[pallet::type_value]
-    pub fn Zero() -> u128 {
+    pub fn ZeroU128() -> u128 {
         0
     }
 
     #[pallet::storage]
     #[pallet::getter(fn messages_sent)]
-    pub type MessagesSent<T: Config> = StorageValue<_, u128, ValueQuery, Zero>;
+    pub type MessagesSent<T: Config> = StorageValue<_, u128, ValueQuery, ZeroU128>;
+
+    #[pallet::type_value]
+    pub fn ZeroU32() -> u32 {
+        0
+    }
+
+    #[pallet::storage]
+    #[pallet::getter(fn total_handled)]
+    pub type TotalHandled<T: Config> = StorageValue<_, u32, ValueQuery, ZeroU32>;
+
+    #[pallet::type_value]
+    pub fn True() -> bool {
+        true
+    }
+
+    #[pallet::storage]
+    #[pallet::getter(fn can_process_queue)]
+    pub type CanProcessQueue<T: Config> = StorageValue<_, bool, ValueQuery, True>;
 
     #[pallet::storage]
     #[pallet::getter(fn mailbox)]
@@ -270,7 +288,6 @@ pub mod pallet {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Reset block gas allowance
             GasAllowance::<T>::put(T::BlockGasLimit::get());
-            MessagesSent::<T>::put(0);
             T::DbWeight::get().writes(1)
         }
 
@@ -288,9 +305,11 @@ pub mod pallet {
                 bn,
             );
             // Adjust the block gas allowance based on actual remaining weight
-            GasAllowance::<T>::put(remaining_weight);
             MessagesSent::<T>::put(0);
-            let mut weight = T::DbWeight::get().writes(1);
+            TotalHandled::<T>::put(0);
+            CanProcessQueue::<T>::put(true);
+            GasAllowance::<T>::put(remaining_weight.saturating_sub(T::DbWeight::get().writes(3)));
+            let mut weight = T::DbWeight::get().writes(4);
             weight += Self::process_queue();
 
             weight
@@ -520,6 +539,14 @@ pub mod pallet {
             GasAllowance::<T>::mutate(|x| *x = x.saturating_sub(gas_charge));
         }
 
+        pub(crate) fn message_handled() {
+            TotalHandled::<T>::mutate(|x| *x = x.saturating_add(1));
+        }
+
+        pub(crate) fn stop_processing() {
+            CanProcessQueue::<T>::mutate(|x| *x = false);
+        }
+
         /// Returns true if a program has been successfully initialized
         pub fn is_initialized(program_id: H256) -> bool {
             common::get_program(program_id)
@@ -555,7 +582,6 @@ pub mod pallet {
             let mut ext_manager = ExtManager::<T>::default();
 
             let mut weight = Self::gas_allowance() as Weight;
-            let mut total_handled = 0u32;
 
             let block_info = BlockInfo {
                 height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
@@ -568,142 +594,147 @@ pub mod pallet {
             if T::DebugInfo::is_remap_id_enabled() {
                 T::DebugInfo::remap_id();
             }
-            while let Some(dispatch) = common::dequeue_dispatch() {
-                // Update message gas limit for it may have changed in the meantime
 
-                let msg_id = dispatch.id().into_origin();
-                let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
-                    limit
-                } else {
+            while Self::can_process_queue() {
+                if let Some(dispatch) = common::dequeue_dispatch() {
+                    let msg_id = dispatch.id().into_origin();
+                    let (gas_limit, _) = if let Some(limit) = T::GasHandler::get_limit(msg_id) {
+                        limit
+                    } else {
+                        log::debug!(
+                            target: "essential",
+                            "No gas handler for message: {:?} to {:?}",
+                            dispatch.id(),
+                            dispatch.destination(),
+                        );
+
+                        common::queue_dispatch(dispatch);
+
+                        // Since we requeue the message without GasHandler we have to take
+                        // into account that there can left only such messages in the queue.
+                        // So stop processing when there is not enough gas/weight.
+                        let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
+                        Self::decrease_gas_allowance(consumed);
+                        if Self::gas_allowance() < consumed {
+                            break;
+                        }
+
+                        continue;
+                    };
+
                     log::debug!(
-                        target: "essential",
-                        "No gas handler for message: {:?} to {:?}",
+                        "Processing message: {:?} to {:?} / gas_limit: {}",
                         dispatch.id(),
                         dispatch.destination(),
+                        gas_limit
                     );
 
-                    common::queue_dispatch(dispatch);
-
-                    // Since we requeue the message without GasHandler we have to take
-                    // into account that there can left only such messages in the queue.
-                    // So stop processing when there is not enough gas/weight.
-                    let consumed = T::DbWeight::get().reads(1) + T::DbWeight::get().writes(1);
-                    Self::decrease_gas_allowance(consumed);
-                    if Self::gas_allowance() < consumed {
+                    // Check whether we have enough of gas allowed for message processing
+                    if gas_limit > GasAllowance::<T>::get() {
+                        log::debug!(
+                            "Not enought gas for processing: gas_limit = {}, allowance = {}",
+                            gas_limit,
+                            GasAllowance::<T>::get(),
+                        );
+                        common::queue_dispatch(dispatch);
                         break;
                     }
 
-                    continue;
-                };
+                    let program_id = dispatch.destination();
+                    let maybe_active_actor = if let Some(maybe_active_program) =
+                        common::get_program(program_id.into_origin())
+                    {
+                        let current_message_id = dispatch.id();
+                        let maybe_message_reply = dispatch.reply();
 
-                log::debug!(
-                    "Processing message: {:?} to {:?} / gas_limit: {}",
-                    dispatch.id(),
-                    dispatch.destination(),
-                    gas_limit
-                );
-
-                // Check whether we have enough of gas allowed for message processing
-                if gas_limit > GasAllowance::<T>::get() {
-                    log::debug!(
-                        "Not enought gas for processing: gas_limit = {}, allowance = {}",
-                        gas_limit,
-                        GasAllowance::<T>::get(),
-                    );
-                    common::queue_dispatch(dispatch);
-                    break;
-                }
-
-                let program_id = dispatch.destination();
-                let maybe_active_actor = if let Some(maybe_active_program) =
-                    common::get_program(program_id.into_origin())
-                {
-                    let current_message_id = dispatch.id();
-                    let maybe_message_reply = dispatch.reply();
-
-                    // Check whether message should be added to the wait list
-                    if let Program::Active(ref prog) = maybe_active_program {
-                        let schedule = T::Schedule::get();
-                        if let Some(code) = common::get_code(prog.code_hash) {
-                            if code.instruction_weights_version()
-                                < schedule.instruction_weights.version
-                            {
-                                // The instruction weights have changed.
-                                // We need to re-instrument the code with the new instruction weights.
-                                if let Ok(_code_size) =
-                                    Self::reinstrument_code(prog.code_hash, &schedule)
+                        // Check whether message should be added to the wait list
+                        if let Program::Active(ref prog) = maybe_active_program {
+                            let schedule = T::Schedule::get();
+                            if let Some(code) = common::get_code(prog.code_hash) {
+                                if code.instruction_weights_version()
+                                    < schedule.instruction_weights.version
                                 {
-                                    // todo: charge for code instrumenting
-                                } else {
-                                    // todo: mark code as unable for instrument to skip next time
-                                    continue;
+                                    // The instruction weights have changed.
+                                    // We need to re-instrument the code with the new instruction weights.
+                                    if let Ok(_code_size) =
+                                        Self::reinstrument_code(prog.code_hash, &schedule)
+                                    {
+                                        // todo: charge for code instrumenting
+                                    } else {
+                                        // todo: mark code as unable for instrument to skip next time
+                                        continue;
+                                    }
                                 }
                             }
-                        }
-                        let is_for_wait_list = maybe_message_reply.is_none()
-                            && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id.into_origin());
-                        if is_for_wait_list {
-                            Self::deposit_event(Event::AddedToWaitList(dispatch.clone()));
-                            common::waiting_init_append_message_id(
-                                program_id.into_origin(),
-                                current_message_id.into_origin(),
-                            );
-                            common::insert_waiting_message(
-                                program_id.into_origin(),
-                                current_message_id.into_origin(),
-                                dispatch,
-                                block_info.height,
-                            );
+                            let is_for_wait_list = maybe_message_reply.is_none()
+                                && matches!(prog.state, ProgramState::Uninitialized {message_id} if message_id != current_message_id.into_origin());
+                            if is_for_wait_list {
+                                Self::deposit_event(Event::AddedToWaitList(dispatch.clone()));
+                                common::waiting_init_append_message_id(
+                                    program_id.into_origin(),
+                                    current_message_id.into_origin(),
+                                );
+                                common::insert_waiting_message(
+                                    program_id.into_origin(),
+                                    current_message_id.into_origin(),
+                                    dispatch,
+                                    block_info.height,
+                                );
 
-                            continue;
+                                continue;
+                            }
                         }
+
+                        maybe_active_program
+                            .try_into_native(program_id.into_origin())
+                            .ok()
+                            .map(|program| {
+                                let balance = <T as Config>::Currency::free_balance(
+                                    &<T::AccountId as Origin>::from_origin(
+                                        program_id.into_origin(),
+                                    ),
+                                )
+                                .unique_saturated_into();
+
+                                ExecutableActor { program, balance }
+                            })
+                    } else {
+                        None
+                    };
+
+                    let program_id = dispatch.destination();
+                    let origin = <T as Config>::GasHandler::get_origin(msg_id).expect(
+                        "Gas node is guaranteed to exist for the key due to earlier checks",
+                    );
+
+                    let journal = core_processor::process::<
+                        ext::LazyPagesExt,
+                        SandboxEnvironment<ext::LazyPagesExt>,
+                    >(
+                        maybe_active_actor,
+                        dispatch.into_incoming(gas_limit),
+                        block_info,
+                        existential_deposit,
+                        ProgramId::from_origin(origin),
+                        program_id,
+                        Self::gas_allowance(),
+                    );
+
+                    core_processor::handle_journal(journal, &mut ext_manager);
+
+                    if T::DebugInfo::is_enabled() {
+                        T::DebugInfo::do_snapshot();
                     }
 
-                    maybe_active_program
-                        .try_into_native(program_id.into_origin())
-                        .ok()
-                        .map(|program| {
-                            let balance = <T as Config>::Currency::free_balance(
-                                &<T::AccountId as Origin>::from_origin(program_id.into_origin()),
-                            )
-                            .unique_saturated_into();
-
-                            ExecutableActor { program, balance }
-                        })
+                    if T::DebugInfo::is_remap_id_enabled() {
+                        T::DebugInfo::remap_id();
+                    }
                 } else {
-                    None
-                };
-
-                let program_id = dispatch.destination();
-                let origin = <T as Config>::GasHandler::get_origin(msg_id)
-                    .expect("Gas node is guaranteed to exist for the key due to earlier checks");
-
-                let journal = core_processor::process::<
-                    ext::LazyPagesExt,
-                    SandboxEnvironment<ext::LazyPagesExt>,
-                >(
-                    maybe_active_actor,
-                    dispatch.into_incoming(gas_limit),
-                    block_info,
-                    existential_deposit,
-                    ProgramId::from_origin(origin),
-                    program_id,
-                    // TODO: Replace it with `Self::gas_allowance()`
-                    u64::MAX,
-                );
-
-                core_processor::handle_journal(journal, &mut ext_manager);
-
-                total_handled += 1;
-
-                if T::DebugInfo::is_enabled() {
-                    T::DebugInfo::do_snapshot();
-                }
-
-                if T::DebugInfo::is_remap_id_enabled() {
-                    T::DebugInfo::remap_id();
+                    break;
                 }
             }
+
+            let total_handled = Self::total_handled();
 
             if total_handled > 0 {
                 Self::deposit_event(Event::MessagesDequeued(total_handled));

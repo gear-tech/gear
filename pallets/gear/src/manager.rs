@@ -110,6 +110,8 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
+        Pallet::<T>::message_handled();
+
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
@@ -350,6 +352,8 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+        Pallet::<T>::message_handled();
+
         common::insert_waiting_message(
             dispatch.destination().into_origin(),
             dispatch.id().into_origin(),
@@ -507,6 +511,7 @@ where
     }
 
     fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
-        todo!("Implement it!")
+        Pallet::<T>::stop_processing();
+        todo!("Implement pushing message to the top of the storage!")
     }
 }
