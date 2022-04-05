@@ -137,7 +137,12 @@ impl<T: Codec> StorageQueue<T> {
         } else {
             sp_io::storage::set(
                 &self.key_with_prefix(id.as_bytes()),
-                &Node { value, next: sp_io::storage::get(&self.key_with_prefix(b"head")).map(|v| H256::from_slice(&v)) }.encode(),
+                &Node {
+                    value,
+                    next: sp_io::storage::get(&self.key_with_prefix(b"head"))
+                        .map(|v| H256::from_slice(&v)),
+                }
+                .encode(),
             );
 
             self.set_head(id)

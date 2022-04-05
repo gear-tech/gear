@@ -510,8 +510,9 @@ where
         }
     }
 
-    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
+    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
         Pallet::<T>::stop_processing();
-        todo!("Implement pushing message to the top of the storage!")
+        Pallet::<T>::decrease_gas_allowance(gas_burned);
+        common::queue_dispatch_first(dispatch);
     }
 }
