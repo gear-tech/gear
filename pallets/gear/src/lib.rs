@@ -623,10 +623,11 @@ pub mod pallet {
                     };
 
                     log::debug!(
-                        "Processing message: {:?} to {:?} / gas_limit: {}",
+                        "Processing message: {:?} to {:?} / gas_limit: {}, gas_allowance: {}",
                         dispatch.id(),
                         dispatch.destination(),
-                        gas_limit
+                        gas_limit,
+                        Self::gas_allowance(),
                     );
 
                     let program_id = dispatch.destination();

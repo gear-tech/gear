@@ -55,7 +55,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
-    let mut gas_allowance_counter = GasAllowanceCounter::new(dispatch.gas_limit());
+    let mut gas_allowance_counter = GasAllowanceCounter::new(context.gas_allowance);
 
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
