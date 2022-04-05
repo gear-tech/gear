@@ -511,6 +511,13 @@ where
     }
 
     fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
+        log::debug!(
+            "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
+            dispatch.id(),
+            Pallet::<T>::gas_allowance(),
+            gas_burned,
+        );
+
         Pallet::<T>::stop_processing();
         Pallet::<T>::decrease_gas_allowance(gas_burned);
         common::queue_dispatch_first(dispatch);

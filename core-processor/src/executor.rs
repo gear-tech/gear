@@ -55,6 +55,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
 
     // Creating gas counter.
     let mut gas_counter = GasCounter::new(dispatch.gas_limit());
+    let mut gas_allowance_counter = GasAllowanceCounter::new(dispatch.gas_limit());
 
     // Creating value counter.
     let value_counter = ValueCounter::new(balance + dispatch.value());
@@ -64,11 +65,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     let mem_size = if let Some(max_page) = program.get_pages().iter().next_back() {
         // Charging gas for loaded pages
         let amount = settings.load_page_cost() * program.get_pages().len() as u64;
+
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: "",
+                allowance_exceed: true,
+            });
+        };
+
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for loading memory.",
+                allowance_exceed: false,
             });
         };
 
@@ -77,11 +89,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         // Charging gas for mem size
         let amount =
             settings.mem_grow_cost() * (max_page as u64 + 1 - program.static_pages() as u64);
+
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: "",
+                allowance_exceed: true,
+            });
+        };
+
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for grow memory size.",
+                allowance_exceed: true,
             });
         }
 
@@ -90,11 +113,22 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     } else {
         // Charging gas for initial pages
         let amount = settings.init_cost() * program.static_pages() as u64;
+
+        if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
+            return Err(ExecutionError {
+                program_id,
+                gas_amount: gas_counter.into(),
+                reason: "",
+                allowance_exceed: true,
+            });
+        };
+
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for initial memory.",
+                allowance_exceed: false,
             });
         };
 
@@ -135,7 +169,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     // Creating externalities.
     let mut ext = A::new(
         gas_counter,
-        GasAllowanceCounter::new(context.gas_allowance),
+        gas_allowance_counter,
         value_counter,
         allocations_context,
         message_context,
@@ -156,6 +190,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 program_id,
                 gas_amount: ext.into_gas_amount(),
                 reason: e,
+                allowance_exceed: false,
             })
         }
     };
@@ -166,6 +201,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             program_id,
             gas_amount: err.gas_amount,
             reason: err.reason,
+            allowance_exceed: false,
         }
     })?;
 
@@ -183,6 +219,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 program_id,
                 gas_amount: env.drop_env(),
                 reason: e,
+                allowance_exceed: false,
             })?;
     }
 
@@ -204,6 +241,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 program_id,
                 gas_amount: e.gas_amount,
                 reason: e.reason,
+                allowance_exceed: false,
             })
         }
     };
@@ -214,6 +252,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             program_id,
             gas_amount: info.gas_amount.clone(),
             reason: e,
+            allowance_exceed: false,
         })?;
     }
 
@@ -226,7 +265,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
             description,
         } => {
             log::debug!(
-                "💥 Trap during execution of {}\n❓ Description: {}📔 Explanation: {}",
+                "💥 Trap during execution of {}\n❓ Description: {}\n📔 Explanation: {}",
                 program_id,
                 description.unwrap_or_else(|| "None".into()),
                 explanation.unwrap_or("None"),
@@ -255,6 +294,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 program_id,
                 gas_amount: info.gas_amount.clone(),
                 reason: "RUNTIME ERROR: changed page has no data in initial pages",
+                allowance_exceed: false,
             })?;
             if !new_data.eq(old_data.as_ref()) {
                 page_update.insert(page, Some(new_data));

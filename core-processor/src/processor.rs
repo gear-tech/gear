@@ -275,7 +275,13 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
                 process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
             }
         },
-        Err(e) => process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason)),
+        Err(e) => {
+            if e.allowance_exceed {
+                process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
+            } else {
+                process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason))
+            }
+        }
     }
 }
 

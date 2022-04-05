@@ -257,6 +257,8 @@ pub struct ExecutionError {
     pub gas_amount: GasAmount,
     /// Error text.
     pub reason: &'static str,
+    /// Triggered by gas allowance exceed.
+    pub allowance_exceed: bool,
 }
 
 /// Executable actor.

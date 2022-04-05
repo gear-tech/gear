@@ -629,17 +629,6 @@ pub mod pallet {
                         gas_limit
                     );
 
-                    // Check whether we have enough of gas allowed for message processing
-                    if gas_limit > GasAllowance::<T>::get() {
-                        log::debug!(
-                            "Not enought gas for processing: gas_limit = {}, allowance = {}",
-                            gas_limit,
-                            GasAllowance::<T>::get(),
-                        );
-                        common::queue_dispatch(dispatch);
-                        break;
-                    }
-
                     let program_id = dispatch.destination();
                     let maybe_active_actor = if let Some(maybe_active_program) =
                         common::get_program(program_id.into_origin())
