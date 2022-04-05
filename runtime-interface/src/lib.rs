@@ -23,9 +23,6 @@
 use codec::{Decode, Encode};
 use sp_runtime_interface::runtime_interface;
 
-#[cfg(feature = "std")]
-use gear_core::memory::PAGE_SIZE;
-
 pub use sp_std::{result::Result, vec::Vec};
 
 #[derive(Debug, Encode, Decode)]
@@ -46,6 +43,8 @@ unsafe fn sys_mprotect_wasm_pages(
     prot_write: bool,
     prot_exec: bool,
 ) -> Result<(), MprotectError> {
+    use gear_core::memory::PAGE_SIZE;
+
     let mut prot_mask = libc::PROT_NONE;
     if prot_read {
         prot_mask |= libc::PROT_READ;
@@ -75,11 +74,11 @@ unsafe fn sys_mprotect_wasm_pages(
 #[cfg(feature = "std")]
 #[cfg(not(unix))]
 unsafe fn sys_mprotect_wasm_pages(
-    from_ptr: u64,
-    pages_nums: &[u32],
-    prot_read: bool,
-    prot_write: bool,
-    prot_exec: bool,
+    _from_ptr: u64,
+    _pages_nums: &[u32],
+    _prot_read: bool,
+    _prot_write: bool,
+    _prot_exec: bool,
 ) -> Result<(), MprotectError> {
     log::error!("unsupported OS for pages protectections");
     Err(MprotectError::OsError)
