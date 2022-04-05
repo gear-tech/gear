@@ -32,7 +32,7 @@ pub enum ContractError {
     Decode(codec::Error),
     ExitCode(i32),
     Internal(&'static str),
-    Send(SendError),
+    Sending(SendError),
     Reply(ReplyError),
 }
 
@@ -44,7 +44,7 @@ impl fmt::Display for ContractError {
             ContractError::ExitCode(e) => write!(f, "Reply returned exit code {}", e),
             ContractError::Internal(e) => write!(f, "Internal error: {:?}", e),
             // TODO: print error when it will contain actual information
-            ContractError::Send(_) => write!(f, "Send error"),
+            ContractError::Sending(_) => write!(f, "Send error"),
             // TODO: print error when it will contain actual information
             ContractError::Reply(_) => write!(f, "Reply error"),
         }
@@ -53,7 +53,7 @@ impl fmt::Display for ContractError {
 
 impl From<SendError> for ContractError {
     fn from(err: SendError) -> Self {
-        Self::Send(err)
+        Self::Sending(err)
     }
 }
 

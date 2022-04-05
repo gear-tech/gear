@@ -29,7 +29,7 @@ pub unsafe extern "C" fn init() {
             }
 
             INIT_MESSAGE = msg::id();
-            msg::send(msg::source(), b"PING", 0);
+            msg::send(msg::source(), b"PING", 0).unwrap();
             STATE = State::WaitForReply;
             exec::wait();
         }

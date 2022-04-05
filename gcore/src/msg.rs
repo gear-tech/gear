@@ -82,7 +82,7 @@ mod sys {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ErrorCode(i32);
 
 impl ErrorCode {
@@ -104,11 +104,11 @@ impl ErrorCode {
 }
 
 /// An error occurred during sending a message
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SendError(());
 
 /// An error occurred during replying to a message
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ReplyError(());
 
 /// Get the exit code of the message being processed.
