@@ -18,17 +18,17 @@ name = "gear-node"
 
 [dependencies]
 clap = { version = "3.1", features = ["derive"] }
-scale-info = { version = "1.0.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
 hex-literal = "0.3.4"
 page_size = "0.4.2"
 libc = { version = "0.2.121", default-features = false }
 nix = "0.23.1"
-primitive-types = { version = "0.10.1", default-features = false, features = ["scale-info"] }
+primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
 ] }
-sp-core = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-core = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", features = [
 	"wasmtime",
 ] }
@@ -48,7 +48,7 @@ sc-consensus = { version = "0.10.0-dev", git = "https://github.com/gear-tech/sub
 sc-finality-grandpa = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-finality-grandpa = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-sp-runtime = { version = "5.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 # These dependencies are used for the node template's RPCs
@@ -73,9 +73,13 @@ gear-lazy-pages = { path = "../lazy-pages" }
 gear-runtime-interface = { path = "../runtime-interface" }
 gear-runtime-test-cli = { path = "../utils/gear-runtime-test-cli" }
 
+try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
+
 [build-dependencies]
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [features]
 runtime-benchmarks = ["gear-runtime/runtime-benchmarks"]
 debug-mode = ["gear-runtime/debug-mode"]
+# Enable features that allow the runtime to be tried and debugged. 
+try-runtime = ["gear-runtime/try-runtime", "try-runtime-cli"]

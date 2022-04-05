@@ -234,8 +234,8 @@ name = "demo-async"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -244,8 +244,8 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gstd",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -255,8 +255,8 @@ dependencies = [
  "futures",
  "gstd",
  "hex",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
  "sp-core",
 ]
 
@@ -265,8 +265,8 @@ name = "demo-async-sign"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
  "sp-core",
 ]
 
@@ -282,8 +282,8 @@ name = "demo-bot"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -298,7 +298,7 @@ name = "demo-chat"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
+ "parity-scale-codec 3.1.2",
 ]
 
 [[package]]
@@ -351,8 +351,8 @@ name = "demo-gui-test"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -375,8 +375,8 @@ name = "demo-meta"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -571,9 +571,9 @@ version = "0.1.0"
 dependencies = [
  "gstd",
  "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "primitive-types 0.11.1",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -694,9 +694,9 @@ dependencies = [
  "gcore",
  "gstd-codegen",
  "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "primitive-types 0.11.1",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -712,8 +712,8 @@ name = "guestbook"
 version = "0.1.0"
 dependencies = [
  "gstd",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -770,7 +770,16 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "161ebdfec3c8e3b52bf61c4f3550a1eea4f9579d10dc1b936f3171ebdcd6c443"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
+]
+
+[[package]]
+name = "impl-codec"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba6a270039626615617f3f36d15fc827041df3b78c439da2cadfa47455a77f2f"
+dependencies = [
+ "parity-scale-codec 3.1.2",
 ]
 
 [[package]]
@@ -937,7 +946,19 @@ dependencies = [
  "arrayvec 0.7.2",
  "byte-slice-cast",
  "impl-trait-for-tuples",
- "parity-scale-codec-derive",
+ "parity-scale-codec-derive 2.3.1",
+]
+
+[[package]]
+name = "parity-scale-codec"
+version = "3.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8b44461635bbb1a0300f100a841e571e7d919c81c73075ef5d152ffdb521066"
+dependencies = [
+ "arrayvec 0.7.2",
+ "byte-slice-cast",
+ "impl-trait-for-tuples",
+ "parity-scale-codec-derive 3.1.2",
 ]
 
 [[package]]
@@ -945,6 +966,18 @@ name = "parity-scale-codec-derive"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1557010476e0595c9b568d16dcfb81b93cdeb157612726f5170d31aa707bed27"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "parity-scale-codec-derive"
+version = "3.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c45ed1f39709f5a89338fab50e59816b2e8815f5bb58276e7ddf9afd495f73f8"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -961,7 +994,7 @@ dependencies = [
  "cfg-if",
  "impl-trait-for-tuples",
  "parity-util-mem-derive",
- "primitive-types",
+ "primitive-types 0.10.1",
  "winapi",
 ]
 
@@ -1001,8 +1034,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05e4722c697a58a99d5d06a08c30821d7c082a4632198de1eaa5a6c22ef42373"
 dependencies = [
  "fixed-hash",
- "impl-codec",
- "scale-info",
+ "impl-codec 0.5.1",
+ "scale-info 1.0.0",
+ "uint",
+]
+
+[[package]]
+name = "primitive-types"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e28720988bff275df1f51b171e1b2a18c30d194c4d2b61defdacecd625a5d94a"
+dependencies = [
+ "fixed-hash",
+ "impl-codec 0.6.0",
+ "scale-info 2.0.1",
  "uint",
 ]
 
@@ -1156,8 +1201,20 @@ checksum = "5c55b744399c25532d63a0d2789b109df8d46fc93752d46b0782991a931a782f"
 dependencies = [
  "cfg-if",
  "derive_more",
- "parity-scale-codec",
- "scale-info-derive",
+ "parity-scale-codec 2.3.1",
+ "scale-info-derive 1.0.0",
+]
+
+[[package]]
+name = "scale-info"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0563970d79bcbf3c537ce3ad36d859b30d36fc5b190efd227f1f7a84d7cf0d42"
+dependencies = [
+ "cfg-if",
+ "derive_more",
+ "parity-scale-codec 3.1.2",
+ "scale-info-derive 2.0.0",
 ]
 
 [[package]]
@@ -1165,6 +1222,18 @@ name = "scale-info-derive"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baeb2780690380592f86205aa4ee49815feb2acad8c2f59e6dd207148c3f1fcd"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "scale-info-derive"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7805950c36512db9e3251c970bb7ac425f326716941862205d612ab3b5e46e2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1296,10 +1365,10 @@ dependencies = [
  "log",
  "merlin",
  "num-traits",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "parity-util-mem",
- "primitive-types",
- "scale-info",
+ "primitive-types 0.10.1",
+ "scale-info 1.0.0",
  "schnorrkel",
  "secrecy",
  "sp-core-hashing",
@@ -1341,8 +1410,8 @@ version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#b0fa1f2227664125e4636305bcbfcf00f312140e"
 dependencies = [
  "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
+ "parity-scale-codec 2.3.1",
+ "primitive-types 0.10.1",
  "sp-runtime-interface-proc-macro",
  "sp-std",
  "sp-storage",
@@ -1373,7 +1442,7 @@ name = "sp-storage"
 version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#b0fa1f2227664125e4636305bcbfcf00f312140e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "ref-cast",
  "sp-debug-derive",
  "sp-std",
@@ -1384,7 +1453,7 @@ name = "sp-tracing"
 version = "4.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#b0fa1f2227664125e4636305bcbfcf00f312140e"
 dependencies = [
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-std",
  "tracing",
  "tracing-core",
@@ -1396,7 +1465,7 @@ version = "5.0.0"
 source = "git+https://github.com/gear-tech/substrate.git?branch=gear-stable#b0fa1f2227664125e4636305bcbfcf00f312140e"
 dependencies = [
  "impl-trait-for-tuples",
- "parity-scale-codec",
+ "parity-scale-codec 2.3.1",
  "sp-std",
 ]
 
@@ -1482,9 +1551,9 @@ dependencies = [
  "bs58",
  "gstd",
  "hex",
- "parity-scale-codec",
- "primitive-types",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "primitive-types 0.11.1",
+ "scale-info 2.0.1",
 ]
 
 [[package]]
@@ -1582,8 +1651,8 @@ version = "0.1.0"
 dependencies = [
  "gstd",
  "hex",
- "parity-scale-codec",
- "scale-info",
+ "parity-scale-codec 3.1.2",
+ "scale-info 2.0.1",
 ]
 
 [[package]]

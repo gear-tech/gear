@@ -90,6 +90,7 @@ pub mod pallet {
     use primitive_types::H256;
     use scale_info::TypeInfo;
     use sp_runtime::traits::UniqueSaturatedInto;
+    use sp_std::convert::TryInto;
     use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
     use crate::manager::{ExtManager, HandleKind};

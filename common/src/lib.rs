@@ -37,6 +37,7 @@ use sp_arithmetic::traits::{BaseArithmetic, Unsigned};
 use sp_core::crypto::UncheckedFrom;
 use sp_std::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+    convert::TryInto,
     prelude::*,
 };
 
@@ -289,7 +290,7 @@ impl Program {
     }
 }
 
-impl TryFrom<Program> for ActiveProgram {
+impl core::convert::TryFrom<Program> for ActiveProgram {
     type Error = ProgramError;
 
     fn try_from(prog_with_status: Program) -> Result<ActiveProgram, Self::Error> {
