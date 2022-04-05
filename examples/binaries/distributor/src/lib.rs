@@ -260,23 +260,23 @@ mod tests {
         assert!(res.contains(&log));
     }
 
-    fn multi_program_setup<'a>(
-        system: &'a System,
+    fn multi_program_setup(
+        system: &System,
         program_1_id: u64,
         program_2_id: u64,
         program_3_id: u64,
-    ) -> (Program<'a>, Program<'a>, Program<'a>) {
+    ) -> (Program, Program, Program) {
         system.init_logger();
 
         let from = 42;
 
-        let program_1 = Program::current_with_id(&system, program_1_id);
+        let program_1 = Program::current_with_id(system, program_1_id);
         let _res = program_1.send_bytes(from, b"init");
 
-        let program_2 = Program::current_with_id(&system, program_2_id);
+        let program_2 = Program::current_with_id(system, program_2_id);
         let _res = program_2.send_bytes(from, b"init");
 
-        let program_3 = Program::current_with_id(&system, program_3_id);
+        let program_3 = Program::current_with_id(system, program_3_id);
         let _res = program_3.send_bytes(from, b"init");
 
         let res = program_1.send(from, Request::Join(program_2_id));

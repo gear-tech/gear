@@ -81,7 +81,7 @@ mod sys {
     #[no_mangle]
     unsafe extern "C" fn gr_source(program: *mut u8) {
         for i in 0..PROGRAM.0.len() {
-            *program.offset(i as isize) = PROGRAM.0[i];
+            *program.add(i) = PROGRAM.0[i];
         }
     }
 
@@ -95,8 +95,8 @@ mod sys {
 #[test]
 fn messages() {
     let mut id: [u8; 32] = [0; 32];
-    for i in 0..id.len() {
-        id[i] = i as u8;
+    for (i, elem) in id.iter_mut().enumerate() {
+        *elem = i as u8;
     }
 
     msg::send_with_gas(ActorId(id), b"HELLO", 1000, 12345678);
