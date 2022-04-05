@@ -300,21 +300,4 @@ mod tests {
         //Getting user id that is already registered as a program
         system.get_mailbox(restricted_user_id);
     }
-
-    #[test]
-    #[should_panic(expected = "Infallible. No mailbox associated with this user id")]
-    fn take_deleted_user_mailbox() {
-        //Setting up variables for test
-        let system = System::new();
-        let user_id = ProgramIdWrapper::from(100).0;
-        let another_user_id = ProgramIdWrapper::from(200).0;
-        let mailbox = system.get_mailbox(user_id);
-        let log = Log::builder().source(another_user_id);
-
-        //Deleting user while his mailbox variable exists
-        system.0.borrow_mut().mailbox.remove(&user_id);
-
-        //Trying to get message by deleted user mailbox
-        mailbox.take_message(log);
-    }
 }
