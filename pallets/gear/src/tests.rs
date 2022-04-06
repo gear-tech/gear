@@ -213,7 +213,7 @@ fn send_message_expected_failure() {
             1000,
             1
         ));
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         // Gas limit too high
         let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
@@ -909,13 +909,12 @@ fn send_reply_failure_to_claim_from_mailbox() {
 
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
 
-        let mailbox = Mailbox::<Test>::get(USER_1).expect("Checked above");
+        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
+            .next()
+            .expect("Checked above");
 
-        assert_eq!(mailbox.len(), 1);
-
-        let message = mailbox.iter().next().expect("Checked above").1;
         assert!(matches!(message.reply(), Some((_, 1))));
     })
 }
@@ -959,7 +958,7 @@ fn send_reply_value_claiming_works() {
 
             next_block += 1;
 
-            assert!(Mailbox::<Test>::contains_key(USER_1));
+            assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
             assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
@@ -1009,7 +1008,7 @@ fn claim_value_from_mailbox_works() {
         };
         increase_prog_balance_for_mailbox_test(USER_3, prog_id);
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         let (gas_burned, _) =
             calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
@@ -1302,21 +1301,18 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let mailbox = Gear::mailbox(USER_1);
-        assert!(mailbox.is_some());
+        let mut mailbox_iter = Mailbox::<Test>::iter_prefix_values(USER_1);
+        let message_id = mailbox_iter
+            .next()
+            .expect("Should have msg.")
+            .id()
+            .into_origin();
 
-        let mailbox = mailbox.unwrap();
-        let mut keys = mailbox.keys();
-
-        let message_id = keys.next();
-        assert!(message_id.is_some());
-        let message_id = message_id.unwrap();
-
-        assert!(keys.next().is_none());
+        assert!(mailbox_iter.next().is_none());
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            *message_id,
+            message_id,
             b"PONG".to_vec(),
             200_000_000u64,
             0,
@@ -1349,14 +1345,15 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let mailbox = Gear::mailbox(USER_1).expect("should be one message for the program author");
-        let mut keys = mailbox.keys();
-
-        let message_id = keys.next().expect("message keys cannot be empty");
+        let message_id = Mailbox::<Test>::iter_prefix_values(USER_1)
+            .next()
+            .expect("should be one message for the program author")
+            .id()
+            .into_origin();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            *message_id,
+            message_id,
             b"PONG".to_vec(),
             200_000_000u64,
             0,
@@ -1374,27 +1371,13 @@ fn defer_program_initialization() {
 
         run_to_block(4, None);
 
-        assert_eq!(
-            Gear::mailbox(USER_1)
-                .expect("should be one reply for the program author")
-                .into_values()
-                .count(),
-            1
-        );
+        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
 
-        let message = Gear::mailbox(USER_1)
-            .expect("should be one reply for the program author")
-            .into_values()
-            .next();
+        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
+            .next()
+            .expect("Message not found");
 
-        assert!(message.is_some());
-
-        println!("{:?}", message);
-
-        assert_eq!(
-            message.unwrap().payload().to_vec(),
-            b"Hello, world!".encode()
-        );
+        assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
     })
 }
 
@@ -1434,15 +1417,14 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = Gear::mailbox(USER_1).and_then(|t| {
-            let mut keys = t.keys();
-            keys.next().cloned()
-        });
-        assert!(message_id.is_some());
+        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+            .next()
+            .map(|(k, _msg)| k.into_origin())
+            .expect("Message id should be");
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            message_id.unwrap(),
+            message_id,
             b"PONG".to_vec(),
             500_000_000u64,
             0,
@@ -1450,14 +1432,10 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = Gear::mailbox(USER_3)
-            .map(|t| {
-                t.into_values().fold(0usize, |i, m| {
-                    assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
-                    i + 1
-                })
-            })
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+            assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
+            i + 1
+        });
 
         assert_eq!(actual_n, n);
     })
@@ -1482,11 +1460,11 @@ fn test_message_processing_for_non_existing_destination() {
             100
         ));
         let skipped_message_id = get_last_message_id();
-        assert!(!Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
 
         run_to_block(2, None);
         // system reply message
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);
@@ -1525,9 +1503,7 @@ fn exit_init() {
         assert!(Gear::is_terminated(program_id));
         assert!(!Gear::is_initialized(program_id));
 
-        let actual_n = Gear::mailbox(USER_1)
-            .map(|t| t.into_values().fold(0usize, |i, _| i + 1))
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_1).fold(0usize, |i, _| i + 1);
 
         assert_eq!(actual_n, 0);
 
@@ -1862,7 +1838,8 @@ fn test_create_program_duplicate_in_one_execution() {
             99_000_000,
             0,
         ));
-        assert!(!Mailbox::<Test>::contains_key(USER_1));
+
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
 
         run_to_block(3, None);
 
@@ -1872,7 +1849,7 @@ fn test_create_program_duplicate_in_one_execution() {
         check_dispatched(1); // 1 for send_message
         check_init_success(1); // 1 for creating a factory
 
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         SystemPallet::<Test>::reset_events();
 
@@ -2031,9 +2008,7 @@ fn exit_handle() {
 
         assert!(Gear::is_terminated(program_id));
 
-        let actual_n = Gear::mailbox(USER_1)
-            .map(|t| t.into_values().fold(0usize, |i, _| i + 1))
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, _| i + 1);
 
         assert_eq!(actual_n, 0);
 
@@ -2164,17 +2139,16 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        let message_id = Gear::mailbox(USER_1).and_then(|t| {
-            let mut keys = t.keys();
-            keys.next().cloned()
-        });
-        assert!(message_id.is_some());
+        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+            .next()
+            .map(|(k, _msg)| k.into_origin())
+            .expect("Message id should be");
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            message_id.unwrap(),
+            message_id,
             b"PONG".to_vec(),
             50_000_000u64,
             1000u128,
@@ -2269,15 +2243,14 @@ fn resume_program_works() {
 
         run_to_block(2, None);
 
-        let message_id = Gear::mailbox(USER_1).and_then(|t| {
-            let mut keys = t.keys();
-            keys.next().cloned()
-        });
-        assert!(message_id.is_some());
+        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+            .next()
+            .map(|(k, _msg)| k.into_origin())
+            .expect("Message id should be");
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            message_id.unwrap(),
+            message_id,
             b"PONG".to_vec(),
             150_000_000u64,
             1_000u128,
@@ -2314,14 +2287,10 @@ fn resume_program_works() {
 
         run_to_block(5, None);
 
-        let actual_n = Gear::mailbox(USER_3)
-            .map(|t| {
-                t.into_values().fold(0usize, |i, m| {
-                    assert_eq!(m.payload(), b"Hello, world!".encode());
-                    i + 1
-                })
-            })
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+            assert_eq!(m.payload(), b"Hello, world!".encode());
+            i + 1
+        });
 
         assert_eq!(actual_n, 1);
     })
