@@ -91,7 +91,7 @@ pub mod pallet {
     use scale_info::TypeInfo;
     use sp_runtime::traits::UniqueSaturatedInto;
     use sp_std::convert::TryInto;
-    use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+    use sp_std::prelude::*;
 
     use crate::manager::{ExtManager, HandleKind};
 
@@ -260,7 +260,7 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn mailbox)]
     pub type Mailbox<T: Config> =
-        StorageMap<_, Identity, T::AccountId, BTreeMap<H256, StoredMessage>>;
+        StorageDoubleMap<_, Identity, T::AccountId, Identity, MessageId, StoredMessage>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
@@ -313,30 +313,14 @@ pub mod pallet {
         pub fn insert_to_mailbox(user: H256, message: StoredMessage) {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
 
-            <Mailbox<T>>::mutate(user_id, |value| {
-                value
-                    .get_or_insert(BTreeMap::new())
-                    .insert(message.id().into_origin(), message)
-            });
-        }
-
-        pub fn get_from_mailbox(user: H256, message_id: H256) -> Option<StoredMessage> {
-            let user_id = &<T::AccountId as Origin>::from_origin(user);
-
-            <Mailbox<T>>::try_get(user_id)
-                .ok()
-                .and_then(|mut messages| messages.remove(&message_id))
+            <Mailbox<T>>::insert(user_id, message.id(), message);
         }
 
         pub fn remove_from_mailbox(user: H256, message_id: H256) -> Option<StoredMessage> {
             let user_id = &<T::AccountId as Origin>::from_origin(user);
+            let message_id = MessageId::from_origin(message_id);
 
-            <Mailbox<T>>::try_mutate(user_id, |value| match value {
-                Some(ref mut btree) => Ok(btree.remove(&message_id)),
-                None => Err(()),
-            })
-            .ok()
-            .flatten()
+            <Mailbox<T>>::take(user_id, message_id)
         }
 
         pub fn remove_and_claim_from_mailbox(
@@ -425,7 +409,7 @@ pub mod pallet {
                     ),
                 ),
                 HandleKind::Reply(msg_id, exit_code) => {
-                    let msg = Self::get_from_mailbox(source, msg_id).ok_or_else(|| {
+                    let msg = Self::remove_from_mailbox(source, msg_id).ok_or_else(|| {
                         b"Internal error: unable to find message in mailbox".to_vec()
                     })?;
                     Dispatch::new(
