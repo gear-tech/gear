@@ -81,6 +81,7 @@ mod sys {
     }
 }
 
+#[must_use]
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ErrorCode(i32);
@@ -504,7 +505,7 @@ pub fn send_commit_with_gas(
     program: ActorId,
     gas_limit: u64,
     value: u128,
-) -> MessageId {
+) -> Result<MessageId, SendError> {
     unsafe {
         let mut message_id = MessageId::default();
         sys::gr_send_commit_wgas(
@@ -513,8 +514,9 @@ pub fn send_commit_with_gas(
             program.as_slice().as_ptr(),
             gas_limit,
             value.to_le_bytes().as_ptr(),
-        );
-        message_id
+        )
+        .into_send_error()?;
+        Ok(message_id)
     }
 }
 
