@@ -39,6 +39,58 @@ use super::{
 use utils::*;
 
 #[test]
+fn unstoppable_block_execution_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let user_balance = BalancesPallet::<Test>::free_balance(USER_1) as u64;
+        let executions_amount = 10;
+        let balance_for_each_execution = user_balance / executions_amount;
+
+        assert!(balance_for_each_execution < <Test as Config>::BlockGasLimit::get());
+
+        let program_id = {
+            let res = submit_program_default(USER_2, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        run_to_block(2, None);
+
+        let (expected_burned_gas, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), program_id, EMPTY_PAYLOAD.to_vec());
+
+        assert!(balance_for_each_execution > expected_burned_gas);
+
+        for _ in 0..executions_amount {
+            assert_ok!(GearPallet::<Test>::send_message(
+                Origin::signed(USER_1),
+                program_id,
+                EMPTY_PAYLOAD.to_vec(),
+                balance_for_each_execution,
+                0,
+            ));
+        }
+
+        let real_gas_to_burn = expected_burned_gas * executions_amount;
+
+        assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
+
+        run_to_block(3, Some(real_gas_to_burn));
+
+        SystemPallet::<Test>::assert_last_event(
+            Event::MessagesDequeued(executions_amount as u32).into(),
+        );
+
+        assert_eq!(GasAllowance::<Test>::get(), 0);
+
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1) as u64,
+            user_balance - real_gas_to_burn
+        );
+    })
+}
+
+#[test]
 fn submit_program_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
