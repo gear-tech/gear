@@ -297,7 +297,6 @@ dependencies = [
 name = "demo-chat"
 version = "0.1.0"
 dependencies = [
- "gstd",
  "parity-scale-codec 3.1.2",
 ]
 
@@ -1491,9 +1490,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "str-buf"
-version = "2.0.2"
+version = "2.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5273f1a92cb22cb10c25f1f6d7b7f7db8d9836f219947040842a37252326f64"
+checksum = "5d3f6746ae4fb2c851c6ad2fdaa1090f6777315bc7522b2a2bc5897e091eefb2"
 
 [[package]]
 name = "subtle"

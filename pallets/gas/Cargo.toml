@@ -29,7 +29,6 @@ frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/gear-tec
 sp-std = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
 serde = "1.0.132"
@@ -38,7 +37,6 @@ wabt = "0.10"
 gear-core = { path = "../../core" }
 sp-io = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false }
 pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
-hex-literal = "0.3.3"
 
 [features]
 default = ['std']
@@ -52,7 +50,6 @@ std = [
 	"sp-std/std",
 	"sp-runtime/std",
 	"pallet-balances/std",
-	"pallet-authorship/std",
 	"primitive-types/std",
 ]
 runtime-benchmarks = [

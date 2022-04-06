@@ -8,7 +8,6 @@ license = "GPL-3.0"
 [dependencies]
 gear-core = { path = "../../core" }
 gear-backend-common = { path = "../common" }
-common = { package = "gear-common", path = "../../common", default-features = false }
 
 parity-wasm = { version = "0.42.2", default-features = false }
 sp-sandbox = { version = "0.10.0-dev", git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable", default-features = false, features = ["host-sandbox"] }
@@ -16,4 +15,4 @@ log = { version = "0.4.16", default-features = false }
 
 [features]
 default = ["std"]
-std = ["common/std", "sp-sandbox/std", "parity-wasm/std", "log/std"]
+std = ["sp-sandbox/std", "parity-wasm/std", "log/std"]
