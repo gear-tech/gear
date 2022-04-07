@@ -108,7 +108,7 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
-                    state: crate::ProgramState  ::Active(crate::ProgramInfo {
+                    state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_1),
