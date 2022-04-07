@@ -515,6 +515,7 @@ where
                             .into_iter()
                             .map(|(d, gas_limit)| (d.message().clone(), gas_limit))
                             .collect();
+
                         if let Err(msg_errors) =
                             check_messages(progs_n_paths, &msgs, messages, false)
                         {

@@ -390,17 +390,20 @@ fn resume_program_wrong_list_fails() {
         assert_ok!(GearProgram::pause_program(program_id));
 
         let block_number = 100;
+
+        let (kind, message, opt_context) = msg_2.into_parts();
+
         let msg_2 = StoredDispatch::new(
-            msg_2.kind(),
+            kind,
             StoredMessage::new(
-                msg_2.id(),
-                msg_2.source(),
-                msg_2.destination(),
+                message.id(),
+                message.source(),
+                message.destination(),
                 vec![0, 1, 2, 3, 4, 5],
-                msg_2.value(),
-                msg_2.reply(),
+                message.value(),
+                message.reply(),
             ),
-            msg_2.context().clone(),
+            opt_context,
         );
 
         assert_noop!(
