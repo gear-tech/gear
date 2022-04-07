@@ -100,8 +100,8 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         };
 
         // Charging gas for mem size
-        let amount =
-            settings.mem_grow_cost() * (max_wasm_page.0 as u64 + 1 - program.static_pages().0 as u64);
+        let amount = settings.mem_grow_cost()
+            * (max_wasm_page.0 as u64 + 1 - program.static_pages().0 as u64);
 
         if gas_allowance_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
