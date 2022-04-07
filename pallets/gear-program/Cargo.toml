@@ -15,7 +15,6 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.1.2", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-log = { version = "0.4.16", default-features = false }
 primitive-types = { version = "0.11.1", default-features = false, features = ["scale-info"] }
 
 # Internal deps
@@ -33,16 +32,13 @@ sp-runtime = { version = "6.0.0", git = "https://github.com/gear-tech/substrate.
 pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/gear-tech/substrate.git", branch = "gear-stable" }
 
 [dev-dependencies]
-env_logger = "0.9"
 hex-literal = "0.3.3"
-gear-core = { path = "../../core" }
 wasm-instrument = { version = "0.1", default-features = false }
 
 [features]
 default = ['std']
 std = [
 	"codec/std",
-	"log/std",
 	"common/std",
 	"frame-support/std",
 	"frame-system/std",

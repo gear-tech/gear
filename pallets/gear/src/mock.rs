@@ -199,8 +199,16 @@ pub fn run_to_block(n: u64, remaining_weight: Option<u64>) {
         System::set_block_number(System::block_number() + 1);
         System::on_initialize(System::block_number());
         Gear::on_initialize(System::block_number());
+
         let remaining_weight =
             remaining_weight.unwrap_or(<Test as pallet_gear::Config>::BlockGasLimit::get());
+
+        log::debug!(
+            "🧱 Running on_idle block #{} with weight {}",
+            System::block_number(),
+            remaining_weight
+        );
+
         Gear::on_idle(System::block_number(), remaining_weight);
     }
 }
@@ -241,6 +249,7 @@ pub fn calc_handle_gas_spent(source: H256, dest: H256, payload: Vec<u8>) -> (u64
         existential_deposit,
         ProgramId::from_origin(source),
         ProgramId::from_origin(dest),
+        u64::MAX,
     );
 
     let mut gas_burned: u64 = 0;

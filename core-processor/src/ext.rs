@@ -21,7 +21,7 @@ use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{ChargeResult, GasAmount, GasCounter, ValueCounter},
+    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::{ExitCode, HandlePacket, InitPacket, MessageContext, ReplyPacket},
@@ -34,6 +34,7 @@ pub trait ProcessorExt {
     #[allow(clippy::too_many_arguments)]
     fn new(
         gas_counter: GasCounter,
+        gas_allowance_counter: GasAllowanceCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
         message_context: MessageContext,
@@ -84,6 +85,8 @@ pub trait ProcessorExt {
 pub struct Ext {
     /// Gas counter.
     pub gas_counter: GasCounter,
+    /// Gas allowance counter.
+    pub gas_allowance_counter: GasAllowanceCounter,
     /// Value counter.
     pub value_counter: ValueCounter,
     /// Allocations context.
@@ -113,6 +116,7 @@ pub struct Ext {
 impl ProcessorExt for Ext {
     fn new(
         gas_counter: GasCounter,
+        gas_allowance_counter: GasAllowanceCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
         message_context: MessageContext,
@@ -127,6 +131,7 @@ impl ProcessorExt for Ext {
     ) -> Self {
         Self {
             gas_counter,
+            gas_allowance_counter,
             value_counter,
             allocations_context,
             message_context,
@@ -404,15 +409,23 @@ impl EnvExt for Ext {
     }
 
     fn charge_gas(&mut self, val: u32) -> Result<(), &'static str> {
-        if self.gas_counter.charge(val as u64) == ChargeResult::Enough {
-            Ok(())
-        } else {
-            self.return_and_store_err(Err("Gas limit exceeded"))
-        }
+        use ChargeResult::*;
+
+        let common_charge = self.gas_counter.charge(val as u64);
+        let allowance_charge = self.gas_allowance_counter.charge(val as u64);
+
+        let res = match (common_charge, allowance_charge) {
+            (NotEnough, _) => Err("Gas limit exceeded"),
+            (Enough, NotEnough) => Err(gear_backend_common::GAS_ALLOWANCE_STR),
+            (Enough, Enough) => Ok(()),
+        };
+
+        self.return_and_store_err(res)
     }
 
     fn refund_gas(&mut self, val: u32) -> Result<(), &'static str> {
         if self.gas_counter.refund(val as u64) == ChargeResult::Enough {
+            self.gas_allowance_counter.refund(val as u64);
             Ok(())
         } else {
             self.return_and_store_err(Err("Too many gas added"))

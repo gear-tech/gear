@@ -24,7 +24,7 @@ use core_processor::{
 use gear_backend_common::{ExtInfo, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
-    gas::{GasAmount, GasCounter, ValueCounter},
+    gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
     ids::{CodeId, MessageId, ProgramId},
     memory::{AllocationsContext, Memory, PageBuf, PageNumber},
     message::{HandlePacket, MessageContext, ReplyPacket},
@@ -87,6 +87,7 @@ impl IntoExtInfo for LazyPagesExt {
 impl ProcessorExt for LazyPagesExt {
     fn new(
         gas_counter: GasCounter,
+        gas_allowance_counter: GasAllowanceCounter,
         value_counter: ValueCounter,
         allocations_context: AllocationsContext,
         message_context: MessageContext,
@@ -102,6 +103,7 @@ impl ProcessorExt for LazyPagesExt {
         Self {
             inner: Ext {
                 gas_counter,
+                gas_allowance_counter,
                 value_counter,
                 allocations_context,
                 message_context,

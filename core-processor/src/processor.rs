@@ -30,7 +30,9 @@ use gear_backend_common::{Environment, IntoExtInfo};
 use gear_core::{
     env::Ext as EnvExt,
     ids::{MessageId, ProgramId},
-    message::{DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, ReplyPacket},
+    message::{
+        DispatchKind, ExitCode, IncomingDispatch, ReplyMessage, ReplyPacket, StoredDispatch,
+    },
 };
 
 enum SuccessfulDispatchResultKind {
@@ -48,12 +50,18 @@ pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<
     origin: ProgramId,
     // TODO: Temporary here for non-executable case. Should be inside executable actor, renamed to Actor.
     program_id: ProgramId,
+    gas_allowance: u64,
 ) -> Vec<JournalNote> {
     match check_is_executable(maybe_actor, &dispatch) {
         Err(exit_code) => process_non_executable(dispatch, program_id, exit_code),
-        Ok(actor) => {
-            process_executable::<A, E>(actor, dispatch, block_info, existential_deposit, origin)
-        }
+        Ok(actor) => process_executable::<A, E>(
+            actor,
+            dispatch,
+            block_info,
+            existential_deposit,
+            origin,
+            gas_allowance,
+        ),
     }
 }
 
@@ -236,11 +244,15 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
     block_info: BlockInfo,
     existential_deposit: u128,
     origin: ProgramId,
+    gas_allowance: u64,
 ) -> Vec<JournalNote> {
     use SuccessfulDispatchResultKind::*;
 
     let execution_settings = ExecutionSettings::new(block_info, existential_deposit);
-    let execution_context = ExecutionContext { origin };
+    let execution_context = ExecutionContext {
+        origin,
+        gas_allowance,
+    };
 
     let program_id = actor.program.id();
 
@@ -259,9 +271,39 @@ pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: E
             DispatchResultKind::Exit(value_destination) => {
                 process_success(Exit(value_destination), res)
             }
+            DispatchResultKind::GasAllowanceExceed => {
+                process_allowance_exceed(dispatch, program_id, res.gas_amount.burned())
+            }
         },
-        Err(e) => process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason)),
+        Err(e) => {
+            if e.allowance_exceed {
+                process_allowance_exceed(dispatch, program_id, e.gas_amount.burned())
+            } else {
+                process_error(dispatch, program_id, e.gas_amount.burned(), Some(e.reason))
+            }
+        }
     }
+}
+
+fn process_allowance_exceed(
+    dispatch: IncomingDispatch,
+    program_id: ProgramId,
+    gas_burned: u64,
+) -> Vec<JournalNote> {
+    let mut journal = Vec::with_capacity(1);
+
+    let dispatch = StoredDispatch::new(
+        dispatch.kind(),
+        dispatch.message().clone().into_stored(program_id),
+        dispatch.context().clone(),
+    );
+
+    journal.push(JournalNote::StopProcessing {
+        dispatch,
+        gas_burned,
+    });
+
+    journal
 }
 
 /// Helper function for journal creation in message no execution case

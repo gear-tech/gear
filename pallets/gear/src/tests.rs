@@ -39,6 +39,58 @@ use super::{
 use utils::*;
 
 #[test]
+fn unstoppable_block_execution_works() {
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let user_balance = BalancesPallet::<Test>::free_balance(USER_1) as u64;
+        let executions_amount = 10;
+        let balance_for_each_execution = user_balance / executions_amount;
+
+        assert!(balance_for_each_execution < <Test as Config>::BlockGasLimit::get());
+
+        let program_id = {
+            let res = submit_program_default(USER_2, ProgramCodeKind::Default);
+            assert_ok!(res);
+            res.expect("submit result was asserted")
+        };
+
+        run_to_block(2, None);
+
+        let (expected_burned_gas, _) =
+            calc_handle_gas_spent(USER_1.into_origin(), program_id, EMPTY_PAYLOAD.to_vec());
+
+        assert!(balance_for_each_execution > expected_burned_gas);
+
+        for _ in 0..executions_amount {
+            assert_ok!(GearPallet::<Test>::send_message(
+                Origin::signed(USER_1),
+                program_id,
+                EMPTY_PAYLOAD.to_vec(),
+                balance_for_each_execution,
+                0,
+            ));
+        }
+
+        let real_gas_to_burn = expected_burned_gas * executions_amount;
+
+        assert!(balance_for_each_execution * executions_amount > real_gas_to_burn);
+
+        run_to_block(3, Some(real_gas_to_burn));
+
+        SystemPallet::<Test>::assert_last_event(
+            Event::MessagesDequeued(executions_amount as u32).into(),
+        );
+
+        assert_eq!(GasAllowance::<Test>::get(), 0);
+
+        assert_eq!(
+            BalancesPallet::<Test>::free_balance(USER_1) as u64,
+            user_balance - real_gas_to_burn
+        );
+    })
+}
+
+#[test]
 fn submit_program_expected_failure() {
     init_logger();
     new_test_ext().execute_with(|| {
@@ -213,7 +265,7 @@ fn send_message_expected_failure() {
             1000,
             1
         ));
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         // Gas limit too high
         let block_gas_limit = <Test as pallet::Config>::BlockGasLimit::get();
@@ -528,7 +580,7 @@ fn block_gas_limit_works() {
 
         // Add more messages to queue
         // Total `gas_limit` of three messages (2 to pid1 and 1 to pid2) exceeds the block gas limit
-        assert!(remaining_weight < 2 * expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2);
+        assert!(remaining_weight < 2 * expected_gas_msg_to_pid1 + remaining_weight);
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid1,
@@ -536,13 +588,19 @@ fn block_gas_limit_works() {
             expected_gas_msg_to_pid1,
             200
         ));
+        let msg1 = get_last_message_id();
+
+        let msg2_gas = remaining_weight;
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid2,
             EMPTY_PAYLOAD.to_vec(),
-            expected_gas_msg_to_pid2,
+            msg2_gas,
             100
         ));
+        let _msg2 = get_last_message_id();
+
+        let msg3_gas = expected_gas_msg_to_pid1;
         assert_ok!(GearPallet::<Test>::send_message(
             Origin::signed(USER_1),
             pid1,
@@ -550,49 +608,53 @@ fn block_gas_limit_works() {
             expected_gas_msg_to_pid1,
             200
         ));
+        let _msg3 = get_last_message_id();
 
         // Try to process 3 messages
         run_to_block(5, Some(remaining_weight));
 
-        // Message #2 steps beyond the block gas allowance and is re-queued
-        // Message #1 is dequeued and processed, message #3 stays in the queue:
+        // Message #1 is dequeued and processed.
+        // Message #2 tried to execute, but exceed gas_allowance is re-queued at the top.
+        // Message #3 stays in the queue.
         //
-        // | 1 |        | 3 |
-        // | 2 |  ===>  | 2 |
+        // | 1 |        | 2 |
+        // | 2 |  ===>  | 3 |
         // | 3 |        |   |
-        //
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
-        assert_eq!(
-            GasAllowance::<Test>::get(),
-            remaining_weight - expected_gas_msg_to_pid1
+
+        SystemPallet::<Test>::assert_has_event(
+            Event::MessageDispatched(DispatchOutcome {
+                message_id: msg1.into_origin(),
+                outcome: ExecutionResult::Failure(
+                    b"Gas limit exceeded while trying to send message".to_vec(),
+                ),
+            })
+            .into(),
         );
+
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+
+        // Equals 0 due to trying execution of msg2.
+        assert_eq!(GasAllowance::<Test>::get(), 0);
+
+        let real_gas_to_burn = expected_gas_msg_to_pid1 + expected_gas_msg_to_pid2;
+        let last_block_allowance = real_gas_to_burn + 1;
 
         // Try to process 2 messages
-        run_to_block(6, Some(remaining_weight));
+        run_to_block(6, Some(last_block_allowance));
 
-        // Message #3 get dequeued and processed
-        // Message #2 gas limit still exceeds the remaining allowance:
-        //
-        // | 3 |        | 2 |
-        // | 2 |  ===>  |   |
-        //
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
-        assert_eq!(
-            GasAllowance::<Test>::get(),
-            remaining_weight - expected_gas_msg_to_pid1
-        );
+        assert!(last_block_allowance < msg2_gas + msg3_gas);
 
-        run_to_block(7, Some(remaining_weight));
-
-        // This time message #2 makes it into the block:
+        // Message #2 gas limit exceeds the remaining allowance, but got processed.
+        // Message #3 same suits that block.
         //
         // | 2 |        |   |
-        // |   |  ===>  |   |
-        //
-        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(1).into());
+        // | 3 |  ===>  |   |
+        // |   |        |   |
+
+        SystemPallet::<Test>::assert_last_event(Event::MessagesDequeued(2).into());
         assert_eq!(
             GasAllowance::<Test>::get(),
-            remaining_weight - expected_gas_msg_to_pid2
+            last_block_allowance - real_gas_to_burn
         );
     });
 }
@@ -910,13 +972,12 @@ fn send_reply_failure_to_claim_from_mailbox() {
 
         // Program didn't have enough balance, so it's message produces trap
         // (and following system reply with error to USER_1 mailbox)
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
 
-        let mailbox = Mailbox::<Test>::get(USER_1).expect("Checked above");
+        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
+            .next()
+            .expect("Checked above");
 
-        assert_eq!(mailbox.len(), 1);
-
-        let message = mailbox.iter().next().expect("Checked above").1;
         assert!(matches!(message.reply(), Some((_, 1))));
     })
 }
@@ -960,7 +1021,7 @@ fn send_reply_value_claiming_works() {
 
             next_block += 1;
 
-            assert!(Mailbox::<Test>::contains_key(USER_1));
+            assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
             let user_balance = BalancesPallet::<Test>::free_balance(USER_1);
             assert_eq!(BalancesPallet::<Test>::reserved_balance(USER_1), 0);
@@ -1010,7 +1071,7 @@ fn claim_value_from_mailbox_works() {
         };
         increase_prog_balance_for_mailbox_test(USER_3, prog_id);
         let reply_to_id = populate_mailbox_from_program(prog_id, USER_2, 2, gas_sent, value_sent);
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         let (gas_burned, _) =
             calc_handle_gas_spent(USER_1.into_origin(), prog_id, EMPTY_PAYLOAD.to_vec());
@@ -1303,21 +1364,18 @@ fn uninitialized_program_should_accept_replies() {
         run_to_block(2, None);
 
         // there should be one message for the program author
-        let mailbox = Gear::mailbox(USER_1);
-        assert!(mailbox.is_some());
+        let mut mailbox_iter = Mailbox::<Test>::iter_prefix_values(USER_1);
+        let message_id = mailbox_iter
+            .next()
+            .expect("Should have msg.")
+            .id()
+            .into_origin();
 
-        let mailbox = mailbox.unwrap();
-        let mut keys = mailbox.keys();
-
-        let message_id = keys.next();
-        assert!(message_id.is_some());
-        let message_id = message_id.unwrap();
-
-        assert!(keys.next().is_none());
+        assert!(mailbox_iter.next().is_none());
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            *message_id,
+            message_id,
             b"PONG".to_vec(),
             200_000_000u64,
             0,
@@ -1350,14 +1408,15 @@ fn defer_program_initialization() {
 
         run_to_block(2, None);
 
-        let mailbox = Gear::mailbox(USER_1).expect("should be one message for the program author");
-        let mut keys = mailbox.keys();
-
-        let message_id = keys.next().expect("message keys cannot be empty");
+        let message_id = Mailbox::<Test>::iter_prefix_values(USER_1)
+            .next()
+            .expect("should be one message for the program author")
+            .id()
+            .into_origin();
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            *message_id,
+            message_id,
             b"PONG".to_vec(),
             200_000_000u64,
             0,
@@ -1375,27 +1434,13 @@ fn defer_program_initialization() {
 
         run_to_block(4, None);
 
-        assert_eq!(
-            Gear::mailbox(USER_1)
-                .expect("should be one reply for the program author")
-                .into_values()
-                .count(),
-            1
-        );
+        assert_eq!(Mailbox::<Test>::iter_prefix(USER_1).count(), 1);
 
-        let message = Gear::mailbox(USER_1)
-            .expect("should be one reply for the program author")
-            .into_values()
-            .next();
+        let message = Mailbox::<Test>::iter_prefix_values(USER_1)
+            .next()
+            .expect("Message not found");
 
-        assert!(message.is_some());
-
-        println!("{:?}", message);
-
-        assert_eq!(
-            message.unwrap().payload().to_vec(),
-            b"Hello, world!".encode()
-        );
+        assert_eq!(message.payload().to_vec(), b"Hello, world!".encode());
     })
 }
 
@@ -1435,15 +1480,14 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(3, None);
 
-        let message_id = Gear::mailbox(USER_1).and_then(|t| {
-            let mut keys = t.keys();
-            keys.next().cloned()
-        });
-        assert!(message_id.is_some());
+        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+            .next()
+            .map(|(k, _msg)| k.into_origin())
+            .expect("Message id should be");
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            message_id.unwrap(),
+            message_id,
             b"PONG".to_vec(),
             500_000_000u64,
             0,
@@ -1451,14 +1495,10 @@ fn wake_messages_after_program_inited() {
 
         run_to_block(20, None);
 
-        let actual_n = Gear::mailbox(USER_3)
-            .map(|t| {
-                t.into_values().fold(0usize, |i, m| {
-                    assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
-                    i + 1
-                })
-            })
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+            assert_eq!(m.payload().to_vec(), b"Hello, world!".encode());
+            i + 1
+        });
 
         assert_eq!(actual_n, n);
     })
@@ -1483,11 +1523,11 @@ fn test_message_processing_for_non_existing_destination() {
             100
         ));
         let skipped_message_id = get_last_message_id();
-        assert!(!Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
 
         run_to_block(2, None);
         // system reply message
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         let user_balance_after = BalancesPallet::<Test>::free_balance(USER_1);
         assert_eq!(user_balance_before, user_balance_after);
@@ -1526,9 +1566,7 @@ fn exit_init() {
         assert!(Gear::is_terminated(program_id));
         assert!(!Gear::is_initialized(program_id));
 
-        let actual_n = Gear::mailbox(USER_1)
-            .map(|t| t.into_values().fold(0usize, |i, _| i + 1))
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_1).fold(0usize, |i, _| i + 1);
 
         assert_eq!(actual_n, 0);
 
@@ -1863,7 +1901,8 @@ fn test_create_program_duplicate_in_one_execution() {
             99_000_000,
             0,
         ));
-        assert!(!Mailbox::<Test>::contains_key(USER_1));
+
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() == 0);
 
         run_to_block(3, None);
 
@@ -1873,7 +1912,7 @@ fn test_create_program_duplicate_in_one_execution() {
         check_dispatched(1); // 1 for send_message
         check_init_success(1); // 1 for creating a factory
 
-        assert!(Mailbox::<Test>::contains_key(USER_1));
+        assert!(Mailbox::<Test>::iter_prefix(USER_1).count() > 0);
 
         SystemPallet::<Test>::reset_events();
 
@@ -2032,9 +2071,7 @@ fn exit_handle() {
 
         assert!(Gear::is_terminated(program_id));
 
-        let actual_n = Gear::mailbox(USER_1)
-            .map(|t| t.into_values().fold(0usize, |i, _| i + 1))
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, _| i + 1);
 
         assert_eq!(actual_n, 0);
 
@@ -2165,17 +2202,16 @@ fn replies_to_paused_program_skipped() {
 
         run_to_block(3, None);
 
-        let message_id = Gear::mailbox(USER_1).and_then(|t| {
-            let mut keys = t.keys();
-            keys.next().cloned()
-        });
-        assert!(message_id.is_some());
+        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+            .next()
+            .map(|(k, _msg)| k.into_origin())
+            .expect("Message id should be");
 
         let before_balance = BalancesPallet::<Test>::free_balance(USER_1);
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            message_id.unwrap(),
+            message_id,
             b"PONG".to_vec(),
             50_000_000u64,
             1000u128,
@@ -2270,15 +2306,14 @@ fn resume_program_works() {
 
         run_to_block(2, None);
 
-        let message_id = Gear::mailbox(USER_1).and_then(|t| {
-            let mut keys = t.keys();
-            keys.next().cloned()
-        });
-        assert!(message_id.is_some());
+        let message_id = Mailbox::<Test>::iter_prefix(USER_1)
+            .next()
+            .map(|(k, _msg)| k.into_origin())
+            .expect("Message id should be");
 
         assert_ok!(GearPallet::<Test>::send_reply(
             Origin::signed(USER_1),
-            message_id.unwrap(),
+            message_id,
             b"PONG".to_vec(),
             150_000_000u64,
             1_000u128,
@@ -2315,14 +2350,10 @@ fn resume_program_works() {
 
         run_to_block(5, None);
 
-        let actual_n = Gear::mailbox(USER_3)
-            .map(|t| {
-                t.into_values().fold(0usize, |i, m| {
-                    assert_eq!(m.payload(), b"Hello, world!".encode());
-                    i + 1
-                })
-            })
-            .unwrap_or(0);
+        let actual_n = Mailbox::<Test>::iter_prefix_values(USER_3).fold(0usize, |i, m| {
+            assert_eq!(m.payload(), b"Hello, world!".encode());
+            i + 1
+        });
 
         assert_eq!(actual_n, 1);
     })

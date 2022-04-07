@@ -1,5 +1,6 @@
 use crate::{
     log::RunResult,
+    mailbox::Mailbox,
     manager::ExtManager,
     program::{Program, ProgramIdWrapper},
 };
@@ -68,7 +69,7 @@ impl System {
     /// The method doesn't check whether program exists or not.
     /// So if provided `id` doesn't belong to program, message sent
     /// to such "program" will cause panics.
-    pub fn get_program<ID: Into<ProgramIdWrapper>>(&'_ self, id: ID) -> Program<'_> {
+    pub fn get_program<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Program {
         let id = id.into().0;
         Program {
             id,
@@ -96,5 +97,18 @@ impl System {
 
         let code = fs::read(&path).unwrap_or_else(|_| panic!("Failed to read file {:?}", path));
         self.0.borrow_mut().store_new_code(&code)
+    }
+
+    pub fn get_mailbox<ID: Into<ProgramIdWrapper>>(&self, id: ID) -> Mailbox {
+        let program_id = id.into().0;
+        if self.0.borrow_mut().actors.contains_key(&program_id) {
+            panic!("Such program id is already in actors list");
+        }
+        self.0
+            .borrow_mut()
+            .mailbox
+            .entry(program_id)
+            .or_insert_with(Vec::default);
+        Mailbox::new(program_id, &self.0)
     }
 }

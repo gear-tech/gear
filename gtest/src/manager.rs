@@ -26,13 +26,13 @@ use gear_core::{
     code::Code,
     ids::{CodeId, MessageId, ProgramId},
     memory::PageNumber,
-    message::{
-        Dispatch, DispatchKind, Message, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage,
-    },
+    message::{Dispatch, DispatchKind, ReplyMessage, ReplyPacket, StoredDispatch, StoredMessage},
     program::Program as CoreProgram,
 };
-use std::collections::{BTreeMap, VecDeque};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::{BTreeMap, HashMap, VecDeque},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 pub(crate) type Balance = u128;
 
@@ -133,7 +133,7 @@ pub(crate) struct ExtManager {
     pub(crate) actors: BTreeMap<ProgramId, (Actor, Balance)>,
     pub(crate) codes: BTreeMap<CodeId, Vec<u8>>,
     pub(crate) dispatches: VecDeque<StoredDispatch>,
-    pub(crate) mailbox: BTreeMap<ProgramId, Vec<StoredMessage>>,
+    pub(crate) mailbox: HashMap<ProgramId, Vec<StoredMessage>>,
     pub(crate) wait_list: BTreeMap<(ProgramId, MessageId), StoredDispatch>,
     pub(crate) wait_init_list: BTreeMap<ProgramId, Vec<MessageId>>,
     pub(crate) gas_limits: BTreeMap<MessageId, Option<u64>>,
@@ -141,7 +141,7 @@ pub(crate) struct ExtManager {
     // Last run info
     pub(crate) origin: ProgramId,
     pub(crate) msg_id: MessageId,
-    pub(crate) log: Vec<Message>,
+    pub(crate) log: Vec<StoredMessage>,
     pub(crate) main_failed: bool,
     pub(crate) others_failed: bool,
 }
@@ -188,7 +188,9 @@ impl ExtManager {
     }
 
     pub(crate) fn free_id_nonce(&mut self) -> u64 {
-        while self.actors.contains_key(&self.id_nonce.into()) {
+        while self.actors.contains_key(&self.id_nonce.into())
+            || self.mailbox.contains_key(&self.id_nonce.into())
+        {
             self.id_nonce += 1;
         }
         self.id_nonce
@@ -210,6 +212,7 @@ impl ExtManager {
                 .entry(message.destination())
                 .or_default()
                 .push(message.message().clone());
+            self.log.push(message.message().clone())
         }
 
         let mut total_processed = 0;
@@ -250,7 +253,7 @@ impl ExtManager {
         RunResult {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
-            log: log.into_iter().map(CoreLog::from_message).collect(),
+            log: log.into_iter().map(CoreLog::from).collect(),
             message_id,
             total_processed,
         }
@@ -418,6 +421,7 @@ impl ExtManager {
             crate::EXISTENTIAL_DEPOSIT,
             self.origin,
             dest,
+            u64::MAX,
         );
 
         core_processor::handle_journal(journal, self);
@@ -463,7 +467,7 @@ impl JournalHandler for ExtManager {
                 .entry(dispatch.destination())
                 .or_default()
                 .push(dispatch.message().clone().into_stored());
-            self.log.push(dispatch.message().clone());
+            self.log.push(dispatch.message().clone().into_stored());
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
@@ -552,5 +556,9 @@ impl JournalHandler for ExtManager {
                     .insert(invalid_candidate_id, (Actor::Dormant, 0));
             }
         }
+    }
+
+    fn stop_processing(&mut self, _dispatch: StoredDispatch, _gas_burned: u64) {
+        panic!("Processing stopped. Used for on-chain logic only.")
     }
 }

@@ -110,6 +110,8 @@ where
     T::AccountId: Origin,
 {
     fn message_dispatched(&mut self, outcome: CoreDispatchOutcome) {
+        Pallet::<T>::message_handled();
+
         let event = match outcome {
             CoreDispatchOutcome::Success(message_id) => {
                 log::trace!("Dispatch outcome success: {:?}", message_id);
@@ -350,6 +352,8 @@ where
     }
 
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {
+        Pallet::<T>::message_handled();
+
         common::insert_waiting_message(
             dispatch.destination().into_origin(),
             dispatch.id().into_origin(),
@@ -504,5 +508,18 @@ where
                 self.marked_destinations.insert(candidate);
             }
         }
+    }
+
+    fn stop_processing(&mut self, dispatch: StoredDispatch, gas_burned: u64) {
+        log::debug!(
+            "Not enought gas for processing msg id {}, allowance equals {}, gas tried to burn at least {}",
+            dispatch.id(),
+            Pallet::<T>::gas_allowance(),
+            gas_burned,
+        );
+
+        Pallet::<T>::stop_processing();
+        Pallet::<T>::decrease_gas_allowance(gas_burned);
+        common::queue_dispatch_first(dispatch);
     }
 }
