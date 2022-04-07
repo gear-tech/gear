@@ -1,7 +1,7 @@
 ---
 
 - name: "deploy to aws-rhce"
-  hosts: all, !node-ubuntu
+  hosts: all, !nodes-ubuntu
   become: yes
   remote_user: ec2-user
 
@@ -14,7 +14,7 @@
 
 
 - name: "deploy to aws-ubuntu"
-  hosts: node-ubuntu
+  hosts: nodes-ubuntu
   become: yes
   remote_user: ubuntu
 
