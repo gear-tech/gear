@@ -18,7 +18,7 @@
 
 use crate::configs::{AllocationsConfig, BlockInfo};
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use gear_backend_common::{ExtInfoSource, ExtInfo};
+use gear_backend_common::{ExtInfo, ExtInfoSource};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},

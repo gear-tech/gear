@@ -26,7 +26,8 @@ use alloc::{
     vec::Vec,
 };
 use gear_backend_common::{
-    funcs as common_funcs, BackendError, BackendReport, Environment, IntoExtInfo, TerminationReason,
+    funcs as common_funcs, get_actual_gas_amount, BackendError, BackendReport, Environment,
+    ExtInfoSource, TerminationReason,
 };
 use gear_core::{
     env::{Ext, LaterExt},
@@ -69,15 +70,14 @@ fn set_pages<T: Ext>(
     Ok(())
 }
 
-impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
+impl<E: Ext + ExtInfoSource> Environment<E> for WasmtimeEnvironment<E> {
     fn new(
         ext: E,
         binary: &[u8],
         memory_pages: &BTreeMap<PageNumber, Option<Box<PageBuf>>>,
         mem_size: WasmPageNumber,
     ) -> Result<Self, BackendError<'static>> {
-        let mut later_ext = LaterExt::default();
-        later_ext.set(ext);
+        let mut later_ext = LaterExt::new(ext);
 
         let engine = Engine::default();
         let store_data = StoreData {
@@ -140,7 +140,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         let module = Module::new(&engine, binary).map_err(|e| BackendError {
             reason: "Unable to create module",
             description: Some(e.to_string().into()),
-            gas_amount: later_ext.unset().into_gas_amount(),
+            gas_amount: get_actual_gas_amount(&mut later_ext),
         })?;
 
         let mut imports = module
@@ -152,7 +152,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                         description: import
                             .name()
                             .map(|v| format!("Function {:?} is not env", v).into()),
-                        gas_amount: later_ext.unset().into_gas_amount(),
+                        gas_amount: get_actual_gas_amount(&mut later_ext),
                     })
                 } else {
                     Ok((import.name(), Option::<Extern>::None))
@@ -177,7 +177,7 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     reason: "Missing import",
                     description: name
                         .map(|v| format!("Function {:?} definition wasn't found", v).into()),
-                    gas_amount: later_ext.unset().into_gas_amount(),
+                    gas_amount: get_actual_gas_amount(&mut later_ext),
                 })
             })
             .collect::<Result<Vec<_>, BackendError>>()?;
@@ -185,14 +185,14 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         let instance = Instance::new(&mut store, &module, &externs).map_err(|e| BackendError {
             reason: "Unable to create instance",
             description: Some(e.to_string().into()),
-            gas_amount: later_ext.unset().into_gas_amount(),
+            gas_amount: get_actual_gas_amount(&mut later_ext),
         })?;
 
         // Set module memory data
         set_pages(&mut store, &mut memory, memory_pages).map_err(|e| BackendError {
             reason: "Unable to set module memory data",
             description: Some(format!("{:?}", e).into()),
-            gas_amount: later_ext.unset().into_gas_amount(),
+            gas_amount: get_actual_gas_amount(&mut later_ext),
         })?;
 
         Ok(WasmtimeEnvironment {
@@ -219,27 +219,33 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
         })
     }
 
-    fn get_wasm_memory_begin_addr(&mut self) -> u64 {
-        self.memory.data_ptr(&mut self.store) as u64
+    fn get_wasm_memory_begin_addr(&self) -> u64 {
+        self.memory.data_ptr(&self.store) as u64
     }
 
-    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
+    fn execute(mut self, entry_point: &str) -> Result<BackendReport, BackendError> {
         let func = self.instance.get_func(&mut self.store, entry_point);
 
         let entry_func = if let Some(f) = func {
             // Entry function found
             f
         } else {
+            let wasm_memory_addr = self.get_wasm_memory_begin_addr();
+            let WasmtimeEnvironment {
+                mut store,
+                ext,
+                memory,
+                ..
+            } = self;
             // Entry function not found, so we mean this as empty function
             return Ok(BackendReport {
                 termination: TerminationReason::Success,
-                wasm_memory_addr: self.get_wasm_memory_begin_addr(),
-                info: self
-                    .ext
+                wasm_memory_addr,
+                info: ext
                     .unset()
                     .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                        self.memory
-                            .read(&mut self.store, offset, buffer)
+                        memory
+                            .read(&mut store, offset, buffer)
                             .map_err(|_| "Cannot read wasmtime memory")
                     })
                     .map_err(|(reason, gas_amount)| BackendError {
@@ -252,12 +258,19 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
         let res = entry_func.call(&mut self.store, &[], &mut []);
 
-        let info = self
-            .ext
+        let wasm_memory_addr = self.get_wasm_memory_begin_addr();
+        let WasmtimeEnvironment {
+            mut store,
+            ext,
+            memory,
+            ..
+        } = self;
+
+        let info = ext
             .unset()
             .into_ext_info(|offset: usize, buffer: &mut [u8]| {
-                self.memory
-                    .read(&mut self.store, offset, buffer)
+                memory
+                    .read(&mut store, offset, buffer)
                     .map_err(|_| "Cannot read wasmtime memory")
             })
             .map_err(|(reason, gas_amount)| BackendError {
@@ -295,12 +308,12 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
 
         Ok(BackendReport {
             termination,
-            wasm_memory_addr: self.get_wasm_memory_begin_addr(),
+            wasm_memory_addr,
             info,
         })
     }
 
-    fn drop_env(&mut self) -> GasAmount {
-        self.ext.unset().into_gas_amount()
+    fn drop_env(self) -> GasAmount {
+        self.ext.unset().gas_amount()
     }
 }

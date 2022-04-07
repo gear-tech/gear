@@ -32,7 +32,7 @@ use alloc::{
     vec::Vec,
 };
 use gear_core::{
-    env::Ext,
+    env::{Ext, LaterExt},
     gas::GasAmount,
     ids::{CodeId, MessageId, ProgramId},
     memory::{PageBuf, PageNumber, WasmPageNumber},
@@ -77,6 +77,10 @@ pub trait ExtInfoSource {
     fn gas_amount(&self) -> GasAmount;
 }
 
+pub fn get_actual_gas_amount<E: Ext + ExtInfoSource>(later_ext: &mut LaterExt<E>) -> GasAmount {
+    later_ext.with(|e| e.gas_amount()).expect("infallible call")
+}
+
 pub struct BackendReport<'a> {
     pub termination: TerminationReason<'a>,
     pub wasm_memory_addr: u64,
@@ -106,14 +110,14 @@ pub trait Environment<E: Ext + ExtInfoSource + 'static>: Sized {
     fn get_stack_mem_end(&mut self) -> Option<WasmPageNumber>;
 
     /// Returns host address of wasm memory buffer. Needed for lazy-pages
-    fn get_wasm_memory_begin_addr(&mut self) -> u64;
+    fn get_wasm_memory_begin_addr(&self) -> u64;
 
     /// Run setuped instance starting at `entry_point` - wasm export function name.
     /// - IMPORTANT: env is in inconsistent state after execution.
-    fn execute(&mut self, entry_point: &str) -> Result<BackendReport, BackendError>;
+    fn execute(self, entry_point: &str) -> Result<BackendReport, BackendError>;
 
     /// Unset env ext and returns gas amount.
-    fn drop_env(&mut self) -> GasAmount;
+    fn drop_env(self) -> GasAmount;
 }
 
 pub trait OnSuccessCode<T, E> {

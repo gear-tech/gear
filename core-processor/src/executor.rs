@@ -27,7 +27,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     vec::Vec,
 };
-use gear_backend_common::{BackendReport, Environment, IntoExtInfo, TerminationReason};
+use gear_backend_common::{BackendReport, Environment, ExtInfoSource, TerminationReason};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{ChargeResult, GasAllowanceCounter, GasCounter, ValueCounter},
@@ -36,7 +36,7 @@ use gear_core::{
 };
 
 /// Execute wasm with dispatch and return dispatch result.
-pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub fn execute_wasm<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
     context: ExecutionContext,
@@ -216,7 +216,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         Err(e) => {
             return Err(ExecutionError {
                 program_id,
-                gas_amount: ext.into_gas_amount(),
+                gas_amount: ext.gas_amount(),
                 reason: e,
                 allowance_exceed: false,
             })
@@ -242,13 +242,18 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
     );
 
     if lazy_pages_enabled {
-        A::protect_pages_and_init_info(initial_pages, program_id, env.get_wasm_memory_begin_addr())
-            .map_err(|e| ExecutionError {
+        if let Err(e) = A::protect_pages_and_init_info(
+            initial_pages,
+            program_id,
+            env.get_wasm_memory_begin_addr(),
+        ) {
+            return Err(ExecutionError {
                 program_id,
                 gas_amount: env.drop_env(),
                 reason: e,
                 allowance_exceed: false,
-            })?;
+            });
+        }
     }
 
     // Page which is right after stack last page
@@ -281,7 +286,7 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         // if somebody will try to access this pages.
         A::post_execution_actions(initial_pages, wasm_memory_addr).map_err(|e| ExecutionError {
             program_id,
-            gas_amount: info.gas_amount.clone(),
+            gas_amount: info.gas_amount,
             reason: e,
             allowance_exceed: false,
         })?;
@@ -321,9 +326,9 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
         }
 
         if let Some(initial_data) = initial_pages.get(&page) {
-            let old_data = initial_data.as_ref().ok_or_else(|| ExecutionError {
+            let old_data = initial_data.as_ref().ok_or(ExecutionError {
                 program_id,
-                gas_amount: info.gas_amount.clone(),
+                gas_amount: info.gas_amount,
                 reason: "RUNTIME ERROR: changed page has no data in initial pages",
                 allowance_exceed: false,
             })?;
