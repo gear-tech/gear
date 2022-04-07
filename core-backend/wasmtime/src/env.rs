@@ -263,6 +263,8 @@ impl<E: Ext + IntoExtInfo> Environment<E> for WasmtimeEnvironment<E> {
                     Some(TerminationReason::Wait)
                 } else if common_funcs::is_leave_trap(&trap) {
                     Some(TerminationReason::Leave)
+                } else if common_funcs::is_gas_allowance_trap(&trap) {
+                    Some(TerminationReason::GasAllowanceExceed)
                 } else {
                     None
                 }

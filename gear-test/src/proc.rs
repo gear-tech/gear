@@ -111,6 +111,7 @@ where
         EXISTENTIAL_DEPOSIT,
         Default::default(),
         program_id,
+        u64::MAX,
     );
 
     core_processor::handle_journal(journal, journal_handler);
@@ -291,6 +292,7 @@ where
                     EXISTENTIAL_DEPOSIT,
                     Default::default(),
                     program_id,
+                    u64::MAX,
                 );
 
                 core_processor::handle_journal(journal, journal_handler);
@@ -324,6 +326,7 @@ where
                 EXISTENTIAL_DEPOSIT,
                 Default::default(),
                 program_id,
+                u64::MAX,
             );
             counter += 1;
 
