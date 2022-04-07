@@ -21,7 +21,7 @@ use core_processor::{
     configs::{AllocationsConfig, BlockInfo},
     Ext, ProcessorExt,
 };
-use gear_backend_common::{ExtInfo, IntoExtInfo};
+use gear_backend_common::{ExtInfo, ExtInfoSource};
 use gear_core::{
     env::Ext as EnvExt,
     gas::{GasAllowanceCounter, GasAmount, GasCounter, ValueCounter},
@@ -39,7 +39,7 @@ pub struct LazyPagesExt {
     lazy_pages_enabled: bool,
 }
 
-impl IntoExtInfo for LazyPagesExt {
+impl ExtInfoSource for LazyPagesExt {
     fn into_ext_info<F: FnMut(usize, &mut [u8]) -> Result<(), &'static str>>(
         self,
         mut get_page_data: F,
@@ -60,7 +60,7 @@ impl IntoExtInfo for LazyPagesExt {
         for page in accessed_pages {
             let mut buf = vec![0u8; PageNumber::size()];
             if let Err(err) = get_page_data(page.offset(), &mut buf) {
-                return Err((err, self.into_gas_amount()));
+                return Err((err, self.gas_amount()));
             }
             accessed_pages_data.insert(page, buf);
         }
@@ -81,7 +81,7 @@ impl IntoExtInfo for LazyPagesExt {
         })
     }
 
-    fn into_gas_amount(self) -> gear_core::gas::GasAmount {
+    fn gas_amount(&self) -> gear_core::gas::GasAmount {
         self.inner.gas_counter.into()
     }
 }

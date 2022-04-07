@@ -49,7 +49,7 @@ pub enum InstrumentError {
 }
 
 /// Gas counter with some predefined maximum gas.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct GasCounter {
     left: u64,
     burned: u64,
@@ -114,7 +114,7 @@ impl GasCounter {
 }
 
 /// Read-only representation of consumed `GasCounter`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct GasAmount {
     left: u64,
     burned: u64,

@@ -26,7 +26,7 @@ use crate::{
     ext::ProcessorExt,
 };
 use alloc::vec::Vec;
-use gear_backend_common::{Environment, IntoExtInfo};
+use gear_backend_common::{Environment, ExtInfoSource};
 use gear_core::{
     env::Ext as EnvExt,
     ids::{MessageId, ProgramId},
@@ -42,7 +42,7 @@ enum SuccessfulDispatchResultKind {
 }
 
 /// Process program & dispatch for it and return journal for updates.
-pub fn process<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub fn process<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Environment<A>>(
     maybe_actor: Option<ExecutableActor>,
     dispatch: IncomingDispatch,
     block_info: BlockInfo,
@@ -238,7 +238,7 @@ fn process_success(
     journal
 }
 
-pub fn process_executable<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environment<A>>(
+pub fn process_executable<A: ProcessorExt + EnvExt + ExtInfoSource + 'static, E: Environment<A>>(
     actor: ExecutableActor,
     dispatch: IncomingDispatch,
     block_info: BlockInfo,
