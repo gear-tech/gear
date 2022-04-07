@@ -1,0 +1,64 @@
+---
+
+- block:
+    - name: create gear-data directory
+      file:
+        dest: /home/ubuntu/gear-data/
+        state: directory
+        owner: deploy
+        group: deploy
+        mode: 0755
+
+    - name: get state gear.service
+      service_facts:
+
+    - name: shutdown gear.service
+      service:
+        name: gear.service
+        state: stopped
+      when: ansible_facts.services['gear.service'] is defined
+
+    - name: get state gear.service
+      service_facts:
+
+    - name: remove old version binaries gear-node
+      file:
+        dest: /usr/local/bin/gear-node
+        state: absent
+      when: ansible_facts.services['gear.service'] is defined and ansible_facts.services['gear.service']['state'] != 'running'
+
+    - name: download latest version binaries gear-node
+      get_url:
+        url: https://github.com/gear-tech/gear/releases/download/build/gear-node
+        dest: /usr/local/bin/gear-node
+        owner: deploy
+        group: deploy
+        mode: 0755
+
+    - name: create gear.service
+      template:
+        src: gear.service
+        dest: /etc/systemd/system/gear.service
+
+    - name: enable gear.service
+      systemd: 
+        name: gear.service
+        state: started
+        daemon_reload: true
+        enabled: yes
+
+    - name: get state gear.service
+      service_facts:
+
+    - debug:
+        msg: 'Deploy is OK, gear.service is RUNNING'
+      when: ansible_facts.services['gear.service'] is defined and ansible_facts.services['gear.service']['state'] == 'running'
+
+    - fail:
+        msg: 'Deploy is NOT OK, gear.service is DOWN'
+      when: ansible_facts.services['gear.service'] is defined and ansible_facts.services['gear.service']['state'] != 'running'
+
+  when: 
+    - deploy_without_docker == True
+    - ansible_distribution == 'Ubuntu'
+    - ansible_distribution_major_version >= '20'

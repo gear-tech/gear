@@ -1,0 +1,20 @@
+[Unit]
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+ExecStart=sudo /usr/local/bin/gear-node --base-path /home/ubuntu/gear-data/ --prometheus-external  --validator  --telemetry-url 'ws://telemetry-backend-shard.gear-tech.io:32001/submit 0'
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+KillSignal=SIGINT
+LimitNOFILE=65536
+LimitNPROC=infinity
+Restart=on-failure
+RestartSec=5
+TasksMax=infinity
+OOMScoreAdjust=-1000
+
+[Install]
+WantedBy=multi-user.target

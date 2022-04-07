@@ -1,13 +1,23 @@
-- name: "deploy to aws"
-  hosts: all
+---
+
+- name: "deploy to aws-rhce"
+  hosts: all, !node-ubuntu
   become: yes
   remote_user: ec2-user
-  vars:
 
-#Do tasks
   tasks:
     - name: Install and enable required packages
       include: tasks/packages/packages.yaml
 
     - name: Install/Update gear node
       include: tasks/docker/docker.yaml
+
+
+- name: "deploy to aws-ubuntu"
+  hosts: node-ubuntu
+  become: yes
+  remote_user: ubuntu
+
+  tasks:
+    - name: Install/Update gear node without Docker
+      include: tasks/deploy/without_docker.yml
