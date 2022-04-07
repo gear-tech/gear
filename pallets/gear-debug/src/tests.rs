@@ -145,8 +145,8 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: (0..static_pages.to_gear_pages().0)
-                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                            .collect(),
+                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                                .collect(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -155,8 +155,8 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: (0..static_pages.to_gear_pages().0)
-                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                            .collect(),
+                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                                .collect(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
@@ -225,8 +225,8 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: (0..static_pages.to_gear_pages().0)
-                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                            .collect(),
+                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                                .collect(),
                             code_hash: generate_code_hash(&code_2),
                         }),
                     },
@@ -235,8 +235,8 @@ fn debug_mode_works() {
                         state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages,
                             persistent_pages: (0..static_pages.to_gear_pages().0)
-                            .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
-                            .collect(),
+                                .map(|v| (PageNumber(v), vec![0; PageNumber::size()]))
+                                .collect(),
                             code_hash: generate_code_hash(&code_1),
                         }),
                     },
