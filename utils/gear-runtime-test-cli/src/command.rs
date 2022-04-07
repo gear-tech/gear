@@ -43,7 +43,7 @@ use gear_test::{
     sample::PayloadVariant,
 };
 use pallet_gear::Pallet as GearPallet;
-use pallet_gear_debug::{DebugData, Terminatable};
+use pallet_gear_debug::{DebugData, ProgramState};
 use rayon::prelude::*;
 use sc_cli::{CliConfiguration, SharedParams};
 use sc_service::Configuration;
@@ -367,7 +367,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .programs
                     .iter()
                     .filter_map(|p| {
-                        if let Terminatable::Active(info) = &p.info {
+                        if let ProgramState::Active(info) = &p.state {
                             if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
                                 let code = gear_common::get_code(info.code_hash)
                                     .expect("code should be in the storage");
@@ -406,7 +406,7 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
                     .iter()
                     .filter_map(|p| {
                         if let Some((pid, _)) = programs.iter().find(|(_, v)| v == &&p.id) {
-                            Some((*pid, p.info == Terminatable::Terminated))
+                            Some((*pid, p.state == ProgramState::Terminated))
                         } else {
                             None
                         }
