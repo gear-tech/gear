@@ -108,7 +108,7 @@ fn debug_mode_works() {
                 dispatch_queue: vec![],
                 programs: vec![crate::ProgramDetails {
                     id: program_id_1,
-                    info: crate::Terminatable::Active(crate::ProgramInfo {
+                    state: crate::ProgramState::Active(crate::ProgramInfo {
                         static_pages: 16,
                         persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                         code_hash: generate_code_hash(&code_1),
@@ -138,7 +138,7 @@ fn debug_mode_works() {
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_2,
-                        info: crate::Terminatable::Active(crate::ProgramInfo {
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages: 16,
                             persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                             code_hash: generate_code_hash(&code_2),
@@ -146,7 +146,7 @@ fn debug_mode_works() {
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
-                        info: crate::Terminatable::Active(crate::ProgramInfo {
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages: 16,
                             persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                             code_hash: generate_code_hash(&code_1),
@@ -214,7 +214,7 @@ fn debug_mode_works() {
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_2,
-                        info: crate::Terminatable::Active(crate::ProgramInfo {
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages: 16,
                             persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                             code_hash: generate_code_hash(&code_2),
@@ -222,7 +222,7 @@ fn debug_mode_works() {
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
-                        info: crate::Terminatable::Active(crate::ProgramInfo {
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages: 16,
                             persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                             code_hash: generate_code_hash(&code_1),
@@ -243,7 +243,7 @@ fn debug_mode_works() {
                 programs: vec![
                     crate::ProgramDetails {
                         id: program_id_2,
-                        info: crate::Terminatable::Active(crate::ProgramInfo {
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages: 16,
                             persistent_pages: (0..20).map(|v| (v, vec![0; 65536])).collect(),
                             code_hash: generate_code_hash(&code_2),
@@ -251,7 +251,7 @@ fn debug_mode_works() {
                     },
                     crate::ProgramDetails {
                         id: program_id_1,
-                        info: crate::Terminatable::Active(crate::ProgramInfo {
+                        state: crate::ProgramState::Active(crate::ProgramInfo {
                             static_pages: 16,
                             persistent_pages: (0..16).map(|v| (v, vec![0; 65536])).collect(),
                             code_hash: generate_code_hash(&code_1),

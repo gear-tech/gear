@@ -100,7 +100,7 @@ pub mod pallet {
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
-    pub enum Terminatable {
+    pub enum ProgramState {
         Active(ProgramInfo),
         Terminated,
     }
@@ -108,7 +108,7 @@ pub mod pallet {
     #[derive(Encode, Decode, Clone, PartialEq, TypeInfo, Debug)]
     pub struct ProgramDetails {
         pub id: H256,
-        pub info: Terminatable,
+        pub state: ProgramState,
     }
 
     #[derive(Debug, Encode, Decode, Clone, Default, PartialEq, TypeInfo)]
@@ -179,15 +179,15 @@ pub mod pallet {
             )
             .map(|(id, p)| ProgramDetails {
                 id,
-                info: if let Program::Active(active) = p {
-                    Terminatable::Active(ProgramInfo {
+                state: if let Program::Active(active) = p {
+                    ProgramState::Active(ProgramInfo {
                         static_pages: active.static_pages,
                         persistent_pages: common::get_program_pages(id, active.persistent_pages)
                             .expect("active program exists, therefore pages do"),
                         code_hash: active.code_hash,
                     })
                 } else {
-                    Terminatable::Terminated
+                    ProgramState::Terminated
                 },
             })
             .collect();
