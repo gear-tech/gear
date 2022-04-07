@@ -25,6 +25,7 @@ fixtures:
 
     expected:
       - programs:
+        ids:
           - kind: id
             value: 1
 
@@ -71,9 +72,10 @@ fixtures:
 
       - step: 2
         programs:
-          - kind: id
-            value: 1
-          - *address
+          ids:
+            - kind: id
+              value: 1
+            - *address
         messages:
           - destination:  *address
             init: true

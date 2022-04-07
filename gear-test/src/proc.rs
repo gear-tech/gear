@@ -281,12 +281,14 @@ where
                 .unwrap_or(0) as u64;
 
             if let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
-                let actor = state.actors.get(&dispatch.destination()).cloned();
-
                 let program_id = dispatch.destination();
 
+                let actor = state.actors.get(&program_id).cloned();
+
                 let journal = core_processor::process::<Ext, E>(
-                    actor,
+                    actor.unwrap_or_else(|| {
+                        panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+                    }),
                     dispatch.into_incoming(gas_limit),
                     BlockInfo { height, timestamp },
                     EXISTENTIAL_DEPOSIT,
@@ -307,17 +309,18 @@ where
     } else {
         let mut counter = 0;
         while let Some((dispatch, gas_limit)) = state.dispatch_queue.pop_front() {
-            let actor = state.actors.get(&dispatch.destination()).cloned();
+            let program_id = dispatch.destination();
 
+            let actor = state.actors.get(&program_id).cloned();
             let timestamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_millis())
                 .unwrap_or(0) as u64;
 
-            let program_id = dispatch.destination();
-
             let journal = core_processor::process::<Ext, E>(
-                actor,
+                actor.unwrap_or_else(|| {
+                    panic!("Error: Message to user {:?} in dispatch queue!", program_id)
+                }),
                 dispatch.into_incoming(gas_limit),
                 BlockInfo {
                     height: counter,
@@ -333,6 +336,7 @@ where
             core_processor::handle_journal(journal, journal_handler);
 
             state = journal_handler.collect();
+
             log::debug!("{:?}", state);
             results.push((state.clone(), Ok(())));
         }

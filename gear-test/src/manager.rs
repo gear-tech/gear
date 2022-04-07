@@ -100,11 +100,6 @@ impl CollectState for InMemoryExtManager {
             })
             .collect();
 
-        let actors = actors
-            .into_iter()
-            .filter_map(|(id, a_opt)| a_opt.map(|a| (id, a)))
-            .collect();
-
         State {
             dispatch_queue,
             log,

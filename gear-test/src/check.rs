@@ -38,6 +38,7 @@ use gear_core::{
 };
 use log::{Log, Metadata, Record, SetLoggerError};
 use rayon::prelude::*;
+use std::collections::BTreeMap;
 use std::{
     collections::HashMap,
     fmt, fs,
@@ -438,26 +439,42 @@ pub fn check_memory(
     }
 }
 
-fn check_active_programs(
-    expected_ids: Vec<ProgramId>,
-    actual_ids: Vec<ProgramId>,
+pub fn check_programs_state(
+    expected_programs: &BTreeMap<ProgramId, bool>,
+    actual_programs: &BTreeMap<ProgramId, bool>,
+    only: bool,
 ) -> Result<(), Vec<String>> {
-    let mut errors = Vec::with_capacity(expected_ids.len());
-    if expected_ids.len() != actual_ids.len() {
-        errors.push(format!(
-            "invalid amount of active programs: expected - {:?}, actual - {:?}",
-            expected_ids.len(),
-            actual_ids.len()
-        ));
-    } else {
-        let check_data = expected_ids.iter().zip(actual_ids.iter());
-        for (idx, (expected_id, actual_id)) in check_data.enumerate() {
-            if expected_id != actual_id {
+    let mut errors = Vec::new();
+
+    if only {
+        if actual_programs.len() != expected_programs.len() {
+            errors.push(format!(
+                "Different lens of actual and expected programs: actual length={}, expected length={}",
+                actual_programs.len(), expected_programs.len(),
+            ));
+        }
+
+        for id in actual_programs.keys() {
+            if !expected_programs.contains_key(id) {
                 errors.push(format!(
-                    "invalid program id at position {:?}. Expected - {:?}, actual - {:?}",
-                    idx, expected_id, actual_id
+                    "Actual program {:?} wasn't found in expectations",
+                    id,
                 ));
             }
+        }
+    }
+
+    for (id, terminated) in expected_programs {
+        let actual_termination = actual_programs.get(id);
+        if let Some(actual_termination) = actual_termination {
+            if actual_termination != terminated {
+                errors.push(format!(
+                    "Wrong state of program: {:?} expected to be active={:?}, but it is active={:?}",
+                    id, terminated, actual_termination,
+                ));
+            }
+        } else {
+            errors.push(format!("Invalid program id {:?}.", id));
         }
     }
 
@@ -550,16 +567,29 @@ where
                         );
                     }
                 }
-                if let Some(programs) = &exp.active_programs {
+                if let Some(programs) = &exp.programs {
                     let expected_prog_ids = programs
+                        .ids
                         .iter()
-                        .map(|address| address.to_program_id())
+                        .map(|program| {
+                            (
+                                program.address.to_program_id(),
+                                program.terminated.unwrap_or_default(),
+                            )
+                        })
                         .collect();
-                    // Final state returns only active programs
-                    let actual_prog_ids = final_state.actors.iter().map(|(id, _)| *id).collect();
-                    if let Err(prog_id_errors) =
-                        check_active_programs(expected_prog_ids, actual_prog_ids)
-                    {
+
+                    let actual_prog_ids = final_state
+                        .actors
+                        .iter()
+                        .map(|(id, actor)| (*id, actor.is_none()))
+                        .collect();
+
+                    if let Err(prog_id_errors) = check_programs_state(
+                        &expected_prog_ids,
+                        &actual_prog_ids,
+                        programs.only.unwrap_or_default(),
+                    ) {
                         errors.push(format!("step: {:?}", exp.step));
                         errors.extend(
                             prog_id_errors
@@ -574,7 +604,7 @@ where
                             .actors
                             .clone()
                             .into_iter()
-                            .map(|(_, v)| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
                             .collect();
                         if let Err(alloc_errors) = check_allocations(&progs, alloc) {
                             errors.push(format!("step: {:?}", exp.step));
@@ -587,7 +617,7 @@ where
                         let mut progs: Vec<Program> = final_state
                             .actors
                             .into_iter()
-                            .map(|(_, v)| v.program)
+                            .filter_map(|(_, actor_opt)| actor_opt.map(|v| v.program))
                             .collect();
                         if let Err(mem_errors) = check_memory(&mut progs, mem) {
                             errors.push(format!("step: {:?}", exp.step));
