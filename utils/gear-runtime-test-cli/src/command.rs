@@ -319,8 +319,8 @@ fn run_fixture(test: &'_ sample::Test, fixture: &sample::Fixture) -> ColoredStri
 
                 let mut message_queue: Vec<(StoredMessage, GasLimit)> = snapshot
                     .dispatch_queue
-                    .iter()
-                    .map(|dispatch| (dispatch.message().clone(), 0))
+                    .into_iter()
+                    .map(|dispatch| (dispatch.into_parts().1, 0))
                     .collect();
 
                 if let Some(mut expected_messages) = exp.messages.clone() {

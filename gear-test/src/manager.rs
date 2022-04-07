@@ -177,7 +177,7 @@ impl JournalHandler for InMemoryExtManager {
                 self.dispatch_queue.push_back(dispatch.into_stored());
             }
         } else {
-            self.log.push(dispatch.message().clone().into_stored());
+            self.log.push(dispatch.into_parts().1.into_stored());
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {

@@ -424,8 +424,9 @@ fn rent_charge_works() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message().clone(), n))
+            .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
+
         assert_eq!(wl.len(), 10);
         assert_eq!(wl[0].0.id(), 1001.into());
         assert_eq!(wl[9].0.id(), 1010.into());
@@ -472,8 +473,9 @@ fn rent_charge_works() {
         // The insertion block number has been reset for the first 5 messages
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message().clone(), n))
+            .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
+
         // current block number
         assert_eq!(wl[0].1, 15);
         assert_eq!(wl[4].1, 15);
@@ -502,8 +504,9 @@ fn trap_reply_message_is_sent() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message().clone(), n))
+            .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
+
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage
@@ -652,8 +655,9 @@ fn dust_discarded_with_noop() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message().clone(), n))
+            .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
+
         assert_eq!(wl.len(), 1);
 
         run_to_block(15);
@@ -689,8 +693,9 @@ fn gas_properly_handled_for_trap_replies() {
 
         let wl = wait_list_contents()
             .into_iter()
-            .map(|(d, n)| (d.message().clone(), n))
+            .map(|(d, n)| (d.into_parts().1, n))
             .collect::<Vec<_>>();
+
         assert_eq!(wl.len(), 2);
 
         // Insert respective programs to the program storage

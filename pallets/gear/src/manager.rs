@@ -340,14 +340,14 @@ where
             }
             common::queue_dispatch(dispatch);
         } else {
+            let message = dispatch.into_parts().1;
+
             // Being placed into a user's mailbox means the end of a message life cycle.
             // There can be no further processing whatsoever, hence any gas attempted to be
             // passed along must be returned (i.e. remain in the parent message's value tree).
-            Pallet::<T>::insert_to_mailbox(
-                dispatch.destination().into_origin(),
-                dispatch.message().clone(),
-            );
-            Pallet::<T>::deposit_event(Event::Log(dispatch.message().clone()));
+            Pallet::<T>::insert_to_mailbox(message.destination().into_origin(), message.clone());
+
+            Pallet::<T>::deposit_event(Event::Log(message));
         }
     }
 
