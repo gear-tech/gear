@@ -186,13 +186,12 @@ fn debug_mode_works() {
         System::assert_last_event(
             crate::Event::DebugDataSnapshot(DebugData {
                 dispatch_queue: vec![
-                    // message will have reverse order since the first one requeued to the end
                     StoredDispatch::new(
                         DispatchKind::Handle,
                         StoredMessage::new(
-                            MessageId::from_origin(message_id_2),
+                            MessageId::from_origin(message_id_1),
                             1.into(),
-                            ProgramId::from_origin(program_id_2),
+                            ProgramId::from_origin(program_id_1),
                             Default::default(),
                             0,
                             None,
@@ -202,9 +201,9 @@ fn debug_mode_works() {
                     StoredDispatch::new(
                         DispatchKind::Handle,
                         StoredMessage::new(
-                            MessageId::from_origin(message_id_1),
+                            MessageId::from_origin(message_id_2),
                             1.into(),
-                            ProgramId::from_origin(program_id_1),
+                            ProgramId::from_origin(program_id_2),
                             Default::default(),
                             0,
                             None,

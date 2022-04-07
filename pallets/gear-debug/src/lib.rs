@@ -88,7 +88,7 @@ pub mod pallet {
 
     impl fmt::Debug for ProgramInfo {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("ProgramDetails")
+            f.debug_struct("ProgramInfo")
                 .field("static_pages", &self.static_pages)
                 .field(
                     "persistent_pages",
