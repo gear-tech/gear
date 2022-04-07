@@ -97,14 +97,14 @@ pub fn execute_wasm<A: ProcessorExt + EnvExt + IntoExtInfo + 'static, E: Environ
                 reason: "",
                 allowance_exceed: true,
             });
-        };
+        }
 
         if gas_counter.charge(amount) != ChargeResult::Enough {
             return Err(ExecutionError {
                 program_id,
                 gas_amount: gas_counter.into(),
                 reason: "Not enough gas for grow memory size.",
-                allowance_exceed: true,
+                allowance_exceed: false,
             });
         }
 

@@ -16,10 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ids::{MessageId, ProgramId};
-use crate::message::{
-    ContextStore, DispatchKind, ExitCode, GasLimit, IncomingDispatch, IncomingMessage, Payload,
-    Value,
+use crate::{
+    ids::{MessageId, ProgramId},
+    message::{
+        ContextStore, DispatchKind, ExitCode, GasLimit, IncomingDispatch, IncomingMessage, Payload,
+        Value,
+    },
 };
 use codec::{Decode, Encode};
 use core::ops::Deref;
@@ -134,6 +136,12 @@ pub struct StoredDispatch {
     context: Option<ContextStore>,
 }
 
+impl From<StoredDispatch> for (DispatchKind, StoredMessage, Option<ContextStore>) {
+    fn from(dispatch: StoredDispatch) -> (DispatchKind, StoredMessage, Option<ContextStore>) {
+        (dispatch.kind, dispatch.message, dispatch.context)
+    }
+}
+
 impl StoredDispatch {
     /// Create new StoredDispatch.
     pub fn new(kind: DispatchKind, message: StoredMessage, context: Option<ContextStore>) -> Self {
@@ -151,6 +159,11 @@ impl StoredDispatch {
             self.message.into_incoming(gas_limit),
             self.context,
         )
+    }
+
+    /// Decompose StoredDispatch for it's components: DispatchKind, StoredMessage and Option<ContextStore>.
+    pub fn into_parts(self) -> (DispatchKind, StoredMessage, Option<ContextStore>) {
+        self.into()
     }
 
     /// Entry point for the message.

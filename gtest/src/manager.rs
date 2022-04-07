@@ -196,23 +196,22 @@ impl ExtManager {
         self.id_nonce
     }
 
-    pub(crate) fn run_dispatch(&mut self, message: Dispatch) -> RunResult {
-        self.prepare_for(&message);
+    pub(crate) fn run_dispatch(&mut self, dispatch: Dispatch) -> RunResult {
+        self.prepare_for(&dispatch);
 
-        self.gas_limits.insert(message.id(), message.gas_limit());
-        let message = message.into_stored();
+        self.gas_limits.insert(dispatch.id(), dispatch.gas_limit());
 
-        let message_id = message.id();
-
-        let maybe_actor = self.actors.get_mut(&message.destination());
-        if maybe_actor.is_some() {
-            self.dispatches.push_back(message);
+        if self.actors.contains_key(&dispatch.destination()) {
+            self.dispatches.push_back(dispatch.into_stored());
         } else {
+            let message = dispatch.into_parts().1.into_stored();
+
             self.mailbox
                 .entry(message.destination())
                 .or_default()
-                .push(message.message().clone());
-            self.log.push(message.message().clone())
+                .push(message.clone());
+
+            self.log.push(message)
         }
 
         let mut total_processed = 0;
@@ -254,7 +253,7 @@ impl ExtManager {
             main_failed: self.main_failed,
             others_failed: self.others_failed,
             log: log.into_iter().map(CoreLog::from).collect(),
-            message_id,
+            message_id: self.msg_id,
             total_processed,
         }
     }
@@ -463,11 +462,14 @@ impl JournalHandler for ExtManager {
         if self.actors.contains_key(&dispatch.destination()) {
             self.dispatches.push_back(dispatch.into_stored());
         } else {
+            let message = dispatch.into_parts().1.into_stored();
+
             self.mailbox
-                .entry(dispatch.destination())
+                .entry(message.destination())
                 .or_default()
-                .push(dispatch.message().clone().into_stored());
-            self.log.push(dispatch.message().clone().into_stored());
+                .push(message.clone());
+
+            self.log.push(message);
         }
     }
     fn wait_dispatch(&mut self, dispatch: StoredDispatch) {

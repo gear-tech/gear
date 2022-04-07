@@ -513,8 +513,9 @@ where
                         let msgs: Vec<_> = final_state
                             .dispatch_queue
                             .into_iter()
-                            .map(|(d, gas_limit)| (d.message().clone(), gas_limit))
+                            .map(|(d, gas_limit)| (d.into_parts().1, gas_limit))
                             .collect();
+
                         if let Err(msg_errors) =
                             check_messages(progs_n_paths, &msgs, messages, false)
                         {

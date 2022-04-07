@@ -292,11 +292,9 @@ fn process_allowance_exceed(
 ) -> Vec<JournalNote> {
     let mut journal = Vec::with_capacity(1);
 
-    let dispatch = StoredDispatch::new(
-        dispatch.kind(),
-        dispatch.message().clone().into_stored(program_id),
-        dispatch.context().clone(),
-    );
+    let (kind, message, opt_context) = dispatch.into_parts();
+
+    let dispatch = StoredDispatch::new(kind, message.into_stored(program_id), opt_context);
 
     journal.push(JournalNote::StopProcessing {
         dispatch,
