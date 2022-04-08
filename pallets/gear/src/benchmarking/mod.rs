@@ -26,7 +26,7 @@ mod sandbox;
 use self::{
     code::{
         body::{self, DynInstr::*},
-        DataSegment, ImportedFunction, ImportedMemory, ModuleDefinition, WasmModule,
+        DataSegment, ImportedFunction, ImportedMemory, Location, ModuleDefinition, WasmModule,
     },
     sandbox::Sandbox,
 };
@@ -113,7 +113,7 @@ where
             salt,
             data,
             250_000_000,
-            value.into(),
+            value,
         )?;
 
         Gear::<T>::process_queue();
@@ -213,8 +213,8 @@ benchmarks! {
         let code = benchmarking::generate_wasm(q).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = crate::Pallet::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
-        crate::Pallet::<T>::process_queue();
+        let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        Gear::<T>::process_queue();
     }
     verify {
         assert!(common::dequeue_dispatch().is_none());
@@ -227,17 +227,35 @@ benchmarks! {
         let code = benchmarking::generate_wasm2(q as i32).unwrap();
         let salt = vec![255u8; 32];
     }: {
-        let _ = crate::Pallet::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
-        crate::Pallet::<T>::process_queue();
+        let _ = Gear::<T>::submit_program(RawOrigin::Signed(caller).into(), code, salt, vec![], 100_000_000u64, 0u32.into());
+        Gear::<T>::process_queue();
     }
     verify {
         assert!(common::dequeue_dispatch().is_none());
     }
 
+    // // This benchmarks the additional weight that is charged when a program is executed the
+    // // first time after a new schedule was deployed: For every new schedule a program needs
+    // // to re-run the instrumentation once.
+    // reinstrument {
+    //     let c in 0 .. T::Schedule::get().limits.code_len;
+    //     let WasmModule { code, hash, .. } = WasmModule::<T>::sized(c, Location::Handle);
+    //     let code = Code::new_raw(code, 1, None).unwrap();
+
+    //     common::set_code(code.code_hash().into_origin(), &code);
+
+    //     if let Some(original_code) = code.original_code() {
+    //         common::set_original_code(code.code_hash().into_origin(), original_code);
+    //     }
+    //     let schedule = T::Schedule::get();
+    // }: {
+    //     Gear::<T>::reinstrument_code(code.code_hash(), &schedule)?;
+    // }
+
     gas {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory { min_pages: 256 }),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gas",
@@ -253,13 +271,13 @@ benchmarks! {
         let instance = Program::<T>::new(code, vec![])?;
 
     }: {
-        let _ = crate::Pallet::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
     }
 
     gr_gas_available {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory { min_pages: 256 }),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_gas_available",
@@ -274,7 +292,16 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = crate::Pallet::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    gr_program_id {
+		let r in 0 .. API_BENCHMARK_BATCHES;
+        let instance = Program::<T>::new(WasmModule::getter(
+			"env", "gr_program_id", r * API_BENCHMARK_BATCH_SIZE
+		), vec![])?;
+    }: {
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
     }
 
     gr_wait {
@@ -294,11 +321,9 @@ benchmarks! {
         });
         let instance = Program::<T>::new(code, vec![])?;
     }: {
-        let _ = crate::Pallet::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
     }
 
-    // We cannot call `gr_wake` multiple times. Therefore our weight determination is not
-    // as precise as with other APIs.
     gr_wake {
         let r in 0 .. API_BENCHMARK_BATCHES;
         let message_ids = (0..r * API_BENCHMARK_BATCH_SIZE)
@@ -307,7 +332,7 @@ benchmarks! {
         let message_id_len = message_ids.get(0).map(|i| i.encode().len()).unwrap_or(0);
         let message_id_bytes = message_ids.iter().flat_map(|x| x.encode()).collect();
         let code = WasmModule::<T>::from(ModuleDefinition {
-            memory: Some(ImportedMemory { min_pages: 256 }),
+            memory: Some(ImportedMemory::max::<T>()),
             imported_functions: vec![ImportedFunction {
                 module: "env",
                 name: "gr_wake",
@@ -316,12 +341,12 @@ benchmarks! {
             }],
             data_segments: vec![
                 DataSegment {
-                    offset: 0 as u32,
+                    offset: 0_u32,
                     value: message_id_bytes,
                 },
             ],
             handle_body: Some(body::repeated_dyn(r * API_BENCHMARK_BATCH_SIZE, vec![
-                Counter(0 as u32, message_id_len as u32), // message_id_ptr
+                Counter(0_u32, message_id_len as u32), // message_id_ptr
                 Regular(Instruction::Call(0)),
             ])),
             .. Default::default()
@@ -338,7 +363,7 @@ benchmarks! {
             );
         }
     }: {
-        let _ = crate::Pallet::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), b"gr_wake".to_vec(), 0u32.into());
+        let _ = Gear::<T>::process_message(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly

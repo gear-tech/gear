@@ -339,10 +339,6 @@ pub mod pallet {
                 Error::<T>::FailedToConstructProgram
             })?;
 
-            // let gas_rules = schedule.rules(&module);
-
-            // let original_code = code.clone();
-
             let code = Code::new_raw(code, schedule.instruction_weights.version, Some(module))
                 .map_err(|e| {
                     log::debug!("Code failed to load: {:?}", e);
@@ -410,7 +406,7 @@ pub mod pallet {
             kind: HandleKind,
             payload: Vec<u8>,
             value: u128,
-        ) -> Result<u64, Vec<u8>> {
+        ) -> Result<(), Vec<u8>> {
             let mut ext_manager = ExtManager::<T>::default();
 
             let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
@@ -500,8 +496,6 @@ pub mod pallet {
             let existential_deposit =
                 <T as Config>::Currency::minimum_balance().unique_saturated_into();
 
-            let mut max_gas_spent = 0;
-
             if let Some(queued_dispatch) = common::dequeue_dispatch() {
                 let actor_id = queued_dispatch.destination();
                 let actor = ext_manager
@@ -523,22 +517,8 @@ pub mod pallet {
 
                 core_processor::handle_journal(journal.clone(), &mut ext_manager);
 
-                let (remaining_gas, _) =
-                    T::GasHandler::get_limit(root_message_id).ok_or_else(|| {
-                        b"Internal error: unable to get gas limit after execution".to_vec()
-                    })?;
-
-                // TODO: Check whether we charge gas fee for submitting code after #646
                 for note in journal {
                     match note {
-                        JournalNote::SendDispatch { .. }
-                        | JournalNote::WaitDispatch(..)
-                        | JournalNote::MessageConsumed(..) => {
-                            let gas_spent = initial_gas.saturating_sub(remaining_gas);
-                            if gas_spent > max_gas_spent {
-                                max_gas_spent = gas_spent;
-                            }
-                        }
                         JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
                             trap,
                             ..
@@ -554,7 +534,7 @@ pub mod pallet {
                 }
             }
 
-            Ok(max_gas_spent)
+            Ok(())
         }
 
         // Messages have only two options to be inserted in mailbox:

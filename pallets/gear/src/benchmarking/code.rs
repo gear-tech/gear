@@ -40,10 +40,18 @@ use sp_std::{borrow::ToOwned, convert::TryFrom, prelude::*};
 use wasm_instrument::parity_wasm::{
     builder,
     elements::{
-        self, CustomSection, External, FuncBody, Instruction, Instructions, Module, Section,
+        self, BlockType, CustomSection, External, FuncBody, Instruction, Instructions, Module, Section,
         ValueType,
     },
 };
+
+/// The location where to put the genrated code.
+pub enum Location {
+    /// Generate all code into the `init` exported function.
+    Init,
+    /// Generate all code into the `handle` exported function.
+    Handle,
+}
 
 /// Pass to `submit_code` in order to create a compiled `WasmModule`.
 ///
@@ -323,6 +331,64 @@ where
         }
         .into()
     }
+
+    /// Creates a wasm module of `target_bytes` size. Used to benchmark the performance of
+    /// `instantiate_with_code` for different sizes of wasm modules. The generated module maximizes
+    /// instrumentation runtime by nesting blocks as deeply as possible given the byte budget.
+    /// `code_location`: Whether to place the code into `init` or `handle`.
+    pub fn sized(target_bytes: u32, code_location: Location) -> Self {
+        use self::elements::Instruction::{End, I32Const, If, Return};
+        // Base size of a program is 63 bytes and each expansion adds 6 bytes.
+        // We do one expansion less to account for the code section and function body
+        // size fields inside the binary wasm module representation which are leb128 encoded
+        // and therefore grow in size when the contract grows. We are not allowed to overshoot
+        // because of the maximum code size that is enforced by `instantiate_with_code`.
+        let expansions = (target_bytes.saturating_sub(63) / 6).saturating_sub(1);
+        const EXPANSION: [Instruction; 4] = [I32Const(0), If(BlockType::NoResult), Return, End];
+        let mut module = ModuleDefinition {
+            memory: Some(ImportedMemory::max::<T>()),
+            ..Default::default()
+        };
+        let body = Some(body::repeated(expansions, &EXPANSION));
+        match code_location {
+            Location::Init => module.init_body = body,
+            Location::Handle => module.handle_body = body,
+        }
+        module.into()
+    }
+
+    /// Creates a wasm module that calls the imported function named `getter_name` `repeat`
+	/// times. The imported function is expected to have the "getter signature" of
+	/// (out_ptr: u32) -> ().
+	pub fn getter(module_name: &'static str, getter_name: &'static str, repeat: u32) -> Self {
+		let pages = max_pages::<T>();
+		ModuleDefinition {
+			memory: Some(ImportedMemory::max::<T>()),
+			imported_functions: vec![ImportedFunction {
+				module: module_name,
+				name: getter_name,
+				params: vec![ValueType::I32],
+				return_type: None,
+			}],
+			// Write the output buffer size. The output size will be overwritten by the
+			// supervisor with the real size when calling the getter. Since this size does not
+			// change between calls it suffices to start with an initial value and then just
+			// leave as whatever value was written there.
+			data_segments: vec![DataSegment {
+				offset: 0,
+				value: (pages * 64 * 1024 - 4).to_le_bytes().to_vec(),
+			}],
+			handle_body: Some(body::repeated(
+				repeat,
+				&[
+					Instruction::I32Const(4), // ptr where to store output
+					Instruction::Call(0),     // call the imported function
+				],
+			)),
+			..Default::default()
+		}
+		.into()
+	}
 
     /// Creates a memory instance for use in a sandbox with dimensions declared in this module
     /// and adds it to `env`. A reference to that memory is returned so that it can be used to

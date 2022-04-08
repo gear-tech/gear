@@ -153,7 +153,7 @@ pub struct Limits {
 impl Limits {
     /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 512
+        self.memory_pages * 64 * 1024
     }
 }
 
@@ -360,7 +360,7 @@ impl Default for Limits {
             stack_height: 512,
             globals: 256,
             parameters: 128,
-            memory_pages: 16,
+            memory_pages: 512,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,
             br_table_size: 256,
