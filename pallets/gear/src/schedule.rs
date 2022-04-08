@@ -25,12 +25,18 @@ use crate::{weights::WeightInfo, Config};
 
 use codec::{Decode, Encode};
 use frame_support::{weights::Weight, DefaultNoBound};
+use pallet_gear_proc_macro::{ScheduleDebug, WeightDebug};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::{marker::PhantomData, vec::Vec};
 use wasm_instrument::{gas_metering, parity_wasm::elements};
+
+/// How many API calls are executed in a single batch. The reason for increasing the amount
+/// of API calls in batches (per benchmark component increase) is so that the linear regression
+/// has an easier time determining the contribution of that component.
+pub const API_BENCHMARK_BATCH_SIZE: u32 = 100;
 
 /// How many instructions are executed in a single batch.
 pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
@@ -69,7 +75,7 @@ pub const INSTR_BENCHMARK_BATCH_SIZE: u32 = 100;
 /// changes are made to its values.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "std", serde(bound(serialize = "", deserialize = "")))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, DefaultNoBound, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, ScheduleDebug, DefaultNoBound, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct Schedule<T: Config> {
     /// Describes the upper limits on various metrics.
@@ -77,8 +83,9 @@ pub struct Schedule<T: Config> {
 
     /// The weights for individual wasm instructions.
     pub instruction_weights: InstructionWeights<T>,
-    // / The weights for each imported function a contract is allowed to call.
-    // pub host_fn_weights: HostFnWeights<T>,
+
+    /// The weights for each imported function a program is allowed to call.
+    pub host_fn_weights: HostFnWeights<T>,
 }
 
 /// Describes the upper limits on various metrics.
@@ -86,7 +93,7 @@ pub struct Schedule<T: Config> {
 /// # Note
 ///
 /// The values in this struct should never be decreased. The reason is that decreasing those
-/// values will break existing contracts which are above the new limits when a
+/// values will break existing programs which are above the new limits when a
 /// re-instrumentation is triggered.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[derive(Clone, Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -117,7 +124,7 @@ pub struct Limits {
     /// the costs of the instructions that cause them (call, call_indirect).
     pub parameters: u32,
 
-    /// Maximum number of memory pages allowed for a contract.
+    /// Maximum number of memory pages allowed for a program.
     pub memory_pages: u32,
 
     /// Maximum number of elements allowed in a table.
@@ -137,16 +144,16 @@ pub struct Limits {
     /// The maximum size of a storage value and event payload in bytes.
     pub payload_len: u32,
 
-    /// The maximum length of a contract code in bytes. This limit applies to the instrumented
+    /// The maximum length of a program code in bytes. This limit applies to the instrumented
     /// version of the code. Therefore `instantiate_with_code` can fail even when supplying
     /// a wasm binary below this maximum size.
     pub code_len: u32,
 }
 
 impl Limits {
-    /// The maximum memory size in bytes that a contract can occupy.
+    /// The maximum memory size in bytes that a program can occupy.
     pub fn max_memory_size(&self) -> u32 {
-        self.memory_pages * 64 * 1024
+        self.memory_pages * 64 * 512
     }
 }
 
@@ -171,7 +178,7 @@ impl Limits {
 ///    that use them as supporting instructions. Supporting means mainly pushing arguments
 ///    and dropping return values in order to maintain a valid module.
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-#[derive(Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct InstructionWeights<T: Config> {
     /// Version of the instruction weights.
@@ -242,6 +249,28 @@ pub struct InstructionWeights<T: Config> {
     pub _phantom: PhantomData<T>,
 }
 
+/// Describes the weight for each imported function that a program is allowed to call.
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[derive(Clone, Encode, Decode, PartialEq, Eq, WeightDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct HostFnWeights<T: Config> {
+    /// Weight of calling `gr_gas_available`.
+    pub gr_gas_available: Weight,
+
+    /// Weight of calling `gr_wait`.
+    pub gr_wait: Weight,
+
+    /// Weight of calling `gr_wake`.
+    pub gr_wake: Weight,
+
+    /// Weight of calling `gas`.
+    pub gas: Weight,
+
+    /// The type parameter is used in the default implementation.
+    #[codec(skip)]
+    pub _phantom: PhantomData<T>,
+}
+
 macro_rules! replace_token {
     ($_in:tt $replacement:tt) => {
         $replacement
@@ -249,15 +278,21 @@ macro_rules! replace_token {
 }
 
 macro_rules! call_zero {
-    ($name:ident, $( $arg:expr ),*) => {
+	($name:ident, $( $arg:expr ),*) => {
         <T as super::pallet::Config>::WeightInfo::$name($( replace_token!($arg 0) ),*)
     };
 }
 
 macro_rules! cost_args {
-    ($name:ident, $( $arg: expr ),+) => {
-        (<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
-    }
+	($name:ident, $( $arg: expr ),+) => {
+		(<T as super::pallet::Config>::WeightInfo::$name($( $arg ),+).saturating_sub(call_zero!($name, $( $arg ),+)))
+	}
+}
+
+macro_rules! cost_batched_args {
+	($name:ident, $( $arg: expr ),+) => {
+		cost_args!($name, $( $arg ),+) / Weight::from(API_BENCHMARK_BATCH_SIZE)
+	}
 }
 
 macro_rules! cost_instr_no_params_with_batch_size {
@@ -278,6 +313,42 @@ macro_rules! cost_instr_with_batch_size {
 macro_rules! cost_instr {
     ($name:ident, $num_params:expr) => {
         cost_instr_with_batch_size!($name, $num_params, INSTR_BENCHMARK_BATCH_SIZE)
+    };
+}
+
+macro_rules! cost_byte_args {
+	($name:ident, $( $arg: expr ),+) => {
+		cost_args!($name, $( $arg ),+) / 1024
+	}
+}
+
+macro_rules! cost_byte_batched_args {
+	($name:ident, $( $arg: expr ),+) => {
+		cost_batched_args!($name, $( $arg ),+) / 1024
+	}
+}
+
+macro_rules! cost {
+    ($name:ident) => {
+        cost_args!($name, 1)
+    };
+}
+
+macro_rules! cost_batched {
+    ($name:ident) => {
+        cost_batched_args!($name, 1)
+    };
+}
+
+macro_rules! cost_byte {
+    ($name:ident) => {
+        cost_byte_args!($name, 1)
+    };
+}
+
+macro_rules! cost_byte_batched {
+    ($name:ident) => {
+        cost_byte_batched_args!($name, 1)
     };
 }
 
@@ -355,6 +426,18 @@ impl<T: Config> Default for InstructionWeights<T> {
             i64shru: cost_instr!(instr_i64shru, 3),
             i64rotl: cost_instr!(instr_i64rotl, 3),
             i64rotr: cost_instr!(instr_i64rotr, 3),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Config> Default for HostFnWeights<T> {
+    fn default() -> Self {
+        Self {
+            gr_gas_available: cost_batched!(gr_gas_available),
+            gr_wait: cost_batched!(gr_wait),
+            gr_wake: cost_batched!(gr_wake),
+            gas: cost_batched!(gas),
             _phantom: PhantomData,
         }
     }
@@ -467,5 +550,17 @@ impl<'a, T: Config> gas_metering::Rules for ScheduleRules<'a, T> {
 
     fn memory_grow_cost(&self) -> gas_metering::MemoryGrowCost {
         gas_metering::MemoryGrowCost::Free
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::mock::Test;
+
+    #[test]
+    fn print_test_schedule() {
+        let schedule = Schedule::<Test>::default();
+        println!("{:#?}", schedule);
     }
 }

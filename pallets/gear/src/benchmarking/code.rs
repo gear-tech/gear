@@ -22,13 +22,16 @@
 //! we need to generate programs that perform those events.
 //! Because those programs can get very big we cannot simply define
 //! them as text (.wat) as this will be too slow and consume too much memory. Therefore
-//! we define this simple definition of a program that can be passed to `create_code` that
+//! we define this simple definition of a program that can be passed to `submit_code` that
 //! compiles it down into a `WasmModule` that can be used as a program's code.
 
+use sp_std::marker::PhantomData;
+
 use crate::Config;
+use common::Origin;
 use frame_support::traits::Get;
 
-use sp_runtime::traits::Hash;
+use gear_core::ids::CodeId;
 use sp_sandbox::{
     default_executor::{EnvironmentDefinitionBuilder, Memory},
     SandboxEnvironmentBuilder, SandboxMemory,
@@ -42,10 +45,10 @@ use wasm_instrument::parity_wasm::{
     },
 };
 
-/// Pass to `create_code` in order to create a compiled `WasmModule`.
+/// Pass to `submit_code` in order to create a compiled `WasmModule`.
 ///
 /// This exists to have a more declarative way to describe a wasm module than to use
-/// parity-wasm directly. It is tailored to fit the structure of contracts that are
+/// parity-wasm directly. It is tailored to fit the structure of programs that are
 /// needed for benchmarking.
 #[derive(Default)]
 pub struct ModuleDefinition {
@@ -76,7 +79,7 @@ pub struct ModuleDefinition {
     pub table: Option<TableSegment>,
     /// Create a section named "dummy" of the specified size. This is useful in order to
     /// benchmark the overhead of loading and storing codes of specified sizes. The dummy
-    /// section only contributes to the size of the contract but does not affect execution.
+    /// section only contributes to the size of the program but does not affect execution.
     pub dummy_section: u32,
 }
 
@@ -95,7 +98,6 @@ pub struct DataSegment {
 #[derive(Clone)]
 pub struct ImportedMemory {
     pub min_pages: u32,
-    pub max_pages: u32,
 }
 
 impl ImportedMemory {
@@ -104,10 +106,7 @@ impl ImportedMemory {
         T: Config,
     {
         let pages = max_pages::<T>();
-        Self {
-            min_pages: pages,
-            max_pages: pages,
-        }
+        Self { min_pages: pages }
     }
 }
 
@@ -120,23 +119,24 @@ pub struct ImportedFunction {
 
 /// A wasm module ready to be put on chain.
 #[derive(Clone)]
-pub struct WasmModule<T: Config> {
+pub struct WasmModule<T> {
     pub code: Vec<u8>,
-    pub hash: <T::Hashing as Hash>::Output,
+    pub hash: CodeId,
     memory: Option<ImportedMemory>,
+    _data: PhantomData<T>,
 }
 
 impl<T: Config> From<ModuleDefinition> for WasmModule<T>
 where
     T: Config,
-    // T::AccountId: UncheckedFrom<T::Hash> + AsRef<[u8]>,
+    T::AccountId: Origin,
 {
     fn from(def: ModuleDefinition) -> Self {
         // internal functions start at that offset.
         let func_offset = u32::try_from(def.imported_functions.len()).unwrap();
 
-        // Every contract must export "init" and "handle" functions
-        let mut contract = builder::module()
+        // Every program must export "init" and "handle" functions
+        let mut program = builder::module()
             // init function (first internal function)
             .function()
             .signature()
@@ -168,21 +168,21 @@ where
 
         // If specified we add an additional internal function
         if let Some(body) = def.aux_body {
-            let mut signature = contract.function().signature();
+            let mut signature = program.function().signature();
             for _ in 0..def.aux_arg_num {
                 signature = signature.with_param(ValueType::I64);
             }
-            contract = signature.build().with_body(body).build();
+            program = signature.build().with_body(body).build();
         }
 
         // Grant access to linear memory.
         if let Some(memory) = &def.memory {
-            contract = contract
+            program = program
                 .import()
                 .module("env")
                 .field("memory")
                 .external()
-                .memory(memory.min_pages, Some(memory.max_pages))
+                .memory(memory.min_pages, None)
                 .build();
         }
 
@@ -192,8 +192,8 @@ where
                 .with_params(func.params)
                 .with_results(func.return_type.into_iter().collect())
                 .build_sig();
-            let sig = contract.push_signature(sig);
-            contract = contract
+            let sig = program.push_signature(sig);
+            program = program
                 .import()
                 .module(func.module)
                 .field(func.name)
@@ -203,7 +203,7 @@ where
 
         // Initialize memory
         for data in def.data_segments {
-            contract = contract
+            program = program
                 .data()
                 .offset(Instruction::I32Const(data.offset as i32))
                 .value(data.value)
@@ -215,7 +215,7 @@ where
             use rand::{distributions::Standard, prelude::*};
             let rng = rand_pcg::Pcg32::seed_from_u64(3112244599778833558);
             for val in rng.sample_iter(Standard).take(def.num_globals as usize) {
-                contract = contract
+                program = program
                     .global()
                     .value_type()
                     .i64()
@@ -227,7 +227,7 @@ where
 
         // Add function pointer table
         if let Some(table) = def.table {
-            contract = contract
+            program = program
                 .table()
                 .with_min(table.num_elements)
                 .with_max(Some(table.num_elements))
@@ -237,24 +237,25 @@ where
 
         // Add the dummy section
         if def.dummy_section > 0 {
-            contract = contract.with_section(Section::Custom(CustomSection::new(
+            program = program.with_section(Section::Custom(CustomSection::new(
                 "dummy".to_owned(),
                 vec![42; def.dummy_section as usize],
             )));
         }
 
-        let mut code = contract.build();
+        let mut code = program.build();
 
         if def.inject_stack_metering {
             code = inject_stack_metering::<T>(code);
         }
 
         let code = code.to_bytes().unwrap();
-        let hash = T::Hashing::hash(&code);
+        let hash = CodeId::generate(&code);
         Self {
             code,
             hash,
             memory: def.memory,
+            _data: PhantomData,
         }
     }
 }
@@ -262,6 +263,7 @@ where
 impl<T: Config> WasmModule<T>
 where
     T: Config,
+    T::AccountId: Origin,
 {
     /// Uses the supplied wasm module and instruments it when requested.
     pub fn instrumented(code: &[u8], inject_gas: bool, inject_stack: bool) -> Self {
@@ -290,15 +292,15 @@ where
             .unwrap()
             .limits();
         let code = module.to_bytes().unwrap();
-        let hash = T::Hashing::hash(&code);
+        let hash = CodeId::generate(&code);
         let memory = ImportedMemory {
             min_pages: limits.initial(),
-            max_pages: limits.maximum().unwrap(),
         };
         Self {
             code,
             hash,
             memory: Some(memory),
+            _data: PhantomData,
         }
     }
 
@@ -310,7 +312,7 @@ where
     /// Same as `dummy` but with maximum sized linear memory and a dummy section of specified size.
     pub fn dummy_with_bytes(dummy_bytes: u32) -> Self {
         // We want the module to have the size `dummy_bytes`.
-        // This is not completely correct as the overhead grows when the contract grows
+        // This is not completely correct as the overhead grows when the program grows
         // because of variable length integer encoding. However, it is good enough to be that
         // close for benchmarking purposes.
         let module_overhead = 65;
@@ -331,7 +333,7 @@ where
         } else {
             return None;
         };
-        let memory = Memory::new(memory.min_pages, Some(memory.max_pages)).unwrap();
+        let memory = Memory::new(memory.min_pages, None).unwrap();
         env.add_memory("env", "memory", memory.clone());
         Some(memory)
     }
@@ -488,7 +490,7 @@ pub mod body {
     }
 }
 
-/// The maximum amount of pages any contract is allowed to have according to the current `Schedule`.
+/// The maximum amount of pages any program is allowed to have according to the current `Schedule`.
 pub fn max_pages<T: Config>() -> u32
 where
     T: Config,

@@ -26,26 +26,34 @@ mod sandbox;
 use self::{
     code::{
         body::{self, DynInstr::*},
-        ImportedMemory, ModuleDefinition, WasmModule,
+        DataSegment, ImportedFunction, ImportedMemory, ModuleDefinition, WasmModule,
     },
     sandbox::Sandbox,
 };
-use crate::{schedule::INSTR_BENCHMARK_BATCH_SIZE, *};
-use frame_benchmarking::benchmarks;
+use crate::{
+    schedule::{API_BENCHMARK_BATCH_SIZE, INSTR_BENCHMARK_BATCH_SIZE},
+    Pallet as Gear, *,
+};
+use codec::{HasCompact, Encode};
+use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_support::traits::Get;
-use frame_system::RawOrigin;
+use frame_system::{pallet_prelude::OriginFor, RawOrigin};
 
 use sp_std::prelude::*;
 use wasm_instrument::parity_wasm::elements::{BlockType, BrTableData, Instruction, ValueType};
+
+use frame_support::weights::Weight;
+use sp_runtime::{
+    traits::{Bounded, Hash},
+    Perbill,
+};
 
 use common::{benchmarking, Origin};
 use gear_core::ids::{CodeId, MessageId, ProgramId};
 
 use sp_core::H256;
-use sp_runtime::traits::UniqueSaturatedInto;
+use sp_runtime::{app_crypto::UncheckedFrom, traits::UniqueSaturatedInto};
 
-#[allow(unused)]
-use crate::Pallet as Gear;
 use frame_support::traits::Currency;
 
 const MIN_CODE_LEN: u32 = 128;
@@ -53,8 +61,85 @@ const MAX_CODE_LEN: u32 = 128 * 1024;
 const MAX_PAYLOAD_LEN: u32 = 64 * 1024;
 const MAX_PAGES: u32 = 512;
 
+/// How many batches we do per API benchmark.
+const API_BENCHMARK_BATCHES: u32 = 20;
+
 /// How many batches we do per Instruction benchmark.
 const INSTR_BENCHMARK_BATCHES: u32 = 50;
+
+/// An instantiated and deployed program.
+struct Program<T: Config> {
+    addr: H256,
+    caller: T::AccountId,
+}
+
+impl<T: Config> Program<T>
+where
+    T: Config,
+    T::AccountId: Origin,
+{
+    /// Create new program and use a default account id as instantiator.
+    fn new(module: WasmModule<T>, data: Vec<u8>) -> Result<Program<T>, &'static str> {
+        Self::with_index(0, module, data)
+    }
+
+    /// Create new program and use an account id derived from the supplied index as instantiator.
+    fn with_index(
+        index: u32,
+        module: WasmModule<T>,
+        data: Vec<u8>,
+    ) -> Result<Program<T>, &'static str> {
+        Self::with_caller(
+            benchmarking::account("instantiator", index, 0),
+            module,
+            data,
+        )
+    }
+
+    /// Create new program and use the supplied `caller` as instantiator.
+    fn with_caller(
+        caller: T::AccountId,
+        module: WasmModule<T>,
+        data: Vec<u8>,
+    ) -> Result<Program<T>, &'static str> {
+        let value = <T as pallet::Config>::Currency::minimum_balance();
+        <T as pallet::Config>::Currency::make_free_balance_be(&caller, caller_funding::<T>());
+        let salt = vec![0xff];
+        let addr = ProgramId::generate(module.hash, &salt).into_origin();
+
+        Gear::<T>::submit_program_raw(
+            RawOrigin::Signed(caller.clone()).into(),
+            module.code,
+            salt,
+            data,
+            250_000_000,
+            value.into(),
+        )?;
+        
+        Gear::<T>::process_queue();
+
+        let result = Program {
+            caller,
+            addr,
+        };
+
+
+        Ok(result)
+    }
+
+    fn code_exists(hash: &CodeId) -> bool {
+        common::code_exists(hash.into_origin())
+    }
+
+    fn code_removed(hash: &CodeId) -> bool {
+        !common::code_exists(hash.into_origin())
+    }
+}
+
+/// The funding that each account that either calls or instantiates programs is funded with.
+fn caller_funding<T: pallet::Config>() -> BalanceOf<T> {
+    BalanceOf::<T>::max_value() / 2u32.into()
+}
 
 benchmarks! {
 
@@ -151,6 +236,110 @@ benchmarks! {
     }
     verify {
         assert!(common::dequeue_dispatch().is_none());
+    }
+
+    gas {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory { min_pages: 256 }),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gas",
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::I32Const(42),
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+
+    }: {
+        let _ = crate::Pallet::<T>::get_gas_spent(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    gr_gas_available {
+        let r in 0 .. API_BENCHMARK_BATCHES;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory { min_pages: 256 }),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_gas_available",
+                params: vec![],
+                return_type: Some(ValueType::I64),
+            }],
+            handle_body: Some(body::repeated(r * API_BENCHMARK_BATCH_SIZE, &[
+                Instruction::Call(0),
+                Instruction::Drop,
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        let _ = crate::Pallet::<T>::get_gas_spent(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    gr_wait {
+        let r in 0 .. 1;
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory { min_pages: 256 }),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_wait",
+                params: vec![],
+                return_type: None,
+            }],
+            handle_body: Some(body::repeated(r, &[
+                Instruction::Call(0),
+            ])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+    }: {
+        let _ = crate::Pallet::<T>::get_gas_spent(instance.caller.into_origin(), HandleKind::Handle(instance.addr), vec![], 0u32.into());
+    }
+
+    // We cannot call `gr_wake` multiple times. Therefore our weight determination is not
+	// as precise as with other APIs.
+    gr_wake {
+        let r in 0 .. 1;
+        let message_id = gear_core::ids::MessageId::from(2);
+        let message_id_bytes = message_id.encode();
+        let message_id_len = message_id_bytes.len();
+        log::debug!("msg_id = {:?}", &message_id);
+        let code = WasmModule::<T>::from(ModuleDefinition {
+            memory: Some(ImportedMemory { min_pages: 256 }),
+            imported_functions: vec![ImportedFunction {
+                module: "env",
+                name: "gr_wake",
+                params: vec![ValueType::I32],
+                return_type: None,
+            }],
+			data_segments: vec![
+				DataSegment {
+					offset: 0 as u32,
+					value: message_id_bytes,
+				},
+			],
+            handle_body: Some(body::repeated(r, &[
+				Instruction::I32Const(0), // message_id_ptr
+				Instruction::Call(0),
+			])),
+            .. Default::default()
+        });
+        let instance = Program::<T>::new(code, vec![])?;
+        let message = gear_core::message::Message::new(message_id, 1.into(), ProgramId::from(instance.addr.as_bytes()), vec![], Some(1_000_000), 0, None);
+        let dispatch = gear_core::message::Dispatch::new(gear_core::message::DispatchKind::Handle, message).into_stored();
+        common::insert_waiting_message(
+            dispatch.destination().into_origin(),
+            dispatch.id().into_origin(),
+            dispatch.clone(),
+            <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+        );
+    }: {
+        let _ = crate::Pallet::<T>::get_gas_spent(instance.caller.into_origin(), HandleKind::Handle(instance.addr), b"gr_wake".to_vec(), 0u32.into());
     }
 
     // We make the assumption that pushing a constant and dropping a value takes roughly
@@ -876,6 +1065,22 @@ benchmarks! {
     }: {
         sbox.invoke();
     }
+
+    // This is no benchmark. It merely exist to have an easy way to pretty print the curently
+    // configured `Schedule` during benchmark development.
+    // It can be outputed using the following command:
+    // cargo run --release --features runtime-benchmarks \
+    //     -- benchmark --extra --dev --execution=native \
+    //     -p pallet_gear -e print_schedule --no-median-slopes --no-min-squares
+    #[extra]
+    print_schedule {
+        #[cfg(feature = "std")]
+        {
+            println!("{:#?}", Schedule::<T>::default());
+        }
+        #[cfg(not(feature = "std"))]
+        Err("Run this bench with a native runtime in order to see the schedule.")?;
+    }: {}
 
     impl_benchmark_test_suite!(
         Gear, crate::mock::new_test_ext(), crate::mock::Test

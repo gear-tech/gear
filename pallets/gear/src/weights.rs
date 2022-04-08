@@ -41,6 +41,10 @@ pub trait WeightInfo {
 	fn send_reply(p: u32, ) -> Weight;
 	fn initial_allocation(q: u32, ) -> Weight;
 	fn alloc_in_handle(q: u32, ) -> Weight;
+	fn gas(q: u32, ) -> Weight;
+	fn gr_gas_available(q: u32, ) -> Weight;
+	fn gr_wait(q: u32, ) -> Weight;
+	fn gr_wake(q: u32, ) -> Weight;
 	fn instr_i64const(r: u32, ) -> Weight;
 	fn instr_i64load(r: u32, ) -> Weight;
 	fn instr_i64store(r: u32, ) -> Weight;
@@ -1171,6 +1175,26 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 	// Storage: unknown [0x673a3a6f726967636f64653a3af62ffeba39d154e843b0b2e8f46ea30261ba54] (r:0 w:1)
 	// Storage: unknown [0x673a3a70616765733a3a08c7345a047775b759f93322331304727367e9269ef5] (r:0 w:1)
 	fn alloc_in_handle(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(16 as Weight))
+			.saturating_add(T::DbWeight::get().writes(15 as Weight))
+	}
+	fn gas(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(16 as Weight))
+			.saturating_add(T::DbWeight::get().writes(15 as Weight))
+	}
+	fn gr_gas_available(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(16 as Weight))
+			.saturating_add(T::DbWeight::get().writes(15 as Weight))
+	}
+	fn gr_wait(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(16 as Weight))
+			.saturating_add(T::DbWeight::get().writes(15 as Weight))
+	}
+	fn gr_wake(_q: u32, ) -> Weight {
 		(285_255_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(16 as Weight))
 			.saturating_add(T::DbWeight::get().writes(15 as Weight))
@@ -2502,6 +2526,26 @@ impl WeightInfo for () {
 	// Storage: unknown [0x673a3a6f726967636f64653a3af62ffeba39d154e843b0b2e8f46ea30261ba54] (r:0 w:1)
 	// Storage: unknown [0x673a3a70616765733a3a08c7345a047775b759f93322331304727367e9269ef5] (r:0 w:1)
 	fn alloc_in_handle(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(16 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(15 as Weight))
+	}
+	fn gas(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(16 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(15 as Weight))
+	}
+	fn gr_gas_available(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(16 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(15 as Weight))
+	}
+	fn gr_wait(_q: u32, ) -> Weight {
+		(285_255_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(16 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(15 as Weight))
+	}
+	fn gr_wake(_q: u32, ) -> Weight {
 		(285_255_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(16 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(15 as Weight))
