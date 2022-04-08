@@ -403,6 +403,160 @@ pub mod pallet {
             Ok(().into())
         }
 
+        /// Same as get_gas_spent but process only one message.
+        #[cfg(feature = "runtime-benchmarks")]
+        pub fn process_message(
+            source: H256,
+            kind: HandleKind,
+            payload: Vec<u8>,
+            value: u128,
+        ) -> Result<u64, Vec<u8>> {
+            let mut ext_manager = ExtManager::<T>::default();
+
+            let bn: u64 = <frame_system::Pallet<T>>::block_number().unique_saturated_into();
+            let root_message_id = MessageId::from(bn).into_origin();
+
+            let dispatch = match kind {
+                HandleKind::Init(ref code) => {
+                    let program_id = ProgramId::generate(CodeId::generate(code), b"salt");
+
+                    let schedule = T::Schedule::get();
+
+                    let module =
+                        wasm_instrument::parity_wasm::deserialize_buffer(code).unwrap_or_default();
+
+                    let gas_rules = schedule.rules(&module);
+
+                    let code = Code::try_new(
+                        code.clone(),
+                        schedule.instruction_weights.version,
+                        Some(module),
+                        gas_rules,
+                    )
+                    .map_err(|_| b"Code failed to load: {}".to_vec())?;
+
+                    let _ = Self::set_code_with_metadata(&code, source);
+
+                    ExtManager::<T>::default().set_program(program_id, code, root_message_id);
+
+                    Dispatch::new(
+                        DispatchKind::Init,
+                        Message::new(
+                            MessageId::from_origin(root_message_id),
+                            ProgramId::from_origin(source),
+                            program_id,
+                            payload,
+                            Some(u64::MAX),
+                            value,
+                            None,
+                        ),
+                    )
+                }
+                HandleKind::Handle(dest) => Dispatch::new(
+                    DispatchKind::Handle,
+                    Message::new(
+                        MessageId::from_origin(root_message_id),
+                        ProgramId::from_origin(source),
+                        ProgramId::from_origin(dest),
+                        payload,
+                        Some(u64::MAX),
+                        value,
+                        None,
+                    ),
+                ),
+                HandleKind::Reply(msg_id, exit_code) => {
+                    let msg = Self::remove_from_mailbox(source, msg_id).ok_or_else(|| {
+                        b"Internal error: unable to find message in mailbox".to_vec()
+                    })?;
+                    Dispatch::new(
+                        DispatchKind::Reply,
+                        Message::new(
+                            MessageId::from_origin(root_message_id),
+                            ProgramId::from_origin(source),
+                            msg.source(),
+                            payload,
+                            Some(u64::MAX),
+                            value,
+                            Some((msg.id(), exit_code)),
+                        ),
+                    )
+                }
+            };
+
+            let initial_gas = T::BlockGasLimit::get();
+            T::GasHandler::create(source.into_origin(), root_message_id, initial_gas)
+                .map_err(|_| b"Internal error: unable to create gas handler".to_vec())?;
+
+            let dispatch = dispatch.into_stored();
+
+            common::clear_dispatch_queue();
+            common::queue_dispatch(dispatch);
+
+            let block_info = BlockInfo {
+                height: <frame_system::Pallet<T>>::block_number().unique_saturated_into(),
+                timestamp: <pallet_timestamp::Pallet<T>>::get().unique_saturated_into(),
+            };
+
+            let existential_deposit =
+                <T as Config>::Currency::minimum_balance().unique_saturated_into();
+
+            let mut max_gas_spent = 0;
+
+            if let Some(queued_dispatch) = common::dequeue_dispatch() {
+                let actor_id = queued_dispatch.destination();
+                let actor = ext_manager
+                    .get_executable_actor(actor_id.into_origin())
+                    .ok_or_else(|| b"Program not found in the storage".to_vec())?;
+
+                let journal = core_processor::process::<
+                    ext::LazyPagesExt,
+                    SandboxEnvironment<ext::LazyPagesExt>,
+                >(
+                    Some(actor),
+                    queued_dispatch.into_incoming(initial_gas),
+                    block_info,
+                    existential_deposit,
+                    ProgramId::from_origin(source),
+                    actor_id,
+                    u64::MAX,
+                );
+
+                core_processor::handle_journal(journal.clone(), &mut ext_manager);
+
+                let (remaining_gas, _) =
+                    T::GasHandler::get_limit(root_message_id).ok_or_else(|| {
+                        b"Internal error: unable to get gas limit after execution".to_vec()
+                    })?;
+
+                // TODO: Check whether we charge gas fee for submitting code after #646
+                for note in journal {
+                    match note {
+                        JournalNote::SendDispatch { .. }
+                        | JournalNote::WaitDispatch(..)
+                        | JournalNote::MessageConsumed(..) => {
+                            let gas_spent = initial_gas.saturating_sub(remaining_gas);
+                            if gas_spent > max_gas_spent {
+                                max_gas_spent = gas_spent;
+                            }
+                        }
+                        JournalNote::MessageDispatched(CoreDispatchOutcome::MessageTrap {
+                            trap,
+                            ..
+                        }) => {
+                            return Err(format!(
+                                "Program terminated with a trap: {}",
+                                trap.unwrap_or("No reason")
+                            )
+                            .into_bytes());
+                        }
+                        _ => (),
+                    }
+                }
+            }
+
+            Ok(max_gas_spent)
+        }
+
         // Messages have only two options to be inserted in mailbox:
         // 1. While message processing called `gr_wait`.
         // 2. While message addressed to program, that hadn't finished it's initialization.

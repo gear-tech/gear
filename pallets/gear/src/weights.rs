@@ -1194,10 +1194,14 @@ impl<T: frame_system::Config> WeightInfo for GearWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(16 as Weight))
 			.saturating_add(T::DbWeight::get().writes(15 as Weight))
 	}
-	fn gr_wake(_q: u32, ) -> Weight {
-		(285_255_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(16 as Weight))
-			.saturating_add(T::DbWeight::get().writes(15 as Weight))
+	fn gr_wake(r: u32, ) -> Weight {
+		(543_016_000 as Weight)
+			// Standard Error: 834_000
+			.saturating_add((896_120_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(T::DbWeight::get().reads(13 as Weight))
+			.saturating_add(T::DbWeight::get().reads((100 as Weight).saturating_mul(r as Weight)))
+			.saturating_add(T::DbWeight::get().writes(8 as Weight))
+			.saturating_add(T::DbWeight::get().writes((200 as Weight).saturating_mul(r as Weight)))
 	}
 	fn instr_i64const(r: u32, ) -> Weight {
 		(16_806_000 as Weight)
@@ -2545,10 +2549,14 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(16 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(15 as Weight))
 	}
-	fn gr_wake(_q: u32, ) -> Weight {
-		(285_255_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(16 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(15 as Weight))
+	fn gr_wake(r: u32, ) -> Weight {
+		(543_016_000 as Weight)
+			// Standard Error: 834_000
+			.saturating_add((896_120_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(RocksDbWeight::get().reads(13 as Weight))
+			.saturating_add(RocksDbWeight::get().reads((100 as Weight).saturating_mul(r as Weight)))
+			.saturating_add(RocksDbWeight::get().writes(8 as Weight))
+			.saturating_add(RocksDbWeight::get().writes((200 as Weight).saturating_mul(r as Weight)))
 	}
 	fn instr_i64const(r: u32, ) -> Weight {
 		(16_806_000 as Weight)
