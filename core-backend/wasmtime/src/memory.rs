@@ -20,7 +20,7 @@
 
 use crate::env::StoreData;
 use gear_core::env::Ext;
-use gear_core::memory::{Error, Memory, PageNumber};
+use gear_core::memory::{Error, Memory, PageNumber, WasmPageNumber};
 use wasmtime::StoreContextMut;
 
 /// Wrapper for wasmtime memory.
@@ -31,14 +31,14 @@ pub struct MemoryWrap<'a, E: Ext> {
 
 /// Memory interface for the allocator.
 impl<'a, E: Ext> Memory for MemoryWrap<'a, E> {
-    fn grow(&mut self, pages: PageNumber) -> Result<PageNumber, Error> {
+    fn grow(&mut self, pages: WasmPageNumber) -> Result<PageNumber, Error> {
         self.mem
-            .grow(&mut self.store, pages.raw() as u64)
+            .grow(&mut self.store, pages.0 as u64)
             .map(|offset| (offset as u32).into())
             .map_err(|_| Error::OutOfMemory)
     }
 
-    fn size(&self) -> PageNumber {
+    fn size(&self) -> WasmPageNumber {
         (self.mem.size(&self.store) as u32).into()
     }
 

@@ -61,13 +61,13 @@ impl<E: Ext + 'static> FuncsHandler<E> {
         let func = move |mut caller: Caller<'_, StoreData<E>>, pages: i32| {
             let ext = caller.data().ext.clone();
             let pages = pages as u32;
-            let ptr = ext
+            let page = ext
                 .with_fallible(|ext| {
                     ext.alloc(pages.into(), &mut get_caller_memory(&mut caller, &mem))
                 })
                 .map_err(Trap::new)?;
-            log::debug!("ALLOC PAGES: {} pages at {}", pages, ptr.raw());
-            Ok(ptr.raw())
+            log::debug!("ALLOC PAGES: {} pages at {:?}", pages, page);
+            Ok(page.0)
         };
         Func::wrap(store, func)
     }
